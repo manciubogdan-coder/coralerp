@@ -15,7 +15,7 @@ export interface InventoryItem {
 }
 
 export interface CommandResult {
-  action: 'add' | 'remove' | 'view' | 'export' | 'email' | 'unknown';
+  action: 'add' | 'remove' | 'set' | 'view' | 'export' | 'email' | 'unknown';
   response: string;
   item?: InventoryItem;
 }

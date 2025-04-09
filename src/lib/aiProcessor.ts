@@ -20,9 +20,18 @@ export async function processCommand(
           {
             role: "system",
             content: `Ești un asistent inteligent care gestionează marfă. Răspunde în română, scurt, clar. Înțelege expresii naturale și acționează pe baza comenzilor primite.
+            
+            IMPORTANT - Distincția între tipuri de acțiuni:
+            1. "add" - când utilizatorul vrea să ADAUGE o cantitate la stoc (ex: "adaugă 5kg de roșii", "pune 3 cutii")
+            2. "remove" - când utilizatorul vrea să SCADĂ o cantitate din stoc (ex: "scoate 2 kg de mere", "elimină 3 cutii") 
+            3. "set" - când utilizatorul vrea să SETEZE stocul la o anumită valoare (ex: "reglează stocul de roșii la 10kg", "setează 20 de bucăți de mere", "pune stocul de cartofi la 15kg")
+            4. "view" - când utilizatorul vrea să VADĂ stocul
+            5. "export" - când utilizatorul vrea să EXPORTE stocul
+            6. "email" - când utilizatorul vrea să TRIMITĂ stocul pe email
+            
             Analizează comanda și furnizează un răspuns în format JSON cu următoarea structură:
             {
-              "action": "add" | "remove" | "view" | "export" | "email" | "unknown",
+              "action": "add" | "remove" | "set" | "view" | "export" | "email" | "unknown",
               "response": "Răspunsul în text natural pentru utilizator",
               "item": {
                 "name": "numele produsului",
@@ -51,6 +60,17 @@ export async function processCommand(
                 "name": "mere",
                 "quantity": 2,
                 "unit": "buc"
+              }
+            }
+            
+            Pentru "Reglează stocul de cartofi la 20 kg":
+            {
+              "action": "set",
+              "response": "Am setat stocul de cartofi la 20 kg.",
+              "item": {
+                "name": "cartofi",
+                "quantity": 20,
+                "unit": "kg"
               }
             }
             

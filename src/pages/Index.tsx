@@ -252,7 +252,7 @@ const Index = () => {
       setResponse(result.response);
 
       // Handle inventory updates if needed
-      if (result.action === 'add' || result.action === 'remove') {
+      if (result.action === 'add' || result.action === 'remove' || result.action === 'set') {
         if (result.item) {
           // Check if item exists in inventory
           const existingItemIndex = inventory.findIndex(
@@ -265,13 +265,22 @@ const Index = () => {
               ...inventory[existingItemIndex],
               quantity: result.action === 'add' 
                 ? inventory[existingItemIndex].quantity + result.item.quantity
-                : Math.max(0, inventory[existingItemIndex].quantity - result.item.quantity)
+                : result.action === 'remove'
+                  ? Math.max(0, inventory[existingItemIndex].quantity - result.item.quantity)
+                  : result.item.quantity // For 'set' action, use the exact quantity
             };
             
             await updateInventoryItem(updatedItem);
-          } else if (result.action === 'add') {
+          } else if (result.action === 'add' || result.action === 'set') {
             // Add new item
             await updateInventoryItem(result.item);
+          } else {
+            // Cannot remove an item that doesn't exist
+            toast({
+              variant: "destructive",
+              title: "Produsul nu există",
+              description: `Nu s-a găsit produsul "${result.item.name}" în stoc.`
+            });
           }
         }
       } else if (result.action === 'export') {
