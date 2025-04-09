@@ -1,4 +1,3 @@
-
 import { CommandResult, InventoryItem, ChartData } from "@/types";
 
 export async function processCommand(
@@ -52,7 +51,7 @@ export async function processCommand(
         
         Răspunsul tău va include grafice atunci când se solicită informații statistice sau cantitative despre stoc (la întrebări de tip "câte", "care", etc.). Poți crea grafice de tip bar, pie sau line când datele permit.
         
-        FOARTE IMPORTANT! Răspunde mereu într-un format JSON valid folosind următoarea structură exactă. Nu include text în afara obiectului JSON:
+        FOARTE IMPORTANT! Răspunde întotdeauna ca un obiect JSON cu următoarea structură exactă:
         {
           "action": "add" | "remove" | "set" | "view" | "export" | "email" | "query" | "unknown",
           "response": "Răspunsul în text natural pentru utilizator",
@@ -62,7 +61,7 @@ export async function processCommand(
             "unit": "unitatea de măsură",
             "supplier": "numele furnizorului (opțional)",
             "batch_number": "numărul lotului (opțional)",
-            "pallets": numărul de paleți (opțional),
+            "pallets": numărul de paleți (opțional)",
             "receipt_date": "data recepției în format ISO (opțional)"
           },
           "charts": [
@@ -99,7 +98,9 @@ export async function processCommand(
         
         Când utilizatorul solicită grafice sau date vizuale, trebuie să incluzi date relevante în câmpul "charts" din răspuns.
 
-        FOARTE IMPORTANT! Când utilizatorul face întrebări precum "cate produse am in total?", "ce produse am în stoc?", "arată-mi distribuția pe furnizori", "care sunt cantitățile pe loturi", etc., răspunde cu acțiunea "query" și include grafice relevante în câmpul "charts".
+        FOARTE IMPORTANT! Când utilizatorul face întrebări precum "cate produse am in total?", "ce produse am în stoc?", "arată-mi distribuția pe furnizori", "care sunt cantitățile pe loturi", "cate intrari ai avut azi?", etc., răspunde cu acțiunea "query" și include grafice relevante în câmpul "charts".
+
+        Răspunde DOAR cu un obiect JSON valid - nici un text în afara acestui obiect!
         
         Câteva exemple:
         Pentru "Adaugă 5 kg de roșii":
@@ -123,149 +124,10 @@ export async function processCommand(
           }
         }
         
-        Pentru "Adaugă un palet de roșii de 500kg de la furnizorul ABC":
-        {
-          "action": "add",
-          "response": "Am adăugat 500 kg de roșii (1 palet) de la furnizorul ABC în stoc.",
-          "item": {
-            "name": "roșii",
-            "quantity": 500,
-            "unit": "kg",
-            "supplier": "ABC",
-            "pallets": 1
-          }
-        }
-        
-        Pentru "Adaugă 50kg de menta de la magnani lot 1504":
-        {
-          "action": "add",
-          "response": "Am adăugat 50 kg de mentă de la furnizorul Magnani, numărul lotului 1504, în stoc.",
-          "item": {
-            "name": "menta",
-            "quantity": 50,
-            "unit": "kg",
-            "supplier": "Magnani",
-            "batch_number": "1504"
-          }
-        }
-
-        Pentru "adauga 50 kg de menta de la magnani nr lot 1505":
-        {
-          "action": "add",
-          "response": "Am adăugat 50 kg de mentă de la furnizorul Magnani, numărul lotului 1505, în stoc.",
-          "item": {
-            "name": "menta",
-            "quantity": 50,
-            "unit": "kg",
-            "supplier": "Magnani",
-            "batch_number": "1505"
-          }
-        }
-        
-        Pentru "Scoate 2 kg de mere":
-        {
-          "action": "remove",
-          "response": "Am scos 2 bucăți de mere din stoc.",
-          "item": {
-            "name": "mere",
-            "quantity": 2,
-            "unit": "buc"
-          }
-        }
-
-        Pentru "Scoate 50 kg de menta de la magnani nr lot 1505":
-        {
-          "action": "remove",
-          "response": "Am scos 50 kg de mentă de la furnizorul Magnani, numărul lotului 1505, din stoc.",
-          "item": {
-            "name": "menta",
-            "quantity": 50,
-            "unit": "kg",
-            "supplier": "Magnani",
-            "batch_number": "1505"
-          }
-        }
-        
-        Pentru "Reglează stocul de cartofi la 20 kg":
-        {
-          "action": "set",
-          "response": "Am setat stocul de cartofi la 20 kg.",
-          "item": {
-            "name": "cartofi",
-            "quantity": 20,
-            "unit": "kg"
-          }
-        }
-        
-        Pentru "Ce conține stocul?":
-        {
-          "action": "view",
-          "response": "Vă afișez stocul curent."
-        }
-        
-        Pentru "Exportă Excel":
-        {
-          "action": "export",
-          "response": "Am generat fișierul Excel cu stocul curent."
-        }
-        
-        Pentru "Trimite raport pe email":
-        {
-          "action": "email",
-          "response": "Am trimis raportul pe email."
-        }
-
-        Pentru "Câte loturi de mentă avem în stoc?":
+        Pentru "Câte intrări ai avut azi?":
         {
           "action": "query",
-          "response": "Avem 3 loturi de mentă în stoc: lotul 1504 (50kg), lotul 1505 (100kg) și lotul 1506 (75kg), toate de la furnizorul Magnani.",
-          "charts": [
-            {
-              "type": "bar",
-              "title": "Loturi de mentă în stoc",
-              "data": [
-                {"name": "Lot 1504", "value": 50, "supplier": "Magnani"},
-                {"name": "Lot 1505", "value": 100, "supplier": "Magnani"},
-                {"name": "Lot 1506", "value": 75, "supplier": "Magnani"}
-              ],
-              "description": "Cantități de mentă pe loturi"
-            }
-          ]
-        }
-
-        Pentru "Câtă mentă avem în total?":
-        {
-          "action": "query",
-          "response": "Avem în total 225 kg de mentă în stoc de la furnizorul Magnani, distribuite în 3 loturi diferite.",
-          "charts": [
-            {
-              "type": "pie",
-              "title": "Distribuția mentei pe loturi",
-              "data": [
-                {"name": "Lot 1504", "value": 50},
-                {"name": "Lot 1505", "value": 100},
-                {"name": "Lot 1506", "value": 75}
-              ]
-            }
-          ]
-        }
-
-        Pentru "Arată distribuția pe furnizori":
-        {
-          "action": "query",
-          "response": "Iată distribuția produselor pe furnizori:",
-          "charts": [
-            {
-              "type": "bar",
-              "title": "Distribuția produselor pe furnizori",
-              "data": [
-                {"name": "Magnani", "value": 225},
-                {"name": "Agrico", "value": 500},
-                {"name": "Biofresh", "value": 320}
-              ],
-              "description": "Cantități totale pe furnizori"
-            }
-          ]
+          "response": "Astăzi au fost înregistrate 5 intrări de produse în stoc. Detalii: 2 loturi de roșii, 1 lot de cartofi și 2 loturi de mere."
         }
         
         Actuala stare a inventarului este: ${JSON.stringify(inventory)}
@@ -301,7 +163,8 @@ export async function processCommand(
         model: "gpt-3.5-turbo",
         messages,
         temperature: 0.3,
-        max_tokens: 800 // Crescut pentru a permite grafice și răspunsuri mai detaliate
+        max_tokens: 800,
+        response_format: { type: "json_object" } // Specificăm explicit că vrem JSON
       })
     });
 
@@ -319,44 +182,79 @@ export async function processCommand(
       const content = data.choices[0].message.content;
       console.log("AI response:", content);
       
-      // Handle non-JSON responses by attempting to extract JSON
+      // Parse JSON response
       let jsonContent = content;
       
-      // Try to find JSON content if the response isn't pure JSON
-      if (content.indexOf('{') !== 0) {
+      try {
+        // Încercăm să parsăm direct răspunsul
+        const parsedResponse = JSON.parse(jsonContent);
+        
+        // Process any charts în răspuns
+        let charts: ChartData[] = [];
+        if (parsedResponse.charts && Array.isArray(parsedResponse.charts)) {
+          charts = parsedResponse.charts.map((chart: any) => ({
+            type: chart.type || 'bar',
+            title: chart.title || 'Grafic',
+            data: chart.data || [],
+            xKey: chart.xKey,
+            yKey: chart.yKey,
+            description: chart.description
+          }));
+        }
+
+        return {
+          action: parsedResponse.action || "unknown",
+          response: parsedResponse.response || "Nu am putut procesa comanda.",
+          item: parsedResponse.item || undefined,
+          charts: charts.length > 0 ? charts : undefined,
+          needsMoreInfo: parsedResponse.needsMoreInfo || undefined
+        };
+      } catch (parseJsonError) {
+        console.error("Error parsing AI response as JSON:", parseJsonError);
+        
+        // Dacă răspunsul nu este JSON valid, căutăm un obiect JSON în text
         const jsonStartIndex = content.indexOf('{');
         const jsonEndIndex = content.lastIndexOf('}') + 1;
         
         if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
-          jsonContent = content.substring(jsonStartIndex, jsonEndIndex);
-          console.log("Extracted JSON content:", jsonContent);
+          try {
+            jsonContent = content.substring(jsonStartIndex, jsonEndIndex);
+            console.log("Extracted JSON content:", jsonContent);
+            const parsedResponse = JSON.parse(jsonContent);
+            
+            // Process any charts în răspuns
+            let charts: ChartData[] = [];
+            if (parsedResponse.charts && Array.isArray(parsedResponse.charts)) {
+              charts = parsedResponse.charts.map((chart: any) => ({
+                type: chart.type || 'bar',
+                title: chart.title || 'Grafic',
+                data: chart.data || [],
+                xKey: chart.xKey,
+                yKey: chart.yKey,
+                description: chart.description
+              }));
+            }
+
+            return {
+              action: parsedResponse.action || "unknown",
+              response: parsedResponse.response || "Nu am putut procesa comanda.",
+              item: parsedResponse.item || undefined,
+              charts: charts.length > 0 ? charts : undefined,
+              needsMoreInfo: parsedResponse.needsMoreInfo || undefined
+            };
+          } catch (extractError) {
+            console.error("Error parsing extracted JSON:", extractError);
+          }
         }
+        
+        // Dacă tot nu putem obține un JSON valid, folosim conținutul ca răspuns simplu
+        return {
+          action: "query",
+          response: content
+        };
       }
-      
-      const parsedResponse = JSON.parse(jsonContent);
-
-      // Process any charts în răspuns
-      let charts: ChartData[] = [];
-      if (parsedResponse.charts && Array.isArray(parsedResponse.charts)) {
-        charts = parsedResponse.charts.map((chart: any) => ({
-          type: chart.type || 'bar',
-          title: chart.title || 'Grafic',
-          data: chart.data || [],
-          xKey: chart.xKey,
-          yKey: chart.yKey,
-          description: chart.description
-        }));
-      }
-
-      return {
-        action: parsedResponse.action || "unknown",
-        response: parsedResponse.response || "Nu am putut procesa comanda.",
-        item: parsedResponse.item || undefined,
-        charts: charts.length > 0 ? charts : undefined,
-        needsMoreInfo: parsedResponse.needsMoreInfo || undefined
-      };
-    } catch (parseError) {
-      console.error("Error parsing AI response:", parseError);
+    } catch (error) {
+      console.error("Error processing command:", error);
       
       // Try to recognize the command pattern directly
       return recognizeCommandPattern(command, inventory);
@@ -373,6 +271,87 @@ export async function processCommand(
 // Direct command handler for very specific patterns we know work consistently
 function handleDirectCommand(command: string, inventory: InventoryItem[]): CommandResult | null {
   const lowercaseCommand = command.toLowerCase();
+
+  // Handle queries about entries/intrări de azi
+  if (lowercaseCommand.includes("intrări") || lowercaseCommand.includes("intrari") || 
+      lowercaseCommand.includes("azi") || lowercaseCommand.includes("astăzi") || 
+      lowercaseCommand.includes("astazi")) {
+    
+    // Get today's date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today
+    
+    // Filter inventory for items added today
+    const todayItems = inventory.filter(item => {
+      if (!item.receipt_date) return false;
+      
+      // Convert receipt_date to a Date object if it isn't already
+      const receiptDate = item.receipt_date instanceof Date ? 
+        item.receipt_date : 
+        new Date(item.receipt_date);
+      
+      // Set time to start of day for comparison
+      receiptDate.setHours(0, 0, 0, 0);
+      
+      // Compare dates
+      return receiptDate.getTime() === today.getTime();
+    });
+    
+    if (todayItems.length > 0) {
+      // Create summary by product
+      const productSummary: Record<string, {name: string, count: number, totalQuantity: number, unit: string}> = {};
+      
+      todayItems.forEach(item => {
+        if (!productSummary[item.name]) {
+          productSummary[item.name] = {
+            name: item.name,
+            count: 0,
+            totalQuantity: 0,
+            unit: item.unit
+          };
+        }
+        
+        productSummary[item.name].count++;
+        productSummary[item.name].totalQuantity += item.quantity;
+      });
+      
+      // Create chart data
+      const chartData: ChartData[] = [
+        {
+          type: 'bar',
+          title: 'Intrări de astăzi',
+          data: Object.values(productSummary).map(p => ({
+            name: p.name,
+            value: p.totalQuantity
+          })),
+          description: 'Cantități adăugate astăzi'
+        },
+        {
+          type: 'pie',
+          title: 'Distribuția intrărilor de astăzi',
+          data: Object.values(productSummary).map(p => ({
+            name: p.name,
+            value: p.totalQuantity
+          })),
+        }
+      ];
+      
+      const productList = Object.values(productSummary)
+        .map(p => `${p.count} ${p.count === 1 ? 'intrare' : 'intrări'} de ${p.name} (total: ${p.totalQuantity} ${p.unit})`)
+        .join(', ');
+      
+      return {
+        action: "query",
+        response: `Astăzi au fost înregistrate ${todayItems.length} intrări în stoc: ${productList}.`,
+        charts: chartData
+      };
+    } else {
+      return {
+        action: "query",
+        response: "Nu am înregistrat nicio intrare în stoc astăzi."
+      };
+    }
+  }
   
   // Handle the specific mentă/menta commands with lot numbers for adding
   const mentaAddRegex = /adaug[aă]\s+(\d+)\s*kg\s+de\s+ment[aă]\s+de\s+la\s+magnani\s+(?:nr\s+)?lot\s+(\d+)/i;

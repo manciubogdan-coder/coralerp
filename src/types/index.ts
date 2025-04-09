@@ -1,4 +1,5 @@
 
+
 export interface InventoryItem {
   id?: string;
   name: string;
@@ -130,3 +131,4 @@ declare global {
     speak(utterance: SpeechSynthesisUtterance): void;
   }
 }
+
