@@ -7,25 +7,11 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import VoiceCommandPanel from "@/components/VoiceCommandPanel";
 import InventoryTable from "@/components/InventoryTable";
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, serverTimestamp, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { processCommand } from "@/lib/aiProcessor";
 import { InventoryItem } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";
 import { sendEmail } from "@/lib/emailService";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyDpdNDcF_OrPDzP9M3sBNCRJ4DCG5Bx_u8",
-  authDomain: "chatbotai-e3087.firebaseapp.com",
-  projectId: "chatbotai-e3087",
-  storageBucket: "chatbotai-e3087.firebasestorage.app",
-  messagingSenderId: "359047291932",
-  appId: "1:359047291932:web:286a3c0cf4fb6b43efabd9"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -80,15 +66,32 @@ const Index = () => {
     };
   }, []);
 
-  // Load inventory data from Firebase
+  // Load inventory data from Supabase
   useEffect(() => {
     const fetchInventory = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, "inventory"));
-        const items: InventoryItem[] = [];
-        querySnapshot.forEach((doc) => {
-          items.push({ id: doc.id, ...doc.data() as Omit<InventoryItem, 'id'> });
-        });
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('*')
+          .order('updated_at', { ascending: false });
+        
+        if (error) throw error;
+
+        const items: InventoryItem[] = data.map(item => ({
+          id: item.id,
+          name: item.name,
+          quantity: Number(item.quantity),
+          unit: item.unit,
+          createdAt: {
+            seconds: new Date(item.created_at).getTime() / 1000,
+            nanoseconds: 0
+          },
+          updatedAt: {
+            seconds: new Date(item.updated_at).getTime() / 1000,
+            nanoseconds: 0
+          }
+        }));
+        
         setInventory(items);
       } catch (error) {
         console.error("Error fetching inventory:", error);
@@ -102,16 +105,19 @@ const Index = () => {
 
     const fetchConversations = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, "conversations"));
-        const convs: {text: string, timestamp: Date}[] = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          convs.push({ 
-            text: data.text, 
-            timestamp: data.timestamp?.toDate() || new Date() 
-          });
-        });
-        setConversations(convs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
+        const { data, error } = await supabase
+          .from('conversations')
+          .select('*')
+          .order('timestamp', { ascending: true });
+        
+        if (error) throw error;
+
+        const convs: {text: string, timestamp: Date}[] = data.map(conv => ({
+          text: conv.text,
+          timestamp: new Date(conv.timestamp)
+        }));
+        
+        setConversations(convs);
       } catch (error) {
         console.error("Error fetching conversations:", error);
       }
@@ -155,10 +161,11 @@ const Index = () => {
 
   const saveConversation = async (text: string) => {
     try {
-      await addDoc(collection(db, "conversations"), {
-        text,
-        timestamp: serverTimestamp()
-      });
+      const { error } = await supabase
+        .from('conversations')
+        .insert({ text });
+      
+      if (error) throw error;
       
       setConversations(prev => [...prev, { text, timestamp: new Date() }]);
     } catch (error) {
@@ -169,28 +176,54 @@ const Index = () => {
   const updateInventoryItem = async (item: InventoryItem) => {
     try {
       if (item.id) {
-        await updateDoc(doc(db, "inventory", item.id), {
-          name: item.name,
-          quantity: item.quantity,
-          unit: item.unit,
-          updatedAt: serverTimestamp()
-        });
+        // Update existing item
+        const { error } = await supabase
+          .from('inventory')
+          .update({
+            name: item.name,
+            quantity: item.quantity,
+            unit: item.unit,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', item.id);
+          
+        if (error) throw error;
       } else {
-        await addDoc(collection(db, "inventory"), {
-          name: item.name,
-          quantity: item.quantity,
-          unit: item.unit,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
+        // Add new item
+        const { error } = await supabase
+          .from('inventory')
+          .insert({
+            name: item.name,
+            quantity: item.quantity,
+            unit: item.unit
+          });
+          
+        if (error) throw error;
       }
       
       // Refresh inventory
-      const querySnapshot = await getDocs(collection(db, "inventory"));
-      const items: InventoryItem[] = [];
-      querySnapshot.forEach((doc) => {
-        items.push({ id: doc.id, ...doc.data() as Omit<InventoryItem, 'id'> });
-      });
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('*')
+        .order('updated_at', { ascending: false });
+      
+      if (error) throw error;
+
+      const items: InventoryItem[] = data.map(item => ({
+        id: item.id,
+        name: item.name,
+        quantity: Number(item.quantity),
+        unit: item.unit,
+        createdAt: {
+          seconds: new Date(item.created_at).getTime() / 1000,
+          nanoseconds: 0
+        },
+        updatedAt: {
+          seconds: new Date(item.updated_at).getTime() / 1000,
+          nanoseconds: 0
+        }
+      }));
+      
       setInventory(items);
       
     } catch (error) {
