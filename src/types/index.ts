@@ -1,4 +1,5 @@
 
+
 export interface InventoryItem {
   id?: string;
   name: string;
@@ -113,7 +114,6 @@ declare global {
     readonly voiceURI: string;
   }
 
-  // Define SpeechSynthesis interface explicitly
   interface SpeechSynthesis {
     readonly speaking: boolean;
     onvoiceschanged: ((this: SpeechSynthesis, ev: Event) => any) | null;
@@ -128,7 +128,8 @@ declare global {
   interface Window {
     SpeechRecognition: new () => SpeechRecognition;
     webkitSpeechRecognition: new () => SpeechRecognition;
-    speechSynthesis: SpeechSynthesis;  // Reference the interface defined above
+    speechSynthesis: SpeechSynthesis;
     SpeechSynthesisUtterance: typeof SpeechSynthesisUtterance;
   }
 }
+

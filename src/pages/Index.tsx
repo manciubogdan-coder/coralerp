@@ -224,46 +224,69 @@ const Index = () => {
   const updateInventoryItem = async (item: InventoryItem) => {
     try {
       const receipt_date = item.receipt_date ? item.receipt_date.toISOString() : null;
+      console.log("Updating inventory item:", item);
       
       // Check if item with same name, supplier AND batch_number exists
       let existingItem = null;
       
       if (item.batch_number) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('inventory')
           .select('*')
           .eq('name', item.name)
           .eq('supplier', item.supplier || null)
-          .eq('batch_number', item.batch_number)
-          .maybeSingle();
+          .eq('batch_number', item.batch_number);
           
-        existingItem = data;
+        if (error) {
+          console.error("Error finding existing item:", error);
+          throw error;
+        }
+        
+        if (data && data.length > 0) {
+          existingItem = data[0];
+          console.log("Found existing item by batch:", existingItem);
+        }
       }
       
       if (existingItem?.id) {
         // Update existing record with same name + supplier + batch_number
+        let newQuantity = item.quantity;
+        
+        if (item.action === 'add') {
+          newQuantity = Number(existingItem.quantity) + Number(item.quantity);
+        } else if (item.action === 'remove') {
+          newQuantity = Math.max(0, Number(existingItem.quantity) - Number(item.quantity));
+        }
+        
+        console.log(`Updating quantity: ${existingItem.quantity} to ${newQuantity} (action: ${item.action})`);
+        
+        let newPallets = existingItem.pallets || 0;
+        if (item.pallets !== undefined) {
+          if (item.action === 'add') {
+            newPallets = (existingItem.pallets || 0) + item.pallets;
+          } else if (item.action === 'set') {
+            newPallets = item.pallets;
+          }
+        }
+        
         const { error } = await supabase
           .from('inventory')
           .update({
-            quantity: item.action === 'add' 
-              ? Number(existingItem.quantity) + Number(item.quantity)
-              : item.action === 'remove' 
-                ? Math.max(0, Number(existingItem.quantity) - Number(item.quantity))
-                : Number(item.quantity),
-            pallets: item.pallets !== undefined 
-              ? (item.action === 'add' 
-                ? (existingItem.pallets || 0) + item.pallets
-                : item.action === 'set' 
-                  ? item.pallets
-                  : existingItem.pallets || 0)
-              : existingItem.pallets || 0,
+            quantity: newQuantity,
+            pallets: newPallets,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingItem.id);
           
-        if (error) throw error;
+        if (error) {
+          console.error("Error updating existing item:", error);
+          throw error;
+        }
+        
+        console.log("Updated existing item successfully");
       } else if (item.id) {
         // Update existing record by ID
+        console.log("Updating item by ID:", item.id);
         const { error } = await supabase
           .from('inventory')
           .update({
@@ -278,9 +301,15 @@ const Index = () => {
           })
           .eq('id', item.id);
           
-        if (error) throw error;
+        if (error) {
+          console.error("Error updating item by ID:", error);
+          throw error;
+        }
+        
+        console.log("Updated item by ID successfully");
       } else {
         // Insert new record
+        console.log("Inserting new item:", item);
         const { error } = await supabase
           .from('inventory')
           .insert({
@@ -293,16 +322,26 @@ const Index = () => {
             receipt_date: receipt_date
           });
           
-        if (error) throw error;
+        if (error) {
+          console.error("Error inserting new item:", error);
+          throw error;
+        }
+        
+        console.log("Inserted new item successfully");
       }
       
+      // Fetch updated inventory
       const { data, error } = await supabase
         .from('inventory')
         .select('*')
         .order('updated_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching updated inventory:", error);
+        throw error;
+      }
 
+      console.log("Fetched updated inventory:", data);
       const items: InventoryItem[] = data.map(item => ({
         id: item.id,
         name: item.name,
@@ -324,9 +363,12 @@ const Index = () => {
       
       setInventory(items);
       
+      const actionVerb = item.action === 'add' ? 'adăugat' : 
+                         item.action === 'remove' ? 'scos' : 'actualizat';
+      
       toast({
         title: "Operațiune reușită",
-        description: `${item.quantity} ${item.unit} de ${item.name} ${item.supplier ? `de la ${item.supplier}` : ''} ${item.batch_number ? `(lot ${item.batch_number})` : ''} ${existingItem ? 'actualizat' : 'adăugat'} în stoc.`,
+        description: `${item.quantity} ${item.unit} de ${item.name} ${item.supplier ? `de la ${item.supplier}` : ''} ${item.batch_number ? `(lot ${item.batch_number})` : ''} ${actionVerb} în stoc.`,
       });
       
     } catch (error) {
