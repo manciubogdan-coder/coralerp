@@ -19,7 +19,7 @@ const Index = () => {
   const [inputText, setInputText] = useState("");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [conversations, setConversations] = useState<{text: string, timestamp: Date}[]>([]);
-  const [conversationTexts, setConversationTexts] = useState<string[]>([]); // For AI context
+  const [conversationTexts, setConversationTexts] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [awaitingMoreInfo, setAwaitingMoreInfo] = useState(false);
   const [response, setResponse] = useState("");
@@ -263,12 +263,18 @@ const Index = () => {
       await saveConversation(input);
       
       const result = await processCommand(input, inventory, conversationTexts);
+      
       setResponse(result.response);
 
       if (result.needsMoreInfo) {
         setAwaitingMoreInfo(true);
         await saveConversation(result.response);
         setResponse(result.needsMoreInfo.question);
+        
+        toast({
+          title: "Informații suplimentare necesare",
+          description: result.needsMoreInfo.question
+        });
       } else {
         setAwaitingMoreInfo(false);
         

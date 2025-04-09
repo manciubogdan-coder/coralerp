@@ -29,10 +29,12 @@ export async function processCommand(
         - pallets (numărul de paleți)
         - receipt_date (data recepției)
         
-        Dacă utilizatorul menționează paleți, dar nu specifică detalii suficiente (de exemplu, "adaugă un palet de roșii"), trebuie să ceri informații suplimentare:
+        FOARTE IMPORTANT! Când utilizatorul menționează paleți, dar nu specifică detalii suficiente (de exemplu, "adaugă un palet de roșii" sau "adaugă un palet de mentă"), TREBUIE să ceri informații suplimentare:
         - câte kg/bucăți are un palet
         - detalii despre furnizor
         - numărul lotului
+        
+        Nu încerca să ghicești aceste informații, ci cere-le mereu de la utilizator.
         
         Analizează comanda și furnizează un răspuns în format JSON cu următoarea structură:
         {
@@ -177,6 +179,7 @@ export async function processCommand(
 
     try {
       const content = data.choices[0].message.content;
+      console.log("AI response:", content);
       const parsedResponse = JSON.parse(content);
 
       return {
@@ -187,9 +190,10 @@ export async function processCommand(
       };
     } catch (parseError) {
       console.error("Error parsing AI response:", parseError);
+      // Return a more helpful error for debugging
       return {
         action: "unknown",
-        response: "Nu am putut interpreta răspunsul. Vă rugăm să încercați din nou."
+        response: "Am nevoie de mai multe detalii pentru a procesa această comandă. Vă rog să specificați mai multe informații."
       };
     }
   } catch (error) {
