@@ -11,8 +11,7 @@ export const speakText = (text: string) => {
   window.speechSynthesis.cancel();
 
   // Creăm un nou obiect utterance
-  const utterance = new window.SpeechSynthesisUtterance();
-  utterance.text = text;
+  const utterance = new window.SpeechSynthesisUtterance(text);
   utterance.lang = 'ro-RO';
   utterance.volume = 1;
   utterance.rate = 1;

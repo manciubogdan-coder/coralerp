@@ -1,4 +1,5 @@
 
+// Inventory related interfaces
 export interface InventoryItem {
   id?: string;
   name: string;
@@ -92,6 +93,14 @@ declare global {
   }
 
   // SpeechSynthesis interfaces
+  interface SpeechSynthesisVoice {
+    readonly default: boolean;
+    readonly lang: string;
+    readonly localService: boolean;
+    readonly name: string;
+    readonly voiceURI: string;
+  }
+
   interface SpeechSynthesisUtterance extends EventTarget {
     lang: string;
     pitch: number;
@@ -104,14 +113,6 @@ declare global {
 
   interface SpeechSynthesisEvent extends Event {
     readonly utterance: SpeechSynthesisUtterance;
-  }
-
-  interface SpeechSynthesisVoice {
-    readonly default: boolean;
-    readonly lang: string;
-    readonly localService: boolean;
-    readonly name: string;
-    readonly voiceURI: string;
   }
 
   interface SpeechSynthesis {
@@ -129,6 +130,9 @@ declare global {
     SpeechRecognition: new () => SpeechRecognition;
     webkitSpeechRecognition: new () => SpeechRecognition;
     speechSynthesis: SpeechSynthesis;
-    SpeechSynthesisUtterance: new (text?: string) => SpeechSynthesisUtterance;
+    SpeechSynthesisUtterance: {
+      new(text?: string): SpeechSynthesisUtterance;
+      prototype: SpeechSynthesisUtterance;
+    };
   }
 }
