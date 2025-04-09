@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [groupBySupplier, setGroupBySupplier] = useState(false);
   const [groupByBatch, setGroupByBatch] = useState(false);
+  const [groupByProduct, setGroupByProduct] = useState(false);
   
   const filteredInventory = inventory.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -24,7 +26,31 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   // Group inventory items if needed
   let displayedInventory = filteredInventory;
   
-  if (groupBySupplier) {
+  if (groupByProduct) {
+    const productMap = new Map<string, InventoryItem[]>();
+    
+    filteredInventory.forEach(item => {
+      if (!productMap.has(item.name)) {
+        productMap.set(item.name, []);
+      }
+      productMap.get(item.name)!.push(item);
+    });
+    
+    displayedInventory = Array.from(productMap).flatMap(([product, items]) => {
+      // Add a header row
+      const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+      const headerItem: InventoryItem = {
+        id: `product-${product}`,
+        name: `Produs: ${product}`,
+        quantity: totalQuantity,
+        unit: items[0]?.unit || '',
+        pallets: items.reduce((sum, item) => sum + (item.pallets || 0), 0),
+        isHeader: true
+      };
+      
+      return [headerItem, ...items];
+    });
+  } else if (groupBySupplier) {
     const supplierMap = new Map<string, InventoryItem[]>();
     
     filteredInventory.forEach(item => {
@@ -99,18 +125,28 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
             <DropdownMenuItem onClick={() => {
               setGroupBySupplier(false);
               setGroupByBatch(false);
+              setGroupByProduct(false);
             }}>
               Fără grupare
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => {
+              setGroupByProduct(true);
+              setGroupBySupplier(false);
+              setGroupByBatch(false);
+            }}>
+              Grupare după produs
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => {
               setGroupBySupplier(true);
               setGroupByBatch(false);
+              setGroupByProduct(false);
             }}>
               Grupare după furnizor
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => {
               setGroupBySupplier(false);
               setGroupByBatch(true);
+              setGroupByProduct(false);
             }}>
               Grupare după lot
             </DropdownMenuItem>

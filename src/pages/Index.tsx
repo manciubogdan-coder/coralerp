@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter } from "lucide-react";
@@ -200,7 +201,45 @@ const Index = () => {
     try {
       const receipt_date = item.receipt_date ? item.receipt_date.toISOString() : null;
       
-      if (item.id) {
+      // Check if item with same name, supplier AND batch_number exists
+      let existingItem = null;
+      
+      if (item.batch_number) {
+        const { data } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('name', item.name)
+          .eq('supplier', item.supplier || null)
+          .eq('batch_number', item.batch_number)
+          .maybeSingle();
+          
+        existingItem = data;
+      }
+      
+      if (existingItem?.id) {
+        // Update existing record with same name + supplier + batch_number
+        const { error } = await supabase
+          .from('inventory')
+          .update({
+            quantity: item.action === 'add' 
+              ? Number(existingItem.quantity) + Number(item.quantity)
+              : item.action === 'remove' 
+                ? Math.max(0, Number(existingItem.quantity) - Number(item.quantity))
+                : Number(item.quantity),
+            pallets: item.pallets !== undefined 
+              ? (item.action === 'add' 
+                ? (existingItem.pallets || 0) + item.pallets
+                : item.action === 'set' 
+                  ? item.pallets
+                  : existingItem.pallets || 0)
+              : existingItem.pallets || 0,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingItem.id);
+          
+        if (error) throw error;
+      } else if (item.id) {
+        // Update existing record by ID
         const { error } = await supabase
           .from('inventory')
           .update({
@@ -217,6 +256,7 @@ const Index = () => {
           
         if (error) throw error;
       } else {
+        // Insert new record
         const { error } = await supabase
           .from('inventory')
           .insert({
@@ -262,7 +302,7 @@ const Index = () => {
       
       toast({
         title: "Operațiune reușită",
-        description: `${item.quantity} ${item.unit} de ${item.name} ${item.supplier ? `de la ${item.supplier}` : ''} ${item.batch_number ? `(lot ${item.batch_number})` : ''} ${item.id ? 'actualizat' : 'adăugat'} în stoc.`,
+        description: `${item.quantity} ${item.unit} de ${item.name} ${item.supplier ? `de la ${item.supplier}` : ''} ${item.batch_number ? `(lot ${item.batch_number})` : ''} ${existingItem ? 'actualizat' : 'adăugat'} în stoc.`,
       });
       
     } catch (error) {
@@ -303,41 +343,47 @@ const Index = () => {
         
         if (result.action === 'add' || result.action === 'remove' || result.action === 'set') {
           if (result.item) {
-            const existingItemIndex = inventory.findIndex(
-              item => item.name.toLowerCase() === result.item?.name.toLowerCase()
-            );
+            const updatedItem = {
+              ...result.item,
+              action: result.action
+            };
             
-            if (existingItemIndex >= 0) {
-              const updatedItem = {
-                ...inventory[existingItemIndex],
-                quantity: result.action === 'add' 
-                  ? inventory[existingItemIndex].quantity + result.item.quantity
-                  : result.action === 'remove'
-                    ? Math.max(0, inventory[existingItemIndex].quantity - result.item.quantity)
-                    : result.item.quantity,
-                supplier: result.item.supplier || inventory[existingItemIndex].supplier,
-                batch_number: result.item.batch_number || inventory[existingItemIndex].batch_number,
-                pallets: result.item.pallets !== undefined 
-                  ? (result.action === 'add' 
-                    ? (inventory[existingItemIndex].pallets || 0) + result.item.pallets
-                    : result.item.pallets)
-                  : inventory[existingItemIndex].pallets,
-                receipt_date: result.item.receipt_date || inventory[existingItemIndex].receipt_date
-              };
+            if (result.action === 'remove') {
+              // For removal, we need to ask which batch to remove from if multiple batches exist
+              const matchingItems = inventory.filter(
+                item => item.name.toLowerCase() === result.item!.name.toLowerCase()
+              );
               
-              await updateInventoryItem(updatedItem);
-            } else if (result.action === 'add' || result.action === 'set') {
-              await updateInventoryItem({
-                ...result.item,
-                receipt_date: result.item.receipt_date || new Date()
-              });
-            } else {
-              toast({
-                variant: "destructive",
-                title: "Produsul nu există",
-                description: `Nu s-a găsit produsul "${result.item.name}" în stoc.`
-              });
+              if (matchingItems.length > 1) {
+                const batchNumbers = matchingItems.map(item => item.batch_number || 'fără lot');
+                const batchInfo = batchNumbers.join(", ");
+                const responseText = `Există ${matchingItems.length} loturi diferite de ${result.item.name} în stoc (${batchInfo}). Din care lot doriți să eliminați?`;
+                
+                await saveConversation(responseText);
+                setResponse(responseText);
+                setAwaitingMoreInfo(true);
+                return;
+              } else if (matchingItems.length === 1) {
+                // Only one batch exists, use that one
+                updatedItem.id = matchingItems[0].id;
+                updatedItem.batch_number = matchingItems[0].batch_number;
+                updatedItem.supplier = matchingItems[0].supplier;
+              } else {
+                toast({
+                  variant: "destructive",
+                  title: "Produsul nu există",
+                  description: `Nu s-a găsit produsul "${result.item.name}" în stoc.`
+                });
+                return;
+              }
             }
+            
+            // Add receipt date for new items
+            if (result.action === 'add' || result.action === 'set') {
+              updatedItem.receipt_date = updatedItem.receipt_date || new Date();
+            }
+            
+            await updateInventoryItem(updatedItem);
           }
         } else if (result.action === 'export') {
           exportToExcel(inventory);

@@ -17,6 +17,7 @@ export interface InventoryItem {
     nanoseconds: number;
   };
   isHeader?: boolean;
+  action?: 'add' | 'remove' | 'set';
 }
 
 export interface CommandResult {
