@@ -1,5 +1,5 @@
 
-import { CommandResult, InventoryItem } from "@/types";
+import { CommandResult, InventoryItem, ChartData } from "@/types";
 
 export async function processCommand(
   command: string, 
@@ -20,7 +20,7 @@ export async function processCommand(
     const messages = [
       {
         role: "system",
-        content: `Ești un asistent inteligent care gestionează marfă într-un depozit. Răspunde în română, ca un uman, utilizând un ton conversațional prietenos. Înțelege expresii naturale și acționează pe baza comenzilor primite.
+        content: `Ești un asistent inteligent care gestionează marfă într-un depozit. Răspunde în română, ca un uman, utilizând un ton conversațional prietenos. Înțelege expresii naturale și acționează pe baza comenzilor primite. Răspunde la întrebări despre stoc într-un mod conversațional și clar, ca și când ai fi un coleg real.
         
         IMPORTANT - Distincția între tipuri de acțiuni:
         1. "add" - când utilizatorul vrea să ADAUGE o cantitate la stoc (ex: "adaugă 5kg de roșii", "pune 3 cutii")
@@ -50,6 +50,8 @@ export async function processCommand(
 
         FOARTE IMPORTANT! Când utilizatorul întreabă despre stoc (ex: "câte kg de mentă am?", "câte loturi de mentă avem?"), trebuie să răspunzi cu informațiile disponibile. Aceste întrebări trebuie interpretatate cu action "query".
         
+        Răspunsul tău va include grafice atunci când se solicită informații statistice sau cantitative despre stoc (la întrebări de tip "câte", "care", etc.). Poți crea grafice de tip bar, pie sau line când datele permit.
+        
         FOARTE IMPORTANT! Răspunde mereu într-un format JSON valid folosind următoarea structură exactă. Nu include text în afara obiectului JSON:
         {
           "action": "add" | "remove" | "set" | "view" | "export" | "email" | "query" | "unknown",
@@ -63,6 +65,16 @@ export async function processCommand(
             "pallets": numărul de paleți (opțional),
             "receipt_date": "data recepției în format ISO (opțional)"
           },
+          "charts": [
+            {
+              "type": "bar" | "pie" | "line",
+              "title": "Titlul graficului",
+              "data": [
+                { "name": "Numele elementului", "value": valoare_numerica }
+              ],
+              "description": "Descrierea graficului (opțional)"
+            }
+          ],
           "needsMoreInfo": {
             "type": "pallet_details" | "supplier_info" | "batch_info" | "batch_selection",
             "question": "Întrebarea pe care vrei să o pui utilizatorului pentru a obține mai multe informații",
@@ -84,6 +96,10 @@ export async function processCommand(
         Când utilizatorul adaugă, elimină sau setează cantități în stoc, indiferent dacă există deja sau nu, procesează comanda corect.
 
         Analizează cu atenție TOATE comenzile pentru a detecta numărul lotului ("lot" sau "nr lot"), numele furnizorului și cantitatea. Verifică mereu dacă comanda conține informații despre lot și furnizor.
+        
+        Când utilizatorul solicită grafice sau date vizuale, trebuie să incluzi date relevante în câmpul "charts" din răspuns.
+
+        FOARTE IMPORTANT! Când utilizatorul face întrebări precum "cate produse am in total?", "ce produse am în stoc?", "arată-mi distribuția pe furnizori", "care sunt cantitățile pe loturi", etc., răspunde cu acțiunea "query" și include grafice relevante în câmpul "charts".
         
         Câteva exemple:
         Pentru "Adaugă 5 kg de roșii":
@@ -202,13 +218,54 @@ export async function processCommand(
         Pentru "Câte loturi de mentă avem în stoc?":
         {
           "action": "query",
-          "response": "Avem 3 loturi de mentă în stoc: lotul 1504 (50kg), lotul 1505 (100kg) și lotul 1506 (75kg), toate de la furnizorul Magnani."
+          "response": "Avem 3 loturi de mentă în stoc: lotul 1504 (50kg), lotul 1505 (100kg) și lotul 1506 (75kg), toate de la furnizorul Magnani.",
+          "charts": [
+            {
+              "type": "bar",
+              "title": "Loturi de mentă în stoc",
+              "data": [
+                {"name": "Lot 1504", "value": 50, "supplier": "Magnani"},
+                {"name": "Lot 1505", "value": 100, "supplier": "Magnani"},
+                {"name": "Lot 1506", "value": 75, "supplier": "Magnani"}
+              ],
+              "description": "Cantități de mentă pe loturi"
+            }
+          ]
         }
 
         Pentru "Câtă mentă avem în total?":
         {
           "action": "query",
-          "response": "Avem în total 225 kg de mentă în stoc de la furnizorul Magnani, distribuite în 3 loturi diferite."
+          "response": "Avem în total 225 kg de mentă în stoc de la furnizorul Magnani, distribuite în 3 loturi diferite.",
+          "charts": [
+            {
+              "type": "pie",
+              "title": "Distribuția mentei pe loturi",
+              "data": [
+                {"name": "Lot 1504", "value": 50},
+                {"name": "Lot 1505", "value": 100},
+                {"name": "Lot 1506", "value": 75}
+              ]
+            }
+          ]
+        }
+
+        Pentru "Arată distribuția pe furnizori":
+        {
+          "action": "query",
+          "response": "Iată distribuția produselor pe furnizori:",
+          "charts": [
+            {
+              "type": "bar",
+              "title": "Distribuția produselor pe furnizori",
+              "data": [
+                {"name": "Magnani", "value": 225},
+                {"name": "Agrico", "value": 500},
+                {"name": "Biofresh", "value": 320}
+              ],
+              "description": "Cantități totale pe furnizori"
+            }
+          ]
         }
         
         Actuala stare a inventarului este: ${JSON.stringify(inventory)}
@@ -218,7 +275,9 @@ export async function processCommand(
     
     // Add conversation history
     if (conversation.length > 0) {
-      conversation.forEach((text, index) => {
+      // Limitează contextul conversațional la ultimele 10 mesaje pentru performanță
+      const recentConversation = conversation.slice(-10);
+      recentConversation.forEach((text, index) => {
         messages.push({
           role: index % 2 === 0 ? "user" : "assistant",
           content: text
@@ -242,7 +301,7 @@ export async function processCommand(
         model: "gpt-3.5-turbo",
         messages,
         temperature: 0.3,
-        max_tokens: 500
+        max_tokens: 800 // Crescut pentru a permite grafice și răspunsuri mai detaliate
       })
     });
 
@@ -276,10 +335,24 @@ export async function processCommand(
       
       const parsedResponse = JSON.parse(jsonContent);
 
+      // Process any charts în răspuns
+      let charts: ChartData[] = [];
+      if (parsedResponse.charts && Array.isArray(parsedResponse.charts)) {
+        charts = parsedResponse.charts.map((chart: any) => ({
+          type: chart.type || 'bar',
+          title: chart.title || 'Grafic',
+          data: chart.data || [],
+          xKey: chart.xKey,
+          yKey: chart.yKey,
+          description: chart.description
+        }));
+      }
+
       return {
         action: parsedResponse.action || "unknown",
         response: parsedResponse.response || "Nu am putut procesa comanda.",
         item: parsedResponse.item || undefined,
+        charts: charts.length > 0 ? charts : undefined,
         needsMoreInfo: parsedResponse.needsMoreInfo || undefined
       };
     } catch (parseError) {
@@ -372,10 +445,33 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
           totalQuantity += batch.quantity;
           return `lotul ${batch.batch_number || 'necunoscut'} (${batch.quantity}${batch.unit}) de la ${batch.supplier || 'furnizor necunoscut'}`;
         }).join(", ");
+
+        // Create chart data
+        const chartData: ChartData[] = [
+          {
+            type: 'bar',
+            title: 'Loturi de mentă în stoc',
+            data: mentaBatches.map(batch => ({
+              name: `Lot ${batch.batch_number || 'necunoscut'}`,
+              value: batch.quantity,
+              supplier: batch.supplier || 'Necunoscut'
+            })),
+            description: 'Cantități de mentă pe loturi'
+          },
+          {
+            type: 'pie',
+            title: 'Distribuția mentei pe loturi',
+            data: mentaBatches.map(batch => ({
+              name: `Lot ${batch.batch_number || 'necunoscut'}`,
+              value: batch.quantity
+            }))
+          }
+        ];
         
         return {
           action: "query",
-          response: `Avem ${mentaBatches.length} ${mentaBatches.length === 1 ? 'lot' : 'loturi'} de mentă în stoc: ${batchDetails}. În total, avem ${totalQuantity} kg de mentă.`
+          response: `Avem ${mentaBatches.length} ${mentaBatches.length === 1 ? 'lot' : 'loturi'} de mentă în stoc: ${batchDetails}. În total, avem ${totalQuantity} kg de mentă.`,
+          charts: chartData
         };
       } else {
         return {
@@ -385,12 +481,94 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
       }
     }
     
+    // Cereri pentru afișarea distribuției pe furnizori
+    if (lowercaseCommand.includes("furnizor") && (lowercaseCommand.includes("distribuție") || 
+       lowercaseCommand.includes("distributie") || lowercaseCommand.includes("cantitate"))) {
+       
+      // Colectează date pe furnizori
+      const supplierItems = inventory.filter(item => item.supplier);
+      if (supplierItems.length > 0) {
+        const supplierData: Record<string, {name: string, value: number}> = {};
+        
+        supplierItems.forEach(item => {
+          const supplier = item.supplier || 'Necunoscut';
+          if (!supplierData[supplier]) {
+            supplierData[supplier] = { name: supplier, value: 0 };
+          }
+          supplierData[supplier].value += item.quantity;
+        });
+        
+        const chartData: ChartData[] = [
+          {
+            type: 'bar',
+            title: 'Distribuția produselor pe furnizori',
+            data: Object.values(supplierData),
+            description: 'Cantități totale pe furnizori'
+          },
+          {
+            type: 'pie',
+            title: 'Proporția produselor pe furnizori',
+            data: Object.values(supplierData)
+          }
+        ];
+        
+        const supplierText = Object.values(supplierData)
+          .map(s => `${s.name}: ${s.value} unități`)
+          .join(', ');
+        
+        return {
+          action: "query",
+          response: `Iată distribuția produselor pe furnizori: ${supplierText}`,
+          charts: chartData
+        };
+      }
+    }
+    
     // Generic inventory query
-    if (lowercaseCommand.includes("stoc") || lowercaseCommand.includes("avem")) {
-      return {
-        action: "view",
-        response: "Vă afișez stocul actual."
-      };
+    if (lowercaseCommand.includes("stoc") || lowercaseCommand.includes("avem") || 
+        lowercaseCommand.includes("arată") || lowercaseCommand.includes("arata")) {
+      
+      // Generate inventory overview
+      if (inventory.length > 0) {
+        // Agregate by product name
+        const products: Record<string, {name: string, quantity: number, unit: string}> = {};
+        inventory.forEach(item => {
+          if (!products[item.name]) {
+            products[item.name] = {name: item.name, quantity: 0, unit: item.unit};
+          }
+          products[item.name].quantity += item.quantity;
+        });
+        
+        // Create chart data
+        const chartData: ChartData[] = [
+          {
+            type: 'bar',
+            title: 'Produse în stoc',
+            data: Object.values(products).map(p => ({ name: p.name, value: p.quantity })),
+            description: 'Cantități totale pe produse'
+          },
+          {
+            type: 'pie',
+            title: 'Distribuția produselor în stoc',
+            data: Object.values(products).map(p => ({ name: p.name, value: p.quantity })),
+          }
+        ];
+        
+        const productList = Object.values(products)
+          .map(p => `${p.name}: ${p.quantity} ${p.unit}`)
+          .join(', ');
+        
+        return {
+          action: "view",
+          response: `În stoc avem următoarele produse: ${productList}`,
+          charts: chartData
+        };
+      } else {
+        return {
+          action: "view",
+          response: "Stocul este gol momentan."
+        };
+      }
     }
   }
   
@@ -498,9 +676,24 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
         
         const unit = matchingItems[0].unit;
         
+        // Create chart data
+        const chartData: ChartData[] = [];
+        if (matchingItems.length > 1) {
+          chartData.push({
+            type: 'bar',
+            title: `Loturi de ${product} în stoc`,
+            data: matchingItems.map(item => ({
+              name: item.batch_number ? `Lot ${item.batch_number}` : `${item.supplier || 'Necunoscut'}`,
+              value: item.quantity
+            })),
+            description: `Cantități de ${product} pe loturi`
+          });
+        }
+        
         return {
           action: "query",
-          response: `Avem în total ${totalQuantity} ${unit} de ${product} în stoc, în ${matchingItems.length} ${matchingItems.length === 1 ? 'lot' : 'loturi'} diferite.`
+          response: `Avem în total ${totalQuantity} ${unit} de ${product} în stoc, în ${matchingItems.length} ${matchingItems.length === 1 ? 'lot' : 'loturi'} diferite.`,
+          charts: chartData.length > 0 ? chartData : undefined
         };
       } else {
         return {

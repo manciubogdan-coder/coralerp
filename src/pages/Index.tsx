@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter } from "lucide-react";
@@ -8,9 +9,10 @@ import Footer from "@/components/Footer";
 import VoiceCommandPanel from "@/components/VoiceCommandPanel";
 import InventoryTable from "@/components/InventoryTable";
 import { processCommand } from "@/lib/aiProcessor";
-import { InventoryItem } from "@/types";
+import { ChartData, InventoryItem } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";
 import { sendEmail } from "@/lib/emailService";
+import { speakText } from "@/lib/speechService";
 import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
@@ -23,8 +25,11 @@ const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [awaitingMoreInfo, setAwaitingMoreInfo] = useState(false);
   const [response, setResponse] = useState("");
+  const [charts, setCharts] = useState<ChartData[]>([]);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const conversationsEndRef = useRef<HTMLDivElement>(null);
+  const speechUtteranceRef = useRef<{stop: () => void; isPending: () => boolean} | null>(null);
 
   useEffect(() => {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
@@ -73,6 +78,9 @@ const Index = () => {
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
+      }
+      if (speechUtteranceRef.current) {
+        speechUtteranceRef.current.stop();
       }
     };
   }, []);
@@ -166,6 +174,7 @@ const Index = () => {
         
         setInputText("");
         setResponse("");
+        setCharts([]);
       } catch (error) {
         console.error("Error starting speech recognition:", error);
         toast({
@@ -175,6 +184,22 @@ const Index = () => {
         });
       }
     }
+  };
+
+  const toggleAudio = () => {
+    setIsAudioEnabled(!isAudioEnabled);
+    
+    // Oprim orice vorbire în curs dacă dezactivăm audio
+    if (isAudioEnabled && speechUtteranceRef.current) {
+      speechUtteranceRef.current.stop();
+    }
+    
+    toast({
+      title: isAudioEnabled ? "Răspuns audio dezactivat" : "Răspuns audio activat",
+      description: isAudioEnabled ? 
+        "Asistentul nu va mai răspunde vocal." : 
+        "Asistentul va răspunde și vocal."
+    });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -314,11 +339,69 @@ const Index = () => {
     }
   };
 
+  const generateInventoryCharts = () => {
+    // Generăm grafice pentru stocul actual
+    const charts: ChartData[] = [];
+    
+    if (inventory.length > 0) {
+      // Agrega produsele pentru a vedea totalul pe fiecare tip
+      const productTotals = inventory.reduce((acc, item) => {
+        const name = item.name;
+        if (!acc[name]) {
+          acc[name] = { 
+            name, 
+            value: 0, 
+            unit: item.unit 
+          };
+        }
+        acc[name].value += item.quantity;
+        return acc;
+      }, {} as Record<string, {name: string; value: number; unit: string}>);
+      
+      charts.push({
+        type: 'pie',
+        title: 'Distribuția produselor în stoc',
+        data: Object.values(productTotals).map(item => ({
+          name: item.name,
+          value: item.value,
+          unit: item.unit
+        })),
+        description: 'Vizualizare proporțională a cantităților de produse în stoc'
+      });
+      
+      // Grafic pentru distribuția pe furnizori dacă avem furnizori
+      const supplierItems = inventory.filter(item => item.supplier);
+      if (supplierItems.length > 0) {
+        const supplierTotals = supplierItems.reduce((acc, item) => {
+          const supplier = item.supplier || 'Necunoscut';
+          if (!acc[supplier]) {
+            acc[supplier] = { 
+              name: supplier, 
+              value: 0
+            };
+          }
+          acc[supplier].value += item.quantity;
+          return acc;
+        }, {} as Record<string, {name: string; value: number}>);
+        
+        charts.push({
+          type: 'bar',
+          title: 'Distribuția pe furnizori',
+          data: Object.values(supplierTotals),
+          description: 'Cantități totale pe furnizori'
+        });
+      }
+    }
+    
+    return charts;
+  };
+
   const processUserInput = async (input: string) => {
     if (!input.trim()) return;
     
     setIsProcessing(true);
     setResponse("");
+    setCharts([]);
     
     try {
       await saveConversation(input);
@@ -327,6 +410,27 @@ const Index = () => {
       console.log("Command result:", result);
       
       setResponse(result.response);
+      
+      // Generează răspuns vocal dacă este activat
+      if (isAudioEnabled) {
+        // Oprim orice răspuns vocal anterior
+        if (speechUtteranceRef.current) {
+          speechUtteranceRef.current.stop();
+        }
+        
+        // Pornește noul răspuns vocal
+        speechUtteranceRef.current = speakText(result.response);
+      }
+
+      // Verifică dacă există grafice în răspuns sau generează grafice implicite
+      if (result.charts && result.charts.length > 0) {
+        setCharts(result.charts);
+      } else if (result.action === 'view' || 
+                (result.action === 'query' && input.toLowerCase().includes('stoc'))) {
+        // Generăm grafice pentru vizualizarea stocului
+        const inventoryCharts = generateInventoryCharts();
+        setCharts(inventoryCharts);
+      }
 
       if (result.needsMoreInfo) {
         setAwaitingMoreInfo(true);
@@ -483,6 +587,9 @@ const Index = () => {
             transcript={transcript}
             conversations={conversations}
             response={response}
+            charts={charts}
+            isAudioEnabled={isAudioEnabled}
+            toggleAudio={toggleAudio}
             conversationsEndRef={conversationsEndRef}
           />
         </div>

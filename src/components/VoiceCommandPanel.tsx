@@ -1,12 +1,15 @@
 
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, MessageSquare, Info } from "lucide-react";
+import { Mic, MessageSquare, Info, BarChart3, VolumeX, Volume2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { ChartData } from "@/types";
 import { cn } from "@/lib/utils";
+import InventoryCharts from "./InventoryCharts";
 
 interface VoiceCommandPanelProps {
   isRecording: boolean;
@@ -14,6 +17,9 @@ interface VoiceCommandPanelProps {
   transcript: string;
   conversations: {text: string; timestamp: Date}[];
   response: string;
+  charts?: ChartData[];
+  isAudioEnabled: boolean;
+  toggleAudio: () => void;
   conversationsEndRef: React.RefObject<HTMLDivElement>;
 }
 
@@ -23,6 +29,9 @@ const VoiceCommandPanel = ({
   transcript,
   conversations,
   response,
+  charts,
+  isAudioEnabled,
+  toggleAudio,
   conversationsEndRef
 }: VoiceCommandPanelProps) => {
   const formatTime = (date: Date) => {
@@ -35,21 +44,32 @@ const VoiceCommandPanel = ({
         <CardHeader className="pb-2">
           <div className="flex justify-between items-center">
             <CardTitle>Asistent Vocal</CardTitle>
-            <Button 
-              onClick={toggleRecording}
-              variant={isRecording ? "destructive" : "outline"}
-              size="sm"
-              className={cn(
-                "rounded-full p-2 h-8 w-8", 
-                isRecording && "animate-pulse"
-              )}
-            >
-              <Mic 
-                className={`h-4 w-4 ${
-                  isRecording ? 'text-white' : 'text-gray-500'
-                }`} 
-              />
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={toggleAudio}
+                title={isAudioEnabled ? "Dezactivează audio" : "Activează audio"}
+              >
+                {isAudioEnabled ? <Volume2 className="h-4 w-4 text-green-500" /> : <VolumeX className="h-4 w-4 text-gray-500" />}
+              </Button>
+              
+              <Button 
+                onClick={toggleRecording}
+                variant={isRecording ? "destructive" : "outline"}
+                size="sm"
+                className={cn(
+                  "rounded-full p-2 h-8 w-8", 
+                  isRecording && "animate-pulse"
+                )}
+              >
+                <Mic 
+                  className={`h-4 w-4 ${
+                    isRecording ? 'text-white' : 'text-gray-500'
+                  }`} 
+                />
+              </Button>
+            </div>
           </div>
           <CardDescription>
             {isRecording ? 'Te ascult... spune-mi cum te pot ajuta' : 'Apasă pe microfon și spune-mi cum te pot ajuta'}
@@ -75,6 +95,9 @@ const VoiceCommandPanel = ({
               <Badge variant="outline" className="bg-gray-50">Câte loturi de mentă avem?</Badge>
               <Badge variant="outline" className="bg-gray-50">Scoate 50 kg de mentă de la Magnani lot 1505</Badge>
               <Badge variant="outline" className="bg-gray-50">Arată stocul</Badge>
+              <Badge variant="outline" className="bg-gray-50">Câte produse avem în total?</Badge>
+              <Badge variant="outline" className="bg-gray-50">Ce produse expiră în curând?</Badge>
+              <Badge variant="outline" className="bg-gray-50">Arată cantitățile pe furnizori</Badge>
               <Badge variant="outline" className="bg-gray-50">Exportă Excel</Badge>
             </div>
           </div>
@@ -131,6 +154,16 @@ const VoiceCommandPanel = ({
                       <div className="flex-1">
                         <div className="bg-green-light bg-opacity-10 p-2 rounded-lg rounded-tl-none">
                           <p className="text-sm" dangerouslySetInnerHTML={{ __html: response.replace(/\n/g, '<br/>') }}></p>
+                          
+                          {charts && charts.length > 0 && (
+                            <div className="mt-4 border-t pt-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <BarChart3 className="h-4 w-4 text-green-800" />
+                                <h4 className="text-sm font-medium">Grafice și date</h4>
+                              </div>
+                              <InventoryCharts charts={charts} />
+                            </div>
+                          )}
                         </div>
                         <p className="text-xs text-gray-500 mt-1 text-right">
                           {formatTime(new Date())}

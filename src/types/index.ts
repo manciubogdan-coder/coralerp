@@ -24,6 +24,7 @@ export interface CommandResult {
   action: 'add' | 'remove' | 'set' | 'view' | 'export' | 'email' | 'query' | 'unknown';
   response: string;
   item?: InventoryItem;
+  charts?: ChartData[];
   needsMoreInfo?: {
     type: 'pallet_details' | 'supplier_info' | 'batch_info' | 'batch_selection';
     question: string;
@@ -36,6 +37,19 @@ export interface CommandResult {
       unit: string;
     }[];
   };
+}
+
+export interface ChartData {
+  type: 'bar' | 'pie' | 'line';
+  title: string;
+  data: Array<{
+    name: string;
+    value: number;
+    [key: string]: string | number;
+  }>;
+  xKey?: string;
+  yKey?: string;
+  description?: string;
 }
 
 // Web Speech API type definitions
@@ -79,5 +93,39 @@ declare global {
   interface Window {
     SpeechRecognition: new () => SpeechRecognition;
     webkitSpeechRecognition: new () => SpeechRecognition;
+    speechSynthesis?: SpeechSynthesis;
+    SpeechSynthesisUtterance?: typeof SpeechSynthesisUtterance;
+  }
+
+  interface SpeechSynthesisUtterance extends EventTarget {
+    lang: string;
+    pitch: number;
+    rate: number;
+    text: string;
+    voice: SpeechSynthesisVoice | null;
+    volume: number;
+    onend: ((this: SpeechSynthesisUtterance, ev: SpeechSynthesisEvent) => any) | null;
+  }
+
+  interface SpeechSynthesisEvent extends Event {
+    readonly utterance: SpeechSynthesisUtterance;
+  }
+
+  interface SpeechSynthesisVoice {
+    readonly default: boolean;
+    readonly lang: string;
+    readonly localService: boolean;
+    readonly name: string;
+    readonly voiceURI: string;
+  }
+
+  interface SpeechSynthesis {
+    readonly speaking: boolean;
+    onvoiceschanged: ((this: SpeechSynthesis, ev: Event) => any) | null;
+    cancel(): void;
+    getVoices(): SpeechSynthesisVoice[];
+    pause(): void;
+    resume(): void;
+    speak(utterance: SpeechSynthesisUtterance): void;
   }
 }
