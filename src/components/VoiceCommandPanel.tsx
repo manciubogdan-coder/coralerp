@@ -1,10 +1,12 @@
 
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, MessageSquare } from "lucide-react";
+import { Mic, MessageSquare, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface VoiceCommandPanelProps {
   isRecording: boolean;
@@ -32,22 +34,25 @@ const VoiceCommandPanel = ({
       <Card>
         <CardHeader className="pb-2">
           <div className="flex justify-between items-center">
-            <CardTitle>Comenzi Vocale</CardTitle>
-            <div 
+            <CardTitle>Asistent Vocal</CardTitle>
+            <Button 
               onClick={toggleRecording}
-              className={`cursor-pointer p-2 rounded-full ${
-                isRecording ? 'bg-red-100' : 'bg-gray-100'
-              }`}
+              variant={isRecording ? "destructive" : "outline"}
+              size="sm"
+              className={cn(
+                "rounded-full p-2 h-8 w-8", 
+                isRecording && "animate-pulse"
+              )}
             >
               <Mic 
                 className={`h-4 w-4 ${
-                  isRecording ? 'text-red-500' : 'text-gray-500'
-                } ${isRecording ? 'recording-animation' : ''}`} 
+                  isRecording ? 'text-white' : 'text-gray-500'
+                }`} 
               />
-            </div>
+            </Button>
           </div>
           <CardDescription>
-            {isRecording ? 'Înregistrare activă. Vorbiți...' : 'Apăsați pe microfon pentru a începe'}
+            {isRecording ? 'Te ascult... spune-mi cum te pot ajuta' : 'Apasă pe microfon și spune-mi cum te pot ajuta'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -60,19 +65,15 @@ const VoiceCommandPanel = ({
           
           <div className="mt-3">
             <h4 className="text-sm font-medium flex items-center">
-              <MessageSquare className="h-3 w-3 mr-1" />
-              Comenzi disponibile:
+              <Info className="h-3 w-3 mr-1" />
+              Exemple de comenzi:
             </h4>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Badge variant="outline" className="bg-gray-50">Adaugă [cantitate] [produs]</Badge>
-              <Badge variant="outline" className="bg-gray-50">Adaugă [nr paleți] paleți de [produs]</Badge>
-              <Badge variant="outline" className="bg-gray-50">Scoate [cantitate] [produs]</Badge>
-              <Badge variant="outline" className="bg-gray-50">Reglează [produs] la [cantitate]</Badge>
+              <Badge variant="outline" className="bg-gray-50">Adaugă 5 kg de roșii</Badge>
+              <Badge variant="outline" className="bg-gray-50">Adaugă 50kg mentă de la Magnani lot 1505</Badge>
+              <Badge variant="outline" className="bg-gray-50">Scoate 2 kg de cartofi</Badge>
               <Badge variant="outline" className="bg-gray-50">Arată stocul</Badge>
-              <Badge variant="outline" className="bg-gray-50">Grupează după furnizor</Badge>
-              <Badge variant="outline" className="bg-gray-50">Grupează după lot</Badge>
               <Badge variant="outline" className="bg-gray-50">Exportă Excel</Badge>
-              <Badge variant="outline" className="bg-gray-50">Trimite raport pe email</Badge>
             </div>
           </div>
         </CardContent>
@@ -80,8 +81,8 @@ const VoiceCommandPanel = ({
 
       <Card className="overflow-hidden">
         <CardHeader className="pb-2">
-          <CardTitle>Conversații</CardTitle>
-          <CardDescription>Istoricul comenzilor și răspunsurilor</CardDescription>
+          <CardTitle>Conversație</CardTitle>
+          <CardDescription>Discuția cu asistentul de depozit</CardDescription>
         </CardHeader>
         <ScrollArea className="h-[400px]">
           <CardContent>
@@ -89,22 +90,40 @@ const VoiceCommandPanel = ({
               {conversations.map((conv, index) => (
                 <div key={index} className="space-y-2">
                   <div className="flex items-start gap-2">
-                    <div className="bg-gray-100 rounded-full p-1.5">
-                      <Mic className="h-3 w-3 text-gray-500" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="bg-gray-100 p-2 rounded-lg rounded-tl-none">
-                        <p className="text-sm">{conv.text}</p>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1 text-right">
-                        {formatTime(conv.timestamp)}
-                      </p>
-                    </div>
+                    {index % 2 === 0 ? (
+                      <>
+                        <div className="bg-gray-100 rounded-full p-1.5 mt-1">
+                          <Mic className="h-3 w-3 text-gray-500" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="bg-gray-100 p-2 rounded-lg rounded-tl-none">
+                            <p className="text-sm">{conv.text}</p>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1 text-right">
+                            {formatTime(conv.timestamp)}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="bg-green-light rounded-full p-1.5 mt-1">
+                          <MessageSquare className="h-3 w-3 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="bg-green-light bg-opacity-10 p-2 rounded-lg rounded-tl-none">
+                            <p className="text-sm">{conv.text}</p>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1 text-right">
+                            {formatTime(conv.timestamp)}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
                   
                   {index === conversations.length - 1 && response && (
                     <div className="flex items-start gap-2">
-                      <div className="bg-green-light rounded-full p-1.5">
+                      <div className="bg-green-light rounded-full p-1.5 mt-1">
                         <MessageSquare className="h-3 w-3 text-white" />
                       </div>
                       <div className="flex-1">

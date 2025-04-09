@@ -40,6 +40,16 @@ const Index = () => {
           const transcriptText = event.results[current][0].transcript;
           setTranscript(transcriptText);
           setInputText(transcriptText);
+          
+          if (transcriptText.trim()) {
+            setTimeout(() => {
+              processUserInput(transcriptText);
+              setIsRecording(false);
+              if (recognitionRef.current) {
+                recognitionRef.current.stop();
+              }
+            }, 500);
+          }
         }
       };
 
@@ -144,11 +154,18 @@ const Index = () => {
     if (isRecording) {
       recognitionRef.current.stop();
       setIsRecording(false);
+      
+      if (transcript.trim()) {
+        processUserInput(transcript);
+      }
     } else {
       try {
         recognitionRef.current.start();
         setIsRecording(true);
         setTranscript("");
+        
+        setInputText("");
+        setResponse("");
       } catch (error) {
         console.error("Error starting speech recognition:", error);
         toast({
@@ -243,6 +260,11 @@ const Index = () => {
       
       setInventory(items);
       
+      toast({
+        title: "Operațiune reușită",
+        description: `${item.quantity} ${item.unit} de ${item.name} ${item.supplier ? `de la ${item.supplier}` : ''} ${item.batch_number ? `(lot ${item.batch_number})` : ''} ${item.id ? 'actualizat' : 'adăugat'} în stoc.`,
+      });
+      
     } catch (error) {
       console.error("Error updating inventory:", error);
       toast({
@@ -263,6 +285,7 @@ const Index = () => {
       await saveConversation(input);
       
       const result = await processCommand(input, inventory, conversationTexts);
+      console.log("Command result:", result);
       
       setResponse(result.response);
 
@@ -325,6 +348,8 @@ const Index = () => {
             description: "Raportul a fost trimis pe email."
           });
         }
+        
+        await saveConversation(result.response);
       }
     } catch (error) {
       console.error("Error processing command:", error);
@@ -391,7 +416,7 @@ const Index = () => {
               <Input
                 placeholder={awaitingMoreInfo 
                   ? "Răspundeți la întrebarea asistentului..." 
-                  : "Introduceți comanda (ex: Adaugă 5kg roșii)"
+                  : "Ce ai vrea să faci? (ex: Adaugă 5kg roșii)"
                 }
                 value={inputText}
                 onChange={handleInputChange}

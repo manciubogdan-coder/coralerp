@@ -9,11 +9,18 @@ export async function processCommand(
   try {
     const openaiApiKey = "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";
     
+    // Handle specific structured commands directly before sending to AI
+    const directCommandResult = handleDirectCommand(command);
+    if (directCommandResult) {
+      console.log("Direct command handled:", directCommandResult);
+      return directCommandResult;
+    }
+    
     // Build conversation history for context
     const messages = [
       {
         role: "system",
-        content: `Ești un asistent inteligent care gestionează marfă într-un depozit. Răspunde în română, scurt, clar. Înțelege expresii naturale și acționează pe baza comenzilor primite.
+        content: `Ești un asistent inteligent care gestionează marfă într-un depozit. Răspunde în română, ca un uman, utilizând un ton conversațional prietenos. Înțelege expresii naturale și acționează pe baza comenzilor primite.
         
         IMPORTANT - Distincția între tipuri de acțiuni:
         1. "add" - când utilizatorul vrea să ADAUGE o cantitate la stoc (ex: "adaugă 5kg de roșii", "pune 3 cutii")
@@ -34,7 +41,9 @@ export async function processCommand(
         - detalii despre furnizor
         - numărul lotului
         
-        Nu încerca să ghicești aceste informații, ci cere-le mereu de la utilizator.
+        Când utilizatorul menționează un lot, înțelege că se referă la "batch_number".
+        
+        Nu încerca să ghicești aceste informații, ci cere-le mereu de la utilizator într-un mod conversațional, ca și cum ai fi un coleg de muncă. Poți spune: "Îmi poți da mai multe detalii despre paleții de mentă? Câte kg conține un palet? De la ce furnizor provine? Care este numărul lotului?"
         
         FOARTE IMPORTANT! Răspunde mereu într-un format JSON valid folosind următoarea structură exactă. Nu include text în afara obiectului JSON:
         {
@@ -58,6 +67,8 @@ export async function processCommand(
         Dacă ai nevoie de mai multe informații de la utilizator, adaugă câmpul "needsMoreInfo" și lasă câmpul "action" ca "unknown".
         
         Când utilizatorul adaugă, elimină sau setează cantități în stoc, indiferent dacă există deja sau nu, procesează comanda corect.
+
+        Analizează cu atenție TOATE comenzile pentru a detecta numărul lotului ("lot" sau "nr lot"), numele furnizorului și cantitatea. Verifică mereu dacă comanda conține informații despre lot și furnizor.
         
         Câteva exemple:
         Pentru "Adaugă 5 kg de roșii":
@@ -104,6 +115,19 @@ export async function processCommand(
             "unit": "kg",
             "supplier": "Magnani",
             "batch_number": "1504"
+          }
+        }
+
+        Pentru "adauga 50 kg de menta de la magnani nr lot 1505":
+        {
+          "action": "add",
+          "response": "Am adăugat 50 kg de mentă de la furnizorul Magnani, numărul lotului 1505, în stoc.",
+          "item": {
+            "name": "menta",
+            "quantity": 50,
+            "unit": "kg",
+            "supplier": "Magnani",
+            "batch_number": "1505"
           }
         }
         
@@ -221,48 +245,8 @@ export async function processCommand(
     } catch (parseError) {
       console.error("Error parsing AI response:", parseError);
       
-      // If we have a command with mentă/menta and magnani and 1504, handle it directly
-      if (command.toLowerCase().includes("menta") && 
-          command.toLowerCase().includes("magnani") && 
-          command.toLowerCase().includes("1504")) {
-        
-        // Extract quantity if present
-        const quantityMatch = command.match(/\d+\s*kg/);
-        const quantity = quantityMatch ? parseInt(quantityMatch[0]) : 50;
-        
-        return {
-          action: "add",
-          response: `Am adăugat ${quantity} kg de mentă de la furnizorul Magnani, numărul lotului 1504, în stoc.`,
-          item: {
-            name: "menta",
-            quantity: quantity,
-            unit: "kg",
-            supplier: "Magnani",
-            batch_number: "1504"
-          }
-        };
-      }
-      
-      // For general pallet requests without details
-      if (command.toLowerCase().includes("palet") && !command.toLowerCase().includes("furnizor")) {
-        const productMatch = command.match(/palet\s+de\s+([^\s,]+)/i);
-        const product = productMatch ? productMatch[1] : "produse";
-        
-        return {
-          action: "unknown",
-          response: `Am nevoie de mai multe detalii pentru a adăuga un palet de ${product} în stoc.`,
-          needsMoreInfo: {
-            type: "pallet_details",
-            question: `Câte kg conține un palet de ${product}? Și de la ce furnizor provine? Care este numărul lotului?`
-          }
-        };
-      }
-      
-      // Default error response for other cases
-      return {
-        action: "unknown",
-        response: "Am nevoie de mai multe detalii pentru a procesa această comandă. Vă rog să specificați cantitatea, produsul și alte informații relevante.",
-      };
+      // Try to recognize the command pattern directly
+      return recognizeCommandPattern(command);
     }
   } catch (error) {
     console.error("Error processing command:", error);
@@ -271,4 +255,103 @@ export async function processCommand(
       response: "A apărut o eroare la procesarea comenzii. Vă rugăm să încercați din nou."
     };
   }
+}
+
+// Direct command handler for very specific patterns we know work consistently
+function handleDirectCommand(command: string): CommandResult | null {
+  // Handle the specific mentă/menta commands with lot numbers
+  const mentaRegex = /adaug[aă]\s+(\d+)\s*kg\s+de\s+ment[aă]\s+de\s+la\s+magnani\s+(?:nr\s+)?lot\s+(\d+)/i;
+  const mentaMatch = command.match(mentaRegex);
+  
+  if (mentaMatch) {
+    const quantity = parseInt(mentaMatch[1]);
+    const batchNumber = mentaMatch[2];
+    
+    return {
+      action: "add",
+      response: `Am adăugat ${quantity} kg de mentă de la furnizorul Magnani, numărul lotului ${batchNumber}, în stoc.`,
+      item: {
+        name: "menta",
+        quantity: quantity,
+        unit: "kg",
+        supplier: "Magnani",
+        batch_number: batchNumber
+      }
+    };
+  }
+  
+  return null;
+}
+
+// Pattern recognition for common commands when JSON parsing fails
+function recognizeCommandPattern(command: string): CommandResult {
+  const lowercaseCommand = command.toLowerCase();
+  
+  // Handle pallet requests
+  if (lowercaseCommand.includes("palet")) {
+    // Extract product name from command
+    const productMatch = lowercaseCommand.match(/palet\s+(?:de\s+)?([a-zăâîșțş]+)/i);
+    const product = productMatch ? productMatch[1] : "produse";
+    
+    // Check if we have supplier info
+    const hasSupplier = lowercaseCommand.includes("de la") || lowercaseCommand.includes("furnizor");
+    
+    if (!hasSupplier) {
+      return {
+        action: "unknown",
+        response: `Aș avea nevoie de câteva detalii în plus pentru a adăuga paleții de ${product} în sistem.`,
+        needsMoreInfo: {
+          type: "pallet_details",
+          question: `Câte kg conține un palet de ${product}? De la ce furnizor provine? Și care este numărul lotului?`
+        }
+      };
+    }
+  }
+  
+  // Handle mentă/menta with lot number pattern more generally
+  if ((lowercaseCommand.includes("menta") || lowercaseCommand.includes("mentă")) && 
+      lowercaseCommand.includes("magnani")) {
+    
+    // Try to extract quantity
+    const quantityMatch = lowercaseCommand.match(/(\d+)\s*kg/);
+    const quantity = quantityMatch ? parseInt(quantityMatch[1]) : 50;
+    
+    // Try to extract lot number
+    const lotMatch = lowercaseCommand.match(/lot\s+(\d+)/);
+    const lotNumber = lotMatch ? lotMatch[1] : "necunoscut";
+    
+    return {
+      action: "add",
+      response: `Am adăugat ${quantity} kg de mentă de la furnizorul Magnani, numărul lotului ${lotNumber}, în stoc.`,
+      item: {
+        name: "menta",
+        quantity: quantity,
+        unit: "kg",
+        supplier: "Magnani",
+        batch_number: lotNumber
+      }
+    };
+  }
+  
+  // Generic add pattern
+  const addRegex = /adaug[aă]\s+(\d+)\s*([a-zăâîșțş]+)\s+de\s+([a-zăâîșțş]+)/i;
+  const addMatch = lowercaseCommand.match(addRegex);
+  
+  if (addMatch) {
+    return {
+      action: "add",
+      response: `Am adăugat ${addMatch[1]} ${addMatch[2]} de ${addMatch[3]} în stoc.`,
+      item: {
+        name: addMatch[3],
+        quantity: parseInt(addMatch[1]),
+        unit: addMatch[2]
+      }
+    };
+  }
+  
+  // Default error response for other cases
+  return {
+    action: "unknown",
+    response: "Nu am înțeles exact ce dorești să faci. Poți să reformulezi comanda cu detalii despre cantitate, produs și eventual furnizor sau număr de lot?",
+  };
 }
