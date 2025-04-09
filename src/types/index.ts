@@ -21,12 +21,20 @@ export interface InventoryItem {
 }
 
 export interface CommandResult {
-  action: 'add' | 'remove' | 'set' | 'view' | 'export' | 'email' | 'unknown';
+  action: 'add' | 'remove' | 'set' | 'view' | 'export' | 'email' | 'query' | 'unknown';
   response: string;
   item?: InventoryItem;
   needsMoreInfo?: {
-    type: 'pallet_details' | 'supplier_info' | 'batch_info';
+    type: 'pallet_details' | 'supplier_info' | 'batch_info' | 'batch_selection';
     question: string;
+    options?: {
+      id: string;
+      name: string;
+      batch_number?: string;
+      supplier?: string;
+      quantity: number;
+      unit: string;
+    }[];
   };
 }
 

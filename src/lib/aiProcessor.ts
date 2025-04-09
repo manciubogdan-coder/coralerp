@@ -10,7 +10,7 @@ export async function processCommand(
     const openaiApiKey = "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";
     
     // Handle specific structured commands directly before sending to AI
-    const directCommandResult = handleDirectCommand(command);
+    const directCommandResult = handleDirectCommand(command, inventory);
     if (directCommandResult) {
       console.log("Direct command handled:", directCommandResult);
       return directCommandResult;
@@ -29,6 +29,7 @@ export async function processCommand(
         4. "view" - când utilizatorul vrea să VADĂ stocul
         5. "export" - când utilizatorul vrea să EXPORTE stocul
         6. "email" - când utilizatorul vrea să TRIMITĂ stocul pe email
+        7. "query" - când utilizatorul întreabă despre stoc (ex: "câte kg de roșii am?", "ce loturi de mentă am în stoc?")
         
         IMPORTANT - Noile câmpuri pentru inventar includ:
         - supplier (furnizorul)
@@ -45,9 +46,13 @@ export async function processCommand(
         
         Nu încerca să ghicești aceste informații, ci cere-le mereu de la utilizator într-un mod conversațional, ca și cum ai fi un coleg de muncă. Poți spune: "Îmi poți da mai multe detalii despre paleții de mentă? Câte kg conține un palet? De la ce furnizor provine? Care este numărul lotului?"
         
+        FOARTE IMPORTANT! Când utilizatorul vrea să SCOATĂ sau să ELIMINE ceva din stoc, verifică dacă există mai multe loturi din produsul respectiv. Dacă da, îl vei întreba din care lot dorește să scoată produsul.
+
+        FOARTE IMPORTANT! Când utilizatorul întreabă despre stoc (ex: "câte kg de mentă am?", "câte loturi de mentă avem?"), trebuie să răspunzi cu informațiile disponibile. Aceste întrebări trebuie interpretatate cu action "query".
+        
         FOARTE IMPORTANT! Răspunde mereu într-un format JSON valid folosind următoarea structură exactă. Nu include text în afara obiectului JSON:
         {
-          "action": "add" | "remove" | "set" | "view" | "export" | "email" | "unknown",
+          "action": "add" | "remove" | "set" | "view" | "export" | "email" | "query" | "unknown",
           "response": "Răspunsul în text natural pentru utilizator",
           "item": {
             "name": "numele produsului",
@@ -59,8 +64,18 @@ export async function processCommand(
             "receipt_date": "data recepției în format ISO (opțional)"
           },
           "needsMoreInfo": {
-            "type": "pallet_details" | "supplier_info" | "batch_info",
-            "question": "Întrebarea pe care vrei să o pui utilizatorului pentru a obține mai multe informații"
+            "type": "pallet_details" | "supplier_info" | "batch_info" | "batch_selection",
+            "question": "Întrebarea pe care vrei să o pui utilizatorului pentru a obține mai multe informații",
+            "options": [
+              {
+                "id": "id-ul lotului",
+                "name": "numele produsului",
+                "batch_number": "numărul lotului",
+                "supplier": "numele furnizorului",
+                "quantity": cantitatea disponibilă,
+                "unit": "unitatea de măsură"
+              }
+            ]
           }
         }
         
@@ -131,7 +146,7 @@ export async function processCommand(
           }
         }
         
-        Pentru "Scoate 2 bucăți mere":
+        Pentru "Scoate 2 kg de mere":
         {
           "action": "remove",
           "response": "Am scos 2 bucăți de mere din stoc.",
@@ -139,6 +154,19 @@ export async function processCommand(
             "name": "mere",
             "quantity": 2,
             "unit": "buc"
+          }
+        }
+
+        Pentru "Scoate 50 kg de menta de la magnani nr lot 1505":
+        {
+          "action": "remove",
+          "response": "Am scos 50 kg de mentă de la furnizorul Magnani, numărul lotului 1505, din stoc.",
+          "item": {
+            "name": "menta",
+            "quantity": 50,
+            "unit": "kg",
+            "supplier": "Magnani",
+            "batch_number": "1505"
           }
         }
         
@@ -169,6 +197,18 @@ export async function processCommand(
         {
           "action": "email",
           "response": "Am trimis raportul pe email."
+        }
+
+        Pentru "Câte loturi de mentă avem în stoc?":
+        {
+          "action": "query",
+          "response": "Avem 3 loturi de mentă în stoc: lotul 1504 (50kg), lotul 1505 (100kg) și lotul 1506 (75kg), toate de la furnizorul Magnani."
+        }
+
+        Pentru "Câtă mentă avem în total?":
+        {
+          "action": "query",
+          "response": "Avem în total 225 kg de mentă în stoc de la furnizorul Magnani, distribuite în 3 loturi diferite."
         }
         
         Actuala stare a inventarului este: ${JSON.stringify(inventory)}
@@ -246,7 +286,7 @@ export async function processCommand(
       console.error("Error parsing AI response:", parseError);
       
       // Try to recognize the command pattern directly
-      return recognizeCommandPattern(command);
+      return recognizeCommandPattern(command, inventory);
     }
   } catch (error) {
     console.error("Error processing command:", error);
@@ -258,14 +298,16 @@ export async function processCommand(
 }
 
 // Direct command handler for very specific patterns we know work consistently
-function handleDirectCommand(command: string): CommandResult | null {
-  // Handle the specific mentă/menta commands with lot numbers
-  const mentaRegex = /adaug[aă]\s+(\d+)\s*kg\s+de\s+ment[aă]\s+de\s+la\s+magnani\s+(?:nr\s+)?lot\s+(\d+)/i;
-  const mentaMatch = command.match(mentaRegex);
+function handleDirectCommand(command: string, inventory: InventoryItem[]): CommandResult | null {
+  const lowercaseCommand = command.toLowerCase();
   
-  if (mentaMatch) {
-    const quantity = parseInt(mentaMatch[1]);
-    const batchNumber = mentaMatch[2];
+  // Handle the specific mentă/menta commands with lot numbers for adding
+  const mentaAddRegex = /adaug[aă]\s+(\d+)\s*kg\s+de\s+ment[aă]\s+de\s+la\s+magnani\s+(?:nr\s+)?lot\s+(\d+)/i;
+  const mentaAddMatch = command.match(mentaAddRegex);
+  
+  if (mentaAddMatch) {
+    const quantity = parseInt(mentaAddMatch[1]);
+    const batchNumber = mentaAddMatch[2];
     
     return {
       action: "add",
@@ -280,12 +322,138 @@ function handleDirectCommand(command: string): CommandResult | null {
     };
   }
   
+  // Handle the specific mentă/menta commands with lot numbers for removing
+  const mentaRemoveRegex = /(?:scoate|elimină|elimina|sterge|șterge)\s+(\d+)\s*kg\s+de\s+ment[aă]\s+de\s+la\s+magnani\s+(?:nr\s+)?lot\s+(\d+)/i;
+  const mentaRemoveMatch = command.match(mentaRemoveRegex);
+  
+  if (mentaRemoveMatch) {
+    const quantity = parseInt(mentaRemoveMatch[1]);
+    const batchNumber = mentaRemoveMatch[2];
+    
+    // Check if this specific batch exists
+    const specificBatch = inventory.find(
+      item => item.name.toLowerCase() === "menta" && 
+             item.supplier?.toLowerCase() === "magnani" &&
+             item.batch_number === batchNumber
+    );
+    
+    if (specificBatch) {
+      return {
+        action: "remove",
+        response: `Am scos ${quantity} kg de mentă de la furnizorul Magnani, numărul lotului ${batchNumber}, din stoc.`,
+        item: {
+          id: specificBatch.id,
+          name: "menta",
+          quantity: quantity,
+          unit: "kg",
+          supplier: "Magnani",
+          batch_number: batchNumber
+        }
+      };
+    }
+  }
+  
+  // Handle queries about inventory
+  if (lowercaseCommand.includes("câte") || lowercaseCommand.includes("cate") || 
+      lowercaseCommand.includes("câți") || lowercaseCommand.includes("cati") ||
+      lowercaseCommand.includes("ce loturi") || lowercaseCommand.includes("care loturi")) {
+    
+    // Check for mentă/menta related queries
+    if (lowercaseCommand.includes("menta") || lowercaseCommand.includes("mentă")) {
+      // Count batches of menta
+      const mentaBatches = inventory.filter(
+        item => item.name.toLowerCase() === "menta" || item.name.toLowerCase() === "mentă"
+      );
+      
+      if (mentaBatches.length > 0) {
+        // Create a formatted response about the menta batches
+        let totalQuantity = 0;
+        const batchDetails = mentaBatches.map(batch => {
+          totalQuantity += batch.quantity;
+          return `lotul ${batch.batch_number || 'necunoscut'} (${batch.quantity}${batch.unit}) de la ${batch.supplier || 'furnizor necunoscut'}`;
+        }).join(", ");
+        
+        return {
+          action: "query",
+          response: `Avem ${mentaBatches.length} ${mentaBatches.length === 1 ? 'lot' : 'loturi'} de mentă în stoc: ${batchDetails}. În total, avem ${totalQuantity} kg de mentă.`
+        };
+      } else {
+        return {
+          action: "query",
+          response: "Nu avem mentă în stoc momentan."
+        };
+      }
+    }
+    
+    // Generic inventory query
+    if (lowercaseCommand.includes("stoc") || lowercaseCommand.includes("avem")) {
+      return {
+        action: "view",
+        response: "Vă afișez stocul actual."
+      };
+    }
+  }
+  
   return null;
 }
 
 // Pattern recognition for common commands when JSON parsing fails
-function recognizeCommandPattern(command: string): CommandResult {
+function recognizeCommandPattern(command: string, inventory: InventoryItem[]): CommandResult {
   const lowercaseCommand = command.toLowerCase();
+  
+  // Handle remove/scoate commands
+  if (lowercaseCommand.match(/^(scoate|elimină|elimina|șterge|sterge)/i)) {
+    // Try to extract the product name, quantity and unit
+    const removeRegex = /(?:scoate|elimină|elimina|șterge|sterge)\s+(\d+)\s*([a-zA-Z]+)\s+(?:de\s+)?([a-zăâîșțş]+)/i;
+    const removeMatch = lowercaseCommand.match(removeRegex);
+    
+    if (removeMatch) {
+      const quantity = parseInt(removeMatch[1]);
+      const unit = removeMatch[2];
+      const product = removeMatch[3];
+      
+      // Check if we have multiple batches of this product
+      const matchingItems = inventory.filter(
+        item => item.name.toLowerCase() === product
+      );
+      
+      if (matchingItems.length > 1) {
+        // We have multiple batches, ask which one to remove from
+        const options = matchingItems.map(item => ({
+          id: item.id || '',
+          name: item.name,
+          batch_number: item.batch_number,
+          supplier: item.supplier,
+          quantity: item.quantity,
+          unit: item.unit
+        }));
+        
+        return {
+          action: "unknown",
+          response: `Am găsit ${matchingItems.length} loturi diferite de ${product} în stoc.`,
+          needsMoreInfo: {
+            type: "batch_selection",
+            question: `Din care lot doriți să scoateți ${quantity} ${unit} de ${product}?`,
+            options: options
+          }
+        };
+      } else if (matchingItems.length === 1) {
+        // Only one batch exists, use that one
+        return {
+          action: "remove",
+          response: `Am scos ${quantity} ${unit} de ${product} din stoc.`,
+          item: {
+            id: matchingItems[0].id,
+            name: product,
+            quantity: quantity,
+            unit: unit,
+            supplier: matchingItems[0].supplier,
+            batch_number: matchingItems[0].batch_number
+          }
+        };
+      }
+    }
+  }
   
   // Handle pallet requests
   if (lowercaseCommand.includes("palet")) {
@@ -308,6 +476,41 @@ function recognizeCommandPattern(command: string): CommandResult {
     }
   }
   
+  // Handle queries about inventory
+  if (lowercaseCommand.includes("câte") || lowercaseCommand.includes("cate") || 
+      lowercaseCommand.includes("câți") || lowercaseCommand.includes("cati")) {
+    
+    // Check for product mentions
+    const productMatch = lowercaseCommand.match(/(?:de|din)\s+([a-zăâîșțş]+)/i);
+    if (productMatch) {
+      const product = productMatch[1];
+      
+      // Count products of this type
+      const matchingItems = inventory.filter(
+        item => item.name.toLowerCase() === product.toLowerCase()
+      );
+      
+      if (matchingItems.length > 0) {
+        let totalQuantity = 0;
+        matchingItems.forEach(item => {
+          totalQuantity += item.quantity;
+        });
+        
+        const unit = matchingItems[0].unit;
+        
+        return {
+          action: "query",
+          response: `Avem în total ${totalQuantity} ${unit} de ${product} în stoc, în ${matchingItems.length} ${matchingItems.length === 1 ? 'lot' : 'loturi'} diferite.`
+        };
+      } else {
+        return {
+          action: "query",
+          response: `Nu avem ${product} în stoc momentan.`
+        };
+      }
+    }
+  }
+  
   // Handle mentă/menta with lot number pattern more generally
   if ((lowercaseCommand.includes("menta") || lowercaseCommand.includes("mentă")) && 
       lowercaseCommand.includes("magnani")) {
@@ -320,17 +523,33 @@ function recognizeCommandPattern(command: string): CommandResult {
     const lotMatch = lowercaseCommand.match(/lot\s+(\d+)/);
     const lotNumber = lotMatch ? lotMatch[1] : "necunoscut";
     
-    return {
-      action: "add",
-      response: `Am adăugat ${quantity} kg de mentă de la furnizorul Magnani, numărul lotului ${lotNumber}, în stoc.`,
-      item: {
-        name: "menta",
-        quantity: quantity,
-        unit: "kg",
-        supplier: "Magnani",
-        batch_number: lotNumber
-      }
-    };
+    // Check if this is a remove command
+    if (lowercaseCommand.match(/^(scoate|elimină|elimina|șterge|sterge)/i)) {
+      return {
+        action: "remove",
+        response: `Am scos ${quantity} kg de mentă de la furnizorul Magnani, numărul lotului ${lotNumber}, din stoc.`,
+        item: {
+          name: "menta",
+          quantity: quantity,
+          unit: "kg",
+          supplier: "Magnani",
+          batch_number: lotNumber
+        }
+      };
+    } else {
+      // Default to add
+      return {
+        action: "add",
+        response: `Am adăugat ${quantity} kg de mentă de la furnizorul Magnani, numărul lotului ${lotNumber}, în stoc.`,
+        item: {
+          name: "menta",
+          quantity: quantity,
+          unit: "kg",
+          supplier: "Magnani",
+          batch_number: lotNumber
+        }
+      };
+    }
   }
   
   // Generic add pattern

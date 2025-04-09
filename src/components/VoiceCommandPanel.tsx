@@ -72,6 +72,8 @@ const VoiceCommandPanel = ({
               <Badge variant="outline" className="bg-gray-50">Adaugă 5 kg de roșii</Badge>
               <Badge variant="outline" className="bg-gray-50">Adaugă 50kg mentă de la Magnani lot 1505</Badge>
               <Badge variant="outline" className="bg-gray-50">Scoate 2 kg de cartofi</Badge>
+              <Badge variant="outline" className="bg-gray-50">Câte loturi de mentă avem?</Badge>
+              <Badge variant="outline" className="bg-gray-50">Scoate 50 kg de mentă de la Magnani lot 1505</Badge>
               <Badge variant="outline" className="bg-gray-50">Arată stocul</Badge>
               <Badge variant="outline" className="bg-gray-50">Exportă Excel</Badge>
             </div>
@@ -111,7 +113,7 @@ const VoiceCommandPanel = ({
                         </div>
                         <div className="flex-1">
                           <div className="bg-green-light bg-opacity-10 p-2 rounded-lg rounded-tl-none">
-                            <p className="text-sm">{conv.text}</p>
+                            <p className="text-sm" dangerouslySetInnerHTML={{ __html: conv.text.replace(/\n/g, '<br/>') }}></p>
                           </div>
                           <p className="text-xs text-gray-500 mt-1 text-right">
                             {formatTime(conv.timestamp)}
@@ -128,7 +130,7 @@ const VoiceCommandPanel = ({
                       </div>
                       <div className="flex-1">
                         <div className="bg-green-light bg-opacity-10 p-2 rounded-lg rounded-tl-none">
-                          <p className="text-sm">{response}</p>
+                          <p className="text-sm" dangerouslySetInnerHTML={{ __html: response.replace(/\n/g, '<br/>') }}></p>
                         </div>
                         <p className="text-xs text-gray-500 mt-1 text-right">
                           {formatTime(new Date())}

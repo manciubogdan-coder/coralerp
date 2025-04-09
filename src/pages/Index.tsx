@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter } from "lucide-react";
@@ -338,6 +337,14 @@ const Index = () => {
           title: "Informații suplimentare necesare",
           description: result.needsMoreInfo.question
         });
+        
+        if (result.needsMoreInfo.type === 'batch_selection' && result.needsMoreInfo.options) {
+          const optionsMessage = result.needsMoreInfo.options
+            .map(option => `- ${option.name} (lot ${option.batch_number || 'necunoscut'}) de la ${option.supplier || 'furnizor necunoscut'}: ${option.quantity} ${option.unit}`)
+            .join('\n');
+          
+          setResponse(`${result.needsMoreInfo.question}\n\nLoturi disponibile:\n${optionsMessage}`);
+        }
       } else {
         setAwaitingMoreInfo(false);
         
@@ -349,36 +356,46 @@ const Index = () => {
             };
             
             if (result.action === 'remove') {
-              // For removal, we need to ask which batch to remove from if multiple batches exist
               const matchingItems = inventory.filter(
                 item => item.name.toLowerCase() === result.item!.name.toLowerCase()
               );
               
-              if (matchingItems.length > 1) {
-                const batchNumbers = matchingItems.map(item => item.batch_number || 'fără lot');
-                const batchInfo = batchNumbers.join(", ");
-                const responseText = `Există ${matchingItems.length} loturi diferite de ${result.item.name} în stoc (${batchInfo}). Din care lot doriți să eliminați?`;
+              if (matchingItems.length > 1 && !result.item.batch_number && !result.item.id) {
+                const options = matchingItems.map(item => ({
+                  id: item.id || '',
+                  name: item.name,
+                  batch_number: item.batch_number,
+                  supplier: item.supplier,
+                  quantity: item.quantity,
+                  unit: item.unit
+                }));
+                
+                const batchInfo = options.map(option => 
+                  `- ${option.name} (lot ${option.batch_number || 'necunoscut'}) de la ${option.supplier || 'furnizor necunoscut'}: ${option.quantity} ${option.unit}`
+                ).join('\n');
+                
+                const responseText = `Există ${matchingItems.length} loturi diferite de ${result.item.name} în stoc. Din care lot doriți să eliminați?\n\n${batchInfo}`;
                 
                 await saveConversation(responseText);
                 setResponse(responseText);
                 setAwaitingMoreInfo(true);
+                setIsProcessing(false);
                 return;
-              } else if (matchingItems.length === 1) {
-                // Only one batch exists, use that one
+              } else if (matchingItems.length === 1 && !result.item.id) {
                 updatedItem.id = matchingItems[0].id;
                 updatedItem.batch_number = matchingItems[0].batch_number;
                 updatedItem.supplier = matchingItems[0].supplier;
-              } else {
+              } else if (matchingItems.length === 0) {
                 toast({
                   variant: "destructive",
                   title: "Produsul nu există",
                   description: `Nu s-a găsit produsul "${result.item.name}" în stoc.`
                 });
+                setIsProcessing(false);
                 return;
               }
             }
             
-            // Add receipt date for new items
             if (result.action === 'add' || result.action === 'set') {
               updatedItem.receipt_date = updatedItem.receipt_date || new Date();
             }
@@ -387,12 +404,26 @@ const Index = () => {
           }
         } else if (result.action === 'export') {
           exportToExcel(inventory);
+          toast({
+            title: "Export realizat",
+            description: "Fișierul Excel a fost generat și descărcat."
+          });
         } else if (result.action === 'email') {
           await sendEmail(inventory);
           toast({
             title: "Email trimis",
             description: "Raportul a fost trimis pe email."
           });
+        } else if (result.action === 'query') {
+          const productNames = [...new Set(inventory.map(item => item.name.toLowerCase()))];
+          let highlightedResponse = result.response;
+          
+          productNames.forEach(product => {
+            const regex = new RegExp(`\\b${product}\\b`, 'gi');
+            highlightedResponse = highlightedResponse.replace(regex, match => `<strong>${match}</strong>`);
+          });
+          
+          setResponse(highlightedResponse);
         }
         
         await saveConversation(result.response);
@@ -462,7 +493,7 @@ const Index = () => {
               <Input
                 placeholder={awaitingMoreInfo 
                   ? "Răspundeți la întrebarea asistentului..." 
-                  : "Ce ai vrea să faci? (ex: Adaugă 5kg roșii)"
+                  : "Ce ai vrea să faci? (ex: Adaugă 5kg roșii sau Câte loturi de mentă avem?)"
                 }
                 value={inputText}
                 onChange={handleInputChange}
