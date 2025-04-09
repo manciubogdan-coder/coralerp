@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter } from "lucide-react";
@@ -27,7 +26,6 @@ const Index = () => {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const conversationsEndRef = useRef<HTMLDivElement>(null);
 
-  // Set up speech recognition
   useEffect(() => {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
       const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -69,7 +67,6 @@ const Index = () => {
     };
   }, []);
 
-  // Load inventory data from Supabase
   useEffect(() => {
     const fetchInventory = async () => {
       try {
@@ -184,11 +181,9 @@ const Index = () => {
 
   const updateInventoryItem = async (item: InventoryItem) => {
     try {
-      // Format date for Supabase
       const receipt_date = item.receipt_date ? item.receipt_date.toISOString() : null;
       
       if (item.id) {
-        // Update existing item
         const { error } = await supabase
           .from('inventory')
           .update({
@@ -205,7 +200,6 @@ const Index = () => {
           
         if (error) throw error;
       } else {
-        // Add new item
         const { error } = await supabase
           .from('inventory')
           .insert({
@@ -221,7 +215,6 @@ const Index = () => {
         if (error) throw error;
       }
       
-      // Refresh inventory
       const { data, error } = await supabase
         .from('inventory')
         .select('*')
@@ -267,39 +260,32 @@ const Index = () => {
     setResponse("");
     
     try {
-      // Save conversation
       await saveConversation(input);
       
-      // Process the command with AI, passing conversation history
       const result = await processCommand(input, inventory, conversationTexts);
       setResponse(result.response);
 
       if (result.needsMoreInfo) {
-        // The AI is asking for more information
         setAwaitingMoreInfo(true);
-        // Save AI's question in conversation history
         await saveConversation(result.response);
         setResponse(result.needsMoreInfo.question);
       } else {
         setAwaitingMoreInfo(false);
         
-        // Handle inventory updates if needed
         if (result.action === 'add' || result.action === 'remove' || result.action === 'set') {
           if (result.item) {
-            // Check if item exists in inventory
             const existingItemIndex = inventory.findIndex(
               item => item.name.toLowerCase() === result.item?.name.toLowerCase()
             );
             
             if (existingItemIndex >= 0) {
-              // Update existing item
               const updatedItem = {
                 ...inventory[existingItemIndex],
                 quantity: result.action === 'add' 
                   ? inventory[existingItemIndex].quantity + result.item.quantity
                   : result.action === 'remove'
                     ? Math.max(0, inventory[existingItemIndex].quantity - result.item.quantity)
-                    : result.item.quantity, // For 'set' action, use the exact quantity
+                    : result.item.quantity,
                 supplier: result.item.supplier || inventory[existingItemIndex].supplier,
                 batch_number: result.item.batch_number || inventory[existingItemIndex].batch_number,
                 pallets: result.item.pallets !== undefined 
@@ -312,13 +298,11 @@ const Index = () => {
               
               await updateInventoryItem(updatedItem);
             } else if (result.action === 'add' || result.action === 'set') {
-              // Add new item
               await updateInventoryItem({
                 ...result.item,
                 receipt_date: result.item.receipt_date || new Date()
               });
             } else {
-              // Cannot remove an item that doesn't exist
               toast({
                 variant: "destructive",
                 title: "Produsul nu există",
@@ -384,7 +368,6 @@ const Index = () => {
       <Header />
       
       <main className="flex-1 container mx-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Panel - Voice Commands */}
         <div className="md:col-span-1">
           <VoiceCommandPanel 
             isRecording={isRecording}
@@ -396,7 +379,6 @@ const Index = () => {
           />
         </div>
         
-        {/* Right Panel - Inventory Management */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-white rounded-lg shadow-md p-4">
             <form onSubmit={handleSubmit} className="flex space-x-2">

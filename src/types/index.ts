@@ -16,6 +16,7 @@ export interface InventoryItem {
     seconds: number;
     nanoseconds: number;
   };
+  isHeader?: boolean;
 }
 
 export interface CommandResult {

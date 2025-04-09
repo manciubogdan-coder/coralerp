@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -46,7 +45,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         pallets: items.reduce((sum, item) => sum + (item.pallets || 0), 0),
         supplier: supplier,
         isHeader: true
-      } as unknown as InventoryItem;
+      };
       
       return [headerItem, ...items];
     });
@@ -71,7 +70,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         pallets: items.reduce((sum, item) => sum + (item.pallets || 0), 0),
         batch_number: batch,
         isHeader: true
-      } as unknown as InventoryItem;
+      };
       
       return [headerItem, ...items];
     });
@@ -136,8 +135,8 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
           <TableBody>
             {displayedInventory.length > 0 ? (
               displayedInventory.map((item) => (
-                <TableRow key={item.id} className={(item as any).isHeader ? "bg-gray-100 font-medium" : ""}>
-                  <TableCell className={(item as any).isHeader ? "font-bold" : "font-medium"}>
+                <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
+                  <TableCell className={item.isHeader ? "font-bold" : "font-medium"}>
                     {item.name}
                   </TableCell>
                   <TableCell className="text-right">{item.quantity}</TableCell>
