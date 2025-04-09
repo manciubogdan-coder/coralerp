@@ -1,5 +1,4 @@
 
-
 export interface InventoryItem {
   id?: string;
   name: string;
@@ -129,7 +128,6 @@ declare global {
     SpeechRecognition: new () => SpeechRecognition;
     webkitSpeechRecognition: new () => SpeechRecognition;
     speechSynthesis: SpeechSynthesis;
-    SpeechSynthesisUtterance: typeof SpeechSynthesisUtterance;
+    SpeechSynthesisUtterance: new (text?: string) => SpeechSynthesisUtterance;
   }
 }
-
