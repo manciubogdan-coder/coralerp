@@ -113,19 +113,22 @@ declare global {
     readonly voiceURI: string;
   }
 
-  // Combined interface for the global window object with all speech-related properties
+  // Define SpeechSynthesis interface explicitly
+  interface SpeechSynthesis {
+    readonly speaking: boolean;
+    onvoiceschanged: ((this: SpeechSynthesis, ev: Event) => any) | null;
+    cancel(): void;
+    getVoices(): SpeechSynthesisVoice[];
+    pause(): void;
+    resume(): void;
+    speak(utterance: SpeechSynthesisUtterance): void;
+  }
+
+  // Combined interface for the global window object
   interface Window {
     SpeechRecognition: new () => SpeechRecognition;
     webkitSpeechRecognition: new () => SpeechRecognition;
-    speechSynthesis: {
-      readonly speaking: boolean;
-      onvoiceschanged: ((this: SpeechSynthesis, ev: Event) => any) | null;
-      cancel(): void;
-      getVoices(): SpeechSynthesisVoice[];
-      pause(): void;
-      resume(): void;
-      speak(utterance: SpeechSynthesisUtterance): void;
-    };
+    speechSynthesis: SpeechSynthesis;  // Reference the interface defined above
     SpeechSynthesisUtterance: typeof SpeechSynthesisUtterance;
   }
 }
