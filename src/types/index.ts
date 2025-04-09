@@ -19,3 +19,11 @@ export interface CommandResult {
   response: string;
   item?: InventoryItem;
 }
+
+// Web Speech API type definitions
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
+}
