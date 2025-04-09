@@ -93,7 +93,21 @@ declare global {
   interface Window {
     SpeechRecognition: new () => SpeechRecognition;
     webkitSpeechRecognition: new () => SpeechRecognition;
-    speechSynthesis: SpeechSynthesis;
+  }
+
+  // Create a separate interface for speech synthesis
+  interface SpeechSynthesisGlobalProperties {
+    readonly speaking: boolean;
+    onvoiceschanged: ((this: SpeechSynthesis, ev: Event) => any) | null;
+    cancel(): void;
+    getVoices(): SpeechSynthesisVoice[];
+    pause(): void;
+    resume(): void;
+    speak(utterance: SpeechSynthesisUtterance): void;
+  }
+
+  interface Window {
+    speechSynthesis: SpeechSynthesisGlobalProperties;
     SpeechSynthesisUtterance: typeof SpeechSynthesisUtterance;
   }
 
@@ -117,15 +131,5 @@ declare global {
     readonly localService: boolean;
     readonly name: string;
     readonly voiceURI: string;
-  }
-
-  interface SpeechSynthesis {
-    readonly speaking: boolean;
-    onvoiceschanged: ((this: SpeechSynthesis, ev: Event) => any) | null;
-    cancel(): void;
-    getVoices(): SpeechSynthesisVoice[];
-    pause(): void;
-    resume(): void;
-    speak(utterance: SpeechSynthesisUtterance): void;
   }
 }
