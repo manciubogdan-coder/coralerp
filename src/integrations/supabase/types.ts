@@ -29,26 +29,38 @@ export type Database = {
       }
       inventory: {
         Row: {
+          batch_number: string | null
           created_at: string | null
           id: string
           name: string
+          pallets: number | null
           quantity: number
+          receipt_date: string | null
+          supplier: string | null
           unit: string
           updated_at: string | null
         }
         Insert: {
+          batch_number?: string | null
           created_at?: string | null
           id?: string
           name: string
+          pallets?: number | null
           quantity?: number
+          receipt_date?: string | null
+          supplier?: string | null
           unit: string
           updated_at?: string | null
         }
         Update: {
+          batch_number?: string | null
           created_at?: string | null
           id?: string
           name?: string
+          pallets?: number | null
           quantity?: number
+          receipt_date?: string | null
+          supplier?: string | null
           unit?: string
           updated_at?: string | null
         }
@@ -56,7 +68,20 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      inventory_aggregated_view: {
+        Row: {
+          batch_number: string | null
+          entries: number | null
+          first_receipt: string | null
+          last_receipt: string | null
+          name: string | null
+          supplier: string | null
+          total_pallets: number | null
+          total_quantity: number | null
+          unit: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never

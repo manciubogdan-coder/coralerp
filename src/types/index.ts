@@ -4,6 +4,10 @@ export interface InventoryItem {
   name: string;
   quantity: number;
   unit: string;
+  supplier?: string;
+  batch_number?: string;
+  pallets?: number;
+  receipt_date?: Date;
   createdAt?: {
     seconds: number;
     nanoseconds: number;
@@ -18,6 +22,10 @@ export interface CommandResult {
   action: 'add' | 'remove' | 'set' | 'view' | 'export' | 'email' | 'unknown';
   response: string;
   item?: InventoryItem;
+  needsMoreInfo?: {
+    type: 'pallet_details' | 'supplier_info' | 'batch_info';
+    question: string;
+  };
 }
 
 // Web Speech API type definitions

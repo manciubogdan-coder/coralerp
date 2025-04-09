@@ -65,9 +65,12 @@ const VoiceCommandPanel = ({
             </h4>
             <div className="mt-2 flex flex-wrap gap-2">
               <Badge variant="outline" className="bg-gray-50">Adaugă [cantitate] [produs]</Badge>
+              <Badge variant="outline" className="bg-gray-50">Adaugă [nr paleți] paleți de [produs]</Badge>
               <Badge variant="outline" className="bg-gray-50">Scoate [cantitate] [produs]</Badge>
               <Badge variant="outline" className="bg-gray-50">Reglează [produs] la [cantitate]</Badge>
               <Badge variant="outline" className="bg-gray-50">Arată stocul</Badge>
+              <Badge variant="outline" className="bg-gray-50">Grupează după furnizor</Badge>
+              <Badge variant="outline" className="bg-gray-50">Grupează după lot</Badge>
               <Badge variant="outline" className="bg-gray-50">Exportă Excel</Badge>
               <Badge variant="outline" className="bg-gray-50">Trimite raport pe email</Badge>
             </div>

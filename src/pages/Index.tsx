@@ -20,7 +20,9 @@ const Index = () => {
   const [inputText, setInputText] = useState("");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [conversations, setConversations] = useState<{text: string, timestamp: Date}[]>([]);
+  const [conversationTexts, setConversationTexts] = useState<string[]>([]); // For AI context
   const [isProcessing, setIsProcessing] = useState(false);
+  const [awaitingMoreInfo, setAwaitingMoreInfo] = useState(false);
   const [response, setResponse] = useState("");
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const conversationsEndRef = useRef<HTMLDivElement>(null);
@@ -83,6 +85,10 @@ const Index = () => {
           name: item.name,
           quantity: item.quantity ? Number(item.quantity) : 0,
           unit: item.unit,
+          supplier: item.supplier || undefined,
+          batch_number: item.batch_number || undefined,
+          pallets: item.pallets ? Number(item.pallets) : 0,
+          receipt_date: item.receipt_date ? new Date(item.receipt_date) : undefined,
           createdAt: {
             seconds: new Date(item.created_at || '').getTime() / 1000,
             nanoseconds: 0
@@ -119,6 +125,7 @@ const Index = () => {
         }));
         
         setConversations(convs);
+        setConversationTexts(data.map(conv => conv.text));
       } catch (error) {
         console.error("Error fetching conversations:", error);
       }
@@ -169,6 +176,7 @@ const Index = () => {
       if (error) throw error;
       
       setConversations(prev => [...prev, { text, timestamp: new Date() }]);
+      setConversationTexts(prev => [...prev, text]);
     } catch (error) {
       console.error("Error saving conversation:", error);
     }
@@ -176,6 +184,9 @@ const Index = () => {
 
   const updateInventoryItem = async (item: InventoryItem) => {
     try {
+      // Format date for Supabase
+      const receipt_date = item.receipt_date ? item.receipt_date.toISOString() : null;
+      
       if (item.id) {
         // Update existing item
         const { error } = await supabase
@@ -184,6 +195,10 @@ const Index = () => {
             name: item.name,
             quantity: item.quantity,
             unit: item.unit,
+            supplier: item.supplier || null,
+            batch_number: item.batch_number || null,
+            pallets: item.pallets || 0,
+            receipt_date: receipt_date,
             updated_at: new Date().toISOString()
           })
           .eq('id', item.id);
@@ -196,7 +211,11 @@ const Index = () => {
           .insert({
             name: item.name,
             quantity: item.quantity,
-            unit: item.unit
+            unit: item.unit,
+            supplier: item.supplier || null,
+            batch_number: item.batch_number || null,
+            pallets: item.pallets || 0,
+            receipt_date: receipt_date
           });
           
         if (error) throw error;
@@ -215,6 +234,10 @@ const Index = () => {
         name: item.name,
         quantity: item.quantity ? Number(item.quantity) : 0,
         unit: item.unit,
+        supplier: item.supplier || undefined,
+        batch_number: item.batch_number || undefined,
+        pallets: item.pallets ? Number(item.pallets) : 0,
+        receipt_date: item.receipt_date ? new Date(item.receipt_date) : undefined,
         createdAt: {
           seconds: new Date(item.created_at || '').getTime() / 1000,
           nanoseconds: 0
@@ -247,50 +270,71 @@ const Index = () => {
       // Save conversation
       await saveConversation(input);
       
-      // Process the command with AI
-      const result = await processCommand(input, inventory);
+      // Process the command with AI, passing conversation history
+      const result = await processCommand(input, inventory, conversationTexts);
       setResponse(result.response);
 
-      // Handle inventory updates if needed
-      if (result.action === 'add' || result.action === 'remove' || result.action === 'set') {
-        if (result.item) {
-          // Check if item exists in inventory
-          const existingItemIndex = inventory.findIndex(
-            item => item.name.toLowerCase() === result.item?.name.toLowerCase()
-          );
-          
-          if (existingItemIndex >= 0) {
-            // Update existing item
-            const updatedItem = {
-              ...inventory[existingItemIndex],
-              quantity: result.action === 'add' 
-                ? inventory[existingItemIndex].quantity + result.item.quantity
-                : result.action === 'remove'
-                  ? Math.max(0, inventory[existingItemIndex].quantity - result.item.quantity)
-                  : result.item.quantity // For 'set' action, use the exact quantity
-            };
+      if (result.needsMoreInfo) {
+        // The AI is asking for more information
+        setAwaitingMoreInfo(true);
+        // Save AI's question in conversation history
+        await saveConversation(result.response);
+        setResponse(result.needsMoreInfo.question);
+      } else {
+        setAwaitingMoreInfo(false);
+        
+        // Handle inventory updates if needed
+        if (result.action === 'add' || result.action === 'remove' || result.action === 'set') {
+          if (result.item) {
+            // Check if item exists in inventory
+            const existingItemIndex = inventory.findIndex(
+              item => item.name.toLowerCase() === result.item?.name.toLowerCase()
+            );
             
-            await updateInventoryItem(updatedItem);
-          } else if (result.action === 'add' || result.action === 'set') {
-            // Add new item
-            await updateInventoryItem(result.item);
-          } else {
-            // Cannot remove an item that doesn't exist
-            toast({
-              variant: "destructive",
-              title: "Produsul nu există",
-              description: `Nu s-a găsit produsul "${result.item.name}" în stoc.`
-            });
+            if (existingItemIndex >= 0) {
+              // Update existing item
+              const updatedItem = {
+                ...inventory[existingItemIndex],
+                quantity: result.action === 'add' 
+                  ? inventory[existingItemIndex].quantity + result.item.quantity
+                  : result.action === 'remove'
+                    ? Math.max(0, inventory[existingItemIndex].quantity - result.item.quantity)
+                    : result.item.quantity, // For 'set' action, use the exact quantity
+                supplier: result.item.supplier || inventory[existingItemIndex].supplier,
+                batch_number: result.item.batch_number || inventory[existingItemIndex].batch_number,
+                pallets: result.item.pallets !== undefined 
+                  ? (result.action === 'add' 
+                    ? (inventory[existingItemIndex].pallets || 0) + result.item.pallets
+                    : result.item.pallets)
+                  : inventory[existingItemIndex].pallets,
+                receipt_date: result.item.receipt_date || inventory[existingItemIndex].receipt_date
+              };
+              
+              await updateInventoryItem(updatedItem);
+            } else if (result.action === 'add' || result.action === 'set') {
+              // Add new item
+              await updateInventoryItem({
+                ...result.item,
+                receipt_date: result.item.receipt_date || new Date()
+              });
+            } else {
+              // Cannot remove an item that doesn't exist
+              toast({
+                variant: "destructive",
+                title: "Produsul nu există",
+                description: `Nu s-a găsit produsul "${result.item.name}" în stoc.`
+              });
+            }
           }
+        } else if (result.action === 'export') {
+          exportToExcel(inventory);
+        } else if (result.action === 'email') {
+          await sendEmail(inventory);
+          toast({
+            title: "Email trimis",
+            description: "Raportul a fost trimis pe email."
+          });
         }
-      } else if (result.action === 'export') {
-        exportToExcel(inventory);
-      } else if (result.action === 'email') {
-        await sendEmail(inventory);
-        toast({
-          title: "Email trimis",
-          description: "Raportul a fost trimis pe email."
-        });
       }
     } catch (error) {
       console.error("Error processing command:", error);
@@ -357,7 +401,10 @@ const Index = () => {
           <div className="bg-white rounded-lg shadow-md p-4">
             <form onSubmit={handleSubmit} className="flex space-x-2">
               <Input
-                placeholder="Introduceți comanda (ex: Adaugă 5kg roșii)"
+                placeholder={awaitingMoreInfo 
+                  ? "Răspundeți la întrebarea asistentului..." 
+                  : "Introduceți comanda (ex: Adaugă 5kg roșii)"
+                }
                 value={inputText}
                 onChange={handleInputChange}
                 className="flex-1"
