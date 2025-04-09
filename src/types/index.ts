@@ -93,8 +93,8 @@ declare global {
   interface Window {
     SpeechRecognition: new () => SpeechRecognition;
     webkitSpeechRecognition: new () => SpeechRecognition;
-    speechSynthesis?: SpeechSynthesis;
-    SpeechSynthesisUtterance?: typeof SpeechSynthesisUtterance;
+    speechSynthesis: SpeechSynthesis;
+    SpeechSynthesisUtterance: typeof SpeechSynthesisUtterance;
   }
 
   interface SpeechSynthesisUtterance extends EventTarget {

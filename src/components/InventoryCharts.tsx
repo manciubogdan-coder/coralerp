@@ -24,48 +24,7 @@ const InventoryCharts = ({ charts }: InventoryChartsProps) => {
           <CardContent>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                {chart.type === 'bar' && (
-                  <BarChart data={chart.data} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
-                    <XAxis dataKey={chart.xKey || "name"} angle={-45} textAnchor="end" height={50} />
-                    <YAxis />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Bar dataKey={chart.yKey || "value"} fill="#0088FE">
-                      {chart.data.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                )}
-                {chart.type === 'pie' && (
-                  <PieChart>
-                    <Pie
-                      data={chart.data}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={true}
-                      label={({name, value}) => `${name}: ${value}`}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey={chart.yKey || "value"}
-                    >
-                      {chart.data.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                  </PieChart>
-                )}
-                {chart.type === 'line' && (
-                  <LineChart data={chart.data} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
-                    <XAxis dataKey={chart.xKey || "name"} angle={-45} textAnchor="end" height={50} />
-                    <YAxis />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Line type="monotone" dataKey={chart.yKey || "value"} stroke="#0088FE" />
-                  </LineChart>
-                )}
+                {renderChart(chart)}
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -73,6 +32,59 @@ const InventoryCharts = ({ charts }: InventoryChartsProps) => {
       ))}
     </div>
   );
+};
+
+// Helper function to render the appropriate chart type
+const renderChart = (chart: ChartData) => {
+  switch(chart.type) {
+    case 'bar':
+      return (
+        <BarChart data={chart.data} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
+          <XAxis dataKey={chart.xKey || "name"} angle={-45} textAnchor="end" height={50} />
+          <YAxis />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend />
+          <Bar dataKey={chart.yKey || "value"} fill="#0088FE">
+            {chart.data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            ))}
+          </Bar>
+        </BarChart>
+      );
+    case 'pie':
+      return (
+        <PieChart>
+          <Pie
+            data={chart.data}
+            cx="50%"
+            cy="50%"
+            labelLine={true}
+            label={({name, value}) => `${name}: ${value}`}
+            outerRadius={100}
+            fill="#8884d8"
+            dataKey={chart.yKey || "value"}
+          >
+            {chart.data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip content={<CustomTooltip />} />
+          <Legend />
+        </PieChart>
+      );
+    case 'line':
+      return (
+        <LineChart data={chart.data} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
+          <XAxis dataKey={chart.xKey || "name"} angle={-45} textAnchor="end" height={50} />
+          <YAxis />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend />
+          <Line type="monotone" dataKey={chart.yKey || "value"} stroke="#0088FE" />
+        </LineChart>
+      );
+    default:
+      return null;
+  }
 };
 
 // Create a separate functional component for the CustomTooltip
