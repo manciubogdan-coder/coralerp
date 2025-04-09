@@ -59,7 +59,7 @@ const renderChart = (chart: ChartData) => {
             cx="50%"
             cy="50%"
             labelLine={true}
-            label={({name, value}) => `${name}: ${value}`}
+            label={({ name, value }) => `${name}: ${value}`}
             outerRadius={100}
             fill="#8884d8"
             dataKey={chart.yKey || "value"}

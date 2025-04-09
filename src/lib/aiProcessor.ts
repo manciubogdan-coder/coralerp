@@ -1,3 +1,4 @@
+
 import { CommandResult, InventoryItem, ChartData } from "@/types";
 
 export async function processCommand(
@@ -15,12 +16,16 @@ export async function processCommand(
       return directCommandResult;
     }
     
+    // Check if it's a conversation query 
+    const isConversationalQuery = isConversation(command);
+
     // Build conversation history for context
     const messages = [
       {
         role: "system",
         content: `Ești un asistent inteligent care gestionează marfă într-un depozit. Răspunde în română, ca un uman, utilizând un ton conversațional prietenos. Înțelege expresii naturale și acționează pe baza comenzilor primite. Răspunde la întrebări despre stoc într-un mod conversațional și clar, ca și când ai fi un coleg real.
         
+        ${isConversationalQuery ? `FOARTE IMPORTANT: Aceasta pare a fi o întrebare conversațională generală, nu specifică managementului de stoc. Răspunde ca un asistent general inteligent, fără a te limita la operațiuni de stoc. Poți discuta orice subiect, dar păstrează un ton profesionist și amabil.` : `
         IMPORTANT - Distincția între tipuri de acțiuni:
         1. "add" - când utilizatorul vrea să ADAUGE o cantitate la stoc (ex: "adaugă 5kg de roșii", "pune 3 cutii")
         2. "remove" - când utilizatorul vrea să SCADĂ o cantitate din stoc (ex: "scoate 2 kg de mere", "elimină 3 cutii") 
@@ -28,7 +33,7 @@ export async function processCommand(
         4. "view" - când utilizatorul vrea să VADĂ stocul
         5. "export" - când utilizatorul vrea să EXPORTE stocul
         6. "email" - când utilizatorul vrea să TRIMITĂ stocul pe email
-        7. "query" - când utilizatorul întreabă despre stoc (ex: "câte kg de roșii am?", "ce loturi de mentă am în stoc?")
+        7. "query" - când utilizatorul întreabă despre stoc (ex: "câte kg de roșii am?", "ce loturi de mentă am în stoc?")`}
         
         IMPORTANT - Noile câmpuri pentru inventar includ:
         - supplier (furnizorul)
@@ -36,6 +41,7 @@ export async function processCommand(
         - pallets (numărul de paleți)
         - receipt_date (data recepției)
         
+        ${isConversationalQuery ? "" : `
         FOARTE IMPORTANT! Când utilizatorul menționează paleți, dar nu specifică detalii suficiente (de exemplu, "adaugă un palet de roșii" sau "adaugă un palet de mentă"), TREBUIE să ceri informații suplimentare:
         - câte kg/bucăți are un palet
         - detalii despre furnizor
@@ -49,19 +55,19 @@ export async function processCommand(
 
         FOARTE IMPORTANT! Când utilizatorul întreabă despre stoc (ex: "câte kg de mentă am?", "câte loturi de mentă avem?"), trebuie să răspunzi cu informațiile disponibile. Aceste întrebări trebuie interpretatate cu action "query".
         
-        Răspunsul tău va include grafice atunci când se solicită informații statistice sau cantitative despre stoc (la întrebări de tip "câte", "care", etc.). Poți crea grafice de tip bar, pie sau line când datele permit.
+        Răspunsul tău va include grafice atunci când se solicită informații statistice sau cantitative despre stoc (la întrebări de tip "câte", "care", etc.). Poți crea grafice de tip bar, pie sau line când datele permit.`}
         
         FOARTE IMPORTANT! Răspunde întotdeauna ca un obiect JSON cu următoarea structură exactă:
         {
-          "action": "add" | "remove" | "set" | "view" | "export" | "email" | "query" | "unknown",
-          "response": "Răspunsul în text natural pentru utilizator",
+          "action": ${isConversationalQuery ? `"query"` : `"add" | "remove" | "set" | "view" | "export" | "email" | "query" | "unknown"`},
+          "response": "Răspunsul în text natural pentru utilizator"${isConversationalQuery ? "" : `,
           "item": {
             "name": "numele produsului",
             "quantity": numărul (cantitatea),
             "unit": "unitatea de măsură",
             "supplier": "numele furnizorului (opțional)",
             "batch_number": "numărul lotului (opțional)",
-            "pallets": numărul de paleți (opțional)",
+            "pallets": numărul de paleți (opțional),
             "receipt_date": "data recepției în format ISO (opțional)"
           },
           "charts": [
@@ -87,10 +93,10 @@ export async function processCommand(
                 "unit": "unitatea de măsură"
               }
             ]
-          }
+          }`}
         }
         
-        Dacă ai nevoie de mai multe informații de la utilizator, adaugă câmpul "needsMoreInfo" și lasă câmpul "action" ca "unknown".
+        ${isConversationalQuery ? "" : `Dacă ai nevoie de mai multe informații de la utilizator, adaugă câmpul "needsMoreInfo" și lasă câmpul "action" ca "unknown".
         
         Când utilizatorul adaugă, elimină sau setează cantități în stoc, indiferent dacă există deja sau nu, procesează comanda corect.
 
@@ -98,11 +104,11 @@ export async function processCommand(
         
         Când utilizatorul solicită grafice sau date vizuale, trebuie să incluzi date relevante în câmpul "charts" din răspuns.
 
-        FOARTE IMPORTANT! Când utilizatorul face întrebări precum "cate produse am in total?", "ce produse am în stoc?", "arată-mi distribuția pe furnizori", "care sunt cantitățile pe loturi", "cate intrari ai avut azi?", etc., răspunde cu acțiunea "query" și include grafice relevante în câmpul "charts".
+        FOARTE IMPORTANT! Când utilizatorul face întrebări precum "cate produse am in total?", "ce produse am în stoc?", "arată-mi distribuția pe furnizori", "care sunt cantitățile pe loturi", "cate intrari ai avut azi?", etc., răspunde cu acțiunea "query" și include grafice relevante în câmpul "charts".`}
 
         Răspunde DOAR cu un obiect JSON valid - nici un text în afara acestui obiect!
         
-        Câteva exemple:
+        ${isConversationalQuery ? "" : `Câteva exemple:
         Pentru "Adaugă 5 kg de roșii":
         {
           "action": "add",
@@ -128,7 +134,7 @@ export async function processCommand(
         {
           "action": "query",
           "response": "Astăzi au fost înregistrate 5 intrări de produse în stoc. Detalii: 2 loturi de roșii, 1 lot de cartofi și 2 loturi de mere."
-        }
+        }`}
         
         Actuala stare a inventarului este: ${JSON.stringify(inventory)}
         `
@@ -268,6 +274,41 @@ export async function processCommand(
   }
 }
 
+// Function to detect if a command is a conversational query rather than an inventory command
+function isConversation(command: string): boolean {
+  const lowercaseCommand = command.toLowerCase();
+  
+  // List of inventory-related keywords
+  const inventoryKeywords = [
+    'stoc', 'adaugă', 'adauga', 'adăuga', 'pune', 'scoate', 'elimină', 'elimina', 
+    'sterge', 'șterge', 'kg', 'produs', 'produse', 'cantitate', 'cantitați', 
+    'lot', 'loturi', 'palet', 'paleți', 'paleti', 'furnizor', 'inventar', 
+    'export', 'excel', 'email', 'raport', 'intrări', 'intrari', 'iesiri', 'ieșiri'
+  ];
+  
+  // Check if command contains inventory-related keywords
+  const containsInventoryKeywords = inventoryKeywords.some(keyword => 
+    lowercaseCommand.includes(keyword)
+  );
+  
+  // Commands asking about inventory-specific quantities
+  if (lowercaseCommand.match(/câte|cate|câți|cati/i) && 
+      (lowercaseCommand.includes('stoc') || 
+       lowercaseCommand.includes('avem') || 
+       lowercaseCommand.includes('sunt') ||
+       lowercaseCommand.includes('produse'))) {
+    return false; // This is an inventory query
+  }
+  
+  // Check for specific inventory actions
+  if (lowercaseCommand.match(/^(adaugă|adauga|pune|scoate|elimină|elimina|șterge|sterge|vezi|arată|arata)/i)) {
+    return false; // This is an inventory command
+  }
+  
+  // If the command doesn't contain inventory keywords, it's more likely a conversational query
+  return !containsInventoryKeywords;
+}
+
 // Direct command handler for very specific patterns we know work consistently
 function handleDirectCommand(command: string, inventory: InventoryItem[]): CommandResult | null {
   const lowercaseCommand = command.toLowerCase();
@@ -351,6 +392,18 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
         response: "Nu am înregistrat nicio intrare în stoc astăzi."
       };
     }
+  }
+  
+  // Handle queries about exits/ieșiri de azi
+  if (lowercaseCommand.includes("ieșiri") || lowercaseCommand.includes("iesiri") || 
+      lowercaseCommand.includes("scos") || lowercaseCommand.includes("eliminat")) {
+    
+    // This would require tracking exits in a separate table or with timestamps
+    // For now, we'll return a placeholder response
+    return {
+      action: "query",
+      response: "Sistemul nu monitorizează momentan ieșirile cu timestamp. Pot doar să vă arăt starea curentă a stocului."
+    };
   }
   
   // Handle the specific mentă/menta commands with lot numbers for adding
@@ -737,6 +790,14 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
         quantity: parseInt(addMatch[1]),
         unit: addMatch[2]
       }
+    };
+  }
+  
+  // Check if this is a conversational query rather than an inventory command
+  if (isConversation(command)) {
+    return {
+      action: "query",
+      response: "Îmi pare rău, dar nu am destule informații pentru a răspunde la această întrebare. Sunt specializat în asistență pentru gestiunea stocurilor. Puteți să mă întrebați despre stoc, produse, furnizori sau să îmi cereți să adaug sau să scot produse din inventar."
     };
   }
   

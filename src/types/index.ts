@@ -1,5 +1,4 @@
 
-
 export interface InventoryItem {
   id?: string;
   name: string;
@@ -94,9 +93,8 @@ declare global {
   interface Window {
     SpeechRecognition: new () => SpeechRecognition;
     webkitSpeechRecognition: new () => SpeechRecognition;
-    // Fixed declaration to avoid modifiers conflict
-    readonly speechSynthesis: SpeechSynthesis;
-    readonly SpeechSynthesisUtterance: typeof SpeechSynthesisUtterance;
+    speechSynthesis: SpeechSynthesis;
+    SpeechSynthesisUtterance: typeof SpeechSynthesisUtterance;
   }
 
   interface SpeechSynthesisUtterance extends EventTarget {
@@ -131,4 +129,3 @@ declare global {
     speak(utterance: SpeechSynthesisUtterance): void;
   }
 }
-
