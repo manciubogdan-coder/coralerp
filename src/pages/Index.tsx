@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter } from "lucide-react";
@@ -80,14 +81,14 @@ const Index = () => {
         const items: InventoryItem[] = data.map(item => ({
           id: item.id,
           name: item.name,
-          quantity: Number(item.quantity),
+          quantity: item.quantity ? Number(item.quantity) : 0,
           unit: item.unit,
           createdAt: {
-            seconds: new Date(item.created_at).getTime() / 1000,
+            seconds: new Date(item.created_at || '').getTime() / 1000,
             nanoseconds: 0
           },
           updatedAt: {
-            seconds: new Date(item.updated_at).getTime() / 1000,
+            seconds: new Date(item.updated_at || '').getTime() / 1000,
             nanoseconds: 0
           }
         }));
@@ -114,7 +115,7 @@ const Index = () => {
 
         const convs: {text: string, timestamp: Date}[] = data.map(conv => ({
           text: conv.text,
-          timestamp: new Date(conv.timestamp)
+          timestamp: new Date(conv.timestamp || '')
         }));
         
         setConversations(convs);
@@ -212,14 +213,14 @@ const Index = () => {
       const items: InventoryItem[] = data.map(item => ({
         id: item.id,
         name: item.name,
-        quantity: Number(item.quantity),
+        quantity: item.quantity ? Number(item.quantity) : 0,
         unit: item.unit,
         createdAt: {
-          seconds: new Date(item.created_at).getTime() / 1000,
+          seconds: new Date(item.created_at || '').getTime() / 1000,
           nanoseconds: 0
         },
         updatedAt: {
-          seconds: new Date(item.updated_at).getTime() / 1000,
+          seconds: new Date(item.updated_at || '').getTime() / 1000,
           nanoseconds: 0
         }
       }));
