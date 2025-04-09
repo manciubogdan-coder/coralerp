@@ -54,6 +54,7 @@ export interface ChartData {
 
 // Web Speech API type definitions
 declare global {
+  // Speech Recognition interfaces
   interface SpeechRecognition extends EventTarget {
     continuous: boolean;
     interimResults: boolean;
