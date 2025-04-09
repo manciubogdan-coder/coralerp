@@ -1,5 +1,4 @@
 
-
 export interface InventoryItem {
   id?: string;
   name: string;
@@ -27,36 +26,36 @@ declare global {
     continuous: boolean;
     interimResults: boolean;
     lang: string;
-    start: () => void;
-    stop: () => void;
+    start(): void;
+    stop(): void;
     onresult: (event: SpeechRecognitionEvent) => void;
     onerror: (event: SpeechRecognitionErrorEvent) => void;
   }
 
   interface SpeechRecognitionEvent {
-    resultIndex: number;
-    results: SpeechRecognitionResultList;
+    readonly resultIndex: number;
+    readonly results: SpeechRecognitionResultList;
   }
 
   interface SpeechRecognitionResultList {
-    [index: number]: SpeechRecognitionResult;
-    length: number;
+    readonly [index: number]: SpeechRecognitionResult;
+    readonly length: number;
   }
 
   interface SpeechRecognitionResult {
-    isFinal: boolean;
-    [index: number]: SpeechRecognitionAlternative;
-    length: number;
+    readonly isFinal: boolean;
+    readonly [index: number]: SpeechRecognitionAlternative;
+    readonly length: number;
   }
 
   interface SpeechRecognitionAlternative {
-    transcript: string;
-    confidence: number;
+    readonly transcript: string;
+    readonly confidence: number;
   }
 
   interface SpeechRecognitionErrorEvent extends Event {
-    error: string;
-    message: string;
+    readonly error: string;
+    readonly message: string;
   }
 
   interface Window {
@@ -64,4 +63,3 @@ declare global {
     webkitSpeechRecognition: new () => SpeechRecognition;
   }
 }
-
