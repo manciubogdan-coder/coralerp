@@ -16,8 +16,14 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const [groupBySupplier, setGroupBySupplier] = useState(false);
   const [groupByBatch, setGroupByBatch] = useState(false);
   const [groupByProduct, setGroupByProduct] = useState(false);
+  const [showEmptyItems, setShowEmptyItems] = useState(false);
   
-  const filteredInventory = inventory.filter(item =>
+  // Filter out items with zero quantity unless explicitly showing empty items
+  const nonEmptyInventory = showEmptyItems 
+    ? inventory 
+    : inventory.filter(item => item.quantity > 0);
+    
+  const filteredInventory = nonEmptyInventory.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (item.supplier && item.supplier.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (item.batch_number && item.batch_number.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -149,6 +155,11 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
               setGroupByProduct(false);
             }}>
               Grupare după lot
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => {
+              setShowEmptyItems(!showEmptyItems);
+            }}>
+              {showEmptyItems ? "Ascunde produsele fără stoc" : "Arată și produsele fără stoc"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

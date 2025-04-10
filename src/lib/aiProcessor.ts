@@ -625,7 +625,7 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
       
       // Check if we have multiple batches of this product
       const matchingItems = inventory.filter(
-        item => item.name.toLowerCase() === product
+        item => item.name.toLowerCase() === product && item.quantity > 0
       );
       
       if (matchingItems.length > 1) {
@@ -644,7 +644,7 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
           response: `Am gasit ${matchingItems.length} loturi diferite de ${product} in stoc.`,
           needsMoreInfo: {
             type: "batch_selection",
-            question: `Din care lot doriti sa scoateti ${quantity} ${unit} de ${product}?`,
+            question: `Din care lot doresti sa scoti ${quantity} ${unit} de ${product}?`,
             options: options
           }
         };
@@ -687,6 +687,12 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
             batch_number: item.batch_number
           }
         };
+      } else {
+        // No matching items with stock
+        return {
+          action: "unknown",
+          response: `Nu exista ${product} cu stoc disponibil in inventar.`,
+        };
       }
     }
   }
@@ -704,7 +710,8 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
     // Find the specific batch
     const specificBatch = inventory.find(
       item => item.name.toLowerCase() === product.toLowerCase() && 
-             item.batch_number === batchNumber
+             item.batch_number === batchNumber &&
+             item.quantity > 0
     );
     
     if (specificBatch) {
@@ -713,13 +720,14 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
         // Not enough in this batch, suggest alternatives
         const otherBatches = inventory.filter(
           item => item.name.toLowerCase() === product.toLowerCase() && 
-                item.id !== specificBatch.id
+                item.id !== specificBatch.id &&
+                item.quantity > 0
         );
         
         let responseText = `Atentie! In lotul ${batchNumber} avem doar ${specificBatch.quantity} ${unit} de ${product}, dar ai solicitat ${quantity} ${unit}.`;
         
         if (otherBatches.length > 0) {
-          // We have other batches of the same product
+          // We have other batches of the same product with stock
           const options = [
             {
               id: specificBatch.id || '',
@@ -794,9 +802,24 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
         }
       };
     } else {
+      // Check if batch exists but has zero quantity
+      const emptyBatch = inventory.find(
+        item => item.name.toLowerCase() === product.toLowerCase() && 
+               item.batch_number === batchNumber &&
+               item.quantity === 0
+      );
+      
+      if (emptyBatch) {
+        return {
+          action: "unknown",
+          response: `Lotul ${batchNumber} de ${product} exista, dar nu mai are stoc disponibil.`
+        };
+      }
+      
       // Batch not found
       const availableBatches = inventory.filter(
-        item => item.name.toLowerCase() === product.toLowerCase()
+        item => item.name.toLowerCase() === product.toLowerCase() && 
+               item.quantity > 0
       );
       
       if (availableBatches.length > 0) {
@@ -815,6 +838,11 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
               unit: item.unit
             }))
           }
+        };
+      } else {
+        return {
+          action: "unknown",
+          response: `Nu exista ${product} cu stoc disponibil in inventar.`
         };
       }
     }

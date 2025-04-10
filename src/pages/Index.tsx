@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-custom-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
@@ -305,18 +304,59 @@ const Index = () => {
           }
         }
         
-        const { error } = await supabase
-          .from('inventory')
-          .update({
-            quantity: newQuantity,
-            pallets: newPallets,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingItem.id);
+        if (newQuantity === 0) {
+          const { data: otherBatches, error: batchError } = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('name', existingItem.name)
+            .neq('id', existingItem.id);
           
-        if (error) {
-          console.error("Error updating existing item:", error);
-          throw error;
+          if (batchError) {
+            console.error("Error checking other batches:", batchError);
+            throw batchError;
+          }
+          
+          if (otherBatches && otherBatches.length > 0) {
+            const { error: deleteError } = await supabase
+              .from('inventory')
+              .delete()
+              .eq('id', existingItem.id);
+              
+            if (deleteError) {
+              console.error("Error deleting empty inventory item:", deleteError);
+              throw deleteError;
+            }
+            
+            console.log(`Deleted empty inventory item (${existingItem.name}, batch ${existingItem.batch_number}) as other batches exist`);
+          } else {
+            const { error } = await supabase
+              .from('inventory')
+              .update({
+                quantity: newQuantity,
+                pallets: newPallets,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingItem.id);
+              
+            if (error) {
+              console.error("Error updating existing item:", error);
+              throw error;
+            }
+          }
+        } else {
+          const { error } = await supabase
+            .from('inventory')
+            .update({
+              quantity: newQuantity,
+              pallets: newPallets,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existingItem.id);
+            
+          if (error) {
+            console.error("Error updating existing item:", error);
+            throw error;
+          }
         }
         
         console.log("Updated existing item successfully");
@@ -458,10 +498,12 @@ const Index = () => {
       const actionVerb = item.action === 'add' ? 'adaugat' : 
                          item.action === 'remove' ? 'scos' : 'actualizat';
       
-      toast({
-        title: "Operatiune reusita",
-        description: `${item.quantity} ${item.unit} de ${item.name} ${item.supplier ? `de la ${item.supplier}` : ''} ${item.batch_number ? `(lot ${item.batch_number})` : ''} ${actionVerb} in stoc.`,
-      });
+      if (!(item.action === 'remove' && previousQuantity === 0)) {
+        toast({
+          title: "Operatiune reusita",
+          description: `${item.action === 'remove' && previousQuantity < item.quantity ? previousQuantity : item.quantity} ${item.unit} de ${item.name} ${item.supplier ? `de la ${item.supplier}` : ''} ${item.batch_number ? `(lot ${item.batch_number})` : ''} ${actionVerb} in stoc.`,
+        });
+      }
       
     } catch (error) {
       console.error("Error updating inventory:", error);
