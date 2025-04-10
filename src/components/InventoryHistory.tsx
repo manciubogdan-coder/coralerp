@@ -36,7 +36,6 @@ interface InventoryHistoryResponse {
   previous_quantity: number | null;
   supplier: string | null;
   batch_number: string | null;
-  pallets: number | null;
   operation_date: string;
   exit_timestamp: string | null;
   notes: string | null;
@@ -103,7 +102,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         previous_quantity: item.previous_quantity ? Number(item.previous_quantity) : undefined,
         supplier: item.supplier || undefined,
         batch_number: item.batch_number || undefined,
-        pallets: item.pallets || undefined,
         operation_date: new Date(item.operation_date),
         exit_timestamp: item.exit_timestamp ? new Date(item.exit_timestamp) : undefined,
         notes: item.notes || undefined
@@ -210,7 +208,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
               <TableHead className="text-right">Cantitate anterioară</TableHead>
               <TableHead>Furnizor</TableHead>
               <TableHead>Lot</TableHead>
-              <TableHead className="text-right">Paleți</TableHead>
               <TableHead>Ora ieșire</TableHead>
             </TableRow>
           </TableHeader>
@@ -236,7 +233,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
                   </TableCell>
                   <TableCell>{item.supplier || '-'}</TableCell>
                   <TableCell>{item.batch_number || '-'}</TableCell>
-                  <TableCell className="text-right">{item.pallets || '-'}</TableCell>
                   <TableCell>
                     {item.action === 'remove' && item.exit_timestamp
                       ? format(item.exit_timestamp, 'dd.MM.yyyy HH:mm:ss')
@@ -246,7 +242,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={9} className="text-center py-6 text-gray-500">
                   {searchTerm || dateRange[0] || dateRange[1] || actionFilter !== "all"
                     ? "Nu s-au găsit operațiuni conform criteriilor de căutare"
                     : "Nu există operațiuni de stoc înregistrate"}

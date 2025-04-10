@@ -51,13 +51,14 @@ const TeachAssistant: React.FC<TeachAssistantProps> = ({
     const syncAnalyticalData = async () => {
       try {
         // Fetch analytics data to improve AI knowledge
+        // Using .from() with string parameter since it's a view
         const { data: analyticsData } = await supabase
           .from('inventory_analytics')
-          .select('*');
+          .select('*') as { data: any[] | null };
           
         const { data: consumptionData } = await supabase
           .from('consumption_analytics')
-          .select('*');
+          .select('*') as { data: any[] | null };
           
         console.log("Analytics data loaded for AI training:", analyticsData?.length || 0, "items");
         console.log("Consumption data loaded for AI training:", consumptionData?.length || 0, "items");

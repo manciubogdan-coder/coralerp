@@ -713,7 +713,7 @@ async function handleDirectCommand(command: string, inventory: InventoryItem[]):
               name: p.name,
               value: p.totalQuantity
             })),
-            description: 'Cantitati scoase astazi'
+            description: 'Cantități scoase astazi'
           },
           {
             type: 'pie',
@@ -1204,7 +1204,7 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
         action: "unknown",
         response: `As avea nevoie de cateva detalii in plus pentru a adauga paletii de ${product} in sistem.`,
         needsMoreInfo: {
-          type: "pallet_details",
+          type: "supplier_info",
           question: `Cate kg contine un palet de ${product}? De la ce furnizor provine? Si care este numarul lotului?`
         }
       };
