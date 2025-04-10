@@ -1,12 +1,11 @@
 
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, MessageSquare, Info, BarChart3, VolumeX, Volume2 } from "lucide-react";
+import { Mic, MessageSquare, Info, BarChart3, VolumeX, Volume2, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { ChartData } from "@/types";
 import { cn } from "@/lib/utils";
 import InventoryCharts from "./InventoryCharts";
@@ -36,6 +35,13 @@ const VoiceCommandPanel = ({
 }: VoiceCommandPanelProps) => {
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Function to detect if a response includes warnings about insufficient quantity
+  const hasInsufficientQuantityWarning = (text: string): boolean => {
+    return text.toLowerCase().includes('atentie') && 
+           text.toLowerCase().includes('cantitate') && 
+           text.toLowerCase().includes('disponibil');
   };
 
   return (
@@ -135,7 +141,18 @@ const VoiceCommandPanel = ({
                           <MessageSquare className="h-3 w-3 text-white" />
                         </div>
                         <div className="flex-1">
-                          <div className="bg-green-light bg-opacity-10 p-2 rounded-lg rounded-tl-none">
+                          <div className={cn(
+                            "p-2 rounded-lg rounded-tl-none",
+                            hasInsufficientQuantityWarning(conv.text) 
+                              ? "bg-amber-50 border border-amber-200" 
+                              : "bg-green-light bg-opacity-10"
+                          )}>
+                            {hasInsufficientQuantityWarning(conv.text) && (
+                              <div className="flex items-center gap-2 mb-2 text-amber-600 pb-2 border-b border-amber-200">
+                                <AlertTriangle className="h-4 w-4" />
+                                <p className="text-sm font-medium">Atentie: Cantitate insuficienta</p>
+                              </div>
+                            )}
                             <p className="text-sm" dangerouslySetInnerHTML={{ __html: conv.text.replace(/\n/g, '<br/>') }}></p>
                           </div>
                           <p className="text-xs text-gray-500 mt-1 text-right">
@@ -152,7 +169,18 @@ const VoiceCommandPanel = ({
                         <MessageSquare className="h-3 w-3 text-white" />
                       </div>
                       <div className="flex-1">
-                        <div className="bg-green-light bg-opacity-10 p-2 rounded-lg rounded-tl-none">
+                        <div className={cn(
+                          "p-2 rounded-lg rounded-tl-none",
+                          hasInsufficientQuantityWarning(response) 
+                            ? "bg-amber-50 border border-amber-200" 
+                            : "bg-green-light bg-opacity-10"
+                        )}>
+                          {hasInsufficientQuantityWarning(response) && (
+                            <div className="flex items-center gap-2 mb-2 text-amber-600 pb-2 border-b border-amber-200">
+                              <AlertTriangle className="h-4 w-4" />
+                              <p className="text-sm font-medium">Atentie: Cantitate insuficienta</p>
+                            </div>
+                          )}
                           <p className="text-sm" dangerouslySetInnerHTML={{ __html: response.replace(/\n/g, '<br/>') }}></p>
                           
                           {charts && charts.length > 0 && (

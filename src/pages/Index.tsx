@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
@@ -275,7 +274,20 @@ const Index = () => {
         if (item.action === 'add') {
           newQuantity = Number(existingItem.quantity) + Number(item.quantity);
         } else if (item.action === 'remove') {
-          newQuantity = Math.max(0, Number(existingItem.quantity) - Number(item.quantity));
+          if (Number(existingItem.quantity) < Number(item.quantity)) {
+            const availableQuantity = Number(existingItem.quantity);
+            console.log(`Warning: Requested to remove ${item.quantity} but only ${availableQuantity} available`);
+            
+            newQuantity = 0;
+            
+            toast({
+              variant: "warning",
+              title: "Atentie",
+              description: `Ai solicitat sa scoti ${item.quantity} ${item.unit} de ${item.name}, dar erau disponibile doar ${availableQuantity} ${item.unit} in lotul ${item.batch_number}.`,
+            });
+          } else {
+            newQuantity = Math.max(0, Number(existingItem.quantity) - Number(item.quantity));
+          }
         }
         
         console.log(`Updating quantity: ${existingItem.quantity} to ${newQuantity} (action: ${item.action})`);
@@ -286,6 +298,9 @@ const Index = () => {
             newPallets = (existingItem.pallets || 0) + item.pallets;
           } else if (item.action === 'set') {
             newPallets = item.pallets;
+          } else if (item.action === 'remove' && existingItem.pallets) {
+            const removalRatio = Math.min(1, Number(item.quantity) / previousQuantity);
+            newPallets = Math.max(0, Math.round(existingItem.pallets * (1 - removalRatio)));
           }
         }
         
@@ -373,11 +388,16 @@ const Index = () => {
       if (updatedItemId) {
         const now = new Date().toISOString();
         
+        let actualQuantity = item.quantity;
+        if (item.action === 'remove' && previousQuantity < item.quantity) {
+          actualQuantity = previousQuantity;
+        }
+        
         const historyData = {
           inventory_item_id: updatedItemId,
           action: item.action || 'set',
           name: item.name,
-          quantity: item.quantity,
+          quantity: actualQuantity,
           unit: item.unit,
           previous_quantity: previousQuantity,
           supplier: item.supplier || null,
@@ -594,6 +614,20 @@ const Index = () => {
                 updatedItem.id = matchingItems[0].id;
                 updatedItem.batch_number = matchingItems[0].batch_number;
                 updatedItem.supplier = matchingItems[0].supplier;
+                
+                if (matchingItems[0].quantity < updatedItem.quantity) {
+                  const responseText = `Atentie! In stoc avem doar ${matchingItems[0].quantity} ${updatedItem.unit} de ${updatedItem.name}, dar ai solicitat ${updatedItem.quantity} ${updatedItem.unit}.`;
+                  await saveConversation(responseText);
+                  setResponse(responseText);
+                  
+                  toast({
+                    variant: "warning",
+                    title: "Cantitate insuficienta",
+                    description: `Am scos doar cantitatea disponibila (${matchingItems[0].quantity} ${updatedItem.unit}) din stoc.`
+                  });
+                  
+                  updatedItem.quantity = matchingItems[0].quantity;
+                }
               } else if (matchingItems.length === 0) {
                 toast({
                   variant: "destructive",

@@ -1,4 +1,3 @@
-
 import { CommandResult, InventoryItem, ChartData } from "@/types";
 
 export async function processCommand(
@@ -651,16 +650,170 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
         };
       } else if (matchingItems.length === 1) {
         // Only one batch exists, use that one
+        const item = matchingItems[0];
+        
+        // Check if we have enough quantity
+        if (item.quantity < quantity) {
+          // We don't have enough in this batch
+          return {
+            action: "unknown",
+            response: `Atentie! In lotul disponibil avem doar ${item.quantity} ${unit} de ${product}, dar ai solicitat ${quantity} ${unit}.`,
+            needsMoreInfo: {
+              type: "batch_selection",
+              question: `Doresti sa scoti doar cantitatea disponibila (${item.quantity} ${unit}) sau sa anulezi operatiunea?`,
+              options: [
+                {
+                  id: item.id || '',
+                  name: item.name,
+                  batch_number: item.batch_number,
+                  supplier: item.supplier,
+                  quantity: item.quantity,
+                  unit: unit
+                }
+              ]
+            }
+          };
+        }
+        
         return {
           action: "remove",
           response: `Am scos ${quantity} ${unit} de ${product} din stoc.`,
           item: {
-            id: matchingItems[0].id,
+            id: item.id,
             name: product,
             quantity: quantity,
             unit: unit,
-            supplier: matchingItems[0].supplier,
-            batch_number: matchingItems[0].batch_number
+            supplier: item.supplier,
+            batch_number: item.batch_number
+          }
+        };
+      }
+    }
+  }
+  
+  // Also check for specific batch removal with batch number specified
+  const batchRemoveRegex = /(?:scoate|elimina|elimina|sterge|sterge)\s+(\d+)\s*([a-zA-Z]+)\s+(?:de\s+)?([a-z]+).*lot\s+(\d+)/i;
+  const batchRemoveMatch = lowercaseCommand.match(batchRemoveRegex);
+  
+  if (batchRemoveMatch) {
+    const quantity = parseInt(batchRemoveMatch[1]);
+    const unit = batchRemoveMatch[2];
+    const product = batchRemoveMatch[3];
+    const batchNumber = batchRemoveMatch[4];
+    
+    // Find the specific batch
+    const specificBatch = inventory.find(
+      item => item.name.toLowerCase() === product.toLowerCase() && 
+             item.batch_number === batchNumber
+    );
+    
+    if (specificBatch) {
+      // Check if we have enough quantity in this batch
+      if (specificBatch.quantity < quantity) {
+        // Not enough in this batch, suggest alternatives
+        const otherBatches = inventory.filter(
+          item => item.name.toLowerCase() === product.toLowerCase() && 
+                item.id !== specificBatch.id
+        );
+        
+        let responseText = `Atentie! In lotul ${batchNumber} avem doar ${specificBatch.quantity} ${unit} de ${product}, dar ai solicitat ${quantity} ${unit}.`;
+        
+        if (otherBatches.length > 0) {
+          // We have other batches of the same product
+          const options = [
+            {
+              id: specificBatch.id || '',
+              name: specificBatch.name,
+              batch_number: specificBatch.batch_number,
+              supplier: specificBatch.supplier,
+              quantity: specificBatch.quantity,
+              unit: unit
+            },
+            ...otherBatches.map(item => ({
+              id: item.id || '',
+              name: item.name,
+              batch_number: item.batch_number,
+              supplier: item.supplier,
+              quantity: item.quantity,
+              unit: item.unit
+            }))
+          ];
+          
+          responseText += ` Doresti sa scoti cele ${specificBatch.quantity} ${unit} disponibile din lotul ${batchNumber} si restul de ${quantity - specificBatch.quantity} ${unit} din alt lot?`;
+          
+          return {
+            action: "unknown",
+            response: responseText,
+            needsMoreInfo: {
+              type: "batch_selection",
+              question: `Din care alt lot doresti sa scoti diferenta de ${quantity - specificBatch.quantity} ${unit}?`,
+              options: otherBatches.map(item => ({
+                id: item.id || '',
+                name: item.name,
+                batch_number: item.batch_number,
+                supplier: item.supplier,
+                quantity: item.quantity,
+                unit: item.unit
+              }))
+            }
+          };
+        } else {
+          // No other batches available
+          return {
+            action: "unknown",
+            response: `Atentie! In lotul ${batchNumber} avem doar ${specificBatch.quantity} ${unit} de ${product}, dar ai solicitat ${quantity} ${unit}. Nu exista alte loturi disponibile.`,
+            needsMoreInfo: {
+              type: "batch_selection",
+              question: `Doresti sa scoti doar cantitatea disponibila (${specificBatch.quantity} ${unit}) sau sa anulezi operatiunea?`,
+              options: [
+                {
+                  id: specificBatch.id || '',
+                  name: specificBatch.name,
+                  batch_number: specificBatch.batch_number,
+                  supplier: specificBatch.supplier,
+                  quantity: specificBatch.quantity,
+                  unit: unit
+                }
+              ]
+            }
+          };
+        }
+      }
+      
+      // We have enough quantity, proceed with removal
+      return {
+        action: "remove",
+        response: `Am scos ${quantity} ${unit} de ${product} din lotul ${batchNumber}.`,
+        item: {
+          id: specificBatch.id,
+          name: product,
+          quantity: quantity,
+          unit: unit,
+          supplier: specificBatch.supplier,
+          batch_number: specificBatch.batch_number
+        }
+      };
+    } else {
+      // Batch not found
+      const availableBatches = inventory.filter(
+        item => item.name.toLowerCase() === product.toLowerCase()
+      );
+      
+      if (availableBatches.length > 0) {
+        return {
+          action: "unknown",
+          response: `Nu am gasit lotul ${batchNumber} de ${product}, dar exista alte loturi disponibile.`,
+          needsMoreInfo: {
+            type: "batch_selection",
+            question: `Din care lot doresti sa scoti ${quantity} ${unit} de ${product}?`,
+            options: availableBatches.map(item => ({
+              id: item.id || '',
+              name: item.name,
+              batch_number: item.batch_number,
+              supplier: item.supplier,
+              quantity: item.quantity,
+              unit: item.unit
+            }))
           }
         };
       }

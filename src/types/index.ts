@@ -27,7 +27,7 @@ export interface CommandResult {
   item?: InventoryItem;
   charts?: ChartData[];
   needsMoreInfo?: {
-    type: 'pallet_details' | 'supplier_info' | 'batch_info' | 'batch_selection';
+    type: 'pallet_details' | 'supplier_info' | 'batch_info' | 'batch_selection' | 'quantity_adjustment';
     question: string;
     options?: {
       id: string;
@@ -37,6 +37,7 @@ export interface CommandResult {
       quantity: number;
       unit: string;
     }[];
+    suggestedAction?: 'partial_removal' | 'split_removal' | 'cancel';
   };
 }
 
