@@ -70,6 +70,7 @@ export type Database = {
         Row: {
           action: string
           batch_number: string | null
+          exit_timestamp: string | null
           id: string
           inventory_item_id: string | null
           name: string
@@ -84,6 +85,7 @@ export type Database = {
         Insert: {
           action: string
           batch_number?: string | null
+          exit_timestamp?: string | null
           id?: string
           inventory_item_id?: string | null
           name: string
@@ -98,6 +100,7 @@ export type Database = {
         Update: {
           action?: string
           batch_number?: string | null
+          exit_timestamp?: string | null
           id?: string
           inventory_item_id?: string | null
           name?: string

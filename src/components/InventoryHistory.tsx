@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { 
   Table, TableBody, TableCell, TableHead, 
@@ -88,7 +87,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         batch_number: item.batch_number || undefined,
         pallets: item.pallets || undefined,
         operation_date: new Date(item.operation_date),
-        // Add the exit_timestamp mapping here
         exit_timestamp: item.exit_timestamp ? new Date(item.exit_timestamp) : undefined,
         notes: item.notes || undefined
       }));
