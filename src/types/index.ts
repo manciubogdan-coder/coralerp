@@ -1,4 +1,5 @@
 
+
 // Inventory related interfaces
 export interface InventoryItem {
   id?: string;
@@ -66,7 +67,7 @@ export interface InventoryHistoryItem {
   batch_number?: string;
   pallets?: number;
   operation_date: Date;
-  exit_timestamp?: Date;  // Added for tracking when items are removed
+  exit_timestamp?: Date;  // Adding this to match what we're using in InventoryHistory.tsx
   notes?: string;
 }
 
