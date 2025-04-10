@@ -1,4 +1,6 @@
+
 import { CommandResult, InventoryItem, ChartData } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
 
 export async function processCommand(
   command: string, 
@@ -37,7 +39,7 @@ export async function processCommand(
     }
     
     // Handle direct commands directly before sending to AI
-    const directCommandResult = handleDirectCommand(command, inventory);
+    const directCommandResult = await handleDirectCommand(command, inventory);
     if (directCommandResult) {
       console.log("Direct command handled:", directCommandResult);
       return directCommandResult;
@@ -352,7 +354,7 @@ function isConversation(command: string): boolean {
 }
 
 // Direct command handler for very specific patterns we know work consistently
-function handleDirectCommand(command: string, inventory: InventoryItem[]): CommandResult | null {
+async function handleDirectCommand(command: string, inventory: InventoryItem[]): Promise<CommandResult | null> {
   const lowercaseCommand = command.toLowerCase();
 
   // Handle "remove all" command for specific products
@@ -385,95 +387,179 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
 
   // Handle queries about entries/intrari de azi
   if (lowercaseCommand.includes("intrari") || lowercaseCommand.includes("intrari") || 
-      lowercaseCommand.includes("azi") || lowercaseCommand.includes("astazi") || 
-      lowercaseCommand.includes("astazi")) {
+      (lowercaseCommand.includes("azi") && lowercaseCommand.includes("adaugat")) || 
+      lowercaseCommand.includes("astazi") || lowercaseCommand.includes("astazi")) {
     
     // Get today's date
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Start of today
+    const todayISOString = today.toISOString();
     
-    // Filter inventory for items added today
-    const todayItems = inventory.filter(item => {
-      if (!item.receipt_date) return false;
+    // Query inventory_history for items added today (action = 'add')
+    try {
+      const { data: todayAdditions, error } = await supabase
+        .from('inventory_history')
+        .select('*')
+        .eq('action', 'add')
+        .gte('operation_date', todayISOString);
       
-      // Convert receipt_date to a Date object if it isn't already
-      const receiptDate = item.receipt_date instanceof Date ? 
-        item.receipt_date : 
-        new Date(item.receipt_date);
+      if (error) {
+        console.error("Error fetching today's additions:", error);
+        return {
+          action: "query",
+          response: "Nu am putut verifica intrarile de astazi din cauza unei erori."
+        };
+      }
       
-      // Set time to start of day for comparison
-      receiptDate.setHours(0, 0, 0, 0);
-      
-      // Compare dates
-      return receiptDate.getTime() === today.getTime();
-    });
-    
-    if (todayItems.length > 0) {
-      // Create summary by product
-      const productSummary: Record<string, {name: string, count: number, totalQuantity: number, unit: string}> = {};
-      
-      todayItems.forEach(item => {
-        if (!productSummary[item.name]) {
-          productSummary[item.name] = {
-            name: item.name,
-            count: 0,
-            totalQuantity: 0,
-            unit: item.unit
-          };
-        }
+      if (todayAdditions && todayAdditions.length > 0) {
+        // Create summary by product
+        const productSummary: Record<string, {name: string, count: number, totalQuantity: number, unit: string}> = {};
         
-        productSummary[item.name].count++;
-        productSummary[item.name].totalQuantity += item.quantity;
-      });
-      
-      // Create chart data
-      const chartData: ChartData[] = [
-        {
-          type: 'bar',
-          title: 'Intrari de astazi',
-          data: Object.values(productSummary).map(p => ({
-            name: p.name,
-            value: p.totalQuantity
-          })),
-          description: 'Cantitati adaugate astazi'
-        },
-        {
-          type: 'pie',
-          title: 'Distributia intrarilor de astazi',
-          data: Object.values(productSummary).map(p => ({
-            name: p.name,
-            value: p.totalQuantity
-          })),
-        }
-      ];
-      
-      const productList = Object.values(productSummary)
-        .map(p => `${p.count} ${p.count === 1 ? 'intrare' : 'intrari'} de ${p.name} (total: ${p.totalQuantity} ${p.unit})`)
-        .join(', ');
-      
+        todayAdditions.forEach(item => {
+          if (!productSummary[item.name]) {
+            productSummary[item.name] = {
+              name: item.name,
+              count: 0,
+              totalQuantity: 0,
+              unit: item.unit
+            };
+          }
+          
+          productSummary[item.name].count++;
+          productSummary[item.name].totalQuantity += Number(item.quantity);
+        });
+        
+        // Create chart data
+        const chartData: ChartData[] = [
+          {
+            type: 'bar',
+            title: 'Intrari de astazi',
+            data: Object.values(productSummary).map(p => ({
+              name: p.name,
+              value: p.totalQuantity
+            })),
+            description: 'Cantitati adaugate astazi'
+          },
+          {
+            type: 'pie',
+            title: 'Distributia intrarilor de astazi',
+            data: Object.values(productSummary).map(p => ({
+              name: p.name,
+              value: p.totalQuantity
+            })),
+          }
+        ];
+        
+        const productList = Object.values(productSummary)
+          .map(p => `${p.count} ${p.count === 1 ? 'intrare' : 'intrari'} de ${p.name} (total: ${p.totalQuantity} ${p.unit})`)
+          .join(', ');
+        
+        return {
+          action: "query",
+          response: `Astazi au fost inregistrate ${todayAdditions.length} intrari in stoc: ${productList}.`,
+          charts: chartData
+        };
+      } else {
+        return {
+          action: "query",
+          response: "Nu am inregistrat nicio intrare in stoc astazi."
+        };
+      }
+    } catch (error) {
+      console.error("Error in intrari query:", error);
       return {
         action: "query",
-        response: `Astazi au fost inregistrate ${todayItems.length} intrari in stoc: ${productList}.`,
-        charts: chartData
-      };
-    } else {
-      return {
-        action: "query",
-        response: "Nu am inregistrat nicio intrare in stoc astazi."
+        response: "Nu am putut verifica intrarile de astazi din cauza unei erori."
       };
     }
   }
   
   // Handle queries about exits/iesiri de azi
   if (lowercaseCommand.includes("iesiri") || lowercaseCommand.includes("iesiri") || 
-      lowercaseCommand.includes("scos") || lowercaseCommand.includes("eliminat")) {
+      (lowercaseCommand.includes("azi") && (lowercaseCommand.includes("scos") || lowercaseCommand.includes("eliminat")))) {
     
-    // This would require tracking exits in a separate table or with timestamps
-    // For now, we'll return a placeholder response
-    return {
-      action: "query",
-      response: "Sistemul nu monitorizeaza momentan iesirile cu timestamp. Pot doar sa va arat starea curenta a stocului."
-    };
+    // Get today's date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today
+    const todayISOString = today.toISOString();
+    
+    // Query inventory_history for items removed today (action = 'remove')
+    try {
+      const { data: todayRemovals, error } = await supabase
+        .from('inventory_history')
+        .select('*')
+        .eq('action', 'remove')
+        .gte('operation_date', todayISOString);
+      
+      if (error) {
+        console.error("Error fetching today's removals:", error);
+        return {
+          action: "query",
+          response: "Nu am putut verifica iesirile de astazi din cauza unei erori."
+        };
+      }
+      
+      if (todayRemovals && todayRemovals.length > 0) {
+        // Create summary by product
+        const productSummary: Record<string, {name: string, count: number, totalQuantity: number, unit: string}> = {};
+        
+        todayRemovals.forEach(item => {
+          if (!productSummary[item.name]) {
+            productSummary[item.name] = {
+              name: item.name,
+              count: 0,
+              totalQuantity: 0,
+              unit: item.unit
+            };
+          }
+          
+          productSummary[item.name].count++;
+          productSummary[item.name].totalQuantity += Number(item.quantity);
+        });
+        
+        // Create chart data
+        const chartData: ChartData[] = [
+          {
+            type: 'bar',
+            title: 'Iesiri de astazi',
+            data: Object.values(productSummary).map(p => ({
+              name: p.name,
+              value: p.totalQuantity
+            })),
+            description: 'Cantitati scoase astazi'
+          },
+          {
+            type: 'pie',
+            title: 'Distributia iesirilor de astazi',
+            data: Object.values(productSummary).map(p => ({
+              name: p.name,
+              value: p.totalQuantity
+            })),
+          }
+        ];
+        
+        const productList = Object.values(productSummary)
+          .map(p => `${p.count} ${p.count === 1 ? 'iesire' : 'iesiri'} de ${p.name} (total: ${p.totalQuantity} ${p.unit})`)
+          .join(', ');
+        
+        return {
+          action: "query",
+          response: `Astazi au fost inregistrate ${todayRemovals.length} iesiri din stoc: ${productList}.`,
+          charts: chartData
+        };
+      } else {
+        return {
+          action: "query",
+          response: "Nu am inregistrat nicio iesire din stoc astazi."
+        };
+      }
+    } catch (error) {
+      console.error("Error in iesiri query:", error);
+      return {
+        action: "query",
+        response: "Nu am putut verifica iesirile de astazi din cauza unei erori."
+      };
+    }
   }
   
   // Handle the specific menta/menta commands with lot numbers for adding
