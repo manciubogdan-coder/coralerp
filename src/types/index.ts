@@ -71,6 +71,16 @@ export interface InventoryHistoryItem {
 
 // Web Speech API type definitions
 declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+    speechSynthesis: SpeechSynthesis;
+    SpeechSynthesisUtterance: {
+      new(text?: string): SpeechSynthesisUtterance;
+      prototype: SpeechSynthesisUtterance;
+    };
+  }
+
   // Speech Recognition interfaces
   interface SpeechRecognition extends EventTarget {
     continuous: boolean;
@@ -139,16 +149,5 @@ declare global {
     pause(): void;
     resume(): void;
     speak(utterance: SpeechSynthesisUtterance): void;
-  }
-
-  // Combined interface for the global window object
-  interface Window {
-    SpeechRecognition: new () => SpeechRecognition;
-    webkitSpeechRecognition: new () => SpeechRecognition;
-    speechSynthesis: SpeechSynthesis;
-    SpeechSynthesisUtterance: {
-      new(text?: string): SpeechSynthesisUtterance;
-      prototype: SpeechSynthesisUtterance;
-    };
   }
 }

@@ -706,7 +706,7 @@ const Index = () => {
           <div className="bg-white rounded-lg shadow-md">
             <div className="border-b border-gray-200 p-4 flex justify-between items-center">
               <div>
-                <Tabs defaultValue="inventory" value={activeTab} onValueChange={setActiveTab}>
+                <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="inventory">
                   <TabsList>
                     <TabsTrigger value="inventory" className="flex items-center">
                       <ListFilter className="h-4 w-4 mr-2" />
@@ -731,13 +731,15 @@ const Index = () => {
               </div>
             </div>
             
-            <TabsContent value="inventory">
-              <InventoryTable inventory={inventory} />
-            </TabsContent>
-            
-            <TabsContent value="history">
-              <InventoryHistory />
-            </TabsContent>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsContent value="inventory">
+                <InventoryTable inventory={inventory} />
+              </TabsContent>
+              
+              <TabsContent value="history">
+                <InventoryHistory />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </main>

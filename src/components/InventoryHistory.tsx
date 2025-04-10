@@ -43,6 +43,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
 
   const fetchHistory = async () => {
     try {
+      // Use the correct table name that was defined in Supabase
       let query = supabase
         .from('inventory_history')
         .select('*', { count: 'exact' })
