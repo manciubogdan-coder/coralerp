@@ -49,7 +49,7 @@ const VoiceCommandPanel = ({
                 variant="ghost" 
                 size="icon" 
                 onClick={toggleAudio}
-                title={isAudioEnabled ? "Dezactivează audio" : "Activează audio"}
+                title={isAudioEnabled ? "Dezactiveaza audio" : "Activeaza audio"}
               >
                 {isAudioEnabled ? <Volume2 className="h-4 w-4 text-green-500" /> : <VolumeX className="h-4 w-4 text-gray-500" />}
               </Button>
@@ -72,13 +72,13 @@ const VoiceCommandPanel = ({
             </div>
           </div>
           <CardDescription>
-            {isRecording ? 'Te ascult... spune-mi cum te pot ajuta' : 'Apasă pe microfon și spune-mi cum te pot ajuta'}
+            {isRecording ? 'Te ascult... spune-mi cum te pot ajuta' : 'Apasa pe microfon si spune-mi cum te pot ajuta'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isRecording && transcript && (
             <>
-              <h4 className="text-sm font-medium mb-1">Se înregistrează:</h4>
+              <h4 className="text-sm font-medium mb-1">Se inregistreaza:</h4>
               <p className="text-sm italic text-gray-700 p-2 bg-gray-50 rounded">"{transcript}"</p>
             </>
           )}
@@ -89,16 +89,16 @@ const VoiceCommandPanel = ({
               Exemple de comenzi:
             </h4>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Badge variant="outline" className="bg-gray-50">Adaugă 5 kg de roșii</Badge>
-              <Badge variant="outline" className="bg-gray-50">Adaugă 50kg mentă de la Magnani lot 1505</Badge>
+              <Badge variant="outline" className="bg-gray-50">Adauga 5 kg de rosii</Badge>
+              <Badge variant="outline" className="bg-gray-50">Adauga 50kg menta de la Magnani lot 1505</Badge>
               <Badge variant="outline" className="bg-gray-50">Scoate 2 kg de cartofi</Badge>
-              <Badge variant="outline" className="bg-gray-50">Câte loturi de mentă avem?</Badge>
-              <Badge variant="outline" className="bg-gray-50">Scoate 50 kg de mentă de la Magnani lot 1505</Badge>
-              <Badge variant="outline" className="bg-gray-50">Arată stocul</Badge>
-              <Badge variant="outline" className="bg-gray-50">Câte produse avem în total?</Badge>
-              <Badge variant="outline" className="bg-gray-50">Ce produse expiră în curând?</Badge>
-              <Badge variant="outline" className="bg-gray-50">Arată cantitățile pe furnizori</Badge>
-              <Badge variant="outline" className="bg-gray-50">Exportă Excel</Badge>
+              <Badge variant="outline" className="bg-gray-50">Cate loturi de menta avem?</Badge>
+              <Badge variant="outline" className="bg-gray-50">Scoate 50 kg de menta de la Magnani lot 1505</Badge>
+              <Badge variant="outline" className="bg-gray-50">Arata stocul</Badge>
+              <Badge variant="outline" className="bg-gray-50">Cate produse avem in total?</Badge>
+              <Badge variant="outline" className="bg-gray-50">Ce produse expira in curand?</Badge>
+              <Badge variant="outline" className="bg-gray-50">Arata cantitatile pe furnizori</Badge>
+              <Badge variant="outline" className="bg-gray-50">Exporta Excel</Badge>
             </div>
           </div>
         </CardContent>
@@ -106,8 +106,8 @@ const VoiceCommandPanel = ({
 
       <Card className="overflow-hidden">
         <CardHeader className="pb-2">
-          <CardTitle>Conversație</CardTitle>
-          <CardDescription>Discuția cu asistentul de depozit</CardDescription>
+          <CardTitle>Conversatie</CardTitle>
+          <CardDescription>Discutia cu asistentul de depozit</CardDescription>
         </CardHeader>
         <ScrollArea className="h-[400px]">
           <CardContent>
@@ -159,7 +159,7 @@ const VoiceCommandPanel = ({
                             <div className="mt-4 border-t pt-3">
                               <div className="flex items-center gap-2 mb-2">
                                 <BarChart3 className="h-4 w-4 text-green-800" />
-                                <h4 className="text-sm font-medium">Grafice și date</h4>
+                                <h4 className="text-sm font-medium">Grafice si date</h4>
                               </div>
                               <InventoryCharts charts={charts} />
                             </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
@@ -65,15 +66,15 @@ const Index = () => {
         setIsRecording(false);
         toast({
           variant: "destructive",
-          title: "Eroare la înregistrarea vocii",
-          description: `A apărut o eroare: ${event.error}`
+          title: "Eroare la inregistrarea vocii",
+          description: `A aparut o eroare: ${event.error}`
         });
       };
     } else {
       toast({
         variant: "destructive",
-        title: "Recunoașterea vocală nu este suportată",
-        description: "Browserul dvs. nu suportă recunoașterea vocală."
+        title: "Recunoasterea vocala nu este suportata",
+        description: "Browserul dvs. nu suporta recunoasterea vocala."
       });
     }
 
@@ -121,8 +122,8 @@ const Index = () => {
         console.error("Error fetching inventory:", error);
         toast({
           variant: "destructive",
-          title: "Eroare la încărcarea stocului",
-          description: "Nu s-a putut încărca stocul. Verificați conexiunea."
+          title: "Eroare la incarcarea stocului",
+          description: "Nu s-a putut incarca stocul. Verificati conexiunea."
         });
       }
     };
@@ -182,7 +183,7 @@ const Index = () => {
         toast({
           variant: "destructive",
           title: "Eroare",
-          description: "Nu s-a putut porni înregistrarea vocii."
+          description: "Nu s-a putut porni inregistrarea vocii."
         });
       }
     }
@@ -196,10 +197,10 @@ const Index = () => {
     }
     
     toast({
-      title: isAudioEnabled ? "Răspuns audio dezactivat" : "Răspuns audio activat",
+      title: isAudioEnabled ? "Raspuns audio dezactivat" : "Raspuns audio activat",
       description: isAudioEnabled ? 
-        "Asistentul nu va mai răspunde vocal." : 
-        "Asistentul va răspunde și vocal."
+        "Asistentul nu va mai raspunde vocal." : 
+        "Asistentul va raspunde si vocal."
     });
   };
 
@@ -433,12 +434,12 @@ const Index = () => {
       
       setInventory(items);
       
-      const actionVerb = item.action === 'add' ? 'adăugat' : 
+      const actionVerb = item.action === 'add' ? 'adaugat' : 
                          item.action === 'remove' ? 'scos' : 'actualizat';
       
       toast({
-        title: "Operațiune reușită",
-        description: `${item.quantity} ${item.unit} de ${item.name} ${item.supplier ? `de la ${item.supplier}` : ''} ${item.batch_number ? `(lot ${item.batch_number})` : ''} ${actionVerb} în stoc.`,
+        title: "Operatiune reusita",
+        description: `${item.quantity} ${item.unit} de ${item.name} ${item.supplier ? `de la ${item.supplier}` : ''} ${item.batch_number ? `(lot ${item.batch_number})` : ''} ${actionVerb} in stoc.`,
       });
       
     } catch (error) {
@@ -470,13 +471,13 @@ const Index = () => {
       
       charts.push({
         type: 'pie',
-        title: 'Distribuția produselor în stoc',
+        title: 'Distributia produselor in stoc',
         data: Object.values(productTotals).map(item => ({
           name: item.name,
           value: item.value,
           unit: item.unit
         })),
-        description: 'Vizualizare proporțională a cantităților de produse în stoc'
+        description: 'Vizualizare proportionala a cantitatilor de produse in stoc'
       });
       
       const supplierItems = inventory.filter(item => item.supplier);
@@ -495,9 +496,9 @@ const Index = () => {
         
         charts.push({
           type: 'bar',
-          title: 'Distribuția pe furnizori',
+          title: 'Distributia pe furnizori',
           data: Object.values(supplierTotals),
-          description: 'Cantități totale pe furnizori'
+          description: 'Cantitati totale pe furnizori'
         });
       }
     }
@@ -542,7 +543,7 @@ const Index = () => {
         setResponse(result.needsMoreInfo.question);
         
         toast({
-          title: "Informații suplimentare necesare",
+          title: "Informatii suplimentare necesare",
           description: result.needsMoreInfo.question
         });
         
@@ -582,7 +583,7 @@ const Index = () => {
                   `- ${option.name} (lot ${option.batch_number || 'necunoscut'}) de la ${option.supplier || 'furnizor necunoscut'}: ${option.quantity} ${option.unit}`
                 ).join('\n');
                 
-                const responseText = `Există ${matchingItems.length} loturi diferite de ${result.item.name} în stoc. Din care lot doriți să eliminați?\n\n${batchInfo}`;
+                const responseText = `Exista ${matchingItems.length} loturi diferite de ${result.item.name} in stoc. Din care lot doriti sa eliminati?\n\n${batchInfo}`;
                 
                 await saveConversation(responseText);
                 setResponse(responseText);
@@ -596,8 +597,8 @@ const Index = () => {
               } else if (matchingItems.length === 0) {
                 toast({
                   variant: "destructive",
-                  title: "Produsul nu există",
-                  description: `Nu s-a găsit produsul "${result.item.name}" în stoc.`
+                  title: "Produsul nu exista",
+                  description: `Nu s-a gasit produsul "${result.item.name}" in stoc.`
                 });
                 setIsProcessing(false);
                 return;
@@ -614,7 +615,7 @@ const Index = () => {
           exportToExcel(inventory);
           toast({
             title: "Export realizat",
-            description: "Fișierul Excel a fost generat și descărcat."
+            description: "Fisierul Excel a fost generat si descarcat."
           });
         } else if (result.action === 'email') {
           await sendEmail(inventory);
@@ -641,7 +642,7 @@ const Index = () => {
       toast({
         variant: "destructive",
         title: "Eroare",
-        description: "A apărut o eroare la procesarea comenzii."
+        description: "A aparut o eroare la procesarea comenzii."
       });
     } finally {
       setIsProcessing(false);
@@ -658,7 +659,7 @@ const Index = () => {
     exportToExcel(inventory);
     toast({
       title: "Export realizat",
-      description: "Fișierul Excel a fost generat și descărcat."
+      description: "Fisierul Excel a fost generat si descarcat."
     });
   };
 
@@ -703,8 +704,8 @@ const Index = () => {
             <form onSubmit={handleSubmit} className="flex space-x-2">
               <Input
                 placeholder={awaitingMoreInfo 
-                  ? "Răspundeți la întrebarea asistentului..." 
-                  : "Ce ai vrea să faci? (ex: Adaugă 5kg roșii sau Câte loturi de mentă avem?)"
+                  ? "Raspundeti la intrebarea asistentului..." 
+                  : "Ce ai vrea sa faci? (ex: Adauga 5kg rosii sau Cate loturi de menta avem?)"
                 }
                 value={inputText}
                 onChange={handleInputChange}
@@ -738,7 +739,7 @@ const Index = () => {
                     </TabsTrigger>
                     <TabsTrigger value="history" className="flex items-center">
                       <History className="h-4 w-4 mr-2" />
-                      Istoric operațiuni
+                      Istoric operatiuni
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>

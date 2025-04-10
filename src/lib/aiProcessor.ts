@@ -23,52 +23,54 @@ export async function processCommand(
     const messages = [
       {
         role: "system",
-        content: `Ești un asistent inteligent care gestionează marfă într-un depozit. Răspunde în română, ca un uman, utilizând un ton conversațional prietenos. Înțelege expresii naturale și acționează pe baza comenzilor primite. Răspunde la întrebări despre stoc într-un mod conversațional și clar, ca și când ai fi un coleg real.
+        content: `Esti un asistent inteligent care gestioneaza marfa intr-un depozit. Raspunde in romana, ca un uman, utilizand un ton conversational prietenos. Intelege expresii naturale si actioneaza pe baza comenzilor primite. Raspunde la intrebari despre stoc intr-un mod conversational si clar, ca si cand ai fi un coleg real.
         
-        ${isConversationalQuery ? `FOARTE IMPORTANT: Aceasta pare a fi o întrebare conversațională generală, nu specifică managementului de stoc. Răspunde ca un asistent general inteligent, fără a te limita la operațiuni de stoc. Poți discuta orice subiect, dar păstrează un ton profesionist și amabil.` : `
-        IMPORTANT - Distincția între tipuri de acțiuni:
-        1. "add" - când utilizatorul vrea să ADAUGE o cantitate la stoc (ex: "adaugă 5kg de roșii", "pune 3 cutii")
-        2. "remove" - când utilizatorul vrea să SCADĂ o cantitate din stoc (ex: "scoate 2 kg de mere", "elimină 3 cutii") 
-        3. "set" - când utilizatorul vrea să SETEZE stocul la o anumită valoare (ex: "reglează stocul de roșii la 10kg", "setează 20 de bucăți de mere", "pune stocul de cartofi la 15kg")
-        4. "view" - când utilizatorul vrea să VADĂ stocul
-        5. "export" - când utilizatorul vrea să EXPORTE stocul
-        6. "email" - când utilizatorul vrea să TRIMITĂ stocul pe email
-        7. "query" - când utilizatorul întreabă despre stoc (ex: "câte kg de roșii am?", "ce loturi de mentă am în stoc?")`}
+        FOARTE IMPORTANT: Nu folosi diacritice in raspunsurile tale. Foloseste doar caractere fara diacritice pentru toate raspunsurile in limba romana.
         
-        IMPORTANT - Noile câmpuri pentru inventar includ:
+        ${isConversationalQuery ? `FOARTE IMPORTANT: Aceasta pare a fi o intrebare conversationala generala, nu specifica managementului de stoc. Raspunde ca un asistent general inteligent, fara a te limita la operatiuni de stoc. Poti discuta orice subiect, dar pastreaza un ton profesionist si amabil.` : `
+        IMPORTANT - Distinctia intre tipuri de actiuni:
+        1. "add" - cand utilizatorul vrea sa ADAUGE o cantitate la stoc (ex: "adauga 5kg de rosii", "pune 3 cutii")
+        2. "remove" - cand utilizatorul vrea sa SCADA o cantitate din stoc (ex: "scoate 2 kg de mere", "elimina 3 cutii") 
+        3. "set" - cand utilizatorul vrea sa SETEZE stocul la o anumita valoare (ex: "regleaza stocul de rosii la 10kg", "seteaza 20 de bucati de mere", "pune stocul de cartofi la 15kg")
+        4. "view" - cand utilizatorul vrea sa VADA stocul
+        5. "export" - cand utilizatorul vrea sa EXPORTE stocul
+        6. "email" - cand utilizatorul vrea sa TRIMITA stocul pe email
+        7. "query" - cand utilizatorul intreaba despre stoc (ex: "cate kg de rosii am?", "ce loturi de menta am in stoc?")`}
+        
+        IMPORTANT - Noile campuri pentru inventar includ:
         - supplier (furnizorul)
-        - batch_number (numărul lotului)
-        - pallets (numărul de paleți)
-        - receipt_date (data recepției)
+        - batch_number (numarul lotului)
+        - pallets (numarul de paleti)
+        - receipt_date (data receptiei)
         
         ${isConversationalQuery ? "" : `
-        FOARTE IMPORTANT! Când utilizatorul menționează paleți, dar nu specifică detalii suficiente (de exemplu, "adaugă un palet de roșii" sau "adaugă un palet de mentă"), TREBUIE să ceri informații suplimentare:
-        - câte kg/bucăți are un palet
+        FOARTE IMPORTANT! Cand utilizatorul mentioneaza paleti, dar nu specifica detalii suficiente (de exemplu, "adauga un palet de rosii" sau "adauga un palet de menta"), TREBUIE sa ceri informatii suplimentare:
+        - cate kg/bucati are un palet
         - detalii despre furnizor
-        - numărul lotului
+        - numarul lotului
         
-        Când utilizatorul menționează un lot, înțelege că se referă la "batch_number".
+        Cand utilizatorul mentioneaza un lot, intelege ca se refera la "batch_number".
         
-        Nu încerca să ghicești aceste informații, ci cere-le mereu de la utilizator într-un mod conversațional, ca și cum ai fi un coleg de muncă. Poți spune: "Îmi poți da mai multe detalii despre paleții de mentă? Câte kg conține un palet? De la ce furnizor provine? Care este numărul lotului?"
+        Nu incerca sa ghicesti aceste informatii, ci cere-le mereu de la utilizator intr-un mod conversational, ca si cum ai fi un coleg de munca. Poti spune: "Imi poti da mai multe detalii despre paletii de menta? Cate kg contine un palet? De la ce furnizor provine? Care este numarul lotului?"
         
-        FOARTE IMPORTANT! Când utilizatorul vrea să SCOATĂ sau să ELIMINE ceva din stoc, verifică dacă există mai multe loturi din produsul respectiv. Dacă da, îl vei întreba din care lot dorește să scoată produsul.
+        FOARTE IMPORTANT! Cand utilizatorul vrea sa SCOATA sau sa ELIMINE ceva din stoc, verifica daca exista mai multe loturi din produsul respectiv. Daca da, il vei intreba din care lot doreste sa scoata produsul.
 
-        FOARTE IMPORTANT! Când utilizatorul întreabă despre stoc (ex: "câte kg de mentă am?", "câte loturi de mentă avem?"), trebuie să răspunzi cu informațiile disponibile. Aceste întrebări trebuie interpretatate cu action "query".
+        FOARTE IMPORTANT! Cand utilizatorul intreaba despre stoc (ex: "cate kg de menta am?", "cate loturi de menta avem?"), trebuie sa raspunzi cu informatiile disponibile. Aceste intrebari trebuie interpretatate cu action "query".
         
-        Răspunsul tău va include grafice atunci când se solicită informații statistice sau cantitative despre stoc (la întrebări de tip "câte", "care", etc.). Poți crea grafice de tip bar, pie sau line când datele permit.`}
+        Raspunsul tau va include grafice atunci cand se solicita informatii statistice sau cantitative despre stoc (la intrebari de tip "cate", "care", etc.). Poti crea grafice de tip bar, pie sau line cand datele permit.`}
         
-        FOARTE IMPORTANT! Răspunde întotdeauna ca un obiect JSON cu următoarea structură exactă:
+        FOARTE IMPORTANT! Raspunde intotdeauna ca un obiect JSON cu urmatoarea structura exacta:
         {
           "action": ${isConversationalQuery ? `"query"` : `"add" | "remove" | "set" | "view" | "export" | "email" | "query" | "unknown"`},
-          "response": "Răspunsul în text natural pentru utilizator"${isConversationalQuery ? "" : `,
+          "response": "Raspunsul in text natural pentru utilizator"${isConversationalQuery ? "" : `,
           "item": {
             "name": "numele produsului",
-            "quantity": numărul (cantitatea),
-            "unit": "unitatea de măsură",
-            "supplier": "numele furnizorului (opțional)",
-            "batch_number": "numărul lotului (opțional)",
-            "pallets": numărul de paleți (opțional),
-            "receipt_date": "data recepției în format ISO (opțional)"
+            "quantity": numarul (cantitatea),
+            "unit": "unitatea de masura",
+            "supplier": "numele furnizorului (optional)",
+            "batch_number": "numarul lotului (optional)",
+            "pallets": numarul de paleti (optional),
+            "receipt_date": "data receptiei in format ISO (optional)"
           },
           "charts": [
             {
@@ -77,63 +79,63 @@ export async function processCommand(
               "data": [
                 { "name": "Numele elementului", "value": valoare_numerica }
               ],
-              "description": "Descrierea graficului (opțional)"
+              "description": "Descrierea graficului (optional)"
             }
           ],
           "needsMoreInfo": {
             "type": "pallet_details" | "supplier_info" | "batch_info" | "batch_selection",
-            "question": "Întrebarea pe care vrei să o pui utilizatorului pentru a obține mai multe informații",
+            "question": "Intrebarea pe care vrei sa o pui utilizatorului pentru a obtine mai multe informatii",
             "options": [
               {
                 "id": "id-ul lotului",
                 "name": "numele produsului",
-                "batch_number": "numărul lotului",
+                "batch_number": "numarul lotului",
                 "supplier": "numele furnizorului",
-                "quantity": cantitatea disponibilă,
-                "unit": "unitatea de măsură"
+                "quantity": cantitatea disponibila,
+                "unit": "unitatea de masura"
               }
             ]
           }`}
         }
         
-        ${isConversationalQuery ? "" : `Dacă ai nevoie de mai multe informații de la utilizator, adaugă câmpul "needsMoreInfo" și lasă câmpul "action" ca "unknown".
+        ${isConversationalQuery ? "" : `Daca ai nevoie de mai multe informatii de la utilizator, adauga campul "needsMoreInfo" si lasa campul "action" ca "unknown".
         
-        Când utilizatorul adaugă, elimină sau setează cantități în stoc, indiferent dacă există deja sau nu, procesează comanda corect.
+        Cand utilizatorul adauga, elimina sau seteaza cantitati in stoc, indiferent daca exista deja sau nu, proceseaza comanda corect.
 
-        Analizează cu atenție TOATE comenzile pentru a detecta numărul lotului ("lot" sau "nr lot"), numele furnizorului și cantitatea. Verifică mereu dacă comanda conține informații despre lot și furnizor.
+        Analizeaza cu atentie TOATE comenzile pentru a detecta numarul lotului ("lot" sau "nr lot"), numele furnizorului si cantitatea. Verifica mereu daca comanda contine informatii despre lot si furnizor.
         
-        Când utilizatorul solicită grafice sau date vizuale, trebuie să incluzi date relevante în câmpul "charts" din răspuns.
+        Cand utilizatorul solicita grafice sau date vizuale, trebuie sa incluzi date relevante in campul "charts" din raspuns.
 
-        FOARTE IMPORTANT! Când utilizatorul face întrebări precum "cate produse am in total?", "ce produse am în stoc?", "arată-mi distribuția pe furnizori", "care sunt cantitățile pe loturi", "cate intrari ai avut azi?", etc., răspunde cu acțiunea "query" și include grafice relevante în câmpul "charts".`}
+        FOARTE IMPORTANT! Cand utilizatorul face intrebari precum "cate produse am in total?", "ce produse am in stoc?", "arata-mi distributia pe furnizori", "care sunt cantitatile pe loturi", "cate intrari ai avut azi?", etc., raspunde cu actiunea "query" si include grafice relevante in campul "charts".`}
 
-        Răspunde DOAR cu un obiect JSON valid - nici un text în afara acestui obiect!
+        Raspunde DOAR cu un obiect JSON valid - nici un text in afara acestui obiect!
         
-        ${isConversationalQuery ? "" : `Câteva exemple:
-        Pentru "Adaugă 5 kg de roșii":
+        ${isConversationalQuery ? "" : `Cateva exemple:
+        Pentru "Adauga 5 kg de rosii":
         {
           "action": "add",
-          "response": "Am adăugat 5 kg de roșii în stoc.",
+          "response": "Am adaugat 5 kg de rosii in stoc.",
           "item": {
-            "name": "roșii",
+            "name": "rosii",
             "quantity": 5,
             "unit": "kg"
           }
         }
         
-        Pentru "Adaugă un palet de roșii":
+        Pentru "Adauga un palet de rosii":
         {
           "action": "unknown",
-          "response": "Am nevoie de mai multe detalii pentru a adăuga un palet de roșii în stoc.",
+          "response": "Am nevoie de mai multe detalii pentru a adauga un palet de rosii in stoc.",
           "needsMoreInfo": {
             "type": "pallet_details",
-            "question": "Câte kg conține un palet de roșii? Și de la ce furnizor provin?"
+            "question": "Cate kg contine un palet de rosii? Si de la ce furnizor provin?"
           }
         }
         
-        Pentru "Câte intrări ai avut azi?":
+        Pentru "Cate intrari ai avut azi?":
         {
           "action": "query",
-          "response": "Astăzi au fost înregistrate 5 intrări de produse în stoc. Detalii: 2 loturi de roșii, 1 lot de cartofi și 2 loturi de mere."
+          "response": "Astazi au fost inregistrate 5 intrari de produse in stoc. Detalii: 2 loturi de rosii, 1 lot de cartofi si 2 loturi de mere."
         }`}
         
         Actuala stare a inventarului este: ${JSON.stringify(inventory)}
@@ -143,7 +145,7 @@ export async function processCommand(
     
     // Add conversation history
     if (conversation.length > 0) {
-      // Limitează contextul conversațional la ultimele 10 mesaje pentru performanță
+      // Limiteaza contextul conversational la ultimele 10 mesaje pentru performanta
       const recentConversation = conversation.slice(-10);
       recentConversation.forEach((text, index) => {
         messages.push({
@@ -170,7 +172,7 @@ export async function processCommand(
         messages,
         temperature: 0.3,
         max_tokens: 800,
-        response_format: { type: "json_object" } // Specificăm explicit că vrem JSON
+        response_format: { type: "json_object" } // Specificam explicit ca vrem JSON
       })
     });
 
@@ -180,7 +182,7 @@ export async function processCommand(
       console.error("OpenAI API error:", data.error);
       return {
         action: "unknown",
-        response: "A apărut o eroare la procesarea comenzii. Vă rugăm să încercați din nou."
+        response: "A aparut o eroare la procesarea comenzii. Va rugam sa incercati din nou."
       };
     }
 
@@ -192,10 +194,10 @@ export async function processCommand(
       let jsonContent = content;
       
       try {
-        // Încercăm să parsăm direct răspunsul
+        // Incercam sa parsam direct raspunsul
         const parsedResponse = JSON.parse(jsonContent);
         
-        // Process any charts în răspuns
+        // Process any charts in raspuns
         let charts: ChartData[] = [];
         if (parsedResponse.charts && Array.isArray(parsedResponse.charts)) {
           charts = parsedResponse.charts.map((chart: any) => ({
@@ -218,7 +220,7 @@ export async function processCommand(
       } catch (parseJsonError) {
         console.error("Error parsing AI response as JSON:", parseJsonError);
         
-        // Dacă răspunsul nu este JSON valid, căutăm un obiect JSON în text
+        // Daca raspunsul nu este JSON valid, cautam un obiect JSON in text
         const jsonStartIndex = content.indexOf('{');
         const jsonEndIndex = content.lastIndexOf('}') + 1;
         
@@ -228,7 +230,7 @@ export async function processCommand(
             console.log("Extracted JSON content:", jsonContent);
             const parsedResponse = JSON.parse(jsonContent);
             
-            // Process any charts în răspuns
+            // Process any charts in raspuns
             let charts: ChartData[] = [];
             if (parsedResponse.charts && Array.isArray(parsedResponse.charts)) {
               charts = parsedResponse.charts.map((chart: any) => ({
@@ -253,7 +255,7 @@ export async function processCommand(
           }
         }
         
-        // Dacă tot nu putem obține un JSON valid, folosim conținutul ca răspuns simplu
+        // Daca tot nu putem obtine un JSON valid, folosim continutul ca raspuns simplu
         return {
           action: "query",
           response: content
@@ -269,7 +271,7 @@ export async function processCommand(
     console.error("Error processing command:", error);
     return {
       action: "unknown",
-      response: "A apărut o eroare la procesarea comenzii. Vă rugăm să încercați din nou."
+      response: "A aparut o eroare la procesarea comenzii. Va rugam sa incercati din nou."
     };
   }
 }
@@ -280,10 +282,10 @@ function isConversation(command: string): boolean {
   
   // List of inventory-related keywords
   const inventoryKeywords = [
-    'stoc', 'adaugă', 'adauga', 'adăuga', 'pune', 'scoate', 'elimină', 'elimina', 
-    'sterge', 'șterge', 'kg', 'produs', 'produse', 'cantitate', 'cantitați', 
-    'lot', 'loturi', 'palet', 'paleți', 'paleti', 'furnizor', 'inventar', 
-    'export', 'excel', 'email', 'raport', 'intrări', 'intrari', 'iesiri', 'ieșiri'
+    'stoc', 'adauga', 'adauga', 'adauga', 'pune', 'scoate', 'elimina', 'elimina', 
+    'sterge', 'sterge', 'kg', 'produs', 'produse', 'cantitate', 'cantitati', 
+    'lot', 'loturi', 'palet', 'paleti', 'paleti', 'furnizor', 'inventar', 
+    'export', 'excel', 'email', 'raport', 'intrari', 'intrari', 'iesiri', 'iesiri'
   ];
   
   // Check if command contains inventory-related keywords
@@ -292,7 +294,7 @@ function isConversation(command: string): boolean {
   );
   
   // Commands asking about inventory-specific quantities
-  if (lowercaseCommand.match(/câte|cate|câți|cati/i) && 
+  if (lowercaseCommand.match(/cate|cate|cati|cati/i) && 
       (lowercaseCommand.includes('stoc') || 
        lowercaseCommand.includes('avem') || 
        lowercaseCommand.includes('sunt') ||
@@ -301,7 +303,7 @@ function isConversation(command: string): boolean {
   }
   
   // Check for specific inventory actions
-  if (lowercaseCommand.match(/^(adaugă|adauga|pune|scoate|elimină|elimina|șterge|sterge|vezi|arată|arata)/i)) {
+  if (lowercaseCommand.match(/^(adauga|adauga|pune|scoate|elimina|elimina|sterge|sterge|vezi|arata|arata)/i)) {
     return false; // This is an inventory command
   }
   
@@ -313,9 +315,9 @@ function isConversation(command: string): boolean {
 function handleDirectCommand(command: string, inventory: InventoryItem[]): CommandResult | null {
   const lowercaseCommand = command.toLowerCase();
 
-  // Handle queries about entries/intrări de azi
-  if (lowercaseCommand.includes("intrări") || lowercaseCommand.includes("intrari") || 
-      lowercaseCommand.includes("azi") || lowercaseCommand.includes("astăzi") || 
+  // Handle queries about entries/intrari de azi
+  if (lowercaseCommand.includes("intrari") || lowercaseCommand.includes("intrari") || 
+      lowercaseCommand.includes("azi") || lowercaseCommand.includes("astazi") || 
       lowercaseCommand.includes("astazi")) {
     
     // Get today's date
@@ -360,16 +362,16 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
       const chartData: ChartData[] = [
         {
           type: 'bar',
-          title: 'Intrări de astăzi',
+          title: 'Intrari de astazi',
           data: Object.values(productSummary).map(p => ({
             name: p.name,
             value: p.totalQuantity
           })),
-          description: 'Cantități adăugate astăzi'
+          description: 'Cantitati adaugate astazi'
         },
         {
           type: 'pie',
-          title: 'Distribuția intrărilor de astăzi',
+          title: 'Distributia intrarilor de astazi',
           data: Object.values(productSummary).map(p => ({
             name: p.name,
             value: p.totalQuantity
@@ -378,36 +380,36 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
       ];
       
       const productList = Object.values(productSummary)
-        .map(p => `${p.count} ${p.count === 1 ? 'intrare' : 'intrări'} de ${p.name} (total: ${p.totalQuantity} ${p.unit})`)
+        .map(p => `${p.count} ${p.count === 1 ? 'intrare' : 'intrari'} de ${p.name} (total: ${p.totalQuantity} ${p.unit})`)
         .join(', ');
       
       return {
         action: "query",
-        response: `Astăzi au fost înregistrate ${todayItems.length} intrări în stoc: ${productList}.`,
+        response: `Astazi au fost inregistrate ${todayItems.length} intrari in stoc: ${productList}.`,
         charts: chartData
       };
     } else {
       return {
         action: "query",
-        response: "Nu am înregistrat nicio intrare în stoc astăzi."
+        response: "Nu am inregistrat nicio intrare in stoc astazi."
       };
     }
   }
   
-  // Handle queries about exits/ieșiri de azi
-  if (lowercaseCommand.includes("ieșiri") || lowercaseCommand.includes("iesiri") || 
+  // Handle queries about exits/iesiri de azi
+  if (lowercaseCommand.includes("iesiri") || lowercaseCommand.includes("iesiri") || 
       lowercaseCommand.includes("scos") || lowercaseCommand.includes("eliminat")) {
     
     // This would require tracking exits in a separate table or with timestamps
     // For now, we'll return a placeholder response
     return {
       action: "query",
-      response: "Sistemul nu monitorizează momentan ieșirile cu timestamp. Pot doar să vă arăt starea curentă a stocului."
+      response: "Sistemul nu monitorizeaza momentan iesirile cu timestamp. Pot doar sa va arat starea curenta a stocului."
     };
   }
   
-  // Handle the specific mentă/menta commands with lot numbers for adding
-  const mentaAddRegex = /adaug[aă]\s+(\d+)\s*kg\s+de\s+ment[aă]\s+de\s+la\s+magnani\s+(?:nr\s+)?lot\s+(\d+)/i;
+  // Handle the specific menta/menta commands with lot numbers for adding
+  const mentaAddRegex = /adaug[a]\s+(\d+)\s*kg\s+de\s+menta\s+de\s+la\s+magnani\s+(?:nr\s+)?lot\s+(\d+)/i;
   const mentaAddMatch = command.match(mentaAddRegex);
   
   if (mentaAddMatch) {
@@ -416,7 +418,7 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
     
     return {
       action: "add",
-      response: `Am adăugat ${quantity} kg de mentă de la furnizorul Magnani, numărul lotului ${batchNumber}, în stoc.`,
+      response: `Am adaugat ${quantity} kg de menta de la furnizorul Magnani, numarul lotului ${batchNumber}, in stoc.`,
       item: {
         name: "menta",
         quantity: quantity,
@@ -427,8 +429,8 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
     };
   }
   
-  // Handle the specific mentă/menta commands with lot numbers for removing
-  const mentaRemoveRegex = /(?:scoate|elimină|elimina|sterge|șterge)\s+(\d+)\s*kg\s+de\s+ment[aă]\s+de\s+la\s+magnani\s+(?:nr\s+)?lot\s+(\d+)/i;
+  // Handle the specific menta/menta commands with lot numbers for removing
+  const mentaRemoveRegex = /(?:scoate|elimina|elimina|sterge|sterge)\s+(\d+)\s*kg\s+de\s+menta\s+de\s+la\s+magnani\s+(?:nr\s+)?lot\s+(\d+)/i;
   const mentaRemoveMatch = command.match(mentaRemoveRegex);
   
   if (mentaRemoveMatch) {
@@ -445,7 +447,7 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
     if (specificBatch) {
       return {
         action: "remove",
-        response: `Am scos ${quantity} kg de mentă de la furnizorul Magnani, numărul lotului ${batchNumber}, din stoc.`,
+        response: `Am scos ${quantity} kg de menta de la furnizorul Magnani, numarul lotului ${batchNumber}, din stoc.`,
         item: {
           id: specificBatch.id,
           name: "menta",
@@ -459,15 +461,15 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
   }
   
   // Handle queries about inventory
-  if (lowercaseCommand.includes("câte") || lowercaseCommand.includes("cate") || 
-      lowercaseCommand.includes("câți") || lowercaseCommand.includes("cati") ||
+  if (lowercaseCommand.includes("cate") || lowercaseCommand.includes("cate") || 
+      lowercaseCommand.includes("cati") || lowercaseCommand.includes("cati") ||
       lowercaseCommand.includes("ce loturi") || lowercaseCommand.includes("care loturi")) {
     
-    // Check for mentă/menta related queries
-    if (lowercaseCommand.includes("menta") || lowercaseCommand.includes("mentă")) {
+    // Check for menta/menta related queries
+    if (lowercaseCommand.includes("menta") || lowercaseCommand.includes("menta")) {
       // Count batches of menta
       const mentaBatches = inventory.filter(
-        item => item.name.toLowerCase() === "menta" || item.name.toLowerCase() === "mentă"
+        item => item.name.toLowerCase() === "menta" || item.name.toLowerCase() === "menta"
       );
       
       if (mentaBatches.length > 0) {
@@ -482,17 +484,17 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
         const chartData: ChartData[] = [
           {
             type: 'bar',
-            title: 'Loturi de mentă în stoc',
+            title: 'Loturi de menta in stoc',
             data: mentaBatches.map(batch => ({
               name: `Lot ${batch.batch_number || 'necunoscut'}`,
               value: batch.quantity,
               supplier: batch.supplier || 'Necunoscut'
             })),
-            description: 'Cantități de mentă pe loturi'
+            description: 'Cantitati de menta pe loturi'
           },
           {
             type: 'pie',
-            title: 'Distribuția mentei pe loturi',
+            title: 'Distributia mentei pe loturi',
             data: mentaBatches.map(batch => ({
               name: `Lot ${batch.batch_number || 'necunoscut'}`,
               value: batch.quantity
@@ -502,22 +504,22 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
         
         return {
           action: "query",
-          response: `Avem ${mentaBatches.length} ${mentaBatches.length === 1 ? 'lot' : 'loturi'} de mentă în stoc: ${batchDetails}. În total, avem ${totalQuantity} kg de mentă.`,
+          response: `Avem ${mentaBatches.length} ${mentaBatches.length === 1 ? 'lot' : 'loturi'} de menta in stoc: ${batchDetails}. In total, avem ${totalQuantity} kg de menta.`,
           charts: chartData
         };
       } else {
         return {
           action: "query",
-          response: "Nu avem mentă în stoc momentan."
+          response: "Nu avem menta in stoc momentan."
         };
       }
     }
     
-    // Cereri pentru afișarea distribuției pe furnizori
-    if (lowercaseCommand.includes("furnizor") && (lowercaseCommand.includes("distribuție") || 
+    // Cereri pentru afisarea distributiei pe furnizori
+    if (lowercaseCommand.includes("furnizor") && (lowercaseCommand.includes("distributie") || 
        lowercaseCommand.includes("distributie") || lowercaseCommand.includes("cantitate"))) {
        
-      // Colectează date pe furnizori
+      // Colecteaza date pe furnizori
       const supplierItems = inventory.filter(item => item.supplier);
       if (supplierItems.length > 0) {
         const supplierData: Record<string, {name: string, value: number}> = {};
@@ -533,24 +535,24 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
         const chartData: ChartData[] = [
           {
             type: 'bar',
-            title: 'Distribuția produselor pe furnizori',
+            title: 'Distributia produselor pe furnizori',
             data: Object.values(supplierData),
-            description: 'Cantități totale pe furnizori'
+            description: 'Cantitati totale pe furnizori'
           },
           {
             type: 'pie',
-            title: 'Proporția produselor pe furnizori',
+            title: 'Proportia produselor pe furnizori',
             data: Object.values(supplierData)
           }
         ];
         
         const supplierText = Object.values(supplierData)
-          .map(s => `${s.name}: ${s.value} unități`)
+          .map(s => `${s.name}: ${s.value} unitati`)
           .join(', ');
         
         return {
           action: "query",
-          response: `Iată distribuția produselor pe furnizori: ${supplierText}`,
+          response: `Iata distributia produselor pe furnizori: ${supplierText}`,
           charts: chartData
         };
       }
@@ -558,7 +560,7 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
     
     // Generic inventory query
     if (lowercaseCommand.includes("stoc") || lowercaseCommand.includes("avem") || 
-        lowercaseCommand.includes("arată") || lowercaseCommand.includes("arata")) {
+        lowercaseCommand.includes("arata") || lowercaseCommand.includes("arata")) {
       
       // Generate inventory overview
       if (inventory.length > 0) {
@@ -575,13 +577,13 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
         const chartData: ChartData[] = [
           {
             type: 'bar',
-            title: 'Produse în stoc',
+            title: 'Produse in stoc',
             data: Object.values(products).map(p => ({ name: p.name, value: p.quantity })),
-            description: 'Cantități totale pe produse'
+            description: 'Cantitati totale pe produse'
           },
           {
             type: 'pie',
-            title: 'Distribuția produselor în stoc',
+            title: 'Distributia produselor in stoc',
             data: Object.values(products).map(p => ({ name: p.name, value: p.quantity })),
           }
         ];
@@ -592,7 +594,7 @@ function handleDirectCommand(command: string, inventory: InventoryItem[]): Comma
         
         return {
           action: "view",
-          response: `În stoc avem următoarele produse: ${productList}`,
+          response: `In stoc avem urmatoarele produse: ${productList}`,
           charts: chartData
         };
       } else {
@@ -612,9 +614,9 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
   const lowercaseCommand = command.toLowerCase();
   
   // Handle remove/scoate commands
-  if (lowercaseCommand.match(/^(scoate|elimină|elimina|șterge|sterge)/i)) {
+  if (lowercaseCommand.match(/^(scoate|elimina|elimina|sterge|sterge)/i)) {
     // Try to extract the product name, quantity and unit
-    const removeRegex = /(?:scoate|elimină|elimina|șterge|sterge)\s+(\d+)\s*([a-zA-Z]+)\s+(?:de\s+)?([a-zăâîșțş]+)/i;
+    const removeRegex = /(?:scoate|elimina|elimina|sterge|sterge)\s+(\d+)\s*([a-zA-Z]+)\s+(?:de\s+)?([a-z]+)/i;
     const removeMatch = lowercaseCommand.match(removeRegex);
     
     if (removeMatch) {
@@ -640,10 +642,10 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
         
         return {
           action: "unknown",
-          response: `Am găsit ${matchingItems.length} loturi diferite de ${product} în stoc.`,
+          response: `Am gasit ${matchingItems.length} loturi diferite de ${product} in stoc.`,
           needsMoreInfo: {
             type: "batch_selection",
-            question: `Din care lot doriți să scoateți ${quantity} ${unit} de ${product}?`,
+            question: `Din care lot doriti sa scoateti ${quantity} ${unit} de ${product}?`,
             options: options
           }
         };
@@ -668,7 +670,7 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
   // Handle pallet requests
   if (lowercaseCommand.includes("palet")) {
     // Extract product name from command
-    const productMatch = lowercaseCommand.match(/palet\s+(?:de\s+)?([a-zăâîșțş]+)/i);
+    const productMatch = lowercaseCommand.match(/palet\s+(?:de\s+)?([a-z]+)/i);
     const product = productMatch ? productMatch[1] : "produse";
     
     // Check if we have supplier info
@@ -677,21 +679,21 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
     if (!hasSupplier) {
       return {
         action: "unknown",
-        response: `Aș avea nevoie de câteva detalii în plus pentru a adăuga paleții de ${product} în sistem.`,
+        response: `As avea nevoie de cateva detalii in plus pentru a adauga paletii de ${product} in sistem.`,
         needsMoreInfo: {
           type: "pallet_details",
-          question: `Câte kg conține un palet de ${product}? De la ce furnizor provine? Și care este numărul lotului?`
+          question: `Cate kg contine un palet de ${product}? De la ce furnizor provine? Si care este numarul lotului?`
         }
       };
     }
   }
   
   // Handle queries about inventory
-  if (lowercaseCommand.includes("câte") || lowercaseCommand.includes("cate") || 
-      lowercaseCommand.includes("câți") || lowercaseCommand.includes("cati")) {
+  if (lowercaseCommand.includes("cate") || lowercaseCommand.includes("cate") || 
+      lowercaseCommand.includes("cati") || lowercaseCommand.includes("cati")) {
     
     // Check for product mentions
-    const productMatch = lowercaseCommand.match(/(?:de|din)\s+([a-zăâîșțş]+)/i);
+    const productMatch = lowercaseCommand.match(/(?:de|din)\s+([a-z]+)/i);
     if (productMatch) {
       const product = productMatch[1];
       
@@ -713,31 +715,31 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
         if (matchingItems.length > 1) {
           chartData.push({
             type: 'bar',
-            title: `Loturi de ${product} în stoc`,
+            title: `Loturi de ${product} in stoc`,
             data: matchingItems.map(item => ({
               name: item.batch_number ? `Lot ${item.batch_number}` : `${item.supplier || 'Necunoscut'}`,
               value: item.quantity
             })),
-            description: `Cantități de ${product} pe loturi`
+            description: `Cantitati de ${product} pe loturi`
           });
         }
         
         return {
           action: "query",
-          response: `Avem în total ${totalQuantity} ${unit} de ${product} în stoc, în ${matchingItems.length} ${matchingItems.length === 1 ? 'lot' : 'loturi'} diferite.`,
+          response: `Avem in total ${totalQuantity} ${unit} de ${product} in stoc, in ${matchingItems.length} ${matchingItems.length === 1 ? 'lot' : 'loturi'} diferite.`,
           charts: chartData.length > 0 ? chartData : undefined
         };
       } else {
         return {
           action: "query",
-          response: `Nu avem ${product} în stoc momentan.`
+          response: `Nu avem ${product} in stoc momentan.`
         };
       }
     }
   }
   
-  // Handle mentă/menta with lot number pattern more generally
-  if ((lowercaseCommand.includes("menta") || lowercaseCommand.includes("mentă")) && 
+  // Handle menta/menta with lot number pattern more generally
+  if ((lowercaseCommand.includes("menta") || lowercaseCommand.includes("menta")) && 
       lowercaseCommand.includes("magnani")) {
     
     // Try to extract quantity
@@ -749,10 +751,10 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
     const lotNumber = lotMatch ? lotMatch[1] : "necunoscut";
     
     // Check if this is a remove command
-    if (lowercaseCommand.match(/^(scoate|elimină|elimina|șterge|sterge)/i)) {
+    if (lowercaseCommand.match(/^(scoate|elimina|elimina|sterge|sterge)/i)) {
       return {
         action: "remove",
-        response: `Am scos ${quantity} kg de mentă de la furnizorul Magnani, numărul lotului ${lotNumber}, din stoc.`,
+        response: `Am scos ${quantity} kg de menta de la furnizorul Magnani, numarul lotului ${lotNumber}, din stoc.`,
         item: {
           name: "menta",
           quantity: quantity,
@@ -765,7 +767,7 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
       // Default to add
       return {
         action: "add",
-        response: `Am adăugat ${quantity} kg de mentă de la furnizorul Magnani, numărul lotului ${lotNumber}, în stoc.`,
+        response: `Am adaugat ${quantity} kg de menta de la furnizorul Magnani, numarul lotului ${lotNumber}, in stoc.`,
         item: {
           name: "menta",
           quantity: quantity,
@@ -778,13 +780,13 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
   }
   
   // Generic add pattern
-  const addRegex = /adaug[aă]\s+(\d+)\s*([a-zăâîșțş]+)\s+de\s+([a-zăâîșțş]+)/i;
+  const addRegex = /adaug[a]\s+(\d+)\s*([a-z]+)\s+de\s+([a-z]+)/i;
   const addMatch = lowercaseCommand.match(addRegex);
   
   if (addMatch) {
     return {
       action: "add",
-      response: `Am adăugat ${addMatch[1]} ${addMatch[2]} de ${addMatch[3]} în stoc.`,
+      response: `Am adaugat ${addMatch[1]} ${addMatch[2]} de ${addMatch[3]} in stoc.`,
       item: {
         name: addMatch[3],
         quantity: parseInt(addMatch[1]),
@@ -797,13 +799,13 @@ function recognizeCommandPattern(command: string, inventory: InventoryItem[]): C
   if (isConversation(command)) {
     return {
       action: "query",
-      response: "Îmi pare rău, dar nu am destule informații pentru a răspunde la această întrebare. Sunt specializat în asistență pentru gestiunea stocurilor. Puteți să mă întrebați despre stoc, produse, furnizori sau să îmi cereți să adaug sau să scot produse din inventar."
+      response: "Imi pare rau, dar nu am destule informatii pentru a raspunde la aceasta intrebare. Sunt specializat in asistenta pentru gestiunea stocurilor. Puteti sa ma intrebati despre stoc, produse, furnizori sau sa imi cereti sa adaug sau sa scot produse din inventar."
     };
   }
   
   // Default error response for other cases
   return {
     action: "unknown",
-    response: "Nu am înțeles exact ce dorești să faci. Poți să reformulezi comanda cu detalii despre cantitate, produs și eventual furnizor sau număr de lot?",
+    response: "Nu am inteles exact ce doresti sa faci. Poti sa reformulezi comanda cu detalii despre cantitate, produs si eventual furnizor sau numar de lot?",
   };
 }
