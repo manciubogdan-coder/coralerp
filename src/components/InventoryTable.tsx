@@ -6,6 +6,7 @@ import { Search, Filter, Eye, EyeOff } from "lucide-react";
 import { InventoryItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface InventoryTableProps {
   inventory: InventoryItem[];
@@ -17,6 +18,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const [groupByBatch, setGroupByBatch] = useState(false);
   const [groupByProduct, setGroupByProduct] = useState(false);
   const [showEmptyItems, setShowEmptyItems] = useState(false);
+  const isMobile = useIsMobile();
   
   // Filter out items with zero quantity unless explicitly showing empty items
   const nonEmptyInventory = showEmptyItems 
@@ -107,11 +109,39 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
       return [headerItem, ...items];
     });
   }
+
+  // Columns to show based on screen size
+  const getVisibleColumns = () => {
+    if (isMobile) {
+      return {
+        name: true,
+        quantity: true, 
+        unit: true,
+        pallets: false,
+        supplier: false,
+        batch: false,
+        receiptDate: false,
+        updatedAt: false
+      };
+    }
+    return {
+      name: true,
+      quantity: true,
+      unit: true,
+      pallets: true,
+      supplier: true,
+      batch: true,
+      receiptDate: true,
+      updatedAt: true
+    };
+  };
+
+  const visibleColumns = getVisibleColumns();
   
   return (
     <div>
-      <div className="p-4 flex justify-between items-center">
-        <div className="relative flex-1 mr-4">
+      <div className="p-2 md:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+        <div className="relative w-full md:flex-1 md:mr-4">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Caută produs, furnizor, lot..."
@@ -120,20 +150,20 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
             className="pl-10"
           />
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
           <Button 
             variant="outline" 
-            size="sm" 
+            size={isMobile ? "sm" : "default"}
             onClick={() => setShowEmptyItems(!showEmptyItems)}
-            className="flex items-center"
+            className="flex items-center text-xs md:text-sm"
           >
-            {showEmptyItems ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+            {showEmptyItems ? <EyeOff className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" /> : <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />}
             {showEmptyItems ? "Ascunde fără stoc" : "Arată fără stoc"}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Filter className="h-4 w-4 mr-2" />
+              <Button variant="outline" size={isMobile ? "sm" : "default"} className="text-xs md:text-sm">
+                <Filter className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                 Grupare
               </Button>
             </DropdownMenuTrigger>
@@ -172,58 +202,64 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
       </div>
       
       <div className="max-h-[400px] overflow-auto">
-        <Table>
-          <TableHeader className="sticky top-0 bg-white">
-            <TableRow>
-              <TableHead>Produs</TableHead>
-              <TableHead className="text-right">Cantitate</TableHead>
-              <TableHead className="text-right">Unitate</TableHead>
-              <TableHead className="text-right">Paleți</TableHead>
-              <TableHead>Furnizor</TableHead>
-              <TableHead>Nr. Lot</TableHead>
-              <TableHead className="text-right">Data recepției</TableHead>
-              <TableHead className="text-right">Ultima actualizare</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {displayedInventory.length > 0 ? (
-              displayedInventory.map((item) => (
-                <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
-                  <TableCell className={item.isHeader ? "font-bold" : "font-medium"}>
-                    {item.name}
-                  </TableCell>
-                  <TableCell className="text-right">{item.quantity}</TableCell>
-                  <TableCell className="text-right">{item.unit}</TableCell>
-                  <TableCell className="text-right">{item.pallets || 0}</TableCell>
-                  <TableCell>{item.supplier || '-'}</TableCell>
-                  <TableCell>{item.batch_number || '-'}</TableCell>
-                  <TableCell className="text-right">
-                    {item.receipt_date 
-                      ? new Date(item.receipt_date).toLocaleDateString('ro-RO') 
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {item.updatedAt 
-                      ? new Date(item.updatedAt.seconds * 1000).toLocaleString('ro-RO') 
-                      : '-'}
+        <div className="w-full overflow-x-auto">
+          <Table>
+            <TableHeader className="sticky top-0 bg-white">
+              <TableRow>
+                <TableHead>Produs</TableHead>
+                <TableHead className="text-right">Cantitate</TableHead>
+                <TableHead className="text-right">Unitate</TableHead>
+                {visibleColumns.pallets && <TableHead className="text-right">Paleți</TableHead>}
+                {visibleColumns.supplier && <TableHead>Furnizor</TableHead>}
+                {visibleColumns.batch && <TableHead>Nr. Lot</TableHead>}
+                {visibleColumns.receiptDate && <TableHead className="text-right">Data recepției</TableHead>}
+                {visibleColumns.updatedAt && <TableHead className="text-right">Ultima actualizare</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {displayedInventory.length > 0 ? (
+                displayedInventory.map((item) => (
+                  <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
+                    <TableCell className={item.isHeader ? "font-bold" : "font-medium"}>
+                      {item.name}
+                    </TableCell>
+                    <TableCell className="text-right">{item.quantity}</TableCell>
+                    <TableCell className="text-right">{item.unit}</TableCell>
+                    {visibleColumns.pallets && <TableCell className="text-right">{item.pallets || 0}</TableCell>}
+                    {visibleColumns.supplier && <TableCell>{item.supplier || '-'}</TableCell>}
+                    {visibleColumns.batch && <TableCell>{item.batch_number || '-'}</TableCell>}
+                    {visibleColumns.receiptDate && (
+                      <TableCell className="text-right">
+                        {item.receipt_date 
+                          ? new Date(item.receipt_date).toLocaleDateString('ro-RO') 
+                          : '-'}
+                      </TableCell>
+                    )}
+                    {visibleColumns.updatedAt && (
+                      <TableCell className="text-right">
+                        {item.updatedAt 
+                          ? new Date(item.updatedAt.seconds * 1000).toLocaleString('ro-RO') 
+                          : '-'}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))
+              ) : searchTerm ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-6 text-gray-500">
+                    Nu s-au găsit produse pentru "{searchTerm}"
                   </TableCell>
                 </TableRow>
-              ))
-            ) : searchTerm ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-6 text-gray-500">
-                  Nu s-au găsit produse pentru "{searchTerm}"
-                </TableCell>
-              </TableRow>
-            ) : (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-6 text-gray-500">
-                  Nu există produse în stoc. Adăugați produse folosind comenzi vocale sau text.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-6 text-gray-500">
+                    Nu există produse în stoc. Adăugați produse folosind comenzi vocale sau text.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   );

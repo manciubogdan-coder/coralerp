@@ -15,6 +15,7 @@ import { exportToExcel } from "@/lib/excelExport";
 import { sendEmail } from "@/lib/emailService";
 import { speakText } from "@/lib/speechService";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -32,6 +33,7 @@ const Index = () => {
   const conversationsEndRef = useRef<HTMLDivElement>(null);
   const speechUtteranceRef = useRef<{stop: () => void; isPending: () => boolean} | null>(null);
   const [activeTab, setActiveTab] = useState("inventory");
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
@@ -670,7 +672,10 @@ const Index = () => {
     try {
       await saveConversation(input);
       
-      const result = await processCommand(input, inventory, conversationTexts);
+      const contextInput = input;
+      const recentMessages = conversationTexts.slice(-5).join("\n");
+      
+      const result = await processCommand(contextInput, inventory, conversationTexts);
       console.log("Command result:", result);
       
       setResponse(result.response);
@@ -870,8 +875,8 @@ const Index = () => {
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
       
-      <main className="flex-1 container mx-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-1">
+      <main className="flex-1 container mx-auto p-2 md:p-6 grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
+        <div className={`${isMobile ? "order-1" : "order-0"} md:col-span-1`}>
           <VoiceCommandPanel 
             isRecording={isRecording}
             toggleRecording={toggleRecording}
@@ -885,8 +890,8 @@ const Index = () => {
           />
         </div>
         
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow-md p-4">
+        <div className={`${isMobile ? "order-0" : "order-1"} md:col-span-2 space-y-3 md:space-y-6`}>
+          <div className="bg-white rounded-lg shadow-md p-2 md:p-4">
             <form onSubmit={handleSubmit} className="flex space-x-2">
               <Input
                 placeholder={awaitingMoreInfo 
@@ -908,36 +913,35 @@ const Index = () => {
                 {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </Button>
               <Button type="submit" disabled={isProcessing || !inputText.trim()}>
-                <Send className="h-4 w-4 mr-2" />
-                Trimite
+                {isMobile ? <Send className="h-4 w-4" /> : <><Send className="h-4 w-4 mr-2" />Trimite</>}
               </Button>
             </form>
           </div>
           
           <div className="bg-white rounded-lg shadow-md">
-            <div className="border-b border-gray-200 p-4 flex justify-between items-center">
+            <div className="border-b border-gray-200 p-2 md:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
               <div>
                 <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="inventory">
-                  <TabsList>
-                    <TabsTrigger value="inventory" className="flex items-center">
-                      <ListFilter className="h-4 w-4 mr-2" />
+                  <TabsList className={isMobile ? "h-8" : ""}>
+                    <TabsTrigger value="inventory" className="flex items-center text-xs md:text-sm">
+                      <ListFilter className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                       Stoc curent
                     </TabsTrigger>
-                    <TabsTrigger value="history" className="flex items-center">
-                      <History className="h-4 w-4 mr-2" />
-                      Istoric operatiuni
+                    <TabsTrigger value="history" className="flex items-center text-xs md:text-sm">
+                      <History className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                      Istoric
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
-              <div className="flex space-x-2">
-                <Button variant="outline" size="sm" onClick={handleExportExcel}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Excel
+              <div className="flex space-x-2 w-full md:w-auto">
+                <Button variant="outline" size="sm" onClick={handleExportExcel} className="text-xs md:text-sm flex-1 md:flex-none">
+                  <Download className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                  {isMobile ? "" : "Excel"}
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleSendEmail}>
-                  <Mail className="h-4 w-4 mr-2" />
-                  Email
+                <Button variant="outline" size="sm" onClick={handleSendEmail} className="text-xs md:text-sm flex-1 md:flex-none">
+                  <Mail className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                  {isMobile ? "" : "Email"}
                 </Button>
               </div>
             </div>

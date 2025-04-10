@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ChartData } from "@/types";
 import { cn } from "@/lib/utils";
 import InventoryCharts from "./InventoryCharts";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface VoiceCommandPanelProps {
   isRecording: boolean;
@@ -33,6 +34,8 @@ const VoiceCommandPanel = ({
   toggleAudio,
   conversationsEndRef
 }: VoiceCommandPanelProps) => {
+  const isMobile = useIsMobile();
+  
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
   };
@@ -47,15 +50,16 @@ const VoiceCommandPanel = ({
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className={isMobile ? "p-3 pb-2" : "pb-2"}>
           <div className="flex justify-between items-center">
-            <CardTitle>Asistent Vocal</CardTitle>
+            <CardTitle className={isMobile ? "text-base" : ""}>Asistent Vocal</CardTitle>
             <div className="flex items-center space-x-2">
               <Button 
                 variant="ghost" 
                 size="icon" 
                 onClick={toggleAudio}
                 title={isAudioEnabled ? "Dezactiveaza audio" : "Activeaza audio"}
+                className="h-7 w-7"
               >
                 {isAudioEnabled ? <Volume2 className="h-4 w-4 text-green-500" /> : <VolumeX className="h-4 w-4 text-gray-500" />}
               </Button>
@@ -77,11 +81,11 @@ const VoiceCommandPanel = ({
               </Button>
             </div>
           </div>
-          <CardDescription>
+          <CardDescription className={isMobile ? "text-xs" : ""}>
             {isRecording ? 'Te ascult... spune-mi cum te pot ajuta' : 'Apasa pe microfon si spune-mi cum te pot ajuta'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className={isMobile ? "p-3 pt-0" : ""}>
           {isRecording && transcript && (
             <>
               <h4 className="text-sm font-medium mb-1">Se inregistreaza:</h4>
@@ -95,28 +99,32 @@ const VoiceCommandPanel = ({
               Exemple de comenzi:
             </h4>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Badge variant="outline" className="bg-gray-50">Adauga 5 kg de rosii</Badge>
-              <Badge variant="outline" className="bg-gray-50">Adauga 50kg menta de la Magnani lot 1505</Badge>
-              <Badge variant="outline" className="bg-gray-50">Scoate 2 kg de cartofi</Badge>
-              <Badge variant="outline" className="bg-gray-50">Cate loturi de menta avem?</Badge>
-              <Badge variant="outline" className="bg-gray-50">Scoate 50 kg de menta de la Magnani lot 1505</Badge>
-              <Badge variant="outline" className="bg-gray-50">Arata stocul</Badge>
-              <Badge variant="outline" className="bg-gray-50">Cate produse avem in total?</Badge>
-              <Badge variant="outline" className="bg-gray-50">Ce produse expira in curand?</Badge>
-              <Badge variant="outline" className="bg-gray-50">Arata cantitatile pe furnizori</Badge>
-              <Badge variant="outline" className="bg-gray-50">Exporta Excel</Badge>
+              <Badge variant="outline" className="bg-gray-50 text-xs">Adauga 5 kg de rosii</Badge>
+              <Badge variant="outline" className="bg-gray-50 text-xs">Adauga 50kg menta de la Magnani lot 1505</Badge>
+              <Badge variant="outline" className="bg-gray-50 text-xs">Scoate 2 kg de cartofi</Badge>
+              <Badge variant="outline" className="bg-gray-50 text-xs">Cate loturi de menta avem?</Badge>
+              <Badge variant="outline" className="bg-gray-50 text-xs">Cât s-a consumat azi?</Badge>
+              <Badge variant="outline" className="bg-gray-50 text-xs">Consumul de ieri</Badge>
+              {!isMobile && (
+                <>
+                  <Badge variant="outline" className="bg-gray-50 text-xs">Arata stocul</Badge>
+                  <Badge variant="outline" className="bg-gray-50 text-xs">Cate produse avem in total?</Badge>
+                  <Badge variant="outline" className="bg-gray-50 text-xs">Ce produse expira in curand?</Badge>
+                  <Badge variant="outline" className="bg-gray-50 text-xs">Arata cantitatile pe furnizori</Badge>
+                </>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader className="pb-2">
-          <CardTitle>Conversatie</CardTitle>
-          <CardDescription>Discutia cu asistentul de depozit</CardDescription>
+        <CardHeader className={isMobile ? "p-3 pb-2" : "pb-2"}>
+          <CardTitle className={isMobile ? "text-base" : ""}>Conversatie</CardTitle>
+          <CardDescription className={isMobile ? "text-xs" : ""}>Discutia cu asistentul de depozit</CardDescription>
         </CardHeader>
-        <ScrollArea className="h-[400px]">
-          <CardContent>
+        <ScrollArea className={isMobile ? "h-[300px]" : "h-[400px]"}>
+          <CardContent className={isMobile ? "p-3" : ""}>
             <div className="space-y-4">
               {conversations.map((conv, index) => (
                 <div key={index} className="space-y-2">
@@ -128,7 +136,7 @@ const VoiceCommandPanel = ({
                         </div>
                         <div className="flex-1">
                           <div className="bg-gray-100 p-2 rounded-lg rounded-tl-none">
-                            <p className="text-sm">{conv.text}</p>
+                            <p className={isMobile ? "text-xs" : "text-sm"}>{conv.text}</p>
                           </div>
                           <p className="text-xs text-gray-500 mt-1 text-right">
                             {formatTime(conv.timestamp)}
@@ -150,10 +158,10 @@ const VoiceCommandPanel = ({
                             {hasInsufficientQuantityWarning(conv.text) && (
                               <div className="flex items-center gap-2 mb-2 text-amber-600 pb-2 border-b border-amber-200">
                                 <AlertTriangle className="h-4 w-4" />
-                                <p className="text-sm font-medium">Atentie: Cantitate insuficienta</p>
+                                <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Atentie: Cantitate insuficienta</p>
                               </div>
                             )}
-                            <p className="text-sm" dangerouslySetInnerHTML={{ __html: conv.text.replace(/\n/g, '<br/>') }}></p>
+                            <p className={isMobile ? "text-xs" : "text-sm"} dangerouslySetInnerHTML={{ __html: conv.text.replace(/\n/g, '<br/>') }}></p>
                           </div>
                           <p className="text-xs text-gray-500 mt-1 text-right">
                             {formatTime(conv.timestamp)}
@@ -178,16 +186,16 @@ const VoiceCommandPanel = ({
                           {hasInsufficientQuantityWarning(response) && (
                             <div className="flex items-center gap-2 mb-2 text-amber-600 pb-2 border-b border-amber-200">
                               <AlertTriangle className="h-4 w-4" />
-                              <p className="text-sm font-medium">Atentie: Cantitate insuficienta</p>
+                              <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Atentie: Cantitate insuficienta</p>
                             </div>
                           )}
-                          <p className="text-sm" dangerouslySetInnerHTML={{ __html: response.replace(/\n/g, '<br/>') }}></p>
+                          <p className={isMobile ? "text-xs" : "text-sm"} dangerouslySetInnerHTML={{ __html: response.replace(/\n/g, '<br/>') }}></p>
                           
                           {charts && charts.length > 0 && (
                             <div className="mt-4 border-t pt-3">
                               <div className="flex items-center gap-2 mb-2">
                                 <BarChart3 className="h-4 w-4 text-green-800" />
-                                <h4 className="text-sm font-medium">Grafice si date</h4>
+                                <h4 className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Grafice si date</h4>
                               </div>
                               <InventoryCharts charts={charts} />
                             </div>

@@ -35,8 +35,8 @@ serve(async (req) => {
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Eroare la generarea vocii')
+      const error = await response.json().catch(() => ({ error: { message: `Status error: ${response.status}` } }))
+      throw new Error(error.error?.message || `Eroare la generarea vocii: ${response.status}`)
     }
 
     // Convert audio buffer to base64

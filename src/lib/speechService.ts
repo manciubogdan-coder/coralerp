@@ -29,16 +29,16 @@ export const speakText = (text: string) => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Eroare la generarea vocii:", errorData);
-        return;
+        const errorText = await response.text();
+        console.error("Eroare la generarea vocii:", errorText);
+        throw new Error(`Eroare server TTS: ${response.status} ${errorText}`);
       }
 
-      const { audioContent } = await response.json();
+      const data = await response.json();
       
-      if (!audioContent) {
+      if (!data || !data.audioContent) {
         console.error("Nu s-a primit conținut audio de la server");
-        return;
+        throw new Error("Nu s-a primit conținut audio");
       }
 
       // Creăm un element audio și setăm sursa
@@ -47,7 +47,7 @@ export const speakText = (text: string) => {
       }
       
       // Convertim base64 în URL pentru audio
-      const audioSrc = `data:audio/mp3;base64,${audioContent}`;
+      const audioSrc = `data:audio/mp3;base64,${data.audioContent}`;
       
       audioElement = new Audio(audioSrc);
       
@@ -63,6 +63,7 @@ export const speakText = (text: string) => {
         console.error("Eroare la redarea audio:", e);
         isSpeaking = false;
         audioElement = null;
+        useWebSpeechAPIFallback(text);
       };
 
       // Redăm audio
