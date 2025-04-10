@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { 
   Table, TableBody, TableCell, TableHead, 
@@ -43,7 +42,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
 
   const fetchHistory = async () => {
     try {
-      // Use the correct table name that was defined in Supabase
       let query = supabase
         .from('inventory_history')
         .select('*', { count: 'exact' })
@@ -58,7 +56,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
       }
       
       if (dateRange[1]) {
-        // Add one day to include the end date fully
         const endDate = new Date(dateRange[1]);
         endDate.setDate(endDate.getDate() + 1);
         query = query.lt('operation_date', endDate.toISOString());
@@ -68,7 +65,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         query = query.eq('action', actionFilter);
       }
       
-      // Apply pagination
       query = query.range((page - 1) * limit, page * limit - 1);
       
       const { data, error, count } = await query;
@@ -91,7 +87,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         batch_number: item.batch_number || undefined,
         pallets: item.pallets || undefined,
         operation_date: new Date(item.operation_date),
-        // Check if exit_timestamp exists before trying to convert it
         exit_timestamp: item.exit_timestamp ? new Date(item.exit_timestamp) : undefined,
         notes: item.notes || undefined
       }));
@@ -198,7 +193,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
               <TableHead>Furnizor</TableHead>
               <TableHead>Lot</TableHead>
               <TableHead className="text-right">Paleți</TableHead>
-              {/* Add column for exit timestamp */}
               <TableHead>Ora ieșire</TableHead>
             </TableRow>
           </TableHeader>
@@ -225,7 +219,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
                   <TableCell>{item.supplier || '-'}</TableCell>
                   <TableCell>{item.batch_number || '-'}</TableCell>
                   <TableCell className="text-right">{item.pallets || '-'}</TableCell>
-                  {/* Display exit timestamp if action is 'remove' and timestamp exists */}
                   <TableCell>
                     {item.action === 'remove' && item.exit_timestamp
                       ? format(item.exit_timestamp, 'dd.MM.yyyy HH:mm:ss')
@@ -257,7 +250,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
             </PaginationItem>
             
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              // Show pages around current page
               let pageNum;
               if (totalPages <= 5) {
                 pageNum = i + 1;
