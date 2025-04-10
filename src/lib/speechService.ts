@@ -1,138 +1,133 @@
 
-// Funcție pentru a converti textul în vorbire
+// Funcție pentru a converti textul în vorbire folosind OpenAI TTS API
 export const speakText = (text: string) => {
-  // Verificăm dacă browserul suportă Web Speech API
-  if (!('speechSynthesis' in window) || !window.speechSynthesis || !window.SpeechSynthesisUtterance) {
-    console.error("Web Speech API nu este suportată de acest browser.");
+  // Verificăm dacă browserul suportă Audio API
+  if (typeof Audio === 'undefined') {
+    console.error("Audio API nu este suportată de acest browser.");
     return;
   }
 
-  // Oprim orice vorbire în curs
-  window.speechSynthesis.cancel();
+  let audioElement: HTMLAudioElement | null = null;
+  let isSpeaking = false;
+  
+  const playTTS = async () => {
+    try {
+      console.log("Se generează vocea...");
+      
+      // Apelăm serviciul pentru a converti textul în vorbire
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          text, 
+          // Folosim vocea 'nova' care este foarte naturală și feminină
+          // Alternativele sunt 'alloy', 'echo', 'fable', 'onyx', 'shimmer'
+          voice: 'nova' 
+        }),
+      });
 
-  // Creăm un nou obiect utterance
-  const utterance = new window.SpeechSynthesisUtterance(text);
-  utterance.lang = 'ro-RO';
-  utterance.volume = 1;
-  utterance.rate = 0.95; // Ușor mai lent pentru claritate
-  utterance.pitch = 1.5; // Am crescut pitch-ul și mai mult pentru o voce mai feminină
-
-  // Așteptăm să se încarce lista de voci
-  const loadVoices = async () => {
-    return new Promise<SpeechSynthesisVoice[]>((resolve) => {
-      // Verificăm dacă vocile sunt deja disponibile
-      const voices = window.speechSynthesis.getVoices();
-      if (voices && voices.length > 0) {
-        return resolve(voices);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Eroare la generarea vocii:", errorData);
+        return;
       }
 
-      // Altfel, așteptăm evenimentul voiceschanged
-      window.speechSynthesis.onvoiceschanged = () => {
-        const availableVoices = window.speechSynthesis.getVoices();
-        resolve(availableVoices);
-      };
-    });
-  };
+      const { audioContent } = await response.json();
+      
+      if (!audioContent) {
+        console.error("Nu s-a primit conținut audio de la server");
+        return;
+      }
 
-  // Funcție pentru a găsi cea mai bună voce feminină
-  const findBestVoice = async () => {
-    const voices = await loadVoices();
-    console.log("Voci disponibile:", voices.map(v => `${v.name} (${v.lang})`).join(', '));
-    
-    // Liste de nume comune pentru voci feminine
-    const femaleNameIndicators = [
-      'female', 'femeie', 'woman', 'girl', 
-      'alina', 'alice', 'ioana', 'maria', 'ana', 
-      'samantha', 'victoria', 'zira', 'eva',
-      'karen', 'monika', 'tina', 'amelie', 'lisa',
-      'sabrina', 'laura', 'julia'
-    ];
-    
-    // Funcție pentru a evalua cât de probabilă e o voce să fie feminină
-    const isFemaleVoice = (voice: SpeechSynthesisVoice): boolean => {
-      const nameLower = voice.name.toLowerCase();
-      // Excludem explicit vocile masculine
-      if (nameLower.includes('male') || 
-          nameLower.includes('barbat') || 
-          nameLower.includes('david') || 
-          nameLower.includes('paul') || 
-          nameLower.includes('george') ||
-          nameLower.includes('andrei')) {
-        return false;
+      // Creăm un element audio și setăm sursa
+      if (audioElement) {
+        audioElement.pause();
       }
       
-      // Verificăm pentru indicatori feminini
-      return femaleNameIndicators.some(indicator => 
-        nameLower.includes(indicator.toLowerCase())
-      );
-    };
-    
-    // Căutăm voci în ordinea preferinței
-    // 1. Voce feminină în română
-    const romanianFemaleVoice = voices.find(voice => 
-      voice.lang.includes('ro') && isFemaleVoice(voice)
-    );
-    
-    if (romanianFemaleVoice) {
-      console.log("Am găsit o voce feminină în română:", romanianFemaleVoice.name);
-      return romanianFemaleVoice;
-    }
-    
-    // 2. Orice voce în română (exceptăm vocile explicit masculine)
-    const romanianVoice = voices.find(voice => 
-      voice.lang.includes('ro') && !voice.name.toLowerCase().includes('male')
-    );
-    if (romanianVoice) {
-      console.log("Am găsit o voce în română (posibil feminină):", romanianVoice.name);
-      return romanianVoice;
-    }
-    
-    // 3. Voce feminină în engleză sau altă limbă
-    const femaleFallbackVoice = voices.find(voice => isFemaleVoice(voice));
-    if (femaleFallbackVoice) {
-      console.log("Am găsit o voce feminină (altă limbă):", femaleFallbackVoice.name);
-      return femaleFallbackVoice;
-    }
-    
-    // 4. Orice voce disponibilă care nu e explicit masculină
-    const anyNonMaleVoice = voices.find(voice => 
-      !voice.name.toLowerCase().includes('male') && 
-      !voice.name.toLowerCase().includes('barbat')
-    );
-    if (anyNonMaleVoice) {
-      console.log("Folosesc o voce posibil feminină:", anyNonMaleVoice.name);
-      return anyNonMaleVoice;
-    }
-    
-    // 5. Absolut orice voce disponibilă ca ultimă soluție
-    if (voices.length > 0) {
-      console.log("Folosesc prima voce disponibilă:", voices[0].name);
-      return voices[0];
-    }
-    
-    return null;
-  };
+      // Convertim base64 în URL pentru audio
+      const audioSrc = `data:audio/mp3;base64,${audioContent}`;
+      
+      audioElement = new Audio(audioSrc);
+      
+      // Setăm flag-ul și ascultătorii de evenimente
+      isSpeaking = true;
+      
+      audioElement.onended = () => {
+        isSpeaking = false;
+        audioElement = null;
+      };
 
-  // Aplicăm vocea optimă și vorbim textul
-  const setupVoiceAndSpeak = async () => {
-    const bestVoice = await findBestVoice();
+      audioElement.onerror = (e) => {
+        console.error("Eroare la redarea audio:", e);
+        isSpeaking = false;
+        audioElement = null;
+      };
+
+      // Redăm audio
+      await audioElement.play();
+      console.log("Se redă mesajul vocal");
+    } catch (error) {
+      console.error("Eroare la generarea sau redarea vocii:", error);
+      isSpeaking = false;
+      
+      // Fallback la Web Speech API dacă OpenAI TTS eșuează
+      useWebSpeechAPIFallback(text);
+    }
+  };
+  
+  // Funcție de rezervă care folosește Web Speech API
+  const useWebSpeechAPIFallback = (fallbackText: string) => {
+    console.log("Se folosește Web Speech API ca metodă de rezervă");
     
-    if (bestVoice) {
-      utterance.voice = bestVoice;
-      console.log("Voce selectată pentru vorbire:", bestVoice.name);
-    } else {
-      console.log("Nu s-a găsit o voce potrivită. Se utilizează vocea implicită.");
+    if (!('speechSynthesis' in window) || !window.speechSynthesis) {
+      console.error("Web Speech API nu este suportată de acest browser.");
+      return;
+    }
+    
+    // Oprim orice vorbire în curs
+    window.speechSynthesis.cancel();
+
+    // Creăm un nou obiect utterance
+    const utterance = new window.SpeechSynthesisUtterance(fallbackText);
+    utterance.lang = 'ro-RO';
+    utterance.volume = 1;
+    utterance.rate = 0.90;
+    utterance.pitch = 1.5;
+
+    // Încercăm să găsim o voce feminină
+    const voices = window.speechSynthesis.getVoices();
+    const femaleVoice = voices.find(voice => 
+      (voice.name.toLowerCase().includes('female') || 
+       voice.name.toLowerCase().includes('femeie') ||
+       voice.name.toLowerCase().includes('woman') ||
+       voice.name.toLowerCase().includes('girl')) && 
+      !voice.name.toLowerCase().includes('male')
+    );
+    
+    if (femaleVoice) {
+      utterance.voice = femaleVoice;
     }
     
     // Vorbește textul
     window.speechSynthesis.speak(utterance);
   };
   
-  // Inițiem procesul de configurare și vorbire
-  setupVoiceAndSpeak();
+  // Inițiem procesul de redare vocală
+  playTTS();
 
   return {
-    stop: () => window.speechSynthesis.cancel(),
-    isPending: () => window.speechSynthesis.speaking
+    stop: () => {
+      if (audioElement) {
+        audioElement.pause();
+        audioElement = null;
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      isSpeaking = false;
+    },
+    isPending: () => isSpeaking
   };
 };
