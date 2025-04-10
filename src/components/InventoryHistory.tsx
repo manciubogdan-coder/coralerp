@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { 
   Table, TableBody, TableCell, TableHead, 
@@ -22,6 +23,23 @@ import { supabase } from "@/integrations/supabase/client";
 interface InventoryHistoryProps {
   productName?: string;
   initialDateRange?: [Date | undefined, Date | undefined];
+}
+
+// Define the raw response type to match the database schema
+interface InventoryHistoryResponse {
+  id: string;
+  inventory_item_id: string | null;
+  action: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  previous_quantity: number | null;
+  supplier: string | null;
+  batch_number: string | null;
+  pallets: number | null;
+  operation_date: string;
+  exit_timestamp: string | null;
+  notes: string | null;
 }
 
 const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryProps) => {
@@ -75,9 +93,9 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         setTotalPages(Math.ceil(count / limit));
       }
       
-      const historyItems: InventoryHistoryItem[] = data.map(item => ({
+      const historyItems: InventoryHistoryItem[] = (data as InventoryHistoryResponse[]).map(item => ({
         id: item.id,
-        inventory_item_id: item.inventory_item_id,
+        inventory_item_id: item.inventory_item_id || undefined,
         action: item.action as 'add' | 'remove' | 'set',
         name: item.name,
         quantity: Number(item.quantity),
