@@ -32,7 +32,7 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
     
     // Construim interogarea pentru a căuta intrări relevante în baza de date de antrenare
     const { data, error } = await supabase
-      .rpc<TrainingEntry[]>('search_assistant_training', { 
+      .rpc<TrainingEntry[], SearchAssistantTrainingParams>('search_assistant_training', { 
         search_term: keywords[0] 
       } as SearchAssistantTrainingParams);
     
@@ -106,7 +106,7 @@ const calculateRelevance = (userCommand: string, trainingCommand: string, keywor
 export const addTrainingEntry = async (command: string, explanation: string): Promise<boolean> => {
   try {
     const { error } = await supabase
-      .rpc<null>('add_assistant_training', { 
+      .rpc<null, AddAssistantTrainingParams>('add_assistant_training', { 
         p_command: command.toLowerCase(), 
         p_explanation: explanation 
       } as AddAssistantTrainingParams);
