@@ -158,12 +158,14 @@ export const improveVoiceCommand = (transcript: string): string => {
   const normalizedText = transcript.toLowerCase().trim();
   
   // Listă extinsă de cuvinte cheie pentru comenzi legate de stoc
-  const stockKeywords = ['stoc', 'inventar', 'produse', 'depozit', 'cantitate', 'marfa', 'lot', 'loturi'];
-  const viewKeywords = ['arata', 'vezi', 'afișează', 'arată', 'ce', 'câte', 'cate', 'vreau', 'să', 'văd', 'vad', 'lista', 'listează'];
+  const stockKeywords = ['stoc', 'inventar', 'produse', 'depozit', 'cantitate', 'marfa', 'lot', 'loturi', 'consum'];
+  const viewKeywords = ['arata', 'vezi', 'afișează', 'arată', 'ce', 'câte', 'cate', 'vreau', 'să', 'văd', 'vad', 'lista', 'listează', 'raport'];
+  const timeKeywords = ['zilnic', 'ieri', 'astăzi', 'azi', 'luni', 'marti', 'miercuri', 'joi', 'vineri', 'săptămâna', 'saptamana', 'luna', 'lunar'];
   
   // Verificăm dacă textul conține cuvinte cheie pentru afișarea stocului
   const hasStockKeyword = stockKeywords.some(keyword => normalizedText.includes(keyword));
   const hasViewKeyword = viewKeywords.some(keyword => normalizedText.includes(keyword));
+  const hasTimeKeyword = timeKeywords.some(keyword => normalizedText.includes(keyword));
   
   // Îmbunătățim regula de detectare pentru comenzi de stoc
   if (hasStockKeyword) {
@@ -178,6 +180,35 @@ export const improveVoiceCommand = (transcript: string): string => {
         normalizedText.includes("mi") && (normalizedText.includes("stoc") || normalizedText.includes("inventar"))) {
       console.log("Comandă de stoc detectată, normalizare la 'arată stocul'");
       return "arată stocul";
+    }
+    
+    // Pentru comenzi legate de rapoarte temporale (zilnic, lunar, etc.)
+    if (hasTimeKeyword && (normalizedText.includes("raport") || normalizedText.includes("consum"))) {
+      if (normalizedText.includes("zilnic") || normalizedText.includes("zi de zi")) {
+        console.log("Raport zilnic detectat");
+        return "generează raport de consum zilnic";
+      }
+      
+      if (normalizedText.includes("săptămânal") || normalizedText.includes("saptamanal")) {
+        console.log("Raport săptămânal detectat");
+        return "generează raport de consum săptămânal";
+      }
+      
+      if (normalizedText.includes("lunar") || normalizedText.includes("pe lună")) {
+        console.log("Raport lunar detectat");
+        return "generează raport de consum lunar";
+      }
+      
+      // Dacă menționează un anumit produs pentru raport
+      const productMatch = normalizedText.match(/consum(?:ul)?\s+(?:de|la|pentru)?\s+([a-z]+)/i);
+      if (productMatch) {
+        const product = productMatch[1];
+        console.log(`Raport pentru produsul ${product} detectat`);
+        return `generează raport de consum pentru ${product}`;
+      }
+      
+      // Pentru raport de consum general
+      return "generează raport de consum";
     }
     
     // Pentru comenzi legate de cantități specifice
@@ -195,6 +226,27 @@ export const improveVoiceCommand = (transcript: string): string => {
     if (normalizedText.includes("furnizor")) {
       return "arată cantitățile pe furnizori";
     }
+    
+    // Pentru comenzi legate de consum
+    if (normalizedText.includes("consum")) {
+      // Verificăm dacă este specificat un produs
+      const productMatch = normalizedText.match(/consum(?:ul)?\s+(?:de|la|pentru)?\s+([a-z]+)/i);
+      if (productMatch) {
+        const product = productMatch[1];
+        return `arată consumul pentru ${product}`;
+      }
+      
+      // Verificăm dacă este specificată o perioadă
+      if (normalizedText.includes("ieri")) {
+        return "arată consumul de ieri";
+      } else if (normalizedText.includes("azi") || normalizedText.includes("astăzi")) {
+        return "arată consumul de azi";
+      } else if (normalizedText.includes("săptămâna") || normalizedText.includes("saptamana")) {
+        return "arată consumul săptămânal";
+      }
+      
+      return "arată raportul de consum";
+    }
   }
   
   // Verificăm comenzile de adăugare sau scoatere produse
@@ -211,3 +263,4 @@ export const improveVoiceCommand = (transcript: string): string => {
   // Dacă nu se potrivește cu niciunul din tiparele de mai sus, returnăm textul original
   return transcript;
 };
+

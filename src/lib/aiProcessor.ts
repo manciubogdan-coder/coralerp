@@ -1,6 +1,6 @@
-
 import { CommandResult, InventoryItem, ChartData } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
+import { format, subDays } from "date-fns";
 
 export async function processCommand(
   command: string, 
@@ -9,6 +9,13 @@ export async function processCommand(
 ): Promise<CommandResult> {
   try {
     const openaiApiKey = "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";
+    
+    // Check for consumption report commands first
+    const consumptionReportResult = await handleConsumptionReport(command);
+    if (consumptionReportResult) {
+      console.log("Consumption report handled:", consumptionReportResult);
+      return consumptionReportResult;
+    }
     
     // Check for "remove all" specific commands first
     const removeAllMatch = command.match(/(?:elimina|scoate|sterge)\s+(?:to[a]t[a]|tot|toate)\s+(?:de\s+)?([a-zA-Z]+)/i);
@@ -314,6 +321,186 @@ export async function processCommand(
     return {
       action: "unknown",
       response: "A aparut o eroare la procesarea comenzii. Va rugam sa incercati din nou."
+    };
+  }
+}
+
+// Funcție pentru a gestiona rapoartele de consum
+async function handleConsumptionReport(command: string): Promise<CommandResult | null> {
+  const lowercaseCommand = command.toLowerCase();
+  
+  // Verificăm dacă este o comandă legată de rapoarte de consum
+  const isConsumptionReport = 
+    (lowercaseCommand.includes("consum") || lowercaseCommand.includes("raport")) &&
+    (lowercaseCommand.includes("zilnic") || lowercaseCommand.includes("saptamanal") || 
+     lowercaseCommand.includes("săptămânal") || lowercaseCommand.includes("lunar") ||
+     lowercaseCommand.includes("ieri") || lowercaseCommand.includes("azi") || 
+     lowercaseCommand.includes("astazi"));
+
+  if (!isConsumptionReport) return null;
+  
+  try {
+    // Determinăm perioada pentru raport
+    let startDate = new Date();
+    let endDate = new Date();
+    let periodDescription = "";
+    let reportType = "";
+    
+    // Setăm data de început și sfârșit în funcție de perioada specificată
+    if (lowercaseCommand.includes("ieri")) {
+      startDate = subDays(new Date(), 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(startDate);
+      endDate.setHours(23, 59, 59, 999);
+      periodDescription = "de ieri";
+      reportType = "zilnic";
+    } else if (lowercaseCommand.includes("azi") || lowercaseCommand.includes("astazi")) {
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date();
+      periodDescription = "de azi";
+      reportType = "zilnic";
+    } else if (lowercaseCommand.includes("saptamanal") || lowercaseCommand.includes("săptămânal")) {
+      startDate = subDays(new Date(), 7);
+      startDate.setHours(0, 0, 0, 0);
+      periodDescription = "din ultima săptămână";
+      reportType = "săptămânal";
+    } else if (lowercaseCommand.includes("lunar")) {
+      startDate = subDays(new Date(), 30);
+      startDate.setHours(0, 0, 0, 0);
+      periodDescription = "din ultima lună";
+      reportType = "lunar";
+    } else {
+      // Default la raport zilnic dacă nu este specificată o perioadă
+      startDate.setHours(0, 0, 0, 0);
+      periodDescription = "de azi";
+      reportType = "zilnic";
+    }
+    
+    // Verificăm dacă se specifică un anumit produs
+    let specificProduct = null;
+    const productMatch = lowercaseCommand.match(/(?:pentru|de|la)\s+([a-z]+)(?:\s|$)/i);
+    if (productMatch) {
+      specificProduct = productMatch[1].toLowerCase();
+    }
+    
+    // Convertim datele în format ISO pentru interogări
+    const startDateISO = startDate.toISOString();
+    const endDateISO = endDate.toISOString();
+    
+    // Construim interogarea pentru istoricul de stoc (eliminations)
+    let query = supabase
+      .from('inventory_history')
+      .select('*')
+      .eq('action', 'remove')
+      .gte('operation_date', startDateISO)
+      .lte('operation_date', endDateISO)
+      .order('operation_date', { ascending: false });
+    
+    // Filtrăm după produs specific dacă este cazul
+    if (specificProduct) {
+      query = query.ilike('name', specificProduct);
+    }
+    
+    // Executăm interogarea
+    const { data: removalHistory, error } = await query;
+    
+    if (error) {
+      console.error("Error fetching consumption data:", error);
+      return {
+        action: "query",
+        response: `Nu am putut genera raportul de consum ${periodDescription} din cauza unei erori.`,
+      };
+    }
+    
+    if (!removalHistory || removalHistory.length === 0) {
+      return {
+        action: "query",
+        response: specificProduct 
+          ? `Nu am găsit nicio ieșire pentru ${specificProduct} ${periodDescription}.`
+          : `Nu am găsit nicio ieșire de produse ${periodDescription}.`,
+        charts: []
+      };
+    }
+    
+    // Agregăm datele pe produs pentru grafice
+    const productConsumption: Record<string, {name: string, value: number, unit: string}> = {};
+    const timeBasedConsumption: Record<string, {name: string, value: number}> = {};
+    let totalQuantityRemoved = 0;
+    
+    removalHistory.forEach(item => {
+      // Agregare pe produs
+      if (!productConsumption[item.name]) {
+        productConsumption[item.name] = {
+          name: item.name,
+          value: 0,
+          unit: item.unit
+        };
+      }
+      productConsumption[item.name].value += Number(item.quantity);
+      totalQuantityRemoved += Number(item.quantity);
+      
+      // Agregare pe zi pentru rapoarte mai mari decât zilnice
+      if (reportType === "săptămânal" || reportType === "lunar") {
+        const day = format(new Date(item.operation_date), 'dd.MM');
+        if (!timeBasedConsumption[day]) {
+          timeBasedConsumption[day] = { name: day, value: 0 };
+        }
+        timeBasedConsumption[day].value += Number(item.quantity);
+      } else {
+        // Agregare pe oră pentru rapoarte zilnice
+        const hour = format(new Date(item.operation_date), 'HH:00');
+        if (!timeBasedConsumption[hour]) {
+          timeBasedConsumption[hour] = { name: hour, value: 0 };
+        }
+        timeBasedConsumption[hour].value += Number(item.quantity);
+      }
+    });
+    
+    // Sortăm datele temporale pentru grafice cronologice
+    const timeChartData = Object.values(timeBasedConsumption).sort((a, b) => 
+      a.name.localeCompare(b.name)
+    );
+    
+    // Creăm graficele
+    const charts: ChartData[] = [
+      {
+        type: 'pie',
+        title: specificProduct 
+          ? `Consumul de ${specificProduct} ${periodDescription}`
+          : `Distribuția consumului de produse ${periodDescription}`,
+        data: Object.values(productConsumption),
+        description: `Total: ${totalQuantityRemoved} unități eliminate`
+      },
+      {
+        type: 'bar',
+        title: reportType === "zilnic"
+          ? `Evoluția consumului pe ore ${periodDescription}`
+          : `Evoluția consumului zilnic ${periodDescription}`,
+        data: timeChartData,
+        description: 'Cantități eliminate în timp'
+      }
+    ];
+    
+    // Construim textul de răspuns
+    const productsList = Object.values(productConsumption)
+      .map(p => `${p.name}: ${p.value} ${p.unit}`)
+      .join(', ');
+    
+    const responseText = specificProduct
+      ? `Raport de consum ${reportType} pentru ${specificProduct} ${periodDescription}: ${productConsumption[specificProduct]?.value || 0} ${productConsumption[specificProduct]?.unit || 'unități'}`
+      : `Raport de consum ${reportType} ${periodDescription}: s-au consumat în total ${totalQuantityRemoved} unități. Detaliat pe produse: ${productsList}`;
+    
+    return {
+      action: "query",
+      response: responseText,
+      charts: charts
+    };
+    
+  } catch (error) {
+    console.error("Error generating consumption report:", error);
+    return {
+      action: "query",
+      response: "Nu am putut genera raportul de consum din cauza unei erori.",
     };
   }
 }
