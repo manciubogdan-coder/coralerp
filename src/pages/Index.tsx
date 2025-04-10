@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-custom-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
@@ -13,7 +14,7 @@ import { processCommand } from "@/lib/aiProcessor";
 import { ChartData, InventoryItem } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";
 import { sendEmail } from "@/lib/emailService";
-import { speakText } from "@/lib/speechService";
+import { speakText, improveVoiceCommand } from "@/lib/speechService";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -43,16 +44,23 @@ const Index = () => {
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
       recognitionRef.current.lang = 'ro-RO';
-      recognitionRef.current.maxAlternatives = 5;
+      
+      // Configurăm recunoașterea vocală pentru a avea mai multe variante
+      if ('webkitSpeechRecognition' in window) {
+        (recognitionRef.current as any).maxAlternatives = 5;
+      }
 
       let silenceTimer: number | null = null;
       let finalTranscriptText = "";
 
       recognitionRef.current.onresult = (event) => {
         const current = event.resultIndex;
-        const transcriptText = event.results[current][0].transcript;
+        let transcriptText = event.results[current][0].transcript;
         
+        // Căutăm cuvinte cheie în alternativele de recunoaștere
         let hasStockKeywords = false;
+        
+        // Verificăm dacă există alternative în rezultatul recunoașterii
         if (event.results[current].length > 1) {
           for (let i = 0; i < event.results[current].length; i++) {
             const alt = event.results[current][i].transcript.toLowerCase();
@@ -64,20 +72,15 @@ const Index = () => {
           }
         }
         
-        let normalizedTranscript = transcriptText.toLowerCase();
-        
-        if (normalizedTranscript.includes("arata") && 
-            (normalizedTranscript.includes("stoc") || normalizedTranscript.includes("produse"))) {
-          normalizedTranscript = "arată stocul";
+        // Aplicăm îmbunătățiri pentru comanda vocală
+        const improvedTranscript = improveVoiceCommand(transcriptText);
+        if (improvedTranscript !== transcriptText) {
+          console.log("Transcriptul a fost îmbunătățit:", transcriptText, "->", improvedTranscript);
+          transcriptText = improvedTranscript;
+          hasStockKeywords = true;
         }
         
-        if (normalizedTranscript.includes("ce") && normalizedTranscript.includes("avem") && 
-            (normalizedTranscript.includes("stoc") || normalizedTranscript.includes("depozit"))) {
-          normalizedTranscript = "arată stocul";
-        }
-        
-        const displayTranscript = hasStockKeywords ? normalizedTranscript : transcriptText;
-        setTranscript(displayTranscript);
+        setTranscript(transcriptText);
         
         if (silenceTimer) {
           window.clearTimeout(silenceTimer);
@@ -85,21 +88,37 @@ const Index = () => {
         }
 
         if (event.results[current].isFinal) {
-          finalTranscriptText = hasStockKeywords ? normalizedTranscript : transcriptText;
-          
+          finalTranscriptText = transcriptText;
           setInputText(finalTranscriptText);
           
+          // Creștem timpul de așteptare la 4 secunde pentru a permite utilizatorului să termine propoziția
           silenceTimer = window.setTimeout(() => {
             if (finalTranscriptText.trim()) {
-              processUserInput(finalTranscriptText);
+              // Procesăm comanda vocală cu prioritate pentru comenzile de stoc
+              let commandToProcess = finalTranscriptText;
+              
+              // Dacă detectăm o comandă legată de stoc, o normalizăm pentru procesare mai bună
+              if (finalTranscriptText.toLowerCase().includes("stoc") || 
+                  finalTranscriptText.toLowerCase().includes("inventar") ||
+                  finalTranscriptText.toLowerCase().includes("produse") ||
+                  hasStockKeywords) {
+                if (finalTranscriptText.toLowerCase().includes("arata") || 
+                    finalTranscriptText.toLowerCase().includes("vezi") || 
+                    finalTranscriptText.toLowerCase().includes("ce avem")) {
+                  commandToProcess = "arată stocul";
+                  console.log("Comandă normalizată la: arată stocul");
+                }
+              }
+              
+              processUserInput(commandToProcess);
               setIsRecording(false);
               if (recognitionRef.current) {
                 recognitionRef.current.stop();
               }
             }
-          }, 3000);
+          }, 4000); // Mărirea timpului de așteptare la 4 secunde
         } else {
-          setInputText(displayTranscript);
+          setInputText(transcriptText);
         }
       };
 
@@ -209,9 +228,12 @@ const Index = () => {
       setIsRecording(false);
       
       if (transcript.trim()) {
+        // Adăugăm o întârziere mai mare pentru a permite procesarea
         setTimeout(() => {
-          processUserInput(transcript);
-        }, 500);
+          // Utilizăm versiunea îmbunătățită a transcriptului
+          const improvedTranscript = improveVoiceCommand(transcript);
+          processUserInput(improvedTranscript);
+        }, 1000);
       }
     } else {
       try {
@@ -278,7 +300,14 @@ const Index = () => {
     setResponse("");
     setCharts([]);
     
-    const isStockCommand = input.toLowerCase().match(/stoc|inventar|produse|arată|vezi|afișează|raport|cantitate/i);
+    // Îmbunătățim detectarea comenzilor de stoc
+    const isStockCommand = input.toLowerCase().match(/stoc|inventar|produse|arată|vezi|afișează|raport|cantitate|total/i);
+    const isShowStockCommand = input.toLowerCase().includes("arată stocul") || 
+                              input.toLowerCase().includes("arată produsele") ||
+                              input.toLowerCase().includes("vezi stocul") ||
+                              input.toLowerCase().includes("afișează stocul") ||
+                              (input.toLowerCase().includes("ce") && input.toLowerCase().includes("avem") && 
+                               (input.toLowerCase().includes("stoc") || input.toLowerCase().includes("depozit")));
     
     try {
       await saveConversation(input);
@@ -290,7 +319,10 @@ const Index = () => {
       console.log("Command result:", result);
       
       let processedResponse = result.response;
-      if (isStockCommand && processedResponse.includes("nu am nici o informatie") && inventory.length > 0) {
+      
+      // Îmbunătățim răspunsul pentru comenzile de afișare stoc
+      if ((isStockCommand || isShowStockCommand) && 
+          processedResponse.includes("nu am nici o informatie") && inventory.length > 0) {
         processedResponse = `În prezent avem ${inventory.length} produse în stoc. Iată o prezentare generală:`;
         
         result.action = 'view';
@@ -309,6 +341,7 @@ const Index = () => {
       if (result.charts && result.charts.length > 0) {
         setCharts(result.charts);
       } else if (result.action === 'view' || 
+                isShowStockCommand ||
                 (result.action === 'query' && (input.toLowerCase().includes('stoc') || isStockCommand))) {
         const inventoryCharts = generateInventoryCharts();
         setCharts(inventoryCharts);

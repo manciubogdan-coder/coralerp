@@ -131,3 +131,36 @@ export const speakText = (text: string) => {
     isPending: () => isSpeaking
   };
 };
+
+// Adăugăm o funcție pentru îmbunătățirea recunoașterii comenzilor vocale
+export const improveVoiceCommand = (transcript: string): string => {
+  // Normalizăm textul pentru a avea mai multă consistență
+  const normalizedText = transcript.toLowerCase().trim();
+  
+  // Cuvinte cheie pentru comenzi legate de stoc
+  const stockKeywords = ['stoc', 'inventar', 'produse', 'depozit', 'cantitate'];
+  const viewKeywords = ['arata', 'vezi', 'afișează', 'arată', 'ce', 'câte', 'cate'];
+  
+  // Verificăm dacă textul conține cuvinte cheie pentru afișarea stocului
+  const hasStockKeyword = stockKeywords.some(keyword => normalizedText.includes(keyword));
+  const hasViewKeyword = viewKeywords.some(keyword => normalizedText.includes(keyword));
+  
+  // Dacă avem ambele tipuri de cuvinte cheie, este probabil o comandă de afișare a stocului
+  if (hasStockKeyword && hasViewKeyword) {
+    console.log("Comandă de stoc detectată, normalizare la 'arată stocul'");
+    return "arată stocul";
+  }
+  
+  // Alte potențiale comenzi de normalizat
+  if (normalizedText.includes("ce") && normalizedText.includes("avem") && 
+      (normalizedText.includes("stoc") || normalizedText.includes("depozit"))) {
+    return "arată stocul";
+  }
+  
+  if ((normalizedText.includes("cat") || normalizedText.includes("câte") || normalizedText.includes("cate")) && 
+      (normalizedText.includes("produse") || normalizedText.includes("stoc"))) {
+    return "câte produse avem în stoc";
+  }
+  
+  return transcript;
+};
