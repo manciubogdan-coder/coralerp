@@ -52,7 +52,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         name: `Produs: ${product}`,
         quantity: totalQuantity,
         unit: items[0]?.unit || '',
-        pallets: items.reduce((sum, item) => sum + (item.pallets || 0), 0),
         isHeader: true
       };
       
@@ -76,7 +75,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         name: `Furnizor: ${supplier}`,
         quantity: items.reduce((sum, item) => sum + item.quantity, 0),
         unit: items[0]?.unit || '',
-        pallets: items.reduce((sum, item) => sum + (item.pallets || 0), 0),
         supplier: supplier,
         isHeader: true
       };
@@ -101,7 +99,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         name: `Lot: ${batch}`,
         quantity: items.reduce((sum, item) => sum + item.quantity, 0),
         unit: items[0]?.unit || '',
-        pallets: items.reduce((sum, item) => sum + (item.pallets || 0), 0),
         batch_number: batch,
         isHeader: true
       };
@@ -117,7 +114,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         name: true,
         quantity: true, 
         unit: true,
-        pallets: false,
         supplier: false,
         batch: false,
         receiptDate: false,
@@ -128,7 +124,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
       name: true,
       quantity: true,
       unit: true,
-      pallets: true,
       supplier: true,
       batch: true,
       receiptDate: true,
@@ -209,7 +204,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                 <TableHead>Produs</TableHead>
                 <TableHead className="text-right">Cantitate</TableHead>
                 <TableHead className="text-right">Unitate</TableHead>
-                {visibleColumns.pallets && <TableHead className="text-right">Paleți</TableHead>}
                 {visibleColumns.supplier && <TableHead>Furnizor</TableHead>}
                 {visibleColumns.batch && <TableHead>Nr. Lot</TableHead>}
                 {visibleColumns.receiptDate && <TableHead className="text-right">Data recepției</TableHead>}
@@ -225,7 +219,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                     </TableCell>
                     <TableCell className="text-right">{item.quantity}</TableCell>
                     <TableCell className="text-right">{item.unit}</TableCell>
-                    {visibleColumns.pallets && <TableCell className="text-right">{item.pallets || 0}</TableCell>}
                     {visibleColumns.supplier && <TableCell>{item.supplier || '-'}</TableCell>}
                     {visibleColumns.batch && <TableCell>{item.batch_number || '-'}</TableCell>}
                     {visibleColumns.receiptDate && (
@@ -246,13 +239,13 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                 ))
               ) : searchTerm ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-6 text-gray-500">
+                  <TableCell colSpan={7} className="text-center py-6 text-gray-500">
                     Nu s-au găsit produse pentru "{searchTerm}"
                   </TableCell>
                 </TableRow>
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-6 text-gray-500">
+                  <TableCell colSpan={7} className="text-center py-6 text-gray-500">
                     Nu există produse în stoc. Adăugați produse folosind comenzi vocale sau text.
                   </TableCell>
                 </TableRow>

@@ -33,7 +33,6 @@ export type Database = {
           created_at: string | null
           id: string
           name: string
-          pallets: number | null
           quantity: number
           receipt_date: string | null
           supplier: string | null
@@ -45,7 +44,6 @@ export type Database = {
           created_at?: string | null
           id?: string
           name: string
-          pallets?: number | null
           quantity?: number
           receipt_date?: string | null
           supplier?: string | null
@@ -57,7 +55,6 @@ export type Database = {
           created_at?: string | null
           id?: string
           name?: string
-          pallets?: number | null
           quantity?: number
           receipt_date?: string | null
           supplier?: string | null
@@ -131,6 +128,17 @@ export type Database = {
       }
     }
     Views: {
+      consumption_analytics: {
+        Row: {
+          action: string | null
+          name: string | null
+          operation_count: number | null
+          operation_day: string | null
+          removed_quantity: number | null
+          unit: string | null
+        }
+        Relationships: []
+      }
       inventory_aggregated_view: {
         Row: {
           batch_number: string | null
@@ -139,7 +147,20 @@ export type Database = {
           last_receipt: string | null
           name: string | null
           supplier: string | null
-          total_pallets: number | null
+          total_quantity: number | null
+          unit: string | null
+        }
+        Relationships: []
+      }
+      inventory_analytics: {
+        Row: {
+          all_batches: string | null
+          all_suppliers: string | null
+          avg_daily_consumption_rate: number | null
+          batch_count: number | null
+          first_receipt: string | null
+          last_receipt: string | null
+          name: string | null
           total_quantity: number | null
           unit: string | null
         }
@@ -152,38 +173,11 @@ export type Database = {
           id: string | null
           name: string | null
           operations_count: number | null
-          pallets: number | null
           quantity: number | null
           receipt_date: string | null
           supplier: string | null
           unit: string | null
           updated_at: string | null
-        }
-        Insert: {
-          batch_number?: string | null
-          created_at?: string | null
-          id?: string | null
-          name?: string | null
-          operations_count?: never
-          pallets?: number | null
-          quantity?: number | null
-          receipt_date?: string | null
-          supplier?: string | null
-          unit?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          batch_number?: string | null
-          created_at?: string | null
-          id?: string | null
-          name?: string | null
-          operations_count?: never
-          pallets?: number | null
-          quantity?: number | null
-          receipt_date?: string | null
-          supplier?: string | null
-          unit?: string | null
-          updated_at?: string | null
         }
         Relationships: []
       }

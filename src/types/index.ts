@@ -7,7 +7,6 @@ export interface InventoryItem {
   unit: string;
   supplier?: string;
   batch_number?: string;
-  pallets?: number;
   receipt_date?: Date;
   createdAt?: {
     seconds: number;
@@ -27,7 +26,7 @@ export interface CommandResult {
   item?: InventoryItem;
   charts?: ChartData[];
   needsMoreInfo?: {
-    type: 'pallet_details' | 'supplier_info' | 'batch_info' | 'batch_selection' | 'quantity_adjustment';
+    type: 'supplier_info' | 'batch_info' | 'batch_selection' | 'quantity_adjustment';
     question: string;
     options?: {
       id: string;
@@ -65,10 +64,31 @@ export interface InventoryHistoryItem {
   previous_quantity?: number;
   supplier?: string;
   batch_number?: string;
-  pallets?: number;
   operation_date: Date;
   exit_timestamp?: Date;  
   notes?: string;
+}
+
+// Analytics related interfaces
+export interface InventoryAnalytics {
+  name: string;
+  unit: string;
+  total_quantity: number;
+  batch_count: number;
+  first_receipt?: Date;
+  last_receipt?: Date;
+  all_batches?: string;
+  all_suppliers?: string;
+  avg_daily_consumption_rate: number;
+}
+
+export interface ConsumptionAnalytics {
+  name: string;
+  unit: string;
+  action: string;
+  operation_day: Date;
+  removed_quantity: number;
+  operation_count: number;
 }
 
 // Web Speech API type definitions
