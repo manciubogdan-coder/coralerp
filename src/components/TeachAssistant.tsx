@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Lightbulb } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { addTrainingEntry } from "@/lib/AIAssistantTrainer";
 
 interface TeachAssistantProps {
   currentCommand?: string;
@@ -41,19 +41,11 @@ const TeachAssistant: React.FC<TeachAssistantProps> = ({ currentCommand = "" }) 
     setIsSubmitting(true);
     
     try {
-      // Salvăm perechea comandă-explicație în baza de date
-      const { error } = await supabase
-        .from("assistant_training")
-        .insert([
-          {
-            command: command.trim().toLowerCase(),
-            explanation: explanation.trim(),
-            learned: false,
-          },
-        ]);
+      // Salvăm perechea comandă-explicație folosind funcția din AIAssistantTrainer
+      const success = await addTrainingEntry(command.trim(), explanation.trim());
 
-      if (error) {
-        throw error;
+      if (!success) {
+        throw new Error("Nu s-a putut salva în baza de date");
       }
 
       toast({
