@@ -25,7 +25,7 @@ export interface CommandResult {
   item?: InventoryItem;
   charts?: ChartData[];
   needsMoreInfo?: {
-    type: 'supplier_info' | 'batch_info' | 'batch_selection' | 'quantity_adjustment' | 'pallet_details';
+    type: 'supplier_info' | 'batch_info' | 'batch_selection' | 'quantity_adjustment';
     question: string;
     options?: {
       id: string;

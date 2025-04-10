@@ -72,7 +72,7 @@ const Index = () => {
         
         const improvedTranscript = improveVoiceCommand(transcriptText);
         if (improvedTranscript !== transcriptText) {
-          console.log("Transcriptul a fost îmbunătă��it:", transcriptText, "->", improvedTranscript);
+          console.log("Transcriptul a fost îmbunătăit:", transcriptText, "->", improvedTranscript);
           transcriptText = improvedTranscript;
           hasStockKeywords = true;
         }
@@ -284,48 +284,91 @@ const Index = () => {
   const updateInventoryItem = async (item: InventoryItem) => {
     try {
       if (!item.id) {
-        console.log("Creating new item:", item);
-        const { data, error } = await supabase
+        console.log("Creating or updating item:", item);
+        
+        // Check if we already have this batch in the inventory
+        if (item.batch_number && item.supplier) {
+          const { data: existingItems } = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('name', item.name)
+            .eq('batch_number', item.batch_number)
+            .eq('supplier', item.supplier);
+            
+          // If this exact batch already exists, update it instead of creating a new one
+          if (existingItems && existingItems.length > 0) {
+            console.log("Found existing batch, updating instead of creating new:", existingItems[0]);
+            
+            // Set the item ID to update the existing entry
+            item.id = existingItems[0].id;
+            
+            // If adding, add the quantities together
+            if (item.action === 'add') {
+              item.quantity = Number(existingItems[0].quantity) + Number(item.quantity);
+            }
+            
+            // Continue to the update branch below
+          }
+        }
+        
+        // If no existing batch was found or no ID was set, create a new entry
+        if (!item.id) {
+          const { data, error } = await supabase
+            .from('inventory')
+            .insert({
+              name: item.name,
+              quantity: item.quantity,
+              unit: item.unit,
+              supplier: item.supplier,
+              batch_number: item.batch_number,
+              receipt_date: item.receipt_date ? item.receipt_date.toISOString() : null,
+            })
+            .select()
+            .single();
+          
+          if (error) throw error;
+          
+          const newItem: InventoryItem = {
+            id: data.id,
+            name: data.name,
+            quantity: data.quantity ? Number(data.quantity) : 0,
+            unit: data.unit,
+            supplier: data.supplier || undefined,
+            batch_number: data.batch_number || undefined,
+            receipt_date: data.receipt_date ? new Date(data.receipt_date) : undefined,
+            createdAt: {
+              seconds: new Date(data.created_at || '').getTime() / 1000,
+              nanoseconds: 0
+            },
+            updatedAt: {
+              seconds: new Date(data.updated_at || '').getTime() / 1000,
+              nanoseconds: 0
+            }
+          };
+          
+          setInventory(prev => [...prev, newItem]);
+          
+          toast({
+            title: "Produs adaugat",
+            description: `Produsul "${item.name}" a fost adaugat in stoc.`
+          });
+          
+          // Save to history and exit
+          await saveInventoryHistory(data, item.action || 'add', null);
+          return;
+        }
+      }
+      
+      if (item.id) {
+        console.log("Updating item:", item);
+        
+        // Get current item state from database before update
+        const { data: oldItem } = await supabase
           .from('inventory')
-          .insert({
-            name: item.name,
-            quantity: item.quantity,
-            unit: item.unit,
-            supplier: item.supplier,
-            batch_number: item.batch_number,
-            receipt_date: item.receipt_date ? item.receipt_date.toISOString() : null,
-          })
-          .select()
+          .select('*')
+          .eq('id', item.id)
           .single();
         
-        if (error) throw error;
-        
-        const newItem: InventoryItem = {
-          id: data.id,
-          name: data.name,
-          quantity: data.quantity ? Number(data.quantity) : 0,
-          unit: data.unit,
-          supplier: data.supplier || undefined,
-          batch_number: data.batch_number || undefined,
-          receipt_date: data.receipt_date ? new Date(data.receipt_date) : undefined,
-          createdAt: {
-            seconds: new Date(data.created_at || '').getTime() / 1000,
-            nanoseconds: 0
-          },
-          updatedAt: {
-            seconds: new Date(data.updated_at || '').getTime() / 1000,
-            nanoseconds: 0
-          }
-        };
-        
-        setInventory(prev => [...prev, newItem]);
-        
-        toast({
-          title: "Produs adaugat",
-          description: `Produsul "${item.name}" a fost adaugat in stoc.`
-        });
-      } else {
-        console.log("Updating item:", item);
         const { error } = await supabase
           .from('inventory')
           .update({
@@ -348,19 +391,28 @@ const Index = () => {
           title: "Stoc actualizat",
           description: `Stocul pentru "${item.name}" a fost actualizat.`
         });
+        
+        // Save to history with old item data
+        await saveInventoryHistory(item, item.action || 'set', oldItem);
       }
-      
-      const { data: oldItem } = await supabase
-        .from('inventory')
-        .select('*')
-        .eq('id', item.id)
-        .single();
-      
+    } catch (error) {
+      console.error("Error updating inventory:", error);
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Nu s-a putut actualiza stocul."
+      });
+    }
+  };
+
+  // New helper function to save inventory history
+  const saveInventoryHistory = async (item: any, action: 'add' | 'remove' | 'set', oldItem: any) => {
+    try {
       const { error: historyError } = await supabase
         .from('inventory_history')
         .insert({
           inventory_item_id: item.id,
-          action: item.action || 'set',
+          action: action,
           name: item.name,
           quantity: item.quantity,
           unit: item.unit,
@@ -374,12 +426,7 @@ const Index = () => {
         console.error("Error saving inventory history:", historyError);
       }
     } catch (error) {
-      console.error("Error updating inventory:", error);
-      toast({
-        variant: "destructive",
-        title: "Eroare",
-        description: "Nu s-a putut actualiza stocul."
-      });
+      console.error("Error saving history:", error);
     }
   };
 
