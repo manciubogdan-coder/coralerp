@@ -151,3 +151,4 @@ declare global {
     speak(utterance: SpeechSynthesisUtterance): void;
   }
 }
+

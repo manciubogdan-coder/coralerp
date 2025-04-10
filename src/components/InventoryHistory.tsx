@@ -91,6 +91,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         batch_number: item.batch_number || undefined,
         pallets: item.pallets || undefined,
         operation_date: new Date(item.operation_date),
+        // Check if exit_timestamp exists before trying to convert it
         exit_timestamp: item.exit_timestamp ? new Date(item.exit_timestamp) : undefined,
         notes: item.notes || undefined
       }));
