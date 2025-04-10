@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, Eye, EyeOff } from "lucide-react";
 import { InventoryItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -120,49 +120,55 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
             className="pl-10"
           />
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Filter className="h-4 w-4 mr-2" />
-              Grupare
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => {
-              setGroupBySupplier(false);
-              setGroupByBatch(false);
-              setGroupByProduct(false);
-            }}>
-              Fără grupare
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => {
-              setGroupByProduct(true);
-              setGroupBySupplier(false);
-              setGroupByBatch(false);
-            }}>
-              Grupare după produs
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => {
-              setGroupBySupplier(true);
-              setGroupByBatch(false);
-              setGroupByProduct(false);
-            }}>
-              Grupare după furnizor
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => {
-              setGroupBySupplier(false);
-              setGroupByBatch(true);
-              setGroupByProduct(false);
-            }}>
-              Grupare după lot
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => {
-              setShowEmptyItems(!showEmptyItems);
-            }}>
-              {showEmptyItems ? "Ascunde produsele fără stoc" : "Arată și produsele fără stoc"}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex space-x-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowEmptyItems(!showEmptyItems)}
+            className="flex items-center"
+          >
+            {showEmptyItems ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+            {showEmptyItems ? "Ascunde fără stoc" : "Arată fără stoc"}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Filter className="h-4 w-4 mr-2" />
+                Grupare
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => {
+                setGroupBySupplier(false);
+                setGroupByBatch(false);
+                setGroupByProduct(false);
+              }}>
+                Fără grupare
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                setGroupByProduct(true);
+                setGroupBySupplier(false);
+                setGroupByBatch(false);
+              }}>
+                Grupare după produs
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                setGroupBySupplier(true);
+                setGroupByBatch(false);
+                setGroupByProduct(false);
+              }}>
+                Grupare după furnizor
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                setGroupBySupplier(false);
+                setGroupByBatch(true);
+                setGroupByProduct(false);
+              }}>
+                Grupare după lot
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       
       <div className="max-h-[400px] overflow-auto">

@@ -261,6 +261,91 @@ const Index = () => {
           existingItem = data[0];
           console.log("Found existing item by ID:", existingItem);
         }
+      } else if (item.action === 'remove' && item.name) {
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('name', item.name)
+          .gt('quantity', 0);
+          
+        if (error) {
+          console.error("Error finding items by name:", error);
+          throw error;
+        }
+        
+        if (data && data.length > 0) {
+          for (const inventoryItem of data) {
+            const now = new Date().toISOString();
+            const historyData = {
+              inventory_item_id: inventoryItem.id,
+              action: 'remove',
+              name: inventoryItem.name,
+              quantity: inventoryItem.quantity,
+              unit: inventoryItem.unit,
+              previous_quantity: inventoryItem.quantity,
+              supplier: inventoryItem.supplier || null,
+              batch_number: inventoryItem.batch_number || null,
+              pallets: inventoryItem.pallets || 0,
+              notes: "Scos din stoc complet",
+              operation_date: now,
+              exit_timestamp: now
+            };
+            
+            const { error: historyError } = await supabase
+              .from('inventory_history')
+              .insert(historyData);
+              
+            if (historyError) {
+              console.error("Error recording history:", historyError);
+            }
+            
+            const { error: deleteError } = await supabase
+              .from('inventory')
+              .delete()
+              .eq('id', inventoryItem.id);
+              
+            if (deleteError) {
+              console.error("Error deleting inventory item:", deleteError);
+            }
+          }
+          
+          const { data: updatedInventory, error: updateError } = await supabase
+            .from('inventory')
+            .select('*')
+            .order('updated_at', { ascending: false });
+          
+          if (updateError) {
+            console.error("Error fetching updated inventory:", updateError);
+          } else {
+            const items: InventoryItem[] = updatedInventory.map(item => ({
+              id: item.id,
+              name: item.name,
+              quantity: item.quantity ? Number(item.quantity) : 0,
+              unit: item.unit,
+              supplier: item.supplier || undefined,
+              batch_number: item.batch_number || undefined,
+              pallets: item.pallets ? Number(item.pallets) : 0,
+              receipt_date: item.receipt_date ? new Date(item.receipt_date) : undefined,
+              createdAt: {
+                seconds: new Date(item.created_at || '').getTime() / 1000,
+                nanoseconds: 0
+              },
+              updatedAt: {
+                seconds: new Date(item.updated_at || '').getTime() / 1000,
+                nanoseconds: 0
+              }
+            }));
+            
+            setInventory(items);
+          }
+          
+          toast({
+            title: "Operatiune reusita",
+            description: `Am eliminat complet toate loturile de ${item.name} (${data.length} ${data.length === 1 ? 'lot' : 'loturi'}) din stoc.`,
+          });
+          
+          return;
+        }
       }
       
       let updatedItemId;
@@ -270,6 +355,11 @@ const Index = () => {
       if (existingItem?.id) {
         updatedItemId = existingItem.id;
         previousQuantity = Number(existingItem.quantity);
+        
+        if (previousQuantity <= 0 && item.action === 'remove') {
+          console.log(`Skipping removal from ${item.name} as quantity is already 0`);
+          return;
+        }
         
         if (item.action === 'add') {
           newQuantity = Number(existingItem.quantity) + Number(item.quantity);
@@ -309,7 +399,8 @@ const Index = () => {
             .from('inventory')
             .select('*')
             .eq('name', existingItem.name)
-            .neq('id', existingItem.id);
+            .neq('id', existingItem.id)
+            .gt('quantity', 0);
           
           if (batchError) {
             console.error("Error checking other batches:", batchError);
@@ -626,6 +717,24 @@ const Index = () => {
               ...result.item,
               action: result.action
             };
+            
+            const isRemoveAllCommand = 
+              result.action === 'remove' && 
+              input.toLowerCase().match(/elimina|scoate|sterge/i) && 
+              input.toLowerCase().match(/to[a]t[a]|tot/i) && 
+              !result.item.batch_number;
+              
+            if (isRemoveAllCommand) {
+              console.log("Detected command to remove all of a product:", result.item.name);
+              await updateInventoryItem({
+                ...updatedItem,
+                batch_number: undefined,
+                supplier: undefined,
+                id: undefined
+              });
+              setIsProcessing(false);
+              return;
+            }
             
             if (result.action === 'remove') {
               const matchingItems = inventory.filter(

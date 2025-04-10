@@ -8,7 +8,35 @@ export async function processCommand(
   try {
     const openaiApiKey = "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";
     
-    // Handle specific structured commands directly before sending to AI
+    // Check for "remove all" specific commands first
+    const removeAllMatch = command.match(/(?:elimina|scoate|sterge)\s+(?:to[a]t[a]|tot|toate)\s+(?:de\s+)?([a-zA-Z]+)/i);
+    if (removeAllMatch) {
+      const productName = removeAllMatch[1].toLowerCase();
+      
+      // Get all instances of this product
+      const productItems = inventory.filter(
+        item => item.name.toLowerCase() === productName
+      );
+      
+      if (productItems.length > 0) {
+        // Calculate total quantity
+        const totalQuantity = productItems.reduce((sum, item) => sum + item.quantity, 0);
+        const unit = productItems[0].unit;
+        
+        // Return a remove command for all of this product
+        return {
+          action: "remove",
+          response: `Am eliminat toata ${productName} din stoc.`,
+          item: {
+            name: productName,
+            quantity: totalQuantity,
+            unit: unit
+          }
+        };
+      }
+    }
+    
+    // Handle direct commands directly before sending to AI
     const directCommandResult = handleDirectCommand(command, inventory);
     if (directCommandResult) {
       console.log("Direct command handled:", directCommandResult);
@@ -53,6 +81,8 @@ export async function processCommand(
         Nu incerca sa ghicesti aceste informatii, ci cere-le mereu de la utilizator intr-un mod conversational, ca si cum ai fi un coleg de munca. Poti spune: "Imi poti da mai multe detalii despre paletii de menta? Cate kg contine un palet? De la ce furnizor provine? Care este numarul lotului?"
         
         FOARTE IMPORTANT! Cand utilizatorul vrea sa SCOATA sau sa ELIMINE ceva din stoc, verifica daca exista mai multe loturi din produsul respectiv. Daca da, il vei intreba din care lot doreste sa scoata produsul.
+        
+        PENTRU COMENZI SPECIALE: Daca utilizatorul spune "elimina toata menta" sau "sterge tot stockul de rosii", trebuie sa intelegi ca vrea sa elimine COMPLET toate loturile ale acelui produs din stoc. Raspunde cu actiunea "remove" si cantitatea totala a produsului din toate loturile.
 
         FOARTE IMPORTANT! Cand utilizatorul intreaba despre stoc (ex: "cate kg de menta am?", "cate loturi de menta avem?"), trebuie sa raspunzi cu informatiile disponibile. Aceste intrebari trebuie interpretatate cu action "query".
         
@@ -117,6 +147,17 @@ export async function processCommand(
           "item": {
             "name": "rosii",
             "quantity": 5,
+            "unit": "kg"
+          }
+        }
+        
+        Pentru "Elimina toata menta":
+        {
+          "action": "remove",
+          "response": "Am eliminat toata menta din stoc.",
+          "item": {
+            "name": "menta",
+            "quantity": 1360,
             "unit": "kg"
           }
         }
@@ -313,6 +354,34 @@ function isConversation(command: string): boolean {
 // Direct command handler for very specific patterns we know work consistently
 function handleDirectCommand(command: string, inventory: InventoryItem[]): CommandResult | null {
   const lowercaseCommand = command.toLowerCase();
+
+  // Handle "remove all" command for specific products
+  const removeAllMatch = command.match(/(?:elimina|scoate|sterge)\s+(?:to[a]t[a]|tot|toate)\s+(?:de\s+)?([a-zA-Z]+)/i);
+  if (removeAllMatch) {
+    const productName = removeAllMatch[1].toLowerCase();
+    
+    // Get all instances of this product
+    const productItems = inventory.filter(
+      item => item.name.toLowerCase() === productName
+    );
+    
+    if (productItems.length > 0) {
+      // Calculate total quantity
+      const totalQuantity = productItems.reduce((sum, item) => sum + item.quantity, 0);
+      const unit = productItems[0].unit;
+      
+      // Return a remove command for all of this product
+      return {
+        action: "remove",
+        response: `Am eliminat toata ${productName} din stoc.`,
+        item: {
+          name: productName,
+          quantity: totalQuantity,
+          unit: unit
+        }
+      };
+    }
+  }
 
   // Handle queries about entries/intrari de azi
   if (lowercaseCommand.includes("intrari") || lowercaseCommand.includes("intrari") || 
