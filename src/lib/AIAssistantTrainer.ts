@@ -22,7 +22,10 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
     
     // Construim interogarea pentru a căuta intrări relevante în baza de date de antrenare
     const { data, error } = await supabase
-      .rpc('search_assistant_training', { search_term: keywords[0] });
+      .rpc('search_assistant_training', { search_term: keywords[0] }) as { 
+        data: TrainingEntry[] | null; 
+        error: any; 
+      };
     
     if (error || !data || data.length === 0) {
       console.log("Nu am găsit date de antrenare relevante:", error);
@@ -30,7 +33,7 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
     }
     
     // Calculăm relevanța pentru fiecare intrare de antrenare
-    const rankedEntries = data.map((entry: any) => {
+    const rankedEntries = data.map((entry: TrainingEntry) => {
       const relevanceScore = calculateRelevance(normalizedCommand, entry.command, keywords);
       return { ...entry, relevanceScore };
     });
@@ -97,7 +100,7 @@ export const addTrainingEntry = async (command: string, explanation: string): Pr
       .rpc('add_assistant_training', { 
         p_command: command.toLowerCase(), 
         p_explanation: explanation 
-      });
+      }) as { data: any; error: any };
       
     return !error;
   } catch (error) {
