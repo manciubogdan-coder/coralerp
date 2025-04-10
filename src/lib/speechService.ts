@@ -14,6 +14,26 @@ export const speakText = (text: string) => {
     try {
       console.log("Se generează vocea...");
       
+      // Verificăm dacă API-ul TTS este disponibil, dacă nu, folosim fallback direct
+      // pentru a evita erorile 404
+      let shouldUseFallback = false;
+      
+      try {
+        const checkResponse = await fetch('/api/health', { 
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        shouldUseFallback = !checkResponse.ok;
+      } catch (e) {
+        console.log("API-ul TTS nu este disponibil, se folosește fallback");
+        shouldUseFallback = true;
+      }
+      
+      if (shouldUseFallback) {
+        useWebSpeechAPIFallback(text);
+        return;
+      }
+      
       // Apelăm serviciul pentru a converti textul în vorbire
       const response = await fetch('/api/tts', {
         method: 'POST',
@@ -137,30 +157,57 @@ export const improveVoiceCommand = (transcript: string): string => {
   // Normalizăm textul pentru a avea mai multă consistență
   const normalizedText = transcript.toLowerCase().trim();
   
-  // Cuvinte cheie pentru comenzi legate de stoc
-  const stockKeywords = ['stoc', 'inventar', 'produse', 'depozit', 'cantitate'];
-  const viewKeywords = ['arata', 'vezi', 'afișează', 'arată', 'ce', 'câte', 'cate'];
+  // Listă extinsă de cuvinte cheie pentru comenzi legate de stoc
+  const stockKeywords = ['stoc', 'inventar', 'produse', 'depozit', 'cantitate', 'marfa', 'lot', 'loturi'];
+  const viewKeywords = ['arata', 'vezi', 'afișează', 'arată', 'ce', 'câte', 'cate', 'vreau', 'să', 'văd', 'vad', 'lista', 'listează'];
   
   // Verificăm dacă textul conține cuvinte cheie pentru afișarea stocului
   const hasStockKeyword = stockKeywords.some(keyword => normalizedText.includes(keyword));
   const hasViewKeyword = viewKeywords.some(keyword => normalizedText.includes(keyword));
   
-  // Dacă avem ambele tipuri de cuvinte cheie, este probabil o comandă de afișare a stocului
-  if (hasStockKeyword && hasViewKeyword) {
-    console.log("Comandă de stoc detectată, normalizare la 'arată stocul'");
-    return "arată stocul";
+  // Îmbunătățim regula de detectare pentru comenzi de stoc
+  if (hasStockKeyword) {
+    // Pentru comenzi de vizualizare stoc
+    if (hasViewKeyword || 
+        normalizedText.includes("ce avem") || 
+        normalizedText.includes("cum stam") ||
+        normalizedText.includes("situatia") ||
+        normalizedText.match(/^stoc/) ||
+        normalizedText.match(/arata.*stoc/) ||
+        normalizedText.match(/vezi.*stoc/) ||
+        normalizedText.includes("mi") && (normalizedText.includes("stoc") || normalizedText.includes("inventar"))) {
+      console.log("Comandă de stoc detectată, normalizare la 'arată stocul'");
+      return "arată stocul";
+    }
+    
+    // Pentru comenzi legate de cantități specifice
+    if ((normalizedText.includes("cat") || normalizedText.includes("câte") || normalizedText.includes("cate")) && 
+        (normalizedText.includes("produse") || normalizedText.includes("stoc"))) {
+      return "câte produse avem în stoc";
+    }
+    
+    // Pentru comenzi legate de produse expirabile
+    if (normalizedText.includes("expir")) {
+      return "ce produse expiră în curând";
+    }
+    
+    // Pentru comenzi legate de furnizori
+    if (normalizedText.includes("furnizor")) {
+      return "arată cantitățile pe furnizori";
+    }
   }
   
-  // Alte potențiale comenzi de normalizat
-  if (normalizedText.includes("ce") && normalizedText.includes("avem") && 
-      (normalizedText.includes("stoc") || normalizedText.includes("depozit"))) {
-    return "arată stocul";
+  // Verificăm comenzile de adăugare sau scoatere produse
+  if (normalizedText.match(/adaug[aă]|pun|bag|adăugăm/) && 
+      (normalizedText.includes("kg") || normalizedText.includes("litri") || normalizedText.includes("buc"))) {
+    return transcript; // Păstrăm comanda originală pentru că conține cantități specifice
   }
   
-  if ((normalizedText.includes("cat") || normalizedText.includes("câte") || normalizedText.includes("cate")) && 
-      (normalizedText.includes("produse") || normalizedText.includes("stoc"))) {
-    return "câte produse avem în stoc";
+  if (normalizedText.match(/scoate|elimină|scoatem|elimina|șterge|sterge|ștergem|stergem/) && 
+      (normalizedText.includes("kg") || normalizedText.includes("litri") || normalizedText.includes("buc"))) {
+    return transcript; // Păstrăm comanda originală pentru că conține cantități specifice
   }
   
+  // Dacă nu se potrivește cu niciunul din tiparele de mai sus, returnăm textul original
   return transcript;
 };

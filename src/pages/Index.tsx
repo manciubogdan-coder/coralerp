@@ -65,8 +65,10 @@ const Index = () => {
           for (let i = 0; i < event.results[current].length; i++) {
             const alt = event.results[current][i].transcript.toLowerCase();
             if (alt.includes("stoc") || alt.includes("inventar") || alt.includes("produse") || 
-                alt.includes("arata") || alt.includes("vezi") || alt.includes("afiseaza")) {
+                alt.includes("arata") || alt.includes("vezi") || alt.includes("afiseaza") ||
+                alt.includes("marfa") || alt.includes("depozit")) {
               hasStockKeywords = true;
+              console.log("Alternativă de recunoaștere cu cuvinte cheie:", alt);
               break;
             }
           }
@@ -91,7 +93,7 @@ const Index = () => {
           finalTranscriptText = transcriptText;
           setInputText(finalTranscriptText);
           
-          // Creștem timpul de așteptare la 4 secunde pentru a permite utilizatorului să termine propoziția
+          // Creștem timpul de așteptare la 5 secunde pentru a permite utilizatorului să termine propoziția
           silenceTimer = window.setTimeout(() => {
             if (finalTranscriptText.trim()) {
               // Procesăm comanda vocală cu prioritate pentru comenzile de stoc
@@ -116,7 +118,7 @@ const Index = () => {
                 recognitionRef.current.stop();
               }
             }
-          }, 4000); // Mărirea timpului de așteptare la 4 secunde
+          }, 5000); // Mărirea timpului de așteptare la 5 secunde
         } else {
           setInputText(transcriptText);
         }
@@ -232,8 +234,9 @@ const Index = () => {
         setTimeout(() => {
           // Utilizăm versiunea îmbunătățită a transcriptului
           const improvedTranscript = improveVoiceCommand(transcript);
+          console.log("Procesez comanda vocală finală:", improvedTranscript);
           processUserInput(improvedTranscript);
-        }, 1000);
+        }, 1500);
       }
     } else {
       try {
@@ -301,7 +304,7 @@ const Index = () => {
     setCharts([]);
     
     // Îmbunătățim detectarea comenzilor de stoc
-    const isStockCommand = input.toLowerCase().match(/stoc|inventar|produse|arată|vezi|afișează|raport|cantitate|total/i);
+    const isStockCommand = input.toLowerCase().match(/stoc|inventar|produse|arată|vezi|afișează|raport|cantitate|total|marfă|marfa|depozit/i);
     const isShowStockCommand = input.toLowerCase().includes("arată stocul") || 
                               input.toLowerCase().includes("arată produsele") ||
                               input.toLowerCase().includes("vezi stocul") ||
@@ -315,6 +318,7 @@ const Index = () => {
       const contextInput = input;
       const recentMessages = conversationTexts.slice(-5).join("\n");
       
+      console.log("Trimit comanda spre procesare:", contextInput);
       const result = await processCommand(contextInput, inventory, conversationTexts);
       console.log("Command result:", result);
       
@@ -322,10 +326,14 @@ const Index = () => {
       
       // Îmbunătățim răspunsul pentru comenzile de afișare stoc
       if ((isStockCommand || isShowStockCommand) && 
-          processedResponse.includes("nu am nici o informatie") && inventory.length > 0) {
-        processedResponse = `În prezent avem ${inventory.length} produse în stoc. Iată o prezentare generală:`;
+          (processedResponse.includes("nu am nici o informatie") || 
+           processedResponse.includes("nu am nicio informatie")) && 
+          inventory.length > 0) {
         
+        processedResponse = `În prezent avem ${inventory.length} produse în stoc. Iată o prezentare generală:`;
         result.action = 'view';
+        
+        console.log("Am corectat răspunsul pentru comanda de stoc:", processedResponse);
       }
       
       setResponse(processedResponse);

@@ -49,8 +49,18 @@ const VoiceCommandPanel = ({
 
   // Function to check if text is about empty inventory
   const isEmptyInventoryMessage = (text: string): boolean => {
-    return text.toLowerCase().includes('nu am nici o informatie') &&
+    return (text.toLowerCase().includes('nu am nici o informatie') ||
+            text.toLowerCase().includes('nu am nicio informatie')) &&
            text.toLowerCase().includes('stoc');
+  };
+
+  // Helper function to check if text is a stock command
+  const isStockCommand = (text: string): boolean => {
+    return text.toLowerCase().includes('stoc') || 
+           text.toLowerCase().includes('inventar') ||
+           text.toLowerCase().includes('marfa') ||
+           text.toLowerCase().includes('produse') ||
+           text.toLowerCase().includes('depozit');
   };
 
   return (
@@ -142,7 +152,9 @@ const VoiceCommandPanel = ({
                         </div>
                         <div className="flex-1">
                           <div className="bg-gray-100 p-2 rounded-lg rounded-tl-none">
-                            <p className={isMobile ? "text-xs" : "text-sm"}>{conv.text}</p>
+                            <p className={isMobile ? "text-xs" : "text-sm"}>
+                              {isStockCommand(conv.text) ? <strong>{conv.text}</strong> : conv.text}
+                            </p>
                           </div>
                           <p className="text-xs text-gray-500 mt-1 text-right">
                             {formatTime(conv.timestamp)}
