@@ -245,8 +245,58 @@ const Index = () => {
     // ... keep existing code (inventory update logic)
   };
 
-  const generateInventoryCharts = () => {
-    // ... keep existing code (inventory chart generation)
+  const generateInventoryCharts = (): ChartData[] => {
+    const charts: ChartData[] = [];
+    
+    if (inventory.length > 0) {
+      const productTotals = inventory.reduce((acc, item) => {
+        const name = item.name;
+        if (!acc[name]) {
+          acc[name] = {
+            name,
+            value: 0,
+            unit: item.unit
+          };
+        }
+        acc[name].value += item.quantity;
+        return acc;
+      }, {} as Record<string, {name: string, value: number, unit: string}>);
+      
+      charts.push({
+        type: 'pie',
+        title: 'Distributia produselor in stoc',
+        data: Object.values(productTotals).map(item => ({
+          name: item.name,
+          value: item.value,
+          unit: item.unit
+        })),
+        description: 'Vizualizare proportionala a cantitatilor de produse in stoc'
+      });
+      
+      const supplierItems = inventory.filter(item => item.supplier);
+      if (supplierItems.length > 0) {
+        const supplierTotals = supplierItems.reduce((acc, item) => {
+          const supplier = item.supplier || 'Necunoscut';
+          if (!acc[supplier]) {
+            acc[supplier] = {
+              name: supplier,
+              value: 0
+            };
+          }
+          acc[supplier].value += item.quantity;
+          return acc;
+        }, {} as Record<string, {name: string, value: number}>);
+        
+        charts.push({
+          type: 'bar',
+          title: 'Distributia pe furnizori',
+          data: Object.values(supplierTotals),
+          description: 'Cantitati totale pe furnizori'
+        });
+      }
+    }
+    
+    return charts;
   };
 
   const processUserInput = async (input: string) => {
