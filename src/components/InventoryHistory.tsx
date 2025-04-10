@@ -91,6 +91,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         batch_number: item.batch_number || undefined,
         pallets: item.pallets || undefined,
         operation_date: new Date(item.operation_date),
+        exit_timestamp: item.exit_timestamp ? new Date(item.exit_timestamp) : undefined,
         notes: item.notes || undefined
       }));
       
@@ -196,6 +197,8 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
               <TableHead>Furnizor</TableHead>
               <TableHead>Lot</TableHead>
               <TableHead className="text-right">Paleți</TableHead>
+              {/* Add column for exit timestamp */}
+              <TableHead>Ora ieșire</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -221,11 +224,17 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
                   <TableCell>{item.supplier || '-'}</TableCell>
                   <TableCell>{item.batch_number || '-'}</TableCell>
                   <TableCell className="text-right">{item.pallets || '-'}</TableCell>
+                  {/* Display exit timestamp if action is 'remove' and timestamp exists */}
+                  <TableCell>
+                    {item.action === 'remove' && item.exit_timestamp
+                      ? format(item.exit_timestamp, 'dd.MM.yyyy HH:mm:ss')
+                      : '-'}
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={10} className="text-center py-6 text-gray-500">
                   {searchTerm || dateRange[0] || dateRange[1] || actionFilter !== "all"
                     ? "Nu s-au găsit operațiuni conform criteriilor de căutare"
                     : "Nu există operațiuni de stoc înregistrate"}

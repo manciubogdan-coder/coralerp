@@ -66,6 +66,7 @@ export interface InventoryHistoryItem {
   batch_number?: string;
   pallets?: number;
   operation_date: Date;
+  exit_timestamp?: Date;  // Added for tracking when items are removed
   notes?: string;
 }
 
@@ -74,7 +75,6 @@ declare global {
   interface Window {
     SpeechRecognition: new () => SpeechRecognition;
     webkitSpeechRecognition: new () => SpeechRecognition;
-    speechSynthesis: SpeechSynthesis;
     SpeechSynthesisUtterance: {
       new(text?: string): SpeechSynthesisUtterance;
       prototype: SpeechSynthesisUtterance;

@@ -355,20 +355,29 @@ const Index = () => {
       }
       
       if (updatedItemId) {
+        const now = new Date().toISOString();
+        
+        const historyData: any = {
+          inventory_item_id: updatedItemId,
+          action: item.action || 'set',
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          previous_quantity: previousQuantity,
+          supplier: item.supplier || null,
+          batch_number: item.batch_number || null,
+          pallets: item.pallets || 0,
+          notes: null,
+          operation_date: now
+        };
+        
+        if (item.action === 'remove') {
+          historyData.exit_timestamp = now;
+        }
+        
         const { error: historyError } = await supabase
           .from('inventory_history')
-          .insert({
-            inventory_item_id: updatedItemId,
-            action: item.action || 'set',
-            name: item.name,
-            quantity: item.quantity,
-            unit: item.unit,
-            previous_quantity: previousQuantity,
-            supplier: item.supplier || null,
-            batch_number: item.batch_number || null,
-            pallets: item.pallets || 0,
-            notes: null
-          });
+          .insert(historyData);
           
         if (historyError) {
           console.error("Error recording history:", historyError);
