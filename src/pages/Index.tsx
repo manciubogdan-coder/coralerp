@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-custom-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
@@ -161,7 +160,6 @@ const Index = () => {
           unit: item.unit,
           supplier: item.supplier || undefined,
           batch_number: item.batch_number || undefined,
-          pallets: item.pallets ? Number(item.pallets) : 0,
           receipt_date: item.receipt_date ? new Date(item.receipt_date) : undefined,
           createdAt: {
             seconds: new Date(item.created_at || '').getTime() / 1000,
@@ -284,7 +282,106 @@ const Index = () => {
   };
 
   const updateInventoryItem = async (item: InventoryItem) => {
-    // ... keep existing code (inventory update logic)
+    try {
+      if (!item.id) {
+        console.log("Creating new item:", item);
+        const { data, error } = await supabase
+          .from('inventory')
+          .insert([{
+            name: item.name,
+            quantity: item.quantity,
+            unit: item.unit,
+            supplier: item.supplier,
+            batch_number: item.batch_number,
+            receipt_date: item.receipt_date,
+          }])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        
+        const newItem: InventoryItem = {
+          id: data.id,
+          name: data.name,
+          quantity: data.quantity ? Number(data.quantity) : 0,
+          unit: data.unit,
+          supplier: data.supplier || undefined,
+          batch_number: data.batch_number || undefined,
+          receipt_date: data.receipt_date ? new Date(data.receipt_date) : undefined,
+          createdAt: {
+            seconds: new Date(data.created_at || '').getTime() / 1000,
+            nanoseconds: 0
+          },
+          updatedAt: {
+            seconds: new Date(data.updated_at || '').getTime() / 1000,
+            nanoseconds: 0
+          }
+        };
+        
+        setInventory(prev => [...prev, newItem]);
+        
+        toast({
+          title: "Produs adaugat",
+          description: `Produsul "${item.name}" a fost adaugat in stoc.`
+        });
+      } else {
+        console.log("Updating item:", item);
+        const { error } = await supabase
+          .from('inventory')
+          .update({
+            name: item.name,
+            quantity: item.quantity,
+            unit: item.unit,
+            supplier: item.supplier,
+            batch_number: item.batch_number,
+            receipt_date: item.receipt_date,
+          })
+          .eq('id', item.id);
+        
+        if (error) throw error;
+        
+        setInventory(prev =>
+          prev.map(invItem => (invItem.id === item.id ? { ...invItem, ...item } : invItem))
+        );
+        
+        toast({
+          title: "Stoc actualizat",
+          description: `Stocul pentru "${item.name}" a fost actualizat.`
+        });
+      }
+      
+      // Save history
+      const { data: oldItem } = await supabase
+        .from('inventory')
+        .select('*')
+        .eq('id', item.id)
+        .single();
+      
+      const { error: historyError } = await supabase
+        .from('inventory_history')
+        .insert({
+          inventory_item_id: item.id,
+          action: item.action || 'set',
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          previous_quantity: oldItem ? oldItem.quantity : 0,
+          supplier: item.supplier,
+          batch_number: item.batch_number,
+          operation_date: new Date(),
+        });
+      
+      if (historyError) {
+        console.error("Error saving inventory history:", historyError);
+      }
+    } catch (error) {
+      console.error("Error updating inventory:", error);
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Nu s-a putut actualiza stocul."
+      });
+    }
   };
 
   const processUserInput = async (input: string) => {
