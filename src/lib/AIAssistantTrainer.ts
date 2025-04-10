@@ -10,16 +10,11 @@ interface TrainingEntry {
   updated_at: string;
 }
 
-// Define proper types for our RPC function results
-interface SearchResults {
-  data: TrainingEntry[] | null;
+// Define proper types for our RPC function parameters and results
+type RPCResponse<T> = {
+  data: T | null;
   error: Error | null;
-}
-
-interface AddResult {
-  data: string | null;
-  error: Error | null;
-}
+};
 
 export const getRelevantTrainingData = async (userCommand: string): Promise<string | null> => {
   try {
@@ -35,7 +30,7 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
     const { data, error } = await supabase
       .rpc('search_assistant_training', { 
         search_term: keywords[0] 
-      }) as unknown as SearchResults;
+      }) as RPCResponse<TrainingEntry[]>;
     
     if (error || !data || data.length === 0) {
       console.log("Nu am găsit date de antrenare relevante:", error);
@@ -110,7 +105,7 @@ export const addTrainingEntry = async (command: string, explanation: string): Pr
       .rpc('add_assistant_training', { 
         p_command: command.toLowerCase(), 
         p_explanation: explanation 
-      }) as unknown as AddResult;
+      }) as RPCResponse<string>;
       
     return !error;
   } catch (error) {
