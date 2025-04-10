@@ -10,6 +10,7 @@ import { ChartData } from "@/types";
 import { cn } from "@/lib/utils";
 import InventoryCharts from "./InventoryCharts";
 import { useIsMobile } from "@/hooks/use-mobile";
+import TeachAssistant from "./TeachAssistant";
 
 interface VoiceCommandPanelProps {
   isRecording: boolean;
@@ -52,6 +53,16 @@ const VoiceCommandPanel = ({
     return (text.toLowerCase().includes('nu am nici o informatie') ||
             text.toLowerCase().includes('nu am nicio informatie')) &&
            text.toLowerCase().includes('stoc');
+  };
+  
+  // Function to detect if the AI doesn't know how to handle a request
+  const isLearningOpportunity = (text: string): boolean => {
+    return text.toLowerCase().includes('nu stiu cum sa') || 
+           text.toLowerCase().includes('nu am inteles') ||
+           text.toLowerCase().includes('nu pot sa') ||
+           text.toLowerCase().includes('nu am acces') ||
+           (text.toLowerCase().includes('nu') && text.toLowerCase().includes('informatii')) ||
+           text.toLowerCase().includes('nu am fost programat');
   };
 
   // Helper function to check if text is a stock command
@@ -182,6 +193,13 @@ const VoiceCommandPanel = ({
                               </div>
                             )}
                             <p className={isMobile ? "text-xs" : "text-sm"} dangerouslySetInnerHTML={{ __html: conv.text.replace(/\n/g, '<br/>') }}></p>
+                            
+                            {/* Adaugă buton "Învață asistentul" doar pentru răspunsurile care indică o oportunitate de învățare */}
+                            {isLearningOpportunity(conv.text) && (
+                              <div className="mt-2 pt-2 border-t border-gray-100">
+                                <TeachAssistant currentCommand={index > 0 ? conversations[index-1].text : ""} />
+                              </div>
+                            )}
                           </div>
                           <p className="text-xs text-gray-500 mt-1 text-right">
                             {formatTime(conv.timestamp)}
@@ -212,6 +230,13 @@ const VoiceCommandPanel = ({
                             </div>
                           )}
                           <p className={isMobile ? "text-xs" : "text-sm"} dangerouslySetInnerHTML={{ __html: response.replace(/\n/g, '<br/>') }}></p>
+                          
+                          {/* Buton de învățare pentru răspunsul curent dacă este o oportunitate de învățare */}
+                          {isLearningOpportunity(response) && (
+                            <div className="mt-2 pt-2 border-t border-gray-100">
+                              <TeachAssistant currentCommand={conversations.length > 0 ? conversations[conversations.length-1].text : ""} />
+                            </div>
+                          )}
                           
                           {charts && charts.length > 0 && (
                             <div className="mt-4 border-t pt-3">

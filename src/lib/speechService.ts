@@ -184,17 +184,24 @@ export const improveVoiceCommand = (transcript: string): string => {
     
     // Pentru comenzi legate de rapoarte temporale (zilnic, lunar, etc.)
     if (hasTimeKeyword && (normalizedText.includes("raport") || normalizedText.includes("consum"))) {
-      if (normalizedText.includes("zilnic") || normalizedText.includes("zi de zi")) {
+      if (normalizedText.includes("zilnic") || normalizedText.includes("zi de zi") || 
+         (normalizedText.includes("consum") && normalizedText.includes("azi")) ||
+         (normalizedText.includes("consum") && normalizedText.includes("astazi"))) {
         console.log("Raport zilnic detectat");
         return "generează raport de consum zilnic";
       }
       
-      if (normalizedText.includes("săptămânal") || normalizedText.includes("saptamanal")) {
+      if (normalizedText.includes("săptămânal") || normalizedText.includes("saptamanal") || 
+         (normalizedText.includes("consum") && normalizedText.includes("saptamana")) ||
+         (normalizedText.includes("consum") && normalizedText.includes("săptămâna")) ||
+         (normalizedText.includes("consum") && normalizedText.includes("ultima saptamana")) ||
+         (normalizedText.includes("consum") && normalizedText.includes("ultima săptămână"))) {
         console.log("Raport săptămânal detectat");
         return "generează raport de consum săptămânal";
       }
       
-      if (normalizedText.includes("lunar") || normalizedText.includes("pe lună")) {
+      if (normalizedText.includes("lunar") || normalizedText.includes("pe lună") || 
+         (normalizedText.includes("consum") && normalizedText.includes("luna"))) {
         console.log("Raport lunar detectat");
         return "generează raport de consum lunar";
       }
@@ -243,6 +250,8 @@ export const improveVoiceCommand = (transcript: string): string => {
         return "arată consumul de azi";
       } else if (normalizedText.includes("săptămâna") || normalizedText.includes("saptamana")) {
         return "arată consumul săptămânal";
+      } else if (normalizedText.includes("ultima saptamana") || normalizedText.includes("ultima săptămână")) {
+        return "generează raport de consum săptămânal";
       }
       
       return "arată raportul de consum";
@@ -263,4 +272,3 @@ export const improveVoiceCommand = (transcript: string): string => {
   // Dacă nu se potrivește cu niciunul din tiparele de mai sus, returnăm textul original
   return transcript;
 };
-
