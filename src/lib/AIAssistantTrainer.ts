@@ -16,6 +16,16 @@ type RPCResponse<T> = {
   error: Error | null;
 };
 
+// Define parameter types for our RPC functions
+interface SearchParams {
+  search_term: string;
+}
+
+interface AddTrainingParams {
+  p_command: string;
+  p_explanation: string;
+}
+
 export const getRelevantTrainingData = async (userCommand: string): Promise<string | null> => {
   try {
     // Normalizăm comanda utilizatorului
@@ -28,7 +38,7 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
     
     // Construim interogarea pentru a căuta intrări relevante în baza de date de antrenare
     const { data, error } = await supabase
-      .rpc<TrainingEntry[]>('search_assistant_training', { 
+      .rpc<TrainingEntry[], SearchParams>('search_assistant_training', { 
         search_term: keywords[0] 
       }) as RPCResponse<TrainingEntry[]>;
     
@@ -102,7 +112,7 @@ const calculateRelevance = (userCommand: string, trainingCommand: string, keywor
 export const addTrainingEntry = async (command: string, explanation: string): Promise<boolean> => {
   try {
     const { error } = await supabase
-      .rpc<string>('add_assistant_training', { 
+      .rpc<string, AddTrainingParams>('add_assistant_training', { 
         p_command: command.toLowerCase(), 
         p_explanation: explanation 
       }) as RPCResponse<string>;
