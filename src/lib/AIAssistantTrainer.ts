@@ -32,9 +32,9 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
     
     // Construim interogarea pentru a căuta intrări relevante în baza de date de antrenare
     const { data, error } = await supabase
-      .rpc('search_assistant_training', { search_term: keywords[0] } as SearchAssistantTraining);
+      .rpc<TrainingEntry[]>('search_assistant_training', { search_term: keywords[0] } as SearchAssistantTraining);
     
-    if (error || !data || data.length === 0) {
+    if (error || !data || (data as any).length === 0) {
       console.log("Nu am găsit date de antrenare relevante:", error);
       return null;
     }
