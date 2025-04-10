@@ -1,113 +1,140 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-interface TrainingEntry {
-  id: string;
-  command: string;
-  explanation: string;
-  learned: boolean;
-  created_at: string;
-  updated_at: string;
+// Model simplu pentru învățarea automată din conversații
+interface ConversationPair {
+  userMessage: string;
+  aiResponse: string; 
+  timestamp: Date;
 }
 
-// Define proper types for our RPC calls
-type SearchTrainingParams = { search_term: string };
-type AddTrainingParams = { p_command: string; p_explanation: string };
+// Cache pentru conversații recente pentru învățare continuă
+let recentConversations: ConversationPair[] = [];
 
+// Cuvinte frecvente care nu ajută la identificarea contextului
+const stopWords = ['de', 'la', 'pe', 'un', 'o', 'în', 'din', 'și', 'sau', 'pentru', 'cu', 'ce', 'care', 'este', 'sunt'];
+
+/**
+ * Procesează un text pentru a extrage cuvinte cheie relevante
+ */
+const extractKeywords = (text: string): string[] => {
+  const words = text.toLowerCase()
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '')
+    .split(/\s+/);
+    
+  return words
+    .filter(word => word.length >= 3 && !stopWords.includes(word))
+    .filter(word => !word.match(/^\d+$/));
+};
+
+/**
+ * Calculează similaritatea între două texte pe baza cuvintelor cheie
+ */
+const calculateSimilarity = (text1: string, text2: string): number => {
+  const keywords1 = extractKeywords(text1);
+  const keywords2 = extractKeywords(text2);
+  
+  if (keywords1.length === 0 || keywords2.length === 0) return 0;
+  
+  let matches = 0;
+  keywords1.forEach(word => {
+    if (keywords2.includes(word)) matches++;
+  });
+  
+  // Calculăm scorul ca procent din maximul posibil de potriviri
+  return matches / Math.max(keywords1.length, keywords2.length);
+};
+
+/**
+ * Găsește un răspuns relevant pe baza comenzii utilizatorului și a conversațiilor anterioare
+ */
 export const getRelevantTrainingData = async (userCommand: string): Promise<string | null> => {
   try {
     // Normalizăm comanda utilizatorului
     const normalizedCommand = userCommand.toLowerCase().trim();
     
-    // Căutăm cuvinte cheie din comanda utilizatorului
-    const keywords = extractKeywords(normalizedCommand);
+    // Verificăm mai întâi în cache-ul de conversații recente
+    let bestMatch: { similarity: number, response: string } = { similarity: 0, response: '' };
     
-    if (keywords.length === 0) return null;
+    // Căutăm în conversațiile recente
+    recentConversations.forEach(conv => {
+      const similarity = calculateSimilarity(normalizedCommand, conv.userMessage);
+      if (similarity > bestMatch.similarity && similarity > 0.5) {
+        bestMatch = { similarity, response: conv.aiResponse };
+      }
+    });
     
-    // Construim interogarea pentru a căuta intrări relevante în baza de date de antrenare
-    const { data, error } = await supabase
-      .rpc('search_assistant_training', { 
-        search_term: keywords[0] 
-      });
+    if (bestMatch.similarity > 0.5) {
+      console.log(`Am găsit o potrivire în cache cu similaritatea: ${bestMatch.similarity}`);
+      return bestMatch.response;
+    }
     
-    if (error || !data || data.length === 0) {
-      console.log("Nu am găsit date de antrenare relevante:", error);
+    // Dacă nu am găsit în cache, căutăm în baza de date
+    const { data: conversations, error } = await supabase
+      .from('conversations')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(100);
+    
+    if (error || !conversations) {
+      console.log("Eroare la căutarea în conversații:", error);
       return null;
     }
     
-    // Calculăm relevanța pentru fiecare intrare de antrenare
-    const rankedEntries = data.map((entry: TrainingEntry) => {
-      const relevanceScore = calculateRelevance(normalizedCommand, entry.command, keywords);
-      return { ...entry, relevanceScore };
-    });
-    
-    // Sortăm intrările după scorul de relevanță
-    rankedEntries.sort((a, b) => b.relevanceScore - a.relevanceScore);
-    
-    // Returnăm explicația intrării cea mai relevantă dacă scorul este suficient de mare
-    if (rankedEntries[0]?.relevanceScore > 0.5) {
-      return rankedEntries[0].explanation;
+    // Construim perechi de conversații (utilizator -> AI)
+    const conversationPairs: ConversationPair[] = [];
+    for (let i = 0; i < conversations.length - 1; i++) {
+      if (i % 2 === 0 && i + 1 < conversations.length) {
+        conversationPairs.push({
+          userMessage: conversations[i].text,
+          aiResponse: conversations[i+1].text,
+          timestamp: new Date(conversations[i].timestamp)
+        });
+      }
     }
     
-    return null;
-  } catch (error) {
-    console.error("Eroare la obținerea datelor de antrenare:", error);
-    return null;
-  }
-};
-
-// Extrage cuvinte cheie dintr-o comandă
-const extractKeywords = (command: string): string[] => {
-  // Eliminăm cuvintele foarte comune
-  const stopWords = ['de', 'la', 'pe', 'un', 'o', 'în', 'din', 'și', 'sau', 'pentru', 'cu', 'ce', 'care'];
-  
-  // Împărțim textul în cuvinte
-  const words = command.split(/\s+/);
-  
-  // Filtrăm cuvintele cu lungime mai mare sau egală cu 3 și care nu sunt în lista de stopwords
-  return words
-    .filter(word => word.length >= 3 && !stopWords.includes(word))
-    .filter(word => !word.match(/^\d+$/)); // Excludem numerele
-};
-
-// Calculează relevanța între două comenzi
-const calculateRelevance = (userCommand: string, trainingCommand: string, keywords: string[]): number => {
-  let score = 0;
-  const normalizedTraining = trainingCommand.toLowerCase();
-  
-  // Verificăm cât de multe cuvinte cheie se regăsesc în comanda de antrenare
-  keywords.forEach(keyword => {
-    if (normalizedTraining.includes(keyword)) {
-      score += 1;
+    // Căutăm cea mai relevantă conversație
+    for (const pair of conversationPairs) {
+      const similarity = calculateSimilarity(normalizedCommand, pair.userMessage);
+      if (similarity > bestMatch.similarity && similarity > 0.4) {
+        bestMatch = { similarity, response: pair.aiResponse };
+      }
     }
-  });
-  
-  // Normalizăm scorul în funcție de numărul de cuvinte cheie
-  if (keywords.length > 0) {
-    score = score / keywords.length;
     
-    // Bonus pentru potriviri exacte
-    if (userCommand === normalizedTraining) {
-      score = 1;
-    } else if (normalizedTraining.includes(userCommand) || userCommand.includes(normalizedTraining)) {
-      score += 0.3;
-    }
-  }
-  
-  return Math.min(1, score); // Asigurăm că scorul este între 0 și 1
-};
-
-export const addTrainingEntry = async (command: string, explanation: string): Promise<boolean> => {
-  try {
-    const { error } = await supabase
-      .rpc('add_assistant_training', { 
-        p_command: command.toLowerCase(), 
-        p_explanation: explanation 
+    // Actualizăm cache-ul pentru învățare continuă
+    if (bestMatch.similarity > 0) {
+      recentConversations.unshift({
+        userMessage: normalizedCommand,
+        aiResponse: bestMatch.response,
+        timestamp: new Date()
       });
       
-    return !error;
+      // Limităm dimensiunea cache-ului
+      if (recentConversations.length > 50) {
+        recentConversations.pop();
+      }
+    }
+    
+    return bestMatch.similarity > 0.4 ? bestMatch.response : null;
   } catch (error) {
-    console.error("Eroare la adăugarea intrării de antrenare:", error);
-    return false;
+    console.error("Eroare la obținerea datelor relevante:", error);
+    return null;
+  }
+};
+
+/**
+ * Învață din conversațiile recente - este apelată automat după fiecare răspuns al asistentului
+ */
+export const learnFromConversation = (userMessage: string, aiResponse: string): void => {
+  // Adăugăm în cache pentru învățarea continuă
+  recentConversations.unshift({
+    userMessage: userMessage.toLowerCase().trim(),
+    aiResponse,
+    timestamp: new Date()
+  });
+  
+  // Limităm dimensiunea cache-ului
+  if (recentConversations.length > 50) {
+    recentConversations.pop();
   }
 };

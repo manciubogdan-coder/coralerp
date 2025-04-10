@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-custom-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
@@ -45,7 +44,6 @@ const Index = () => {
       recognitionRef.current.interimResults = true;
       recognitionRef.current.lang = 'ro-RO';
       
-      // Configurăm recunoașterea vocală pentru a avea mai multe variante
       if ('webkitSpeechRecognition' in window) {
         (recognitionRef.current as any).maxAlternatives = 5;
       }
@@ -57,10 +55,8 @@ const Index = () => {
         const current = event.resultIndex;
         let transcriptText = event.results[current][0].transcript;
         
-        // Căutăm cuvinte cheie în alternativele de recunoaștere
         let hasStockKeywords = false;
         
-        // Verificăm dacă există alternative în rezultatul recunoașterii
         if (event.results[current].length > 1) {
           for (let i = 0; i < event.results[current].length; i++) {
             const alt = event.results[current][i].transcript.toLowerCase();
@@ -74,7 +70,6 @@ const Index = () => {
           }
         }
         
-        // Aplicăm îmbunătățiri pentru comanda vocală
         const improvedTranscript = improveVoiceCommand(transcriptText);
         if (improvedTranscript !== transcriptText) {
           console.log("Transcriptul a fost îmbunătățit:", transcriptText, "->", improvedTranscript);
@@ -93,13 +88,10 @@ const Index = () => {
           finalTranscriptText = transcriptText;
           setInputText(finalTranscriptText);
           
-          // Creștem timpul de așteptare la 5 secunde pentru a permite utilizatorului să termine propoziția
           silenceTimer = window.setTimeout(() => {
             if (finalTranscriptText.trim()) {
-              // Procesăm comanda vocală cu prioritate pentru comenzile de stoc
               let commandToProcess = finalTranscriptText;
               
-              // Dacă detectăm o comandă legată de stoc, o normalizăm pentru procesare mai bună
               if (finalTranscriptText.toLowerCase().includes("stoc") || 
                   finalTranscriptText.toLowerCase().includes("inventar") ||
                   finalTranscriptText.toLowerCase().includes("produse") ||
@@ -118,7 +110,7 @@ const Index = () => {
                 recognitionRef.current.stop();
               }
             }
-          }, 5000); // Mărirea timpului de așteptare la 5 secunde
+          }, 5000);
         } else {
           setInputText(transcriptText);
         }
@@ -230,9 +222,7 @@ const Index = () => {
       setIsRecording(false);
       
       if (transcript.trim()) {
-        // Adăugăm o întârziere mai mare pentru a permite procesarea
         setTimeout(() => {
-          // Utilizăm versiunea îmbunătățită a transcriptului
           const improvedTranscript = improveVoiceCommand(transcript);
           console.log("Procesez comanda vocală finală:", improvedTranscript);
           processUserInput(improvedTranscript);
@@ -303,7 +293,6 @@ const Index = () => {
     setResponse("");
     setCharts([]);
     
-    // Îmbunătățim detectarea comenzilor de stoc
     const isStockCommand = input.toLowerCase().match(/stoc|inventar|produse|arată|vezi|afișează|raport|cantitate|total|marfă|marfa|depozit/i);
     const isShowStockCommand = input.toLowerCase().includes("arată stocul") || 
                               input.toLowerCase().includes("arată produsele") ||
@@ -324,7 +313,6 @@ const Index = () => {
       
       let processedResponse = result.response;
       
-      // Îmbunătățim răspunsul pentru comenzile de afișare stoc
       if ((isStockCommand || isShowStockCommand) && 
           (processedResponse.includes("nu am nici o informatie") || 
            processedResponse.includes("nu am nicio informatie")) && 
@@ -337,6 +325,12 @@ const Index = () => {
       }
       
       setResponse(processedResponse);
+      
+      import("@/lib/AIAssistantTrainer").then(module => {
+        module.learnFromConversation(input, processedResponse);
+      }).catch(error => {
+        console.error("Eroare la încărcarea modulului de învățare:", error);
+      });
       
       if (isAudioEnabled) {
         if (speechUtteranceRef.current) {

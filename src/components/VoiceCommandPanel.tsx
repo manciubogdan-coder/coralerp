@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mic, MessageSquare, Info, BarChart3, VolumeX, Volume2, AlertTriangle } from "lucide-react";
@@ -11,6 +10,7 @@ import { cn } from "@/lib/utils";
 import InventoryCharts from "./InventoryCharts";
 import { useIsMobile } from "@/hooks/use-mobile";
 import TeachAssistant from "./TeachAssistant";
+import { useState } from "react";
 
 interface VoiceCommandPanelProps {
   isRecording: boolean;
@@ -41,21 +41,18 @@ const VoiceCommandPanel = ({
     return date.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Function to detect if a response includes warnings about insufficient quantity
   const hasInsufficientQuantityWarning = (text: string): boolean => {
     return text.toLowerCase().includes('atentie') && 
            text.toLowerCase().includes('cantitate') && 
            text.toLowerCase().includes('disponibil');
   };
 
-  // Function to check if text is about empty inventory
   const isEmptyInventoryMessage = (text: string): boolean => {
     return (text.toLowerCase().includes('nu am nici o informatie') ||
             text.toLowerCase().includes('nu am nicio informatie')) &&
            text.toLowerCase().includes('stoc');
   };
   
-  // Function to detect if the AI doesn't know how to handle a request
   const isLearningOpportunity = (text: string): boolean => {
     return text.toLowerCase().includes('nu stiu cum sa') || 
            text.toLowerCase().includes('nu am inteles') ||
@@ -65,7 +62,6 @@ const VoiceCommandPanel = ({
            text.toLowerCase().includes('nu am fost programat');
   };
 
-  // Helper function to check if text is a stock command
   const isStockCommand = (text: string): boolean => {
     return text.toLowerCase().includes('stoc') || 
            text.toLowerCase().includes('inventar') ||
@@ -121,10 +117,13 @@ const VoiceCommandPanel = ({
           )}
           
           <div className="mt-3">
-            <h4 className="text-sm font-medium flex items-center">
-              <Info className="h-3 w-3 mr-1" />
-              Exemple de comenzi:
-            </h4>
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-sm font-medium flex items-center">
+                <Info className="h-3 w-3 mr-1" />
+                Exemple de comenzi:
+              </h4>
+              <TeachAssistant />
+            </div>
             <div className="mt-2 flex flex-wrap gap-2">
               <Badge variant="outline" className="bg-gray-50 text-xs">Adaugă 5 kg de roșii</Badge>
               <Badge variant="outline" className="bg-gray-50 text-xs">Adaugă 50kg mentă de la Magnani lot 1505</Badge>
@@ -193,13 +192,6 @@ const VoiceCommandPanel = ({
                               </div>
                             )}
                             <p className={isMobile ? "text-xs" : "text-sm"} dangerouslySetInnerHTML={{ __html: conv.text.replace(/\n/g, '<br/>') }}></p>
-                            
-                            {/* Adaugă buton "Învață asistentul" doar pentru răspunsurile care indică o oportunitate de învățare */}
-                            {isLearningOpportunity(conv.text) && (
-                              <div className="mt-2 pt-2 border-t border-gray-100">
-                                <TeachAssistant currentCommand={index > 0 ? conversations[index-1].text : ""} />
-                              </div>
-                            )}
                           </div>
                           <p className="text-xs text-gray-500 mt-1 text-right">
                             {formatTime(conv.timestamp)}
@@ -230,13 +222,6 @@ const VoiceCommandPanel = ({
                             </div>
                           )}
                           <p className={isMobile ? "text-xs" : "text-sm"} dangerouslySetInnerHTML={{ __html: response.replace(/\n/g, '<br/>') }}></p>
-                          
-                          {/* Buton de învățare pentru răspunsul curent dacă este o oportunitate de învățare */}
-                          {isLearningOpportunity(response) && (
-                            <div className="mt-2 pt-2 border-t border-gray-100">
-                              <TeachAssistant currentCommand={conversations.length > 0 ? conversations[conversations.length-1].text : ""} />
-                            </div>
-                          )}
                           
                           {charts && charts.length > 0 && (
                             <div className="mt-4 border-t pt-3">
