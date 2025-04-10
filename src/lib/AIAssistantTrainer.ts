@@ -35,7 +35,7 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
     const { data, error } = await supabase
       .rpc('search_assistant_training', { 
         search_term: keywords[0] 
-      }) as { data: TrainingEntry[] | null; error: Error | null };
+      });
     
     if (error || !data || data.length === 0) {
       console.log("Nu am găsit date de antrenare relevante:", error);
@@ -110,7 +110,7 @@ export const addTrainingEntry = async (command: string, explanation: string): Pr
       .rpc('add_assistant_training', { 
         p_command: command.toLowerCase(), 
         p_explanation: explanation 
-      }) as { data: string | null; error: Error | null };
+      });
       
     return !error;
   } catch (error) {
