@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-custom-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
@@ -305,7 +306,6 @@ const Index = () => {
       await saveConversation(input);
       
       const contextInput = input;
-      const recentMessages = conversationTexts.slice(-5).join("\n");
       
       console.log("Trimit comanda spre procesare:", contextInput);
       const result = await processCommand(contextInput, inventory, conversationTexts);
@@ -326,8 +326,10 @@ const Index = () => {
       
       setResponse(processedResponse);
       
+      // Învățare automată - asigurăm-ne că modulul este importat corect
       import("@/lib/AIAssistantTrainer").then(module => {
         module.learnFromConversation(input, processedResponse);
+        console.log("Asistentul a învățat din conversație.");
       }).catch(error => {
         console.error("Eroare la încărcarea modulului de învățare:", error);
       });

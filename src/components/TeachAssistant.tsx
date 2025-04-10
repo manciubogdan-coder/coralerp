@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -16,12 +16,31 @@ import { learnFromConversation } from "@/lib/AIAssistantTrainer";
 
 interface TeachAssistantProps {
   currentCommand?: string;
+  conversations?: {text: string, timestamp: Date}[];
 }
 
-const TeachAssistant: React.FC<TeachAssistantProps> = ({ currentCommand = "" }) => {
+const TeachAssistant: React.FC<TeachAssistantProps> = ({ 
+  currentCommand = "", 
+  conversations = []
+}) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const [autoLearningEnabled, setAutoLearningEnabled] = useState(true);
+
+  // Effect to automatically learn from new conversations
+  useEffect(() => {
+    if (!autoLearningEnabled || conversations.length < 2) return;
+    
+    // Process pairs of messages (user then AI)
+    for (let i = 0; i < conversations.length - 1; i += 2) {
+      if (i + 1 < conversations.length) {
+        const userMessage = conversations[i].text;
+        const aiResponse = conversations[i + 1].text;
+        // Learn from this conversation pair
+        learnFromConversation(userMessage, aiResponse);
+      }
+    }
+  }, [conversations, autoLearningEnabled]);
 
   const toggleAutoLearning = () => {
     const newState = !autoLearningEnabled;
@@ -64,6 +83,11 @@ const TeachAssistant: React.FC<TeachAssistantProps> = ({ currentCommand = "" }) 
               ? "Învățarea automată este momentan activată. Asistentul învață din fiecare conversație pentru a-și îmbunătăți răspunsurile."
               : "Învățarea automată este momentan dezactivată. Asistentul nu învață din conversații."}
           </p>
+          {autoLearningEnabled && (
+            <p className="text-sm mt-2 text-green-600">
+              Activ: Asistentul a învățat din {Math.floor(conversations.length / 2)} conversații.
+            </p>
+          )}
         </div>
         
         <DialogFooter>

@@ -10,9 +10,54 @@ interface ConversationPair {
 
 // Cache pentru conversații recente pentru învățare continuă
 let recentConversations: ConversationPair[] = [];
+let isLearningInitialized = false;
 
 // Cuvinte frecvente care nu ajută la identificarea contextului
 const stopWords = ['de', 'la', 'pe', 'un', 'o', 'în', 'din', 'și', 'sau', 'pentru', 'cu', 'ce', 'care', 'este', 'sunt'];
+
+/**
+ * Inițializează modulul de învățare cu datele din baza de date
+ */
+const initializeLearning = async () => {
+  try {
+    if (isLearningInitialized) return;
+    
+    console.log("Inițializare modul de învățare automată...");
+    
+    const { data: conversations, error } = await supabase
+      .from('conversations')
+      .select('*')
+      .order('timestamp', { ascending: true })
+      .limit(200);
+    
+    if (error) {
+      console.error("Eroare la încărcarea conversațiilor pentru învățare:", error);
+      return;
+    }
+    
+    if (conversations && conversations.length > 0) {
+      // Construim perechi de conversații (utilizator -> AI)
+      for (let i = 0; i < conversations.length - 1; i++) {
+        if (i % 2 === 0 && i + 1 < conversations.length) {
+          recentConversations.push({
+            userMessage: conversations[i].text.toLowerCase().trim(),
+            aiResponse: conversations[i+1].text,
+            timestamp: new Date(conversations[i].timestamp)
+          });
+        }
+      }
+      
+      console.log(`Învățare inițializată cu ${recentConversations.length} conversații.`);
+    }
+    
+    isLearningInitialized = true;
+  } catch (error) {
+    console.error("Eroare la inițializarea învățării:", error);
+  }
+};
+
+// Încărcăm datele de învățare la importarea modulului
+initializeLearning();
 
 /**
  * Procesează un text pentru a extrage cuvinte cheie relevante
@@ -50,6 +95,11 @@ const calculateSimilarity = (text1: string, text2: string): number => {
  */
 export const getRelevantTrainingData = async (userCommand: string): Promise<string | null> => {
   try {
+    // Ne asigurăm că modulul de învățare este inițializat
+    if (!isLearningInitialized) {
+      await initializeLearning();
+    }
+    
     // Normalizăm comanda utilizatorului
     const normalizedCommand = userCommand.toLowerCase().trim();
     
@@ -101,19 +151,7 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
       }
     }
     
-    // Actualizăm cache-ul pentru învățare continuă
-    if (bestMatch.similarity > 0) {
-      recentConversations.unshift({
-        userMessage: normalizedCommand,
-        aiResponse: bestMatch.response,
-        timestamp: new Date()
-      });
-      
-      // Limităm dimensiunea cache-ului
-      if (recentConversations.length > 50) {
-        recentConversations.pop();
-      }
-    }
+    console.log(`Cea mai bună potrivire are similaritatea: ${bestMatch.similarity}`);
     
     return bestMatch.similarity > 0.4 ? bestMatch.response : null;
   } catch (error) {
@@ -126,15 +164,39 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
  * Învață din conversațiile recente - este apelată automat după fiecare răspuns al asistentului
  */
 export const learnFromConversation = (userMessage: string, aiResponse: string): void => {
+  if (!userMessage || !aiResponse) return;
+  
+  const normalizedUserMessage = userMessage.toLowerCase().trim();
+  
+  // Verificăm dacă această conversație este deja învățată
+  const isDuplicate = recentConversations.some(conv => 
+    conv.userMessage === normalizedUserMessage && conv.aiResponse === aiResponse
+  );
+  
+  if (isDuplicate) {
+    console.log("Conversație deja învățată, se omite.");
+    return;
+  }
+  
+  console.log(`Învățare nouă: "${normalizedUserMessage.substring(0, 30)}..."`);
+  
   // Adăugăm în cache pentru învățarea continuă
   recentConversations.unshift({
-    userMessage: userMessage.toLowerCase().trim(),
+    userMessage: normalizedUserMessage,
     aiResponse,
     timestamp: new Date()
   });
   
   // Limităm dimensiunea cache-ului
-  if (recentConversations.length > 50) {
+  if (recentConversations.length > 100) {
     recentConversations.pop();
+  }
+  
+  // Adăugăm și în baza de date pentru învățare pe termen lung (opțional)
+  try {
+    // În loc să adăugăm direct, vom lăsa procesul normal de salvare a conversațiilor să se ocupe
+    console.log("Conversație adăugată în memoria de învățare.");
+  } catch (error) {
+    console.error("Eroare la salvarea conversației pentru învățare:", error);
   }
 };

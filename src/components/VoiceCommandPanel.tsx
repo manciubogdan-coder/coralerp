@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import InventoryCharts from "./InventoryCharts";
 import { useIsMobile } from "@/hooks/use-mobile";
 import TeachAssistant from "./TeachAssistant";
-import { useState } from "react";
 
 interface VoiceCommandPanelProps {
   isRecording: boolean;
@@ -122,7 +121,7 @@ const VoiceCommandPanel = ({
                 <Info className="h-3 w-3 mr-1" />
                 Exemple de comenzi:
               </h4>
-              <TeachAssistant />
+              <TeachAssistant conversations={conversations} />
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               <Badge variant="outline" className="bg-gray-50 text-xs">Adaugă 5 kg de roșii</Badge>
