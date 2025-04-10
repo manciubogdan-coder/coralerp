@@ -1,7 +1,16 @@
 
 import { toast as originalToast, useToast as useOriginalToast } from "@/hooks/use-toast";
+import { type ToastActionElement } from "@/components/ui/toast";
 
 type ToastVariant = "default" | "destructive" | "warning";
+
+interface CustomToastProps {
+  variant?: ToastVariant;
+  title?: string;
+  description?: string;
+  action?: ToastActionElement;
+  [key: string]: any;
+}
 
 export function useCustomToast() {
   const { toast: originalToastFn, ...rest } = useOriginalToast();
@@ -9,13 +18,7 @@ export function useCustomToast() {
   const toast = ({ 
     variant = "default", 
     ...props 
-  }: { 
-    variant?: ToastVariant; 
-    title?: string; 
-    description?: string;
-    action?: React.ReactNode;
-    [key: string]: any;
-  }) => {
+  }: CustomToastProps) => {
     // Map warning variant to default but with custom styling if needed
     const mappedVariant = variant === "warning" ? "default" : variant;
     
@@ -32,13 +35,7 @@ export function useCustomToast() {
   };
 }
 
-export const toast = (props: { 
-  variant?: ToastVariant; 
-  title?: string; 
-  description?: string;
-  action?: React.ReactNode;
-  [key: string]: any;
-}) => {
+export const toast = (props: CustomToastProps) => {
   const { variant = "default", ...rest } = props;
   
   // Map warning variant to default but with custom styling
