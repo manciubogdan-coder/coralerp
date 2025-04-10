@@ -1,13 +1,14 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
-import { Mic, MicOff, Send, Download, Mail, ListFilter } from "lucide-react";
+import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import VoiceCommandPanel from "@/components/VoiceCommandPanel";
 import InventoryTable from "@/components/InventoryTable";
+import InventoryHistory from "@/components/InventoryHistory";
 import { processCommand } from "@/lib/aiProcessor";
 import { ChartData, InventoryItem } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";
@@ -30,6 +31,7 @@ const Index = () => {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const conversationsEndRef = useRef<HTMLDivElement>(null);
   const speechUtteranceRef = useRef<{stop: () => void; isPending: () => boolean} | null>(null);
+  const [activeTab, setActiveTab] = useState("inventory");
 
   useEffect(() => {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
@@ -189,7 +191,6 @@ const Index = () => {
   const toggleAudio = () => {
     setIsAudioEnabled(!isAudioEnabled);
     
-    // Oprim orice vorbire în curs dacă dezactivăm audio
     if (isAudioEnabled && speechUtteranceRef.current) {
       speechUtteranceRef.current.stop();
     }
@@ -226,7 +227,6 @@ const Index = () => {
       const receipt_date = item.receipt_date ? item.receipt_date.toISOString() : null;
       console.log("Updating inventory item:", item);
       
-      // Check if item with same name, supplier AND batch_number exists
       let existingItem = null;
       
       if (item.batch_number) {
@@ -248,9 +248,13 @@ const Index = () => {
         }
       }
       
+      let updatedItemId;
+      let previousQuantity;
+      let newQuantity = item.quantity;
+      
       if (existingItem?.id) {
-        // Update existing record with same name + supplier + batch_number
-        let newQuantity = item.quantity;
+        updatedItemId = existingItem.id;
+        previousQuantity = Number(existingItem.quantity);
         
         if (item.action === 'add') {
           newQuantity = Number(existingItem.quantity) + Number(item.quantity);
@@ -285,7 +289,23 @@ const Index = () => {
         
         console.log("Updated existing item successfully");
       } else if (item.id) {
-        // Update existing record by ID
+        updatedItemId = item.id;
+        
+        const { data: currentData, error: fetchError } = await supabase
+          .from('inventory')
+          .select('quantity')
+          .eq('id', item.id)
+          .single();
+          
+        if (fetchError) {
+          console.error("Error fetching current item data:", fetchError);
+          throw fetchError;
+        }
+        
+        if (currentData) {
+          previousQuantity = Number(currentData.quantity);
+        }
+        
         console.log("Updating item by ID:", item.id);
         const { error } = await supabase
           .from('inventory')
@@ -308,9 +328,8 @@ const Index = () => {
         
         console.log("Updated item by ID successfully");
       } else {
-        // Insert new record
         console.log("Inserting new item:", item);
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('inventory')
           .insert({
             name: item.name,
@@ -320,17 +339,44 @@ const Index = () => {
             batch_number: item.batch_number || null,
             pallets: item.pallets || 0,
             receipt_date: receipt_date
-          });
+          })
+          .select();
           
         if (error) {
           console.error("Error inserting new item:", error);
           throw error;
         }
         
+        if (data && data[0]) {
+          updatedItemId = data[0].id;
+        }
+        
         console.log("Inserted new item successfully");
       }
       
-      // Fetch updated inventory
+      if (updatedItemId) {
+        const { error: historyError } = await supabase
+          .from('inventory_history')
+          .insert({
+            inventory_item_id: updatedItemId,
+            action: item.action || 'set',
+            name: item.name,
+            quantity: item.quantity,
+            unit: item.unit,
+            previous_quantity: previousQuantity,
+            supplier: item.supplier || null,
+            batch_number: item.batch_number || null,
+            pallets: item.pallets || 0,
+            notes: null
+          });
+          
+        if (historyError) {
+          console.error("Error recording history:", historyError);
+        } else {
+          console.log("Recorded operation in history successfully");
+        }
+      }
+      
       const { data, error } = await supabase
         .from('inventory')
         .select('*')
@@ -382,11 +428,9 @@ const Index = () => {
   };
 
   const generateInventoryCharts = () => {
-    // Generăm grafice pentru stocul actual
     const charts: ChartData[] = [];
     
     if (inventory.length > 0) {
-      // Agrega produsele pentru a vedea totalul pe fiecare tip
       const productTotals = inventory.reduce((acc, item) => {
         const name = item.name;
         if (!acc[name]) {
@@ -411,7 +455,6 @@ const Index = () => {
         description: 'Vizualizare proporțională a cantităților de produse în stoc'
       });
       
-      // Grafic pentru distribuția pe furnizori dacă avem furnizori
       const supplierItems = inventory.filter(item => item.supplier);
       if (supplierItems.length > 0) {
         const supplierTotals = supplierItems.reduce((acc, item) => {
@@ -453,23 +496,18 @@ const Index = () => {
       
       setResponse(result.response);
       
-      // Generează răspuns vocal dacă este activat
       if (isAudioEnabled) {
-        // Oprim orice răspuns vocal anterior
         if (speechUtteranceRef.current) {
           speechUtteranceRef.current.stop();
         }
         
-        // Pornește noul răspuns vocal
         speechUtteranceRef.current = speakText(result.response);
       }
 
-      // Verifică dacă există grafice în răspuns sau generează grafice implicite
       if (result.charts && result.charts.length > 0) {
         setCharts(result.charts);
       } else if (result.action === 'view' || 
                 (result.action === 'query' && input.toLowerCase().includes('stoc'))) {
-        // Generăm grafice pentru vizualizarea stocului
         const inventoryCharts = generateInventoryCharts();
         setCharts(inventoryCharts);
       }
@@ -667,10 +705,20 @@ const Index = () => {
           
           <div className="bg-white rounded-lg shadow-md">
             <div className="border-b border-gray-200 p-4 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-                <ListFilter className="h-5 w-5 mr-2 text-coral-DEFAULT" />
-                Stoc produse
-              </h2>
+              <div>
+                <Tabs defaultValue="inventory" value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList>
+                    <TabsTrigger value="inventory" className="flex items-center">
+                      <ListFilter className="h-4 w-4 mr-2" />
+                      Stoc curent
+                    </TabsTrigger>
+                    <TabsTrigger value="history" className="flex items-center">
+                      <History className="h-4 w-4 mr-2" />
+                      Istoric operațiuni
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
               <div className="flex space-x-2">
                 <Button variant="outline" size="sm" onClick={handleExportExcel}>
                   <Download className="h-4 w-4 mr-2" />
@@ -682,7 +730,14 @@ const Index = () => {
                 </Button>
               </div>
             </div>
-            <InventoryTable inventory={inventory} />
+            
+            <TabsContent value="inventory">
+              <InventoryTable inventory={inventory} />
+            </TabsContent>
+            
+            <TabsContent value="history">
+              <InventoryHistory />
+            </TabsContent>
           </div>
         </div>
       </main>

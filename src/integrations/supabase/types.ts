@@ -66,6 +66,66 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_history: {
+        Row: {
+          action: string
+          batch_number: string | null
+          id: string
+          inventory_item_id: string | null
+          name: string
+          notes: string | null
+          operation_date: string
+          pallets: number | null
+          previous_quantity: number | null
+          quantity: number
+          supplier: string | null
+          unit: string
+        }
+        Insert: {
+          action: string
+          batch_number?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          name: string
+          notes?: string | null
+          operation_date?: string
+          pallets?: number | null
+          previous_quantity?: number | null
+          quantity: number
+          supplier?: string | null
+          unit: string
+        }
+        Update: {
+          action?: string
+          batch_number?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          name?: string
+          notes?: string | null
+          operation_date?: string
+          pallets?: number | null
+          previous_quantity?: number | null
+          quantity?: number
+          supplier?: string | null
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_history_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_history_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_with_history"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       inventory_aggregated_view: {
@@ -79,6 +139,48 @@ export type Database = {
           total_pallets: number | null
           total_quantity: number | null
           unit: string | null
+        }
+        Relationships: []
+      }
+      inventory_with_history: {
+        Row: {
+          batch_number: string | null
+          created_at: string | null
+          id: string | null
+          name: string | null
+          operations_count: number | null
+          pallets: number | null
+          quantity: number | null
+          receipt_date: string | null
+          supplier: string | null
+          unit: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          batch_number?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          operations_count?: never
+          pallets?: number | null
+          quantity?: number | null
+          receipt_date?: string | null
+          supplier?: string | null
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          batch_number?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          operations_count?: never
+          pallets?: number | null
+          quantity?: number | null
+          receipt_date?: string | null
+          supplier?: string | null
+          unit?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }

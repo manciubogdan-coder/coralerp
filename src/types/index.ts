@@ -53,6 +53,22 @@ export interface ChartData {
   description?: string;
 }
 
+// History related interfaces
+export interface InventoryHistoryItem {
+  id: string;
+  inventory_item_id?: string;
+  action: 'add' | 'remove' | 'set';
+  name: string;
+  quantity: number;
+  unit: string;
+  previous_quantity?: number;
+  supplier?: string;
+  batch_number?: string;
+  pallets?: number;
+  operation_date: Date;
+  notes?: string;
+}
+
 // Web Speech API type definitions
 declare global {
   // Speech Recognition interfaces
