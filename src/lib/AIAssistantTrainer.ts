@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 interface TrainingEntry {
@@ -32,9 +31,11 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
     
     // Construim interogarea pentru a căuta intrări relevante în baza de date de antrenare
     const { data, error } = await supabase
-      .rpc<TrainingEntry[]>('search_assistant_training', { search_term: keywords[0] } as SearchAssistantTraining);
+      .rpc('search_assistant_training', { 
+        search_term: keywords[0] 
+      });
     
-    if (error || !data || (data as any).length === 0) {
+    if (error || !data || data.length === 0) {
       console.log("Nu am găsit date de antrenare relevante:", error);
       return null;
     }
@@ -107,7 +108,7 @@ export const addTrainingEntry = async (command: string, explanation: string): Pr
       .rpc('add_assistant_training', { 
         p_command: command.toLowerCase(), 
         p_explanation: explanation 
-      } as AddAssistantTraining);
+      });
       
     return !error;
   } catch (error) {
