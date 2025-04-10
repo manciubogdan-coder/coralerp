@@ -39,9 +39,11 @@ const Index = () => {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
       const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognitionConstructor();
+      
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
       recognitionRef.current.lang = 'ro-RO';
+      recognitionRef.current.maxAlternatives = 5;
 
       let silenceTimer: number | null = null;
       let finalTranscriptText = "";
@@ -49,7 +51,33 @@ const Index = () => {
       recognitionRef.current.onresult = (event) => {
         const current = event.resultIndex;
         const transcriptText = event.results[current][0].transcript;
-        setTranscript(transcriptText);
+        
+        let hasStockKeywords = false;
+        if (event.results[current].length > 1) {
+          for (let i = 0; i < event.results[current].length; i++) {
+            const alt = event.results[current][i].transcript.toLowerCase();
+            if (alt.includes("stoc") || alt.includes("inventar") || alt.includes("produse") || 
+                alt.includes("arata") || alt.includes("vezi") || alt.includes("afiseaza")) {
+              hasStockKeywords = true;
+              break;
+            }
+          }
+        }
+        
+        let normalizedTranscript = transcriptText.toLowerCase();
+        
+        if (normalizedTranscript.includes("arata") && 
+            (normalizedTranscript.includes("stoc") || normalizedTranscript.includes("produse"))) {
+          normalizedTranscript = "arată stocul";
+        }
+        
+        if (normalizedTranscript.includes("ce") && normalizedTranscript.includes("avem") && 
+            (normalizedTranscript.includes("stoc") || normalizedTranscript.includes("depozit"))) {
+          normalizedTranscript = "arată stocul";
+        }
+        
+        const displayTranscript = hasStockKeywords ? normalizedTranscript : transcriptText;
+        setTranscript(displayTranscript);
         
         if (silenceTimer) {
           window.clearTimeout(silenceTimer);
@@ -57,9 +85,9 @@ const Index = () => {
         }
 
         if (event.results[current].isFinal) {
-          finalTranscriptText = transcriptText;
+          finalTranscriptText = hasStockKeywords ? normalizedTranscript : transcriptText;
           
-          setInputText(transcriptText);
+          setInputText(finalTranscriptText);
           
           silenceTimer = window.setTimeout(() => {
             if (finalTranscriptText.trim()) {
@@ -71,7 +99,7 @@ const Index = () => {
             }
           }, 3000);
         } else {
-          setInputText(transcriptText);
+          setInputText(displayTranscript);
         }
       };
 
@@ -240,419 +268,7 @@ const Index = () => {
   };
 
   const updateInventoryItem = async (item: InventoryItem) => {
-    try {
-      console.log("Updating inventory item with action:", item.action, "Item:", item);
-      const receipt_date = item.receipt_date ? item.receipt_date.toISOString() : null;
-      
-      let existingItem = null;
-      
-      if (item.id) {
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('*')
-          .eq('id', item.id)
-          .single();
-          
-        if (!error && data) {
-          existingItem = data;
-          console.log("Found existing item by ID:", existingItem);
-        }
-      } 
-      else if (item.batch_number && item.supplier) {
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('*')
-          .eq('name', item.name)
-          .eq('supplier', item.supplier)
-          .eq('batch_number', item.batch_number);
-          
-        if (!error && data && data.length > 0) {
-          existingItem = data[0];
-          console.log("Found existing item by batch:", existingItem);
-        }
-      }
-      else if (item.action === 'remove' && item.name) {
-        console.log("Attempting to remove item by name:", item.name);
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('*')
-          .eq('name', item.name)
-          .gt('quantity', 0);
-          
-        if (error) {
-          console.error("Error finding items by name:", error);
-          throw error;
-        }
-        
-        if (data && data.length > 0) {
-          console.log(`Found ${data.length} items to remove`, data);
-          
-          for (const inventoryItem of data) {
-            const now = new Date().toISOString();
-            
-            const historyData = {
-              inventory_item_id: inventoryItem.id,
-              action: 'remove',
-              name: inventoryItem.name,
-              quantity: inventoryItem.quantity,
-              unit: inventoryItem.unit,
-              previous_quantity: inventoryItem.quantity,
-              supplier: inventoryItem.supplier || null,
-              batch_number: inventoryItem.batch_number || null,
-              pallets: inventoryItem.pallets || 0,
-              notes: "Scos din stoc complet",
-              operation_date: now,
-              exit_timestamp: now
-            };
-            
-            await supabase
-              .from('inventory_history')
-              .insert(historyData);
-              
-            await supabase
-              .from('inventory')
-              .update({ quantity: 0 })
-              .eq('id', inventoryItem.id);
-          }
-          
-          const { data: updatedInventory } = await supabase
-            .from('inventory')
-            .select('*')
-            .order('updated_at', { ascending: false });
-            
-          if (updatedInventory) {
-            const items = updatedInventory.map(item => ({
-              id: item.id,
-              name: item.name,
-              quantity: item.quantity ? Number(item.quantity) : 0,
-              unit: item.unit,
-              supplier: item.supplier || undefined,
-              batch_number: item.batch_number || undefined,
-              pallets: item.pallets ? Number(item.pallets) : 0,
-              receipt_date: item.receipt_date ? new Date(item.receipt_date) : undefined,
-              createdAt: {
-                seconds: new Date(item.created_at || '').getTime() / 1000,
-                nanoseconds: 0
-              },
-              updatedAt: {
-                seconds: new Date(item.updated_at || '').getTime() / 1000,
-                nanoseconds: 0
-              }
-            }));
-            
-            setInventory(items);
-          }
-          
-          toast({
-            title: "Operatiune reusita",
-            description: `Am eliminat toate stocurile de ${item.name} (${data.length} ${data.length === 1 ? 'lot' : 'loturi'}).`
-          });
-          
-          return;
-        } else {
-          console.log(`No items found for product: ${item.name}`);
-          toast({
-            variant: "warning",
-            title: "Produs negăsit",
-            description: `Nu există stoc pentru produsul ${item.name}.`
-          });
-          return;
-        }
-      }
-      else if (item.action === 'remove' && item.name) {
-        console.log("Looking for any item with name:", item.name);
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('*')
-          .eq('name', item.name)
-          .gt('quantity', 0)
-          .order('created_at', { ascending: true });
-          
-        if (!error && data && data.length > 0) {
-          existingItem = data[0];
-          console.log("Found item for removal:", existingItem);
-        }
-      }
-      
-      let updatedItemId;
-      let previousQuantity = 0;
-      let newQuantity = item.quantity;
-      
-      if (existingItem?.id) {
-        updatedItemId = existingItem.id;
-        previousQuantity = Number(existingItem.quantity);
-        
-        if (previousQuantity <= 0 && item.action === 'remove') {
-          console.log(`Skipping removal from ${item.name} as quantity is already 0`);
-          toast({
-            variant: "warning",
-            title: "Stoc insuficient",
-            description: `Nu există stoc disponibil pentru ${item.name}.`
-          });
-          return;
-        }
-        
-        if (item.action === 'add') {
-          newQuantity = Number(existingItem.quantity) + Number(item.quantity);
-          console.log(`Adding quantity: ${item.quantity} to existing ${existingItem.quantity} = ${newQuantity}`);
-        } else if (item.action === 'remove') {
-          if (Number(existingItem.quantity) < Number(item.quantity)) {
-            const availableQuantity = Number(existingItem.quantity);
-            console.log(`Warning: Requested to remove ${item.quantity} but only ${availableQuantity} available`);
-            newQuantity = 0;
-            
-            toast({
-              variant: "warning",
-              title: "Stoc insuficient",
-              description: `Ai solicitat să scoti ${item.quantity} ${item.unit} de ${item.name}, dar erau disponibile doar ${availableQuantity} ${item.unit} în lotul ${item.batch_number || 'existent'}.`
-            });
-          } else {
-            newQuantity = Math.max(0, Number(existingItem.quantity) - Number(item.quantity));
-            console.log(`Removing quantity: ${item.quantity} from existing ${existingItem.quantity} = ${newQuantity}`);
-          }
-        } else if (item.action === 'set') {
-          newQuantity = Number(item.quantity);
-          console.log(`Setting quantity to: ${newQuantity}`);
-        }
-        
-        let newPallets = existingItem.pallets || 0;
-        if (item.pallets !== undefined) {
-          if (item.action === 'add') {
-            newPallets = (existingItem.pallets || 0) + (item.pallets || 0);
-          } else if (item.action === 'set') {
-            newPallets = item.pallets || 0;
-          } else if (item.action === 'remove' && existingItem.pallets) {
-            const removalRatio = Math.min(1, Number(item.quantity) / previousQuantity);
-            newPallets = Math.max(0, Math.round(existingItem.pallets * (1 - removalRatio)));
-          }
-          console.log(`Updating pallets to: ${newPallets}`);
-        }
-        
-        console.log(`Updating item with ID ${existingItem.id} to quantity: ${newQuantity}, pallets: ${newPallets}`);
-        const { error } = await supabase
-          .from('inventory')
-          .update({
-            quantity: newQuantity,
-            pallets: newPallets,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingItem.id);
-          
-        if (error) {
-          console.error("Error updating existing item:", error);
-          throw error;
-        }
-        
-        console.log("Updated existing item successfully");
-      }
-      else if (item.id) {
-        updatedItemId = item.id;
-        
-        const { data: currentData, error: fetchError } = await supabase
-          .from('inventory')
-          .select('quantity')
-          .eq('id', item.id)
-          .single();
-          
-        if (fetchError) {
-          console.error("Error fetching current item data:", fetchError);
-          throw fetchError;
-        }
-        
-        if (currentData) {
-          previousQuantity = Number(currentData.quantity);
-        }
-        
-        console.log("Updating item by ID:", item.id);
-        
-        const { error } = await supabase
-          .from('inventory')
-          .update({
-            name: item.name,
-            quantity: item.quantity,
-            unit: item.unit,
-            supplier: item.supplier || null,
-            batch_number: item.batch_number || null,
-            pallets: item.pallets || 0,
-            receipt_date: receipt_date,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', item.id);
-          
-        if (error) {
-          console.error("Error updating item by ID:", error);
-          throw error;
-        }
-        
-        console.log("Updated item by ID successfully");
-      }
-      else {
-        console.log("Inserting new item:", item);
-        
-        const { data, error } = await supabase
-          .from('inventory')
-          .insert({
-            name: item.name,
-            quantity: item.quantity,
-            unit: item.unit,
-            supplier: item.supplier || null,
-            batch_number: item.batch_number || null,
-            pallets: item.pallets || 0,
-            receipt_date: receipt_date
-          })
-          .select();
-          
-        if (error) {
-          console.error("Error inserting new item:", error);
-          throw error;
-        }
-        
-        if (data && data[0]) {
-          updatedItemId = data[0].id;
-          console.log("New item inserted with ID:", updatedItemId);
-        }
-      }
-      
-      if (updatedItemId) {
-        const now = new Date().toISOString();
-        let actualQuantity = item.quantity;
-        
-        if (item.action === 'remove' && previousQuantity < item.quantity) {
-          actualQuantity = previousQuantity;
-        }
-        
-        const historyData = {
-          inventory_item_id: updatedItemId,
-          action: item.action || 'set',
-          name: item.name,
-          quantity: actualQuantity,
-          unit: item.unit,
-          previous_quantity: previousQuantity,
-          supplier: item.supplier || null,
-          batch_number: item.batch_number || null,
-          pallets: item.pallets || 0,
-          notes: null,
-          operation_date: now
-        };
-        
-        if (item.action === 'remove') {
-          historyData['exit_timestamp'] = now;
-        }
-        
-        const { error: historyError } = await supabase
-          .from('inventory_history')
-          .insert(historyData);
-          
-        if (historyError) {
-          console.error("Error recording history:", historyError);
-        } else {
-          console.log("Recorded operation in history successfully");
-        }
-      }
-      
-      const { data, error } = await supabase
-        .from('inventory')
-        .select('*')
-        .order('updated_at', { ascending: false });
-        
-      if (error) {
-        console.error("Error fetching updated inventory:", error);
-        throw error;
-      }
-      
-      const items: InventoryItem[] = data.map(item => ({
-        id: item.id,
-        name: item.name,
-        quantity: item.quantity ? Number(item.quantity) : 0,
-        unit: item.unit,
-        supplier: item.supplier || undefined,
-        batch_number: item.batch_number || undefined,
-        pallets: item.pallets ? Number(item.pallets) : 0,
-        receipt_date: item.receipt_date ? new Date(item.receipt_date) : undefined,
-        createdAt: {
-          seconds: new Date(item.created_at || '').getTime() / 1000,
-          nanoseconds: 0
-        },
-        updatedAt: {
-          seconds: new Date(item.updated_at || '').getTime() / 1000,
-          nanoseconds: 0
-        }
-      }));
-      
-      setInventory(items);
-      
-      if (!(item.action === 'remove' && previousQuantity === 0)) {
-        const actionVerb = item.action === 'add' ? 'adăugat' : 
-                          item.action === 'remove' ? 'scos' : 'actualizat';
-        
-        toast({
-          title: "Operațiune reușită",
-          description: `${actionVerb === 'scos' && previousQuantity < item.quantity ? previousQuantity : item.quantity} ${item.unit} de ${item.name} ${item.supplier ? `de la ${item.supplier}` : ''} ${item.batch_number ? `(lot ${item.batch_number})` : ''} ${actionVerb} în stoc.`
-        });
-      }
-      
-    } catch (error) {
-      console.error("Error updating inventory:", error);
-      toast({
-        variant: "destructive",
-        title: "Eroare",
-        description: "Nu s-a putut actualiza stocul. Verificați consola pentru detalii."
-      });
-    }
-  };
-
-  const generateInventoryCharts = (): ChartData[] => {
-    const charts: ChartData[] = [];
-    
-    if (inventory.length > 0) {
-      const productTotals = inventory.reduce((acc, item) => {
-        const name = item.name;
-        if (!acc[name]) {
-          acc[name] = {
-            name,
-            value: 0,
-            unit: item.unit
-          };
-        }
-        acc[name].value += item.quantity;
-        return acc;
-      }, {} as Record<string, {name: string, value: number, unit: string}>);
-      
-      charts.push({
-        type: 'pie',
-        title: 'Distributia produselor in stoc',
-        data: Object.values(productTotals).map(item => ({
-          name: item.name,
-          value: item.value,
-          unit: item.unit
-        })),
-        description: 'Vizualizare proportionala a cantitatilor de produse in stoc'
-      });
-      
-      const supplierItems = inventory.filter(item => item.supplier);
-      if (supplierItems.length > 0) {
-        const supplierTotals = supplierItems.reduce((acc, item) => {
-          const supplier = item.supplier || 'Necunoscut';
-          if (!acc[supplier]) {
-            acc[supplier] = {
-              name: supplier,
-              value: 0
-            };
-          }
-          acc[supplier].value += item.quantity;
-          return acc;
-        }, {} as Record<string, {name: string, value: number}>);
-        
-        charts.push({
-          type: 'bar',
-          title: 'Distributia pe furnizori',
-          data: Object.values(supplierTotals),
-          description: 'Cantitati totale pe furnizori'
-        });
-      }
-    }
-    
-    return charts;
+    // ... keep existing code (inventory update logic)
   };
 
   const processUserInput = async (input: string) => {
@@ -661,6 +277,8 @@ const Index = () => {
     setIsProcessing(true);
     setResponse("");
     setCharts([]);
+    
+    const isStockCommand = input.toLowerCase().match(/stoc|inventar|produse|arată|vezi|afișează|raport|cantitate/i);
     
     try {
       await saveConversation(input);
@@ -671,20 +289,27 @@ const Index = () => {
       const result = await processCommand(contextInput, inventory, conversationTexts);
       console.log("Command result:", result);
       
-      setResponse(result.response);
+      let processedResponse = result.response;
+      if (isStockCommand && processedResponse.includes("nu am nici o informatie") && inventory.length > 0) {
+        processedResponse = `În prezent avem ${inventory.length} produse în stoc. Iată o prezentare generală:`;
+        
+        result.action = 'view';
+      }
+      
+      setResponse(processedResponse);
       
       if (isAudioEnabled) {
         if (speechUtteranceRef.current) {
           speechUtteranceRef.current.stop();
         }
         
-        speechUtteranceRef.current = speakText(result.response);
+        speechUtteranceRef.current = speakText(processedResponse);
       }
 
       if (result.charts && result.charts.length > 0) {
         setCharts(result.charts);
       } else if (result.action === 'view' || 
-                (result.action === 'query' && input.toLowerCase().includes('stoc'))) {
+                (result.action === 'query' && (input.toLowerCase().includes('stoc') || isStockCommand))) {
         const inventoryCharts = generateInventoryCharts();
         setCharts(inventoryCharts);
       }
@@ -832,6 +457,60 @@ const Index = () => {
       setIsProcessing(false);
       setInputText("");
     }
+  };
+
+  const generateInventoryCharts = (): ChartData[] => {
+    const charts: ChartData[] = [];
+    
+    if (inventory.length > 0) {
+      const productTotals = inventory.reduce((acc, item) => {
+        const name = item.name;
+        if (!acc[name]) {
+          acc[name] = {
+            name,
+            value: 0,
+            unit: item.unit
+          };
+        }
+        acc[name].value += item.quantity;
+        return acc;
+      }, {} as Record<string, {name: string, value: number, unit: string}>);
+      
+      charts.push({
+        type: 'pie',
+        title: 'Distributia produselor in stoc',
+        data: Object.values(productTotals).map(item => ({
+          name: item.name,
+          value: item.value,
+          unit: item.unit
+        })),
+        description: 'Vizualizare proportionala a cantitatilor de produse in stoc'
+      });
+      
+      const supplierItems = inventory.filter(item => item.supplier);
+      if (supplierItems.length > 0) {
+        const supplierTotals = supplierItems.reduce((acc, item) => {
+          const supplier = item.supplier || 'Necunoscut';
+          if (!acc[supplier]) {
+            acc[supplier] = {
+              name: supplier,
+              value: 0
+            };
+          }
+          acc[supplier].value += item.quantity;
+          return acc;
+        }, {} as Record<string, {name: string, value: number}>);
+        
+        charts.push({
+          type: 'bar',
+          title: 'Distributia pe furnizori',
+          data: Object.values(supplierTotals),
+          description: 'Cantitati totale pe furnizori'
+        });
+      }
+    }
+    
+    return charts;
   };
 
   const handleSubmit = (e: React.FormEvent) => {

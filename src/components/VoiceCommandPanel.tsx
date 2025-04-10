@@ -47,6 +47,12 @@ const VoiceCommandPanel = ({
            text.toLowerCase().includes('disponibil');
   };
 
+  // Function to check if text is about empty inventory
+  const isEmptyInventoryMessage = (text: string): boolean => {
+    return text.toLowerCase().includes('nu am nici o informatie') &&
+           text.toLowerCase().includes('stoc');
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -107,7 +113,7 @@ const VoiceCommandPanel = ({
               <Badge variant="outline" className="bg-gray-50 text-xs">Consumul de ieri</Badge>
               {!isMobile && (
                 <>
-                  <Badge variant="outline" className="bg-gray-50 text-xs">Arată stocul</Badge>
+                  <Badge variant="outline" className="bg-gray-50 text-xs font-bold text-green-700">Arată stocul</Badge>
                   <Badge variant="outline" className="bg-gray-50 text-xs">Câte produse avem în total?</Badge>
                   <Badge variant="outline" className="bg-gray-50 text-xs">Ce produse expiră în curând?</Badge>
                   <Badge variant="outline" className="bg-gray-50 text-xs">Arată cantitățile pe furnizori</Badge>
@@ -153,7 +159,9 @@ const VoiceCommandPanel = ({
                             "p-2 rounded-lg rounded-tl-none",
                             hasInsufficientQuantityWarning(conv.text) 
                               ? "bg-amber-50 border border-amber-200" 
-                              : "bg-green-light bg-opacity-10"
+                              : isEmptyInventoryMessage(conv.text)
+                                ? "bg-blue-50 border border-blue-200"
+                                : "bg-green-light bg-opacity-10"
                           )}>
                             {hasInsufficientQuantityWarning(conv.text) && (
                               <div className="flex items-center gap-2 mb-2 text-amber-600 pb-2 border-b border-amber-200">
@@ -181,7 +189,9 @@ const VoiceCommandPanel = ({
                           "p-2 rounded-lg rounded-tl-none",
                           hasInsufficientQuantityWarning(response) 
                             ? "bg-amber-50 border border-amber-200" 
-                            : "bg-green-light bg-opacity-10"
+                            : isEmptyInventoryMessage(response)
+                              ? "bg-blue-50 border border-blue-200"
+                              : "bg-green-light bg-opacity-10"
                         )}>
                           {hasInsufficientQuantityWarning(response) && (
                             <div className="flex items-center gap-2 mb-2 text-amber-600 pb-2 border-b border-amber-200">
