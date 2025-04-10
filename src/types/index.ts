@@ -1,5 +1,3 @@
-
-
 // Inventory related interfaces
 export interface InventoryItem {
   id?: string;
@@ -67,7 +65,7 @@ export interface InventoryHistoryItem {
   batch_number?: string;
   pallets?: number;
   operation_date: Date;
-  exit_timestamp?: Date;  // Adding this to match what we're using in InventoryHistory.tsx
+  exit_timestamp?: Date;  
   notes?: string;
 }
 
@@ -152,4 +150,3 @@ declare global {
     speak(utterance: SpeechSynthesisUtterance): void;
   }
 }
-

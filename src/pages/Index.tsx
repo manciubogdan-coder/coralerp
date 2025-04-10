@@ -229,12 +229,12 @@ const Index = () => {
       
       let existingItem = null;
       
-      if (item.batch_number) {
+      if (item.batch_number && item.supplier) {
         const { data, error } = await supabase
           .from('inventory')
           .select('*')
           .eq('name', item.name)
-          .eq('supplier', item.supplier || null)
+          .eq('supplier', item.supplier)
           .eq('batch_number', item.batch_number);
           
         if (error) {
@@ -246,10 +246,25 @@ const Index = () => {
           existingItem = data[0];
           console.log("Found existing item by batch:", existingItem);
         }
+      } else if (item.id) {
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('id', item.id);
+          
+        if (error) {
+          console.error("Error finding item by ID:", error);
+          throw error;
+        }
+        
+        if (data && data.length > 0) {
+          existingItem = data[0];
+          console.log("Found existing item by ID:", existingItem);
+        }
       }
       
       let updatedItemId;
-      let previousQuantity;
+      let previousQuantity = 0;
       let newQuantity = item.quantity;
       
       if (existingItem?.id) {
@@ -357,7 +372,7 @@ const Index = () => {
       if (updatedItemId) {
         const now = new Date().toISOString();
         
-        const historyData: any = {
+        const historyData = {
           inventory_item_id: updatedItemId,
           action: item.action || 'set',
           name: item.name,
@@ -372,7 +387,7 @@ const Index = () => {
         };
         
         if (item.action === 'remove') {
-          historyData.exit_timestamp = now;
+          historyData['exit_timestamp'] = now;
         }
         
         const { error: historyError } = await supabase
