@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 interface TrainingEntry {
@@ -10,11 +11,11 @@ interface TrainingEntry {
 }
 
 // Define proper RPC function parameters
-interface SearchAssistantTraining {
+interface SearchAssistantTrainingParams {
   search_term: string;
 }
 
-interface AddAssistantTraining {
+interface AddAssistantTrainingParams {
   p_command: string;
   p_explanation: string;
 }
@@ -31,9 +32,9 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
     
     // Construim interogarea pentru a căuta intrări relevante în baza de date de antrenare
     const { data, error } = await supabase
-      .rpc('search_assistant_training', { 
+      .rpc<TrainingEntry[]>('search_assistant_training', { 
         search_term: keywords[0] 
-      });
+      } as SearchAssistantTrainingParams);
     
     if (error || !data || data.length === 0) {
       console.log("Nu am găsit date de antrenare relevante:", error);
@@ -41,7 +42,7 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
     }
     
     // Calculăm relevanța pentru fiecare intrare de antrenare
-    const rankedEntries = (data as TrainingEntry[]).map((entry: TrainingEntry) => {
+    const rankedEntries = data.map((entry: TrainingEntry) => {
       const relevanceScore = calculateRelevance(normalizedCommand, entry.command, keywords);
       return { ...entry, relevanceScore };
     });
@@ -105,10 +106,10 @@ const calculateRelevance = (userCommand: string, trainingCommand: string, keywor
 export const addTrainingEntry = async (command: string, explanation: string): Promise<boolean> => {
   try {
     const { error } = await supabase
-      .rpc('add_assistant_training', { 
+      .rpc<null>('add_assistant_training', { 
         p_command: command.toLowerCase(), 
         p_explanation: explanation 
-      });
+      } as AddAssistantTrainingParams);
       
     return !error;
   } catch (error) {
