@@ -72,7 +72,7 @@ const Index = () => {
         
         const improvedTranscript = improveVoiceCommand(transcriptText);
         if (improvedTranscript !== transcriptText) {
-          console.log("Transcriptul a fost îmbunătățit:", transcriptText, "->", improvedTranscript);
+          console.log("Transcriptul a fost îmbunătă��it:", transcriptText, "->", improvedTranscript);
           transcriptText = improvedTranscript;
           hasStockKeywords = true;
         }
@@ -287,14 +287,14 @@ const Index = () => {
         console.log("Creating new item:", item);
         const { data, error } = await supabase
           .from('inventory')
-          .insert([{
+          .insert({
             name: item.name,
             quantity: item.quantity,
             unit: item.unit,
             supplier: item.supplier,
             batch_number: item.batch_number,
-            receipt_date: item.receipt_date,
-          }])
+            receipt_date: item.receipt_date ? item.receipt_date.toISOString() : null,
+          })
           .select()
           .single();
         
@@ -334,7 +334,7 @@ const Index = () => {
             unit: item.unit,
             supplier: item.supplier,
             batch_number: item.batch_number,
-            receipt_date: item.receipt_date,
+            receipt_date: item.receipt_date ? item.receipt_date.toISOString() : null,
           })
           .eq('id', item.id);
         
@@ -350,7 +350,6 @@ const Index = () => {
         });
       }
       
-      // Save history
       const { data: oldItem } = await supabase
         .from('inventory')
         .select('*')
@@ -368,7 +367,7 @@ const Index = () => {
           previous_quantity: oldItem ? oldItem.quantity : 0,
           supplier: item.supplier,
           batch_number: item.batch_number,
-          operation_date: new Date(),
+          operation_date: new Date().toISOString(),
         });
       
       if (historyError) {
@@ -423,7 +422,6 @@ const Index = () => {
       
       setResponse(processedResponse);
       
-      // Învățare automată - asigurăm-ne că modulul este importat corect
       import("@/lib/AIAssistantTrainer").then(module => {
         module.learnFromConversation(input, processedResponse);
         console.log("Asistentul a învățat din conversație.");
