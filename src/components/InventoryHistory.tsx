@@ -31,7 +31,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
   const [dateRange, setDateRange] = useState<[Date | undefined, Date | undefined]>(
     initialDateRange || [undefined, undefined]
   );
-  const [actionFilter, setActionFilter] = useState<string>("");
+  const [actionFilter, setActionFilter] = useState<string>("all");
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -64,7 +64,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         query = query.lt('operation_date', endDate.toISOString());
       }
       
-      if (actionFilter) {
+      if (actionFilter && actionFilter !== "all") {
         query = query.eq('action', actionFilter);
       }
       
@@ -148,7 +148,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
               <SelectValue placeholder="Tip operațiune" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Toate operațiunile</SelectItem>
+              <SelectItem value="all">Toate operațiunile</SelectItem>
               <SelectItem value="add">Adăugare</SelectItem>
               <SelectItem value="remove">Eliminare</SelectItem>
               <SelectItem value="set">Setare</SelectItem>
@@ -226,7 +226,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
             ) : (
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-6 text-gray-500">
-                  {searchTerm || dateRange[0] || dateRange[1] || actionFilter
+                  {searchTerm || dateRange[0] || dateRange[1] || actionFilter !== "all"
                     ? "Nu s-au găsit operațiuni conform criteriilor de căutare"
                     : "Nu există operațiuni de stoc înregistrate"}
                 </TableCell>
