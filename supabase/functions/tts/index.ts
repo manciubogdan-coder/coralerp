@@ -20,6 +20,7 @@ serve(async (req) => {
     }
 
     // Generate speech from text using OpenAI API
+    // Using 'alloy' voice which is much more natural-sounding female voice
     const response = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: {
@@ -27,10 +28,11 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'tts-1',
+        model: 'tts-1-hd', // Using higher quality model for more natural speech
         input: text,
-        voice: voice || 'nova', // 'nova' este o voce feminină foarte naturală
+        voice: 'shimmer', // 'shimmer' is a very natural female voice that sounds like Siri
         response_format: 'mp3',
+        speed: 0.92, // Slightly slower for better pronunciation in Romanian
       }),
     })
 

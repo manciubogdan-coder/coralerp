@@ -22,9 +22,8 @@ export const speakText = (text: string) => {
         },
         body: JSON.stringify({ 
           text, 
-          // Folosim vocea 'nova' care este foarte naturală și feminină
-          // Alternativele sunt 'alloy', 'echo', 'fable', 'onyx', 'shimmer'
-          voice: 'nova' 
+          // Folosim vocea 'shimmer' care este foarte naturală, sună ca Siri
+          voice: 'shimmer'
         }),
       });
 
@@ -95,7 +94,7 @@ export const speakText = (text: string) => {
     utterance.lang = 'ro-RO';
     utterance.volume = 1;
     utterance.rate = 0.90;
-    utterance.pitch = 1.5;
+    utterance.pitch = 1.2;
 
     // Încercăm să găsim o voce feminină
     const voices = window.speechSynthesis.getVoices();

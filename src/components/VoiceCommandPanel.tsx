@@ -82,13 +82,13 @@ const VoiceCommandPanel = ({
             </div>
           </div>
           <CardDescription className={isMobile ? "text-xs" : ""}>
-            {isRecording ? 'Te ascult... spune-mi cum te pot ajuta' : 'Apasa pe microfon si spune-mi cum te pot ajuta'}
+            {isRecording ? 'Te ascult... termină-ți mesajul și aşteaptă 2 secunde' : 'Apasă pe microfon și spune-mi cum te pot ajuta'}
           </CardDescription>
         </CardHeader>
         <CardContent className={isMobile ? "p-3 pt-0" : ""}>
           {isRecording && transcript && (
             <>
-              <h4 className="text-sm font-medium mb-1">Se inregistreaza:</h4>
+              <h4 className="text-sm font-medium mb-1">Se înregistrează:</h4>
               <p className="text-sm italic text-gray-700 p-2 bg-gray-50 rounded">"{transcript}"</p>
             </>
           )}
@@ -99,18 +99,18 @@ const VoiceCommandPanel = ({
               Exemple de comenzi:
             </h4>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Badge variant="outline" className="bg-gray-50 text-xs">Adauga 5 kg de rosii</Badge>
-              <Badge variant="outline" className="bg-gray-50 text-xs">Adauga 50kg menta de la Magnani lot 1505</Badge>
+              <Badge variant="outline" className="bg-gray-50 text-xs">Adaugă 5 kg de roșii</Badge>
+              <Badge variant="outline" className="bg-gray-50 text-xs">Adaugă 50kg mentă de la Magnani lot 1505</Badge>
               <Badge variant="outline" className="bg-gray-50 text-xs">Scoate 2 kg de cartofi</Badge>
-              <Badge variant="outline" className="bg-gray-50 text-xs">Cate loturi de menta avem?</Badge>
+              <Badge variant="outline" className="bg-gray-50 text-xs">Câte loturi de mentă avem?</Badge>
               <Badge variant="outline" className="bg-gray-50 text-xs">Cât s-a consumat azi?</Badge>
               <Badge variant="outline" className="bg-gray-50 text-xs">Consumul de ieri</Badge>
               {!isMobile && (
                 <>
-                  <Badge variant="outline" className="bg-gray-50 text-xs">Arata stocul</Badge>
-                  <Badge variant="outline" className="bg-gray-50 text-xs">Cate produse avem in total?</Badge>
-                  <Badge variant="outline" className="bg-gray-50 text-xs">Ce produse expira in curand?</Badge>
-                  <Badge variant="outline" className="bg-gray-50 text-xs">Arata cantitatile pe furnizori</Badge>
+                  <Badge variant="outline" className="bg-gray-50 text-xs">Arată stocul</Badge>
+                  <Badge variant="outline" className="bg-gray-50 text-xs">Câte produse avem în total?</Badge>
+                  <Badge variant="outline" className="bg-gray-50 text-xs">Ce produse expiră în curând?</Badge>
+                  <Badge variant="outline" className="bg-gray-50 text-xs">Arată cantitățile pe furnizori</Badge>
                 </>
               )}
             </div>
