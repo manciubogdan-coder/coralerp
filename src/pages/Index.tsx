@@ -15,7 +15,7 @@ import { exportToExcel } from "@/lib/excelExport";
 import { sendEmail } from "@/lib/emailService";
 import { speakText } from "@/lib/speechService";
 import { supabase } from "@/integrations/supabase/client";
-import { useIsMobile } from "@/hooks/use-is-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
