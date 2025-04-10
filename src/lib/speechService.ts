@@ -22,8 +22,8 @@ export const speakText = (text: string) => {
         },
         body: JSON.stringify({ 
           text, 
-          // Folosim vocea 'shimmer' care este foarte naturală, sună ca Siri
-          voice: 'shimmer'
+          // Folosim vocea 'nova' care este foarte naturală și feminină
+          voice: 'nova'
         }),
       });
 
