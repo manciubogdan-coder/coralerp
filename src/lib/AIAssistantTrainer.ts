@@ -10,21 +10,9 @@ interface TrainingEntry {
   updated_at: string;
 }
 
-// Define proper types for our RPC function parameters and results
-type RPCResponse<T> = {
-  data: T | null;
-  error: Error | null;
-};
-
-// Define parameter types for our RPC functions
-interface SearchParams {
-  search_term: string;
-}
-
-interface AddTrainingParams {
-  p_command: string;
-  p_explanation: string;
-}
+// Define proper types for our RPC calls
+type SearchTrainingParams = { search_term: string };
+type AddTrainingParams = { p_command: string; p_explanation: string };
 
 export const getRelevantTrainingData = async (userCommand: string): Promise<string | null> => {
   try {
@@ -38,9 +26,9 @@ export const getRelevantTrainingData = async (userCommand: string): Promise<stri
     
     // Construim interogarea pentru a căuta intrări relevante în baza de date de antrenare
     const { data, error } = await supabase
-      .rpc<TrainingEntry[], SearchParams>('search_assistant_training', { 
+      .rpc('search_assistant_training', { 
         search_term: keywords[0] 
-      }) as RPCResponse<TrainingEntry[]>;
+      });
     
     if (error || !data || data.length === 0) {
       console.log("Nu am găsit date de antrenare relevante:", error);
@@ -112,10 +100,10 @@ const calculateRelevance = (userCommand: string, trainingCommand: string, keywor
 export const addTrainingEntry = async (command: string, explanation: string): Promise<boolean> => {
   try {
     const { error } = await supabase
-      .rpc<string, AddTrainingParams>('add_assistant_training', { 
+      .rpc('add_assistant_training', { 
         p_command: command.toLowerCase(), 
         p_explanation: explanation 
-      }) as RPCResponse<string>;
+      });
       
     return !error;
   } catch (error) {
