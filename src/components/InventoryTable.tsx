@@ -174,14 +174,14 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const getVisibleColumns = () => {
     if (isMobile) {
       return {
-        entryNumber: true,
+        entryNumber: false,
         date: true,
         name: true,
         quantity: true, 
         unit: true,
-        supplier: false,
-        manufacturer: false,
-        batch: false,
+        supplier: true,
+        manufacturer: true,
+        batch: true,
         documentNumber: false,
         crateType: false,
         netQuantity: false,
@@ -276,15 +276,15 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
               <TableRow>
                 {visibleColumns.entryNumber && <TableHead>Nr. crt</TableHead>}
                 {visibleColumns.date && <TableHead>Data</TableHead>}
-                {visibleColumns.supplier && <TableHead>Furnizor</TableHead>}
-                {visibleColumns.documentNumber && <TableHead>Nr. document</TableHead>}
                 <TableHead>Produs</TableHead>
-                {visibleColumns.manufacturer && <TableHead>Producător</TableHead>}
                 <TableHead className="text-right">Cantitate</TableHead>
                 <TableHead className="text-right">Unitate</TableHead>
+                {visibleColumns.supplier && <TableHead>Furnizor</TableHead>}
+                {visibleColumns.manufacturer && <TableHead>Producător</TableHead>}
+                {visibleColumns.batch && <TableHead>Nr. Lot</TableHead>}
+                {visibleColumns.documentNumber && <TableHead>Nr. document</TableHead>}
                 {visibleColumns.crateType && <TableHead>Tip ladită</TableHead>}
                 {visibleColumns.netQuantity && <TableHead className="text-right">Cant. netă</TableHead>}
-                {visibleColumns.batch && <TableHead>Nr. Lot</TableHead>}
                 {visibleColumns.updatedAt && <TableHead className="text-right">Ultima actualizare</TableHead>}
               </TableRow>
             </TableHeader>
@@ -308,14 +308,15 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                             : '-'}
                         </TableCell>
                       )}
-                      {visibleColumns.supplier && <TableCell>{supplierName || '-'}</TableCell>}
-                      {visibleColumns.documentNumber && <TableCell>{item.document_number || '-'}</TableCell>}
                       <TableCell className={item.isHeader ? "font-bold" : "font-medium"}>
                         {productName}
                       </TableCell>
-                      {visibleColumns.manufacturer && <TableCell>{manufacturerName || '-'}</TableCell>}
                       <TableCell className="text-right">{item.quantity}</TableCell>
                       <TableCell className="text-right">{item.unit}</TableCell>
+                      {visibleColumns.supplier && <TableCell>{supplierName || '-'}</TableCell>}
+                      {visibleColumns.manufacturer && <TableCell>{manufacturerName || '-'}</TableCell>}
+                      {visibleColumns.batch && <TableCell>{item.batch_number || '-'}</TableCell>}
+                      {visibleColumns.documentNumber && <TableCell>{item.document_number || '-'}</TableCell>}
                       {visibleColumns.crateType && (
                         <TableCell>
                           {crateTypeName ? `${crateTypeName} (${item.crate_count || 0} buc)` : '-'}
@@ -324,7 +325,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                       {visibleColumns.netQuantity && (
                         <TableCell className="text-right">{item.net_quantity || item.quantity}</TableCell>
                       )}
-                      {visibleColumns.batch && <TableCell>{item.batch_number || '-'}</TableCell>}
                       {visibleColumns.updatedAt && (
                         <TableCell className="text-right">
                           {item.updated_at 
