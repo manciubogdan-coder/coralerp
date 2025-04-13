@@ -1,3 +1,4 @@
+
 // Funcție pentru a converti textul în vorbire folosind OpenAI TTS API
 export const speakText = (text: string) => {
   // Verificăm dacă browserul suportă Audio API
@@ -391,7 +392,7 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
   
   console.log(`Verificare completitudine comandă ${action}:`, command);
   
-  // Improved regex patterns for better supplier recognition
+  // Improved regex patterns for better supplier and manufacturer recognition
   const productRegex = /(?:adaug[aă]|pun|bag|scoate|elimină|scot)\s+(?:([0-9]+(?:[,.][0-9]+)?)\s*(?:kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet))\s+(?:de\s+)?([a-zăîâșț]+)/i;
   const quantityRegex = /([0-9]+(?:[,.][0-9]+)?)\s*(?:kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet)/i;
   const unitRegex = /(?:[0-9]+(?:[,.][0-9]+)?)\s*(kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet)/i;
@@ -399,8 +400,10 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
   // Enhanced supplier regex pattern with more keywords
   const supplierRegex = /(?:de\s+la|furnizor|furnizorul|de\s+la\s+furnizorul|primit\s+de\s+la|adus\s+de\s+la|livrat\s+de|de\s+la\s+firma)\s+([a-zăîâșț]+)/i;
   
-  const batchRegex = /(?:lot|lotul|lotului|numar\s+lot|număr\s+lot)\s+([a-z0-9]+)/i;
-  const manufacturerRegex = /(?:produc[aă]tor|produc[aă]torul|fabricat\s+de)\s+([a-zăîâșț]+)/i;
+  // Enhanced manufacturer regex pattern with more keywords
+  const manufacturerRegex = /(?:produc[aă]tor(?:ul)?|fabricat\s+de|fabricant(?:ul)?|marca|brand(?:ul)?|compania|făcut\s+de)\s+([a-zăîâșț]+)/i;
+  
+  const batchRegex = /(?:lot|lotul|lotului|numar\s+lot|număr\s+lot|cod\s+lot)\s+([a-z0-9]+)/i;
   const crateRegex = /(?:pe|în|in)\s+([0-9]+)\s+(?:lăz|lazi|l[aă]di[țt][aăe]|cutii|cutie|crate|crates)/i;
   const documentRegex = /(?:document|factur[aă]|aviz|bon|numar\s+factura|număr\s+factură)\s+([a-z0-9]+)/i;
   
@@ -424,6 +427,12 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
   let crateCount = crateMatch ? parseInt(crateMatch[1]) : null;
   let documentNumber = documentMatch ? documentMatch[1] : null;
   
+  console.log("Extragere inițială:", { 
+    product, quantity, unit, 
+    supplier, manufacturer, batch, 
+    crateCount, documentNumber 
+  });
+  
   // Special case check for supplier information
   if (!supplier && normalizedCmd.includes('de la')) {
     const simpleSupplierMatch = normalizedCmd.match(/de\s+la\s+([a-zăîâșț]+)/i);
@@ -431,6 +440,49 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
         !['lot', 'lotul', 'producator', 'producător'].includes(simpleSupplierMatch[1])) {
       supplier = simpleSupplierMatch[1];
       console.log("Furnizor detectat cu regula simplă:", supplier);
+    }
+  }
+  
+  // Special case check for manufacturer information
+  if (!manufacturer) {
+    // Verifică diferite formulări pentru producător
+    const manufacturerPatterns = [
+      /(?:marca|brand(?:ul)?|compania)\s+([a-zăîâșț]+)/i,
+      /(?:produs(?:e)?)\s+(?:de|din|la)\s+([a-zăîâșț]+)(?:\s|$)/i,
+      /(?:făcut|fabricat)\s+(?:de|la)\s+([a-zăîâșț]+)(?:\s|$)/i
+    ];
+    
+    for (const pattern of manufacturerPatterns) {
+      const match = normalizedCmd.match(pattern);
+      if (match && match[1]) {
+        // Verificăm că nu e furnizorul pentru a evita confuziile
+        if (match[1] !== supplier) {
+          manufacturer = match[1];
+          console.log("Producător detectat cu pattern alternativ:", manufacturer);
+          break;
+        }
+      }
+    }
+  }
+  
+  // Verifică după conflict între producător și lot
+  // Dacă atât producătorul cât și lotul au fost extrase din același text
+  if (manufacturer && batch && normalizedCmd.indexOf(manufacturer) === normalizedCmd.indexOf(batch)) {
+    // Verifică contextul pentru a decide care este corect
+    const manufacturerContext = /produc[aă]tor|fabricat|marc[aă]|brand/i;
+    const batchContext = /lot|cod/i;
+    
+    // Verificăm câteva cuvinte înaintea valorii pentru a determina contextul
+    const textBeforeValue = normalizedCmd.substring(0, normalizedCmd.indexOf(manufacturer));
+    
+    if (textBeforeValue.match(manufacturerContext)) {
+      // Este cel mai probabil producătorul, anulăm lotul
+      console.log("Conflict rezolvat în favoarea producătorului:", manufacturer);
+      batch = null;
+    } else if (textBeforeValue.match(batchContext)) {
+      // Este cel mai probabil lotul, anulăm producătorul
+      console.log("Conflict rezolvat în favoarea lotului:", batch);
+      manufacturer = null;
     }
   }
   
@@ -443,7 +495,11 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
     }
   }
   
-  console.log("Informații extrase:", { product, quantity, unit, supplier, batch, manufacturer, crateCount, documentNumber });
+  console.log("Informații extrase și corecțiile aplicate:", { 
+    product, quantity, unit, 
+    supplier, manufacturer, batch, 
+    crateCount, documentNumber 
+  });
   
   // Verificăm dacă informațiile extrase sunt suficiente
   const missingFields = [];
@@ -580,7 +636,7 @@ export function parseUserResponse(response: string, missingFields: string[], par
   const unitRegex = /(?:[0-9]+(?:[,.][0-9]+)?)\s*(kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet)/i;
   const supplierRegex = /(?:furnizor(?:ul)?|de la)\s+([a-zăîâșț]+)/i;
   const batchRegex = /(?:lot(?:ul)?)\s+([a-z0-9]+)/i;
-  const manufacturerRegex = /(?:producător(?:ul)?)\s+([a-zăîâșț]+)/i;
+  const manufacturerRegex = /(?:producător(?:ul)?|fabricat de|marca)\s+([a-zăîâșț]+)/i;
   const documentRegex = /(?:document(?:ul)?|factur[aă]|aviz|bon)\s+([a-z0-9]+)/i;
   const crateRegex = /([0-9]+)\s+(?:lăz|lazi|l[aă]di[țt][aăe]|cutii|cutie|crate|crates)/i;
   
@@ -634,7 +690,7 @@ export function parseUserResponse(response: string, missingFields: string[], par
     }
   }
   
-  if (missingFields.includes('producatorul')) {
+  if (missingFields.includes('producătorul') || missingFields.includes('producatorul')) {
     const match = manufacturerRegex.exec(normalizedResponse);
     if (match) {
       data.manufacturer = match[1];
@@ -731,3 +787,4 @@ export function getMissingFieldsQuestion(missingFields: string[], action: 'add' 
   
   return `Te rog să-mi spui <strong>${missingFields[0]}</strong> pentru a putea ${actionVerb} în inventar.`;
 }
+
