@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-custom-toast";
 import { Pencil, Trash, Plus, Save, X, FileDown, Mail } from "lucide-react";
@@ -111,7 +112,8 @@ const InventoryManagement = () => {
       if (error) throw error;
       
       if (data) {
-        setNextEntryNumber(data as number);
+        setNextEntryNumber(data);
+        console.log("Next entry number:", data);
       }
     } catch (error) {
       console.error("Error fetching next entry number:", error);
@@ -143,12 +145,8 @@ const InventoryManagement = () => {
         throw error;
       }
 
-      const formattedData = data.map(item => ({
-        ...item,
-        supplier_name: item.suppliers ? item.suppliers.name : item.supplier
-      }));
-
-      setInventory(formattedData || []);
+      console.log("Inventory data:", data);
+      setInventory(data || []);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -171,6 +169,7 @@ const InventoryManagement = () => {
         throw error;
       }
 
+      console.log("Suppliers data:", data);
       setSuppliers(data || []);
     } catch (error: any) {
       console.error("Error fetching suppliers:", error);
@@ -188,6 +187,7 @@ const InventoryManagement = () => {
         throw error;
       }
 
+      console.log("Products data:", data);
       setProducts(data || []);
     } catch (error: any) {
       console.error("Error fetching products:", error);
@@ -205,6 +205,7 @@ const InventoryManagement = () => {
         throw error;
       }
 
+      console.log("Manufacturers data:", data);
       setManufacturers(data || []);
     } catch (error: any) {
       console.error("Error fetching manufacturers:", error);
@@ -222,6 +223,7 @@ const InventoryManagement = () => {
         throw error;
       }
 
+      console.log("Crate types data:", data);
       setCrateTypes(data || []);
     } catch (error: any) {
       console.error("Error fetching crate types:", error);
@@ -258,7 +260,7 @@ const InventoryManagement = () => {
     crateTypeId: string | undefined | null, 
     crateCount: number | undefined | null
   ) => {
-    if (!gross || !crateTypeId || !crateCount) {
+    if (!gross || !crateTypeId || !crateCount || crateCount <= 0) {
       return gross || 0;
     }
     
@@ -299,12 +301,13 @@ const InventoryManagement = () => {
         }
       }
 
-      let grossQuantity = Number(newItem.quantity);
+      const grossQuantity = Number(newItem.gross_quantity || newItem.quantity || 0);
       let netQuantity = grossQuantity;
       
       if (newItem.crate_type_id && newItem.crate_count && newItem.crate_count > 0) {
         const selectedCrateType = crateTypes.find(ct => ct.id === newItem.crate_type_id);
         if (selectedCrateType) {
+          newItem.crate_weight = selectedCrateType.weight;
           const totalCrateWeight = selectedCrateType.weight * newItem.crate_count;
           netQuantity = Math.max(0, grossQuantity - totalCrateWeight);
         }
@@ -314,12 +317,31 @@ const InventoryManagement = () => {
         ? new Date(newItem.receipt_date).toISOString() 
         : new Date().toISOString();
 
+      console.log("Saving new item with data:", {
+        name: newItem.name,
+        quantity: netQuantity,
+        gross_quantity: grossQuantity,
+        net_quantity: netQuantity,
+        unit: newItem.unit,
+        supplier_id: newItem.supplier_id,
+        product_id: newItem.product_id,
+        manufacturer_id: newItem.manufacturer_id,
+        batch_number: newItem.batch_number,
+        document_number: newItem.document_number,
+        crate_type_id: newItem.crate_type_id,
+        crate_count: newItem.crate_count,
+        crate_weight: newItem.crate_weight,
+        receipt_date: receiptDate
+      });
+
       const { data, error } = await supabase
         .from("inventory")
         .insert([
           {
             name: newItem.name,
-            quantity: netQuantity, // Cantitatea netă
+            quantity: netQuantity,
+            gross_quantity: grossQuantity,
+            net_quantity: netQuantity,
             unit: newItem.unit,
             supplier_id: newItem.supplier_id || null,
             product_id: newItem.product_id || null,
@@ -328,10 +350,8 @@ const InventoryManagement = () => {
             receipt_date: receiptDate,
             crate_type_id: newItem.crate_type_id || null,
             crate_count: newItem.crate_count || null,
-            gross_quantity: grossQuantity,
-            net_quantity: netQuantity,
-            document_number: newItem.document_number || null,
-            entry_number: newItem.entry_number
+            crate_weight: newItem.crate_weight || null,
+            document_number: newItem.document_number || null
           },
         ])
         .select();
@@ -346,8 +366,8 @@ const InventoryManagement = () => {
       });
 
       setIsAddingNew(false);
-      await getNextEntryNumber(); // Actualizăm următorul număr de intrare
-      fetchInventory(); // Reîncărcăm lista de inventar
+      await getNextEntryNumber();
+      fetchInventory();
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -389,12 +409,13 @@ const InventoryManagement = () => {
         }
       }
 
-      let grossQuantity = Number(editItem.gross_quantity || editItem.quantity);
+      const grossQuantity = Number(editItem.gross_quantity || editItem.quantity || 0);
       let netQuantity = grossQuantity;
       
       if (editItem.crate_type_id && editItem.crate_count && editItem.crate_count > 0) {
         const selectedCrateType = crateTypes.find(ct => ct.id === editItem.crate_type_id);
         if (selectedCrateType) {
+          editItem.crate_weight = selectedCrateType.weight;
           const totalCrateWeight = selectedCrateType.weight * editItem.crate_count;
           netQuantity = Math.max(0, grossQuantity - totalCrateWeight);
         }
@@ -404,11 +425,31 @@ const InventoryManagement = () => {
         ? new Date(editItem.receipt_date).toISOString() 
         : null;
 
+      console.log("Updating item with data:", {
+        id: editItem.id,
+        name: editItem.name,
+        quantity: netQuantity,
+        gross_quantity: grossQuantity,
+        net_quantity: netQuantity,
+        unit: editItem.unit,
+        supplier_id: editItem.supplier_id,
+        product_id: editItem.product_id,
+        manufacturer_id: editItem.manufacturer_id,
+        batch_number: editItem.batch_number,
+        document_number: editItem.document_number,
+        crate_type_id: editItem.crate_type_id,
+        crate_count: editItem.crate_count,
+        crate_weight: editItem.crate_weight,
+        receipt_date: receiptDate
+      });
+
       const { error } = await supabase
         .from("inventory")
         .update({
           name: editItem.name,
-          quantity: netQuantity, // Cantitatea netă
+          quantity: netQuantity,
+          gross_quantity: grossQuantity,
+          net_quantity: netQuantity,
           unit: editItem.unit,
           supplier_id: editItem.supplier_id || null,
           product_id: editItem.product_id || null,
@@ -417,8 +458,7 @@ const InventoryManagement = () => {
           receipt_date: receiptDate,
           crate_type_id: editItem.crate_type_id || null,
           crate_count: editItem.crate_count || null,
-          gross_quantity: grossQuantity,
-          net_quantity: netQuantity,
+          crate_weight: editItem.crate_weight || null,
           document_number: editItem.document_number || null,
         })
         .eq("id", editItem.id);
@@ -526,10 +566,10 @@ const InventoryManagement = () => {
   const handleCrateTypeChange = (crateTypeId: string, targetState: any, setTargetState: any) => {
     const selectedCrateType = crateTypes.find(ct => ct.id === crateTypeId);
     
-    if (selectedCrateType && targetState.crate_count && targetState.quantity) {
+    if (selectedCrateType && targetState.crate_count && targetState.crate_count > 0) {
       const crateWeight = selectedCrateType.weight;
       const totalCrateWeight = crateWeight * targetState.crate_count;
-      const grossQuantity = targetState.gross_quantity || targetState.quantity;
+      const grossQuantity = targetState.gross_quantity || targetState.quantity || 0;
       const netQuantity = Math.max(0, grossQuantity - totalCrateWeight);
       
       setTargetState({
@@ -552,7 +592,7 @@ const InventoryManagement = () => {
     if (targetState.crate_type_id) {
       const selectedCrateType = crateTypes.find(ct => ct.id === targetState.crate_type_id);
       if (selectedCrateType) {
-        const grossQuantity = targetState.gross_quantity || targetState.quantity;
+        const grossQuantity = targetState.gross_quantity || targetState.quantity || 0;
         const totalCrateWeight = selectedCrateType.weight * crateCount;
         const netQuantity = Math.max(0, grossQuantity - totalCrateWeight);
         
@@ -579,7 +619,7 @@ const InventoryManagement = () => {
   const handleGrossQuantityChange = (grossQuantity: number, targetState: any, setTargetState: any) => {
     let netQuantity = grossQuantity;
     
-    if (targetState.crate_type_id && targetState.crate_count) {
+    if (targetState.crate_type_id && targetState.crate_count && targetState.crate_count > 0) {
       const selectedCrateType = crateTypes.find(ct => ct.id === targetState.crate_type_id);
       if (selectedCrateType) {
         const totalCrateWeight = selectedCrateType.weight * targetState.crate_count;
