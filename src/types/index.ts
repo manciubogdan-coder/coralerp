@@ -1,4 +1,3 @@
-
 // Inventory related interfaces
 export interface InventoryItem {
   id?: string;

@@ -184,7 +184,7 @@ const Index = () => {
             nanoseconds: 0
           },
           document_number: item.document_number,
-          manufacturer: item.manufacturer_id ? item.manufacturer_id : undefined,
+          manufacturer_id: item.manufacturer_id ? item.manufacturer_id : undefined,
           crate_count: item.crate_count,
           crate_type_id: item.crate_type_id,
           net_quantity: item.net_quantity
@@ -449,7 +449,7 @@ const Index = () => {
         console.log("Creating new inventory entry:", item);
         
         const { data, error } = await supabase
-          .from('inventory')
+          .from("inventory")
           .insert({
             name: item.name,
             quantity: item.quantity,
@@ -458,7 +458,7 @@ const Index = () => {
             batch_number: item.batch_number,
             receipt_date: item.receipt_date ? formatToISOString(item.receipt_date) : null,
             document_number: item.document_number,
-            manufacturer_id: item.manufacturer,
+            manufacturer_id: item.manufacturer_id,
             crate_count: item.crate_count || 0,
             crate_type_id: item.crate_count && item.crate_count > 0 ? 
               "00000000-0000-0000-0000-000000000001" : null
@@ -477,7 +477,7 @@ const Index = () => {
           batch_number: data.batch_number || undefined,
           receipt_date: data.receipt_date ? new Date(data.receipt_date) : undefined,
           document_number: data.document_number,
-          manufacturer: data.manufacturer_id,
+          manufacturer_id: data.manufacturer_id,
           crate_count: data.crate_count,
           crate_type_id: data.crate_type_id,
           net_quantity: data.net_quantity,
