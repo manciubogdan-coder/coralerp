@@ -27,89 +27,209 @@ export type Database = {
         }
         Relationships: []
       }
+      crate_types: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          weight?: number
+        }
+        Relationships: []
+      }
       inventory: {
         Row: {
           batch_number: string | null
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
           created_at: string | null
+          document_number: string | null
+          entry_number: number
+          gross_quantity: number | null
           id: string
+          manufacturer_id: string | null
           name: string
+          net_quantity: number | null
+          product_id: string | null
           quantity: number
           receipt_date: string | null
           supplier: string | null
+          supplier_id: string | null
           unit: string
           updated_at: string | null
         }
         Insert: {
           batch_number?: string | null
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
           created_at?: string | null
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
           id?: string
+          manufacturer_id?: string | null
           name: string
+          net_quantity?: number | null
+          product_id?: string | null
           quantity?: number
           receipt_date?: string | null
           supplier?: string | null
+          supplier_id?: string | null
           unit: string
           updated_at?: string | null
         }
         Update: {
           batch_number?: string | null
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
           created_at?: string | null
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
           id?: string
+          manufacturer_id?: string | null
           name?: string
+          net_quantity?: number | null
+          product_id?: string | null
           quantity?: number
           receipt_date?: string | null
           supplier?: string | null
+          supplier_id?: string | null
           unit?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "inventory_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "crate_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       inventory_history: {
         Row: {
           action: string
           batch_number: string | null
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
+          document_number: string | null
           exit_timestamp: string | null
+          gross_quantity: number | null
           id: string
           inventory_item_id: string | null
+          manufacturer_id: string | null
           name: string
+          net_quantity: number | null
           notes: string | null
           operation_date: string
           pallets: number | null
           previous_quantity: number | null
+          product_id: string | null
           quantity: number
           supplier: string | null
+          supplier_id: string | null
           unit: string
         }
         Insert: {
           action: string
           batch_number?: string | null
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          document_number?: string | null
           exit_timestamp?: string | null
+          gross_quantity?: number | null
           id?: string
           inventory_item_id?: string | null
+          manufacturer_id?: string | null
           name: string
+          net_quantity?: number | null
           notes?: string | null
           operation_date?: string
           pallets?: number | null
           previous_quantity?: number | null
+          product_id?: string | null
           quantity: number
           supplier?: string | null
+          supplier_id?: string | null
           unit: string
         }
         Update: {
           action?: string
           batch_number?: string | null
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          document_number?: string | null
           exit_timestamp?: string | null
+          gross_quantity?: number | null
           id?: string
           inventory_item_id?: string | null
+          manufacturer_id?: string | null
           name?: string
+          net_quantity?: number | null
           notes?: string | null
           operation_date?: string
           pallets?: number | null
           previous_quantity?: number | null
+          product_id?: string | null
           quantity?: number
           supplier?: string | null
+          supplier_id?: string | null
           unit?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "inventory_history_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "crate_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inventory_history_inventory_item_id_fkey"
             columns: ["inventory_item_id"]
@@ -124,7 +244,112 @@ export type Database = {
             referencedRelation: "inventory_with_history"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "inventory_history_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_history_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_history_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      manufacturers: {
+        Row: {
+          country: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          created_at: string
+          default_unit: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_unit?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_unit?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      suppliers: {
+        Row: {
+          contact: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          contact?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contact?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

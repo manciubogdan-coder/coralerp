@@ -17,7 +17,7 @@ import { ro } from "date-fns/locale";
 import { Search, Calendar as CalendarIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { InventoryHistoryItem } from "@/types";
+import { InventoryHistoryItem, Supplier, Product, Manufacturer, CrateType } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 
 interface InventoryHistoryProps {
@@ -39,6 +39,15 @@ interface InventoryHistoryResponse {
   operation_date: string;
   exit_timestamp: string | null;
   notes: string | null;
+  document_number: string | null;
+  supplier_id: string | null;
+  product_id: string | null;
+  manufacturer_id: string | null;
+  crate_type_id: string | null;
+  crate_count: number | null;
+  gross_quantity: number | null;
+  net_quantity: number | null;
+  crate_weight: number | null;
 }
 
 const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryProps) => {
@@ -51,11 +60,61 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [suppliers, setSuppliers] = useState<Record<string, Supplier>>({});
+  const [products, setProducts] = useState<Record<string, Product>>({});
+  const [manufacturers, setManufacturers] = useState<Record<string, Manufacturer>>({});
+  const [crateTypes, setCrateTypes] = useState<Record<string, CrateType>>({});
   const limit = 10;
   
   useEffect(() => {
+    const fetchReferenceData = async () => {
+      // Fetch suppliers
+      const { data: suppliersData } = await supabase.from('suppliers').select('*');
+      if (suppliersData) {
+        const suppliersMap = suppliersData.reduce((acc, supplier) => {
+          acc[supplier.id] = supplier;
+          return acc;
+        }, {} as Record<string, Supplier>);
+        setSuppliers(suppliersMap);
+      }
+
+      // Fetch products
+      const { data: productsData } = await supabase.from('products').select('*');
+      if (productsData) {
+        const productsMap = productsData.reduce((acc, product) => {
+          acc[product.id] = product;
+          return acc;
+        }, {} as Record<string, Product>);
+        setProducts(productsMap);
+      }
+
+      // Fetch manufacturers
+      const { data: manufacturersData } = await supabase.from('manufacturers').select('*');
+      if (manufacturersData) {
+        const manufacturersMap = manufacturersData.reduce((acc, manufacturer) => {
+          acc[manufacturer.id] = manufacturer;
+          return acc;
+        }, {} as Record<string, Manufacturer>);
+        setManufacturers(manufacturersMap);
+      }
+
+      // Fetch crate types
+      const { data: crateTypesData } = await supabase.from('crate_types').select('*');
+      if (crateTypesData) {
+        const crateTypesMap = crateTypesData.reduce((acc, crateType) => {
+          acc[crateType.id] = crateType;
+          return acc;
+        }, {} as Record<string, CrateType>);
+        setCrateTypes(crateTypesMap);
+      }
+    };
+
+    fetchReferenceData();
+  }, []);
+  
+  useEffect(() => {
     fetchHistory();
-  }, [searchTerm, dateRange, actionFilter, page]);
+  }, [searchTerm, dateRange, actionFilter, page, suppliers, products, manufacturers, crateTypes]);
 
   const fetchHistory = async () => {
     try {
@@ -101,7 +160,16 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         unit: item.unit,
         previous_quantity: item.previous_quantity ? Number(item.previous_quantity) : undefined,
         supplier: item.supplier || undefined,
+        supplier_id: item.supplier_id || undefined,
+        product_id: item.product_id || undefined,
+        manufacturer_id: item.manufacturer_id || undefined,
         batch_number: item.batch_number || undefined,
+        document_number: item.document_number || undefined,
+        crate_type_id: item.crate_type_id || undefined,
+        crate_count: item.crate_count !== null ? Number(item.crate_count) : undefined,
+        gross_quantity: item.gross_quantity !== null ? Number(item.gross_quantity) : undefined,
+        net_quantity: item.net_quantity !== null ? Number(item.net_quantity) : undefined,
+        crate_weight: item.crate_weight !== null ? Number(item.crate_weight) : undefined,
         operation_date: new Date(item.operation_date),
         exit_timestamp: item.exit_timestamp ? new Date(item.exit_timestamp) : undefined,
         notes: item.notes || undefined
@@ -203,46 +271,63 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
               <TableHead>Dată operațiune</TableHead>
               <TableHead>Acțiune</TableHead>
               <TableHead>Produs</TableHead>
+              <TableHead>Nr. document</TableHead>
+              <TableHead>Furnizor</TableHead>
+              <TableHead>Producător</TableHead>
               <TableHead className="text-right">Cantitate</TableHead>
               <TableHead>Unitate</TableHead>
+              <TableHead>Tip ladită</TableHead>
+              <TableHead className="text-right">Cantitate netă</TableHead>
               <TableHead className="text-right">Cantitate anterioară</TableHead>
-              <TableHead>Furnizor</TableHead>
               <TableHead>Lot</TableHead>
               <TableHead>Ora ieșire</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {history.length > 0 ? (
-              history.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="whitespace-nowrap">
-                    {format(item.operation_date, 'dd.MM.yyyy HH:mm')}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getActionColor(item.action)}>
-                      {getActionTranslation(item.action)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-medium">{item.name}</TableCell>
-                  <TableCell className="text-right">{item.quantity}</TableCell>
-                  <TableCell>{item.unit}</TableCell>
-                  <TableCell className="text-right">
-                    {item.previous_quantity !== undefined 
-                      ? item.previous_quantity 
-                      : '-'}
-                  </TableCell>
-                  <TableCell>{item.supplier || '-'}</TableCell>
-                  <TableCell>{item.batch_number || '-'}</TableCell>
-                  <TableCell>
-                    {item.action === 'remove' && item.exit_timestamp
-                      ? format(item.exit_timestamp, 'dd.MM.yyyy HH:mm:ss')
-                      : '-'}
-                  </TableCell>
-                </TableRow>
-              ))
+              history.map((item) => {
+                const productName = item.product_id ? products[item.product_id]?.name : item.name;
+                const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
+                const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : '';
+                const crateTypeName = item.crate_type_id ? crateTypes[item.crate_type_id]?.name : '';
+                
+                return (
+                  <TableRow key={item.id}>
+                    <TableCell className="whitespace-nowrap">
+                      {format(item.operation_date, 'dd.MM.yyyy HH:mm')}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getActionColor(item.action)}>
+                        {getActionTranslation(item.action)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium">{productName}</TableCell>
+                    <TableCell>{item.document_number || '-'}</TableCell>
+                    <TableCell>{supplierName || '-'}</TableCell>
+                    <TableCell>{manufacturerName || '-'}</TableCell>
+                    <TableCell className="text-right">{item.quantity}</TableCell>
+                    <TableCell>{item.unit}</TableCell>
+                    <TableCell>
+                      {crateTypeName ? `${crateTypeName} (${item.crate_count || 0} buc)` : '-'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {item.net_quantity !== undefined ? item.net_quantity : item.quantity}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {item.previous_quantity !== undefined ? item.previous_quantity : '-'}
+                    </TableCell>
+                    <TableCell>{item.batch_number || '-'}</TableCell>
+                    <TableCell>
+                      {item.action === 'remove' && item.exit_timestamp
+                        ? format(item.exit_timestamp, 'dd.MM.yyyy HH:mm:ss')
+                        : '-'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={13} className="text-center py-6 text-gray-500">
                   {searchTerm || dateRange[0] || dateRange[1] || actionFilter !== "all"
                     ? "Nu s-au găsit operațiuni conform criteriilor de căutare"
                     : "Nu există operațiuni de stoc înregistrate"}

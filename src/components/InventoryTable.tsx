@@ -3,10 +3,11 @@ import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Search, Filter, Eye, EyeOff } from "lucide-react";
-import { InventoryItem } from "@/types";
+import { InventoryItem, Supplier, Product, Manufacturer, CrateType } from "@/types";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { supabase } from "@/integrations/supabase/client";
 
 interface InventoryTableProps {
   inventory: InventoryItem[];
@@ -18,18 +19,76 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const [groupByBatch, setGroupByBatch] = useState(false);
   const [groupByProduct, setGroupByProduct] = useState(false);
   const [showEmptyItems, setShowEmptyItems] = useState(false);
+  const [suppliers, setSuppliers] = useState<Record<string, Supplier>>({});
+  const [products, setProducts] = useState<Record<string, Product>>({});
+  const [manufacturers, setManufacturers] = useState<Record<string, Manufacturer>>({});
+  const [crateTypes, setCrateTypes] = useState<Record<string, CrateType>>({});
   const isMobile = useIsMobile();
+  
+  React.useEffect(() => {
+    const fetchReferenceData = async () => {
+      // Fetch suppliers
+      const { data: suppliersData } = await supabase.from('suppliers').select('*');
+      if (suppliersData) {
+        const suppliersMap = suppliersData.reduce((acc, supplier) => {
+          acc[supplier.id] = supplier;
+          return acc;
+        }, {} as Record<string, Supplier>);
+        setSuppliers(suppliersMap);
+      }
+
+      // Fetch products
+      const { data: productsData } = await supabase.from('products').select('*');
+      if (productsData) {
+        const productsMap = productsData.reduce((acc, product) => {
+          acc[product.id] = product;
+          return acc;
+        }, {} as Record<string, Product>);
+        setProducts(productsMap);
+      }
+
+      // Fetch manufacturers
+      const { data: manufacturersData } = await supabase.from('manufacturers').select('*');
+      if (manufacturersData) {
+        const manufacturersMap = manufacturersData.reduce((acc, manufacturer) => {
+          acc[manufacturer.id] = manufacturer;
+          return acc;
+        }, {} as Record<string, Manufacturer>);
+        setManufacturers(manufacturersMap);
+      }
+
+      // Fetch crate types
+      const { data: crateTypesData } = await supabase.from('crate_types').select('*');
+      if (crateTypesData) {
+        const crateTypesMap = crateTypesData.reduce((acc, crateType) => {
+          acc[crateType.id] = crateType;
+          return acc;
+        }, {} as Record<string, CrateType>);
+        setCrateTypes(crateTypesMap);
+      }
+    };
+
+    fetchReferenceData();
+  }, []);
   
   // Filter out items with zero quantity unless explicitly showing empty items
   const nonEmptyInventory = showEmptyItems 
     ? inventory 
     : inventory.filter(item => item.quantity > 0);
     
-  const filteredInventory = nonEmptyInventory.filter(item =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.supplier && item.supplier.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (item.batch_number && item.batch_number.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredInventory = nonEmptyInventory.filter(item => {
+    const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
+    const productName = item.product_id ? products[item.product_id]?.name : item.name;
+    const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : undefined;
+
+    return (
+      productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (supplierName && supplierName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.batch_number && item.batch_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (manufacturerName && manufacturerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.document_number && item.document_number.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  });
   
   // Group inventory items if needed
   let displayedInventory = filteredInventory;
@@ -38,10 +97,11 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     const productMap = new Map<string, InventoryItem[]>();
     
     filteredInventory.forEach(item => {
-      if (!productMap.has(item.name)) {
-        productMap.set(item.name, []);
+      const productName = item.product_id ? products[item.product_id]?.name : item.name;
+      if (!productMap.has(productName)) {
+        productMap.set(productName, []);
       }
-      productMap.get(item.name)!.push(item);
+      productMap.get(productName)!.push(item);
     });
     
     displayedInventory = Array.from(productMap).flatMap(([product, items]) => {
@@ -61,11 +121,11 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     const supplierMap = new Map<string, InventoryItem[]>();
     
     filteredInventory.forEach(item => {
-      const supplier = item.supplier || 'Necunoscut';
-      if (!supplierMap.has(supplier)) {
-        supplierMap.set(supplier, []);
+      const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : (item.supplier || 'Necunoscut');
+      if (!supplierMap.has(supplierName)) {
+        supplierMap.set(supplierName, []);
       }
-      supplierMap.get(supplier)!.push(item);
+      supplierMap.get(supplierName)!.push(item);
     });
     
     displayedInventory = Array.from(supplierMap).flatMap(([supplier, items]) => {
@@ -111,22 +171,32 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const getVisibleColumns = () => {
     if (isMobile) {
       return {
+        entryNumber: true,
+        date: true,
         name: true,
         quantity: true, 
         unit: true,
         supplier: false,
+        manufacturer: false,
         batch: false,
-        receiptDate: false,
+        documentNumber: false,
+        crateType: false,
+        netQuantity: false,
         updatedAt: false
       };
     }
     return {
+      entryNumber: true,
+      date: true,
       name: true,
       quantity: true,
       unit: true,
       supplier: true,
+      manufacturer: true,
       batch: true,
-      receiptDate: true,
+      documentNumber: true,
+      crateType: true,
+      netQuantity: true,
       updatedAt: true
     };
   };
@@ -201,51 +271,74 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
           <Table>
             <TableHeader className="sticky top-0 bg-white">
               <TableRow>
+                {visibleColumns.entryNumber && <TableHead>Nr. crt</TableHead>}
+                {visibleColumns.date && <TableHead>Data</TableHead>}
+                {visibleColumns.supplier && <TableHead>Furnizor</TableHead>}
+                {visibleColumns.documentNumber && <TableHead>Nr. document</TableHead>}
                 <TableHead>Produs</TableHead>
+                {visibleColumns.manufacturer && <TableHead>Producător</TableHead>}
                 <TableHead className="text-right">Cantitate</TableHead>
                 <TableHead className="text-right">Unitate</TableHead>
-                {visibleColumns.supplier && <TableHead>Furnizor</TableHead>}
+                {visibleColumns.crateType && <TableHead>Tip ladită</TableHead>}
+                {visibleColumns.netQuantity && <TableHead className="text-right">Cant. netă</TableHead>}
                 {visibleColumns.batch && <TableHead>Nr. Lot</TableHead>}
-                {visibleColumns.receiptDate && <TableHead className="text-right">Data recepției</TableHead>}
                 {visibleColumns.updatedAt && <TableHead className="text-right">Ultima actualizare</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {displayedInventory.length > 0 ? (
-                displayedInventory.map((item) => (
-                  <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
-                    <TableCell className={item.isHeader ? "font-bold" : "font-medium"}>
-                      {item.name}
-                    </TableCell>
-                    <TableCell className="text-right">{item.quantity}</TableCell>
-                    <TableCell className="text-right">{item.unit}</TableCell>
-                    {visibleColumns.supplier && <TableCell>{item.supplier || '-'}</TableCell>}
-                    {visibleColumns.batch && <TableCell>{item.batch_number || '-'}</TableCell>}
-                    {visibleColumns.receiptDate && (
-                      <TableCell className="text-right">
-                        {item.receipt_date 
-                          ? new Date(item.receipt_date).toLocaleDateString('ro-RO') 
-                          : '-'}
+                displayedInventory.map((item) => {
+                  const productName = item.product_id ? products[item.product_id]?.name : item.name;
+                  const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
+                  const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : '';
+                  const crateTypeName = item.crate_type_id ? crateTypes[item.crate_type_id]?.name : '';
+                  
+                  return (
+                    <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
+                      {visibleColumns.entryNumber && <TableCell>{item.entry_number || '-'}</TableCell>}
+                      {visibleColumns.date && (
+                        <TableCell>
+                          {item.receipt_date 
+                            ? new Date(item.receipt_date).toLocaleDateString('ro-RO') 
+                            : '-'}
+                        </TableCell>
+                      )}
+                      {visibleColumns.supplier && <TableCell>{supplierName || '-'}</TableCell>}
+                      {visibleColumns.documentNumber && <TableCell>{item.document_number || '-'}</TableCell>}
+                      <TableCell className={item.isHeader ? "font-bold" : "font-medium"}>
+                        {productName}
                       </TableCell>
-                    )}
-                    {visibleColumns.updatedAt && (
-                      <TableCell className="text-right">
-                        {item.updatedAt 
-                          ? new Date(item.updatedAt.seconds * 1000).toLocaleString('ro-RO') 
-                          : '-'}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
+                      {visibleColumns.manufacturer && <TableCell>{manufacturerName || '-'}</TableCell>}
+                      <TableCell className="text-right">{item.quantity}</TableCell>
+                      <TableCell className="text-right">{item.unit}</TableCell>
+                      {visibleColumns.crateType && (
+                        <TableCell>
+                          {crateTypeName ? `${crateTypeName} (${item.crate_count || 0} buc)` : '-'}
+                        </TableCell>
+                      )}
+                      {visibleColumns.netQuantity && (
+                        <TableCell className="text-right">{item.net_quantity || item.quantity}</TableCell>
+                      )}
+                      {visibleColumns.batch && <TableCell>{item.batch_number || '-'}</TableCell>}
+                      {visibleColumns.updatedAt && (
+                        <TableCell className="text-right">
+                          {item.updatedAt 
+                            ? new Date(item.updatedAt.seconds * 1000).toLocaleString('ro-RO') 
+                            : '-'}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })
               ) : searchTerm ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6 text-gray-500">
+                  <TableCell colSpan={12} className="text-center py-6 text-gray-500">
                     Nu s-au găsit produse pentru "{searchTerm}"
                   </TableCell>
                 </TableRow>
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6 text-gray-500">
+                  <TableCell colSpan={12} className="text-center py-6 text-gray-500">
                     Nu există produse în stoc. Adăugați produse folosind comenzi vocale sau text.
                   </TableCell>
                 </TableRow>

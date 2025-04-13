@@ -6,8 +6,18 @@ export interface InventoryItem {
   quantity: number;
   unit: string;
   supplier?: string;
+  supplier_id?: string;
+  product_id?: string;
+  manufacturer_id?: string;
   batch_number?: string;
   receipt_date?: Date;
+  document_number?: string;
+  entry_number?: number;
+  crate_type_id?: string;
+  crate_count?: number;
+  gross_quantity?: number;
+  net_quantity?: number;
+  crate_weight?: number;
   createdAt?: {
     seconds: number;
     nanoseconds: number;
@@ -53,6 +63,36 @@ export interface ChartData {
   description?: string;
 }
 
+// Product, Supplier, and Manufacturer interfaces
+export interface Product {
+  id: string;
+  name: string;
+  description?: string;
+  default_unit: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contact?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface Manufacturer {
+  id: string;
+  name: string;
+  country?: string;
+  description?: string;
+}
+
+export interface CrateType {
+  id: string;
+  name: string;
+  weight: number;
+  description?: string;
+}
+
 // History related interfaces
 export interface InventoryHistoryItem {
   id: string;
@@ -63,7 +103,16 @@ export interface InventoryHistoryItem {
   unit: string;
   previous_quantity?: number;
   supplier?: string;
+  supplier_id?: string;
+  product_id?: string;
+  manufacturer_id?: string;
   batch_number?: string;
+  document_number?: string;
+  crate_type_id?: string;
+  crate_count?: number;
+  gross_quantity?: number;
+  net_quantity?: number;
+  crate_weight?: number;
   operation_date: Date;
   exit_timestamp?: Date;  
   notes?: string;
