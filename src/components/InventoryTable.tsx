@@ -37,6 +37,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
           return acc;
         }, {} as Record<string, Supplier>);
         setSuppliers(suppliersMap);
+        console.log("Suppliers data loaded:", suppliersData);
       }
 
       // Fetch products
@@ -57,6 +58,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
           return acc;
         }, {} as Record<string, Manufacturer>);
         setManufacturers(manufacturersMap);
+        console.log("Manufacturers data loaded:", manufacturersData);
       }
 
       // Fetch crate types
@@ -81,7 +83,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const filteredInventory = nonEmptyInventory.filter(item => {
     const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
     const productName = item.product_id ? products[item.product_id]?.name : item.name;
-    const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : undefined;
+    const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : item.manufacturer;
 
     return (
       productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -91,6 +93,16 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
       (item.document_number && item.document_number.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   });
+  
+  // Log some sample data to help with debugging
+  React.useEffect(() => {
+    if (filteredInventory.length > 0) {
+      const sampleItem = filteredInventory[0];
+      console.log("Sample inventory item:", sampleItem);
+      console.log("Supplier:", sampleItem.supplier_id ? suppliers[sampleItem.supplier_id]?.name : sampleItem.supplier);
+      console.log("Manufacturer:", sampleItem.manufacturer_id ? manufacturers[sampleItem.manufacturer_id]?.name : sampleItem.manufacturer);
+    }
+  }, [filteredInventory, suppliers, manufacturers]);
   
   // Group inventory items if needed
   let displayedInventory = filteredInventory;
@@ -292,7 +304,13 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                 displayedInventory.map((item) => {
                   const productName = item.product_id ? products[item.product_id]?.name : item.name;
                   const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
-                  const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : '';
+                  const manufacturerName = item.manufacturer_id 
+                    ? manufacturers[item.manufacturer_id]?.name 
+                    : (item.manufacturer || '-');
+                  
+                  console.log(`Item ${item.id} manufacturer:`, item.manufacturer || "not set", 
+                              "manufacturer_id:", item.manufacturer_id || "not set");
+                  
                   const crateTypeName = item.crate_type_id ? crateTypes[item.crate_type_id]?.name : '';
                   
                   return (
@@ -313,7 +331,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                       <TableCell className="text-right">{item.quantity}</TableCell>
                       <TableCell className="text-right">{item.unit}</TableCell>
                       {visibleColumns.supplier && <TableCell>{supplierName || '-'}</TableCell>}
-                      {visibleColumns.manufacturer && <TableCell>{manufacturerName || '-'}</TableCell>}
+                      {visibleColumns.manufacturer && <TableCell>{manufacturerName}</TableCell>}
                       {visibleColumns.batch && <TableCell>{item.batch_number || '-'}</TableCell>}
                       {visibleColumns.documentNumber && <TableCell>{item.document_number || '-'}</TableCell>}
                       {visibleColumns.crateType && (

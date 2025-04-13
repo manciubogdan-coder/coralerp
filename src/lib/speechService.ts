@@ -1,4 +1,3 @@
-
 // Funcție pentru a converti textul în vorbire folosind OpenAI TTS API
 export const speakText = (text: string) => {
   // Verificăm dacă browserul suportă Audio API
@@ -392,20 +391,23 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
   
   console.log(`Verificare completitudine comandă ${action}:`, command);
   
-  // Improved regex patterns for better supplier and manufacturer recognition
-  const productRegex = /(?:adaug[aă]|pun|bag|scoate|elimină|scot)\s+(?:([0-9]+(?:[,.][0-9]+)?)\s*(?:kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet))\s+(?:de\s+)?([a-zăîâșț]+)/i;
+  // Improved regex patterns with more robust matching capabilities
+  const productRegex = /(?:adaug[aă]|pun|bag|scoate|elimină|scot)\s+(?:([0-9]+(?:[,.][0-9]+)?)\s*(?:kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet))\s+(?:de\s+)?([a-zăîâșț]+(?:\s[a-zăîâșț]+)?)/i;
   const quantityRegex = /([0-9]+(?:[,.][0-9]+)?)\s*(?:kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet)/i;
   const unitRegex = /(?:[0-9]+(?:[,.][0-9]+)?)\s*(kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet)/i;
   
-  // Enhanced supplier regex pattern with more keywords
-  const supplierRegex = /(?:de\s+la|furnizor|furnizorul|de\s+la\s+furnizorul|primit\s+de\s+la|adus\s+de\s+la|livrat\s+de|de\s+la\s+firma)\s+([a-zăîâșț]+)/i;
+  // Enhanced supplier regex with stronger boundaries and more variants
+  const supplierRegex = /(?:de\s+la|furnizor(?:ul)?|de\s+la\s+furnizor(?:ul)?|primit\s+de\s+la|adus\s+de\s+la|livrat\s+de|de\s+la\s+firma)\s+([a-zăîâșț]+(?:\s[a-zăîâșț]+)?)\s*/i;
   
-  // Enhanced manufacturer regex pattern with more keywords
-  const manufacturerRegex = /(?:produc[aă]tor(?:ul)?|fabricat\s+de|fabricant(?:ul)?|marca|brand(?:ul)?|compania|făcut\s+de)\s+([a-zăîâșț]+)/i;
+  // Enhanced manufacturer regex with stronger boundaries to prevent confusion
+  const manufacturerRegex = /(?:produc[aă]tor(?:ul)?|fabricat\s+de|fabricant(?:ul)?|marca|brand(?:ul)?|compania|făcut\s+de)\s+([a-zăîâșț]+(?:\s[a-zăîâșț]+)?)\s*/i;
   
   const batchRegex = /(?:lot|lotul|lotului|numar\s+lot|număr\s+lot|cod\s+lot)\s+([a-z0-9]+)/i;
   const crateRegex = /(?:pe|în|in)\s+([0-9]+)\s+(?:lăz|lazi|l[aă]di[țt][aăe]|cutii|cutie|crate|crates)/i;
   const documentRegex = /(?:document|factur[aă]|aviz|bon|numar\s+factura|număr\s+factură)\s+([a-z0-9]+)/i;
+  
+  console.log("Verificare supplier pattern:", supplierRegex.source);
+  console.log("Verificare manufacturer pattern:", manufacturerRegex.source);
   
   // Extragem informațiile disponibile
   const productMatch = productRegex.exec(normalizedCmd);
@@ -432,57 +434,92 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
     supplier, manufacturer, batch, 
     crateCount, documentNumber 
   });
-  
-  // Special case check for supplier information
-  if (!supplier && normalizedCmd.includes('de la')) {
-    const simpleSupplierMatch = normalizedCmd.match(/de\s+la\s+([a-zăîâșț]+)/i);
-    if (simpleSupplierMatch && simpleSupplierMatch[1] && 
-        !['lot', 'lotul', 'producator', 'producător'].includes(simpleSupplierMatch[1])) {
-      supplier = simpleSupplierMatch[1];
-      console.log("Furnizor detectat cu regula simplă:", supplier);
-    }
-  }
-  
-  // Special case check for manufacturer information
-  if (!manufacturer) {
-    // Verifică diferite formulări pentru producător
-    const manufacturerPatterns = [
-      /(?:marca|brand(?:ul)?|compania)\s+([a-zăîâșț]+)/i,
-      /(?:produs(?:e)?)\s+(?:de|din|la)\s+([a-zăîâșț]+)(?:\s|$)/i,
-      /(?:făcut|fabricat)\s+(?:de|la)\s+([a-zăîâșț]+)(?:\s|$)/i
+
+  // Better supplier extraction - more aggressive pattern matching 
+  if (!supplier) {
+    // Look for patterns like "de la X" that don't match the main regex
+    const delaPatterns = [
+      /de\s+la\s+([a-zăîâșț]+(?:\s[a-zăîâșț]+)?)\s+(?:produc[aă]tor|lot|pe|în|document)/i,  // "de la X producator/lot/etc"
+      /de\s+la\s+([a-zăîâșț]+(?:\s[a-zăîâșț]+)?)\s*$/i,  // "de la X" at the end of string
+      /de\s+la\s+([a-zăîâșț]+(?:\s[a-zăîâșț]+)?)\s+/i,   // "de la X " followed by anything
     ];
     
-    for (const pattern of manufacturerPatterns) {
+    for (const pattern of delaPatterns) {
       const match = normalizedCmd.match(pattern);
       if (match && match[1]) {
-        // Verificăm că nu e furnizorul pentru a evita confuziile
-        if (match[1] !== supplier) {
-          manufacturer = match[1];
-          console.log("Producător detectat cu pattern alternativ:", manufacturer);
+        // Make sure it's not a reserved keyword
+        if (!['lot', 'lotul', 'producator', 'producător'].includes(match[1])) {
+          supplier = match[1];
+          console.log("Furnizor detectat cu regula alternativă:", supplier);
           break;
         }
       }
     }
   }
   
+  // Better manufacturer detection - look explicitly for "producator X" pattern
+  if (!manufacturer) {
+    const mfgPatterns = [
+      // Look very specifically for the word "producator/producător" followed by a name
+      /produc[ăa]tor(?:ul)?\s+([a-zăîâșț]+(?:\s[a-zăîâșț]+)?)/i,
+      /(?:de\s+la|furnizorul)\s+[a-zăîâșț]+(?:\s[a-zăîâșț]+)?(?:\s+produc[ăa]tor(?:ul)?\s+)([a-zăîâșț]+(?:\s[a-zăîâșț]+)?)/i,
+      // This pattern matches "producator X" when it appears after a supplier name
+      /de\s+la\s+[a-zăîâșț]+(?:\s[a-zăîâșț]+)?\s+produc[ăa]tor(?:ul)?\s+([a-zăîâșț]+(?:\s[a-zăîâșț]+)?)/i
+    ];
+    
+    for (const pattern of mfgPatterns) {
+      const match = command.toLowerCase().match(pattern);
+      if (match && match[1]) {
+        manufacturer = match[1];
+        console.log("Producător detectat cu pattern specific:", manufacturer);
+        break;
+      }
+    }
+  }
+  
+  // Hard-coded pattern check for the specific case we're seeing
+  const specificPattern = /de la (\w+)(?:\s+|\s*,\s*)producătorul (\w+)/i;
+  const specificMatch = command.match(specificPattern);
+  if (specificMatch) {
+    supplier = specificMatch[1];
+    manufacturer = specificMatch[2];
+    console.log("Pattern specific găsit pentru furnizor și producător:", { supplier, manufacturer });
+  }
+  
+  console.log("După procesare avansată:", { 
+    supplier, manufacturer 
+  });
+  
+  // Check for text segments that might contain manufacturer info
+  if (!manufacturer && command.toLowerCase().includes('producător')) {
+    const segments = command.toLowerCase().split(/[\s,]+/);
+    const producatorIndex = segments.findIndex(s => s === 'producător' || s === 'producatorul');
+    
+    if (producatorIndex !== -1 && producatorIndex + 1 < segments.length) {
+      manufacturer = segments[producatorIndex + 1];
+      console.log("Producător detectat prin segmentare:", manufacturer);
+    }
+  }
+  
   // Verifică după conflict între producător și lot
-  // Dacă atât producătorul cât și lotul au fost extrase din același text
-  if (manufacturer && batch && normalizedCmd.indexOf(manufacturer) === normalizedCmd.indexOf(batch)) {
+  if (manufacturer && batch && manufacturer === batch) {
+    // Dacă atât producătorul cât și lotul au fost extrase cu aceeași valoare
+    console.log("CONFLICT DETECTAT: manufacturer și batch au aceeași valoare:", manufacturer);
+    
     // Verifică contextul pentru a decide care este corect
-    const manufacturerContext = /produc[aă]tor|fabricat|marc[aă]|brand/i;
-    const batchContext = /lot|cod/i;
+    const mfgContext = command.toLowerCase().indexOf('producător');
+    const batchContext = command.toLowerCase().indexOf('lot');
     
-    // Verificăm câteva cuvinte înaintea valorii pentru a determina contextul
-    const textBeforeValue = normalizedCmd.substring(0, normalizedCmd.indexOf(manufacturer));
-    
-    if (textBeforeValue.match(manufacturerContext)) {
-      // Este cel mai probabil producătorul, anulăm lotul
-      console.log("Conflict rezolvat în favoarea producătorului:", manufacturer);
-      batch = null;
-    } else if (textBeforeValue.match(batchContext)) {
-      // Este cel mai probabil lotul, anulăm producătorul
-      console.log("Conflict rezolvat în favoarea lotului:", batch);
-      manufacturer = null;
+    if (mfgContext !== -1 && batchContext !== -1) {
+      if (mfgContext < batchContext) {
+        // Cuvântul 'producător' apare înainte de 'lot', deci păstrăm producătorul
+        batch = null;
+        console.log("Conflict rezolvat: păstrăm producătorul, anulăm lotul");
+      } else {
+        // Cuvântul 'lot' apare înainte de 'producător', deci păstrăm lotul
+        manufacturer = null;
+        console.log("Conflict rezolvat: păstrăm lotul, anulăm producătorul");
+      }
     }
   }
   
@@ -760,7 +797,7 @@ export function getMissingFieldsQuestion(missingFields: string[], action: 'add' 
     return `<strong>De la ce furnizor</strong> provine produsul?`;
   }
   
-  if (missingFields[0] === 'producatorul' || missingFields[0] === 'producătorul') {
+  if (missingFields[0] === 'producătorul' || missingFields[0] === 'producatorul') {
     if (partialData.product) {
       return `<strong>Cine este producătorul</strong> pentru ${partialData.product}?`;
     }
@@ -787,4 +824,3 @@ export function getMissingFieldsQuestion(missingFields: string[], action: 'add' 
   
   return `Te rog să-mi spui <strong>${missingFields[0]}</strong> pentru a putea ${actionVerb} în inventar.`;
 }
-

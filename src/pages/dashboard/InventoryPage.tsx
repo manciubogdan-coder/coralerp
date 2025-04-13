@@ -34,6 +34,10 @@ const InventoryPage = () => {
     if (savedAudioSetting !== null) {
       setIsAudioEnabled(savedAudioSetting === 'true');
     }
+    
+    // Adăugăm un refresh la încărcarea paginii pentru a ne asigura că datele sunt la zi
+    console.log("Inventory page loaded, triggering initial data refresh");
+    setRefreshKey(prevKey => prevKey + 1);
   }, []);
   
   const toggleAudio = () => {
