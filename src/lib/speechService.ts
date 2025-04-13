@@ -391,15 +391,18 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
   
   console.log(`Verificare completitudine comandă ${action}:`, command);
   
-  // Regulile pentru extragerea informațiilor din comandă vocală
+  // Improved regex patterns for better supplier recognition
   const productRegex = /(?:adaug[aă]|pun|bag|scoate|elimină|scot)\s+(?:([0-9]+(?:[,.][0-9]+)?)\s*(?:kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet))\s+(?:de\s+)?([a-zăîâșț]+)/i;
   const quantityRegex = /([0-9]+(?:[,.][0-9]+)?)\s*(?:kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet)/i;
   const unitRegex = /(?:[0-9]+(?:[,.][0-9]+)?)\s*(kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet)/i;
-  const supplierRegex = /(?:de\s+la|furnizor|furnizorul)\s+([a-zăîâșț]+)/i;
-  const batchRegex = /(?:lot|lotul|lotului)\s+([a-z0-9]+)/i;
-  const manufacturerRegex = /(?:produc[aă]tor|produc[aă]torul)\s+([a-zăîâșț]+)/i;
+  
+  // Enhanced supplier regex pattern with more keywords
+  const supplierRegex = /(?:de\s+la|furnizor|furnizorul|de\s+la\s+furnizorul|primit\s+de\s+la|adus\s+de\s+la|livrat\s+de|de\s+la\s+firma)\s+([a-zăîâșț]+)/i;
+  
+  const batchRegex = /(?:lot|lotul|lotului|numar\s+lot|număr\s+lot)\s+([a-z0-9]+)/i;
+  const manufacturerRegex = /(?:produc[aă]tor|produc[aă]torul|fabricat\s+de)\s+([a-zăîâșț]+)/i;
   const crateRegex = /(?:pe|în|in)\s+([0-9]+)\s+(?:lăz|lazi|l[aă]di[țt][aăe]|cutii|cutie|crate|crates)/i;
-  const documentRegex = /(?:document|factur[aă]|aviz|bon)\s+([a-z0-9]+)/i;
+  const documentRegex = /(?:document|factur[aă]|aviz|bon|numar\s+factura|număr\s+factură)\s+([a-z0-9]+)/i;
   
   // Extragem informațiile disponibile
   const productMatch = productRegex.exec(normalizedCmd);
@@ -420,6 +423,16 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
   let manufacturer = manufacturerMatch ? manufacturerMatch[1] : null;
   let crateCount = crateMatch ? parseInt(crateMatch[1]) : null;
   let documentNumber = documentMatch ? documentMatch[1] : null;
+  
+  // Special case check for supplier information
+  if (!supplier && normalizedCmd.includes('de la')) {
+    const simpleSupplierMatch = normalizedCmd.match(/de\s+la\s+([a-zăîâșț]+)/i);
+    if (simpleSupplierMatch && simpleSupplierMatch[1] && 
+        !['lot', 'lotul', 'producator', 'producător'].includes(simpleSupplierMatch[1])) {
+      supplier = simpleSupplierMatch[1];
+      console.log("Furnizor detectat cu regula simplă:", supplier);
+    }
+  }
   
   // Extragem produsul și fără regexul complex în cazul în care prima metodă eșuează
   if (!product) {
