@@ -299,7 +299,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                   return (
                     <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
                       {visibleColumns.entryNumber && (
-                        <TableCell>{item.entry_number ? item.entry_number : '-'}</TableCell>
+                        <TableCell>{item.entry_number || '-'}</TableCell>
                       )}
                       {visibleColumns.date && (
                         <TableCell>

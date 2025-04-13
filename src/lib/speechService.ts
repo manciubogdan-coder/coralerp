@@ -159,6 +159,7 @@ export const improveVoiceCommand = (transcript: string): string => {
   
   // Creăm un hash unic pentru comanda curentă pentru a preveni dublarea 
   const commandHash = createCommandHash(transcript);
+  console.log("Comanda hash:", commandHash);
   
   // Verificăm dacă această comandă a fost deja executată recent
   if (isCommandRecentlyExecuted(commandHash)) {
@@ -295,16 +296,22 @@ export const improveVoiceCommand = (transcript: string): string => {
   return transcript;
 };
 
-// Un sistem simplu pentru a preveni executarea dublă a comenzilor vocale
+// Un sistem mai robust pentru a preveni executarea dublă a comenzilor vocale
 // Stocăm hashurile comenzilor recente în această hartă împreună cu timestamp-ul
 const recentCommandsMap = new Map<string, number>();
 
-// Durata în milisecunde pentru a considera o comandă ca fiind duplicat (3 secunde)
-const DUPLICATE_COMMAND_TIMEOUT = 3000; 
+// Durata în milisecunde pentru a considera o comandă ca fiind duplicat (5 secunde)
+const DUPLICATE_COMMAND_TIMEOUT = 5000; 
 
-// Crează un hash simplu pentru o comandă
+// Crează un hash simplu pentru o comandă, care va fi mai restrictiv pentru a evita dublurile
 function createCommandHash(command: string): string {
-  return command.toLowerCase().trim().replace(/\s+/g, ' ');
+  // Curățăm textul pentru a avea un hash mai consistent
+  return command.toLowerCase()
+              .trim()
+              .replace(/\s+/g, ' ')                      // Reduce toate spațiile multiple la unul singur
+              .replace(/[,.;:?!]/g, '')                  // Eliminăm punctuația
+              .replace(/^(adauga|adaugă|adaug)\s+/i, '') // Standardizăm verbele comune
+              .replace(/^(scoate|elimină)\s+/i, '');     // Standardizăm verbele comune
 }
 
 // Verifică dacă o comandă a fost executată recent
@@ -314,13 +321,18 @@ function isCommandRecentlyExecuted(commandHash: string): boolean {
   
   // Verificăm dacă comanda a fost executată în ultimele X milisecunde
   const now = Date.now();
-  return (now - lastTime) < DUPLICATE_COMMAND_TIMEOUT;
+  const isRecent = (now - lastTime) < DUPLICATE_COMMAND_TIMEOUT;
+  
+  console.log(`Verificare comandă: ${commandHash}, executată acum ${now - lastTime} ms, este duplicat: ${isRecent}`);
+  
+  return isRecent;
 }
 
 // Marchează o comandă ca fiind executată
 function markCommandAsExecuted(commandHash: string): void {
   const now = Date.now();
   recentCommandsMap.set(commandHash, now);
+  console.log(`Comandă marcată ca executată la ${new Date(now).toISOString()}: ${commandHash}`);
   
   // Curățăm comenzile vechi din hartă
   cleanupOldCommands(now);
@@ -328,9 +340,14 @@ function markCommandAsExecuted(commandHash: string): void {
 
 // Elimină comenzile vechi din mapă pentru a evita consumul excesiv de memorie
 function cleanupOldCommands(currentTime: number): void {
+  let cleaned = 0;
   for (const [command, timestamp] of recentCommandsMap.entries()) {
     if (currentTime - timestamp > DUPLICATE_COMMAND_TIMEOUT) {
       recentCommandsMap.delete(command);
+      cleaned++;
     }
+  }
+  if (cleaned > 0) {
+    console.log(`S-au curățat ${cleaned} comenzi vechi din cache`);
   }
 }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-custom-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
@@ -36,7 +35,6 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("inventory");
   const isMobile = useIsMobile();
 
-  // Funcție utilitară pentru a formata datele în format ISO, indiferent dacă sunt string sau Date
   const formatToISOString = (date: Date | string): string => {
     if (date instanceof Date) {
       return date.toISOString();
@@ -238,9 +236,17 @@ const Index = () => {
       if (transcript.trim()) {
         setTimeout(() => {
           const improvedTranscript = improveVoiceCommand(transcript);
+          if (improvedTranscript === "DUPLICATE_COMMAND") {
+            console.log("Comandă duplicată detectată, se ignoră");
+            toast({
+              title: "Comandă ignorată",
+              description: "Această comandă a fost deja procesată recent."
+            });
+            return;
+          }
           console.log("Procesez comanda vocală finală:", improvedTranscript);
           processUserInput(improvedTranscript);
-        }, 1500);
+        }, 1000);
       }
     } else {
       try {
@@ -554,7 +560,10 @@ const Index = () => {
   };
 
   const processUserInput = async (input: string) => {
-    if (!input.trim()) return;
+    if (!input.trim() || input === "DUPLICATE_COMMAND") return;
+    
+    const commandHash = input.toLowerCase().trim().replace(/\s+/g, ' ');
+    console.log("Verificare finală duplicat pentru comandă:", commandHash);
     
     setIsProcessing(true);
     setResponse("");
