@@ -26,6 +26,8 @@ export interface InventoryItem {
     seconds: number;
     nanoseconds: number;
   };
+  updated_at?: string; // Added to match the database field name
+  created_at?: string; // Added to match the database field name
   isHeader?: boolean;
   action?: 'add' | 'remove' | 'set';
 }

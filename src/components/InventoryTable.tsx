@@ -328,8 +328,10 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                       {visibleColumns.updatedAt && (
                         <TableCell className="text-right">
                           {item.updated_at 
-                            ? new Date(item.updated_at).toLocaleString('ro-RO') 
-                            : '-'}
+                            ? new Date(item.updated_at).toLocaleString('ro-RO')
+                            : item.updatedAt
+                              ? new Date(item.updatedAt.seconds * 1000).toLocaleString('ro-RO') 
+                              : '-'}
                         </TableCell>
                       )}
                     </TableRow>
