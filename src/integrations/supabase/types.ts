@@ -408,7 +408,10 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      get_next_inventory_entry: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
