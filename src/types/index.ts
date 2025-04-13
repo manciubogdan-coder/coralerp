@@ -1,4 +1,3 @@
-
 // Inventory related interfaces
 export interface InventoryItem {
   id?: string;
@@ -138,6 +137,15 @@ export interface ConsumptionAnalytics {
   operation_day: Date;
   removed_quantity: number;
   operation_count: number;
+}
+
+// Dashboard related interfaces
+export interface DashboardMenuItem {
+  id: string;
+  name: string;
+  icon: React.ElementType;
+  path: string;
+  description?: string;
 }
 
 // Web Speech API type definitions
