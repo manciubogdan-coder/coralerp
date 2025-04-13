@@ -106,7 +106,6 @@ const InventoryManagement = () => {
 
   const getNextEntryNumber = async () => {
     try {
-      // Obținem valoarea secvenței pentru entry_number
       const { data, error } = await supabase.rpc('get_next_inventory_entry');
       
       if (error) throw error;
@@ -116,7 +115,6 @@ const InventoryManagement = () => {
       }
     } catch (error) {
       console.error("Error fetching next entry number:", error);
-      // Folosim o valoare implicită dacă apare o eroare
       const { data } = await supabase
         .from("inventory")
         .select("entry_number")
@@ -145,7 +143,6 @@ const InventoryManagement = () => {
         throw error;
       }
 
-      // Transformăm datele pentru a adăuga numele furnizorului, produsului, etc.
       const formattedData = data.map(item => ({
         ...item,
         supplier_name: item.suppliers ? item.suppliers.name : item.supplier
@@ -948,9 +945,142 @@ const InventoryManagement = () => {
                     )}
                   </div>
                 ) : (
-                  <>
+                  <div>
                     <div>
                       {item.quantity} {item.unit}
                     </div>
                     {item.gross_quantity && item.gross_quantity !== item.quantity && (
                       <div className="text-xs text-gray-500">
+                        Brut: {item.gross_quantity} {item.unit}
+                      </div>
+                    )}
+                    {item.crate_count && item.crate_types && (
+                      <div className="text-xs text-gray-500">
+                        {item.crate_count} x {item.crate_types.name}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                {editingId === item.id ? (
+                  <Select 
+                    value={editItem?.supplier_id || ""}
+                    onValueChange={(value) => setEditItem({ ...editItem!, supplier_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selectează furnizor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliers.map(supplier => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                          {supplier.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  item.suppliers?.name || item.supplier || "-"
+                )}
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                {editingId === item.id ? (
+                  <Select 
+                    value={editItem?.manufacturer_id || ""}
+                    onValueChange={(value) => setEditItem({ ...editItem!, manufacturer_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selectează producător" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {manufacturers.map(manufacturer => (
+                        <SelectItem key={manufacturer.id} value={manufacturer.id}>
+                          {manufacturer.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  item.manufacturers?.name || "-"
+                )}
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                {editingId === item.id ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={editItem?.batch_number || ""}
+                      onChange={(e) => setEditItem({ ...editItem!, batch_number: e.target.value })}
+                      placeholder="Număr lot"
+                    />
+                    <Input
+                      className="mt-2"
+                      value={editItem?.document_number || ""}
+                      onChange={(e) => setEditItem({ ...editItem!, document_number: e.target.value })}
+                      placeholder="Număr document"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    {item.batch_number && (
+                      <div>
+                        <span className="font-medium">Lot:</span> {item.batch_number}
+                      </div>
+                    )}
+                    {item.document_number && (
+                      <div>
+                        <span className="font-medium">Doc:</span> {item.document_number}
+                      </div>
+                    )}
+                  </>
+                )}
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                {editingId === item.id ? (
+                  <Input
+                    type="date"
+                    value={formatDate(editItem?.receipt_date)}
+                    onChange={(e) => setEditItem({ ...editItem!, receipt_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                  />
+                ) : (
+                  item.receipt_date ? formatDate(item.receipt_date) : "-"
+                )}
+              </TableCell>
+              <TableCell>
+                {editingId === item.id ? (
+                  <div className="flex space-x-2">
+                    <Button size="sm" onClick={handleSaveEdit}>
+                      <Save className="h-4 w-4 mr-1" /> Salvează
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                      <X className="h-4 w-4 mr-1" /> Anulează
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex space-x-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEdit(item)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-500 hover:text-red-700"
+                      onClick={() => handleDelete(item.id, item.name)}
+                    >
+                      <Trash className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
+
+export default InventoryManagement;
