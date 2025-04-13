@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-custom-toast";
 import { Pencil, Trash, Plus, Save, X, FileDown, Mail } from "lucide-react";
@@ -25,7 +24,6 @@ import {
 import { exportToExcel } from "@/lib/excelExport";
 import { sendEmail } from "@/lib/emailService";
 
-// Update interface to match Supabase data structure
 interface InventoryItem {
   id: string;
   name: string;
@@ -36,7 +34,7 @@ interface InventoryItem {
   product_id?: string;
   manufacturer_id?: string;
   batch_number?: string | null;
-  receipt_date?: string | null; // Changed from Date to string | null
+  receipt_date?: string | null;
   crate_type_id?: string | null;
   crate_count?: number | null;
   gross_quantity?: number | null;
@@ -108,7 +106,6 @@ const InventoryManagement = () => {
         throw error;
       }
 
-      // Data from Supabase has the correct types now
       setInventory(data || []);
     } catch (error: any) {
       toast({
@@ -195,7 +192,7 @@ const InventoryManagement = () => {
       name: "",
       quantity: 0,
       unit: "kg",
-      receipt_date: new Date().toISOString(), // Store as ISO string
+      receipt_date: new Date().toISOString(),
     });
   };
 
@@ -249,7 +246,6 @@ const InventoryManagement = () => {
         return;
       }
 
-      // If a product is selected, use its name
       if (newItem.product_id) {
         const selectedProduct = products.find(p => p.id === newItem.product_id);
         if (selectedProduct) {
@@ -260,7 +256,6 @@ const InventoryManagement = () => {
         }
       }
 
-      // Calculate net quantity if using crates
       let netQuantity = newItem.quantity;
       if (newItem.crate_type_id && newItem.crate_count && newItem.crate_count > 0) {
         netQuantity = calculateNetQuantity(
@@ -270,7 +265,6 @@ const InventoryManagement = () => {
         );
       }
 
-      // Ensure receipt_date is in ISO format string
       const receiptDate = newItem.receipt_date 
         ? new Date(newItem.receipt_date).toISOString() 
         : new Date().toISOString();
@@ -307,11 +301,10 @@ const InventoryManagement = () => {
 
       setIsAddingNew(false);
       
-      // Type assertion since we know the data structure now
       const newData = data as InventoryItem[];
       setInventory([...newData, ...inventory]);
       
-      fetchInventory(); // Refresh to get server-generated fields
+      fetchInventory();
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -343,7 +336,6 @@ const InventoryManagement = () => {
         return;
       }
 
-      // If a product is selected, use its name
       if (editItem.product_id) {
         const selectedProduct = products.find(p => p.id === editItem.product_id);
         if (selectedProduct) {
@@ -354,7 +346,6 @@ const InventoryManagement = () => {
         }
       }
 
-      // Calculate net quantity if using crates
       let netQuantity = editItem.quantity;
       if (editItem.crate_type_id && editItem.crate_count && editItem.crate_count > 0) {
         netQuantity = calculateNetQuantity(
@@ -364,7 +355,6 @@ const InventoryManagement = () => {
         );
       }
 
-      // Ensure receipt_date is in ISO format string if present
       const receiptDate = editItem.receipt_date 
         ? new Date(editItem.receipt_date).toISOString() 
         : null;
@@ -398,7 +388,7 @@ const InventoryManagement = () => {
       });
 
       setEditingId(null);
-      fetchInventory(); // Refresh data
+      fetchInventory();
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -437,7 +427,12 @@ const InventoryManagement = () => {
   };
 
   const handleExportExcel = () => {
-    exportToExcel(inventory);
+    const dataForExport = inventory.map(item => ({
+      ...item,
+      receipt_date: item.receipt_date ? formatDate(item.receipt_date) : ''
+    }));
+    
+    exportToExcel(dataForExport);
     toast({
       title: "Export realizat",
       description: "Fișierul Excel a fost generat și descărcat."
@@ -446,7 +441,12 @@ const InventoryManagement = () => {
 
   const handleSendEmail = async () => {
     try {
-      await sendEmail(inventory);
+      const dataForEmail = inventory.map(item => ({
+        ...item,
+        receipt_date: item.receipt_date ? formatDate(item.receipt_date) : ''
+      }));
+      
+      await sendEmail(dataForEmail);
       toast({
         title: "Email trimis",
         description: "Raportul a fost trimis pe email."
@@ -524,11 +524,13 @@ const InventoryManagement = () => {
         return true;
       });
 
-  // Helper function to format dates consistently 
-  const formatDate = (dateString: string | null | undefined): string => {
-    if (!dateString) return "";
+  const formatDate = (dateValue: string | Date | null | undefined): string => {
+    if (!dateValue) return "";
     try {
-      return new Date(dateString).toISOString().substring(0, 10);
+      if (dateValue instanceof Date) {
+        return dateValue.toISOString().substring(0, 10);
+      }
+      return new Date(dateValue).toISOString().substring(0, 10);
     } catch (e) {
       return "";
     }

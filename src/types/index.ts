@@ -1,3 +1,4 @@
+
 // Inventory related interfaces
 export interface InventoryItem {
   id?: string;
@@ -9,7 +10,7 @@ export interface InventoryItem {
   product_id?: string;
   manufacturer_id?: string;
   batch_number?: string;
-  receipt_date?: Date;
+  receipt_date?: string | Date; // Updated to accept both string and Date
   document_number?: string;
   entry_number?: number;
   crate_type_id?: string;
@@ -112,8 +113,8 @@ export interface InventoryHistoryItem {
   gross_quantity?: number;
   net_quantity?: number;
   crate_weight?: number;
-  operation_date: Date;
-  exit_timestamp?: Date;  
+  operation_date: Date | string; // Updated to accept both Date and string
+  exit_timestamp?: Date | string; // Updated to accept both Date and string
   notes?: string;
 }
 
