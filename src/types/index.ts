@@ -1,3 +1,4 @@
+
 // Inventory related interfaces
 export interface InventoryItem {
   id?: string;
@@ -8,6 +9,7 @@ export interface InventoryItem {
   supplier_id?: string;
   product_id?: string;
   manufacturer_id?: string;
+  manufacturer?: string; // Added manufacturer property
   batch_number?: string;
   receipt_date?: string | Date; // Updated to accept both string and Date
   document_number?: string;

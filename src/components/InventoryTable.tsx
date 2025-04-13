@@ -29,7 +29,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   React.useEffect(() => {
     const fetchReferenceData = async () => {
       console.log("Fetching reference data for inventory table");
-      // Fetch suppliers
       const { data: suppliersData } = await supabase.from('suppliers').select('*');
       if (suppliersData) {
         const suppliersMap = suppliersData.reduce((acc, supplier) => {
@@ -40,7 +39,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         console.log("Suppliers data loaded:", suppliersData);
       }
 
-      // Fetch products
       const { data: productsData } = await supabase.from('products').select('*');
       if (productsData) {
         const productsMap = productsData.reduce((acc, product) => {
@@ -50,7 +48,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         setProducts(productsMap);
       }
 
-      // Fetch manufacturers
       const { data: manufacturersData } = await supabase.from('manufacturers').select('*');
       if (manufacturersData) {
         const manufacturersMap = manufacturersData.reduce((acc, manufacturer) => {
@@ -61,7 +58,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         console.log("Manufacturers data loaded:", manufacturersData);
       }
 
-      // Fetch crate types
       const { data: crateTypesData } = await supabase.from('crate_types').select('*');
       if (crateTypesData) {
         const crateTypesMap = crateTypesData.reduce((acc, crateType) => {
@@ -75,7 +71,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     fetchReferenceData();
   }, []);
   
-  // Filter out items with zero quantity unless explicitly showing empty items
   const nonEmptyInventory = showEmptyItems 
     ? inventory 
     : inventory.filter(item => item.quantity > 0);
@@ -94,7 +89,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     );
   });
   
-  // Log some sample data to help with debugging
   React.useEffect(() => {
     if (filteredInventory.length > 0) {
       const sampleItem = filteredInventory[0];
@@ -104,7 +98,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     }
   }, [filteredInventory, suppliers, manufacturers]);
   
-  // Group inventory items if needed
   let displayedInventory = filteredInventory;
   
   if (groupByProduct) {
@@ -119,7 +112,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     });
     
     displayedInventory = Array.from(productMap).flatMap(([product, items]) => {
-      // Add a header row
       const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
       const headerItem: InventoryItem = {
         id: `product-${product}`,
@@ -143,7 +135,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     });
     
     displayedInventory = Array.from(supplierMap).flatMap(([supplier, items]) => {
-      // Add a header row
       const headerItem: InventoryItem = {
         id: `supplier-${supplier}`,
         name: `Furnizor: ${supplier}`,
@@ -167,7 +158,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     });
     
     displayedInventory = Array.from(batchMap).flatMap(([batch, items]) => {
-      // Add a header row
       const headerItem: InventoryItem = {
         id: `batch-${batch}`,
         name: `Lot: ${batch}`,
@@ -181,7 +171,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     });
   }
 
-  // Update visible columns to show all important data regardless of device
   const getVisibleColumns = () => {
     if (isMobile) {
       return {
@@ -196,7 +185,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         documentNumber: true,
         crateType: true,
         netQuantity: true,
-        updatedAt: false // Only this one is hidden on mobile to save space
+        updatedAt: false
       };
     }
     return {
