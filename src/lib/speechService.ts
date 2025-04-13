@@ -591,4 +591,4 @@ export function getMissingFieldsQuestion(missingFields: string[], action: 'add' 
   return `Te rog să-mi spui ${missingFields[0]} pentru a putea ${actionVerb} în inventar.`;
 }
 
-// Expo
+// Export

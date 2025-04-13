@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-custom-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
@@ -13,7 +14,7 @@ import { processCommand } from "@/lib/aiProcessor";
 import { ChartData, InventoryItem, InventoryHistoryItem } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";
 import { sendEmail } from "@/lib/emailService";
-import { speakText, improveVoiceCommand } from "@/lib/speechService";
+import { speakText, improveVoiceCommand, parseUserResponse, getMissingFieldsQuestion } from "@/lib/speechService";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 
