@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -170,11 +169,11 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     });
   }
 
-  // Columns to show based on screen size
+  // Update visible columns to show all important data regardless of device
   const getVisibleColumns = () => {
     if (isMobile) {
       return {
-        entryNumber: false,
+        entryNumber: true,
         date: true,
         name: true,
         quantity: true, 
@@ -182,10 +181,10 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         supplier: true,
         manufacturer: true,
         batch: true,
-        documentNumber: false,
-        crateType: false,
-        netQuantity: false,
-        updatedAt: false
+        documentNumber: true,
+        crateType: true,
+        netQuantity: true,
+        updatedAt: false // Only this one is hidden on mobile to save space
       };
     }
     return {
