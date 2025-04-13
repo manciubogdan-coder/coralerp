@@ -443,7 +443,7 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
   if (action === 'add') {
     // Aceste câmpuri sunt opționale, dar dorim să le solicităm dacă nu sunt specificate
     if (!supplier) missingFields.push("furnizorul");
-    if (!manufacturer) missingFields.push("producatorul");
+    if (!manufacturer) missingFields.push("producătorul");
     if (!batch) missingFields.push("numărul de lot");
     if (!documentNumber) missingFields.push("numărul de document");
     if (!crateCount) missingFields.push("numărul de lădițe");

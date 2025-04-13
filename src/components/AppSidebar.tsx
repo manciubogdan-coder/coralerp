@@ -12,6 +12,7 @@ import {
   SidebarMenuButton,
   SidebarHeader,
   SidebarFooter,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { 
   Package, 
@@ -25,6 +26,7 @@ import {
 const AppSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isMobile } = useSidebar();
 
   const menuItems = [
     {
@@ -65,6 +67,15 @@ const AppSidebar = () => {
     }
   ];
 
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    // Pe mobil, închide sidebar-ul după navigare
+    if (isMobile) {
+      const { setOpenMobile } = useSidebar();
+      setOpenMobile(false);
+    }
+  };
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b">
@@ -80,7 +91,7 @@ const AppSidebar = () => {
                 <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton 
                     isActive={location.pathname === item.path}
-                    onClick={() => navigate(item.path)}
+                    onClick={() => handleNavigation(item.path)}
                     tooltip={item.name}
                   >
                     <item.icon className="mr-2" size={18} />
