@@ -97,6 +97,7 @@ const InventoryManagement = () => {
   const [nextEntryNumber, setNextEntryNumber] = useState<number>(1);
 
   useEffect(() => {
+    console.log("InventoryManagement mounted or refreshed");
     fetchInventory();
     fetchSuppliers();
     fetchProducts();
@@ -273,6 +274,8 @@ const InventoryManagement = () => {
 
   const handleSaveNew = async () => {
     try {
+      console.log("Starting handleSaveNew with data:", newItem);
+      
       if (!newItem.name) {
         toast({
           variant: "destructive",
@@ -369,6 +372,7 @@ const InventoryManagement = () => {
       await getNextEntryNumber();
       fetchInventory();
     } catch (error: any) {
+      console.error("Error saving new item:", error);
       toast({
         variant: "destructive",
         title: "Eroare la adăugarea articolului",
@@ -381,6 +385,8 @@ const InventoryManagement = () => {
     if (!editItem) return;
     
     try {
+      console.log("Starting handleSaveEdit with data:", editItem);
+      
       if (!editItem.name) {
         toast({
           variant: "destructive",
@@ -475,6 +481,7 @@ const InventoryManagement = () => {
       setEditingId(null);
       fetchInventory();
     } catch (error: any) {
+      console.error("Error updating item:", error);
       toast({
         variant: "destructive",
         title: "Eroare la actualizarea articolului",
@@ -696,201 +703,31 @@ const InventoryManagement = () => {
         </TabsList>
       </Tabs>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[80px]">Nr.</TableHead>
-            <TableHead>Nume</TableHead>
-            <TableHead>Cantitate</TableHead>
-            <TableHead className="hidden md:table-cell">Furnizor</TableHead>
-            <TableHead className="hidden md:table-cell">Producător</TableHead>
-            <TableHead className="hidden md:table-cell">Lot/Document</TableHead>
-            <TableHead className="hidden md:table-cell">Data recepție</TableHead>
-            <TableHead className="w-[150px]">Acțiuni</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isAddingNew && (
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell className="font-medium">
-                {nextEntryNumber}
-              </TableCell>
-              <TableCell>
-                <div className="space-y-2">
-                  <Label>Produs</Label>
-                  <Select 
-                    onValueChange={(value) => handleProductChange(value, newItem, setNewItem)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selectează produs" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {products.map(product => (
-                        <SelectItem key={product.id} value={product.id}>
-                          {product.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  {!newItem.product_id && (
-                    <Input
-                      value={newItem.name || ""}
-                      onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                      placeholder="Nume produs"
-                      className="mt-2"
-                    />
-                  )}
-                </div>
-              </TableCell>
-              <TableCell>
-                <div className="space-y-2">
-                  <Label>Cantitate brută</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={newItem.gross_quantity?.toString() || newItem.quantity?.toString() || ""}
-                      onChange={(e) => handleGrossQuantityChange(parseFloat(e.target.value) || 0, newItem, setNewItem)}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Cantitate"
-                      className="w-24"
-                    />
-                    <Select 
-                      value={newItem.unit || "kg"} 
-                      onValueChange={(value) => setNewItem({ ...newItem, unit: value })}
-                      disabled={!!newItem.product_id}
-                    >
-                      <SelectTrigger className="w-20">
-                        <SelectValue placeholder="Unitate" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="kg">kg</SelectItem>
-                        <SelectItem value="buc">buc</SelectItem>
-                        <SelectItem value="l">l</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="mt-2">
-                    <Label>Lădițe</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Input
-                        value={newItem.crate_count?.toString() || ""}
-                        onChange={(e) => handleCrateCountChange(parseInt(e.target.value) || 0, newItem, setNewItem)}
-                        type="number"
-                        min="0"
-                        placeholder="Nr. lădițe"
-                        className="w-24"
-                      />
-                      <Select 
-                        onValueChange={(value) => handleCrateTypeChange(value, newItem, setNewItem)}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Tip lădiță" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {crateTypes.map(crateType => (
-                            <SelectItem key={crateType.id} value={crateType.id}>
-                              {crateType.name} ({crateType.weight} kg)
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  {(newItem.gross_quantity || newItem.crate_count) && (
-                    <div className="text-sm text-muted-foreground mt-2">
-                      Cantitate netă: {newItem.net_quantity || newItem.quantity} {newItem.unit}
-                    </div>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                <Label>Furnizor</Label>
-                <Select 
-                  onValueChange={(value) => setNewItem({ ...newItem, supplier_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selectează furnizor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map(supplier => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                <Label>Producător</Label>
-                <Select 
-                  onValueChange={(value) => setNewItem({ ...newItem, manufacturer_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selectează producător" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {manufacturers.map(manufacturer => (
-                      <SelectItem key={manufacturer.id} value={manufacturer.id}>
-                        {manufacturer.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                <div className="space-y-2">
-                  <Label>Lot</Label>
-                  <Input
-                    value={newItem.batch_number || ""}
-                    onChange={(e) => setNewItem({ ...newItem, batch_number: e.target.value })}
-                    placeholder="Număr lot"
-                  />
-                  
-                  <Label className="mt-2 block">Document</Label>
-                  <Input
-                    value={newItem.document_number || ""}
-                    onChange={(e) => setNewItem({ ...newItem, document_number: e.target.value })}
-                    placeholder="Număr document"
-                  />
-                </div>
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                <Label>Data recepție</Label>
-                <Input
-                  type="date"
-                  value={formatDate(newItem.receipt_date)}
-                  onChange={(e) => setNewItem({ ...newItem, receipt_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                />
-              </TableCell>
-              <TableCell>
-                <div className="flex space-x-2">
-                  <Button size="sm" onClick={handleSaveNew}>
-                    <Save className="h-4 w-4 mr-1" /> Salvează
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={handleCancelAdd}>
-                    <X className="h-4 w-4 mr-1" /> Anulează
-                  </Button>
-                </div>
-              </TableCell>
+              <TableHead className="w-[80px]">Nr.</TableHead>
+              <TableHead>Nume</TableHead>
+              <TableHead>Cantitate</TableHead>
+              <TableHead className="hidden md:table-cell">Furnizor</TableHead>
+              <TableHead className="hidden md:table-cell">Producător</TableHead>
+              <TableHead className="hidden md:table-cell">Lot/Document</TableHead>
+              <TableHead className="hidden md:table-cell">Data recepție</TableHead>
+              <TableHead className="w-[150px]">Acțiuni</TableHead>
             </TableRow>
-          )}
-
-          {filteredInventory.map((item) => (
-            <TableRow key={item.id}>
-              <TableCell className="font-medium">
-                {item.entry_number || "-"}
-              </TableCell>
-              <TableCell>
-                {editingId === item.id ? (
+          </TableHeader>
+          <TableBody>
+            {isAddingNew && (
+              <TableRow>
+                <TableCell className="font-medium">
+                  {nextEntryNumber}
+                </TableCell>
+                <TableCell>
                   <div className="space-y-2">
                     <Label>Produs</Label>
                     <Select 
-                      value={editItem?.product_id || ""}
-                      onValueChange={(value) => handleProductChange(value, editItem, setEditItem)}
+                      onValueChange={(value) => handleProductChange(value, newItem, setNewItem)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selectează produs" />
@@ -904,39 +741,33 @@ const InventoryManagement = () => {
                       </SelectContent>
                     </Select>
                     
-                    {!editItem?.product_id && (
+                    {!newItem.product_id && (
                       <Input
-                        value={editItem?.name || ""}
-                        onChange={(e) => setEditItem({ ...editItem!, name: e.target.value })}
+                        value={newItem.name || ""}
+                        onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
                         placeholder="Nume produs"
                         className="mt-2"
                       />
                     )}
                   </div>
-                ) : (
-                  <div>
-                    {item.name}
-                    {item.products && <div className="text-xs text-gray-500">Produs: {item.products.name}</div>}
-                  </div>
-                )}
-              </TableCell>
-              <TableCell>
-                {editingId === item.id ? (
+                </TableCell>
+                <TableCell>
                   <div className="space-y-2">
                     <Label>Cantitate brută</Label>
                     <div className="flex items-center gap-2">
                       <Input
-                        value={editItem?.gross_quantity?.toString() || editItem?.quantity?.toString() || ""}
-                        onChange={(e) => handleGrossQuantityChange(parseFloat(e.target.value) || 0, editItem, setEditItem)}
+                        value={newItem.gross_quantity?.toString() || newItem.quantity?.toString() || ""}
+                        onChange={(e) => handleGrossQuantityChange(parseFloat(e.target.value) || 0, newItem, setNewItem)}
                         type="number"
                         step="0.01"
                         min="0"
+                        placeholder="Cantitate"
                         className="w-24"
                       />
                       <Select 
-                        value={editItem?.unit || "kg"} 
-                        onValueChange={(value) => setEditItem({ ...editItem!, unit: value })}
-                        disabled={!!editItem?.product_id}
+                        value={newItem.unit || "kg"} 
+                        onValueChange={(value) => setNewItem({ ...newItem, unit: value })}
+                        disabled={!!newItem.product_id}
                       >
                         <SelectTrigger className="w-20">
                           <SelectValue placeholder="Unitate" />
@@ -953,16 +784,15 @@ const InventoryManagement = () => {
                       <Label>Lădițe</Label>
                       <div className="flex items-center gap-2 mt-1">
                         <Input
-                          value={editItem?.crate_count?.toString() || ""}
-                          onChange={(e) => handleCrateCountChange(parseInt(e.target.value) || 0, editItem, setEditItem)}
+                          value={newItem.crate_count?.toString() || ""}
+                          onChange={(e) => handleCrateCountChange(parseInt(e.target.value) || 0, newItem, setNewItem)}
                           type="number"
                           min="0"
                           placeholder="Nr. lădițe"
                           className="w-24"
                         />
                         <Select 
-                          value={editItem?.crate_type_id || ""}
-                          onValueChange={(value) => handleCrateTypeChange(value, editItem, setEditItem)}
+                          onValueChange={(value) => handleCrateTypeChange(value, newItem, setNewItem)}
                         >
                           <SelectTrigger className="flex-1">
                             <SelectValue placeholder="Tip lădiță" />
@@ -978,35 +808,17 @@ const InventoryManagement = () => {
                       </div>
                     </div>
                     
-                    {(editItem?.gross_quantity || editItem?.crate_count) && (
+                    {(newItem.gross_quantity || newItem.crate_count) && (
                       <div className="text-sm text-muted-foreground mt-2">
-                        Cantitate netă: {editItem?.net_quantity || editItem?.quantity} {editItem?.unit}
+                        Cantitate netă: {newItem.net_quantity || newItem.quantity} {newItem.unit}
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div>
-                    <div>
-                      {item.quantity} {item.unit}
-                    </div>
-                    {item.gross_quantity && item.gross_quantity !== item.quantity && (
-                      <div className="text-xs text-gray-500">
-                        Brut: {item.gross_quantity} {item.unit}
-                      </div>
-                    )}
-                    {item.crate_count && item.crate_types && (
-                      <div className="text-xs text-gray-500">
-                        {item.crate_count} x {item.crate_types.name}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                {editingId === item.id ? (
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  <Label>Furnizor</Label>
                   <Select 
-                    value={editItem?.supplier_id || ""}
-                    onValueChange={(value) => setEditItem({ ...editItem!, supplier_id: value })}
+                    onValueChange={(value) => setNewItem({ ...newItem, supplier_id: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selectează furnizor" />
@@ -1019,15 +831,11 @@ const InventoryManagement = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                ) : (
-                  item.suppliers?.name || item.supplier || "-"
-                )}
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                {editingId === item.id ? (
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  <Label>Producător</Label>
                   <Select 
-                    value={editItem?.manufacturer_id || ""}
-                    onValueChange={(value) => setEditItem({ ...editItem!, manufacturer_id: value })}
+                    onValueChange={(value) => setNewItem({ ...newItem, manufacturer_id: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selectează producător" />
@@ -1040,85 +848,286 @@ const InventoryManagement = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                ) : (
-                  item.manufacturers?.name || "-"
-                )}
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                {editingId === item.id ? (
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
                   <div className="space-y-2">
+                    <Label>Lot</Label>
                     <Input
-                      value={editItem?.batch_number || ""}
-                      onChange={(e) => setEditItem({ ...editItem!, batch_number: e.target.value })}
+                      value={newItem.batch_number || ""}
+                      onChange={(e) => setNewItem({ ...newItem, batch_number: e.target.value })}
                       placeholder="Număr lot"
                     />
+                    
+                    <Label className="mt-2 block">Document</Label>
                     <Input
-                      className="mt-2"
-                      value={editItem?.document_number || ""}
-                      onChange={(e) => setEditItem({ ...editItem!, document_number: e.target.value })}
+                      value={newItem.document_number || ""}
+                      onChange={(e) => setNewItem({ ...newItem, document_number: e.target.value })}
                       placeholder="Număr document"
                     />
                   </div>
-                ) : (
-                  <>
-                    {item.batch_number && (
-                      <div>
-                        <span className="font-medium">Lot:</span> {item.batch_number}
-                      </div>
-                    )}
-                    {item.document_number && (
-                      <div>
-                        <span className="font-medium">Doc:</span> {item.document_number}
-                      </div>
-                    )}
-                  </>
-                )}
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                {editingId === item.id ? (
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  <Label>Data recepție</Label>
                   <Input
                     type="date"
-                    value={formatDate(editItem?.receipt_date)}
-                    onChange={(e) => setEditItem({ ...editItem!, receipt_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                    value={formatDate(newItem.receipt_date)}
+                    onChange={(e) => setNewItem({ ...newItem, receipt_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
                   />
-                ) : (
-                  item.receipt_date ? formatDate(item.receipt_date) : "-"
-                )}
-              </TableCell>
-              <TableCell>
-                {editingId === item.id ? (
+                </TableCell>
+                <TableCell>
                   <div className="flex space-x-2">
-                    <Button size="sm" onClick={handleSaveEdit}>
+                    <Button size="sm" onClick={handleSaveNew}>
                       <Save className="h-4 w-4 mr-1" /> Salvează
                     </Button>
-                    <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                    <Button size="sm" variant="outline" onClick={handleCancelAdd}>
                       <X className="h-4 w-4 mr-1" /> Anulează
                     </Button>
                   </div>
-                ) : (
-                  <div className="flex space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEdit(item)}
+                </TableCell>
+              </TableRow>
+            )}
+
+            {filteredInventory.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell className="font-medium">
+                  {item.entry_number || "-"}
+                </TableCell>
+                <TableCell>
+                  {editingId === item.id ? (
+                    <div className="space-y-2">
+                      <Label>Produs</Label>
+                      <Select 
+                        value={editItem?.product_id || ""}
+                        onValueChange={(value) => handleProductChange(value, editItem, setEditItem)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selectează produs" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map(product => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      {!editItem?.product_id && (
+                        <Input
+                          value={editItem?.name || ""}
+                          onChange={(e) => setEditItem({ ...editItem!, name: e.target.value })}
+                          placeholder="Nume produs"
+                          className="mt-2"
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      {item.name}
+                      {item.products && <div className="text-xs text-gray-500">Produs: {item.products.name}</div>}
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {editingId === item.id ? (
+                    <div className="space-y-2">
+                      <Label>Cantitate brută</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editItem?.gross_quantity?.toString() || editItem?.quantity?.toString() || ""}
+                          onChange={(e) => handleGrossQuantityChange(parseFloat(e.target.value) || 0, editItem, setEditItem)}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-24"
+                        />
+                        <Select 
+                          value={editItem?.unit || "kg"} 
+                          onValueChange={(value) => setEditItem({ ...editItem!, unit: value })}
+                          disabled={!!editItem?.product_id}
+                        >
+                          <SelectTrigger className="w-20">
+                            <SelectValue placeholder="Unitate" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="kg">kg</SelectItem>
+                            <SelectItem value="buc">buc</SelectItem>
+                            <SelectItem value="l">l</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="mt-2">
+                        <Label>Lădițe</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Input
+                            value={editItem?.crate_count?.toString() || ""}
+                            onChange={(e) => handleCrateCountChange(parseInt(e.target.value) || 0, editItem, setEditItem)}
+                            type="number"
+                            min="0"
+                            placeholder="Nr. lădițe"
+                            className="w-24"
+                          />
+                          <Select 
+                            value={editItem?.crate_type_id || ""}
+                            onValueChange={(value) => handleCrateTypeChange(value, editItem, setEditItem)}
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Tip lădiță" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {crateTypes.map(crateType => (
+                                <SelectItem key={crateType.id} value={crateType.id}>
+                                  {crateType.name} ({crateType.weight} kg)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      {(editItem?.gross_quantity || editItem?.crate_count) && (
+                        <div className="text-sm text-muted-foreground mt-2">
+                          Cantitate netă: {editItem?.net_quantity || editItem?.quantity} {editItem?.unit}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <div>
+                        {item.quantity} {item.unit}
+                      </div>
+                      {item.gross_quantity && item.gross_quantity !== item.quantity && (
+                        <div className="text-xs text-gray-500">
+                          Brut: {item.gross_quantity} {item.unit}
+                        </div>
+                      )}
+                      {item.crate_count && item.crate_types && (
+                        <div className="text-xs text-gray-500">
+                          {item.crate_count} x {item.crate_types.name}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  {editingId === item.id ? (
+                    <Select 
+                      value={editItem?.supplier_id || ""}
+                      onValueChange={(value) => setEditItem({ ...editItem!, supplier_id: value })}
                     >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-red-500 hover:text-red-700"
-                      onClick={() => handleDelete(item.id, item.name)}
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selectează furnizor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {suppliers.map(supplier => (
+                          <SelectItem key={supplier.id} value={supplier.id}>
+                            {supplier.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    item.suppliers?.name || item.supplier || "-"
+                  )}
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  {editingId === item.id ? (
+                    <Select 
+                      value={editItem?.manufacturer_id || ""}
+                      onValueChange={(value) => setEditItem({ ...editItem!, manufacturer_id: value })}
                     >
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selectează producător" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {manufacturers.map(manufacturer => (
+                          <SelectItem key={manufacturer.id} value={manufacturer.id}>
+                            {manufacturer.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    item.manufacturers?.name || "-"
+                  )}
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  {editingId === item.id ? (
+                    <div className="space-y-2">
+                      <Input
+                        value={editItem?.batch_number || ""}
+                        onChange={(e) => setEditItem({ ...editItem!, batch_number: e.target.value })}
+                        placeholder="Număr lot"
+                      />
+                      <Input
+                        className="mt-2"
+                        value={editItem?.document_number || ""}
+                        onChange={(e) => setEditItem({ ...editItem!, document_number: e.target.value })}
+                        placeholder="Număr document"
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      {item.batch_number && (
+                        <div>
+                          <span className="font-medium">Lot:</span> {item.batch_number}
+                        </div>
+                      )}
+                      {item.document_number && (
+                        <div>
+                          <span className="font-medium">Doc:</span> {item.document_number}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  {editingId === item.id ? (
+                    <Input
+                      type="date"
+                      value={formatDate(editItem?.receipt_date)}
+                      onChange={(e) => setEditItem({ ...editItem!, receipt_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                    />
+                  ) : (
+                    item.receipt_date ? formatDate(item.receipt_date) : "-"
+                  )}
+                </TableCell>
+                <TableCell>
+                  {editingId === item.id ? (
+                    <div className="flex space-x-2">
+                      <Button size="sm" onClick={handleSaveEdit}>
+                        <Save className="h-4 w-4 mr-1" /> Salvează
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                        <X className="h-4 w-4 mr-1" /> Anulează
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEdit(item)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-500 hover:text-red-700"
+                        onClick={() => handleDelete(item.id, item.name)}
+                      >
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 };

@@ -154,6 +154,9 @@ export const speakText = (text: string) => {
 
 // Adăugăm o funcție pentru îmbunătățirea recunoașterii comenzilor vocale
 export const improveVoiceCommand = (transcript: string): string => {
+  // Adăugăm logging pentru a vedea cum este procesat transcriptul
+  console.log("Procesare comandă vocală brută:", transcript);
+  
   // Normalizăm textul pentru a avea mai multă consistență
   const normalizedText = transcript.toLowerCase().trim();
   
@@ -161,6 +164,23 @@ export const improveVoiceCommand = (transcript: string): string => {
   const stockKeywords = ['stoc', 'inventar', 'produse', 'depozit', 'cantitate', 'marfa', 'lot', 'loturi', 'consum'];
   const viewKeywords = ['arata', 'vezi', 'afișează', 'arată', 'ce', 'câte', 'cate', 'vreau', 'să', 'văd', 'vad', 'lista', 'listează', 'raport'];
   const timeKeywords = ['zilnic', 'ieri', 'astăzi', 'azi', 'luni', 'marti', 'miercuri', 'joi', 'vineri', 'săptămâna', 'saptamana', 'luna', 'lunar'];
+  
+  // Detectăm dacă este o comandă pentru a adăuga sau elimina elemente din inventar
+  const isAddCommand = normalizedText.match(/adaug[aă]|pun|bag|adăugăm|inserez|înscriu|introduc|înregistrez|adaug/i);
+  const isRemoveCommand = normalizedText.match(/scoate|elimină|scoatem|elimina|șterge|sterge|ștergem|stergem|scot/i);
+  
+  // Verificăm dacă este o comandă de adăugare cu cantități
+  if (isAddCommand) {
+    console.log("Comandă de adăugare detectată:", normalizedText);
+    // Verificăm dacă comanda conține cantități, evitând duplicarea
+    return transcript;
+  }
+  
+  // Verificăm dacă este o comandă de eliminare cu cantități
+  if (isRemoveCommand) {
+    console.log("Comandă de eliminare detectată:", normalizedText);
+    return transcript;
+  }
   
   // Verificăm dacă textul conține cuvinte cheie pentru afișarea stocului
   const hasStockKeyword = stockKeywords.some(keyword => normalizedText.includes(keyword));
@@ -258,17 +278,7 @@ export const improveVoiceCommand = (transcript: string): string => {
     }
   }
   
-  // Verificăm comenzile de adăugare sau scoatere produse
-  if (normalizedText.match(/adaug[aă]|pun|bag|adăugăm/) && 
-      (normalizedText.includes("kg") || normalizedText.includes("litri") || normalizedText.includes("buc"))) {
-    return transcript; // Păstrăm comanda originală pentru că conține cantități specifice
-  }
-  
-  if (normalizedText.match(/scoate|elimină|scoatem|elimina|șterge|sterge|ștergem|stergem/) && 
-      (normalizedText.includes("kg") || normalizedText.includes("litri") || normalizedText.includes("buc"))) {
-    return transcript; // Păstrăm comanda originală pentru că conține cantități specifice
-  }
-  
+  console.log("Comandă care nu se potrivește cu tiparele cunoscute, se păstrează textul original");
   // Dacă nu se potrivește cu niciunul din tiparele de mai sus, returnăm textul original
   return transcript;
 };

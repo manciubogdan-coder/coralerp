@@ -12,6 +12,7 @@ const InventoryPage = () => {
   const [refreshKey, setRefreshKey] = React.useState(0);
   
   const handleRefresh = () => {
+    console.log("Refreshing inventory data...");
     setRefreshKey(prevKey => prevKey + 1);
   };
   
@@ -38,6 +39,7 @@ const InventoryPage = () => {
             variant="outline"
             size="sm"
             onClick={handleRefresh}
+            title="Reîmprospătează datele din inventar"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Reîmprospătează
