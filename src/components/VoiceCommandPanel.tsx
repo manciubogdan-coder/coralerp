@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mic, MessageSquare, Info, BarChart3, VolumeX, Volume2, AlertTriangle } from "lucide-react";
@@ -59,6 +60,12 @@ const VoiceCommandPanel = ({
            text.toLowerCase().includes('nu am acces') ||
            (text.toLowerCase().includes('nu') && text.toLowerCase().includes('informatii')) ||
            text.toLowerCase().includes('nu am fost programat');
+  };
+
+  const isMissingFieldsPrompt = (text: string): boolean => {
+    return text.toLowerCase().includes('mai am nevoie de') || 
+           text.toLowerCase().includes('lipesc') || 
+           text.toLowerCase().includes('trebuie să îmi spui');
   };
 
   const isStockCommand = (text: string): boolean => {
@@ -178,16 +185,24 @@ const VoiceCommandPanel = ({
                         <div className="flex-1">
                           <div className={cn(
                             "p-2 rounded-lg rounded-tl-none",
-                            hasInsufficientQuantityWarning(conv.text) 
-                              ? "bg-amber-50 border border-amber-200" 
-                              : isEmptyInventoryMessage(conv.text)
-                                ? "bg-blue-50 border border-blue-200"
-                                : "bg-green-light bg-opacity-10"
+                            isMissingFieldsPrompt(conv.text) 
+                              ? "bg-blue-50 border-2 border-blue-200" 
+                              : hasInsufficientQuantityWarning(conv.text) 
+                                ? "bg-amber-50 border border-amber-200" 
+                                : isEmptyInventoryMessage(conv.text)
+                                  ? "bg-blue-50 border border-blue-200"
+                                  : "bg-green-light bg-opacity-10"
                           )}>
+                            {isMissingFieldsPrompt(conv.text) && (
+                              <div className="flex items-center gap-2 mb-2 text-blue-700 pb-2 border-b border-blue-200">
+                                <Info className="h-4 w-4 flex-shrink-0" />
+                                <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Informații necesare:</p>
+                              </div>
+                            )}
                             {hasInsufficientQuantityWarning(conv.text) && (
                               <div className="flex items-center gap-2 mb-2 text-amber-600 pb-2 border-b border-amber-200">
                                 <AlertTriangle className="h-4 w-4" />
-                                <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Atentie: Cantitate insuficienta</p>
+                                <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Atenție: Cantitate insuficientă</p>
                               </div>
                             )}
                             <p className={isMobile ? "text-xs" : "text-sm"} dangerouslySetInnerHTML={{ __html: conv.text.replace(/\n/g, '<br/>') }}></p>
@@ -208,19 +223,27 @@ const VoiceCommandPanel = ({
                       <div className="flex-1">
                         <div className={cn(
                           "p-2 rounded-lg rounded-tl-none",
-                          hasInsufficientQuantityWarning(response) 
-                            ? "bg-amber-50 border border-amber-200" 
-                            : isEmptyInventoryMessage(response)
-                              ? "bg-blue-50 border border-blue-200"
-                              : "bg-green-light bg-opacity-10"
+                          isMissingFieldsPrompt(response) 
+                            ? "bg-blue-50 border-2 border-blue-200" 
+                            : hasInsufficientQuantityWarning(response) 
+                              ? "bg-amber-50 border border-amber-200" 
+                              : isEmptyInventoryMessage(response)
+                                ? "bg-blue-50 border border-blue-200"
+                                : "bg-green-light bg-opacity-10"
                         )}>
+                          {isMissingFieldsPrompt(response) && (
+                            <div className="flex items-center gap-2 mb-2 text-blue-700 pb-2 border-b border-blue-200">
+                              <Info className="h-4 w-4 flex-shrink-0" />
+                              <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Informații necesare:</p>
+                            </div>
+                          )}
                           {hasInsufficientQuantityWarning(response) && (
                             <div className="flex items-center gap-2 mb-2 text-amber-600 pb-2 border-b border-amber-200">
                               <AlertTriangle className="h-4 w-4" />
-                              <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Atentie: Cantitate insuficienta</p>
+                              <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Atenție: Cantitate insuficientă</p>
                             </div>
                           )}
-                          <p className={isMobile ? "text-xs" : "text-sm"} dangerouslySetInnerHTML={{ __html: response.replace(/\n/g, '<br/>') }}></p>
+                          <p className={isMobile ? "text-xs font-medium" : "text-sm"} dangerouslySetInnerHTML={{ __html: response.replace(/\n/g, '<br/>') }}></p>
                           
                           {charts && charts.length > 0 && (
                             <div className="mt-4 border-t pt-3">

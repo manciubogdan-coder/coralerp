@@ -26,7 +26,7 @@ import {
 const AppSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const menuItems = [
     {
@@ -71,20 +71,19 @@ const AppSidebar = () => {
     navigate(path);
     // Pe mobil, închide sidebar-ul după navigare
     if (isMobile) {
-      const { setOpenMobile } = useSidebar();
       setOpenMobile(false);
     }
   };
 
   return (
-    <Sidebar>
+    <Sidebar className={isMobile ? "bg-white text-black" : ""}>
       <SidebarHeader className="p-4 border-b">
         <h1 className="text-xl font-bold">Inventory Manager</h1>
       </SidebarHeader>
       
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigare</SidebarGroupLabel>
+          <SidebarGroupLabel className={isMobile ? "text-black" : ""}>Navigare</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
@@ -93,6 +92,7 @@ const AppSidebar = () => {
                     isActive={location.pathname === item.path}
                     onClick={() => handleNavigation(item.path)}
                     tooltip={item.name}
+                    className={isMobile ? "hover:bg-gray-100 text-black" : ""}
                   >
                     <item.icon className="mr-2" size={18} />
                     <span>{item.name}</span>
