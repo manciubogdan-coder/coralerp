@@ -1,4 +1,3 @@
-
 // Funcție pentru a converti textul în vorbire folosind OpenAI TTS API
 export const speakText = (text: string) => {
   // Verificăm dacă browserul suportă Audio API
@@ -364,6 +363,9 @@ interface LastInteractionData {
   supplier?: string;
   batch?: string;
   manufacturer?: string;
+  documentNumber?: string;
+  crateType?: string;
+  crateCount?: number;
   timestamp: number;
 }
 
@@ -386,6 +388,8 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
   const supplierRegex = /(?:de\s+la|furnizor|furnizorul)\s+([a-zăîâșț]+)/i;
   const batchRegex = /(?:lot|lotul|lotului)\s+([a-z0-9]+)/i;
   const manufacturerRegex = /(?:produc[aă]tor|produc[aă]torul)\s+([a-zăîâșț]+)/i;
+  const crateRegex = /(?:pe|în|in)\s+([0-9]+)\s+(?:lăz|lazi|l[aă]di[țt][aăe]|cutii|cutie|crate|crates)/i;
+  const documentRegex = /(?:document|factur[aă]|aviz|bon)\s+([a-z0-9]+)/i;
   
   // Extragem informațiile disponibile
   const productMatch = productRegex.exec(normalizedCmd);
@@ -394,6 +398,8 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
   const supplierMatch = supplierRegex.exec(normalizedCmd);
   const batchMatch = batchRegex.exec(normalizedCmd);
   const manufacturerMatch = manufacturerRegex.exec(normalizedCmd);
+  const crateMatch = crateRegex.exec(normalizedCmd);
+  const documentMatch = documentRegex.exec(normalizedCmd);
   
   // Determinăm valorile extrase
   let product = productMatch ? productMatch[2] : null;
@@ -402,6 +408,8 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
   let supplier = supplierMatch ? supplierMatch[1] : null;
   let batch = batchMatch ? batchMatch[1] : null;
   let manufacturer = manufacturerMatch ? manufacturerMatch[1] : null;
+  let crateCount = crateMatch ? parseInt(crateMatch[1]) : null;
+  let documentNumber = documentMatch ? documentMatch[1] : null;
   
   // Extragem produsul și fără regexul complex în cazul în care prima metodă eșuează
   if (!product) {
@@ -412,7 +420,7 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
     }
   }
   
-  console.log("Informații extrase:", { product, quantity, unit, supplier, batch, manufacturer });
+  console.log("Informații extrase:", { product, quantity, unit, supplier, batch, manufacturer, crateCount, documentNumber });
   
   // Verificăm dacă informațiile extrase sunt suficiente
   const missingFields = [];
@@ -421,10 +429,20 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
   if (!quantity) missingFields.push("cantitatea");
   if (!unit) missingFields.push("unitatea de măsură");
   
+  // Pentru acțiuni de adăugare, cerem și informații suplimentare
+  if (action === 'add') {
+    // Aceste câmpuri sunt opționale, dar dorim să le solicităm dacă nu sunt specificate
+    if (!supplier) missingFields.push("furnizorul");
+    if (!manufacturer) missingFields.push("producatorul");
+    if (!batch) missingFields.push("numărul de lot");
+    if (!documentNumber) missingFields.push("numărul de document");
+    if (!crateCount) missingFields.push("numărul de lădițe");
+  }
+  
   // Actualizăm ultima interacțiune pentru valorile care au fost furnizate
   const now = Date.now();
   
-  if (product || quantity || unit || supplier || batch || manufacturer) {
+  if (product || quantity || unit || supplier || batch || manufacturer || crateCount || documentNumber) {
     // Actualizăm doar valorile care au fost furnizate
     lastInteraction = {
       action,
@@ -434,7 +452,9 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
       ...(unit && { unit }),
       ...(supplier && { supplier }),
       ...(batch && { batch }),
-      ...(manufacturer && { manufacturer })
+      ...(manufacturer && { manufacturer }),
+      ...(crateCount && { crateCount }),
+      ...(documentNumber && { documentNumber })
     };
   } else if (now - lastInteraction.timestamp < 60000 && lastInteraction.action === action) {
     // Folosim valori din ultima interacțiune dacă sunt recente (sub 1 minut)
@@ -445,22 +465,45 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
     supplier = supplier || lastInteraction.supplier;
     batch = batch || lastInteraction.batch;
     manufacturer = manufacturer || lastInteraction.manufacturer;
+    crateCount = crateCount || lastInteraction.crateCount;
+    documentNumber = documentNumber || lastInteraction.documentNumber;
   }
   
   // Verificăm din nou pentru câmpuri lipsă după preluarea valorilor din interacțiunea anterioară
-  if (!product) missingFields.push("produsul");
-  if (!quantity) missingFields.push("cantitatea");
-  if (!unit) missingFields.push("unitatea de măsură");
+  const essentialMissingFields = [];
+  if (!product) essentialMissingFields.push('produsul');
+  if (!quantity) essentialMissingFields.push('cantitatea');
+  if (!unit) essentialMissingFields.push('unitatea de măsură');
   
   // Dacă lipsesc informații esențiale, returnăm o comandă specială pentru a solicita mai multe detalii
-  if (missingFields.length > 0) {
-    return `NEED_MORE_INFO:${action}:${missingFields.join(',')}:${JSON.stringify({
+  if (essentialMissingFields.length > 0) {
+    return `NEED_MORE_INFO:${action}:${essentialMissingFields.join(',')}:${JSON.stringify({
       product,
       quantity,
       unit,
       supplier,
       batch,
-      manufacturer
+      manufacturer,
+      crateCount,
+      documentNumber
+    })}`;
+  }
+  
+  // Dacă avem informațiile esențiale, dar lipsesc unele detalii opționale, putem cere și acestea
+  const optionalMissingFields = missingFields.filter(field => 
+    !['produsul', 'cantitatea', 'unitatea de măsură'].includes(field)
+  );
+  
+  if (optionalMissingFields.length > 0 && action === 'add') {
+    return `NEED_OPTIONAL_INFO:${action}:${optionalMissingFields.join(',')}:${JSON.stringify({
+      product,
+      quantity,
+      unit,
+      supplier,
+      batch,
+      manufacturer,
+      crateCount,
+      documentNumber
     })}`;
   }
   
@@ -471,12 +514,20 @@ export function checkCommandCompleteness(command: string, action: 'add' | 'remov
     processedCommand += ` de la ${supplier}`;
   }
   
+  if (manufacturer) {
+    processedCommand += ` producător ${manufacturer}`;
+  }
+  
   if (batch) {
     processedCommand += ` lot ${batch}`;
   }
   
-  if (manufacturer) {
-    processedCommand += ` producător ${manufacturer}`;
+  if (documentNumber) {
+    processedCommand += ` document ${documentNumber}`;
+  }
+  
+  if (crateCount && crateCount > 0) {
+    processedCommand += ` în ${crateCount} lădițe`;
   }
   
   console.log("Comandă procesată:", processedCommand);
@@ -507,9 +558,12 @@ export function parseUserResponse(response: string, missingFields: string[], par
   const supplierRegex = /(?:furnizor(?:ul)?|de la)\s+([a-zăîâșț]+)/i;
   const batchRegex = /(?:lot(?:ul)?)\s+([a-z0-9]+)/i;
   const manufacturerRegex = /(?:producător(?:ul)?)\s+([a-zăîâșț]+)/i;
+  const documentRegex = /(?:document(?:ul)?|factur[aă]|aviz|bon)\s+([a-z0-9]+)/i;
+  const crateRegex = /([0-9]+)\s+(?:lăz|lazi|l[aă]di[țt][aăe]|cutii|cutie|crate|crates)/i;
   
   const simpleProductMatch = normalizedResponse.match(/^([a-zăîâșț]+)$/i); // Dacă răspunsul este doar produsul
   const simpleQuantityMatch = normalizedResponse.match(/^([0-9]+(?:[,.][0-9]+)?)$/i); // Dacă răspunsul este doar cantitatea
+  const simpleNumberMatch = normalizedResponse.match(/^([0-9]+)$/i); // Dacă răspunsul este doar un număr
   
   const data = { ...partialData };
   
@@ -536,24 +590,56 @@ export function parseUserResponse(response: string, missingFields: string[], par
     }
   }
   
-  if (supplierRegex.test(normalizedResponse)) {
+  if (missingFields.includes('furnizorul')) {
     const match = supplierRegex.exec(normalizedResponse);
     if (match) {
       data.supplier = match[1];
+    } else if (simpleProductMatch && !missingFields.includes('produsul')) {
+      // Dacă răspunsul este doar un cuvânt și nu așteptăm produsul, presupunem că este furnizorul
+      data.supplier = simpleProductMatch[1];
     }
   }
   
-  if (batchRegex.test(normalizedResponse)) {
+  if (missingFields.includes('numărul de lot')) {
     const match = batchRegex.exec(normalizedResponse);
     if (match) {
       data.batch = match[1];
+    } else if (simpleNumberMatch && !missingFields.includes('cantitatea') && 
+               !missingFields.includes('numărul de lădițe') && !missingFields.includes('numărul de document')) {
+      // Dacă răspunsul este doar un număr și nu așteptăm cantitatea sau alte numere, presupunem că este lot
+      data.batch = simpleNumberMatch[1];
     }
   }
   
-  if (manufacturerRegex.test(normalizedResponse)) {
+  if (missingFields.includes('producatorul')) {
     const match = manufacturerRegex.exec(normalizedResponse);
     if (match) {
       data.manufacturer = match[1];
+    } else if (simpleProductMatch && !missingFields.includes('produsul') && !missingFields.includes('furnizorul')) {
+      // Dacă răspunsul este doar un cuvânt și nu așteptăm produsul sau furnizorul, presupunem că este producătorul
+      data.manufacturer = simpleProductMatch[1];
+    }
+  }
+  
+  if (missingFields.includes('numărul de document')) {
+    const match = documentRegex.exec(normalizedResponse);
+    if (match) {
+      data.documentNumber = match[1];
+    } else if (simpleNumberMatch && !missingFields.includes('cantitatea') && 
+               !missingFields.includes('numărul de lădițe') && !missingFields.includes('numărul de lot')) {
+      // Dacă răspunsul este doar un număr și nu așteptăm alte numere, presupunem că este numărul de document
+      data.documentNumber = simpleNumberMatch[1];
+    }
+  }
+  
+  if (missingFields.includes('numărul de lădițe')) {
+    const match = crateRegex.exec(normalizedResponse);
+    if (match) {
+      data.crateCount = parseInt(match[1]);
+    } else if (simpleNumberMatch && !missingFields.includes('cantitatea') && 
+               !missingFields.includes('numărul de lot') && !missingFields.includes('numărul de document')) {
+      // Dacă răspunsul este doar un număr și nu așteptăm alte numere, presupunem că este numărul de lădițe
+      data.crateCount = parseInt(simpleNumberMatch[1]);
     }
   }
   
@@ -588,7 +674,37 @@ export function getMissingFieldsQuestion(missingFields: string[], action: 'add' 
     return `În ce unitate de măsură exprimi cantitatea? (kg, buc, l, etc.)`;
   }
   
+  if (missingFields[0] === 'furnizorul') {
+    if (partialData.product) {
+      return `De la ce furnizor provine produsul ${partialData.product}?`;
+    }
+    return `De la ce furnizor provine produsul?`;
+  }
+  
+  if (missingFields[0] === 'producatorul') {
+    if (partialData.product) {
+      return `Cine este producătorul pentru ${partialData.product}?`;
+    }
+    return `Cine este producătorul produsului?`;
+  }
+  
+  if (missingFields[0] === 'numărul de lot') {
+    if (partialData.product) {
+      return `Care este numărul de lot pentru ${partialData.product}?`;
+    }
+    return `Care este numărul de lot?`;
+  }
+  
+  if (missingFields[0] === 'numărul de document') {
+    return `Care este numărul documentului de intrare? (factură, aviz, bon, etc.)`;
+  }
+  
+  if (missingFields[0] === 'numărul de lădițe') {
+    if (partialData.product) {
+      return `În câte lădițe este ambalat produsul ${partialData.product}?`;
+    }
+    return `În câte lădițe este ambalat produsul? (introdu 0 dacă nu se aplică)`;
+  }
+  
   return `Te rog să-mi spui ${missingFields[0]} pentru a putea ${actionVerb} în inventar.`;
 }
-
-// Export

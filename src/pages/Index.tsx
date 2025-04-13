@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-custom-toast";
 import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
@@ -27,6 +26,7 @@ const Index = () => {
   const [conversationTexts, setConversationTexts] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [awaitingMoreInfo, setAwaitingMoreInfo] = useState(false);
+  const [awaitingOptionalInfo, setAwaitingOptionalInfo] = useState(false);
   const [response, setResponse] = useState("");
   const [charts, setCharts] = useState<ChartData[]>([]);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
@@ -182,7 +182,12 @@ const Index = () => {
           updatedAt: {
             seconds: new Date(item.updated_at || '').getTime() / 1000,
             nanoseconds: 0
-          }
+          },
+          document_number: item.document_number,
+          manufacturer: item.manufacturer_id ? item.manufacturer_id : undefined,
+          crate_count: item.crate_count,
+          crate_type_id: item.crate_type_id,
+          net_quantity: item.net_quantity
         }));
         
         setInventory(items);
@@ -452,6 +457,11 @@ const Index = () => {
             supplier: item.supplier,
             batch_number: item.batch_number,
             receipt_date: item.receipt_date ? formatToISOString(item.receipt_date) : null,
+            document_number: item.document_number,
+            manufacturer_id: item.manufacturer,
+            crate_count: item.crate_count || 0,
+            crate_type_id: item.crate_count && item.crate_count > 0 ? 
+              "00000000-0000-0000-0000-000000000001" : null
           })
           .select()
           .single();
@@ -466,6 +476,11 @@ const Index = () => {
           supplier: data.supplier || undefined,
           batch_number: data.batch_number || undefined,
           receipt_date: data.receipt_date ? new Date(data.receipt_date) : undefined,
+          document_number: data.document_number,
+          manufacturer: data.manufacturer_id,
+          crate_count: data.crate_count,
+          crate_type_id: data.crate_type_id,
+          net_quantity: data.net_quantity,
           createdAt: {
             seconds: new Date(data.created_at || '').getTime() / 1000,
             nanoseconds: 0
@@ -570,7 +585,6 @@ const Index = () => {
     setResponse("");
     setCharts([]);
     
-    // Verificăm dacă comanda necesită informații suplimentare
     if (input.startsWith("NEED_MORE_INFO:")) {
       const parts = input.split(":");
       const action = parts[1] as 'add' | 'remove' | 'set';
@@ -580,13 +594,14 @@ const Index = () => {
       const question = getMissingFieldsQuestion(missingFields, action, partialData);
       setResponse(question);
       setAwaitingMoreInfo(true);
+      setAwaitingOptionalInfo(false);
       
-      // Salvăm informația că așteptăm date suplimentare
       localStorage.setItem('pendingCommandData', JSON.stringify({
         action,
         missingFields,
         partialData,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        isOptional: false
       }));
       
       if (isAudioEnabled) {
@@ -601,25 +616,115 @@ const Index = () => {
       return;
     }
     
-    // Verificăm dacă acest input este un răspuns la o cerere de informații suplimentare
-    if (awaitingMoreInfo) {
+    if (input.startsWith("NEED_OPTIONAL_INFO:")) {
+      const parts = input.split(":");
+      const action = parts[1] as 'add' | 'remove' | 'set';
+      const missingFields = parts[2].split(',');
+      const partialData = JSON.parse(parts[3]);
+      
+      const question = `${getMissingFieldsQuestion(missingFields, action, partialData)} (Poți spune "sari" pentru a utiliza valorile implicite)`;
+      setResponse(question);
+      setAwaitingMoreInfo(false);
+      setAwaitingOptionalInfo(true);
+      
+      localStorage.setItem('pendingCommandData', JSON.stringify({
+        action,
+        missingFields,
+        partialData,
+        timestamp: Date.now(),
+        isOptional: true
+      }));
+      
+      if (isAudioEnabled) {
+        if (speechUtteranceRef.current) {
+          speechUtteranceRef.current.stop();
+        }
+        speechUtteranceRef.current = speakText(question);
+      }
+      
+      await saveConversation(question);
+      setIsProcessing(false);
+      return;
+    }
+    
+    if (awaitingMoreInfo || awaitingOptionalInfo) {
       const pendingCommandStr = localStorage.getItem('pendingCommandData');
       if (pendingCommandStr) {
         try {
           const pendingCommand = JSON.parse(pendingCommandStr);
+          const isOptionalInfo = pendingCommand.isOptional || false;
           
-          // Verificăm dacă cererea nu este prea veche (max 5 minute)
           if (Date.now() - pendingCommand.timestamp < 5 * 60 * 1000) {
+            if (isOptionalInfo && ['sari', 'skip', 'săriți', 'continuă', 'continua', 'treci mai departe'].includes(input.toLowerCase())) {
+              console.log("Utilizatorul a ales să sară peste informațiile opționale");
+              localStorage.removeItem('pendingCommandData');
+              setAwaitingMoreInfo(false);
+              setAwaitingOptionalInfo(false);
+              
+              const action = pendingCommand.action;
+              let processedCommand = `${action === 'add' ? 'adaugă' : 'scoate'} ${pendingCommand.partialData.quantity} ${pendingCommand.partialData.unit} de ${pendingCommand.partialData.product}`;
+              
+              if (pendingCommand.partialData.supplier) {
+                processedCommand += ` de la ${pendingCommand.partialData.supplier}`;
+              }
+              
+              if (pendingCommand.partialData.manufacturer) {
+                processedCommand += ` producător ${pendingCommand.partialData.manufacturer}`;
+              }
+              
+              if (pendingCommand.partialData.batch) {
+                processedCommand += ` lot ${pendingCommand.partialData.batch}`;
+              }
+              
+              if (pendingCommand.partialData.documentNumber) {
+                processedCommand += ` document ${pendingCommand.partialData.documentNumber}`;
+              }
+              
+              if (pendingCommand.partialData.crateCount && pendingCommand.partialData.crateCount > 0) {
+                processedCommand += ` în ${pendingCommand.partialData.crateCount} lădițe`;
+              }
+              
+              await saveConversation(input);
+              await processUserInput(processedCommand);
+              return;
+            }
+            
             const updatedData = parseUserResponse(input, pendingCommand.missingFields, pendingCommand.partialData);
             
-            // Verificăm dacă toate câmpurile necesare sunt acum completate
-            const stillMissingFields = [];
-            if (!updatedData.product) stillMissingFields.push('produsul');
-            if (!updatedData.quantity) stillMissingFields.push('cantitatea');
-            if (!updatedData.unit) stillMissingFields.push('unitatea de măsură');
-            
-            if (stillMissingFields.length === 0) {
-              // Toate informațiile sunt complete, construim comanda
+            if (isOptionalInfo) {
+              const stillMissingFields = pendingCommand.missingFields.filter(field => {
+                if (field === 'furnizorul') return !updatedData.supplier;
+                if (field === 'producatorul') return !updatedData.manufacturer;
+                if (field === 'numărul de lot') return !updatedData.batch;
+                if (field === 'numărul de document') return !updatedData.documentNumber;
+                if (field === 'numărul de lădițe') return updatedData.crateCount === undefined;
+                return false;
+              });
+              
+              if (stillMissingFields.length > 0 && stillMissingFields.length < pendingCommand.missingFields.length) {
+                const question = `${getMissingFieldsQuestion(stillMissingFields, pendingCommand.action, updatedData)} (Poți spune "sari" pentru a continua cu datele existente)`;
+                setResponse(question);
+                
+                localStorage.setItem('pendingCommandData', JSON.stringify({
+                  action: pendingCommand.action,
+                  missingFields: stillMissingFields,
+                  partialData: updatedData,
+                  timestamp: Date.now(),
+                  isOptional: true
+                }));
+                
+                if (isAudioEnabled) {
+                  if (speechUtteranceRef.current) {
+                    speechUtteranceRef.current.stop();
+                  }
+                  speechUtteranceRef.current = speakText(question);
+                }
+                
+                await saveConversation(question);
+                setIsProcessing(false);
+                return;
+              }
+              
               const action = pendingCommand.action;
               let processedCommand = `${action === 'add' ? 'adaugă' : 'scoate'} ${updatedData.quantity} ${updatedData.unit} de ${updatedData.product}`;
               
@@ -627,43 +732,87 @@ const Index = () => {
                 processedCommand += ` de la ${updatedData.supplier}`;
               }
               
-              if (updatedData.batch) {
-                processedCommand += ` lot ${updatedData.batch}`;
-              }
-              
               if (updatedData.manufacturer) {
                 processedCommand += ` producător ${updatedData.manufacturer}`;
               }
               
-              // Resetăm starea și procesăm comanda completă
+              if (updatedData.batch) {
+                processedCommand += ` lot ${updatedData.batch}`;
+              }
+              
+              if (updatedData.documentNumber) {
+                processedCommand += ` document ${updatedData.documentNumber}`;
+              }
+              
+              if (updatedData.crateCount && updatedData.crateCount > 0) {
+                processedCommand += ` în ${updatedData.crateCount} lădițe`;
+              }
+              
               localStorage.removeItem('pendingCommandData');
               setAwaitingMoreInfo(false);
+              setAwaitingOptionalInfo(false);
               await saveConversation(input);
               await processUserInput(processedCommand);
               return;
             } else {
-              // Încă lipsesc informații, actualizăm și cerem din nou
-              const question = getMissingFieldsQuestion(stillMissingFields, pendingCommand.action, updatedData);
-              setResponse(question);
+              const stillMissingFields = [];
+              if (!updatedData.product) stillMissingFields.push('produsul');
+              if (!updatedData.quantity) stillMissingFields.push('cantitatea');
+              if (!updatedData.unit) stillMissingFields.push('unitatea de măsură');
               
-              // Actualizăm datele parțiale cu ce am aflat acum
-              localStorage.setItem('pendingCommandData', JSON.stringify({
-                action: pendingCommand.action,
-                missingFields: stillMissingFields,
-                partialData: updatedData,
-                timestamp: Date.now()
-              }));
-              
-              if (isAudioEnabled) {
-                if (speechUtteranceRef.current) {
-                  speechUtteranceRef.current.stop();
+              if (stillMissingFields.length === 0) {
+                const action = pendingCommand.action;
+                let processedCommand = `${action === 'add' ? 'adaugă' : 'scoate'} ${updatedData.quantity} ${updatedData.unit} de ${updatedData.product}`;
+                
+                if (updatedData.supplier) {
+                  processedCommand += ` de la ${updatedData.supplier}`;
                 }
-                speechUtteranceRef.current = speakText(question);
+                
+                if (updatedData.manufacturer) {
+                  processedCommand += ` producător ${updatedData.manufacturer}`;
+                }
+                
+                if (updatedData.batch) {
+                  processedCommand += ` lot ${updatedData.batch}`;
+                }
+                
+                if (updatedData.documentNumber) {
+                  processedCommand += ` document ${updatedData.documentNumber}`;
+                }
+                
+                if (updatedData.crateCount && updatedData.crateCount > 0) {
+                  processedCommand += ` în ${updatedData.crateCount} lădițe`;
+                }
+                
+                localStorage.removeItem('pendingCommandData');
+                setAwaitingMoreInfo(false);
+                setAwaitingOptionalInfo(false);
+                await saveConversation(input);
+                await processUserInput(processedCommand);
+                return;
+              } else {
+                const question = getMissingFieldsQuestion(stillMissingFields, pendingCommand.action, updatedData);
+                setResponse(question);
+                
+                localStorage.setItem('pendingCommandData', JSON.stringify({
+                  action: pendingCommand.action,
+                  missingFields: stillMissingFields,
+                  partialData: updatedData,
+                  timestamp: Date.now(),
+                  isOptional: false
+                }));
+                
+                if (isAudioEnabled) {
+                  if (speechUtteranceRef.current) {
+                    speechUtteranceRef.current.stop();
+                  }
+                  speechUtteranceRef.current = speakText(question);
+                }
+                
+                await saveConversation(question);
+                setIsProcessing(false);
+                return;
               }
-              
-              await saveConversation(question);
-              setIsProcessing(false);
-              return;
             }
           }
         } catch (e) {
@@ -671,10 +820,9 @@ const Index = () => {
         }
       }
       
-      // Dacă ajungem aici, înseamnă că nu am putut procesa răspunsul ca informație suplimentară
-      // Resetăm starea și procesăm inputul normal
       localStorage.removeItem('pendingCommandData');
       setAwaitingMoreInfo(false);
+      setAwaitingOptionalInfo(false);
     }
     
     const isStockCommand = input.toLowerCase().match(/stoc|inventar|produse|arată|vezi|afișează|raport|cantitate|total|marfă|marfa|depozit/i);
@@ -735,6 +883,7 @@ const Index = () => {
 
       if (result.needsMoreInfo) {
         setAwaitingMoreInfo(true);
+        setAwaitingOptionalInfo(false);
         await saveConversation(result.response);
         setResponse(result.needsMoreInfo.question);
         
@@ -752,6 +901,7 @@ const Index = () => {
         }
       } else {
         setAwaitingMoreInfo(false);
+        setAwaitingOptionalInfo(false);
         
         if (result.action === 'add' || result.action === 'remove' || result.action === 'set') {
           if (result.item) {
@@ -985,9 +1135,12 @@ const Index = () => {
           <div className="bg-white rounded-lg shadow-md p-2 md:p-4">
             <form onSubmit={handleSubmit} className="flex space-x-2">
               <Input
-                placeholder={awaitingMoreInfo 
-                  ? "Raspundeti la intrebarea asistentului..." 
-                  : "Ce ai vrea sa faci? (ex: Adauga 5kg rosii sau Cate loturi de menta avem?)"
+                placeholder={
+                  awaitingMoreInfo 
+                    ? "Raspundeti la intrebarea asistentului..." 
+                    : awaitingOptionalInfo
+                      ? "Completați informațiile opționale sau scrieți 'sari'..."
+                      : "Ce ai vrea sa faci? (ex: Adauga 5kg rosii sau Cate loturi de menta avem?)"
                 }
                 value={inputText}
                 onChange={handleInputChange}
