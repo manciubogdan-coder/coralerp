@@ -10,7 +10,7 @@ import VoiceCommandPanel from "@/components/VoiceCommandPanel";
 import InventoryTable from "@/components/InventoryTable";
 import InventoryHistory from "@/components/InventoryHistory";
 import { processCommand } from "@/lib/aiProcessor";
-import { ChartData, InventoryItem } from "@/types";
+import { ChartData, InventoryItem, InventoryHistoryItem } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";
 import { sendEmail } from "@/lib/emailService";
 import { speakText, improveVoiceCommand } from "@/lib/speechService";
@@ -34,6 +34,20 @@ const Index = () => {
   const speechUtteranceRef = useRef<{stop: () => void; isPending: () => boolean} | null>(null);
   const [activeTab, setActiveTab] = useState("inventory");
   const isMobile = useIsMobile();
+
+  // Funcție utilitară pentru a formata datele în format ISO, indiferent dacă sunt string sau Date
+  const formatToISOString = (date: Date | string): string => {
+    if (date instanceof Date) {
+      return date.toISOString();
+    } else if (typeof date === 'string') {
+      const parsed = new Date(date);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString();
+      }
+      return date;
+    }
+    return '';
+  };
 
   useEffect(() => {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
