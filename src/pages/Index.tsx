@@ -64,10 +64,21 @@ const Index = () => {
 
       let silenceTimer: number | null = null;
       let finalTranscriptText = "";
+      let lastProcessedText = "";
 
       recognitionRef.current.onresult = (event) => {
         const current = event.resultIndex;
         let transcriptText = event.results[current][0].transcript;
+        
+        if (transcriptText.match(/^Am (adaugat|eliminat|scos|actualizat)/i)) {
+          console.log("Ignorăm confirmarea asistentului:", transcriptText);
+          return;
+        }
+        
+        if (transcriptText === lastProcessedText) {
+          console.log("Ignorăm text duplicat:", transcriptText);
+          return;
+        }
         
         let hasStockKeywords = false;
         
@@ -85,6 +96,11 @@ const Index = () => {
         }
         
         const improvedTranscript = improveVoiceCommand(transcriptText);
+        if (improvedTranscript === "DUPLICATE_COMMAND") {
+          console.log("Comandă duplicată detectată, se ignoră");
+          return;
+        }
+        
         if (improvedTranscript !== transcriptText) {
           console.log("Transcriptul a fost îmbunătățit:", transcriptText, "->", improvedTranscript);
           transcriptText = improvedTranscript;
@@ -100,10 +116,11 @@ const Index = () => {
 
         if (event.results[current].isFinal) {
           finalTranscriptText = transcriptText;
+          lastProcessedText = finalTranscriptText;
           setInputText(finalTranscriptText);
           
           silenceTimer = window.setTimeout(() => {
-            if (finalTranscriptText.trim()) {
+            if (finalTranscriptText.trim() && finalTranscriptText !== "DUPLICATE_COMMAND") {
               let commandToProcess = finalTranscriptText;
               
               if (finalTranscriptText.toLowerCase().includes("stoc") || 
@@ -124,7 +141,7 @@ const Index = () => {
                 recognitionRef.current.stop();
               }
             }
-          }, 5000);
+          }, 2000);
         } else {
           setInputText(transcriptText);
         }

@@ -156,6 +156,16 @@ export const improveVoiceCommand = (transcript: string): string => {
   // Adăugăm logging pentru a vedea cum este procesat transcriptul
   console.log("Procesare comandă vocală brută:", transcript);
   
+  // Verificăm dacă este o repetare a unei confirmări a asistentului
+  if (transcript.startsWith("Am adaugat") || 
+      transcript.startsWith("Am eliminat") || 
+      transcript.startsWith("Am scos") ||
+      transcript.startsWith("Am actualizat") ||
+      transcript.match(/^Am (adaugat|eliminat|scos|actualizat) [0-9]+ (kg|buc|l|g) de/i)) {
+    console.log("Comandă ignorată (confirmarea asistentului):", transcript);
+    return "DUPLICATE_COMMAND";
+  }
+  
   // Creăm un hash unic pentru comanda curentă pentru a preveni dublarea 
   const commandHash = createCommandHash(transcript);
   console.log("Comanda hash:", commandHash);
