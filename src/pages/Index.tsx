@@ -86,7 +86,7 @@ const Index = () => {
         
         const improvedTranscript = improveVoiceCommand(transcriptText);
         if (improvedTranscript !== transcriptText) {
-          console.log("Transcriptul a fost îmbunătăit:", transcriptText, "->", improvedTranscript);
+          console.log("Transcriptul a fost îmbunătățit:", transcriptText, "->", improvedTranscript);
           transcriptText = improvedTranscript;
           hasStockKeywords = true;
         }
@@ -412,7 +412,7 @@ const Index = () => {
               .from('inventory')
               .update({
                 quantity: item.quantity,
-                receipt_date: item.receipt_date ? item.receipt_date.toISOString() : oldItem.receipt_date,
+                receipt_date: item.receipt_date ? formatToISOString(item.receipt_date) : oldItem.receipt_date,
                 updated_at: new Date().toISOString()
               })
               .eq('id', item.id);
@@ -443,7 +443,7 @@ const Index = () => {
             unit: item.unit,
             supplier: item.supplier,
             batch_number: item.batch_number,
-            receipt_date: item.receipt_date ? item.receipt_date.toISOString() : null,
+            receipt_date: item.receipt_date ? formatToISOString(item.receipt_date) : null,
           })
           .select()
           .single();
@@ -496,7 +496,7 @@ const Index = () => {
             unit: item.unit,
             supplier: item.supplier,
             batch_number: item.batch_number,
-            receipt_date: item.receipt_date ? item.receipt_date.toISOString() : null,
+            receipt_date: item.receipt_date ? formatToISOString(item.receipt_date) : null,
             updated_at: new Date().toISOString()
           })
           .eq('id', item.id);
@@ -886,55 +886,4 @@ const Index = () => {
                 {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </Button>
               <Button type="submit" disabled={isProcessing || !inputText.trim()}>
-                {isMobile ? <Send className="h-4 w-4" /> : <><Send className="h-4 w-4 mr-2" />Trimite</>}
-              </Button>
-            </form>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow-md">
-            <div className="border-b border-gray-200 p-2 md:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-              <div>
-                <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="inventory">
-                  <TabsList className={isMobile ? "h-8" : ""}>
-                    <TabsTrigger value="inventory" className="flex items-center text-xs md:text-sm">
-                      <ListFilter className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                      Stoc curent
-                    </TabsTrigger>
-                    <TabsTrigger value="history" className="flex items-center text-xs md:text-sm">
-                      <History className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                      Istoric
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-              <div className="flex space-x-2 w-full md:w-auto">
-                <Button variant="outline" size="sm" onClick={handleExportExcel} className="text-xs md:text-sm flex-1 md:flex-none">
-                  <Download className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                  {isMobile ? "" : "Excel"}
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleSendEmail} className="text-xs md:text-sm flex-1 md:flex-none">
-                  <Mail className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                  {isMobile ? "" : "Email"}
-                </Button>
-              </div>
-            </div>
-            
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsContent value="inventory">
-                <InventoryTable inventory={inventory} />
-              </TabsContent>
-              
-              <TabsContent value="history">
-                <InventoryHistory />
-              </TabsContent>
-            </Tabs>
-          </div>
-        </div>
-      </main>
-      
-      <Footer />
-    </div>
-  );
-};
-
-export default Index;
+                {isMobile ? <Send className="h-4 w-4" /> :
