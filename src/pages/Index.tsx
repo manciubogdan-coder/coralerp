@@ -569,6 +569,113 @@ const Index = () => {
     setResponse("");
     setCharts([]);
     
+    // Verificăm dacă comanda necesită informații suplimentare
+    if (input.startsWith("NEED_MORE_INFO:")) {
+      const parts = input.split(":");
+      const action = parts[1] as 'add' | 'remove' | 'set';
+      const missingFields = parts[2].split(',');
+      const partialData = JSON.parse(parts[3]);
+      
+      const question = getMissingFieldsQuestion(missingFields, action, partialData);
+      setResponse(question);
+      setAwaitingMoreInfo(true);
+      
+      // Salvăm informația că așteptăm date suplimentare
+      localStorage.setItem('pendingCommandData', JSON.stringify({
+        action,
+        missingFields,
+        partialData,
+        timestamp: Date.now()
+      }));
+      
+      if (isAudioEnabled) {
+        if (speechUtteranceRef.current) {
+          speechUtteranceRef.current.stop();
+        }
+        speechUtteranceRef.current = speakText(question);
+      }
+      
+      await saveConversation(question);
+      setIsProcessing(false);
+      return;
+    }
+    
+    // Verificăm dacă acest input este un răspuns la o cerere de informații suplimentare
+    if (awaitingMoreInfo) {
+      const pendingCommandStr = localStorage.getItem('pendingCommandData');
+      if (pendingCommandStr) {
+        try {
+          const pendingCommand = JSON.parse(pendingCommandStr);
+          
+          // Verificăm dacă cererea nu este prea veche (max 5 minute)
+          if (Date.now() - pendingCommand.timestamp < 5 * 60 * 1000) {
+            const updatedData = parseUserResponse(input, pendingCommand.missingFields, pendingCommand.partialData);
+            
+            // Verificăm dacă toate câmpurile necesare sunt acum completate
+            const stillMissingFields = [];
+            if (!updatedData.product) stillMissingFields.push('produsul');
+            if (!updatedData.quantity) stillMissingFields.push('cantitatea');
+            if (!updatedData.unit) stillMissingFields.push('unitatea de măsură');
+            
+            if (stillMissingFields.length === 0) {
+              // Toate informațiile sunt complete, construim comanda
+              const action = pendingCommand.action;
+              let processedCommand = `${action === 'add' ? 'adaugă' : 'scoate'} ${updatedData.quantity} ${updatedData.unit} de ${updatedData.product}`;
+              
+              if (updatedData.supplier) {
+                processedCommand += ` de la ${updatedData.supplier}`;
+              }
+              
+              if (updatedData.batch) {
+                processedCommand += ` lot ${updatedData.batch}`;
+              }
+              
+              if (updatedData.manufacturer) {
+                processedCommand += ` producător ${updatedData.manufacturer}`;
+              }
+              
+              // Resetăm starea și procesăm comanda completă
+              localStorage.removeItem('pendingCommandData');
+              setAwaitingMoreInfo(false);
+              await saveConversation(input);
+              await processUserInput(processedCommand);
+              return;
+            } else {
+              // Încă lipsesc informații, actualizăm și cerem din nou
+              const question = getMissingFieldsQuestion(stillMissingFields, pendingCommand.action, updatedData);
+              setResponse(question);
+              
+              // Actualizăm datele parțiale cu ce am aflat acum
+              localStorage.setItem('pendingCommandData', JSON.stringify({
+                action: pendingCommand.action,
+                missingFields: stillMissingFields,
+                partialData: updatedData,
+                timestamp: Date.now()
+              }));
+              
+              if (isAudioEnabled) {
+                if (speechUtteranceRef.current) {
+                  speechUtteranceRef.current.stop();
+                }
+                speechUtteranceRef.current = speakText(question);
+              }
+              
+              await saveConversation(question);
+              setIsProcessing(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error("Eroare la parsarea datelor din comandă pendinte:", e);
+        }
+      }
+      
+      // Dacă ajungem aici, înseamnă că nu am putut procesa răspunsul ca informație suplimentară
+      // Resetăm starea și procesăm inputul normal
+      localStorage.removeItem('pendingCommandData');
+      setAwaitingMoreInfo(false);
+    }
+    
     const isStockCommand = input.toLowerCase().match(/stoc|inventar|produse|arată|vezi|afișează|raport|cantitate|total|marfă|marfa|depozit/i);
     const isShowStockCommand = input.toLowerCase().includes("arată stocul") || 
                               input.toLowerCase().includes("arată produsele") ||

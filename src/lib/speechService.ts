@@ -185,14 +185,14 @@ export const improveVoiceCommand = (transcript: string): string => {
   // Verificăm dacă este o comandă de adăugare cu cantități
   if (isAddCommand) {
     console.log("Comandă de adăugare detectată:", normalizedText);
-    // Verificăm dacă comanda conține cantități, evitând duplicarea
-    return transcript;
+    // Verificăm dacă comanda conține informații complete
+    return checkCommandCompleteness(transcript, 'add');
   }
   
   // Verificăm dacă este o comandă de eliminare cu cantități
   if (isRemoveCommand) {
     console.log("Comandă de eliminare detectată:", normalizedText);
-    return transcript;
+    return checkCommandCompleteness(transcript, 'remove');
   }
   
   // Verificăm dacă textul conține cuvinte cheie pentru afișarea stocului
@@ -300,18 +300,21 @@ export const improveVoiceCommand = (transcript: string): string => {
 // Stocăm hashurile comenzilor recente în această hartă împreună cu timestamp-ul
 const recentCommandsMap = new Map<string, number>();
 
-// Durata în milisecunde pentru a considera o comandă ca fiind duplicat (5 secunde)
-const DUPLICATE_COMMAND_TIMEOUT = 5000; 
+// Durata în milisecunde pentru a considera o comandă ca fiind duplicat (10 secunde)
+const DUPLICATE_COMMAND_TIMEOUT = 10000;
 
 // Crează un hash simplu pentru o comandă, care va fi mai restrictiv pentru a evita dublurile
 function createCommandHash(command: string): string {
   // Curățăm textul pentru a avea un hash mai consistent
-  return command.toLowerCase()
+  const cleanedCommand = command.toLowerCase()
               .trim()
               .replace(/\s+/g, ' ')                      // Reduce toate spațiile multiple la unul singur
               .replace(/[,.;:?!]/g, '')                  // Eliminăm punctuația
               .replace(/^(adauga|adaugă|adaug)\s+/i, '') // Standardizăm verbele comune
               .replace(/^(scoate|elimină)\s+/i, '');     // Standardizăm verbele comune
+              
+  console.log("Command text normalizat pentru hash:", cleanedCommand);
+  return cleanedCommand;
 }
 
 // Verifică dacă o comandă a fost executată recent
@@ -351,3 +354,241 @@ function cleanupOldCommands(currentTime: number): void {
     console.log(`S-au curățat ${cleaned} comenzi vechi din cache`);
   }
 }
+
+// Stocăm informații despre ultima interacțiune pentru a folosi valorile implicite
+interface LastInteractionData {
+  action: 'add' | 'remove' | 'set' | null;
+  product?: string;
+  quantity?: number;
+  unit?: string;
+  supplier?: string;
+  batch?: string;
+  manufacturer?: string;
+  timestamp: number;
+}
+
+// Folosim un obiect singleton pentru a păstra starea între apeluri
+let lastInteraction: LastInteractionData = {
+  action: null,
+  timestamp: 0
+};
+
+// Funcție pentru a verifica și completa informațiile lipsă dintr-o comandă
+export function checkCommandCompleteness(command: string, action: 'add' | 'remove' | 'set'): string {
+  const normalizedCmd = command.toLowerCase();
+  
+  console.log(`Verificare completitudine comandă ${action}:`, command);
+  
+  // Regulile pentru extragerea informațiilor din comandă vocală
+  const productRegex = /(?:adaug[aă]|pun|bag|scoate|elimină|scot)\s+(?:([0-9]+(?:[,.][0-9]+)?)\s*(?:kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet))\s+(?:de\s+)?([a-zăîâșț]+)/i;
+  const quantityRegex = /([0-9]+(?:[,.][0-9]+)?)\s*(?:kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet)/i;
+  const unitRegex = /(?:[0-9]+(?:[,.][0-9]+)?)\s*(kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet)/i;
+  const supplierRegex = /(?:de\s+la|furnizor|furnizorul)\s+([a-zăîâșț]+)/i;
+  const batchRegex = /(?:lot|lotul|lotului)\s+([a-z0-9]+)/i;
+  const manufacturerRegex = /(?:produc[aă]tor|produc[aă]torul)\s+([a-zăîâșț]+)/i;
+  
+  // Extragem informațiile disponibile
+  const productMatch = productRegex.exec(normalizedCmd);
+  const quantityMatch = quantityRegex.exec(normalizedCmd);
+  const unitMatch = unitRegex.exec(normalizedCmd);
+  const supplierMatch = supplierRegex.exec(normalizedCmd);
+  const batchMatch = batchRegex.exec(normalizedCmd);
+  const manufacturerMatch = manufacturerRegex.exec(normalizedCmd);
+  
+  // Determinăm valorile extrase
+  let product = productMatch ? productMatch[2] : null;
+  let quantity = quantityMatch ? parseFloat(quantityMatch[1].replace(',', '.')) : null;
+  let unit = unitMatch ? standardizeUnit(unitMatch[1]) : null;
+  let supplier = supplierMatch ? supplierMatch[1] : null;
+  let batch = batchMatch ? batchMatch[1] : null;
+  let manufacturer = manufacturerMatch ? manufacturerMatch[1] : null;
+  
+  // Extragem produsul și fără regexul complex în cazul în care prima metodă eșuează
+  if (!product) {
+    // Încercăm să găsim produsul după cuvintele cheie
+    const simpleProductMatch = normalizedCmd.match(/(?:adaug[aă]|pun|bag|scoate|elimină|scot)\s+.*?\s+(?:de\s+)?([a-zăîâșț]+)(?:\s|$)/i);
+    if (simpleProductMatch) {
+      product = simpleProductMatch[1];
+    }
+  }
+  
+  console.log("Informații extrase:", { product, quantity, unit, supplier, batch, manufacturer });
+  
+  // Verificăm dacă informațiile extrase sunt suficiente
+  const missingFields = [];
+  
+  if (!product) missingFields.push("produsul");
+  if (!quantity) missingFields.push("cantitatea");
+  if (!unit) missingFields.push("unitatea de măsură");
+  
+  // Actualizăm ultima interacțiune pentru valorile care au fost furnizate
+  const now = Date.now();
+  
+  if (product || quantity || unit || supplier || batch || manufacturer) {
+    // Actualizăm doar valorile care au fost furnizate
+    lastInteraction = {
+      action,
+      timestamp: now,
+      ...(product && { product }),
+      ...(quantity && { quantity }),
+      ...(unit && { unit }),
+      ...(supplier && { supplier }),
+      ...(batch && { batch }),
+      ...(manufacturer && { manufacturer })
+    };
+  } else if (now - lastInteraction.timestamp < 60000 && lastInteraction.action === action) {
+    // Folosim valori din ultima interacțiune dacă sunt recente (sub 1 minut)
+    console.log("Folosim valori din ultima interacțiune:", lastInteraction);
+    product = product || lastInteraction.product;
+    quantity = quantity || lastInteraction.quantity;
+    unit = unit || lastInteraction.unit;
+    supplier = supplier || lastInteraction.supplier;
+    batch = batch || lastInteraction.batch;
+    manufacturer = manufacturer || lastInteraction.manufacturer;
+  }
+  
+  // Verificăm din nou pentru câmpuri lipsă după preluarea valorilor din interacțiunea anterioară
+  if (!product) missingFields.push("produsul");
+  if (!quantity) missingFields.push("cantitatea");
+  if (!unit) missingFields.push("unitatea de măsură");
+  
+  // Dacă lipsesc informații esențiale, returnăm o comandă specială pentru a solicita mai multe detalii
+  if (missingFields.length > 0) {
+    return `NEED_MORE_INFO:${action}:${missingFields.join(',')}:${JSON.stringify({
+      product,
+      quantity,
+      unit,
+      supplier,
+      batch,
+      manufacturer
+    })}`;
+  }
+  
+  // Construim comanda completă pentru procesare
+  let processedCommand = `${action === 'add' ? 'adaugă' : 'scoate'} ${quantity} ${unit} de ${product}`;
+  
+  if (supplier) {
+    processedCommand += ` de la ${supplier}`;
+  }
+  
+  if (batch) {
+    processedCommand += ` lot ${batch}`;
+  }
+  
+  if (manufacturer) {
+    processedCommand += ` producător ${manufacturer}`;
+  }
+  
+  console.log("Comandă procesată:", processedCommand);
+  return processedCommand;
+}
+
+// Funcție pentru a standardiza unitățile de măsură
+function standardizeUnit(unit: string): string {
+  unit = unit.toLowerCase();
+  
+  if (['kg', 'kilograme', 'kilogram', 'kg.'].includes(unit)) return 'kg';
+  if (['l', 'litri', 'litru', 'l.', 'litrii'].includes(unit)) return 'l';
+  if (['g', 'gram', 'grame', 'g.'].includes(unit)) return 'g';
+  if (['buc', 'bucăți', 'bucati', 'bucată', 'bucata'].includes(unit)) return 'buc';
+  if (['cutie', 'cutii'].includes(unit)) return 'cutie';
+  if (['pachet', 'pachete'].includes(unit)) return 'pachet';
+  
+  return unit;
+}
+
+// Funcție pentru a parsa răspunsul utilizatorului la solicitarea de informații suplimentare
+export function parseUserResponse(response: string, missingFields: string[], partialData: any): any {
+  const normalizedResponse = response.toLowerCase();
+  
+  const productRegex = /(?:produs(?:ul)?|e)\s+([a-zăîâșț]+)/i;
+  const quantityRegex = /([0-9]+(?:[,.][0-9]+)?)\s*(?:kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet)/i;
+  const unitRegex = /(?:[0-9]+(?:[,.][0-9]+)?)\s*(kg|buc|l|g|litri|litru|buc[aă]t[iî]|cutii|cutie|pachete|pachet)/i;
+  const supplierRegex = /(?:furnizor(?:ul)?|de la)\s+([a-zăîâșț]+)/i;
+  const batchRegex = /(?:lot(?:ul)?)\s+([a-z0-9]+)/i;
+  const manufacturerRegex = /(?:producător(?:ul)?)\s+([a-zăîâșț]+)/i;
+  
+  const simpleProductMatch = normalizedResponse.match(/^([a-zăîâșț]+)$/i); // Dacă răspunsul este doar produsul
+  const simpleQuantityMatch = normalizedResponse.match(/^([0-9]+(?:[,.][0-9]+)?)$/i); // Dacă răspunsul este doar cantitatea
+  
+  const data = { ...partialData };
+  
+  if (missingFields.includes('produsul')) {
+    const match = productRegex.exec(normalizedResponse) || simpleProductMatch;
+    if (match) {
+      data.product = match[1];
+    }
+  }
+  
+  if (missingFields.includes('cantitatea')) {
+    const match = quantityRegex.exec(normalizedResponse) || simpleQuantityMatch;
+    if (match) {
+      data.quantity = parseFloat(match[1].replace(',', '.'));
+    }
+  }
+  
+  if (missingFields.includes('unitatea de măsură')) {
+    const match = unitRegex.exec(normalizedResponse);
+    if (match) {
+      data.unit = standardizeUnit(match[1]);
+    } else if (normalizedResponse.match(/^(kg|buc|l|g|litri|litru|cutii|cutie|pachete|pachet)$/i)) {
+      data.unit = standardizeUnit(normalizedResponse);
+    }
+  }
+  
+  if (supplierRegex.test(normalizedResponse)) {
+    const match = supplierRegex.exec(normalizedResponse);
+    if (match) {
+      data.supplier = match[1];
+    }
+  }
+  
+  if (batchRegex.test(normalizedResponse)) {
+    const match = batchRegex.exec(normalizedResponse);
+    if (match) {
+      data.batch = match[1];
+    }
+  }
+  
+  if (manufacturerRegex.test(normalizedResponse)) {
+    const match = manufacturerRegex.exec(normalizedResponse);
+    if (match) {
+      data.manufacturer = match[1];
+    }
+  }
+  
+  return data;
+}
+
+// Funcție pentru a obține o întrebare pentru câmpurile lipsă
+export function getMissingFieldsQuestion(missingFields: string[], action: 'add' | 'remove' | 'set', partialData: any): string {
+  const actionVerb = action === 'add' ? 'adăuga' : 'scoate';
+  
+  // Dacă lipsesc mai multe câmpuri, creăm o întrebare generală
+  if (missingFields.length > 1) {
+    return `Pentru a ${actionVerb} în inventar, am nevoie să știu ${missingFields.join(' și ')}. Poți să-mi spui aceste informații?`;
+  }
+  
+  // Întrebări specifice pentru fiecare câmp lipsă
+  if (missingFields[0] === 'produsul') {
+    return `Ce produs dorești să ${actionVerb}?`;
+  }
+  
+  if (missingFields[0] === 'cantitatea') {
+    if (partialData.product) {
+      return `Ce cantitate de ${partialData.product} dorești să ${actionVerb}?`;
+    }
+    return `Ce cantitate dorești să ${actionVerb}?`;
+  }
+  
+  if (missingFields[0] === 'unitatea de măsură') {
+    if (partialData.product) {
+      return `În ce unitate de măsură exprimi cantitatea de ${partialData.product}? (kg, buc, l, etc.)`;
+    }
+    return `În ce unitate de măsură exprimi cantitatea? (kg, buc, l, etc.)`;
+  }
+  
+  return `Te rog să-mi spui ${missingFields[0]} pentru a putea ${actionVerb} în inventar.`;
+}
+
+// Expo
