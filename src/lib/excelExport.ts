@@ -7,8 +7,8 @@ export function exportToExcel(inventory: InventoryItem[]) {
     'Produs': item.name,
     'Cantitate': item.quantity,
     'Unitate': item.unit,
-    'Ultima actualizare': item.updatedAt 
-      ? new Date(item.updatedAt.seconds * 1000).toLocaleString('ro-RO') 
+    'Ultima actualizare': item.updated_at 
+      ? new Date(item.updated_at.seconds * 1000).toLocaleString('ro-RO') 
       : 'N/A'
   }));
   
