@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-custom-toast";
 import { Pencil, Trash, Plus, Save, X, FileDown, Mail } from "lucide-react";
@@ -49,6 +50,9 @@ interface InventoryItem {
 interface Supplier {
   id: string;
   name: string;
+  contact?: string;
+  phone?: string;
+  email?: string;
 }
 
 interface Product {
@@ -85,6 +89,7 @@ const InventoryManagement = () => {
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [crateTypes, setCrateTypes] = useState<CrateType[]>([]);
   const [activeTab, setActiveTab] = useState("all");
+  const [nextEntryNumber, setNextEntryNumber] = useState<number>(1);
 
   useEffect(() => {
     fetchInventory();
@@ -92,21 +97,57 @@ const InventoryManagement = () => {
     fetchProducts();
     fetchManufacturers();
     fetchCrateTypes();
+    getNextEntryNumber();
   }, []);
+
+  const getNextEntryNumber = async () => {
+    try {
+      // Obținem valoarea secvenței pentru entry_number
+      const { data, error } = await supabase.rpc('get_next_inventory_entry');
+      
+      if (error) throw error;
+      
+      if (data) {
+        setNextEntryNumber(data);
+      }
+    } catch (error) {
+      console.error("Error fetching next entry number:", error);
+      // Folosim o valoare implicită dacă apare o eroare
+      const { data } = await supabase
+        .from("inventory")
+        .select("entry_number")
+        .order("entry_number", { ascending: false })
+        .limit(1);
+      
+      setNextEntryNumber(data && data.length > 0 ? (data[0].entry_number + 1) : 1);
+    }
+  };
 
   const fetchInventory = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from("inventory")
-        .select("*")
-        .order("name");
+        .select(`
+          *,
+          suppliers:supplier_id (name),
+          products:product_id (name),
+          manufacturers:manufacturer_id (name),
+          crate_types:crate_type_id (name, weight)
+        `)
+        .order("entry_number", { ascending: false });
 
       if (error) {
         throw error;
       }
 
-      setInventory(data || []);
+      // Transformăm datele pentru a adăuga numele furnizorului, produsului, etc.
+      const formattedData = data.map(item => ({
+        ...item,
+        supplier_name: item.suppliers ? item.suppliers.name : item.supplier
+      }));
+
+      setInventory(formattedData || []);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -122,7 +163,7 @@ const InventoryManagement = () => {
     try {
       const { data, error } = await supabase
         .from("suppliers")
-        .select("id, name")
+        .select("id, name, contact, phone, email")
         .order("name");
 
       if (error) {
@@ -193,6 +234,7 @@ const InventoryManagement = () => {
       quantity: 0,
       unit: "kg",
       receipt_date: new Date().toISOString(),
+      entry_number: nextEntryNumber
     });
   };
 
@@ -256,13 +298,15 @@ const InventoryManagement = () => {
         }
       }
 
-      let netQuantity = newItem.quantity;
+      let grossQuantity = Number(newItem.quantity);
+      let netQuantity = grossQuantity;
+      
       if (newItem.crate_type_id && newItem.crate_count && newItem.crate_count > 0) {
-        netQuantity = calculateNetQuantity(
-          newItem.quantity, 
-          newItem.crate_type_id, 
-          newItem.crate_count
-        );
+        const selectedCrateType = crateTypes.find(ct => ct.id === newItem.crate_type_id);
+        if (selectedCrateType) {
+          const totalCrateWeight = selectedCrateType.weight * newItem.crate_count;
+          netQuantity = Math.max(0, grossQuantity - totalCrateWeight);
+        }
       }
 
       const receiptDate = newItem.receipt_date 
@@ -274,7 +318,7 @@ const InventoryManagement = () => {
         .insert([
           {
             name: newItem.name,
-            quantity: Number(newItem.quantity),
+            quantity: netQuantity, // Cantitatea netă
             unit: newItem.unit,
             supplier_id: newItem.supplier_id || null,
             product_id: newItem.product_id || null,
@@ -283,9 +327,10 @@ const InventoryManagement = () => {
             receipt_date: receiptDate,
             crate_type_id: newItem.crate_type_id || null,
             crate_count: newItem.crate_count || null,
-            gross_quantity: newItem.quantity,
+            gross_quantity: grossQuantity,
             net_quantity: netQuantity,
             document_number: newItem.document_number || null,
+            entry_number: newItem.entry_number
           },
         ])
         .select();
@@ -300,11 +345,8 @@ const InventoryManagement = () => {
       });
 
       setIsAddingNew(false);
-      
-      const newData = data as InventoryItem[];
-      setInventory([...newData, ...inventory]);
-      
-      fetchInventory();
+      await getNextEntryNumber(); // Actualizăm următorul număr de intrare
+      fetchInventory(); // Reîncărcăm lista de inventar
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -346,13 +388,15 @@ const InventoryManagement = () => {
         }
       }
 
-      let netQuantity = editItem.quantity;
+      let grossQuantity = Number(editItem.gross_quantity || editItem.quantity);
+      let netQuantity = grossQuantity;
+      
       if (editItem.crate_type_id && editItem.crate_count && editItem.crate_count > 0) {
-        netQuantity = calculateNetQuantity(
-          editItem.quantity, 
-          editItem.crate_type_id, 
-          editItem.crate_count
-        );
+        const selectedCrateType = crateTypes.find(ct => ct.id === editItem.crate_type_id);
+        if (selectedCrateType) {
+          const totalCrateWeight = selectedCrateType.weight * editItem.crate_count;
+          netQuantity = Math.max(0, grossQuantity - totalCrateWeight);
+        }
       }
 
       const receiptDate = editItem.receipt_date 
@@ -363,7 +407,7 @@ const InventoryManagement = () => {
         .from("inventory")
         .update({
           name: editItem.name,
-          quantity: Number(editItem.quantity),
+          quantity: netQuantity, // Cantitatea netă
           unit: editItem.unit,
           supplier_id: editItem.supplier_id || null,
           product_id: editItem.product_id || null,
@@ -372,7 +416,7 @@ const InventoryManagement = () => {
           receipt_date: receiptDate,
           crate_type_id: editItem.crate_type_id || null,
           crate_count: editItem.crate_count || null,
-          gross_quantity: editItem.quantity,
+          gross_quantity: grossQuantity,
           net_quantity: netQuantity,
           document_number: editItem.document_number || null,
         })
@@ -484,13 +528,15 @@ const InventoryManagement = () => {
     if (selectedCrateType && targetState.crate_count && targetState.quantity) {
       const crateWeight = selectedCrateType.weight;
       const totalCrateWeight = crateWeight * targetState.crate_count;
-      const netQuantity = Math.max(0, targetState.quantity - totalCrateWeight);
+      const grossQuantity = targetState.gross_quantity || targetState.quantity;
+      const netQuantity = Math.max(0, grossQuantity - totalCrateWeight);
       
       setTargetState({
         ...targetState,
         crate_type_id: crateTypeId,
         crate_weight: crateWeight,
-        net_quantity: netQuantity
+        net_quantity: netQuantity,
+        quantity: netQuantity // Actualizăm și cantitatea netă
       });
     } else {
       setTargetState({
@@ -499,6 +545,53 @@ const InventoryManagement = () => {
         crate_weight: selectedCrateType?.weight || 0
       });
     }
+  };
+
+  const handleCrateCountChange = (crateCount: number, targetState: any, setTargetState: any) => {
+    if (targetState.crate_type_id) {
+      const selectedCrateType = crateTypes.find(ct => ct.id === targetState.crate_type_id);
+      if (selectedCrateType) {
+        const grossQuantity = targetState.gross_quantity || targetState.quantity;
+        const totalCrateWeight = selectedCrateType.weight * crateCount;
+        const netQuantity = Math.max(0, grossQuantity - totalCrateWeight);
+        
+        setTargetState({
+          ...targetState,
+          crate_count: crateCount,
+          net_quantity: netQuantity,
+          quantity: netQuantity // Actualizăm și cantitatea netă
+        });
+      } else {
+        setTargetState({
+          ...targetState,
+          crate_count: crateCount
+        });
+      }
+    } else {
+      setTargetState({
+        ...targetState,
+        crate_count: crateCount
+      });
+    }
+  };
+
+  const handleGrossQuantityChange = (grossQuantity: number, targetState: any, setTargetState: any) => {
+    let netQuantity = grossQuantity;
+    
+    if (targetState.crate_type_id && targetState.crate_count) {
+      const selectedCrateType = crateTypes.find(ct => ct.id === targetState.crate_type_id);
+      if (selectedCrateType) {
+        const totalCrateWeight = selectedCrateType.weight * targetState.crate_count;
+        netQuantity = Math.max(0, grossQuantity - totalCrateWeight);
+      }
+    }
+    
+    setTargetState({
+      ...targetState,
+      gross_quantity: grossQuantity,
+      quantity: netQuantity,
+      net_quantity: netQuantity
+    });
   };
 
   const filteredInventory = activeTab === "all" 
@@ -565,10 +658,12 @@ const InventoryManagement = () => {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-[80px]">Nr.</TableHead>
             <TableHead>Nume</TableHead>
             <TableHead>Cantitate</TableHead>
             <TableHead className="hidden md:table-cell">Furnizor</TableHead>
-            <TableHead className="hidden md:table-cell">Lot</TableHead>
+            <TableHead className="hidden md:table-cell">Producător</TableHead>
+            <TableHead className="hidden md:table-cell">Lot/Document</TableHead>
             <TableHead className="hidden md:table-cell">Data recepție</TableHead>
             <TableHead className="w-[150px]">Acțiuni</TableHead>
           </TableRow>
@@ -576,6 +671,9 @@ const InventoryManagement = () => {
         <TableBody>
           {isAddingNew && (
             <TableRow>
+              <TableCell className="font-medium">
+                {nextEntryNumber}
+              </TableCell>
               <TableCell>
                 <div className="space-y-2">
                   <Label>Produs</Label>
@@ -606,11 +704,11 @@ const InventoryManagement = () => {
               </TableCell>
               <TableCell>
                 <div className="space-y-2">
-                  <Label>Cantitate</Label>
+                  <Label>Cantitate brută</Label>
                   <div className="flex items-center gap-2">
                     <Input
-                      value={newItem.quantity?.toString() || ""}
-                      onChange={(e) => setNewItem({ ...newItem, quantity: parseFloat(e.target.value) || 0 })}
+                      value={newItem.gross_quantity?.toString() || newItem.quantity?.toString() || ""}
+                      onChange={(e) => handleGrossQuantityChange(parseFloat(e.target.value) || 0, newItem, setNewItem)}
                       type="number"
                       step="0.01"
                       min="0"
@@ -638,7 +736,7 @@ const InventoryManagement = () => {
                     <div className="flex items-center gap-2 mt-1">
                       <Input
                         value={newItem.crate_count?.toString() || ""}
-                        onChange={(e) => setNewItem({ ...newItem, crate_count: parseInt(e.target.value) || 0 })}
+                        onChange={(e) => handleCrateCountChange(parseInt(e.target.value) || 0, newItem, setNewItem)}
                         type="number"
                         min="0"
                         placeholder="Nr. lădițe"
@@ -660,6 +758,12 @@ const InventoryManagement = () => {
                       </Select>
                     </div>
                   </div>
+                  
+                  {(newItem.gross_quantity || newItem.crate_count) && (
+                    <div className="text-sm text-muted-foreground mt-2">
+                      Cantitate netă: {newItem.net_quantity || newItem.quantity} {newItem.unit}
+                    </div>
+                  )}
                 </div>
               </TableCell>
               <TableCell className="hidden md:table-cell">
@@ -678,8 +782,9 @@ const InventoryManagement = () => {
                     ))}
                   </SelectContent>
                 </Select>
-
-                <Label className="mt-2 block">Producător</Label>
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                <Label>Producător</Label>
                 <Select 
                   onValueChange={(value) => setNewItem({ ...newItem, manufacturer_id: value })}
                 >
@@ -696,19 +801,21 @@ const InventoryManagement = () => {
                 </Select>
               </TableCell>
               <TableCell className="hidden md:table-cell">
-                <Label>Lot</Label>
-                <Input
-                  value={newItem.batch_number || ""}
-                  onChange={(e) => setNewItem({ ...newItem, batch_number: e.target.value })}
-                  placeholder="Număr lot"
-                />
-                
-                <Label className="mt-2 block">Document</Label>
-                <Input
-                  value={newItem.document_number || ""}
-                  onChange={(e) => setNewItem({ ...newItem, document_number: e.target.value })}
-                  placeholder="Număr document"
-                />
+                <div className="space-y-2">
+                  <Label>Lot</Label>
+                  <Input
+                    value={newItem.batch_number || ""}
+                    onChange={(e) => setNewItem({ ...newItem, batch_number: e.target.value })}
+                    placeholder="Număr lot"
+                  />
+                  
+                  <Label className="mt-2 block">Document</Label>
+                  <Input
+                    value={newItem.document_number || ""}
+                    onChange={(e) => setNewItem({ ...newItem, document_number: e.target.value })}
+                    placeholder="Număr document"
+                  />
+                </div>
               </TableCell>
               <TableCell className="hidden md:table-cell">
                 <Label>Data recepție</Label>
@@ -733,6 +840,9 @@ const InventoryManagement = () => {
 
           {filteredInventory.map((item) => (
             <TableRow key={item.id}>
+              <TableCell className="font-medium">
+                {item.entry_number || "-"}
+              </TableCell>
               <TableCell>
                 {editingId === item.id ? (
                   <div className="space-y-2">
@@ -763,17 +873,20 @@ const InventoryManagement = () => {
                     )}
                   </div>
                 ) : (
-                  item.name
+                  <div>
+                    {item.name}
+                    {item.products && <div className="text-xs text-gray-500">Produs: {item.products.name}</div>}
+                  </div>
                 )}
               </TableCell>
               <TableCell>
                 {editingId === item.id ? (
                   <div className="space-y-2">
-                    <Label>Cantitate</Label>
+                    <Label>Cantitate brută</Label>
                     <div className="flex items-center gap-2">
                       <Input
-                        value={editItem?.quantity?.toString() || ""}
-                        onChange={(e) => setEditItem({ ...editItem!, quantity: parseFloat(e.target.value) || 0 })}
+                        value={editItem?.gross_quantity?.toString() || editItem?.quantity?.toString() || ""}
+                        onChange={(e) => handleGrossQuantityChange(parseFloat(e.target.value) || 0, editItem, setEditItem)}
                         type="number"
                         step="0.01"
                         min="0"
@@ -800,7 +913,7 @@ const InventoryManagement = () => {
                       <div className="flex items-center gap-2 mt-1">
                         <Input
                           value={editItem?.crate_count?.toString() || ""}
-                          onChange={(e) => setEditItem({ ...editItem!, crate_count: parseInt(e.target.value) || 0 })}
+                          onChange={(e) => handleCrateCountChange(parseInt(e.target.value) || 0, editItem, setEditItem)}
                           type="number"
                           min="0"
                           placeholder="Nr. lădițe"
@@ -823,13 +936,25 @@ const InventoryManagement = () => {
                         </Select>
                       </div>
                     </div>
+                    
+                    {(editItem?.gross_quantity || editItem?.crate_count) && (
+                      <div className="text-sm text-muted-foreground mt-2">
+                        Cantitate netă: {editItem?.net_quantity || editItem?.quantity} {editItem?.unit}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <>
-                    {item.quantity} {item.unit}
+                    <div>
+                      {item.quantity} {item.unit}
+                    </div>
+                    {item.gross_quantity && item.gross_quantity !== item.quantity && (
+                      <div className="text-xs text-gray-500">Brut: {item.gross_quantity} {item.unit}</div>
+                    )}
                     {item.crate_count && item.crate_count > 0 && (
                       <div className="text-xs text-gray-500">
-                        {item.crate_count} lădițe, net: {item.net_quantity} {item.unit}
+                        {item.crate_count} lădițe
+                        {item.crate_types && ` (${item.crate_types.name})`}
                       </div>
                     )}
                   </>
@@ -854,8 +979,22 @@ const InventoryManagement = () => {
                         ))}
                       </SelectContent>
                     </Select>
-
-                    <Label className="mt-2 block">Producător</Label>
+                  </div>
+                ) : (
+                  <div>
+                    {item.suppliers?.name || item.supplier || "-"}
+                    {item.supplier_id && suppliers.find(s => s.id === item.supplier_id)?.contact && (
+                      <div className="text-xs text-gray-500">
+                        Contact: {suppliers.find(s => s.id === item.supplier_id)?.contact}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                {editingId === item.id ? (
+                  <div className="space-y-2">
+                    <Label>Producător</Label>
                     <Select 
                       value={editItem?.manufacturer_id || ""}
                       onValueChange={(value) => setEditItem({ ...editItem!, manufacturer_id: value })}
@@ -874,12 +1013,7 @@ const InventoryManagement = () => {
                   </div>
                 ) : (
                   <div>
-                    {suppliers.find(s => s.id === item.supplier_id)?.name || item.supplier || "-"}
-                    {item.manufacturer_id && (
-                      <div className="text-xs text-gray-500">
-                        Prod: {manufacturers.find(m => m.id === item.manufacturer_id)?.name || "-"}
-                      </div>
-                    )}
+                    {item.manufacturers?.name || "-"}
                   </div>
                 )}
               </TableCell>
@@ -902,7 +1036,9 @@ const InventoryManagement = () => {
                   </div>
                 ) : (
                   <>
-                    {item.batch_number || "-"}
+                    <div>
+                      {item.batch_number ? `Lot: ${item.batch_number}` : "-"}
+                    </div>
                     {item.document_number && (
                       <div className="text-xs text-gray-500">
                         Doc: {item.document_number}
@@ -959,7 +1095,7 @@ const InventoryManagement = () => {
 
           {filteredInventory.length === 0 && !isAddingNew && !loading && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                 Nu există articole în inventar. Adăugați unul nou folosind butonul de mai sus.
               </TableCell>
             </TableRow>
@@ -967,7 +1103,7 @@ const InventoryManagement = () => {
 
           {loading && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                 Se încarcă inventarul...
               </TableCell>
             </TableRow>
