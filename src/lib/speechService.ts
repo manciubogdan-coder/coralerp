@@ -660,12 +660,12 @@ export function parseUserResponse(response: string, missingFields: string[], par
 export function getMissingFieldsQuestion(missingFields: string[], action: 'add' | 'remove' | 'set', partialData: any): string {
   const actionVerb = action === 'add' ? 'adăuga' : 'scoate';
   
-  // Dacă lipsesc mai multe câmpuri, creăm o întrebare generală dar clară
+  // Dacă lipsesc mai multe câmpuri esențiale, creăm o întrebare mai directă și mai clară
   if (missingFields.length > 1) {
-    return `Pentru a ${actionVerb} în inventar, mai am nevoie să știu: <strong>${missingFields.join('</strong>, <strong>')}</strong>. Te rog să-mi spui aceste informații pentru a continua.`;
+    return `Pentru a ${actionVerb} în inventar, te rog să-mi spui: <strong>${missingFields.join('</strong>, <strong>')}</strong>.`;
   }
   
-  // Întrebări specifice pentru fiecare câmp lipsă
+  // Întrebări specifice și foarte clare pentru fiecare câmp lipsă
   if (missingFields[0] === 'produsul') {
     return `<strong>Ce produs</strong> dorești să ${actionVerb}?`;
   }

@@ -116,17 +116,19 @@
     @apply bg-blue-50 border-2 border-blue-200 p-3 rounded-lg font-medium;
   }
   
-  /* Mobile sidebar specific styles */
-  .mobile-sidebar {
-    background-color: white !important;
+  /* Enhanced missing fields highlight */
+  .missing-field-highlight {
+    @apply bg-blue-100 text-blue-800 font-semibold px-1.5 py-0.5 rounded;
   }
   
-  .mobile-sidebar * {
-    color: black !important;
+  /* Missing fields container with attention color */
+  .missing-fields-container {
+    @apply bg-blue-50 border-2 border-blue-300 shadow-md p-4 rounded-lg;
   }
   
-  .mobile-sidebar .sidebar-menu-button:hover {
-    background-color: #f3f4f6 !important;
+  /* Missing fields header */
+  .missing-fields-header {
+    @apply flex items-center gap-2 text-blue-700 pb-2 border-b border-blue-200 mb-3;
   }
   
   @keyframes pulse {

@@ -68,7 +68,9 @@ const VoiceCommandPanel = ({
            text.toLowerCase().includes('trebuie să îmi spui') ||
            text.toLowerCase().includes('pentru a adăuga') ||
            text.toLowerCase().includes('pentru a continua') ||
-           text.toLowerCase().includes('te rog să-mi spui');
+           text.toLowerCase().includes('te rog să-mi spui') ||
+           text.toLowerCase().includes('ce') && text.toLowerCase().includes('este') ||
+           text.toLowerCase().includes('te rog specifică');
   };
 
   const isStockCommand = (text: string): boolean => {
@@ -77,6 +79,41 @@ const VoiceCommandPanel = ({
            text.toLowerCase().includes('marfa') ||
            text.toLowerCase().includes('produse') ||
            text.toLowerCase().includes('depozit');
+  };
+  
+  const formatMissingFieldsPrompt = (text: string): string => {
+    // Highlight the missing fields with stronger formatting
+    let formattedText = text;
+    
+    // Find fields between <strong> tags and make them more prominent
+    formattedText = formattedText.replace(
+      /<strong>(.*?)<\/strong>/g, 
+      '<strong class="text-blue-700 bg-blue-100 px-1 rounded">$1</strong>'
+    );
+    
+    // Make specific questions bold
+    if (text.includes('Ce produs')) {
+      formattedText = formattedText.replace(
+        'Ce produs', 
+        '<span class="font-bold text-blue-800">Ce produs</span>'
+      );
+    }
+    
+    if (text.includes('Ce cantitate')) {
+      formattedText = formattedText.replace(
+        'Ce cantitate', 
+        '<span class="font-bold text-blue-800">Ce cantitate</span>'
+      );
+    }
+    
+    if (text.includes('În ce unitate de măsură')) {
+      formattedText = formattedText.replace(
+        'În ce unitate de măsură', 
+        '<span class="font-bold text-blue-800">În ce unitate de măsură</span>'
+      );
+    }
+    
+    return formattedText;
   };
 
   return (
@@ -199,7 +236,9 @@ const VoiceCommandPanel = ({
                             {isMissingFieldsPrompt(conv.text) && (
                               <div className="flex items-center gap-2 mb-2 text-blue-700 pb-2 border-b border-blue-200">
                                 <Info className="h-4 w-4 flex-shrink-0" />
-                                <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Câmpuri lipsă - te rog să-mi spui:</p>
+                                <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>
+                                  Am nevoie de mai multe informații:
+                                </p>
                               </div>
                             )}
                             {hasInsufficientQuantityWarning(conv.text) && (
@@ -208,7 +247,14 @@ const VoiceCommandPanel = ({
                                 <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Atenție: Cantitate insuficientă</p>
                               </div>
                             )}
-                            <p className={isMobile ? "text-xs" : "text-sm"} dangerouslySetInnerHTML={{ __html: conv.text.replace(/\n/g, '<br/>') }}></p>
+                            <p 
+                              className={isMobile ? "text-xs" : "text-sm"} 
+                              dangerouslySetInnerHTML={{ 
+                                __html: isMissingFieldsPrompt(conv.text) 
+                                  ? formatMissingFieldsPrompt(conv.text.replace(/\n/g, '<br/>'))
+                                  : conv.text.replace(/\n/g, '<br/>') 
+                              }}
+                            ></p>
                           </div>
                           <p className="text-xs text-gray-500 mt-1 text-right">
                             {formatTime(conv.timestamp)}
@@ -227,7 +273,7 @@ const VoiceCommandPanel = ({
                         <div className={cn(
                           "p-2 rounded-lg rounded-tl-none",
                           isMissingFieldsPrompt(response) 
-                            ? "bg-blue-50 border-2 border-blue-200" 
+                            ? "bg-blue-50 border-2 border-blue-200 shadow-md" 
                             : hasInsufficientQuantityWarning(response) 
                               ? "bg-amber-50 border border-amber-200" 
                               : isEmptyInventoryMessage(response)
@@ -237,7 +283,9 @@ const VoiceCommandPanel = ({
                           {isMissingFieldsPrompt(response) && (
                             <div className="flex items-center gap-2 mb-2 text-blue-700 pb-2 border-b border-blue-200">
                               <Info className="h-4 w-4 flex-shrink-0" />
-                              <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Câmpuri lipsă - te rog să-mi spui:</p>
+                              <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>
+                                Am nevoie de mai multe informații:
+                              </p>
                             </div>
                           )}
                           {hasInsufficientQuantityWarning(response) && (
@@ -246,7 +294,14 @@ const VoiceCommandPanel = ({
                               <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Atenție: Cantitate insuficientă</p>
                             </div>
                           )}
-                          <p className={isMobile ? "text-xs font-medium" : "text-sm"} dangerouslySetInnerHTML={{ __html: response.replace(/\n/g, '<br/>') }}></p>
+                          <p 
+                            className={isMobile ? "text-xs font-medium" : "text-sm"} 
+                            dangerouslySetInnerHTML={{ 
+                              __html: isMissingFieldsPrompt(response) 
+                                ? formatMissingFieldsPrompt(response.replace(/\n/g, '<br/>'))
+                                : response.replace(/\n/g, '<br/>') 
+                            }}
+                          ></p>
                           
                           {charts && charts.length > 0 && (
                             <div className="mt-4 border-t pt-3">
