@@ -660,61 +660,61 @@ export function parseUserResponse(response: string, missingFields: string[], par
 export function getMissingFieldsQuestion(missingFields: string[], action: 'add' | 'remove' | 'set', partialData: any): string {
   const actionVerb = action === 'add' ? 'adăuga' : 'scoate';
   
-  // Dacă lipsesc mai multe câmpuri, creăm o întrebare generală
+  // Dacă lipsesc mai multe câmpuri, creăm o întrebare generală dar clară
   if (missingFields.length > 1) {
-    return `Pentru a ${actionVerb} în inventar, am nevoie să știu ${missingFields.join(' și ')}. Poți să-mi spui aceste informații?`;
+    return `Pentru a ${actionVerb} în inventar, mai am nevoie să știu: <strong>${missingFields.join('</strong>, <strong>')}</strong>. Te rog să-mi spui aceste informații pentru a continua.`;
   }
   
   // Întrebări specifice pentru fiecare câmp lipsă
   if (missingFields[0] === 'produsul') {
-    return `Ce produs dorești să ${actionVerb}?`;
+    return `<strong>Ce produs</strong> dorești să ${actionVerb}?`;
   }
   
   if (missingFields[0] === 'cantitatea') {
     if (partialData.product) {
-      return `Ce cantitate de ${partialData.product} dorești să ${actionVerb}?`;
+      return `<strong>Ce cantitate</strong> de ${partialData.product} dorești să ${actionVerb}?`;
     }
-    return `Ce cantitate dorești să ${actionVerb}?`;
+    return `<strong>Ce cantitate</strong> dorești să ${actionVerb}?`;
   }
   
   if (missingFields[0] === 'unitatea de măsură') {
     if (partialData.product) {
-      return `În ce unitate de măsură exprimi cantitatea de ${partialData.product}? (kg, buc, l, etc.)`;
+      return `<strong>În ce unitate de măsură</strong> exprimi cantitatea de ${partialData.product}? (kg, buc, l, etc.)`;
     }
-    return `În ce unitate de măsură exprimi cantitatea? (kg, buc, l, etc.)`;
+    return `<strong>În ce unitate de măsură</strong> exprimi cantitatea? (kg, buc, l, etc.)`;
   }
   
   if (missingFields[0] === 'furnizorul') {
     if (partialData.product) {
-      return `De la ce furnizor provine produsul ${partialData.product}?`;
+      return `<strong>De la ce furnizor</strong> provine produsul ${partialData.product}?`;
     }
-    return `De la ce furnizor provine produsul?`;
+    return `<strong>De la ce furnizor</strong> provine produsul?`;
   }
   
-  if (missingFields[0] === 'producatorul') {
+  if (missingFields[0] === 'producatorul' || missingFields[0] === 'producătorul') {
     if (partialData.product) {
-      return `Cine este producătorul pentru ${partialData.product}?`;
+      return `<strong>Cine este producătorul</strong> pentru ${partialData.product}?`;
     }
-    return `Cine este producătorul produsului?`;
+    return `<strong>Cine este producătorul</strong> produsului?`;
   }
   
   if (missingFields[0] === 'numărul de lot') {
     if (partialData.product) {
-      return `Care este numărul de lot pentru ${partialData.product}?`;
+      return `<strong>Care este numărul de lot</strong> pentru ${partialData.product}?`;
     }
-    return `Care este numărul de lot?`;
+    return `<strong>Care este numărul de lot?</strong>`;
   }
   
   if (missingFields[0] === 'numărul de document') {
-    return `Care este numărul documentului de intrare? (factură, aviz, bon, etc.)`;
+    return `<strong>Care este numărul documentului</strong> de intrare? (factură, aviz, bon, etc.)`;
   }
   
   if (missingFields[0] === 'numărul de lădițe') {
     if (partialData.product) {
-      return `În câte lădițe este ambalat produsul ${partialData.product}?`;
+      return `<strong>În câte lădițe</strong> este ambalat produsul ${partialData.product}?`;
     }
-    return `În câte lădițe este ambalat produsul? (introdu 0 dacă nu se aplică)`;
+    return `<strong>În câte lădițe</strong> este ambalat produsul? (introdu 0 dacă nu se aplică)`;
   }
   
-  return `Te rog să-mi spui ${missingFields[0]} pentru a putea ${actionVerb} în inventar.`;
+  return `Te rog să-mi spui <strong>${missingFields[0]}</strong> pentru a putea ${actionVerb} în inventar.`;
 }

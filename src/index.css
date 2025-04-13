@@ -111,8 +111,22 @@
     @apply text-black font-medium;
   }
   
+  /* Missing fields prompt styling */
   .missing-fields-prompt {
     @apply bg-blue-50 border-2 border-blue-200 p-3 rounded-lg font-medium;
+  }
+  
+  /* Mobile sidebar specific styles */
+  .mobile-sidebar {
+    background-color: white !important;
+  }
+  
+  .mobile-sidebar * {
+    color: black !important;
+  }
+  
+  .mobile-sidebar .sidebar-menu-button:hover {
+    background-color: #f3f4f6 !important;
   }
   
   @keyframes pulse {

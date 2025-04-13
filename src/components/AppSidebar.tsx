@@ -76,14 +76,14 @@ const AppSidebar = () => {
   };
 
   return (
-    <Sidebar className={isMobile ? "bg-white text-black" : ""}>
+    <Sidebar className={isMobile ? "mobile-sidebar" : ""}>
       <SidebarHeader className="p-4 border-b">
         <h1 className="text-xl font-bold">Inventory Manager</h1>
       </SidebarHeader>
       
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className={isMobile ? "text-black" : ""}>Navigare</SidebarGroupLabel>
+          <SidebarGroupLabel className={isMobile ? "sidebar-group-label" : ""}>Navigare</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
@@ -92,7 +92,7 @@ const AppSidebar = () => {
                     isActive={location.pathname === item.path}
                     onClick={() => handleNavigation(item.path)}
                     tooltip={item.name}
-                    className={isMobile ? "hover:bg-gray-100 text-black" : ""}
+                    className={isMobile ? "sidebar-menu-button" : ""}
                   >
                     <item.icon className="mr-2" size={18} />
                     <span>{item.name}</span>

@@ -65,7 +65,10 @@ const VoiceCommandPanel = ({
   const isMissingFieldsPrompt = (text: string): boolean => {
     return text.toLowerCase().includes('mai am nevoie de') || 
            text.toLowerCase().includes('lipesc') || 
-           text.toLowerCase().includes('trebuie să îmi spui');
+           text.toLowerCase().includes('trebuie să îmi spui') ||
+           text.toLowerCase().includes('pentru a adăuga') ||
+           text.toLowerCase().includes('pentru a continua') ||
+           text.toLowerCase().includes('te rog să-mi spui');
   };
 
   const isStockCommand = (text: string): boolean => {
@@ -196,7 +199,7 @@ const VoiceCommandPanel = ({
                             {isMissingFieldsPrompt(conv.text) && (
                               <div className="flex items-center gap-2 mb-2 text-blue-700 pb-2 border-b border-blue-200">
                                 <Info className="h-4 w-4 flex-shrink-0" />
-                                <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Informații necesare:</p>
+                                <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Câmpuri lipsă - te rog să-mi spui:</p>
                               </div>
                             )}
                             {hasInsufficientQuantityWarning(conv.text) && (
@@ -234,7 +237,7 @@ const VoiceCommandPanel = ({
                           {isMissingFieldsPrompt(response) && (
                             <div className="flex items-center gap-2 mb-2 text-blue-700 pb-2 border-b border-blue-200">
                               <Info className="h-4 w-4 flex-shrink-0" />
-                              <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Informații necesare:</p>
+                              <p className={isMobile ? "text-xs font-medium" : "text-sm font-medium"}>Câmpuri lipsă - te rog să-mi spui:</p>
                             </div>
                           )}
                           {hasInsufficientQuantityWarning(response) && (
