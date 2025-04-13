@@ -25,8 +25,11 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const [crateTypes, setCrateTypes] = useState<Record<string, CrateType>>({});
   const isMobile = useIsMobile();
   
+  console.log("InventoryTable initialized with", inventory.length, "items");
+  
   React.useEffect(() => {
     const fetchReferenceData = async () => {
+      console.log("Fetching reference data for inventory table");
       // Fetch suppliers
       const { data: suppliersData } = await supabase.from('suppliers').select('*');
       if (suppliersData) {
@@ -295,7 +298,9 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                   
                   return (
                     <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
-                      {visibleColumns.entryNumber && <TableCell>{item.entry_number || '-'}</TableCell>}
+                      {visibleColumns.entryNumber && (
+                        <TableCell>{item.entry_number ? item.entry_number : '-'}</TableCell>
+                      )}
                       {visibleColumns.date && (
                         <TableCell>
                           {item.receipt_date 
@@ -322,8 +327,8 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                       {visibleColumns.batch && <TableCell>{item.batch_number || '-'}</TableCell>}
                       {visibleColumns.updatedAt && (
                         <TableCell className="text-right">
-                          {item.updatedAt 
-                            ? new Date(item.updatedAt.seconds * 1000).toLocaleString('ro-RO') 
+                          {item.updated_at 
+                            ? new Date(item.updated_at).toLocaleString('ro-RO') 
                             : '-'}
                         </TableCell>
                       )}
