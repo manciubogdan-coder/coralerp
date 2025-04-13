@@ -25,6 +25,7 @@ import {
 import { exportToExcel } from "@/lib/excelExport";
 import { sendEmail } from "@/lib/emailService";
 
+// Update interface to match Supabase data structure
 interface InventoryItem {
   id: string;
   name: string;
@@ -34,14 +35,17 @@ interface InventoryItem {
   supplier_id?: string;
   product_id?: string;
   manufacturer_id?: string;
-  batch_number?: string;
-  receipt_date?: Date;
-  crate_type_id?: string;
-  crate_count?: number;
-  gross_quantity?: number;
-  crate_weight?: number;
-  net_quantity?: number;
-  document_number?: string;
+  batch_number?: string | null;
+  receipt_date?: string | null; // Changed from Date to string | null
+  crate_type_id?: string | null;
+  crate_count?: number | null;
+  gross_quantity?: number | null;
+  crate_weight?: number | null;
+  net_quantity?: number | null;
+  document_number?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  entry_number?: number;
 }
 
 interface Supplier {
@@ -104,6 +108,7 @@ const InventoryManagement = () => {
         throw error;
       }
 
+      // Data from Supabase has the correct types now
       setInventory(data || []);
     } catch (error: any) {
       toast({
@@ -190,7 +195,7 @@ const InventoryManagement = () => {
       name: "",
       quantity: 0,
       unit: "kg",
-      receipt_date: new Date(),
+      receipt_date: new Date().toISOString(), // Store as ISO string
     });
   };
 
@@ -209,9 +214,9 @@ const InventoryManagement = () => {
   };
 
   const calculateNetQuantity = (
-    gross: number | undefined, 
-    crateTypeId: string | undefined, 
-    crateCount: number | undefined
+    gross: number | undefined | null, 
+    crateTypeId: string | undefined | null, 
+    crateCount: number | undefined | null
   ) => {
     if (!gross || !crateTypeId || !crateCount) {
       return gross || 0;
@@ -265,6 +270,11 @@ const InventoryManagement = () => {
         );
       }
 
+      // Ensure receipt_date is in ISO format string
+      const receiptDate = newItem.receipt_date 
+        ? new Date(newItem.receipt_date).toISOString() 
+        : new Date().toISOString();
+
       const { data, error } = await supabase
         .from("inventory")
         .insert([
@@ -276,7 +286,7 @@ const InventoryManagement = () => {
             product_id: newItem.product_id || null,
             manufacturer_id: newItem.manufacturer_id || null,
             batch_number: newItem.batch_number || null,
-            receipt_date: newItem.receipt_date ? new Date(newItem.receipt_date).toISOString() : new Date().toISOString(),
+            receipt_date: receiptDate,
             crate_type_id: newItem.crate_type_id || null,
             crate_count: newItem.crate_count || null,
             gross_quantity: newItem.quantity,
@@ -296,7 +306,11 @@ const InventoryManagement = () => {
       });
 
       setIsAddingNew(false);
-      setInventory([...(data || []), ...inventory]);
+      
+      // Type assertion since we know the data structure now
+      const newData = data as InventoryItem[];
+      setInventory([...newData, ...inventory]);
+      
       fetchInventory(); // Refresh to get server-generated fields
     } catch (error: any) {
       toast({
@@ -350,6 +364,11 @@ const InventoryManagement = () => {
         );
       }
 
+      // Ensure receipt_date is in ISO format string if present
+      const receiptDate = editItem.receipt_date 
+        ? new Date(editItem.receipt_date).toISOString() 
+        : null;
+
       const { error } = await supabase
         .from("inventory")
         .update({
@@ -360,7 +379,7 @@ const InventoryManagement = () => {
           product_id: editItem.product_id || null,
           manufacturer_id: editItem.manufacturer_id || null,
           batch_number: editItem.batch_number || null,
-          receipt_date: editItem.receipt_date ? new Date(editItem.receipt_date).toISOString() : null,
+          receipt_date: receiptDate,
           crate_type_id: editItem.crate_type_id || null,
           crate_count: editItem.crate_count || null,
           gross_quantity: editItem.quantity,
@@ -504,6 +523,16 @@ const InventoryManagement = () => {
         
         return true;
       });
+
+  // Helper function to format dates consistently 
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString) return "";
+    try {
+      return new Date(dateString).toISOString().substring(0, 10);
+    } catch (e) {
+      return "";
+    }
+  };
 
   return (
     <div className="p-4">
@@ -683,11 +712,8 @@ const InventoryManagement = () => {
                 <Label>Data recepție</Label>
                 <Input
                   type="date"
-                  value={newItem.receipt_date 
-                    ? new Date(newItem.receipt_date).toISOString().substring(0, 10) 
-                    : new Date().toISOString().substring(0, 10)
-                  }
-                  onChange={(e) => setNewItem({ ...newItem, receipt_date: new Date(e.target.value) })}
+                  value={formatDate(newItem.receipt_date)}
+                  onChange={(e) => setNewItem({ ...newItem, receipt_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
                 />
               </TableCell>
               <TableCell>
@@ -889,13 +915,10 @@ const InventoryManagement = () => {
                     <Label>Data recepție</Label>
                     <Input
                       type="date"
-                      value={editItem?.receipt_date 
-                        ? new Date(editItem.receipt_date).toISOString().substring(0, 10) 
-                        : ""
-                      }
+                      value={formatDate(editItem?.receipt_date)}
                       onChange={(e) => setEditItem({ 
                         ...editItem!, 
-                        receipt_date: e.target.value ? new Date(e.target.value) : undefined
+                        receipt_date: e.target.value ? new Date(e.target.value).toISOString() : null
                       })}
                     />
                   </div>
