@@ -24,10 +24,10 @@ const TeachAssistant: React.FC<TeachAssistantProps> = ({
   currentCommand = "", 
   conversations = []
 }) => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
   const { toast } = useToast();
-  const [autoLearningEnabled, setAutoLearningEnabled] = useState(true);
-  const [analyticalCapabilities, setAnalyticalCapabilities] = useState(true);
+  const [autoLearningEnabled, setAutoLearningEnabled] = useState<boolean>(true);
+  const [analyticalCapabilities, setAnalyticalCapabilities] = useState<boolean>(true);
 
   // Effect to automatically learn from new conversations
   useEffect(() => {
