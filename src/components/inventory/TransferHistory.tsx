@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +39,6 @@ interface TransferItem {
   supplier_id?: string;
   manufacturer_id?: string;
   created_at?: string;
-  // Add missing properties
   crate_type_id?: string;
   crate_weight?: number;
 }
@@ -258,7 +256,7 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
           {transfer.crate_type_id && (
             <div className="space-y-2">
               <label htmlFor="crateCount" className="font-medium">
-                Număr lădițe
+                Număr lădițe returnate
               </label>
               <Input
                 id="crateCount"
@@ -267,12 +265,17 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
                 value={crateCount}
                 onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
               />
+              {transfer.crate_weight && crateCount > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  Greutate totală lădițe: {(transfer.crate_weight * crateCount).toFixed(2)} kg
+                </div>
+              )}
             </div>
           )}
           
           <div className="space-y-2">
             <label htmlFor="palletCount" className="font-medium">
-              Număr paleți
+              Număr paleți returnați
             </label>
             <Input
               id="palletCount"
@@ -285,7 +288,7 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
           
           <div className="space-y-2">
             <label htmlFor="palletWeight" className="font-medium">
-              Greutate paleți (kg)
+              Greutate totală paleți (kg)
             </label>
             <Input
               id="palletWeight"
