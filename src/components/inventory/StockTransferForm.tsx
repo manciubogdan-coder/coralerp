@@ -149,6 +149,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setSelectedItems(updatedItems);
   };
 
+  const handleRemoveItem = (index: number) => {
+    const updatedItems = [...selectedItems];
+    updatedItems.splice(index, 1);
+    setSelectedItems(updatedItems);
+  };
+
   const onSubmit = async (formData: TransferFormValues) => {
     if (selectedItems.length === 0) {
       toast({
@@ -162,7 +168,6 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSubmitting(true);
     
     try {
-      // Creare transfer prin insert direct
       const { data: transferData, error: transferError } = await supabase
         .from("inventory_history")
         .insert({
@@ -184,9 +189,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       
       const transferId = transferData.id;
       
-      // Procesăm fiecare element din transfer
       for (const item of selectedItems) {
-        // Adăugare element în istoricul inventarului
         const { error: historyError } = await supabase
           .from("inventory_history")
           .insert({
@@ -207,7 +210,6 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           
         if (historyError) throw historyError;
 
-        // Decrementare cantitate din stoc
         const { data: inventoryItem, error: getError } = await supabase
           .from('inventory')
           .select('quantity')
