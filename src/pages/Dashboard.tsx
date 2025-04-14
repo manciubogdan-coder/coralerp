@@ -55,11 +55,11 @@ const Dashboard = () => {
     },
     {
       id: "inventory",
-      name: "Inventar",
+      name: "Stoc Depozit",
       icon: Database,
       route: "/dashboard/inventory",
       path: "/dashboard/inventory",
-      description: "Adaugă și modifică manual intrările din inventar"
+      description: "Adaugă și modifică manual intrările în stoc"
     }
   ];
 
@@ -98,7 +98,10 @@ const Dashboard = () => {
                 <CardDescription>{item.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full">
+                <Button 
+                  variant="secondary"
+                  className="w-full"
+                >
                   Deschide
                 </Button>
               </CardContent>

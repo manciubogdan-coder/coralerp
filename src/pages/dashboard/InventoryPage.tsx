@@ -28,13 +28,11 @@ const InventoryPage = () => {
   };
   
   useEffect(() => {
-    // Verificăm dacă există setarea pentru audio în localStorage
     const savedAudioSetting = localStorage.getItem('inventoryAudioEnabled');
     if (savedAudioSetting !== null) {
       setIsAudioEnabled(savedAudioSetting === 'true');
     }
     
-    // Adăugăm un refresh la încărcarea paginii pentru a ne asigura că datele sunt la zi
     console.log("Inventory page loaded, triggering initial data refresh");
     setRefreshKey(prevKey => prevKey + 1);
   }, []);
@@ -68,7 +66,7 @@ const InventoryPage = () => {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Înapoi la panou
             </Button>
-            <h1 className="text-2xl font-bold">Gestionare Inventar</h1>
+            <h1 className="text-2xl font-bold">Gestionare Stoc Depozit</h1>
           </div>
           
           <div className="flex items-center space-x-2">
@@ -86,7 +84,7 @@ const InventoryPage = () => {
               variant="outline"
               size="sm"
               onClick={handleRefresh}
-              title="Reîmprospătează datele din inventar"
+              title="Reîmprospătează datele din stoc"
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               Reîmprospătează
