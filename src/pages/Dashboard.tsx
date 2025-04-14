@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, BarChart4, Users, ShoppingCart, Package, Boxes, Eye } from "lucide-react";
@@ -73,6 +72,14 @@ const Dashboard = () => {
             </Button>
             <h1 className="text-2xl font-bold">Panou de Control</h1>
           </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => navigate("/inventory")}
+          >
+            <Package className="h-4 w-4 mr-2" />
+            Vizualizare Stoc
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
