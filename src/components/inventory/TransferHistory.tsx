@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,7 +72,6 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
         notes
       });
       
-      // First, check if the original inventory item still exists
       const { data: originalItem, error: fetchError } = await supabase
         .from('inventory')
         .select('*')
@@ -84,12 +82,10 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
         throw fetchError;
       }
 
-      // Check if we need to update an existing item or create a new one
       let updatedId;
       let newQuantity;
       
       if (originalItem) {
-        // The original item still exists, so update its quantity
         newQuantity = originalItem.quantity + returnQuantity;
         
         const { error: updateError } = await supabase
@@ -105,7 +101,6 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
           newQuantity
         });
       } else {
-        // Check if there's an item with the same product, supplier, etc.
         const { data: similarItems, error: similarError } = await supabase
           .from('inventory')
           .select('*')
@@ -117,7 +112,6 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
         if (similarError) throw similarError;
         
         if (similarItems && similarItems.length > 0) {
-          // Update an existing similar item
           const similarItem = similarItems[0];
           newQuantity = similarItem.quantity + returnQuantity;
           
@@ -134,7 +128,6 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
             newQuantity
           });
         } else {
-          // The original item doesn't exist, create a new one
           const { data: inventoryData, error: insertError } = await supabase
             .from('inventory')
             .insert({
@@ -162,7 +155,6 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
         }
       }
       
-      // Record the inventory history
       const { error: historyError } = await supabase
         .from('inventory_history')
         .insert({
@@ -274,21 +266,16 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     try {
       setLoading(true);
       
-      // Explicitly ordering by transfer_date in descending order to ensure newest transfers appear first
       const { data, error } = await supabase
         .from('stock_transfer_view')
         .select('*')
-        .order('transfer_date', { ascending: false });
+        .order('created_at', { ascending: false });
         
       if (error) throw error;
       
       console.log("Fetched transfers:", data);
-      
-      // Store the transfers directly as returned from the database
-      // This preserves the server-side sorting by date
       setTransfers(data || []);
       
-      // Extract unique destinations for the filter
       const uniqueDestinations = Array.from(
         new Set((data || []).map((transfer) => transfer.destination))
       );
@@ -319,12 +306,10 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   };
   
   const filteredTransfers = transfers.filter((transfer) => {
-    // Apply destination filter
     if (selectedDestination !== "all" && transfer.destination !== selectedDestination) {
       return false;
     }
     
-    // Apply search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       return (
@@ -377,7 +362,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
           <Table>
             <TableHeader className="bg-gray-50 sticky top-0">
               <TableRow>
-                <TableHead>Data</TableHead>
+                <TableHead>Data și ora</TableHead>
                 <TableHead>Destinație</TableHead>
                 <TableHead>Nr. Document</TableHead>
                 <TableHead>Produs</TableHead>
@@ -401,9 +386,11 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                 filteredTransfers.map((transfer) => (
                   <TableRow key={`${transfer.transfer_id}-${transfer.inventory_item_id}`}>
                     <TableCell>
-                      {transfer.transfer_date 
-                        ? format(new Date(transfer.transfer_date), 'dd.MM.yyyy')
-                        : '-'}
+                      {transfer.created_at 
+                        ? format(new Date(transfer.created_at), 'dd.MM.yyyy HH:mm')
+                        : transfer.transfer_date 
+                          ? format(new Date(transfer.transfer_date), 'dd.MM.yyyy')
+                          : '-'}
                     </TableCell>
                     <TableCell>{transfer.destination}</TableCell>
                     <TableCell>{transfer.document_number || "-"}</TableCell>

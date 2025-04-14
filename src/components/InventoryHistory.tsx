@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { 
   Table, TableBody, TableCell, TableHead, 
@@ -25,7 +24,6 @@ interface InventoryHistoryProps {
   initialDateRange?: [Date | undefined, Date | undefined];
 }
 
-// Define the raw response type to match the database schema
 interface InventoryHistoryResponse {
   id: string;
   inventory_item_id: string | null;
@@ -65,7 +63,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
   
   useEffect(() => {
     const fetchReferenceData = async () => {
-      // Fetch suppliers
       const { data: suppliersData } = await supabase.from('suppliers').select('*');
       if (suppliersData) {
         const suppliersMap = suppliersData.reduce((acc, supplier) => {
@@ -75,7 +72,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         setSuppliers(suppliersMap);
       }
 
-      // Fetch products
       const { data: productsData } = await supabase.from('products').select('*');
       if (productsData) {
         const productsMap = productsData.reduce((acc, product) => {
@@ -85,7 +81,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         setProducts(productsMap);
       }
 
-      // Fetch manufacturers
       const { data: manufacturersData } = await supabase.from('manufacturers').select('*');
       if (manufacturersData) {
         const manufacturersMap = manufacturersData.reduce((acc, manufacturer) => {
@@ -95,7 +90,6 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         setManufacturers(manufacturersMap);
       }
 
-      // Fetch crate types
       const { data: crateTypesData } = await supabase.from('crate_types').select('*');
       if (crateTypesData) {
         const crateTypesMap = crateTypesData.reduce((acc, crateType) => {
@@ -118,8 +112,8 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
       let query = supabase
         .from('inventory_history')
         .select('*', { count: 'exact' })
-        .order('operation_date', { ascending: false }); // Explicitly order by operation_date descending
-      
+        .order('operation_date', { ascending: false });
+
       if (searchTerm) {
         query = query.ilike('name', `%${searchTerm}%`);
       }
@@ -292,7 +286,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
                   return (
                     <TableRow key={item.id}>
                       <TableCell className="whitespace-nowrap">
-                        {format(item.operation_date, 'dd.MM.yyyy HH:mm')}
+                        {format(item.operation_date, 'dd.MM.yyyy HH:mm:ss')}
                       </TableCell>
                       <TableCell>
                         <Badge className={getActionColor(item.action)}>
