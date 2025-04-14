@@ -1,238 +1,388 @@
-import React, { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
-import { format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Search, ArrowLeftCircle } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { toast } from "@/hooks/use-custom-toast";
 
-interface TransferOperation {
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { toast } from "@/hooks/use-custom-toast";
+import { ArrowUturnLeft, Search } from "lucide-react";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
+
+interface TransferHistoryProps {
+  onTransferReturned?: () => void;
+}
+
+interface TransferItem {
   transfer_id: string;
   transfer_date: string;
   destination: string;
-  notes: string | null;
   product_name: string;
+  supplier_name?: string;
+  manufacturer_name?: string;
+  document_number?: string;
+  entry_number?: number;
   quantity: number;
-  net_quantity?: number | null;
+  net_quantity?: number;
   unit: string;
-  crate_count: number | null;
-  supplier_name: string | null;
-  manufacturer_name: string | null;
-  document_number: string | null;
-  entry_number: number | null;
-  inventory_item_id: string | null;
+  crate_count?: number;
+  notes?: string;
+  inventory_item_id: string;
 }
 
 interface ReturnFormProps {
-  transfer: TransferOperation;
-  onComplete: () => void;
+  transfer: TransferItem;
+  onReturnComplete?: () => void;
 }
 
-const ReturnForm = ({ transfer, onComplete }: ReturnFormProps) => {
-  const [returnQuantity, setReturnQuantity] = useState<number>(transfer.net_quantity || transfer.quantity);
+const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
+  const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleReturn = async () => {
-    const maxReturnQuantity = transfer.net_quantity || transfer.quantity;
-    
-    if (returnQuantity <= 0 || returnQuantity > maxReturnQuantity) {
+  const [returnQuantity, setReturnQuantity] = useState<number>(transfer.net_quantity || transfer.quantity);
+  const [notes, setNotes] = useState<string>("");
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (returnQuantity <= 0) {
       toast({
         variant: "destructive",
         title: "Eroare",
-        description: "Cantitatea de returnat nu este validă"
+        description: "Cantitatea returnată trebuie să fie mai mare de 0"
       });
       return;
     }
 
-    setIsSubmitting(true);
     try {
-      // First insert back into inventory
-      const { error: insertError } = await supabase
+      setIsSubmitting(true);
+      
+      console.log("Return form submitted with data:", {
+        transferId: transfer.transfer_id,
+        inventoryItemId: transfer.inventory_item_id,
+        quantity: returnQuantity,
+        notes
+      });
+      
+      // First, check if the original inventory item still exists
+      const { data: originalItem, error: fetchError } = await supabase
         .from('inventory')
-        .insert({
-          quantity: returnQuantity,
-          unit: transfer.unit,
-          name: transfer.product_name,
-          supplier: transfer.supplier_name,
-          document_number: transfer.document_number,
-          entry_number: transfer.entry_number
+        .select('*')
+        .eq('id', transfer.inventory_item_id)
+        .single();
+      
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
+
+      // Check if we need to update an existing item or create a new one
+      let updatedId;
+      let newQuantity;
+      
+      if (originalItem) {
+        // The original item still exists, so update its quantity
+        newQuantity = originalItem.quantity + returnQuantity;
+        
+        const { error: updateError } = await supabase
+          .from('inventory')
+          .update({ quantity: newQuantity })
+          .eq('id', transfer.inventory_item_id);
+          
+        if (updateError) throw updateError;
+        updatedId = transfer.inventory_item_id;
+        
+        console.log("Updated existing inventory item:", {
+          id: transfer.inventory_item_id,
+          newQuantity
         });
-
-      if (insertError) throw insertError;
-
-      // Record the return in inventory history
+      } else {
+        // Check if there's an item with the same product, supplier, etc.
+        const { data: similarItems, error: similarError } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('product_id', transfer.product_id)
+          .eq('supplier_id', transfer.supplier_id)
+          .eq('manufacturer_id', transfer.manufacturer_id)
+          .eq('document_number', transfer.document_number);
+          
+        if (similarError) throw similarError;
+        
+        if (similarItems && similarItems.length > 0) {
+          // Update an existing similar item
+          const similarItem = similarItems[0];
+          newQuantity = similarItem.quantity + returnQuantity;
+          
+          const { error: updateError } = await supabase
+            .from('inventory')
+            .update({ quantity: newQuantity })
+            .eq('id', similarItem.id);
+            
+          if (updateError) throw updateError;
+          updatedId = similarItem.id;
+          
+          console.log("Updated similar inventory item:", {
+            id: similarItem.id,
+            newQuantity
+          });
+        } else {
+          // The original item doesn't exist, create a new one
+          const { data: inventoryData, error: insertError } = await supabase
+            .from('inventory')
+            .insert({
+              name: transfer.product_name,
+              product_id: transfer.product_id,
+              supplier_id: transfer.supplier_id,
+              supplier: transfer.supplier_name,
+              manufacturer_id: transfer.manufacturer_id,
+              document_number: transfer.document_number,
+              entry_number: transfer.entry_number,
+              quantity: returnQuantity,
+              unit: transfer.unit,
+              crate_count: transfer.crate_count || 0,
+              gross_quantity: returnQuantity,
+              net_quantity: returnQuantity
+            })
+            .select()
+            .single();
+            
+          if (insertError) throw insertError;
+          updatedId = inventoryData.id;
+          newQuantity = returnQuantity;
+          
+          console.log("Created new inventory item:", inventoryData);
+        }
+      }
+      
+      // Record the inventory history
       const { error: historyError } = await supabase
         .from('inventory_history')
         .insert({
+          inventory_item_id: updatedId,
           action: 'add',
           name: transfer.product_name,
           quantity: returnQuantity,
           unit: transfer.unit,
-          supplier: transfer.supplier_name,
+          operation_date: new Date().toISOString(),
           document_number: transfer.document_number,
-          notes: `Retur de la ${transfer.destination}`
+          notes: `Returnat din ${transfer.destination}. ${notes}`
         });
-
+        
       if (historyError) throw historyError;
-
+      
       toast({
         title: "Succes",
-        description: "Produsul a fost returnat în stoc"
+        description: `Cantitate de ${returnQuantity} ${transfer.unit} returnată în stoc.`
       });
       
-      onComplete();
+      setIsOpen(false);
+      if (onReturnComplete) onReturnComplete();
+      
     } catch (error: any) {
+      console.error("Error returning stock:", error);
       toast({
         variant: "destructive",
         title: "Eroare la returnare",
         description: error.message
       });
-      console.error("Eroare la returnare:", error);
     } finally {
       setIsSubmitting(false);
     }
   };
-
+  
   return (
-    <div className="flex gap-2 items-center">
-      <Input
-        type="number"
-        value={returnQuantity}
-        onChange={(e) => setReturnQuantity(Number(e.target.value))}
-        min={0}
-        max={transfer.net_quantity || transfer.quantity}
-        step="0.01"
-        className="w-32"
-      />
-      <span className="text-sm text-gray-500">{transfer.unit}</span>
-      <Button 
-        variant="outline" 
-        size="sm"
-        onClick={handleReturn}
-        disabled={isSubmitting}
-      >
-        <ArrowLeftCircle className="h-4 w-4 mr-2" />
-        Returnează
-      </Button>
-    </div>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" title="Returnează în stoc">
+          <ArrowUturnLeft className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Returnare în stoc</DialogTitle>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <div className="font-medium">Produs</div>
+            <div>{transfer.product_name}</div>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="font-medium">Cantitate disponibilă pentru returnare</div>
+            <div>{transfer.net_quantity || transfer.quantity} {transfer.unit}</div>
+          </div>
+          
+          <div className="space-y-2">
+            <label htmlFor="returnQuantity" className="font-medium">
+              Cantitate de returnat
+            </label>
+            <Input
+              id="returnQuantity"
+              type="number"
+              min="0.01"
+              step="0.01"
+              max={transfer.net_quantity || transfer.quantity}
+              value={returnQuantity}
+              onChange={(e) => setReturnQuantity(parseFloat(e.target.value) || 0)}
+              required
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <label htmlFor="notes" className="font-medium">
+              Note (opțional)
+            </label>
+            <Input
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Detalii despre returnare"
+            />
+          </div>
+          
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+              Anulează
+            </Button>
+            <Button type="submit" disabled={isSubmitting || returnQuantity <= 0}>
+              {isSubmitting ? "Se procesează..." : "Returnează în stoc"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };
 
-export function TransferHistory() {
-  const [transfers, setTransfers] = useState<TransferOperation[]>([]);
+export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
+  const [transfers, setTransfers] = useState<TransferItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDestination, setSelectedDestination] = useState<string>("");
-
-  const formatQuantity = (quantity: number) => {
-    return quantity.toFixed(2);
-  };
-
-  useEffect(() => {
-    fetchTransfers();
-  }, [searchTerm, selectedDestination]);
+  const [destinations, setDestinations] = useState<string[]>([]);
+  const [selectedDestination, setSelectedDestination] = useState<string>("all");
   
   const fetchTransfers = async () => {
     try {
       setLoading(true);
-      console.log("Fetching transfers...");
       
-      let query = supabase
+      // Get all transfers ordered by date (newest first)
+      const { data, error } = await supabase
         .from('stock_transfer_view')
         .select('*')
         .order('transfer_date', { ascending: false });
         
-      if (searchTerm) {
-        query = query.or(`product_name.ilike.%${searchTerm}%,supplier_name.ilike.%${searchTerm}%,manufacturer_name.ilike.%${searchTerm}%,document_number.ilike.%${searchTerm}%`);
-      }
-
-      if (selectedDestination && selectedDestination !== "all") {
-        query = query.eq('destination', selectedDestination);
-      }
+      if (error) throw error;
       
-      const { data, error } = await query;
-        
-      if (error) {
-        console.error("Error fetching transfers:", error);
-        throw error;
-      }
+      console.log("Fetched transfers:", data);
       
-      console.log("Transfers data:", data);
       setTransfers(data || []);
-    } catch (error) {
+      
+      // Extract unique destinations for the filter
+      const uniqueDestinations = Array.from(
+        new Set((data || []).map((transfer) => transfer.destination))
+      );
+      
+      setDestinations(uniqueDestinations);
+      
+    } catch (error: any) {
       console.error("Error fetching transfers:", error);
       toast({
         variant: "destructive",
-        title: "Eroare",
-        description: "Nu s-au putut încărca transferurile"
+        title: "Eroare la încărcarea transferurilor",
+        description: error.message
       });
     } finally {
       setLoading(false);
     }
   };
-
+  
+  useEffect(() => {
+    fetchTransfers();
+  }, []);
+  
+  const handleTransferReturned = () => {
+    fetchTransfers();
+    if (onTransferReturned) {
+      onTransferReturned();
+    }
+  };
+  
+  const filteredTransfers = transfers.filter((transfer) => {
+    // Apply destination filter
+    if (selectedDestination !== "all" && transfer.destination !== selectedDestination) {
+      return false;
+    }
+    
+    // Apply search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        (transfer.product_name && transfer.product_name.toLowerCase().includes(searchLower)) ||
+        (transfer.supplier_name && transfer.supplier_name.toLowerCase().includes(searchLower)) ||
+        (transfer.document_number && transfer.document_number.toLowerCase().includes(searchLower)) ||
+        (transfer.notes && transfer.notes.toLowerCase().includes(searchLower))
+      );
+    }
+    
+    return true;
+  });
+  
+  const formatQuantity = (quantity: number) => {
+    return quantity.toFixed(2);
+  };
+  
   return (
     <div className="space-y-4">
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+      <div className="flex flex-col md:flex-row justify-between gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
-            placeholder="Caută produs, furnizor..."
+            placeholder="Caută după produs, furnizor, document..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 w-full"
+            className="pl-10"
           />
         </div>
-        
         <Select 
           value={selectedDestination} 
           onValueChange={setSelectedDestination}
         >
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full md:w-[200px]">
             <SelectValue placeholder="Filtrează după destinație" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Toate destinațiile</SelectItem>
-            <SelectItem value="Producție">Producție</SelectItem>
-            <SelectItem value="Distrugere">Distrugere</SelectItem>
+            {destinations.map((destination) => (
+              <SelectItem key={destination} value={destination}>
+                {destination}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
       
-      <div className="rounded-md border w-full overflow-hidden">
-        <div className="overflow-x-auto max-h-[70vh]">
+      <div className="border rounded-md overflow-hidden">
+        <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="sticky top-0 bg-white z-10">
+            <TableHeader className="bg-gray-50 sticky top-0">
               <TableRow>
-                <TableHead>ID Transfer</TableHead>
-                <TableHead>Dată Transfer</TableHead>
+                <TableHead>Data</TableHead>
+                <TableHead>Destinație</TableHead>
+                <TableHead>Nr. Document</TableHead>
                 <TableHead>Produs</TableHead>
                 <TableHead>Furnizor</TableHead>
                 <TableHead>Producător</TableHead>
-                <TableHead>Destinație</TableHead>
-                <TableHead>Nr. Intrare</TableHead>
-                <TableHead>Nr. Document</TableHead>
-                <TableHead className="text-right">Cantitate Brută</TableHead>
-                <TableHead className="text-right">Cantitate Netă</TableHead>
-                <TableHead>Unitate</TableHead>
+                <TableHead className="text-right">Cant. Brută</TableHead>
+                <TableHead className="text-right">Cant. Netă</TableHead>
+                <TableHead>UM</TableHead>
                 <TableHead>Note</TableHead>
-                <TableHead className="sticky right-0 bg-white">Acțiuni</TableHead>
+                <TableHead className="sticky right-0 bg-gray-50">Acțiuni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -242,21 +392,19 @@ export function TransferHistory() {
                     Se încarcă datele...
                   </TableCell>
                 </TableRow>
-              ) : transfers.length > 0 ? (
-                transfers.map((transfer) => (
-                  <TableRow key={transfer.transfer_id}>
-                    <TableCell>{transfer.transfer_id || "-"}</TableCell>
-                    <TableCell>{transfer.transfer_date ? format(new Date(transfer.transfer_date), "dd.MM.yyyy") : "-"}</TableCell>
-                    <TableCell>{transfer.product_name}</TableCell>
+              ) : filteredTransfers.length > 0 ? (
+                filteredTransfers.map((transfer) => (
+                  <TableRow key={`${transfer.transfer_id}-${transfer.inventory_item_id}`}>
+                    <TableCell>
+                      {transfer.transfer_date 
+                        ? format(new Date(transfer.transfer_date), 'dd.MM.yyyy')
+                        : '-'}
+                    </TableCell>
+                    <TableCell>{transfer.destination}</TableCell>
+                    <TableCell>{transfer.document_number || "-"}</TableCell>
+                    <TableCell className="font-medium">{transfer.product_name}</TableCell>
                     <TableCell>{transfer.supplier_name || "-"}</TableCell>
                     <TableCell>{transfer.manufacturer_name || "-"}</TableCell>
-                    <TableCell>
-                      <Badge variant={transfer.destination === "Distrugere" ? "destructive" : "default"}>
-                        {transfer.destination}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{transfer.entry_number || "-"}</TableCell>
-                    <TableCell>{transfer.document_number || "-"}</TableCell>
                     <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
                     <TableCell className="text-right">{formatQuantity(transfer.net_quantity || transfer.quantity)}</TableCell>
                     <TableCell>{transfer.unit}</TableCell>
@@ -264,7 +412,7 @@ export function TransferHistory() {
                     <TableCell className="sticky right-0 bg-white">
                       <ReturnForm 
                         transfer={transfer}
-                        onComplete={fetchTransfers}
+                        onReturnComplete={handleTransferReturned}
                       />
                     </TableCell>
                   </TableRow>

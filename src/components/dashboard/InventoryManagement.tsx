@@ -24,6 +24,11 @@ const InventoryManagement = () => {
   
   const { aggregatedData, groupBy, setGroupBy } = useAggregatedStock(inventory);
 
+  const handleTransferReturned = () => {
+    console.log("Transfer returned, refreshing inventory data");
+    fetchInventory();
+  };
+
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
@@ -63,7 +68,7 @@ const InventoryManagement = () => {
         <TabsContent value="transfers">
           <div className="bg-white rounded-lg shadow-md p-4">
             <h3 className="text-lg font-medium mb-4">Istoric Transferuri Gestiune</h3>
-            <TransferHistory />
+            <TransferHistory onTransferReturned={handleTransferReturned} />
           </div>
         </TabsContent>
       </Tabs>
