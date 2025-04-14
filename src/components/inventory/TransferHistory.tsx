@@ -159,7 +159,7 @@ export function TransferHistory() {
         query = query.or(`product_name.ilike.%${searchTerm}%,supplier_name.ilike.%${searchTerm}%,manufacturer_name.ilike.%${searchTerm}%,document_number.ilike.%${searchTerm}%`);
       }
 
-      if (selectedDestination) {
+      if (selectedDestination && selectedDestination !== "all") {
         query = query.eq('destination', selectedDestination);
       }
       
@@ -259,7 +259,7 @@ export function TransferHistory() {
             ) : (
               <TableRow>
                 <TableCell colSpan={13} className="text-center py-6 text-gray-500">
-                  {searchTerm
+                  {searchTerm || (selectedDestination && selectedDestination !== "all")
                     ? "Nu s-au găsit transferuri conform criteriilor de căutare"
                     : "Nu există transferuri înregistrate"}
                 </TableCell>
