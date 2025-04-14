@@ -1,521 +1,311 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-custom-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { InventoryItem } from "@/types";
-import { 
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { 
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage 
-} from "@/components/ui/form";
-import { FileText, Plus } from "lucide-react";
-import { useForm } from "react-hook-form";
-
-interface StockTransferFormProps {
-  onTransferComplete?: () => void;
-}
 
 interface TransferItem {
-  id: string;
-  productName: string;
+  product_id: string;
   quantity: number;
   unit: string;
-  maxQuantity: number;
-  crateCount?: number;
-  crateTypeId?: string;
-  crateWeight?: number;
-  pallets?: number;
-  palletWeight?: number;
-  grossQuantity: number;
-  netQuantity: number;
-  originalCrateCount?: number;
-  // Informații adiționale pentru reintroducere
-  supplier?: string;
-  supplier_id?: string;
-  manufacturer?: string;
-  manufacturer_id?: string;
-  document_number?: string;
+  crate_count?: number | null;
+  notes?: string | null;
   entry_number?: number;
 }
 
-interface TransferFormValues {
-  transferDate: string;
-  destination: string;
-  notes: string;
-}
-
-export function StockTransferForm({ onTransferComplete }: StockTransferFormProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [selectedItems, setSelectedItems] = useState<TransferItem[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const form = useForm<TransferFormValues>({
-    defaultValues: {
-      transferDate: new Date().toISOString().split('T')[0],
-      destination: "Producție",
-      notes: ""
-    }
-  });
+const StockTransferForm = () => {
+  const [products, setProducts] = useState<InventoryItem[]>([]);
+  const [transferItems, setTransferItems] = useState<TransferItem[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState<number | ''>('');
+  const [unit, setUnit] = useState<string>('buc');
+  const [crateCount, setCrateCount] = useState<number | ''>('');
+  const [notes, setNotes] = useState<string>('');
+  const [destination, setDestination] = useState<string>('Distrugere');
+  const [loading, setLoading] = useState(false);
+  const [entryNumberInput, setEntryNumberInput] = useState<string>('');
 
   useEffect(() => {
-    if (isOpen) {
-      fetchInventory();
-    }
-  }, [isOpen]);
+    const fetchProducts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('name');
 
-  const fetchInventory = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("inventory")
-        .select(`
-          *,
-          suppliers:supplier_id (name),
-          products:product_id (name),
-          manufacturers:manufacturer_id (name)
-        `)
-        .gt("quantity", 0)
-        .order("name");
+        if (error) {
+          throw error;
+        }
 
-      if (error) {
-        throw error;
+        setProducts(data || []);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        toast({
+          variant: "destructive",
+          title: "Eroare",
+          description: "Nu s-au putut încărca produsele."
+        });
       }
-
-      setInventory(data || []);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Eroare la încărcarea stocului",
-        description: error.message,
-      });
-    }
-  };
-
-  const handleAddItem = (itemId: string) => {
-    const selectedItem = inventory.find(item => item.id === itemId);
-    if (!selectedItem) return;
-
-    const productName = selectedItem.products?.name || selectedItem.name;
-    
-    setSelectedItems([...selectedItems, {
-      id: selectedItem.id,
-      productName,
-      quantity: selectedItem.quantity,
-      unit: selectedItem.unit,
-      maxQuantity: selectedItem.quantity,
-      crateCount: selectedItem.crate_count || 0,
-      originalCrateCount: selectedItem.crate_count || 0,
-      crateTypeId: selectedItem.crate_type_id || undefined,
-      crateWeight: selectedItem.crate_weight || 0,
-      pallets: 0,
-      palletWeight: 0,
-      grossQuantity: selectedItem.quantity,
-      netQuantity: selectedItem.quantity,
-      // Informații adiționale salvate
-      supplier: selectedItem.supplier || selectedItem.suppliers?.name,
-      supplier_id: selectedItem.supplier_id,
-      manufacturer: selectedItem.manufacturer || selectedItem.manufacturers?.name,
-      manufacturer_id: selectedItem.manufacturer_id,
-      document_number: selectedItem.document_number,
-      entry_number: selectedItem.entry_number
-    }]);
-  };
-
-  const calculateNetQuantity = (item: TransferItem) => {
-    // Calculate deductions from crates
-    const totalCrateWeight = (item.crateWeight || 0) * (item.crateCount || 0);
-    
-    // Calculate deductions from pallets
-    const totalPalletWeight = item.palletWeight || 0;
-    
-    // Calculate net quantity by subtracting total weights from gross quantity
-    return Math.max(0, item.grossQuantity - totalCrateWeight - totalPalletWeight);
-  };
-
-  const handleGrossQuantityChange = (index: number, value: number) => {
-    const updatedItems = [...selectedItems];
-    const item = updatedItems[index];
-    const newQuantity = Math.min(Math.max(value, 0), item.maxQuantity);
-    
-    updatedItems[index] = {
-      ...item,
-      grossQuantity: newQuantity,
-      quantity: newQuantity,
     };
-    
-    // Recalculate net quantity
-    updatedItems[index].netQuantity = calculateNetQuantity(updatedItems[index]);
-    
-    setSelectedItems(updatedItems);
-  };
 
-  const handleCrateCountChange = (index: number, value: number) => {
-    const updatedItems = [...selectedItems];
-    const item = updatedItems[index];
-    const newCrateCount = Math.max(0, value);
-    
-    updatedItems[index] = {
-      ...item,
-      crateCount: newCrateCount
-    };
-    
-    // Recalculate net quantity
-    updatedItems[index].netQuantity = calculateNetQuantity(updatedItems[index]);
-    
-    setSelectedItems(updatedItems);
-  };
+    fetchProducts();
+  }, []);
 
-  const handlePalletsChange = (index: number, value: number) => {
-    const updatedItems = [...selectedItems];
-    updatedItems[index] = {
-      ...updatedItems[index],
-      pallets: Math.max(0, value)
-    };
-    setSelectedItems(updatedItems);
-  };
-  
-  const handlePalletWeightChange = (index: number, value: number) => {
-    const updatedItems = [...selectedItems];
-    const item = updatedItems[index];
-    const newPalletWeight = Math.max(0, value);
-    
-    updatedItems[index] = {
-      ...item,
-      palletWeight: newPalletWeight
-    };
-    
-    // Recalculate net quantity
-    updatedItems[index].netQuantity = calculateNetQuantity(updatedItems[index]);
-    
-    setSelectedItems(updatedItems);
-  };
-
-  const handleRemoveItem = (index: number) => {
-    const updatedItems = [...selectedItems];
-    updatedItems.splice(index, 1);
-    setSelectedItems(updatedItems);
-  };
-
-  const onSubmit = async (formData: TransferFormValues) => {
-    if (selectedItems.length === 0) {
+  const handleAddTransferItem = () => {
+    if (!selectedProductId || quantity === '' || quantity <= 0) {
       toast({
         variant: "destructive",
         title: "Eroare",
-        description: "Adăugați cel puțin un produs pentru transfer."
+        description: "Selectează un produs și specifică o cantitate validă."
       });
       return;
     }
 
-    setIsSubmitting(true);
-    
+    const newTransferItem: TransferItem = {
+      product_id: selectedProductId,
+      quantity: Number(quantity),
+      unit: unit,
+      crate_count: crateCount !== '' ? Number(crateCount) : null,
+      notes: notes,
+    };
+
+    setTransferItems([...transferItems, newTransferItem]);
+    setSelectedProductId(null);
+    setQuantity('');
+    setUnit('buc');
+    setCrateCount('');
+    setNotes('');
+  };
+
+  const handleRemoveTransferItem = (index: number) => {
+    const updatedTransferItems = [...transferItems];
+    updatedTransferItems.splice(index, 1);
+    setTransferItems(updatedTransferItems);
+  };
+
+  const createStockTransfer = async (items: TransferItem[]) => {
     try {
-      // First create a transfer document
-      const { data: transferData, error: transferError } = await supabase
-        .from('stock_transfers')
-        .insert({
-          transfer_date: formData.transferDate,
-          destination: formData.destination,
-          notes: formData.notes
-        })
-        .select()
-        .single();
-      
-      if (transferError) throw transferError;
-      
-      if (!transferData) {
-        throw new Error("Nu s-a putut crea bonul de transfer.");
-      }
-      
-      // Process each item in the transfer
-      for (const item of selectedItems) {
-        // Add item to stock_transfer_items
-        const { error: transferItemError } = await supabase
-          .from('stock_transfer_items')
-          .insert({
-            transfer_id: transferData.id,
-            inventory_item_id: item.id,
-            quantity: item.netQuantity, // Use net quantity instead of gross
-            unit: item.unit
-          });
-          
-        if (transferItemError) throw transferItemError;
+      setLoading(true);
 
-        // Record the transfer in inventory_history
-        const { error: historyError } = await supabase
-          .from("inventory_history")
-          .insert({
-            inventory_item_id: item.id,
-            action: "transfer",
-            name: item.productName,
-            quantity: item.netQuantity, // Use net quantity instead of gross
-            unit: item.unit,
-            operation_date: new Date().toISOString(),
-            supplier: item.supplier,
-            supplier_id: item.supplier_id,
-            manufacturer_id: item.manufacturer_id,
-            document_number: item.document_number,
-            crate_count: item.crateCount,
-            crate_type_id: item.crateTypeId,
-            crate_weight: item.crateWeight,
-            notes: `Transfer către ${formData.destination}`
-          });
-          
-        if (historyError) throw historyError;
+      const transferDate = new Date().toISOString();
 
-        // Update inventory quantity
-        const { data: inventoryItem, error: getError } = await supabase
-          .from('inventory')
-          .select('quantity')
-          .eq('id', item.id)
-          .single();
-        
-        if (getError) throw getError;
-        
-        const currentQuantity = inventoryItem?.quantity || 0;
-        const newQuantity = Math.max(0, currentQuantity - item.netQuantity); // Use net quantity instead of gross
-        
-        const { error: updateError } = await supabase
-          .from('inventory')
-          .update({ quantity: newQuantity })
-          .eq('id', item.id);
-           
-        if (updateError) throw updateError;
+      for (const item of items) {
+        const { error } = await supabase
+          .from('stock_transfer')
+          .insert([
+            {
+              transfer_date: transferDate,
+              product_id: item.product_id,
+              quantity: item.quantity,
+              unit: item.unit,
+              crate_count: item.crate_count,
+              notes: item.notes,
+              destination: destination,
+              entry_number: item.entry_number,
+            },
+          ]);
+
+        if (error) {
+          throw error;
+        }
       }
 
-      toast({
-        title: "Succes",
-        description: `Bon de transfer creat cu succes.`
-      });
-
-      setSelectedItems([]);
-      setIsOpen(false);
-      if (onTransferComplete) onTransferComplete();
+      return { success: true, message: "Transfer realizat cu succes." };
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Eroare la procesarea transferului",
-        description: error.message
-      });
+      console.error("Error creating stock transfer:", error);
+      return { success: false, message: `Eroare la transfer: ${error.message}` };
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
-  const availableItems = inventory.filter(
-    item => !selectedItems.some(selected => selected.id === item.id)
-  );
+  const handleTransferItemsSubmit = async () => {
+    if (transferItems.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Selectează cel puțin un produs pentru transfer."
+      });
+      return;
+    }
+
+    try {
+      const modifiedTransferItems = transferItems.map((item, index) => {
+        if (index === 0 && entryNumberInput) {
+          return {
+            ...item,
+            entry_number: Number(entryNumberInput)
+          };
+        }
+        return item;
+      });
+
+      const transferResult = await createStockTransfer(modifiedTransferItems);
+
+      if (transferResult.success) {
+        toast({
+          title: "Succes",
+          description: transferResult.message
+        });
+        setTransferItems([]);
+        setEntryNumberInput('');
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Eroare",
+          description: transferResult.message
+        });
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: `Eroare neașteptată: ${error.message}`
+      });
+    }
+  };
+
+  const isSubmitDisabled = useMemo(() => {
+    return loading || transferItems.length === 0;
+  }, [loading, transferItems]);
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <FileText className="h-4 w-4 mr-2" />
-          Bon de Transfer
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Creare Bon de Transfer Gestiune</DialogTitle>
-          <DialogDescription>
-            Transferați produse din stocul depozit către producție sau alte departamente.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <Form {...form}>
-          <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="transferDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Data transferului</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="destination"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Destinație</FormLabel>
-                    <FormControl>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        defaultValue={field.value}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selectați destinația" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Producție">Producție</SelectItem>
-                          <SelectItem value="Distrugere">Distrugere</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+    <div className="space-y-4">
+      <h3 className="text-lg font-medium">Adaugă Produse pentru Transfer</h3>
 
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Note</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Notițe opționale despre transfer" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="entryNumber">Nr. Intrare (primul produs):</Label>
+          <Input
+            type="number"
+            id="entryNumber"
+            value={entryNumberInput}
+            onChange={(e) => setEntryNumberInput(e.target.value)}
+            placeholder="Număr intrare"
+          />
+        </div>
+        <div>
+          <Label htmlFor="destination">Destinație:</Label>
+          <Select value={destination} onValueChange={setDestination}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selectează destinația" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Distrugere">Distrugere</SelectItem>
+              <SelectItem value="Retur Furnizor">Retur Furnizor</SelectItem>
+              <SelectItem value="Alt Depozit">Alt Depozit</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-            <div className="border rounded-md p-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-md font-medium">Produse de transferat</h3>
-                <Select onValueChange={handleAddItem}>
-                  <SelectTrigger className="w-[250px]">
-                    <SelectValue placeholder="Adăugați un produs" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableItems.length === 0 ? (
-                      <SelectItem value="no-items-available" disabled>Nu mai există produse disponibile</SelectItem>
-                    ) : (
-                      availableItems.map(item => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.products?.name || item.name} ({item.quantity} {item.unit})
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <Label htmlFor="product">Produs:</Label>
+          <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selectează un produs" />
+            </SelectTrigger>
+            <SelectContent>
+              {products.map((product) => (
+                <SelectItem key={product.id} value={product.id}>
+                  {product.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="quantity">Cantitate:</Label>
+          <Input
+            type="number"
+            id="quantity"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            placeholder="Cantitate"
+          />
+        </div>
+        <div>
+          <Label htmlFor="unit">Unitate:</Label>
+          <Select value={unit} onValueChange={setUnit}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selectează unitatea" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="buc">Bucăți</SelectItem>
+              <SelectItem value="kg">Kilograme</SelectItem>
+              <SelectItem value="m">Metri</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-              {selectedItems.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>Niciun produs selectat</p>
-                  <p className="text-sm mt-2">Folosiți meniul pentru a adăuga produse pentru transfer</p>
-                </div>
-              ) : (
-                <div className="space-y-4 max-h-[300px] overflow-y-auto">
-                  {selectedItems.map((item, index) => (
-                    <div key={index} className="flex flex-col gap-3 p-3 border rounded-md bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{item.productName}</p>
-                          <p className="text-xs text-gray-500">
-                            Max: {item.maxQuantity.toFixed(2)} {item.unit} | Furnizor: {item.supplier || '-'}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Document: {item.document_number || '-'} | Intrare nr.: {item.entry_number || '-'}
-                          </p>
-                        </div>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-8 w-8 p-0" 
-                          onClick={() => handleRemoveItem(index)}
-                        >
-                          &times;
-                        </Button>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                        <div>
-                          <label className="text-sm">Cantitate brută {item.unit}</label>
-                          <Input
-                            type="number"
-                            value={item.grossQuantity}
-                            onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)}
-                            min={0}
-                            max={item.maxQuantity}
-                            step="0.01"
-                            className={item.grossQuantity > item.maxQuantity ? "border-amber-300 bg-amber-50" : ""}
-                          />
-                        </div>
-                        
-                        {item.crateTypeId && (
-                          <div>
-                            <label className="text-sm">Număr lădițe</label>
-                            <Input
-                              type="number"
-                              value={item.crateCount}
-                              onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
-                              min={0}
-                            />
-                          </div>
-                        )}
-                        
-                        <div>
-                          <label className="text-sm">Număr paleți</label>
-                          <Input
-                            type="number"
-                            value={item.pallets}
-                            onChange={(e) => handlePalletsChange(index, parseInt(e.target.value) || 0)}
-                            min={0}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="text-sm">Greutate paleți (kg)</label>
-                          <Input
-                            type="number"
-                            value={item.palletWeight}
-                            onChange={(e) => handlePalletWeightChange(index, parseFloat(e.target.value) || 0)}
-                            min={0}
-                            step="0.01"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="text-sm font-medium">Cantitate netă (se va extrage)</label>
-                          <Input
-                            type="number"
-                            value={item.netQuantity.toFixed(2)}
-                            readOnly
-                            className="bg-gray-100 font-medium text-green-700"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="crateCount">Număr Lăzi (opțional):</Label>
+          <Input
+            type="number"
+            id="crateCount"
+            value={crateCount}
+            onChange={(e) => setCrateCount(e.target.value)}
+            placeholder="Număr lăzi"
+          />
+        </div>
+        <div>
+          <Label htmlFor="notes">Note (opțional):</Label>
+          <Input
+            type="text"
+            id="notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Note"
+          />
+        </div>
+      </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
-                Anulează
-              </Button>
-              <Button type="submit" disabled={selectedItems.length === 0 || isSubmitting}>
-                {isSubmitting ? "Se procesează..." : "Creare bon de transfer"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+      <Button type="button" onClick={handleAddTransferItem}>
+        Adaugă Produs
+      </Button>
+
+      {transferItems.length > 0 && (
+        <div className="mt-6">
+          <h4 className="text-md font-medium">Produse Selectate pentru Transfer:</h4>
+          <ul>
+            {transferItems.map((item, index) => {
+              const product = products.find((p) => p.id === item.product_id);
+              return (
+                <li key={index} className="py-2 border-b">
+                  {product ? product.name : 'Produs Necunoscut'} - Cantitate: {item.quantity} {item.unit}
+                  {item.crate_count !== null && `, Lăzi: ${item.crate_count}`}
+                  {item.notes && `, Note: ${item.notes}`}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveTransferItem(index)}
+                    className="ml-2"
+                  >
+                    Șterge
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <Button
+        type="button"
+        onClick={handleTransferItemsSubmit}
+        disabled={isSubmitDisabled}
+        className="mt-4"
+      >
+        {loading ? "Se transferă..." : "Finalizează Transferul"}
+      </Button>
+    </div>
   );
-}
+};
+
+export default StockTransferForm;
