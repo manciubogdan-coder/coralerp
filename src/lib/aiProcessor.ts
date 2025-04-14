@@ -1,3 +1,4 @@
+
 import { CommandResult, ChartData, InventoryItem } from "@/types";
 
 // Helper function to ensure we only use valid action types

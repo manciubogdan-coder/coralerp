@@ -16,6 +16,7 @@ import { sendEmail } from "@/lib/emailService";
 import { speakText, improveVoiceCommand, parseUserResponse, getMissingFieldsQuestion } from "@/lib/speechService";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
+import "../types/speech-recognition.d.ts";  // Importing the speech recognition type definition
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -875,28 +876,4 @@ const Index = () => {
       setResponse(processedResponse);
       
       import("@/lib/AIAssistantTrainer").then(module => {
-        module.learnFromConversation(input, processedResponse);
-        console.log("Asistentul a învățat", processedResponse);
-      });
-    } catch (error) {
-      console.error("Error processing command:", error);
-      toast({
-        variant: "destructive",
-        title: "Eroare",
-        description: "Nu s-a putut procesa comanda."
-      });
-    }
-  };
-
-  return (
-    <div>
-      <Header />
-      <main>
-        {/* Rest of component JSX */}
-      </main>
-      <Footer />
-    </div>
-  );
-};
-
-export default Index;
+        module.learn
