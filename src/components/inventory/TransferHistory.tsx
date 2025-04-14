@@ -196,7 +196,7 @@ export function TransferHistory() {
             <SelectValue placeholder="Filtrează după destinație" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Toate destinațiile</SelectItem>
+            <SelectItem value="all">Toate destinațiile</SelectItem>
             <SelectItem value="Producție">Producție</SelectItem>
             <SelectItem value="Distrugere">Distrugere</SelectItem>
           </SelectContent>
