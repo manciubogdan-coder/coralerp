@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, RefreshCw, Mic } from "lucide-react";
@@ -6,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-custom-toast";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import InventoryManagement from "@/components/dashboard/InventoryManagement";
+import CurrentInventoryTable from "@/components/CurrentInventoryTable";
 import { speakText } from "@/lib/speechService";
 
 const InventoryPage = () => {
@@ -96,7 +95,7 @@ const InventoryPage = () => {
         </div>
         
         <div className="bg-white rounded-lg shadow-md">
-          <InventoryManagement key={refreshKey} />
+          <CurrentInventoryTable inventory={inventory} />
         </div>
       </main>
       
