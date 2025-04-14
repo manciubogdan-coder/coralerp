@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
 
 interface InventoryTableProps {
   inventory: InventoryItem[];
@@ -175,56 +176,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     return quantity.toFixed(2);
   };
 
-  const getVisibleColumns = () => {
-    if (isMobile) {
-      return {
-        entryNumber: false,
-        date: true,
-        name: true,
-        quantity: true, 
-        unit: true,
-        supplier: true,
-        manufacturer: false,
-        batch: true,
-        documentNumber: false,
-        crateType: false,
-        netQuantity: false,
-        updatedAt: false
-      };
-    }
-    return {
-      entryNumber: true,
-      date: true,
-      name: true,
-      quantity: true,
-      unit: true,
-      supplier: true,
-      manufacturer: true,
-      batch: true,
-      documentNumber: true,
-      crateType: true,
-      netQuantity: true,
-      updatedAt: true
-    };
-  };
-
-  const visibleColumns = getVisibleColumns();
-
-  // Helper function to format timestamp
-  const formatTimestamp = (timestamp: string | { seconds: number; nanoseconds: number; } | undefined) => {
-    if (!timestamp) return '-';
-    
-    if (typeof timestamp === 'string') {
-      return new Date(timestamp).toLocaleString('ro-RO');
-    }
-    
-    if ('seconds' in timestamp) {
-      return new Date(timestamp.seconds * 1000).toLocaleString('ro-RO');
-    }
-    
-    return '-';
-  };
-  
   return (
     <div className="w-full overflow-x-auto">
       <div className="p-2 md:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
@@ -296,12 +247,20 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         <Table className="w-full">
           <TableHeader className="sticky top-0 bg-white">
             <TableRow>
-              {visibleColumns.date && <TableHead className="text-left">Data</TableHead>}
+              <TableHead className="text-left">Data</TableHead>
+              <TableHead className="text-left">Nr. Intrare</TableHead>
               <TableHead className="text-left">Produs</TableHead>
               <TableHead className="text-right">Cantitate</TableHead>
-              <TableHead className="text-right">Unitate</TableHead>
-              {visibleColumns.supplier && <TableHead className="text-left">Furnizor</TableHead>}
-              {visibleColumns.batch && <TableHead className="text-left">Nr. Lot</TableHead>}
+              <TableHead className="text-left">Unitate</TableHead>
+              <TableHead className="text-left">Furnizor</TableHead>
+              <TableHead className="text-left">Producător</TableHead>
+              <TableHead className="text-left">Nr. Lot</TableHead>
+              <TableHead className="text-left">Nr. Document</TableHead>
+              <TableHead className="text-left">Tip Lăzi</TableHead>
+              <TableHead className="text-right">Nr. Lăzi</TableHead>
+              <TableHead className="text-right">Greutate/Lada</TableHead>
+              <TableHead className="text-right">Cantitate Brută</TableHead>
+              <TableHead className="text-right">Cantitate Netă</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -309,29 +268,37 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
               displayedInventory.map((item) => {
                 const productName = item.product_id ? products[item.product_id]?.name : item.name;
                 const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
+                const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : item.manufacturer;
+                const crateTypeName = item.crate_type_id ? crateTypes[item.crate_type_id]?.name : '-';
                 
                 return (
                   <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
-                    {visibleColumns.date && (
-                      <TableCell>
-                        {item.receipt_date 
-                          ? new Date(item.receipt_date).toLocaleDateString('ro-RO') 
-                          : '-'}
-                      </TableCell>
-                    )}
+                    <TableCell>
+                      {item.receipt_date 
+                        ? format(new Date(item.receipt_date), 'dd.MM.yyyy')
+                        : '-'}
+                    </TableCell>
+                    <TableCell>{item.entry_number || '-'}</TableCell>
                     <TableCell className={`${item.isHeader ? "font-bold" : "font-medium"} whitespace-nowrap`}>
                       {productName}
                     </TableCell>
                     <TableCell className="text-right">{formatQuantity(item.quantity)}</TableCell>
-                    <TableCell className="text-right">{item.unit}</TableCell>
-                    {visibleColumns.supplier && <TableCell>{supplierName || '-'}</TableCell>}
-                    {visibleColumns.batch && <TableCell>{item.batch_number || '-'}</TableCell>}
+                    <TableCell className="text-left">{item.unit}</TableCell>
+                    <TableCell>{supplierName || '-'}</TableCell>
+                    <TableCell>{manufacturerName || '-'}</TableCell>
+                    <TableCell>{item.batch_number || '-'}</TableCell>
+                    <TableCell>{item.document_number || '-'}</TableCell>
+                    <TableCell>{crateTypeName}</TableCell>
+                    <TableCell className="text-right">{item.crate_count || '-'}</TableCell>
+                    <TableCell className="text-right">{item.crate_weight ? item.crate_weight.toFixed(2) : '-'}</TableCell>
+                    <TableCell className="text-right">{item.gross_quantity ? item.gross_quantity.toFixed(2) : '-'}</TableCell>
+                    <TableCell className="text-right">{item.net_quantity ? item.net_quantity.toFixed(2) : '-'}</TableCell>
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
                   {searchTerm
                     ? `Nu s-au găsit produse pentru "${searchTerm}"`
                     : "Nu există produse în stoc."}
