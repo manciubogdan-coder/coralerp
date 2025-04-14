@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +35,12 @@ interface TransferItem {
   quantity: number;
   unit: string;
   maxQuantity: number;
+  crateCount?: number;
+  crateTypeId?: string;
+  crateWeight?: number;
+  pallets?: number;
+  grossQuantity?: number;
+  netQuantity?: number;
 }
 
 interface TransferFormValues {
@@ -102,7 +107,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       productName,
       quantity: 1,
       unit: selectedItem.unit,
-      maxQuantity: selectedItem.quantity
+      maxQuantity: selectedItem.quantity,
+      crateCount: selectedItem.crate_count || 0,
+      crateTypeId: selectedItem.crate_type_id || undefined,
+      crateWeight: selectedItem.crate_weight || 0,
+      pallets: 0,
+      grossQuantity: selectedItem.gross_quantity || selectedItem.quantity,
+      netQuantity: selectedItem.net_quantity || selectedItem.quantity
     }]);
   };
 
@@ -115,9 +126,26 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setSelectedItems(updatedItems);
   };
 
-  const handleRemoveItem = (index: number) => {
+  const handleCrateCountChange = (index: number, value: number) => {
     const updatedItems = [...selectedItems];
-    updatedItems.splice(index, 1);
+    const item = updatedItems[index];
+    const newCrateCount = Math.max(0, value);
+    const totalCrateWeight = (item.crateWeight || 0) * newCrateCount;
+    
+    updatedItems[index] = {
+      ...item,
+      crateCount: newCrateCount,
+      netQuantity: (item.grossQuantity || item.quantity) - totalCrateWeight
+    };
+    setSelectedItems(updatedItems);
+  };
+
+  const handlePalletsChange = (index: number, value: number) => {
+    const updatedItems = [...selectedItems];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      pallets: Math.max(0, value)
+    };
     setSelectedItems(updatedItems);
   };
 
@@ -139,6 +167,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         .from("inventory_history")
         .insert({
           action: "transfer",
+          name: "Transfer Gestiune",
+          quantity: 0,
+          unit: "transfer",
           operation_date: formData.transferDate,
           notes: `Transfer către ${formData.destination}. ${formData.notes}`
         })
@@ -147,7 +178,6 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       
       if (transferError) throw transferError;
       
-      // Verificăm dacă avem un id valid
       if (!transferData || !transferData.id) {
         throw new Error("Nu s-a putut crea bonul de transfer.");
       }
@@ -166,6 +196,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             quantity: item.quantity,
             unit: item.unit,
             operation_date: new Date().toISOString(),
+            crate_count: item.crateCount,
+            crate_type_id: item.crateTypeId,
+            crate_weight: item.crateWeight,
+            pallets: item.pallets,
+            gross_quantity: item.grossQuantity,
+            net_quantity: item.netQuantity,
             notes: `Transfer către ${formData.destination}`
           });
           
@@ -318,21 +354,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
               ) : (
                 <div className="space-y-4 max-h-[300px] overflow-y-auto">
                   {selectedItems.map((item, index) => (
-                    <div key={index} className="flex items-center gap-3 p-3 border rounded-md bg-gray-50">
-                      <div className="flex-grow">
-                        <p className="font-medium">{item.productName}</p>
-                        <p className="text-xs text-gray-500">Max: {item.maxQuantity} {item.unit}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value))}
-                          min={0}
-                          max={item.maxQuantity}
-                          className="w-24 text-right"
-                        />
-                        <span className="text-sm">{item.unit}</span>
+                    <div key={index} className="flex flex-col gap-3 p-3 border rounded-md bg-gray-50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{item.productName}</p>
+                          <p className="text-xs text-gray-500">Max: {item.maxQuantity} {item.unit}</p>
+                        </div>
                         <Button 
                           size="sm" 
                           variant="ghost" 
@@ -341,6 +368,52 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         >
                           &times;
                         </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                        <div>
+                          <label className="text-sm">Cantitate {item.unit}</label>
+                          <Input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value))}
+                            min={0}
+                            max={item.maxQuantity}
+                          />
+                        </div>
+                        
+                        {item.crateTypeId && (
+                          <div>
+                            <label className="text-sm">Număr lădițe</label>
+                            <Input
+                              type="number"
+                              value={item.crateCount}
+                              onChange={(e) => handleCrateCountChange(index, parseFloat(e.target.value))}
+                              min={0}
+                            />
+                          </div>
+                        )}
+                        
+                        <div>
+                          <label className="text-sm">Număr paleți</label>
+                          <Input
+                            type="number"
+                            value={item.pallets}
+                            onChange={(e) => handlePalletsChange(index, parseFloat(e.target.value))}
+                            min={0}
+                          />
+                        </div>
+                        
+                        {item.netQuantity !== undefined && item.netQuantity !== item.quantity && (
+                          <div>
+                            <label className="text-sm">Cantitate netă</label>
+                            <Input
+                              type="number"
+                              value={item.netQuantity}
+                              disabled
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
