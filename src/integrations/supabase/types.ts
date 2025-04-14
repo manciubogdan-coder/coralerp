@@ -491,13 +491,18 @@ export type Database = {
       }
       stock_transfer_view: {
         Row: {
+          batch_number: string | null
           crate_count: number | null
           destination: string | null
+          document_number: string | null
+          entry_number: number | null
           inventory_item_id: string | null
+          manufacturer_name: string | null
           net_quantity: number | null
           notes: string | null
           product_name: string | null
           quantity: number | null
+          supplier_name: string | null
           transfer_date: string | null
           transfer_id: string | null
           unit: string | null
