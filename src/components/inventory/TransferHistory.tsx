@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-custom-toast";
-import { CornerDownLeft, Search } from "lucide-react";
+import { Search, CornerDownLeft } from "lucide-react";
 import { 
   Dialog, 
   DialogContent, 
@@ -273,7 +273,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     try {
       setLoading(true);
       
-      // Get all transfers ordered by date (newest first)
+      // Modified to order by transfer_date in descending order
       const { data, error } = await supabase
         .from('stock_transfer_view')
         .select('*')
@@ -390,7 +390,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-6 text-gray-500">
+                  <TableCell colSpan={11} className="text-center py-6 text-gray-500">
                     Se încarcă datele...
                   </TableCell>
                 </TableRow>
@@ -421,7 +421,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-6 text-gray-500">
+                  <TableCell colSpan={11} className="text-center py-6 text-gray-500">
                     {searchTerm || (selectedDestination && selectedDestination !== "all")
                       ? "Nu s-au găsit transferuri conform criteriilor de căutare"
                       : "Nu există transferuri înregistrate"}
