@@ -48,7 +48,6 @@ interface TransferItem {
   supplier_id?: string;
   manufacturer?: string;
   manufacturer_id?: string;
-  batch_number?: string;
   document_number?: string;
   entry_number?: number;
 }
@@ -125,13 +124,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       pallets: 0,
       palletWeight: 0,
       grossQuantity: selectedItem.quantity,
-      netQuantity: selectedItem.net_quantity || selectedItem.quantity,
+      netQuantity: selectedItem.quantity,
       // Informații adiționale salvate
       supplier: selectedItem.supplier || selectedItem.suppliers?.name,
       supplier_id: selectedItem.supplier_id,
       manufacturer: selectedItem.manufacturer || selectedItem.manufacturers?.name,
       manufacturer_id: selectedItem.manufacturer_id,
-      batch_number: selectedItem.batch_number,
       document_number: selectedItem.document_number,
       entry_number: selectedItem.entry_number
     }]);
@@ -428,7 +426,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         <div>
                           <p className="font-medium">{item.productName}</p>
                           <p className="text-xs text-gray-500">
-                            Max: {item.maxQuantity.toFixed(2)} {item.unit} | Furnizor: {item.supplier || '-'} | Lot: {item.batch_number || '-'}
+                            Max: {item.maxQuantity.toFixed(2)} {item.unit} | Furnizor: {item.supplier || '-'}
                           </p>
                           <p className="text-xs text-gray-500">
                             Document: {item.document_number || '-'} | Intrare nr.: {item.entry_number || '-'}
