@@ -14,7 +14,7 @@ const CurrentInventoryTable = ({ inventory }: CurrentInventoryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const isMobile = useIsMobile();
 
-  // Grupăm produsele și calculăm suma cantităților
+  // Group inventory items by product name and sum their quantities
   const groupedInventory = inventory.reduce((acc, item) => {
     const productName = item.name;
     if (!acc[productName]) {
@@ -28,7 +28,7 @@ const CurrentInventoryTable = ({ inventory }: CurrentInventoryTableProps) => {
     return acc;
   }, {} as Record<string, { name: string; quantity: number; unit: string }>);
 
-  // Convertim obiectul grupat într-un array pentru afișare
+  // Convert grouped object to array, filter by search term, and sort
   const displayedInventory = Object.values(groupedInventory)
     .filter(item => 
       item.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -53,7 +53,7 @@ const CurrentInventoryTable = ({ inventory }: CurrentInventoryTableProps) => {
             <TableHeader className="sticky top-0 bg-white z-10">
               <TableRow>
                 <TableHead className="text-left">Produs</TableHead>
-                <TableHead className="text-right">Cantitate</TableHead>
+                <TableHead className="text-right">Cantitate Totală</TableHead>
                 <TableHead className="text-left">Unitate</TableHead>
               </TableRow>
             </TableHeader>
