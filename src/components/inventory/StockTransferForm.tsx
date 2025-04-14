@@ -136,13 +136,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     try {
       // Creare transfer prin insert direct
       const { data: transferData, error: transferError } = await supabase
-        .from('stock_transfers')
+        .from("inventory_history")
         .insert({
-          transfer_date: formData.transferDate,
-          destination: formData.destination,
-          notes: formData.notes
+          action: "transfer",
+          operation_date: formData.transferDate,
+          notes: `Transfer către ${formData.destination}. ${formData.notes}`
         })
-        .select('id')
+        .select("id")
         .single();
       
       if (transferError) throw transferError;
@@ -156,17 +156,20 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       
       // Procesăm fiecare element din transfer
       for (const item of selectedItems) {
-        // Adăugare element în transferul de stoc
-        const { error: itemError } = await supabase
-          .from('stock_transfer_items')
+        // Adăugare element în istoricul inventarului
+        const { error: historyError } = await supabase
+          .from("inventory_history")
           .insert({
-            transfer_id: transferId,
             inventory_item_id: item.id,
+            action: "remove",
+            name: item.productName,
             quantity: item.quantity,
-            unit: item.unit
+            unit: item.unit,
+            operation_date: new Date().toISOString(),
+            notes: `Transfer către ${formData.destination}`
           });
           
-        if (itemError) throw itemError;
+        if (historyError) throw historyError;
 
         // Decrementare cantitate din stoc
         const { data: inventoryItem, error: getError } = await supabase
@@ -186,26 +189,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           .eq('id', item.id);
            
         if (updateError) throw updateError;
-
-        // Adăugare în istoricul inventarului
-        const { error: historyError } = await supabase
-          .from("inventory_history")
-          .insert({
-            inventory_item_id: item.id,
-            action: "remove",
-            name: item.productName,
-            quantity: item.quantity,
-            unit: item.unit,
-            operation_date: new Date().toISOString(),
-            notes: `Transfer către ${formData.destination}`
-          });
-          
-        if (historyError) throw historyError;
       }
 
       toast({
         title: "Succes",
-        description: `Bon de transfer nr. ${transferId} creat cu succes.`
+        description: `Bon de transfer creat cu succes.`
       });
 
       setSelectedItems([]);
@@ -304,13 +292,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             <div className="border rounded-md p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-md font-medium">Produse de transferat</h3>
-                <Select onValueChange={handleAddItem} value="">
+                <Select onValueChange={handleAddItem}>
                   <SelectTrigger className="w-[250px]">
                     <SelectValue placeholder="Adăugați un produs" />
                   </SelectTrigger>
                   <SelectContent>
                     {availableItems.length === 0 ? (
-                      <SelectItem value="" disabled>Nu mai există produse disponibile</SelectItem>
+                      <SelectItem value="no-items-available" disabled>Nu mai există produse disponibile</SelectItem>
                     ) : (
                       availableItems.map(item => (
                         <SelectItem key={item.id} value={item.id}>
