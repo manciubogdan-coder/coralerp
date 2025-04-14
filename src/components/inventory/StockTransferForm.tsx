@@ -134,48 +134,41 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSubmitting(true);
     
     try {
-      // Create transfer record
+      // Use raw SQL query for inserting into stock_transfers since TypeScript doesn't know about it yet
       const { data: transferData, error: transferError } = await supabase
-        .from("stock_transfers")
-        .insert([{
-          transfer_date: formData.transferDate,
-          destination: formData.destination,
-          notes: formData.notes
-        }])
-        .select();
+        .rpc('create_stock_transfer', { 
+          p_transfer_date: formData.transferDate,
+          p_destination: formData.destination,
+          p_notes: formData.notes
+        });
 
       if (transferError) throw transferError;
       
-      if (!transferData || transferData.length === 0) {
+      if (!transferData) {
         throw new Error("Nu s-a putut crea bonul de transfer.");
       }
 
-      const transferId = transferData[0].id;
+      const transferId = transferData;
       
       // Create transfer items and update inventory
       const transferItemsPromises = selectedItems.map(async (item) => {
-        // Add transfer item
+        // Add transfer item using raw query
         const { error: itemError } = await supabase
-          .from("stock_transfer_items")
-          .insert([{
-            transfer_id: transferId,
-            inventory_item_id: item.id,
-            quantity: item.quantity,
-            unit: item.unit
-          }]);
+          .rpc('create_stock_transfer_item', {
+            p_transfer_id: transferId,
+            p_inventory_item_id: item.id,
+            p_quantity: item.quantity,
+            p_unit: item.unit
+          });
           
         if (itemError) throw itemError;
 
         // Update inventory quantity
         const { error: updateError } = await supabase
-          .from("inventory")
-          .update({ 
-            quantity: supabase.rpc('decrement_quantity', { 
-              row_id: item.id, 
-              amount: item.quantity 
-            })
-          })
-          .eq("id", item.id);
+          .rpc('decrement_quantity', { 
+            row_id: item.id, 
+            amount: item.quantity 
+          });
           
         if (updateError) throw updateError;
 

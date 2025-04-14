@@ -1,115 +1,80 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  Package, 
-  Factory, 
-  Truck, 
-  Box, 
-  Database, 
-  ArrowLeft
-} from "lucide-react";
+import { ArrowLeft, BarChart4, Users, ShoppingCart, Package, Boxes } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DashboardMenuItem } from "@/types";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { useIsMobile } from "@/hooks/use-mobile";
+import DashboardMenuItem from "@/components/DashboardMenuItem";
+import { DashboardMenuItem as DashboardMenuItemType } from "@/types";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
-  
-  const menuItems: DashboardMenuItem[] = [
+
+  const menuItems: DashboardMenuItemType[] = [
+    {
+      id: "inventory",
+      name: "Stoc Depozit",
+      icon: Package,
+      route: "/dashboard/inventory",
+      description: "Gestionați stocul curent de produse."
+    },
     {
       id: "products",
       name: "Produse",
-      icon: Package,
+      icon: ShoppingCart,
       route: "/dashboard/products",
-      path: "/dashboard/products",
-      description: "Gestionează catalogul de produse și specificații"
+      description: "Gestionați lista de produse."
     },
     {
       id: "suppliers",
       name: "Furnizori",
-      icon: Truck,
+      icon: Users,
       route: "/dashboard/suppliers",
-      path: "/dashboard/suppliers",
-      description: "Administrează furnizorii și datele de contact"
+      description: "Gestionați lista de furnizori."
     },
     {
       id: "manufacturers",
       name: "Producători",
-      icon: Factory,
+      icon: Boxes,
       route: "/dashboard/manufacturers",
-      path: "/dashboard/manufacturers",
-      description: "Gestionează producătorii și informațiile despre aceștia"
+      description: "Gestionați lista de producători."
     },
     {
       id: "crate-types",
-      name: "Tipuri de lădițe",
-      icon: Box,
+      name: "Tipuri Lădițe",
+      icon: BarChart4,
       route: "/dashboard/crate-types",
-      path: "/dashboard/crate-types",
-      description: "Configurează tipurile de lădițe și greutățile acestora"
-    },
-    {
-      id: "inventory",
-      name: "Stoc Depozit",
-      icon: Database,
-      route: "/dashboard/inventory",
-      path: "/dashboard/inventory",
-      description: "Adaugă și modifică manual intrările în stoc"
+      description: "Gestionați tipurile de lădițe."
     }
   ];
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
-      
+
       <main className="flex-1 container mx-auto p-4 md:p-6">
-        <div className="mb-6 flex items-center">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => navigate("/")}
-            className="mr-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Înapoi
-          </Button>
-          <h1 className="text-2xl font-bold">Panou de Administrare</h1>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {menuItems.map((item) => (
-            <Card 
-              key={item.id} 
-              className="transition-all hover:shadow-md cursor-pointer"
-              onClick={() => navigate(item.path || item.route)}
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/")}
+              className="mr-4"
             >
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-lg">{item.name}</CardTitle>
-                  <div className="p-2 rounded-full bg-gray-100">
-                    {React.createElement(item.icon, { size: 20 })}
-                  </div>
-                </div>
-                <CardDescription>{item.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button 
-                  variant="secondary"
-                  className="w-full"
-                >
-                  Deschide
-                </Button>
-              </CardContent>
-            </Card>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Înapoi la pagina principală
+            </Button>
+            <h1 className="text-2xl font-bold">Panou de Control</h1>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {menuItems.map((item) => (
+            <DashboardMenuItem key={item.id} item={item} />
           ))}
         </div>
       </main>
-      
+
       <Footer />
     </div>
   );

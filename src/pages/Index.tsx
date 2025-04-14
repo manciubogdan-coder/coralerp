@@ -1,409 +1,247 @@
-
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  BarChart, 
-  Settings, 
-  FileSearch, 
-  Home, 
-  Mail, 
-  Mic as MicrophoneIcon, 
-  Pause as PauseIcon, 
-  RefreshCw as RefreshIcon, 
-  Users as UserGroupIcon, 
-  Volume2 as VolumeUpIcon, 
-  XCircle as XCircleIcon
-} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-custom-toast";
-import { speakText, improveVoiceCommand, parseUserResponse, getMissingFieldsQuestion } from "@/lib/speechService";
+import { useToast } from "@/components/ui/use-toast";
+import { Command } from "cmdk";
+import { Search, RefreshCw, Mic, Settings, HelpCircle } from "lucide-react";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import { InventoryItem } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { exportToExcel } from "@/lib/excelExport";
+import { speakText } from "@/lib/speechService";
 
 const Index = () => {
   const navigate = useNavigate();
-  const [command, setCommand] = useState("");
-  const [isListening, setIsListening] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [response, setResponse] = useState("");
-  const [conversationHistory, setConversationHistory] = useState<string[]>([]);
-  const [audioEnabled, setAudioEnabled] = useState(true);
-  const [speechRecognition, setSpeechRecognition] = useState<any>(null);
-  const commandInputRef = useRef<HTMLInputElement>(null);
-  const isMobile = useIsMobile();
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const { toast: useToastHook } = useToast();
 
   useEffect(() => {
-    // Verificăm dacă SpeechRecognition este disponibil în browser
-    if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      setSpeechRecognition(new SpeechRecognition());
-    } else {
-      console.log("Speech Recognition API is not supported in this browser.");
-      toast({
-        title: "Browser Incompatibil",
-        description: "API-ul Speech Recognition nu este suportat de acest browser.",
-        variant: "destructive",
-      });
+    // Verificăm dacă există setarea pentru audio în localStorage
+    const savedAudioSetting = localStorage.getItem('inventoryAudioEnabled');
+    if (savedAudioSetting !== null) {
+      setIsAudioEnabled(savedAudioSetting === 'true');
     }
 
-    // Verificăm dacă setarea pentru audio este salvată în localStorage
-    const savedAudioSetting = localStorage.getItem('audioEnabled');
-    if (savedAudioSetting !== null) {
-      setAudioEnabled(savedAudioSetting === 'true');
-    }
+    fetchInventory();
   }, []);
 
-  useEffect(() => {
-    if (speechRecognition) {
-      speechRecognition.continuous = false;
-      speechRecognition.interimResults = false;
-      speechRecognition.lang = 'ro-RO';
-
-      speechRecognition.onstart = () => {
-        console.log("Ascultare pornită...");
-        setIsListening(true);
-      };
-
-      speechRecognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((result: any) => result[0])
-          .map((result: any) => result.transcript)
-          .join('');
-        console.log("Transcriere:", transcript);
-        setCommand(transcript);
-      };
-
-      speechRecognition.onend = () => {
-        console.log("Ascultare oprită.");
-        setIsListening(false);
-        if (command) {
-          processCommand(command);
-        }
-      };
-
-      speechRecognition.onerror = (event: any) => {
-        console.error("Eroare Speech Recognition:", event.error);
-        setIsListening(false);
-        toast({
-          title: "Eroare de microfon",
-          description: `A apărut o eroare la utilizarea microfonului: ${event.error}`,
-          variant: "destructive",
-        });
-      };
-    }
-
-    return () => {
-      if (speechRecognition) {
-        speechRecognition.onstart = null;
-        speechRecognition.onresult = null;
-        speechRecognition.onend = null;
-        speechRecognition.onerror = null;
-      }
-    };
-  }, [speechRecognition, command]);
-
-  const startListening = () => {
-    if (speechRecognition) {
-      try {
-        speechRecognition.start();
-      } catch (error: any) {
-        console.error("Eroare la pornirea ascultării:", error);
-        toast({
-          title: "Eroare de microfon",
-          description: "Microfonul este deja în uz sau nu este disponibil.",
-          variant: "destructive",
-        });
-        setIsListening(false);
-      }
-    } else {
-      toast({
-        title: "Browser Incompatibil",
-        description: "API-ul Speech Recognition nu este suportat de acest browser.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const stopListening = () => {
-    if (speechRecognition) {
-      speechRecognition.stop();
-      setIsListening(false);
-    }
-  };
-
-  const toggleListening = () => {
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCommand(e.target.value);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    processCommand(command);
-  };
-
-  const processCommand = async (cmd: string) => {
-    if (!cmd.trim()) return;
-    setIsProcessing(true);
-    let enhancedCommand = cmd;
-    
+  const fetchInventory = async () => {
     try {
-      enhancedCommand = await improveVoiceCommand(cmd);
-      console.log("Comanda îmbunătățită:", enhancedCommand);
-      setCommand(enhancedCommand);
-      
-      // Adăugăm comanda îmbunătățită în istoricul conversației
-      setConversationHistory((prevHistory) => [
-        ...prevHistory,
-        `Utilizator: ${enhancedCommand}`
-      ]);
-      
-      // Așteptăm 1 secundă înainte de a procesa comanda
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      const { data: inventory } = await supabase.from("inventory").select("*");
-      const { data: suppliers } = await supabase.from("suppliers").select("*");
-      
-      const { action, response: initialResponse, item, needsMoreInfo } = await parseUserResponse(
-        enhancedCommand, 
-        inventory || [], 
-        suppliers || []
-      );
-      
-      let finalResponse = initialResponse;
-      
-      if (needsMoreInfo) {
-        if (needsMoreInfo.type === 'missing_fields') {
-          const missingFieldsQuestion = getMissingFieldsQuestion(needsMoreInfo.question);
-          finalResponse = missingFieldsQuestion || "Nu am înțeles pe deplin. Poți oferi mai multe detalii?";
-        } else {
-          finalResponse = needsMoreInfo.question || "Nu am înțeles pe deplin. Poți oferi mai multe detalii?";
-        }
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("inventory")
+        .select("*")
+        .order("name");
+
+      if (error) {
+        throw error;
       }
-      
-      setResponse(finalResponse);
-      setConversationHistory((prevHistory) => [
-        ...prevHistory,
-        `AI: ${finalResponse}`
-      ]);
-      
-      if (audioEnabled) {
-        speakText(finalResponse);
-      }
-      
-      if (action === 'add' && item) {
-        // Așteptăm ca răspunsul vocal să se termine înainte de a naviga
-        setTimeout(() => {
-          navigate('/dashboard/inventory');
-        }, 3000);
-      }
+
+      setInventory(data || []);
     } catch (error: any) {
-      console.error("Eroare la procesarea comenzii:", error);
-      setResponse(`A apărut o eroare: ${error.message}`);
-      setConversationHistory((prevHistory) => [
-        ...prevHistory,
-        `AI: A apărut o eroare: ${error.message}`
-      ]);
-      
-      if (audioEnabled) {
-        speakText(`A apărut o eroare: ${error.message}`);
-      }
-      
       toast({
-        title: "Eroare la procesarea comenzii",
+        variant: "destructive",
+        title: "Eroare la încărcarea inventarului",
         description: error.message,
-        variant: "destructive"
       });
     } finally {
-      setIsProcessing(false);
+      setLoading(false);
     }
   };
 
-  const clearCommand = () => {
-    setCommand("");
-    if (commandInputRef.current) {
-      commandInputRef.current.focus();
-    }
+  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(event.target.value);
   };
 
-  const toggleAudio = () => {
-    const newSetting = !audioEnabled;
-    setAudioEnabled(newSetting);
-    localStorage.setItem('audioEnabled', String(newSetting));
-    
+  const filteredInventory = inventory.filter((item) =>
+    item.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleRefresh = () => {
+    fetchInventory();
+
+    if (isAudioEnabled) {
+      speakText("Inventarul a fost actualizat.");
+    }
+
     toast({
-      title: newSetting ? "Audio activat" : "Audio dezactivat",
-      description: newSetting ? "Răspunsurile vocale au fost activate." : "Răspunsurile vocale au fost dezactivate."
+      title: "Reîmprospătare",
+      description: "Inventarul a fost actualizat.",
     });
   };
 
+  const toggleCommandPalette = () => {
+    setIsCommandPaletteOpen(!isCommandPaletteOpen);
+  };
+
+  const toggleAudio = () => {
+    const newSetting = !isAudioEnabled;
+    setIsAudioEnabled(newSetting);
+    localStorage.setItem('inventoryAudioEnabled', String(newSetting));
+
+    toast({
+      title: newSetting ? "Audio activat" : "Audio dezactivat",
+      description: newSetting ?
+        "Răspunsurile vocale au fost activate." :
+        "Răspunsurile vocale au fost dezactivate."
+    });
+  };
+
+  const handleExportExcelClick = () => {
+    const processedData = inventory.map(item => ({
+      Nume: item.name,
+      Cantitate: item.quantity,
+      Unitate: item.unit,
+      Furnizor: item.supplier || '-',
+      'Nr. Document': item.document_number || '-',
+      'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-'
+    }));
+
+    exportToExcel(processedData);
+
+    toast({
+      title: "Export realizat",
+      description: "Fișierul Excel a fost generat și descărcat."
+    });
+  };
+
+  const someFunction = (param1: any, defaultParam2: any, defaultParam3: any) => {
+    console.log("someFunction called", param1, defaultParam2, defaultParam3);
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Panou de Control
-          </h1>
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <Header />
+
+      <main className="flex-1 container mx-auto p-4 md:p-6">
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="mr-4"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Înapoi la panou
+            </Button>
+            <h1 className="text-2xl font-bold">Gestionare Inventar</h1>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleAudio}
+              title={isAudioEnabled ? "Dezactivează răspunsurile vocale" : "Activează răspunsurile vocale"}
+              className="h-9 w-9"
+            >
+              <Mic className={`h-4 w-4 ${isAudioEnabled ? "text-green-500" : "text-gray-400"}`} />
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              title="Reîmprospătează datele din inventar"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Reîmprospătează
+            </Button>
+          </div>
         </div>
-      </header>
-      
-      <main className="flex-1 p-4">
-        <div className="max-w-3xl mx-auto space-y-6">
-          <section className="bg-white shadow overflow-hidden rounded-md p-4">
-            <h2 className="text-lg font-semibold text-gray-700 mb-3">Comenzi rapide</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Button 
-                variant="outline" 
-                className="justify-start"
-                onClick={() => navigate("/dashboard")}
-              >
-                <Home className="h-5 w-5 mr-2" />
-                Mergi la Dashboard
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                className="justify-start"
-                onClick={() => navigate("/dashboard/inventory")}
-              >
-                <FileSearch className="h-5 w-5 mr-2" />
-                Vezi Inventarul
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                className="justify-start"
-                onClick={() => navigate("/dashboard/products")}
-              >
-                <BarChart className="h-5 w-5 mr-2" />
-                Vezi Produsele
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                className="justify-start"
-                onClick={() => navigate("/dashboard/suppliers")}
-              >
-                <UserGroupIcon className="h-5 w-5 mr-2" />
-                Vezi Furnizorii
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                className="justify-start"
-                onClick={() => navigate("/dashboard/manufacturers")}
-              >
-                <Settings className="h-5 w-5 mr-2" />
-                Vezi Producătorii
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                className="justify-start"
-                onClick={() => {
-                  navigator.clipboard.writeText(response);
-                  toast({
-                    description: "Răspuns copiat în clipboard!"
-                  });
-                }}
-              >
-                <Mail className="h-5 w-5 mr-2" />
-                Copiază ultimul răspuns
-              </Button>
-            </div>
-          </section>
-          
-          <section className="bg-white shadow overflow-hidden rounded-md p-4">
-            <h2 className="text-lg font-semibold text-gray-700 mb-3">Interacționează cu sistemul</h2>
-            <form onSubmit={handleSubmit} className="flex items-center space-x-3">
-              <div className="relative flex-grow">
-                <input
-                  type="text"
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  placeholder="Introdu comanda ta aici..."
-                  value={command}
-                  onChange={handleInputChange}
-                  ref={commandInputRef}
-                  disabled={isProcessing}
-                />
-                {command && (
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    onClick={clearCommand}
-                  >
-                    <XCircleIcon className="h-5 w-5" />
-                  </button>
-                )}
-              </div>
-              
-              <Button
-                type="submit"
-                disabled={isProcessing}
-              >
-                {isProcessing ? <RefreshIcon className="animate-spin h-5 w-5" /> : "Trimite"}
-              </Button>
-              
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={toggleListening}
-                disabled={isProcessing}
-                className="relative"
-              >
-                {isListening ? <PauseIcon className="h-5 w-5" /> : <MicrophoneIcon className="h-5 w-5" />}
-              </Button>
-            </form>
-          </section>
-          
-          <section className="bg-white shadow overflow-hidden rounded-md p-4">
-            <h2 className="text-lg font-semibold text-gray-700 mb-3">Conversație</h2>
-            <div className="space-y-2">
-              {conversationHistory.map((message, index) => (
-                <div key={index} className="text-sm text-gray-800">
-                  {message}
-                </div>
-              ))}
-              
-              {response && (
-                <div className="text-gray-900 font-medium">
-                  Răspuns: {response}
-                </div>
-              )}
-            </div>
-          </section>
-          
-          <section className="bg-white shadow overflow-hidden rounded-md p-4">
-            <h2 className="text-lg font-semibold text-gray-700 mb-3">Setări</h2>
-            <div className="flex items-center space-x-4">
-              <label htmlFor="audioToggle" className="text-sm font-medium text-gray-700">
-                Răspuns vocal:
-              </label>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleAudio}
-                title={audioEnabled ? "Dezactivează răspunsurile vocale" : "Activează răspunsurile vocale"}
-                className="h-9 w-9"
-              >
-                <VolumeUpIcon className={`h-5 w-5 ${audioEnabled ? "text-green-500" : "text-gray-400"}`} />
-              </Button>
-            </div>
-          </section>
+
+        <div className="mb-4 flex items-center">
+          <div className="relative w-full md:flex-1 md:mr-4">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              type="search"
+              placeholder="Caută în inventar..."
+              value={searchTerm}
+              onChange={handleSearch}
+              className="pl-10"
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={handleExportExcelClick}>
+            Export Excel
+          </Button>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md">
+          {loading ? (
+            <div className="p-4">Se încarcă inventarul...</div>
+          ) : filteredInventory.length > 0 ? (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="p-3 text-left">Nume</th>
+                  <th className="p-3 text-left">Cantitate</th>
+                  <th className="p-3 text-left">Unitate</th>
+                  <th className="p-3 text-left">Furnizor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredInventory.map((item) => (
+                  <tr key={item.id} className="border-b last:border-0">
+                    <td className="p-3">{item.name}</td>
+                    <td className="p-3">{item.quantity}</td>
+                    <td className="p-3">{item.unit}</td>
+                    <td className="p-3">{item.supplier || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-4">Niciun produs găsit în inventar.</div>
+          )}
         </div>
       </main>
-      
-      <footer className="bg-gray-50 border-t border-gray-200 text-center py-4">
-        <p className="text-sm text-gray-500">
-          © {new Date().getFullYear()} Sistem de Gestionare a Inventarului. Toate drepturile rezervate.
-        </p>
-      </footer>
+
+      <Footer />
+
+      <Command
+        className="dark"
+        open={isCommandPaletteOpen}
+        onOpenChange={setIsCommandPaletteOpen}
+      >
+        <Command.Dialog>
+          <Command.Input placeholder="Caută comenzi sau tastează un command" />
+          <Command.List>
+            <Command.Empty>Nu am găsit nimic.</Command.Empty>
+
+            <Command.Group heading="Setări">
+              <Command.Item
+                onSelect={() => {
+                  setIsCommandPaletteOpen(false);
+                  navigate("/dashboard/settings");
+                }}
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                Setări
+              </Command.Item>
+            </Command.Group>
+
+            <Command.Group heading="Ajutor">
+              <Command.Item
+                onSelect={() => {
+                  setIsCommandPaletteOpen(false);
+                  navigate("/dashboard/help");
+                }}
+              >
+                <HelpCircle className="mr-2 h-4 w-4" />
+                Ajutor
+              </Command.Item>
+            </Command.Group>
+          </Command.List>
+        </Command.Dialog>
+      </Command>
     </div>
   );
 };

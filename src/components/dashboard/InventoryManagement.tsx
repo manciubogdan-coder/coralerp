@@ -4,7 +4,7 @@ import { useInventoryData } from "@/hooks/use-inventory-data";
 import { useAggregatedStock } from "@/hooks/use-aggregated-stock";
 import { InventoryToolbar } from "@/components/inventory/InventoryToolbar";
 import { InventoryViewOptions } from "@/components/inventory/InventoryViewOptions";
-import { InventoryTable } from "@/components/InventoryTable";
+import InventoryTable from "@/components/InventoryTable";
 
 const InventoryManagement = () => {
   const [activeTab, setActiveTab] = useState("all");
