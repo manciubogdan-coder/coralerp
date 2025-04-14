@@ -104,6 +104,7 @@ const ReturnForm = ({ transfer, onComplete }: ReturnFormProps) => {
         title: "Eroare la returnare",
         description: error.message
       });
+      console.error("Eroare la returnare:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -151,6 +152,7 @@ export function TransferHistory() {
   const fetchTransfers = async () => {
     try {
       setLoading(true);
+      console.log("Fetching transfers...");
       
       let query = supabase
         .from('stock_transfer_view')
@@ -167,11 +169,20 @@ export function TransferHistory() {
       
       const { data, error } = await query;
         
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching transfers:", error);
+        throw error;
+      }
       
+      console.log("Transfers data:", data);
       setTransfers(data || []);
     } catch (error) {
       console.error("Error fetching transfers:", error);
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Nu s-au putut încărca transferurile"
+      });
     } finally {
       setLoading(false);
     }
