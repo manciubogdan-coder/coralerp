@@ -434,7 +434,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         <div>
                           <p className="font-medium">{item.productName}</p>
                           <p className="text-xs text-gray-500">
-                            Max: {item.maxQuantity} {item.unit} | Furnizor: {item.supplier || '-'} | Lot: {item.batch_number || '-'}
+                            Max: {item.maxQuantity.toFixed(2)} {item.unit} | Furnizor: {item.supplier || '-'} | Lot: {item.batch_number || '-'}
                           </p>
                           <p className="text-xs text-gray-500">
                             Document: {item.document_number || '-'} | Intrare nr.: {item.entry_number || '-'}
@@ -459,6 +459,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                             onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)}
                             min={0}
                             max={item.maxQuantity}
+                            step="0.01"
+                            className={item.grossQuantity > item.maxQuantity ? "border-amber-300 bg-amber-50" : ""}
                           />
                         </div>
                         
@@ -491,6 +493,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                             value={item.palletWeight}
                             onChange={(e) => handlePalletWeightChange(index, parseFloat(e.target.value) || 0)}
                             min={0}
+                            step="0.01"
                           />
                         </div>
                         
@@ -498,8 +501,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           <label className="text-sm font-medium">Cantitate netă (se va extrage)</label>
                           <Input
                             type="number"
-                            value={item.netQuantity}
-                            disabled
+                            value={item.netQuantity.toFixed(2)}
+                            readOnly
                             className="bg-gray-100 font-medium text-green-700"
                           />
                         </div>
