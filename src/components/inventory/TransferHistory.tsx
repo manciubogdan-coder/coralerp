@@ -205,72 +205,74 @@ export function TransferHistory() {
         </Select>
       </div>
       
-      <div className="rounded-md border w-full overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID Transfer</TableHead>
-              <TableHead>Dată Transfer</TableHead>
-              <TableHead>Produs</TableHead>
-              <TableHead>Furnizor</TableHead>
-              <TableHead>Producător</TableHead>
-              <TableHead>Destinație</TableHead>
-              <TableHead>Nr. Intrare</TableHead>
-              <TableHead>Nr. Document</TableHead>
-              <TableHead className="text-right">Cantitate Brută</TableHead>
-              <TableHead className="text-right">Cantitate Netă</TableHead>
-              <TableHead>Unitate</TableHead>
-              <TableHead>Nr. Lăzi</TableHead>
-              <TableHead>Note</TableHead>
-              <TableHead>Acțiuni</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
+      <div className="rounded-md border w-full overflow-hidden">
+        <div className="overflow-x-auto max-h-[70vh]">
+          <Table>
+            <TableHeader className="sticky top-0 bg-white z-10">
               <TableRow>
-                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
-                  Se încarcă datele...
-                </TableCell>
+                <TableHead>ID Transfer</TableHead>
+                <TableHead>Dată Transfer</TableHead>
+                <TableHead>Produs</TableHead>
+                <TableHead>Furnizor</TableHead>
+                <TableHead>Producător</TableHead>
+                <TableHead>Destinație</TableHead>
+                <TableHead>Nr. Intrare</TableHead>
+                <TableHead>Nr. Document</TableHead>
+                <TableHead className="text-right">Cantitate Brută</TableHead>
+                <TableHead className="text-right">Cantitate Netă</TableHead>
+                <TableHead>Unitate</TableHead>
+                <TableHead>Nr. Lăzi</TableHead>
+                <TableHead>Note</TableHead>
+                <TableHead className="sticky right-0 bg-white">Acțiuni</TableHead>
               </TableRow>
-            ) : transfers.length > 0 ? (
-              transfers.map((transfer) => (
-                <TableRow key={transfer.transfer_id}>
-                  <TableCell>{transfer.transfer_id || "-"}</TableCell>
-                  <TableCell>{transfer.transfer_date ? format(new Date(transfer.transfer_date), "dd.MM.yyyy") : "-"}</TableCell>
-                  <TableCell>{transfer.product_name}</TableCell>
-                  <TableCell>{transfer.supplier_name || "-"}</TableCell>
-                  <TableCell>{transfer.manufacturer_name || "-"}</TableCell>
-                  <TableCell>
-                    <Badge variant={transfer.destination === "Distrugere" ? "destructive" : "default"}>
-                      {transfer.destination}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{transfer.entry_number || "-"}</TableCell>
-                  <TableCell>{transfer.document_number || "-"}</TableCell>
-                  <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
-                  <TableCell className="text-right">{formatQuantity(transfer.net_quantity || transfer.quantity)}</TableCell>
-                  <TableCell>{transfer.unit}</TableCell>
-                  <TableCell>{transfer.crate_count || "-"}</TableCell>
-                  <TableCell>{transfer.notes || "-"}</TableCell>
-                  <TableCell>
-                    <ReturnForm 
-                      transfer={transfer}
-                      onComplete={fetchTransfers}
-                    />
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={14} className="text-center py-6 text-gray-500">
+                    Se încarcă datele...
                   </TableCell>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
-                  {searchTerm || (selectedDestination && selectedDestination !== "all")
-                    ? "Nu s-au găsit transferuri conform criteriilor de căutare"
-                    : "Nu există transferuri înregistrate"}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              ) : transfers.length > 0 ? (
+                transfers.map((transfer) => (
+                  <TableRow key={transfer.transfer_id}>
+                    <TableCell>{transfer.transfer_id || "-"}</TableCell>
+                    <TableCell>{transfer.transfer_date ? format(new Date(transfer.transfer_date), "dd.MM.yyyy") : "-"}</TableCell>
+                    <TableCell>{transfer.product_name}</TableCell>
+                    <TableCell>{transfer.supplier_name || "-"}</TableCell>
+                    <TableCell>{transfer.manufacturer_name || "-"}</TableCell>
+                    <TableCell>
+                      <Badge variant={transfer.destination === "Distrugere" ? "destructive" : "default"}>
+                        {transfer.destination}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{transfer.entry_number || "-"}</TableCell>
+                    <TableCell>{transfer.document_number || "-"}</TableCell>
+                    <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
+                    <TableCell className="text-right">{formatQuantity(transfer.net_quantity || transfer.quantity)}</TableCell>
+                    <TableCell>{transfer.unit}</TableCell>
+                    <TableCell>{transfer.crate_count || "-"}</TableCell>
+                    <TableCell>{transfer.notes || "-"}</TableCell>
+                    <TableCell className="sticky right-0 bg-white">
+                      <ReturnForm 
+                        transfer={transfer}
+                        onComplete={fetchTransfers}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={14} className="text-center py-6 text-gray-500">
+                    {searchTerm || (selectedDestination && selectedDestination !== "all")
+                      ? "Nu s-au găsit transferuri conform criteriilor de căutare"
+                      : "Nu există transferuri înregistrate"}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   );

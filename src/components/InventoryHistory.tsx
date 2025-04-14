@@ -204,6 +204,11 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
     return 'Selectați perioada';
   };
 
+  const formatQuantity = (quantity: number | undefined) => {
+    if (quantity === undefined) return '-';
+    return quantity.toFixed(2);
+  };
+
   return (
     <div>
       <div className="p-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
@@ -222,7 +227,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
             <SelectTrigger className="w-full md:w-[180px]">
               <SelectValue placeholder="Tip operațiune" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-50">
               <SelectItem value="all">Toate operațiunile</SelectItem>
               <SelectItem value="add">Adăugare</SelectItem>
               <SelectItem value="remove">Eliminare</SelectItem>
@@ -240,7 +245,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
                 {formatDateRange()}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
+            <PopoverContent className="w-auto p-0 z-50" align="start">
               <Calendar
                 mode="range"
                 selected={{ from: dateRange[0], to: dateRange[1] }}
@@ -258,72 +263,74 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         </div>
       </div>
       
-      <div className="overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Dată operațiune</TableHead>
-              <TableHead>Acțiune</TableHead>
-              <TableHead>Produs</TableHead>
-              <TableHead>Nr. document</TableHead>
-              <TableHead>Furnizor</TableHead>
-              <TableHead>Producător</TableHead>
-              <TableHead className="text-right">Cantitate</TableHead>
-              <TableHead>Unitate</TableHead>
-              <TableHead>Tip ladită</TableHead>
-              <TableHead className="text-right">Cantitate anterioară</TableHead>
-              <TableHead>Ora ieșire</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {history.length > 0 ? (
-              history.map((item) => {
-                const productName = item.product_id ? products[item.product_id]?.name : item.name;
-                const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
-                const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : '';
-                const crateTypeName = item.crate_type_id ? crateTypes[item.crate_type_id]?.name : '';
-                
-                return (
-                  <TableRow key={item.id}>
-                    <TableCell className="whitespace-nowrap">
-                      {format(item.operation_date, 'dd.MM.yyyy HH:mm')}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getActionColor(item.action)}>
-                        {getActionTranslation(item.action)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">{productName}</TableCell>
-                    <TableCell>{item.document_number || '-'}</TableCell>
-                    <TableCell>{supplierName || '-'}</TableCell>
-                    <TableCell>{manufacturerName || '-'}</TableCell>
-                    <TableCell className="text-right">{item.quantity}</TableCell>
-                    <TableCell>{item.unit}</TableCell>
-                    <TableCell>
-                      {crateTypeName ? `${crateTypeName} (${item.crate_count || 0} buc)` : '-'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {item.previous_quantity !== undefined ? item.previous_quantity : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {item.action === 'remove' && item.exit_timestamp
-                        ? format(item.exit_timestamp, 'dd.MM.yyyy HH:mm:ss')
-                        : '-'}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            ) : (
+      <div className="overflow-hidden">
+        <div className="overflow-x-auto max-h-[70vh]">
+          <Table>
+            <TableHeader className="sticky top-0 bg-white z-10">
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-6 text-gray-500">
-                  {searchTerm || dateRange[0] || dateRange[1] || actionFilter !== "all"
-                    ? "Nu s-au găsit operațiuni conform criteriilor de căutare"
-                    : "Nu există operațiuni de stoc înregistrate"}
-                </TableCell>
+                <TableHead>Dată operațiune</TableHead>
+                <TableHead>Acțiune</TableHead>
+                <TableHead>Produs</TableHead>
+                <TableHead>Nr. document</TableHead>
+                <TableHead>Furnizor</TableHead>
+                <TableHead>Producător</TableHead>
+                <TableHead className="text-right">Cantitate</TableHead>
+                <TableHead>Unitate</TableHead>
+                <TableHead>Tip ladită</TableHead>
+                <TableHead className="text-right">Cantitate anterioară</TableHead>
+                <TableHead>Ora ieșire</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {history.length > 0 ? (
+                history.map((item) => {
+                  const productName = item.product_id ? products[item.product_id]?.name : item.name;
+                  const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
+                  const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : '';
+                  const crateTypeName = item.crate_type_id ? crateTypes[item.crate_type_id]?.name : '';
+                  
+                  return (
+                    <TableRow key={item.id}>
+                      <TableCell className="whitespace-nowrap">
+                        {format(item.operation_date, 'dd.MM.yyyy HH:mm')}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getActionColor(item.action)}>
+                          {getActionTranslation(item.action)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{productName}</TableCell>
+                      <TableCell>{item.document_number || '-'}</TableCell>
+                      <TableCell>{supplierName || '-'}</TableCell>
+                      <TableCell>{manufacturerName || '-'}</TableCell>
+                      <TableCell className="text-right">{formatQuantity(item.quantity)}</TableCell>
+                      <TableCell>{item.unit}</TableCell>
+                      <TableCell>
+                        {crateTypeName ? `${crateTypeName} (${item.crate_count || 0} buc)` : '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatQuantity(item.previous_quantity)}
+                      </TableCell>
+                      <TableCell>
+                        {item.action === 'remove' && item.exit_timestamp
+                          ? format(item.exit_timestamp, 'dd.MM.yyyy HH:mm:ss')
+                          : '-'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={11} className="text-center py-6 text-gray-500">
+                    {searchTerm || dateRange[0] || dateRange[1] || actionFilter !== "all"
+                      ? "Nu s-au găsit operațiuni conform criteriilor de căutare"
+                      : "Nu există operațiuni de stoc înregistrate"}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
       
       {totalPages > 1 && (

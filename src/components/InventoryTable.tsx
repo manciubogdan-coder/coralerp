@@ -185,7 +185,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                 Grupare
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="z-50">
               <DropdownMenuItem onClick={() => {
                 setGroupBySupplier(false);
                 setGroupByProduct(false);
@@ -209,9 +209,9 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         </div>
       </div>
       
-      <div className="max-h-[400px] overflow-auto">
+      <div className="max-h-[70vh] overflow-auto">
         <Table className="w-full">
-          <TableHeader className="sticky top-0 bg-white">
+          <TableHeader className="sticky top-0 bg-white z-10">
             <TableRow>
               <TableHead className="text-left">Data</TableHead>
               <TableHead className="text-left">Nr. Intrare</TableHead>
