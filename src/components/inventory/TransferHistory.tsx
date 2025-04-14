@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -5,8 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { ro } from "date-fns/locale";
 import { toast } from "@/hooks/use-custom-toast";
-import { Search, CornerDownLeft } from "lucide-react";
+import { Search, CornerDownLeft, CalendarIcon } from "lucide-react";
 import { 
   Dialog, 
   DialogContent, 
@@ -15,6 +17,20 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Calendar } from "@/components/ui/calendar";
 import { CrateType } from "@/types";
 
 interface TransferHistoryProps {
@@ -394,6 +410,14 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [destinations, setDestinations] = useState<string[]>([]);
   const [selectedDestination, setSelectedDestination] = useState<string>("all");
+  const [actionFilter, setActionFilter] = useState<string>("all");
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [dateRange, setDateRange] = useState<[Date | undefined, Date | undefined]>([undefined, undefined]);
+  const [page, setPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  
+  // Calculate totalPages based on filteredTransfers length
+  const totalPages = Math.max(1, Math.ceil((filteredTransfers?.length || 0) / itemsPerPage));
   
   const fetchTransfers = async () => {
     try {
@@ -456,14 +480,15 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     return true;
   });
   
+  // Get current items for pagination
+  const indexOfLastItem = page * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredTransfers.slice(indexOfFirstItem, indexOfLastItem);
+  
   const formatQuantity = (quantity: number) => {
     return quantity.toFixed(2);
   };
   
-  const [actionFilter, setActionFilter] = useState<string>("all");
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [dateRange, setDateRange] = useState<[Date | undefined, Date | undefined]>([undefined, undefined]);
-
   const formatDateRange = () => {
     if (dateRange[0] && dateRange[1]) {
       return `${format(dateRange[0], 'dd.MM.yyyy')} - ${format(dateRange[1], 'dd.MM.yyyy')}`;
@@ -537,6 +562,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                   }}
                   locale={ro}
                   initialFocus
+                  className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
@@ -568,8 +594,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                       Se încarcă datele...
                     </TableCell>
                   </TableRow>
-                ) : filteredTransfers.length > 0 ? (
-                  filteredTransfers.map((transfer) => (
+                ) : currentItems.length > 0 ? (
+                  currentItems.map((transfer) => (
                     <TableRow key={`${transfer.transfer_id}-${transfer.inventory_item_id}`}>
                       <TableCell>
                         {transfer.created_at 
@@ -654,3 +680,4 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     </div>
   );
 }
+
