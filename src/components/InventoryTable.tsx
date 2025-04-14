@@ -12,9 +12,10 @@ interface InventoryTableProps {
 const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Aggregate inventory by product name
+  // Aggregate inventory by product name - this is the critical part
   const aggregatedInventory = inventory.reduce((acc, item) => {
     const productName = item.name;
+    
     if (!acc[productName]) {
       acc[productName] = {
         name: productName,
@@ -22,6 +23,8 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         unit: item.unit
       };
     }
+    
+    // Sum the quantities
     acc[productName].quantity += item.quantity;
     return acc;
   }, {} as Record<string, { name: string; quantity: number; unit: string }>);

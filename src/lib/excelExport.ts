@@ -21,8 +21,7 @@ export const exportToExcel = (inventory: InventoryItem[] | Record<string, any>[]
     // Data is already formatted for export
     exportData = inventory as Record<string, any>[];
   } else {
-    // Data needs formatting - this is the original aggregation logic
-    // Aggregate inventory by product name
+    // Data needs formatting - aggregate inventory by product name
     const aggregatedInventory = (inventory as InventoryItem[]).reduce<Record<string, ExportItem>>((acc, item) => {
       const productName = item.name;
       if (!acc[productName]) {
