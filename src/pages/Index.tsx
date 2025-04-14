@@ -1,929 +1,392 @@
-import React, { useState, useEffect, useRef } from "react";
-import { toast } from "@/hooks/use-custom-toast";
-import { Mic, MicOff, Send, Download, Mail, ListFilter, History } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ChartBarIcon,
+  CogIcon,
+  DocumentSearchIcon,
+  HomeIcon,
+  MailIcon,
+  MicrophoneIcon,
+  PauseIcon,
+  RefreshIcon,
+  TrashIcon,
+  UserGroupIcon,
+  VolumeUpIcon,
+  XCircleIcon,
+} from "@heroicons/react/outline";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import VoiceCommandPanel from "@/components/VoiceCommandPanel";
-import InventoryTable from "@/components/InventoryTable";
-import InventoryHistory from "@/components/InventoryHistory";
-import { processCommand } from "@/lib/aiProcessor";
-import { ChartData, InventoryItem, InventoryHistoryItem } from "@/types";
-import { exportToExcel } from "@/lib/excelExport";
-import { sendEmail } from "@/lib/emailService";
+import { toast } from "@/hooks/use-custom-toast";
 import { speakText, improveVoiceCommand, parseUserResponse, getMissingFieldsQuestion } from "@/lib/speechService";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
-import "../types/speech-recognition.d.ts";
+
+// Importați tipurile pentru SpeechRecognition
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
 
 const Index = () => {
-  const [isRecording, setIsRecording] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [inputText, setInputText] = useState("");
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [conversations, setConversations] = useState<{text: string, timestamp: Date}[]>([]);
-  const [conversationTexts, setConversationTexts] = useState<string[]>([]);
+  const navigate = useNavigate();
+  const [command, setCommand] = useState("");
+  const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [awaitingMoreInfo, setAwaitingMoreInfo] = useState(false);
-  const [awaitingOptionalInfo, setAwaitingOptionalInfo] = useState(false);
   const [response, setResponse] = useState("");
-  const [charts, setCharts] = useState<ChartData[]>([]);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const conversationsEndRef = useRef<HTMLDivElement>(null);
-  const speechUtteranceRef = useRef<{stop: () => void; isPending: () => boolean} | null>(null);
-  const [activeTab, setActiveTab] = useState("inventory");
+  const [conversationHistory, setConversationHistory] = useState<string[]>([]);
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [speechRecognition, setSpeechRecognition] = useState<any>(null);
+  const commandInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
-  const formatToISOString = (date: Date | string): string => {
-    if (date instanceof Date) {
-      return date.toISOString();
-    } else if (typeof date === 'string') {
-      const parsed = new Date(date);
-      if (!isNaN(parsed.getTime())) {
-        return parsed.toISOString();
-      }
-      return date;
-    }
-    return '';
-  };
-
   useEffect(() => {
-    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-      const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognitionConstructor();
-      
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'ro-RO';
-      
-      if ('webkitSpeechRecognition' in window) {
-        (recognitionRef.current as any).maxAlternatives = 5;
-      }
-
-      let silenceTimer: number | null = null;
-      let finalTranscriptText = "";
-      let lastProcessedText = "";
-
-      recognitionRef.current.onresult = (event) => {
-        const current = event.resultIndex;
-        let transcriptText = event.results[current][0].transcript;
-        
-        if (transcriptText.match(/^Am (adaugat|eliminat|scos|actualizat)/i)) {
-          console.log("Ignorăm confirmarea asistentului:", transcriptText);
-          return;
-        }
-        
-        if (transcriptText === lastProcessedText) {
-          console.log("Ignorăm text duplicat:", transcriptText);
-          return;
-        }
-        
-        let hasStockKeywords = false;
-        
-        if (event.results[current].length > 1) {
-          for (let i = 0; i < event.results[current].length; i++) {
-            const alt = event.results[current][i].transcript.toLowerCase();
-            if (alt.includes("stoc") || alt.includes("inventar") || alt.includes("produse") || 
-                alt.includes("arata") || alt.includes("vezi") || alt.includes("afiseaza") ||
-                alt.includes("marfa") || alt.includes("depozit")) {
-              hasStockKeywords = true;
-              console.log("Alternativă de recunoaștere cu cuvinte cheie:", alt);
-              break;
-            }
-          }
-        }
-        
-        const improvedTranscript = improveVoiceCommand(transcriptText);
-        if (improvedTranscript === "DUPLICATE_COMMAND") {
-          console.log("Comandă duplicată detectată, se ignoră");
-          return;
-        }
-        
-        if (improvedTranscript !== transcriptText) {
-          console.log("Transcriptul a fost îmbunătățit:", transcriptText, "->", improvedTranscript);
-          transcriptText = improvedTranscript;
-          hasStockKeywords = true;
-        }
-        
-        setTranscript(transcriptText);
-        
-        if (silenceTimer) {
-          window.clearTimeout(silenceTimer);
-          silenceTimer = null;
-        }
-
-        if (event.results[current].isFinal) {
-          finalTranscriptText = transcriptText;
-          lastProcessedText = finalTranscriptText;
-          setInputText(finalTranscriptText);
-          
-          silenceTimer = window.setTimeout(() => {
-            if (finalTranscriptText.trim() && finalTranscriptText !== "DUPLICATE_COMMAND") {
-              let commandToProcess = finalTranscriptText;
-              
-              if (finalTranscriptText.toLowerCase().includes("stoc") || 
-                  finalTranscriptText.toLowerCase().includes("inventar") ||
-                  finalTranscriptText.toLowerCase().includes("produse") ||
-                  hasStockKeywords) {
-                if (finalTranscriptText.toLowerCase().includes("arata") || 
-                    finalTranscriptText.toLowerCase().includes("vezi") || 
-                    finalTranscriptText.toLowerCase().includes("ce avem")) {
-                  commandToProcess = "arată stocul";
-                  console.log("Comandă normalizată la: arată stocul");
-                }
-              }
-              
-              processUserInput(commandToProcess);
-              setIsRecording(false);
-              if (recognitionRef.current) {
-                recognitionRef.current.stop();
-              }
-            }
-          }, 2000);
-        } else {
-          setInputText(transcriptText);
-        }
-      };
-
-      recognitionRef.current.onerror = (event) => {
-        console.error("Speech recognition error", event.error);
-        setIsRecording(false);
-        toast({
-          variant: "destructive",
-          title: "Eroare la inregistrarea vocii",
-          description: `A aparut o eroare: ${event.error}`
-        });
-      };
+    // Verificăm dacă SpeechRecognition este disponibil în browser
+    if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      setSpeechRecognition(new SpeechRecognition());
     } else {
+      console.log("Speech Recognition API is not supported in this browser.");
       toast({
+        title: "Browser Incompatibil",
+        description: "API-ul Speech Recognition nu este suportat de acest browser.",
         variant: "destructive",
-        title: "Recunoasterea vocala nu este suportata",
-        description: "Browserul dvs. nu suporta recunoasterea vocala."
       });
     }
 
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      if (speechUtteranceRef.current) {
-        speechUtteranceRef.current.stop();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const fetchInventory = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('*')
-          .order('updated_at', { ascending: false });
-        
-        if (error) throw error;
-
-        const items: InventoryItem[] = data.map(item => ({
-          id: item.id,
-          name: item.name,
-          quantity: item.quantity ? Number(item.quantity) : 0,
-          unit: item.unit,
-          supplier: item.supplier || undefined,
-          batch_number: item.batch_number || undefined,
-          receipt_date: item.receipt_date ? new Date(item.receipt_date) : undefined,
-          createdAt: {
-            seconds: new Date(item.created_at || '').getTime() / 1000,
-            nanoseconds: 0
-          },
-          updatedAt: {
-            seconds: new Date(item.updated_at || '').getTime() / 1000,
-            nanoseconds: 0
-          },
-          document_number: item.document_number,
-          manufacturer_id: item.manufacturer_id ? item.manufacturer_id : undefined,
-          crate_count: item.crate_count,
-          crate_type_id: item.crate_type_id,
-          net_quantity: item.net_quantity
-        }));
-        
-        setInventory(items);
-      } catch (error) {
-        console.error("Error fetching inventory:", error);
-        toast({
-          variant: "destructive",
-          title: "Eroare la incarcarea stocului",
-          description: "Nu s-a putut incarca stocul. Verificati conexiunea."
-        });
-      }
-    };
-
-    const fetchConversations = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('conversations')
-          .select('*')
-          .order('timestamp', { ascending: true });
-        
-        if (error) throw error;
-
-        const convs: {text: string, timestamp: Date}[] = data.map(conv => ({
-          text: conv.text,
-          timestamp: new Date(conv.timestamp || '')
-        }));
-        
-        setConversations(convs);
-        setConversationTexts(data.map(conv => conv.text));
-      } catch (error) {
-        console.error("Error fetching conversations:", error);
-      }
-    };
-
-    fetchInventory();
-    fetchConversations();
-  }, []);
-
-  useEffect(() => {
-    if (conversationsEndRef.current) {
-      conversationsEndRef.current.scrollIntoView({ behavior: "smooth" });
+    // Verificăm dacă setarea pentru audio este salvată în localStorage
+    const savedAudioSetting = localStorage.getItem('audioEnabled');
+    if (savedAudioSetting !== null) {
+      setAudioEnabled(savedAudioSetting === 'true');
     }
-  }, [conversations]);
+  }, []);
 
-  const toggleRecording = () => {
-    if (!recognitionRef.current) return;
-    
-    if (isRecording) {
-      recognitionRef.current.stop();
-      setIsRecording(false);
-      
-      if (transcript.trim()) {
-        setTimeout(() => {
-          const improvedTranscript = improveVoiceCommand(transcript);
-          if (improvedTranscript === "DUPLICATE_COMMAND") {
-            console.log("Comandă duplicată detectată, se ignoră");
-            toast({
-              title: "Comandă ignorată",
-              description: "Această comandă a fost deja procesată recent."
-            });
-            return;
-          }
-          console.log("Procesez comanda vocală finală:", improvedTranscript);
-          processUserInput(improvedTranscript);
-        }, 1000);
+  useEffect(() => {
+    if (speechRecognition) {
+      speechRecognition.continuous = false;
+      speechRecognition.interimResults = false;
+      speechRecognition.lang = 'ro-RO';
+
+      speechRecognition.onstart = () => {
+        console.log("Ascultare pornită...");
+        setIsListening(true);
+      };
+
+      speechRecognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => result[0])
+          .map((result: any) => result.transcript)
+          .join('');
+        console.log("Transcriere:", transcript);
+        setCommand(transcript);
+      };
+
+      speechRecognition.onend = () => {
+        console.log("Ascultare oprită.");
+        setIsListening(false);
+        if (command) {
+          processCommand(command);
+        }
+      };
+
+      speechRecognition.onerror = (event: any) => {
+        console.error("Eroare Speech Recognition:", event.error);
+        setIsListening(false);
+        toast({
+          title: "Eroare de microfon",
+          description: `A apărut o eroare la utilizarea microfonului: ${event.error}`,
+          variant: "destructive",
+        });
+      };
+    }
+
+    return () => {
+      if (speechRecognition) {
+        speechRecognition.onstart = null;
+        speechRecognition.onresult = null;
+        speechRecognition.onend = null;
+        speechRecognition.onerror = null;
+      }
+    };
+  }, [speechRecognition, command]);
+
+  const startListening = () => {
+    if (speechRecognition) {
+      try {
+        speechRecognition.start();
+      } catch (error: any) {
+        console.error("Eroare la pornirea ascultării:", error);
+        toast({
+          title: "Eroare de microfon",
+          description: "Microfonul este deja în uz sau nu este disponibil.",
+          variant: "destructive",
+        });
+        setIsListening(false);
       }
     } else {
-      try {
-        recognitionRef.current.start();
-        setIsRecording(true);
-        setTranscript("");
-        
-        setInputText("");
-        setResponse("");
-        setCharts([]);
-      } catch (error) {
-        console.error("Error starting speech recognition:", error);
-        toast({
-          variant: "destructive",
-          title: "Eroare",
-          description: "Nu s-a putut porni inregistrarea vocii."
-        });
+      toast({
+        title: "Browser Incompatibil",
+        description: "API-ul Speech Recognition nu este suportat de acest browser.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopListening = () => {
+    if (speechRecognition) {
+      speechRecognition.stop();
+      setIsListening(false);
+    }
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCommand(e.target.value);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    processCommand(command);
+  };
+
+  const processCommand = async (cmd: string) => {
+    if (!cmd.trim()) return;
+
+    setIsProcessing(true);
+    let enhancedCommand = cmd;
+
+    try {
+      enhancedCommand = await improveVoiceCommand(cmd);
+      console.log("Comanda îmbunătățită:", enhancedCommand);
+      setCommand(enhancedCommand);
+
+      // Adăugăm comanda îmbunătățită în istoricul conversației
+      setConversationHistory(prevHistory => [...prevHistory, `Utilizator: ${enhancedCommand}`]);
+
+      // Așteptăm 1 secundă înainte de a procesa comanda
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const { data: inventory } = await supabase
+        .from("inventory")
+        .select("*");
+
+      const { data: suppliers } = await supabase
+        .from("suppliers")
+        .select("*");
+
+      const { action, response: initialResponse, item, needsMoreInfo } = await parseUserResponse(
+        enhancedCommand,
+        inventory,
+        suppliers
+      );
+
+      let finalResponse = initialResponse;
+
+      if (needsMoreInfo) {
+        if (needsMoreInfo.type === 'missing_fields') {
+          const missingFieldsQuestion = getMissingFieldsQuestion(needsMoreInfo.question);
+          finalResponse = missingFieldsQuestion || "Nu am înțeles pe deplin. Poți oferi mai multe detalii?";
+        } else {
+          finalResponse = needsMoreInfo.question || "Nu am înțeles pe deplin. Poți oferi mai multe detalii?";
+        }
       }
+
+      setResponse(finalResponse);
+      setConversationHistory(prevHistory => [...prevHistory, `AI: ${finalResponse}`]);
+
+      if (audioEnabled) {
+        speakText(finalResponse);
+      }
+
+      if (action === 'add' && item) {
+        // Așteptăm ca răspunsul vocal să se termine înainte de a naviga
+        setTimeout(() => {
+          navigate('/dashboard/inventory');
+        }, 3000);
+      }
+
+    } catch (error: any) {
+      console.error("Eroare la procesarea comenzii:", error);
+      setResponse(`A apărut o eroare: ${error.message}`);
+      setConversationHistory(prevHistory => [...prevHistory, `AI: A apărut o eroare: ${error.message}`]);
+      if (audioEnabled) {
+        speakText(`A apărut o eroare: ${error.message}`);
+      }
+      toast({
+        title: "Eroare la procesarea comenzii",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const clearCommand = () => {
+    setCommand("");
+    if (commandInputRef.current) {
+      commandInputRef.current.focus();
     }
   };
 
   const toggleAudio = () => {
-    setIsAudioEnabled(!isAudioEnabled);
-    
-    if (isAudioEnabled && speechUtteranceRef.current) {
-      speechUtteranceRef.current.stop();
-    }
-    
+    const newSetting = !audioEnabled;
+    setAudioEnabled(newSetting);
+    localStorage.setItem('audioEnabled', String(newSetting));
+
     toast({
-      title: isAudioEnabled ? "Raspuns audio dezactivat" : "Raspuns audio activat",
-      description: isAudioEnabled ? 
-        "Asistentul nu va mai raspunde vocal." : 
-        "Asistentul va raspunde si vocal."
+      title: newSetting ? "Audio activat" : "Audio dezactivat",
+      description: newSetting ?
+        "Răspunsurile vocale au fost activate." :
+        "Răspunsurile vocale au fost dezactivate."
     });
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputText(e.target.value);
-  };
-
-  const saveConversation = async (text: string) => {
-    try {
-      const { error } = await supabase
-        .from('conversations')
-        .insert({ text });
-      
-      if (error) throw error;
-      
-      setConversations(prev => [...prev, { text, timestamp: new Date() }]);
-      setConversationTexts(prev => [...prev, text]);
-    } catch (error) {
-      console.error("Error saving conversation:", error);
-    }
-  };
-
-  const updateInventoryItem = async (item: InventoryItem) => {
-    try {
-      console.log("Processing inventory update:", item);
-
-      if (item.action === 'remove') {
-        if (item.id) {
-          const { data: oldItem } = await supabase
-            .from('inventory')
-            .select('*')
-            .eq('id', item.id)
-            .single();
-          
-          if (!oldItem) {
-            throw new Error(`Item with ID ${item.id} not found`);
-          }
-          
-          if (Number(oldItem.quantity) <= Number(item.quantity)) {
-            console.log(`Removing entire inventory item (ID: ${item.id})`);
-            const { error } = await supabase
-              .from('inventory')
-              .delete()
-              .eq('id', item.id);
-            
-            if (error) throw error;
-            
-            setInventory(prev => prev.filter(invItem => invItem.id !== item.id));
-            
-            await saveInventoryHistory(oldItem, 'remove', oldItem, true);
-            
-            toast({
-              title: "Produs eliminat",
-              description: `"${item.name}" a fost eliminat complet din stoc.`
-            });
-          } else {
-            const newQuantity = Number(oldItem.quantity) - Number(item.quantity);
-            console.log(`Updating quantity from ${oldItem.quantity} to ${newQuantity}`);
-            
-            const { error } = await supabase
-              .from('inventory')
-              .update({
-                quantity: newQuantity
-              })
-              .eq('id', item.id);
-            
-            if (error) throw error;
-            
-            setInventory(prev =>
-              prev.map(invItem => (invItem.id === item.id ? { ...invItem, quantity: newQuantity } : invItem))
-            );
-            
-            await saveInventoryHistory(item, 'remove', oldItem, false);
-            
-            toast({
-              title: "Stoc actualizat",
-              description: `Au fost scoase ${item.quantity} ${item.unit} de ${item.name} din stoc.`
-            });
-          }
-          return;
-        }
-        
-        if (item.batch_number && item.supplier) {
-          const { data: existingItems } = await supabase
-            .from('inventory')
-            .select('*')
-            .eq('name', item.name)
-            .eq('batch_number', item.batch_number)
-            .eq('supplier', item.supplier);
-            
-          if (existingItems && existingItems.length > 0) {
-            item.id = existingItems[0].id;
-            return updateInventoryItem(item);
-          }
-        }
-        
-        const { data: matchingItems } = await supabase
-          .from('inventory')
-          .select('*')
-          .eq('name', item.name);
-          
-        if (matchingItems && matchingItems.length > 0) {
-          item.id = matchingItems[0].id;
-          return updateInventoryItem(item);
-        }
-        
-        toast({
-          variant: "destructive",
-          title: "Produsul nu exista",
-          description: `Nu s-a gasit produsul "${item.name}" in stoc.`
-        });
-        return;
-      }
-      
-      if (!item.id && (item.action === 'add' || item.action === 'set')) {
-        console.log("Checking for existing batch before creating:", item);
-        
-        if (item.batch_number && item.supplier) {
-          const { data: existingItems } = await supabase
-            .from('inventory')
-            .select('*')
-            .eq('name', item.name)
-            .eq('batch_number', item.batch_number)
-            .eq('supplier', item.supplier);
-            
-          if (existingItems && existingItems.length > 0) {
-            console.log("Found existing batch, updating instead:", existingItems[0]);
-            
-            const oldItem = existingItems[0];
-            item.id = oldItem.id;
-            
-            if (item.action === 'add') {
-              item.quantity = Number(oldItem.quantity) + Number(item.quantity);
-            }
-            
-            const { error } = await supabase
-              .from('inventory')
-              .update({
-                quantity: item.quantity,
-                receipt_date: item.receipt_date ? formatToISOString(item.receipt_date) : oldItem.receipt_date,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', item.id);
-            
-            if (error) throw error;
-            
-            setInventory(prev =>
-              prev.map(invItem => (invItem.id === item.id ? { ...invItem, ...item } : invItem))
-            );
-            
-            toast({
-              title: "Stoc actualizat",
-              description: `Stocul pentru "${item.name}" a fost actualizat.`
-            });
-            
-            await saveInventoryHistory(item, item.action || 'add', oldItem, false);
-            return;
-          }
-        }
-        
-        console.log("Creating new inventory entry:", item);
-        
-        const { data, error } = await supabase
-          .from("inventory")
-          .insert({
-            name: item.name,
-            quantity: item.quantity,
-            unit: item.unit,
-            supplier: item.supplier,
-            batch_number: item.batch_number,
-            receipt_date: item.receipt_date ? formatToISOString(item.receipt_date) : null,
-            document_number: item.document_number,
-            manufacturer_id: item.manufacturer_id,
-            crate_count: item.crate_count || 0,
-            crate_type_id: item.crate_count && item.crate_count > 0 ? 
-              "00000000-0000-0000-0000-000000000001" : null
-          })
-          .select()
-          .single();
-        
-        if (error) throw error;
-        
-        const newItem: InventoryItem = {
-          id: data.id,
-          name: data.name,
-          quantity: data.quantity ? Number(data.quantity) : 0,
-          unit: data.unit,
-          supplier: data.supplier || undefined,
-          batch_number: data.batch_number || undefined,
-          receipt_date: data.receipt_date ? new Date(data.receipt_date) : undefined,
-          document_number: data.document_number,
-          manufacturer_id: data.manufacturer_id,
-          crate_count: data.crate_count,
-          crate_type_id: data.crate_type_id,
-          net_quantity: data.net_quantity,
-          createdAt: {
-            seconds: new Date(data.created_at || '').getTime() / 1000,
-            nanoseconds: 0
-          },
-          updatedAt: {
-            seconds: new Date(data.updated_at || '').getTime() / 1000,
-            nanoseconds: 0
-          }
-        };
-        
-        setInventory(prev => [...prev, newItem]);
-        
-        toast({
-          title: "Produs adaugat",
-          description: `Produsul "${item.name}" a fost adaugat in stoc.`
-        });
-        
-        await saveInventoryHistory(data, item.action || 'add', null, false);
-        return;
-      }
-      
-      if (item.id) {
-        console.log("Updating existing item by ID:", item);
-        
-        const { data: oldItem } = await supabase
-          .from('inventory')
-          .select('*')
-          .eq('id', item.id)
-          .single();
-        
-        const { error } = await supabase
-          .from('inventory')
-          .update({
-            name: item.name,
-            quantity: item.quantity,
-            unit: item.unit,
-            supplier: item.supplier,
-            batch_number: item.batch_number,
-            receipt_date: item.receipt_date ? formatToISOString(item.receipt_date) : null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', item.id);
-        
-        if (error) throw error;
-        
-        setInventory(prev =>
-          prev.map(invItem => (invItem.id === item.id ? { ...invItem, ...item } : invItem))
-        );
-        
-        toast({
-          title: "Stoc actualizat",
-          description: `Stocul pentru "${item.name}" a fost actualizat.`
-        });
-        
-        await saveInventoryHistory(item, item.action || 'set', oldItem, false);
-      }
-    } catch (error) {
-      console.error("Error updating inventory:", error);
-      toast({
-        variant: "destructive",
-        title: "Eroare",
-        description: "Nu s-a putut actualiza stocul."
-      });
-    }
-  };
-
-  const saveInventoryHistory = async (item: any, action: 'add' | 'remove' | 'set', oldItem: any, isComplete: boolean) => {
-    try {
-      const historyEntry = {
-        inventory_item_id: isComplete ? null : item.id,
-        action: action,
-        name: item.name,
-        quantity: item.quantity,
-        unit: item.unit,
-        previous_quantity: oldItem ? oldItem.quantity : 0,
-        supplier: item.supplier,
-        batch_number: item.batch_number,
-        operation_date: new Date().toISOString(),
-        exit_timestamp: action === 'remove' ? new Date().toISOString() : null,
-        notes: isComplete ? "Produs eliminat complet din stoc" : null
-      };
-      
-      const { error: historyError } = await supabase
-        .from('inventory_history')
-        .insert(historyEntry);
-      
-      if (historyError) {
-        console.error("Error saving inventory history:", historyError);
-      }
-    } catch (error) {
-      console.error("Error saving history:", error);
-    }
-  };
-
-  const processUserInput = async (input: string) => {
-    if (!input.trim() || input === "DUPLICATE_COMMAND") return;
-    
-    const commandHash = input.toLowerCase().trim().replace(/\s+/g, ' ');
-    console.log("Verificare finală duplicat pentru comandă:", commandHash);
-    
-    setIsProcessing(true);
-    setResponse("");
-    setCharts([]);
-    
-    if (input.startsWith("NEED_MORE_INFO:")) {
-      const parts = input.split(":");
-      const action = parts[1] as 'add' | 'remove' | 'set';
-      const missingFields = parts[2].split(',');
-      const partialData = JSON.parse(parts[3]);
-      
-      const question = getMissingFieldsQuestion(missingFields, action, partialData);
-      setResponse(question);
-      setAwaitingMoreInfo(true);
-      setAwaitingOptionalInfo(false);
-      
-      localStorage.setItem('pendingCommandData', JSON.stringify({
-        action,
-        missingFields,
-        partialData,
-        timestamp: Date.now(),
-        isOptional: false
-      }));
-      
-      if (isAudioEnabled) {
-        if (speechUtteranceRef.current) {
-          speechUtteranceRef.current.stop();
-        }
-        speechUtteranceRef.current = speakText(question);
-      }
-      
-      await saveConversation(question);
-      setIsProcessing(false);
-      return;
-    }
-    
-    if (input.startsWith("NEED_OPTIONAL_INFO:")) {
-      const parts = input.split(":");
-      const action = parts[1] as 'add' | 'remove' | 'set';
-      const missingFields = parts[2].split(',');
-      const partialData = JSON.parse(parts[3]);
-      
-      const question = `${getMissingFieldsQuestion(missingFields, action, partialData)} (Poți spune "sari" pentru a utiliza valorile implicite)`;
-      setResponse(question);
-      setAwaitingMoreInfo(false);
-      setAwaitingOptionalInfo(true);
-      
-      localStorage.setItem('pendingCommandData', JSON.stringify({
-        action,
-        missingFields,
-        partialData,
-        timestamp: Date.now(),
-        isOptional: true
-      }));
-      
-      if (isAudioEnabled) {
-        if (speechUtteranceRef.current) {
-          speechUtteranceRef.current.stop();
-        }
-        speechUtteranceRef.current = speakText(question);
-      }
-      
-      await saveConversation(question);
-      setIsProcessing(false);
-      return;
-    }
-    
-    if (awaitingMoreInfo || awaitingOptionalInfo) {
-      const pendingCommandStr = localStorage.getItem('pendingCommandData');
-      if (pendingCommandStr) {
-        try {
-          const pendingCommand = JSON.parse(pendingCommandStr);
-          const isOptionalInfo = pendingCommand.isOptional || false;
-          
-          if (Date.now() - pendingCommand.timestamp < 5 * 60 * 1000) {
-            if (isOptionalInfo && ['sari', 'skip', 'săriți', 'continuă', 'continua', 'treci mai departe'].includes(input.toLowerCase())) {
-              console.log("Utilizatorul a ales să sară peste informațiile opționale");
-              localStorage.removeItem('pendingCommandData');
-              setAwaitingMoreInfo(false);
-              setAwaitingOptionalInfo(false);
-              
-              const action = pendingCommand.action;
-              let processedCommand = `${action === 'add' ? 'adaugă' : 'scoate'} ${pendingCommand.partialData.quantity} ${pendingCommand.partialData.unit} de ${pendingCommand.partialData.product}`;
-              
-              if (pendingCommand.partialData.supplier) {
-                processedCommand += ` de la ${pendingCommand.partialData.supplier}`;
-              }
-              
-              if (pendingCommand.partialData.manufacturer) {
-                processedCommand += ` producător ${pendingCommand.partialData.manufacturer}`;
-              }
-              
-              if (pendingCommand.partialData.batch) {
-                processedCommand += ` lot ${pendingCommand.partialData.batch}`;
-              }
-              
-              if (pendingCommand.partialData.documentNumber) {
-                processedCommand += ` document ${pendingCommand.partialData.documentNumber}`;
-              }
-              
-              if (pendingCommand.partialData.crateCount && pendingCommand.partialData.crateCount > 0) {
-                processedCommand += ` în ${pendingCommand.partialData.crateCount} lădițe`;
-              }
-              
-              await saveConversation(input);
-              await processUserInput(processedCommand);
-              return;
-            }
-            
-            const updatedData = parseUserResponse(input, pendingCommand.missingFields, pendingCommand.partialData);
-            
-            if (isOptionalInfo) {
-              const stillMissingFields = pendingCommand.missingFields.filter(field => {
-                if (field === 'furnizorul') return !updatedData.supplier;
-                if (field === 'producatorul') return !updatedData.manufacturer;
-                if (field === 'numărul de lot') return !updatedData.batch;
-                if (field === 'numărul de document') return !updatedData.documentNumber;
-                if (field === 'numărul de lădițe') return updatedData.crateCount === undefined;
-                return false;
-              });
-              
-              if (stillMissingFields.length > 0 && stillMissingFields.length < pendingCommand.missingFields.length) {
-                const question = `${getMissingFieldsQuestion(stillMissingFields, pendingCommand.action, updatedData)} (Poți spune "sari" pentru a continua cu datele existente)`;
-                setResponse(question);
-                
-                localStorage.setItem('pendingCommandData', JSON.stringify({
-                  action: pendingCommand.action,
-                  missingFields: stillMissingFields,
-                  partialData: updatedData,
-                  timestamp: Date.now(),
-                  isOptional: true
-                }));
-                
-                if (isAudioEnabled) {
-                  if (speechUtteranceRef.current) {
-                    speechUtteranceRef.current.stop();
-                  }
-                  speechUtteranceRef.current = speakText(question);
-                }
-                
-                await saveConversation(question);
-                setIsProcessing(false);
-                return;
-              }
-              
-              const action = pendingCommand.action;
-              let processedCommand = `${action === 'add' ? 'adaugă' : 'scoate'} ${updatedData.quantity} ${updatedData.unit} de ${updatedData.product}`;
-              
-              if (updatedData.supplier) {
-                processedCommand += ` de la ${updatedData.supplier}`;
-              }
-              
-              if (updatedData.manufacturer) {
-                processedCommand += ` producător ${updatedData.manufacturer}`;
-              }
-              
-              if (updatedData.batch) {
-                processedCommand += ` lot ${updatedData.batch}`;
-              }
-              
-              if (updatedData.documentNumber) {
-                processedCommand += ` document ${updatedData.documentNumber}`;
-              }
-              
-              if (updatedData.crateCount && updatedData.crateCount > 0) {
-                processedCommand += ` în ${updatedData.crateCount} lădițe`;
-              }
-              
-              localStorage.removeItem('pendingCommandData');
-              setAwaitingMoreInfo(false);
-              setAwaitingOptionalInfo(false);
-              await saveConversation(input);
-              await processUserInput(processedCommand);
-              return;
-            } else {
-              const stillMissingFields = [];
-              if (!updatedData.product) stillMissingFields.push('produsul');
-              if (!updatedData.quantity) stillMissingFields.push('cantitatea');
-              if (!updatedData.unit) stillMissingFields.push('unitatea de măsură');
-              
-              if (stillMissingFields.length === 0) {
-                const action = pendingCommand.action;
-                let processedCommand = `${action === 'add' ? 'adaugă' : 'scoate'} ${updatedData.quantity} ${updatedData.unit} de ${updatedData.product}`;
-                
-                if (updatedData.supplier) {
-                  processedCommand += ` de la ${updatedData.supplier}`;
-                }
-                
-                if (updatedData.manufacturer) {
-                  processedCommand += ` producător ${updatedData.manufacturer}`;
-                }
-                
-                if (updatedData.batch) {
-                  processedCommand += ` lot ${updatedData.batch}`;
-                }
-                
-                if (updatedData.documentNumber) {
-                  processedCommand += ` document ${updatedData.documentNumber}`;
-                }
-                
-                if (updatedData.crateCount && updatedData.crateCount > 0) {
-                  processedCommand += ` în ${updatedData.crateCount} lădițe`;
-                }
-                
-                localStorage.removeItem('pendingCommandData');
-                setAwaitingMoreInfo(false);
-                setAwaitingOptionalInfo(false);
-                await saveConversation(input);
-                await processUserInput(processedCommand);
-                return;
-              } else {
-                const question = getMissingFieldsQuestion(stillMissingFields, pendingCommand.action, updatedData);
-                setResponse(question);
-                
-                localStorage.setItem('pendingCommandData', JSON.stringify({
-                  action: pendingCommand.action,
-                  missingFields: stillMissingFields,
-                  partialData: updatedData,
-                  timestamp: Date.now(),
-                  isOptional: false
-                }));
-                
-                if (isAudioEnabled) {
-                  if (speechUtteranceRef.current) {
-                    speechUtteranceRef.current.stop();
-                  }
-                  speechUtteranceRef.current = speakText(question);
-                }
-                
-                await saveConversation(question);
-                setIsProcessing(false);
-                return;
-              }
-            }
-          }
-        } catch (e) {
-          console.error("Eroare la parsarea datelor din comandă pendinte:", e);
-        }
-      }
-      
-      localStorage.removeItem('pendingCommandData');
-      setAwaitingMoreInfo(false);
-      setAwaitingOptionalInfo(false);
-    }
-    
-    const isStockCommand = input.toLowerCase().match(/stoc|inventar|produse|arată|vezi|afișează|raport|cantitate|total|marfă|marfa|depozit/i);
-    const isShowStockCommand = input.toLowerCase().includes("arată stocul") || 
-                              input.toLowerCase().includes("arată produsele") ||
-                              input.toLowerCase().includes("vezi stocul") ||
-                              input.toLowerCase().includes("afișează stocul") ||
-                              (input.toLowerCase().includes("ce") && input.toLowerCase().includes("avem") && 
-                               (input.toLowerCase().includes("stoc") || input.toLowerCase().includes("depozit")));
-    
-    try {
-      await saveConversation(input);
-      
-      const contextInput = input;
-      
-      console.log("Trimit comanda spre procesare:", contextInput);
-      const result = await processCommand(contextInput, inventory, conversationTexts);
-      console.log("Command result:", result);
-      
-      let processedResponse = result.response;
-      
-      if ((isStockCommand || isShowStockCommand) && 
-          (processedResponse.includes("nu am nici o informatie") || 
-           processedResponse.includes("nu am nicio informatie")) && 
-          inventory.length > 0) {
-        
-        processedResponse = `În prezent avem ${inventory.length} produse în stoc. Iată o prezentare generală:`;
-        result.action = 'view';
-        
-        console.log("Am corectat răspunsul pentru comanda de stoc:", processedResponse);
-      }
-      
-      setResponse(processedResponse);
-      
-      import("@/lib/AIAssistantTrainer").then(module => {
-        module.learnFromConversation(input, processedResponse);
-        console.log("Asistentul a învățat", processedResponse);
-      });
-    } catch (error) {
-      console.error("Error processing command:", error);
-      toast({
-        variant: "destructive",
-        title: "Eroare",
-        description: "Nu s-a putut procesa comanda."
-      });
-    }
-  };
-
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <Header />
-      <main className="flex-1 container mx-auto p-4 md:p-6">
-        <Tabs defaultValue="inventory" className="w-full" onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="inventory">Inventar</TabsTrigger>
-            <TabsTrigger value="voice">Comenzi Vocale</TabsTrigger>
-            <TabsTrigger value="history">Istoric</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="inventory" className="mt-4">
-            <InventoryTable inventory={inventory} />
-          </TabsContent>
-          
-          <TabsContent value="voice" className="mt-4">
-            <VoiceCommandPanel
-              isRecording={isRecording}
-              toggleRecording={toggleRecording}
-              transcript={transcript}
-              conversations={conversations}
-              response={response}
-              charts={charts}
-              isAudioEnabled={isAudioEnabled}
-              toggleAudio={toggleAudio}
-              conversationsEndRef={conversationsEndRef}
-            />
-          </TabsContent>
-          
-          <TabsContent value="history" className="mt-4">
-            <InventoryHistory />
-          </TabsContent>
-        </Tabs>
+    <div className="flex flex-col min-h-screen bg-gray-50">
+      <header className="bg-white shadow">
+        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Panou de Control
+          </h1>
+        </div>
+      </header>
+
+      <main className="flex-1 p-4">
+        <div className="max-w-3xl mx-auto space-y-6">
+          {/* Comenzi rapide */}
+          <section className="bg-white shadow overflow-hidden rounded-md p-4">
+            <h2 className="text-lg font-semibold text-gray-700 mb-3">Comenzi rapide</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Button variant="outline" className="justify-start" onClick={() => navigate("/dashboard")}>
+                <HomeIcon className="h-5 w-5 mr-2" />
+                Mergi la Dashboard
+              </Button>
+              <Button variant="outline" className="justify-start" onClick={() => navigate("/dashboard/inventory")}>
+                <DocumentSearchIcon className="h-5 w-5 mr-2" />
+                Vezi Inventarul
+              </Button>
+              <Button variant="outline" className="justify-start" onClick={() => navigate("/dashboard/products")}>
+                <ChartBarIcon className="h-5 w-5 mr-2" />
+                Vezi Produsele
+              </Button>
+              <Button variant="outline" className="justify-start" onClick={() => navigate("/dashboard/suppliers")}>
+                <UserGroupIcon className="h-5 w-5 mr-2" />
+                Vezi Furnizorii
+              </Button>
+              <Button variant="outline" className="justify-start" onClick={() => navigate("/dashboard/manufacturers")}>
+                <CogIcon className="h-5 w-5 mr-2" />
+                Vezi Producătorii
+              </Button>
+              <Button variant="outline" className="justify-start" onClick={() => {
+                navigator.clipboard.writeText(response);
+                toast({ description: "Răspuns copiat în clipboard!" });
+              }}>
+                <MailIcon className="h-5 w-5 mr-2" />
+                Copiază ultimul răspuns
+              </Button>
+            </div>
+          </section>
+
+          {/* Interacțiunea principală */}
+          <section className="bg-white shadow overflow-hidden rounded-md p-4">
+            <h2 className="text-lg font-semibold text-gray-700 mb-3">Interacționează cu sistemul</h2>
+            <form onSubmit={handleSubmit} className="flex items-center space-x-3">
+              <div className="relative flex-grow">
+                <input
+                  type="text"
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                  placeholder="Introdu comanda ta aici..."
+                  value={command}
+                  onChange={handleInputChange}
+                  ref={commandInputRef}
+                  disabled={isProcessing}
+                />
+                {command && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    onClick={clearCommand}
+                  >
+                    <XCircleIcon className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+
+              <Button type="submit" disabled={isProcessing}>
+                {isProcessing ? (
+                  <RefreshIcon className="animate-spin h-5 w-5" />
+                ) : (
+                  "Trimite"
+                )}
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={toggleListening}
+                disabled={isProcessing}
+                className="relative"
+              >
+                {isListening ? (
+                  <PauseIcon className="h-5 w-5" />
+                ) : (
+                  <MicrophoneIcon className="h-5 w-5" />
+                )}
+              </Button>
+            </form>
+          </section>
+
+          {/* Istoricul conversației și răspunsul AI */}
+          <section className="bg-white shadow overflow-hidden rounded-md p-4">
+            <h2 className="text-lg font-semibold text-gray-700 mb-3">Conversație</h2>
+            <div className="space-y-2">
+              {conversationHistory.map((message, index) => (
+                <div key={index} className="text-sm text-gray-800">
+                  {message}
+                </div>
+              ))}
+              {response && (
+                <div className="text-gray-900 font-medium">
+                  Răspuns: {response}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Setări audio */}
+          <section className="bg-white shadow overflow-hidden rounded-md p-4">
+            <h2 className="text-lg font-semibold text-gray-700 mb-3">Setări</h2>
+            <div className="flex items-center space-x-4">
+              <label htmlFor="audioToggle" className="text-sm font-medium text-gray-700">
+                Răspuns vocal:
+              </label>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleAudio}
+                title={audioEnabled ? "Dezactivează răspunsurile vocale" : "Activează răspunsurile vocale"}
+                className="h-9 w-9"
+              >
+                <VolumeUpIcon className={`h-5 w-5 ${audioEnabled ? "text-green-500" : "text-gray-400"}`} />
+              </Button>
+            </div>
+          </section>
+        </div>
       </main>
-      <Footer />
+
+      <footer className="bg-gray-50 border-t border-gray-200 text-center py-4">
+        <p className="text-sm text-gray-500">
+          © {new Date().getFullYear()} Sistem de Gestionare a Inventarului. Toate drepturile rezervate.
+        </p>
+      </footer>
     </div>
   );
 };

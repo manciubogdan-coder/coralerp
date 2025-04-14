@@ -92,7 +92,7 @@ const Dashboard = () => {
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-lg">{item.name}</CardTitle>
                   <div className="p-2 rounded-full bg-gray-100">
-                    <item.icon size={20} />
+                    <item.icon className="h-5 w-5" />
                   </div>
                 </div>
                 <CardDescription>{item.description}</CardDescription>
