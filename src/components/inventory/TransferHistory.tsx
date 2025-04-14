@@ -49,16 +49,27 @@ interface ReturnFormProps {
 const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [returnQuantity, setReturnQuantity] = useState<number>(transfer.net_quantity || transfer.quantity);
+  const [grossQuantity, setGrossQuantity] = useState<number>(transfer.quantity);
+  const [crateCount, setCrateCount] = useState<number>(transfer.crate_count || 0);
+  const [palletCount, setPalletCount] = useState<number>(0);
+  const [palletWeight, setPalletWeight] = useState<number>(0);
   const [notes, setNotes] = useState<string>("");
+  
+  const calculateNetQuantity = () => {
+    const totalCrateWeight = (transfer.crate_weight || 0) * crateCount;
+    const totalPalletWeight = palletWeight;
+    return Math.max(0, grossQuantity - totalCrateWeight - totalPalletWeight);
+  };
+  
+  const netQuantity = calculateNetQuantity();
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (returnQuantity <= 0) {
+    if (grossQuantity <= 0) {
       toast({
         variant: "destructive",
         title: "Eroare",
-        description: "Cantitatea returnată trebuie să fie mai mare de 0"
+        description: "Cantitatea brută trebuie să fie mai mare de 0"
       });
       return;
     }
@@ -69,7 +80,11 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
       console.log("Return form submitted with data:", {
         transferId: transfer.transfer_id,
         inventoryItemId: transfer.inventory_item_id,
-        quantity: returnQuantity,
+        grossQuantity,
+        netQuantity,
+        crateCount,
+        palletCount,
+        palletWeight,
         notes
       });
       
@@ -84,14 +99,16 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
       }
 
       let updatedId;
-      let newQuantity;
       
       if (originalItem) {
-        newQuantity = originalItem.quantity + returnQuantity;
+        const newQuantity = originalItem.quantity + netQuantity;
         
         const { error: updateError } = await supabase
           .from('inventory')
-          .update({ quantity: newQuantity })
+          .update({ 
+            quantity: newQuantity,
+            crate_count: originalItem.crate_count + crateCount
+          })
           .eq('id', transfer.inventory_item_id);
           
         if (updateError) throw updateError;
@@ -99,7 +116,8 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
         
         console.log("Updated existing inventory item:", {
           id: transfer.inventory_item_id,
-          newQuantity
+          newQuantity,
+          newCrateCount: originalItem.crate_count + crateCount
         });
       } else {
         const { data: similarItems, error: similarError } = await supabase
@@ -107,18 +125,21 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
           .select('*')
           .eq('product_id', transfer.product_id || '')
           .eq('supplier_id', transfer.supplier_id || '')
-          .eq('manufacturer_id', transfer.manufacturer_id || '')
-          .eq('document_number', transfer.document_number || '');
+          .eq('manufacturer_id', transfer.manufacturer_id || '');
           
         if (similarError) throw similarError;
         
         if (similarItems && similarItems.length > 0) {
           const similarItem = similarItems[0];
-          newQuantity = similarItem.quantity + returnQuantity;
+          const newQuantity = similarItem.quantity + netQuantity;
+          const newCrateCount = (similarItem.crate_count || 0) + crateCount;
           
           const { error: updateError } = await supabase
             .from('inventory')
-            .update({ quantity: newQuantity })
+            .update({ 
+              quantity: newQuantity,
+              crate_count: newCrateCount
+            })
             .eq('id', similarItem.id);
             
           if (updateError) throw updateError;
@@ -126,7 +147,8 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
           
           console.log("Updated similar inventory item:", {
             id: similarItem.id,
-            newQuantity
+            newQuantity,
+            newCrateCount
           });
         } else {
           const { data: inventoryData, error: insertError } = await supabase
@@ -139,18 +161,19 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
               manufacturer_id: transfer.manufacturer_id || null,
               document_number: transfer.document_number || null,
               entry_number: transfer.entry_number || null,
-              quantity: returnQuantity,
+              quantity: netQuantity,
               unit: transfer.unit,
-              crate_count: transfer.crate_count || 0,
-              gross_quantity: returnQuantity,
-              net_quantity: returnQuantity
+              crate_count: crateCount,
+              crate_type_id: transfer.crate_type_id || null,
+              crate_weight: transfer.crate_weight || null,
+              gross_quantity: grossQuantity,
+              net_quantity: netQuantity
             })
             .select()
             .single();
             
           if (insertError) throw insertError;
           updatedId = inventoryData.id;
-          newQuantity = returnQuantity;
           
           console.log("Created new inventory item:", inventoryData);
         }
@@ -162,10 +185,14 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
           inventory_item_id: updatedId,
           action: 'add',
           name: transfer.product_name,
-          quantity: returnQuantity,
+          quantity: grossQuantity,
+          net_quantity: netQuantity,
           unit: transfer.unit,
           operation_date: new Date().toISOString(),
           document_number: transfer.document_number,
+          crate_count: crateCount,
+          crate_type_id: transfer.crate_type_id,
+          crate_weight: transfer.crate_weight,
           notes: `Returnat din ${transfer.destination}. ${notes}`
         });
         
@@ -173,7 +200,7 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
       
       toast({
         title: "Succes",
-        description: `Cantitate de ${returnQuantity} ${transfer.unit} returnată în stoc.`
+        description: `Cantitate de ${netQuantity} ${transfer.unit} returnată în stoc.`
       });
       
       setIsOpen(false);
@@ -210,24 +237,67 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
           </div>
           
           <div className="space-y-2">
-            <div className="font-medium">Cantitate disponibilă pentru returnare</div>
-            <div>{transfer.net_quantity || transfer.quantity} {transfer.unit}</div>
-          </div>
-          
-          <div className="space-y-2">
-            <label htmlFor="returnQuantity" className="font-medium">
-              Cantitate de returnat
+            <label htmlFor="grossQuantity" className="font-medium">
+              Cantitate brută returnată ({transfer.unit})
             </label>
             <Input
-              id="returnQuantity"
+              id="grossQuantity"
               type="number"
               min="0.01"
               step="0.01"
-              max={transfer.net_quantity || transfer.quantity}
-              value={returnQuantity}
-              onChange={(e) => setReturnQuantity(parseFloat(e.target.value) || 0)}
+              value={grossQuantity}
+              onChange={(e) => setGrossQuantity(parseFloat(e.target.value) || 0)}
               required
             />
+          </div>
+          
+          {transfer.crate_type_id && (
+            <div className="space-y-2">
+              <label htmlFor="crateCount" className="font-medium">
+                Număr lădițe
+              </label>
+              <Input
+                id="crateCount"
+                type="number"
+                min="0"
+                value={crateCount}
+                onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
+              />
+            </div>
+          )}
+          
+          <div className="space-y-2">
+            <label htmlFor="palletCount" className="font-medium">
+              Număr paleți
+            </label>
+            <Input
+              id="palletCount"
+              type="number"
+              min="0"
+              value={palletCount}
+              onChange={(e) => setPalletCount(parseInt(e.target.value) || 0)}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <label htmlFor="palletWeight" className="font-medium">
+              Greutate paleți (kg)
+            </label>
+            <Input
+              id="palletWeight"
+              type="number"
+              min="0"
+              step="0.01"
+              value={palletWeight}
+              onChange={(e) => setPalletWeight(parseFloat(e.target.value) || 0)}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <div className="font-medium">Cantitate netă calculată</div>
+            <div className="px-4 py-2 bg-gray-100 rounded border">
+              {netQuantity.toFixed(2)} {transfer.unit}
+            </div>
           </div>
           
           <div className="space-y-2">
@@ -246,7 +316,7 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
             <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
               Anulează
             </Button>
-            <Button type="submit" disabled={isSubmitting || returnQuantity <= 0}>
+            <Button type="submit" disabled={isSubmitting || grossQuantity <= 0}>
               {isSubmitting ? "Se procesează..." : "Returnează în stoc"}
             </Button>
           </DialogFooter>
