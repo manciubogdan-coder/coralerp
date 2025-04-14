@@ -158,6 +158,7 @@ export type Database = {
           inventory_item_id: string | null
           manufacturer_id: string | null
           name: string
+          net_quantity: number | null
           notes: string | null
           operation_date: string
           pallets: number | null
@@ -179,6 +180,7 @@ export type Database = {
           inventory_item_id?: string | null
           manufacturer_id?: string | null
           name: string
+          net_quantity?: number | null
           notes?: string | null
           operation_date?: string
           pallets?: number | null
@@ -200,6 +202,7 @@ export type Database = {
           inventory_item_id?: string | null
           manufacturer_id?: string | null
           name?: string
+          net_quantity?: number | null
           notes?: string | null
           operation_date?: string
           pallets?: number | null

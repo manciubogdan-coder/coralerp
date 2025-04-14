@@ -202,8 +202,8 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
               quantity: netQuantity,
               unit: transfer.unit,
               crate_count: crateCount,
-              crate_type_id: transfer.crate_type_id || null,
-              crate_weight: transfer.crate_weight || null,
+              crate_type_id: selectedCrateTypeId || null,
+              crate_weight: crateWeight || null,
               gross_quantity: grossQuantity,
               net_quantity: netQuantity
             })
@@ -229,8 +229,8 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
           operation_date: new Date().toISOString(),
           document_number: transfer.document_number,
           crate_count: crateCount,
-          crate_type_id: transfer.crate_type_id,
-          crate_weight: transfer.crate_weight,
+          crate_type_id: selectedCrateTypeId || null,
+          crate_weight: crateWeight || null,
           notes: `Returnat din ${transfer.destination}. ${notes}`
         });
         
