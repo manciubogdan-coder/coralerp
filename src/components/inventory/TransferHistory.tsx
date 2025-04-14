@@ -53,10 +53,44 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [grossQuantity, setGrossQuantity] = useState<number>(transfer.quantity);
   const [crateCount, setCrateCount] = useState<number>(transfer.crate_count || 0);
+  const [selectedCrateTypeId, setSelectedCrateTypeId] = useState<string>(transfer.crate_type_id || '');
   const [crateWeight, setCrateWeight] = useState<number>(transfer.crate_weight || 0);
   const [palletCount, setPalletCount] = useState<number>(0);
   const [palletWeight, setPalletWeight] = useState<number>(0);
   const [notes, setNotes] = useState<string>("");
+  const [crateTypes, setCrateTypes] = useState<CrateType[]>([]);
+  
+  useEffect(() => {
+    const fetchCrateTypes = async () => {
+      const { data, error } = await supabase
+        .from('crate_types')
+        .select('*')
+        .order('name');
+        
+      if (error) {
+        console.error("Error fetching crate types:", error);
+        toast({
+          variant: "destructive",
+          title: "Eroare",
+          description: "Nu s-au putut încărca tipurile de lădițe"
+        });
+        return;
+      }
+      
+      setCrateTypes(data || []);
+    };
+    
+    fetchCrateTypes();
+  }, []);
+  
+  useEffect(() => {
+    if (selectedCrateTypeId) {
+      const selectedType = crateTypes.find(type => type.id === selectedCrateTypeId);
+      if (selectedType) {
+        setCrateWeight(selectedType.weight);
+      }
+    }
+  }, [selectedCrateTypeId, crateTypes]);
   
   const calculateNetQuantity = () => {
     const totalCrateWeight = crateWeight * crateCount;
@@ -267,25 +301,29 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
             />
           </div>
           
-          {crateCount > 0 && !transfer.crate_weight && (
+          {crateCount > 0 && (
             <div className="space-y-2">
-              <label htmlFor="crateWeight" className="font-medium">
-                Greutate per lădiță (kg)
+              <label htmlFor="crateType" className="font-medium">
+                Tip lădiță
               </label>
-              <Input
-                id="crateWeight"
-                type="number"
-                min="0"
-                step="0.01"
-                value={crateWeight}
-                onChange={(e) => setCrateWeight(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-          )}
-          
-          {crateCount > 0 && (crateWeight || transfer.crate_weight) > 0 && (
-            <div className="text-sm text-muted-foreground">
-              Greutate totală lădițe: {((transfer.crate_weight || crateWeight) * crateCount).toFixed(2)} kg
+              <Select value={selectedCrateTypeId} onValueChange={setSelectedCrateTypeId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Alege tipul de lădiță" />
+                </SelectTrigger>
+                <SelectContent>
+                  {crateTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.name} ({type.weight} kg)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {selectedCrateTypeId && (
+                <div className="text-sm text-muted-foreground">
+                  Greutate totală lădițe: {(crateWeight * crateCount).toFixed(2)} kg
+                </div>
+              )}
             </div>
           )}
           
