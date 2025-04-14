@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-custom-toast";
 import { useToast } from "@/components/ui/use-toast";
-import { Command } from "cmdk";
 import { Search, RefreshCw, Mic, Settings, HelpCircle, ArrowLeft } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -95,7 +94,8 @@ const Index = () => {
   };
 
   const handleExportExcelClick = () => {
-    const processedData = inventory.map(item => ({
+    // Prepare data for Excel export
+    const processedData = filteredInventory.map(item => ({
       Nume: item.name,
       Cantitate: item.quantity,
       Unitate: item.unit,
@@ -110,10 +110,6 @@ const Index = () => {
       title: "Export realizat",
       description: "Fișierul Excel a fost generat și descărcat."
     });
-  };
-
-  const someFunction = (param1: any, defaultParam2: any, defaultParam3: any) => {
-    console.log("someFunction called", param1, defaultParam2, defaultParam3);
   };
 
   return (
@@ -207,41 +203,39 @@ const Index = () => {
       <Footer />
 
       {isCommandPaletteOpen && (
-        <Command>
-          <Command.Dialog
-            className="dark"
-            onOpenChange={setIsCommandPaletteOpen}
-          >
-            <Command.Input placeholder="Caută comenzi sau tastează un command" />
-            <Command.List>
-              <Command.Empty>Nu am găsit nimic.</Command.Empty>
-
-              <Command.Group heading="Setări">
-                <Command.Item
-                  onSelect={() => {
-                    setIsCommandPaletteOpen(false);
-                    navigate("/dashboard/settings");
-                  }}
-                >
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center pt-[20vh]">
+          <div className="bg-white w-full max-w-md rounded-lg shadow-lg overflow-hidden">
+            <div className="p-4 border-b">
+              <h3 className="font-medium">Comenzi și navigare rapidă</h3>
+            </div>
+            <div className="p-2">
+              <div 
+                className="p-2 hover:bg-gray-100 rounded cursor-pointer"
+                onClick={() => {
+                  setIsCommandPaletteOpen(false);
+                  navigate("/dashboard/settings");
+                }}
+              >
+                <div className="flex items-center">
                   <Settings className="mr-2 h-4 w-4" />
-                  Setări
-                </Command.Item>
-              </Command.Group>
-
-              <Command.Group heading="Ajutor">
-                <Command.Item
-                  onSelect={() => {
-                    setIsCommandPaletteOpen(false);
-                    navigate("/dashboard/help");
-                  }}
-                >
+                  <span>Setări</span>
+                </div>
+              </div>
+              <div 
+                className="p-2 hover:bg-gray-100 rounded cursor-pointer"
+                onClick={() => {
+                  setIsCommandPaletteOpen(false);
+                  navigate("/dashboard/help");
+                }}
+              >
+                <div className="flex items-center">
                   <HelpCircle className="mr-2 h-4 w-4" />
-                  Ajutor
-                </Command.Item>
-              </Command.Group>
-            </Command.List>
-          </Command.Dialog>
-        </Command>
+                  <span>Ajutor</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
