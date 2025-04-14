@@ -92,7 +92,7 @@ const Dashboard = () => {
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-lg">{item.name}</CardTitle>
                   <div className="p-2 rounded-full bg-gray-100">
-                    {React.createElement(item.icon, { className: "h-5 w-5" })}
+                    {React.createElement(item.icon, { size: 20 })}
                   </div>
                 </div>
                 <CardDescription>{item.description}</CardDescription>

@@ -3,6 +3,7 @@ import { toast } from "@/hooks/use-custom-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ReceptionRegistration } from "@/components/inventory/ReceptionRegistration";
+import { StockTransferForm } from "@/components/inventory/StockTransferForm";
 import { Pencil, Trash, Plus, Save, X, FileDown, Mail } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -432,14 +433,14 @@ const InventoryManagement = () => {
         gross_quantity: grossQuantity,
         net_quantity: netQuantity,
         unit: editItem.unit,
-        supplier_id: editItem.supplier_id,
-        product_id: editItem.product_id,
-        manufacturer_id: editItem.manufacturer_id,
-        batch_number: editItem.batch_number,
-        document_number: editItem.document_number,
-        crate_type_id: editItem.crate_type_id,
-        crate_count: editItem.crate_count,
-        crate_weight: editItem.crate_weight,
+        supplier_id: editItem.supplier_id || null,
+        product_id: editItem.product_id || null,
+        manufacturer_id: editItem.manufacturer_id || null,
+        batch_number: editItem.batch_number || null,
+        document_number: editItem.document_number || null,
+        crate_type_id: editItem.crate_type_id || null,
+        crate_count: editItem.crate_count || null,
+        crate_weight: editItem.crate_weight || null,
         receipt_date: receiptDate
       });
 
@@ -455,11 +456,11 @@ const InventoryManagement = () => {
           product_id: editItem.product_id || null,
           manufacturer_id: editItem.manufacturer_id || null,
           batch_number: editItem.batch_number || null,
-          receipt_date: receiptDate,
+          document_number: editItem.document_number || null,
           crate_type_id: editItem.crate_type_id || null,
           crate_count: editItem.crate_count || null,
           crate_weight: editItem.crate_weight || null,
-          document_number: editItem.document_number || null,
+          receipt_date: receiptDate,
         })
         .eq("id", editItem.id);
 
@@ -659,6 +660,7 @@ const InventoryManagement = () => {
           <Button variant="outline" size="sm" onClick={handleSendEmail}>
             <Mail className="h-4 w-4 mr-2" /> Trimite Email
           </Button>
+          <StockTransferForm onTransferComplete={fetchInventory} />
           <ReceptionRegistration
             products={products}
             suppliers={suppliers}
