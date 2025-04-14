@@ -1,3 +1,4 @@
+
 // Inventory related interfaces
 export interface InventoryItem {
   id?: string;
@@ -21,11 +22,11 @@ export interface InventoryItem {
   isHeader?: boolean; // For grouped views
   action?: 'add' | 'remove' | 'set';
   // Added timestamps with the correct format
-  created_at?: {
+  created_at?: string | {
     seconds: number;
     nanoseconds: number;
   };
-  updated_at?: {
+  updated_at?: string | {
     seconds: number;
     nanoseconds: number;
   };
@@ -38,6 +39,11 @@ export interface InventoryItem {
     seconds: number;
     nanoseconds: number;
   };
+  // For join queries
+  suppliers?: { name: string };
+  products?: { name: string };
+  manufacturers?: { name: string };
+  crate_types?: { name: string; weight: number };
 }
 
 // Chart data for visualization
@@ -128,7 +134,7 @@ export interface CommandResult {
   charts?: ChartData[];
   needsMoreInfo?: {
     question: string;
-    type: 'batch_selection' | 'missing_fields';
+    type: 'batch_selection' | 'missing_fields' | 'supplier_info';
     options?: InventoryItem[];
   };
 }
@@ -137,9 +143,10 @@ export interface CommandResult {
 export interface DashboardMenuItem {
   id: string;
   name: string;
-  icon: string;
+  icon: React.ComponentType; // Updated to use React.ComponentType instead of string
   route: string;
   description?: string;
+  path?: string; // Added for backward compatibility
 }
 
 // SpeechRecognition type declaration for global window
