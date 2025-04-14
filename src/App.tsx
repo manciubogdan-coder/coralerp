@@ -4,9 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import ProductsPage from "./pages/dashboard/ProductsPage";
 import SuppliersPage from "./pages/dashboard/SuppliersPage";
@@ -37,15 +36,14 @@ const App = () => (
                   </div>
                   <main className="flex-1 p-4">
                     <Routes>
-                      <Route path="/" element={<Index />} />
-                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/dashboard" element={<Navigate to="/" replace />} />
                       <Route path="/dashboard/products" element={<ProductsPage />} />
                       <Route path="/dashboard/suppliers" element={<SuppliersPage />} />
                       <Route path="/dashboard/manufacturers" element={<ManufacturersPage />} />
                       <Route path="/dashboard/crate-types" element={<CrateTypesPage />} />
                       <Route path="/dashboard/inventory" element={<InventoryPage />} />
                       <Route path="/inventory" element={<InventoryOverviewPage />} />
-                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>
