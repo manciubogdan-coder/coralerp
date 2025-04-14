@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -249,7 +248,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           .insert({
             transfer_id: transferData.id,
             inventory_item_id: item.id,
-            quantity: item.netQuantity,
+            quantity: item.grossQuantity,
+            net_quantity: item.netQuantity,
             unit: item.unit
           });
           

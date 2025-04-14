@@ -30,6 +30,7 @@ interface TransferOperation {
   notes: string | null;
   product_name: string;
   quantity: number;
+  net_quantity?: number | null;
   unit: string;
   crate_count: number | null;
   supplier_name: string | null;
@@ -45,11 +46,13 @@ interface ReturnFormProps {
 }
 
 const ReturnForm = ({ transfer, onComplete }: ReturnFormProps) => {
-  const [returnQuantity, setReturnQuantity] = useState<number>(transfer.quantity);
+  const [returnQuantity, setReturnQuantity] = useState<number>(transfer.net_quantity || transfer.quantity);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleReturn = async () => {
-    if (returnQuantity <= 0 || returnQuantity > transfer.quantity) {
+    const maxReturnQuantity = transfer.net_quantity || transfer.quantity;
+    
+    if (returnQuantity <= 0 || returnQuantity > maxReturnQuantity) {
       toast({
         variant: "destructive",
         title: "Eroare",
@@ -113,7 +116,7 @@ const ReturnForm = ({ transfer, onComplete }: ReturnFormProps) => {
         value={returnQuantity}
         onChange={(e) => setReturnQuantity(Number(e.target.value))}
         min={0}
-        max={transfer.quantity}
+        max={transfer.net_quantity || transfer.quantity}
         step="0.01"
         className="w-32"
       />
@@ -214,7 +217,8 @@ export function TransferHistory() {
               <TableHead>Destinație</TableHead>
               <TableHead>Nr. Intrare</TableHead>
               <TableHead>Nr. Document</TableHead>
-              <TableHead className="text-right">Cantitate</TableHead>
+              <TableHead className="text-right">Cantitate Brută</TableHead>
+              <TableHead className="text-right">Cantitate Netă</TableHead>
               <TableHead>Unitate</TableHead>
               <TableHead>Nr. Lăzi</TableHead>
               <TableHead>Note</TableHead>
@@ -224,7 +228,7 @@ export function TransferHistory() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={13} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
                   Se încarcă datele...
                 </TableCell>
               </TableRow>
@@ -244,6 +248,7 @@ export function TransferHistory() {
                   <TableCell>{transfer.entry_number || "-"}</TableCell>
                   <TableCell>{transfer.document_number || "-"}</TableCell>
                   <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
+                  <TableCell className="text-right">{formatQuantity(transfer.net_quantity || transfer.quantity)}</TableCell>
                   <TableCell>{transfer.unit}</TableCell>
                   <TableCell>{transfer.crate_count || "-"}</TableCell>
                   <TableCell>{transfer.notes || "-"}</TableCell>
@@ -257,7 +262,7 @@ export function TransferHistory() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={13} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
                   {searchTerm || (selectedDestination && selectedDestination !== "all")
                     ? "Nu s-au găsit transferuri conform criteriilor de căutare"
                     : "Nu există transferuri înregistrate"}

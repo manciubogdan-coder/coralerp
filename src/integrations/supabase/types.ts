@@ -308,6 +308,7 @@ export type Database = {
           created_at: string
           id: string
           inventory_item_id: string
+          net_quantity: number | null
           quantity: number
           transfer_id: string
           unit: string
@@ -316,6 +317,7 @@ export type Database = {
           created_at?: string
           id?: string
           inventory_item_id: string
+          net_quantity?: number | null
           quantity: number
           transfer_id: string
           unit: string
@@ -324,6 +326,7 @@ export type Database = {
           created_at?: string
           id?: string
           inventory_item_id?: string
+          net_quantity?: number | null
           quantity?: number
           transfer_id?: string
           unit?: string
@@ -474,6 +477,7 @@ export type Database = {
           entry_number: number | null
           inventory_item_id: string | null
           manufacturer_name: string | null
+          net_quantity: number | null
           notes: string | null
           product_name: string | null
           quantity: number | null
