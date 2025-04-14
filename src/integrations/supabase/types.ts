@@ -56,18 +56,15 @@ export type Database = {
       }
       inventory: {
         Row: {
-          batch_number: string | null
           crate_count: number | null
           crate_type_id: string | null
           crate_weight: number | null
           created_at: string | null
           document_number: string | null
           entry_number: number
-          gross_quantity: number | null
           id: string
           manufacturer_id: string | null
           name: string
-          net_quantity: number | null
           product_id: string | null
           quantity: number
           receipt_date: string | null
@@ -77,18 +74,15 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          batch_number?: string | null
           crate_count?: number | null
           crate_type_id?: string | null
           crate_weight?: number | null
           created_at?: string | null
           document_number?: string | null
           entry_number?: number
-          gross_quantity?: number | null
           id?: string
           manufacturer_id?: string | null
           name: string
-          net_quantity?: number | null
           product_id?: string | null
           quantity?: number
           receipt_date?: string | null
@@ -98,18 +92,15 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          batch_number?: string | null
           crate_count?: number | null
           crate_type_id?: string | null
           crate_weight?: number | null
           created_at?: string | null
           document_number?: string | null
           entry_number?: number
-          gross_quantity?: number | null
           id?: string
           manufacturer_id?: string | null
           name?: string
-          net_quantity?: number | null
           product_id?: string | null
           quantity?: number
           receipt_date?: string | null
@@ -152,18 +143,15 @@ export type Database = {
       inventory_history: {
         Row: {
           action: string
-          batch_number: string | null
           crate_count: number | null
           crate_type_id: string | null
           crate_weight: number | null
           document_number: string | null
           exit_timestamp: string | null
-          gross_quantity: number | null
           id: string
           inventory_item_id: string | null
           manufacturer_id: string | null
           name: string
-          net_quantity: number | null
           notes: string | null
           operation_date: string
           pallets: number | null
@@ -176,18 +164,15 @@ export type Database = {
         }
         Insert: {
           action: string
-          batch_number?: string | null
           crate_count?: number | null
           crate_type_id?: string | null
           crate_weight?: number | null
           document_number?: string | null
           exit_timestamp?: string | null
-          gross_quantity?: number | null
           id?: string
           inventory_item_id?: string | null
           manufacturer_id?: string | null
           name: string
-          net_quantity?: number | null
           notes?: string | null
           operation_date?: string
           pallets?: number | null
@@ -200,18 +185,15 @@ export type Database = {
         }
         Update: {
           action?: string
-          batch_number?: string | null
           crate_count?: number | null
           crate_type_id?: string | null
           crate_weight?: number | null
           document_number?: string | null
           exit_timestamp?: string | null
-          gross_quantity?: number | null
           id?: string
           inventory_item_id?: string | null
           manufacturer_id?: string | null
           name?: string
-          net_quantity?: number | null
           notes?: string | null
           operation_date?: string
           pallets?: number | null
@@ -449,7 +431,6 @@ export type Database = {
       }
       inventory_aggregated_view: {
         Row: {
-          batch_number: string | null
           entries: number | null
           first_receipt: string | null
           last_receipt: string | null
@@ -462,10 +443,7 @@ export type Database = {
       }
       inventory_analytics: {
         Row: {
-          all_batches: string | null
           all_suppliers: string | null
-          avg_daily_consumption_rate: number | null
-          batch_count: number | null
           first_receipt: string | null
           last_receipt: string | null
           name: string | null
@@ -476,7 +454,6 @@ export type Database = {
       }
       inventory_with_history: {
         Row: {
-          batch_number: string | null
           created_at: string | null
           id: string | null
           name: string | null
@@ -491,14 +468,12 @@ export type Database = {
       }
       stock_transfer_view: {
         Row: {
-          batch_number: string | null
           crate_count: number | null
           destination: string | null
           document_number: string | null
           entry_number: number | null
           inventory_item_id: string | null
           manufacturer_name: string | null
-          net_quantity: number | null
           notes: string | null
           product_name: string | null
           quantity: number | null
@@ -529,7 +504,6 @@ export type Database = {
           crate_count: number | null
           document_number: string | null
           id: string | null
-          net_quantity: number | null
           notes: string | null
           operation_date: string | null
           product_name: string | null
@@ -540,7 +514,6 @@ export type Database = {
           crate_count?: number | null
           document_number?: string | null
           id?: string | null
-          net_quantity?: number | null
           notes?: string | null
           operation_date?: string | null
           product_name?: string | null
@@ -551,7 +524,6 @@ export type Database = {
           crate_count?: number | null
           document_number?: string | null
           id?: string | null
-          net_quantity?: number | null
           notes?: string | null
           operation_date?: string | null
           product_name?: string | null

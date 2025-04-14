@@ -9,15 +9,12 @@ export interface InventoryItem {
   supplier_id?: string;
   product_id?: string;
   manufacturer_id?: string;
-  manufacturer?: string; // Added for manufacturer display
-  batch_number?: string;
-  receipt_date?: string | Date; // Updated to accept both string and Date
+  manufacturer?: string; 
+  receipt_date?: string | Date;
   document_number?: string;
   entry_number?: number;
   crate_type_id?: string;
   crate_count?: number;
-  gross_quantity?: number;
-  net_quantity?: number;
   crate_weight?: number;
   isHeader?: boolean; // For grouped views
   action?: 'add' | 'remove' | 'set';
@@ -114,12 +111,9 @@ export interface InventoryHistoryItem {
   supplier_id?: string;
   product_id?: string;
   manufacturer_id?: string;
-  batch_number?: string;
   document_number?: string;
   crate_type_id?: string;
   crate_count?: number;
-  gross_quantity?: number;
-  net_quantity?: number;
   crate_weight?: number;
   operation_date: Date;
   exit_timestamp?: Date;
@@ -148,6 +142,3 @@ export interface DashboardMenuItem {
   description?: string;
   path?: string; // Added for backward compatibility
 }
-
-// SpeechRecognition type declarations sunt deja în 
-// fișierul src/types/speech-recognition.d.ts așa că le-am șters de aici

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -22,11 +23,9 @@ interface TransferOperation {
   quantity: number;
   unit: string;
   crate_count: number | null;
-  net_quantity: number | null;
   supplier_name: string | null;
   manufacturer_name: string | null;
   document_number: string | null;
-  batch_number: string | null;
   entry_number: number | null;
   inventory_item_id: string | null;
 }
@@ -54,7 +53,7 @@ export function TransferHistory() {
         .order('transfer_date', { ascending: false });
         
       if (searchTerm) {
-        query.or(`product_name.ilike.%${searchTerm}%,supplier_name.ilike.%${searchTerm}%,manufacturer_name.ilike.%${searchTerm}%,batch_number.ilike.%${searchTerm}%,document_number.ilike.%${searchTerm}%`);
+        query.or(`product_name.ilike.%${searchTerm}%,supplier_name.ilike.%${searchTerm}%,manufacturer_name.ilike.%${searchTerm}%,document_number.ilike.%${searchTerm}%`);
       }
       
       const { data, error } = await query;
@@ -74,7 +73,7 @@ export function TransferHistory() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
         <Input
-          placeholder="Caută produs, furnizor, lot..."
+          placeholder="Caută produs, furnizor..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10 w-full"
@@ -93,10 +92,8 @@ export function TransferHistory() {
               <TableHead>Destinație</TableHead>
               <TableHead>Nr. Intrare</TableHead>
               <TableHead>Nr. Document</TableHead>
-              <TableHead>Lot</TableHead>
               <TableHead className="text-right">Cantitate</TableHead>
               <TableHead>Unitate</TableHead>
-              <TableHead className="text-right">Cantitate Netă</TableHead>
               <TableHead>Nr. Lăzi</TableHead>
               <TableHead>Note</TableHead>
             </TableRow>
@@ -104,7 +101,7 @@ export function TransferHistory() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={12} className="text-center py-6 text-gray-500">
                   Se încarcă datele...
                 </TableCell>
               </TableRow>
@@ -123,19 +120,15 @@ export function TransferHistory() {
                   </TableCell>
                   <TableCell>{transfer.entry_number || "-"}</TableCell>
                   <TableCell>{transfer.document_number || "-"}</TableCell>
-                  <TableCell>{transfer.batch_number || "-"}</TableCell>
                   <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
                   <TableCell>{transfer.unit}</TableCell>
-                  <TableCell className="text-right">
-                    {transfer.net_quantity ? formatQuantity(transfer.net_quantity) : "-"}
-                  </TableCell>
                   <TableCell>{transfer.crate_count || "-"}</TableCell>
                   <TableCell>{transfer.notes || "-"}</TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={12} className="text-center py-6 text-gray-500">
                   {searchTerm
                     ? "Nu s-au găsit transferuri conform criteriilor de căutare"
                     : "Nu există transferuri înregistrate"}

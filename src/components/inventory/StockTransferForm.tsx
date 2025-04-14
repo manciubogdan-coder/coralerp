@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -146,9 +145,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     const totalPalletWeight = item.palletWeight || 0;
     
     // Calculate net quantity by subtracting total weights from gross quantity
-    const netQuantity = Math.max(0, item.grossQuantity - totalCrateWeight - totalPalletWeight);
-    
-    return netQuantity;
+    return Math.max(0, item.grossQuantity - totalCrateWeight - totalPalletWeight);
   };
 
   const handleGrossQuantityChange = (index: number, value: number) => {
@@ -253,7 +250,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           .insert({
             transfer_id: transferData.id,
             inventory_item_id: item.id,
-            quantity: item.netQuantity, // Folosim cantitatea netă în loc de cea brută
+            quantity: item.netQuantity, // Use net quantity instead of gross
             unit: item.unit
           });
           
@@ -266,19 +263,16 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             inventory_item_id: item.id,
             action: "transfer",
             name: item.productName,
-            quantity: item.netQuantity, // Folosim cantitatea netă în loc de cea brută
+            quantity: item.netQuantity, // Use net quantity instead of gross
             unit: item.unit,
             operation_date: new Date().toISOString(),
             supplier: item.supplier,
             supplier_id: item.supplier_id,
             manufacturer_id: item.manufacturer_id,
-            batch_number: item.batch_number,
             document_number: item.document_number,
             crate_count: item.crateCount,
             crate_type_id: item.crateTypeId,
             crate_weight: item.crateWeight,
-            gross_quantity: item.grossQuantity,
-            net_quantity: item.netQuantity,
             notes: `Transfer către ${formData.destination}`
           });
           
@@ -294,7 +288,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         if (getError) throw getError;
         
         const currentQuantity = inventoryItem?.quantity || 0;
-        const newQuantity = Math.max(0, currentQuantity - item.netQuantity); // Folosim cantitatea netă în loc de cea brută
+        const newQuantity = Math.max(0, currentQuantity - item.netQuantity); // Use net quantity instead of gross
         
         const { error: updateError } = await supabase
           .from('inventory')

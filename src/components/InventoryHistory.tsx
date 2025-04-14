@@ -35,7 +35,6 @@ interface InventoryHistoryResponse {
   unit: string;
   previous_quantity: number | null;
   supplier: string | null;
-  batch_number: string | null;
   operation_date: string;
   exit_timestamp: string | null;
   notes: string | null;
@@ -45,8 +44,6 @@ interface InventoryHistoryResponse {
   manufacturer_id: string | null;
   crate_type_id: string | null;
   crate_count: number | null;
-  gross_quantity: number | null;
-  net_quantity: number | null;
   crate_weight: number | null;
 }
 
@@ -163,12 +160,9 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         supplier_id: item.supplier_id || undefined,
         product_id: item.product_id || undefined,
         manufacturer_id: item.manufacturer_id || undefined,
-        batch_number: item.batch_number || undefined,
         document_number: item.document_number || undefined,
         crate_type_id: item.crate_type_id || undefined,
         crate_count: item.crate_count !== null ? Number(item.crate_count) : undefined,
-        gross_quantity: item.gross_quantity !== null ? Number(item.gross_quantity) : undefined,
-        net_quantity: item.net_quantity !== null ? Number(item.net_quantity) : undefined,
         crate_weight: item.crate_weight !== null ? Number(item.crate_weight) : undefined,
         operation_date: new Date(item.operation_date),
         exit_timestamp: item.exit_timestamp ? new Date(item.exit_timestamp) : undefined,
@@ -277,9 +271,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
               <TableHead className="text-right">Cantitate</TableHead>
               <TableHead>Unitate</TableHead>
               <TableHead>Tip ladită</TableHead>
-              <TableHead className="text-right">Cantitate netă</TableHead>
               <TableHead className="text-right">Cantitate anterioară</TableHead>
-              <TableHead>Lot</TableHead>
               <TableHead>Ora ieșire</TableHead>
             </TableRow>
           </TableHeader>
@@ -311,12 +303,8 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
                       {crateTypeName ? `${crateTypeName} (${item.crate_count || 0} buc)` : '-'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {item.net_quantity !== undefined ? item.net_quantity : item.quantity}
-                    </TableCell>
-                    <TableCell className="text-right">
                       {item.previous_quantity !== undefined ? item.previous_quantity : '-'}
                     </TableCell>
-                    <TableCell>{item.batch_number || '-'}</TableCell>
                     <TableCell>
                       {item.action === 'remove' && item.exit_timestamp
                         ? format(item.exit_timestamp, 'dd.MM.yyyy HH:mm:ss')
@@ -327,7 +315,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={13} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={11} className="text-center py-6 text-gray-500">
                   {searchTerm || dateRange[0] || dateRange[1] || actionFilter !== "all"
                     ? "Nu s-au găsit operațiuni conform criteriilor de căutare"
                     : "Nu există operațiuni de stoc înregistrate"}

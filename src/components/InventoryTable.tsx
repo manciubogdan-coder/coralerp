@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,6 @@ interface InventoryTableProps {
 const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [groupBySupplier, setGroupBySupplier] = useState(false);
-  const [groupByBatch, setGroupByBatch] = useState(false);
   const [groupByProduct, setGroupByProduct] = useState(false);
   const [showEmptyItems, setShowEmptyItems] = useState(false);
   const [suppliers, setSuppliers] = useState<Record<string, Supplier>>({});
@@ -84,7 +84,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     return (
       productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (supplierName && supplierName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (item.batch_number && item.batch_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (manufacturerName && manufacturerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.document_number && item.document_number.toLowerCase().includes(searchTerm.toLowerCase()))
     );
@@ -147,29 +146,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
       
       return [headerItem, ...items];
     });
-  } else if (groupByBatch) {
-    const batchMap = new Map<string, InventoryItem[]>();
-    
-    filteredInventory.forEach(item => {
-      const batch = item.batch_number || 'Necunoscut';
-      if (!batchMap.has(batch)) {
-        batchMap.set(batch, []);
-      }
-      batchMap.get(batch)!.push(item);
-    });
-    
-    displayedInventory = Array.from(batchMap).flatMap(([batch, items]) => {
-      const headerItem: InventoryItem = {
-        id: `batch-${batch}`,
-        name: `Lot: ${batch}`,
-        quantity: items.reduce((sum, item) => sum + item.quantity, 0),
-        unit: items[0]?.unit || '',
-        batch_number: batch,
-        isHeader: true
-      };
-      
-      return [headerItem, ...items];
-    });
   }
 
   const formatQuantity = (quantity: number) => {
@@ -182,7 +158,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         <div className="relative w-full md:flex-1 md:mr-4">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
-            placeholder="Caută produs, furnizor, lot..."
+            placeholder="Caută produs, furnizor..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 w-full"
@@ -212,7 +188,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => {
                 setGroupBySupplier(false);
-                setGroupByBatch(false);
                 setGroupByProduct(false);
               }}>
                 Fără grupare
@@ -220,23 +195,14 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
               <DropdownMenuItem onClick={() => {
                 setGroupByProduct(true);
                 setGroupBySupplier(false);
-                setGroupByBatch(false);
               }}>
                 Grupare după produs
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {
                 setGroupBySupplier(true);
-                setGroupByBatch(false);
                 setGroupByProduct(false);
               }}>
                 Grupare după furnizor
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {
-                setGroupBySupplier(false);
-                setGroupByBatch(true);
-                setGroupByProduct(false);
-              }}>
-                Grupare după lot
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -254,13 +220,10 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
               <TableHead className="text-left">Unitate</TableHead>
               <TableHead className="text-left">Furnizor</TableHead>
               <TableHead className="text-left">Producător</TableHead>
-              <TableHead className="text-left">Nr. Lot</TableHead>
               <TableHead className="text-left">Nr. Document</TableHead>
               <TableHead className="text-left">Tip Lăzi</TableHead>
               <TableHead className="text-right">Nr. Lăzi</TableHead>
               <TableHead className="text-right">Greutate/Lada</TableHead>
-              <TableHead className="text-right">Cantitate Brută</TableHead>
-              <TableHead className="text-right">Cantitate Netă</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -286,19 +249,16 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                     <TableCell className="text-left">{item.unit}</TableCell>
                     <TableCell>{supplierName || '-'}</TableCell>
                     <TableCell>{manufacturerName || '-'}</TableCell>
-                    <TableCell>{item.batch_number || '-'}</TableCell>
                     <TableCell>{item.document_number || '-'}</TableCell>
                     <TableCell>{crateTypeName}</TableCell>
                     <TableCell className="text-right">{item.crate_count || '-'}</TableCell>
                     <TableCell className="text-right">{item.crate_weight ? item.crate_weight.toFixed(2) : '-'}</TableCell>
-                    <TableCell className="text-right">{item.gross_quantity ? item.gross_quantity.toFixed(2) : '-'}</TableCell>
-                    <TableCell className="text-right">{item.net_quantity ? item.net_quantity.toFixed(2) : '-'}</TableCell>
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={11} className="text-center py-6 text-gray-500">
                   {searchTerm
                     ? `Nu s-au găsit produse pentru "${searchTerm}"`
                     : "Nu există produse în stoc."}
