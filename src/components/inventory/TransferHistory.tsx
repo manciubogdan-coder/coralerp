@@ -238,7 +238,7 @@ export function TransferHistory() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={14} className="text-center py-6 text-gray-500">
+                  <TableCell colSpan={13} className="text-center py-6 text-gray-500">
                     Se încarcă datele...
                   </TableCell>
                 </TableRow>
@@ -260,7 +260,6 @@ export function TransferHistory() {
                     <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
                     <TableCell className="text-right">{formatQuantity(transfer.net_quantity || transfer.quantity)}</TableCell>
                     <TableCell>{transfer.unit}</TableCell>
-                    <TableCell>{transfer.crate_count || "-"}</TableCell>
                     <TableCell>{transfer.notes || "-"}</TableCell>
                     <TableCell className="sticky right-0 bg-white">
                       <ReturnForm 
@@ -272,7 +271,7 @@ export function TransferHistory() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={14} className="text-center py-6 text-gray-500">
+                  <TableCell colSpan={13} className="text-center py-6 text-gray-500">
                     {searchTerm || (selectedDestination && selectedDestination !== "all")
                       ? "Nu s-au găsit transferuri conform criteriilor de căutare"
                       : "Nu există transferuri înregistrate"}

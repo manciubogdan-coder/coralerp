@@ -44,7 +44,7 @@ const InventoryManagement = () => {
         className="mb-4"
       >
         <TabsList>
-          <TabsTrigger value="inventory">Inventar Curent</TabsTrigger>
+          <TabsTrigger value="inventory">Stoc Curent</TabsTrigger>
           <TabsTrigger value="transfers">Istoric Transferuri</TabsTrigger>
         </TabsList>
         
