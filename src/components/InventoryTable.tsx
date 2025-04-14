@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -221,9 +220,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
               <TableHead className="text-left">Furnizor</TableHead>
               <TableHead className="text-left">Producător</TableHead>
               <TableHead className="text-left">Nr. Document</TableHead>
-              <TableHead className="text-left">Tip Lăzi</TableHead>
-              <TableHead className="text-right">Nr. Lăzi</TableHead>
-              <TableHead className="text-right">Greutate/Lada</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -232,7 +228,6 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                 const productName = item.product_id ? products[item.product_id]?.name : item.name;
                 const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
                 const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : item.manufacturer;
-                const crateTypeName = item.crate_type_id ? crateTypes[item.crate_type_id]?.name : '-';
                 
                 return (
                   <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
@@ -250,15 +245,12 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                     <TableCell>{supplierName || '-'}</TableCell>
                     <TableCell>{manufacturerName || '-'}</TableCell>
                     <TableCell>{item.document_number || '-'}</TableCell>
-                    <TableCell>{crateTypeName}</TableCell>
-                    <TableCell className="text-right">{item.crate_count || '-'}</TableCell>
-                    <TableCell className="text-right">{item.crate_weight ? item.crate_weight.toFixed(2) : '-'}</TableCell>
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={8} className="text-center py-6 text-gray-500">
                   {searchTerm
                     ? `Nu s-au găsit produse pentru "${searchTerm}"`
                     : "Nu există produse în stoc."}

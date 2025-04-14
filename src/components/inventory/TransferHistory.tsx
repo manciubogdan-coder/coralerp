@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -232,7 +231,6 @@ export function TransferHistory() {
                 <TableHead className="text-right">Cantitate Brută</TableHead>
                 <TableHead className="text-right">Cantitate Netă</TableHead>
                 <TableHead>Unitate</TableHead>
-                <TableHead>Nr. Lăzi</TableHead>
                 <TableHead>Note</TableHead>
                 <TableHead className="sticky right-0 bg-white">Acțiuni</TableHead>
               </TableRow>
