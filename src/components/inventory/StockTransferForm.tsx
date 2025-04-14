@@ -134,8 +134,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSubmitting(true);
     
     try {
-      // Use raw SQL query for inserting into stock_transfers since TypeScript doesn't know about it yet
-      const { data: transferData, error: transferError } = await supabase
+      // Use rpc to call the create_stock_transfer function
+      const { data: transferId, error: transferError } = await supabase
         .rpc('create_stock_transfer', { 
           p_transfer_date: formData.transferDate,
           p_destination: formData.destination,
@@ -144,15 +144,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
       if (transferError) throw transferError;
       
-      if (!transferData) {
+      if (!transferId) {
         throw new Error("Nu s-a putut crea bonul de transfer.");
       }
-
-      const transferId = transferData;
       
       // Create transfer items and update inventory
       const transferItemsPromises = selectedItems.map(async (item) => {
-        // Add transfer item using raw query
+        // Add transfer item using rpc
         const { error: itemError } = await supabase
           .rpc('create_stock_transfer_item', {
             p_transfer_id: transferId,
@@ -175,7 +173,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         // Add to inventory history
         const { error: historyError } = await supabase
           .from("inventory_history")
-          .insert([{
+          .insert({
             inventory_item_id: item.id,
             action: "remove",
             name: item.productName,
@@ -183,7 +181,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             unit: item.unit,
             operation_date: new Date().toISOString(),
             notes: `Transfer către ${formData.destination}`
-          }]);
+          });
           
         if (historyError) throw historyError;
       });

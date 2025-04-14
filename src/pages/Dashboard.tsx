@@ -1,11 +1,11 @@
+
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, BarChart4, Users, ShoppingCart, Package, Boxes } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import DashboardMenuItem from "@/components/DashboardMenuItem";
-import { DashboardMenuItem as DashboardMenuItemType } from "@/types";
+import DashboardMenuItem, { DashboardMenuItem as DashboardMenuItemType } from "@/components/DashboardMenuItem";
 
 const Dashboard = () => {
   const navigate = useNavigate();
