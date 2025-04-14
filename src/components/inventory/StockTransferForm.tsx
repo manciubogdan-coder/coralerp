@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,8 +40,10 @@ interface TransferItem {
   crateTypeId?: string;
   crateWeight?: number;
   pallets?: number;
-  grossQuantity?: number;
-  netQuantity?: number;
+  palletWeight?: number;
+  grossQuantity: number;
+  netQuantity: number;
+  originalCrateCount?: number;
 }
 
 interface TransferFormValues {
@@ -105,24 +108,47 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setSelectedItems([...selectedItems, {
       id: selectedItem.id,
       productName,
-      quantity: 1,
+      quantity: selectedItem.quantity,
       unit: selectedItem.unit,
       maxQuantity: selectedItem.quantity,
       crateCount: selectedItem.crate_count || 0,
+      originalCrateCount: selectedItem.crate_count || 0,
       crateTypeId: selectedItem.crate_type_id || undefined,
       crateWeight: selectedItem.crate_weight || 0,
       pallets: 0,
-      grossQuantity: selectedItem.gross_quantity || selectedItem.quantity,
+      palletWeight: 0,
+      grossQuantity: selectedItem.quantity,
       netQuantity: selectedItem.net_quantity || selectedItem.quantity
     }]);
   };
 
-  const handleQuantityChange = (index: number, value: number) => {
+  const calculateNetQuantity = (item: TransferItem) => {
+    // Calculate deductions from crates
+    const totalCrateWeight = (item.crateWeight || 0) * (item.crateCount || 0);
+    
+    // Calculate deductions from pallets
+    const totalPalletWeight = item.palletWeight || 0;
+    
+    // Calculate net quantity by subtracting total weights from gross quantity
+    const netQuantity = Math.max(0, item.grossQuantity - totalCrateWeight - totalPalletWeight);
+    
+    return netQuantity;
+  };
+
+  const handleGrossQuantityChange = (index: number, value: number) => {
     const updatedItems = [...selectedItems];
+    const item = updatedItems[index];
+    const newQuantity = Math.min(Math.max(value, 0), item.maxQuantity);
+    
     updatedItems[index] = {
-      ...updatedItems[index],
-      quantity: Math.min(Math.max(value, 0), updatedItems[index].maxQuantity)
+      ...item,
+      grossQuantity: newQuantity,
+      quantity: newQuantity,
     };
+    
+    // Recalculate net quantity
+    updatedItems[index].netQuantity = calculateNetQuantity(updatedItems[index]);
+    
     setSelectedItems(updatedItems);
   };
 
@@ -130,13 +156,15 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     const updatedItems = [...selectedItems];
     const item = updatedItems[index];
     const newCrateCount = Math.max(0, value);
-    const totalCrateWeight = (item.crateWeight || 0) * newCrateCount;
     
     updatedItems[index] = {
       ...item,
-      crateCount: newCrateCount,
-      netQuantity: (item.grossQuantity || item.quantity) - totalCrateWeight
+      crateCount: newCrateCount
     };
+    
+    // Recalculate net quantity
+    updatedItems[index].netQuantity = calculateNetQuantity(updatedItems[index]);
+    
     setSelectedItems(updatedItems);
   };
 
@@ -146,6 +174,22 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       ...updatedItems[index],
       pallets: Math.max(0, value)
     };
+    setSelectedItems(updatedItems);
+  };
+  
+  const handlePalletWeightChange = (index: number, value: number) => {
+    const updatedItems = [...selectedItems];
+    const item = updatedItems[index];
+    const newPalletWeight = Math.max(0, value);
+    
+    updatedItems[index] = {
+      ...item,
+      palletWeight: newPalletWeight
+    };
+    
+    // Recalculate net quantity
+    updatedItems[index].netQuantity = calculateNetQuantity(updatedItems[index]);
+    
     setSelectedItems(updatedItems);
   };
 
@@ -196,7 +240,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             inventory_item_id: item.id,
             action: "remove",
             name: item.productName,
-            quantity: item.quantity,
+            quantity: item.grossQuantity,
             unit: item.unit,
             operation_date: new Date().toISOString(),
             crate_count: item.crateCount,
@@ -219,7 +263,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         if (getError) throw getError;
         
         const currentQuantity = inventoryItem?.quantity || 0;
-        const newQuantity = Math.max(0, currentQuantity - item.quantity);
+        const newQuantity = Math.max(0, currentQuantity - item.grossQuantity);
         
         const { error: updateError } = await supabase
           .from('inventory')
@@ -372,13 +416,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         </Button>
                       </div>
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                         <div>
-                          <label className="text-sm">Cantitate {item.unit}</label>
+                          <label className="text-sm">Cantitate brută {item.unit}</label>
                           <Input
                             type="number"
-                            value={item.quantity}
-                            onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value))}
+                            value={item.grossQuantity}
+                            onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value))}
                             min={0}
                             max={item.maxQuantity}
                           />
@@ -406,16 +450,25 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           />
                         </div>
                         
-                        {item.netQuantity !== undefined && item.netQuantity !== item.quantity && (
-                          <div>
-                            <label className="text-sm">Cantitate netă</label>
-                            <Input
-                              type="number"
-                              value={item.netQuantity}
-                              disabled
-                            />
-                          </div>
-                        )}
+                        <div>
+                          <label className="text-sm">Greutate paleți (kg)</label>
+                          <Input
+                            type="number"
+                            value={item.palletWeight}
+                            onChange={(e) => handlePalletWeightChange(index, parseFloat(e.target.value))}
+                            min={0}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="text-sm">Cantitate netă</label>
+                          <Input
+                            type="number"
+                            value={item.netQuantity}
+                            disabled
+                            className="bg-gray-100"
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
