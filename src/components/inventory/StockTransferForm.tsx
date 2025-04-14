@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -134,43 +133,46 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSubmitting(true);
     
     try {
-      // Use rpc to call the create_stock_transfer function
-      const { data: transferId, error: transferError } = await supabase
-        .rpc('create_stock_transfer', { 
+      const { data, error: transferError } = await supabase.rpc(
+        "create_stock_transfer",
+        {
           p_transfer_date: formData.transferDate,
           p_destination: formData.destination,
           p_notes: formData.notes
-        });
-
+        }
+      );
+      
       if (transferError) throw transferError;
+      
+      const transferId = data;
       
       if (!transferId) {
         throw new Error("Nu s-a putut crea bonul de transfer.");
       }
       
-      // Create transfer items and update inventory
       const transferItemsPromises = selectedItems.map(async (item) => {
-        // Add transfer item using rpc
-        const { error: itemError } = await supabase
-          .rpc('create_stock_transfer_item', {
+        const { error: itemError } = await supabase.rpc(
+          "create_stock_transfer_item",
+          {
             p_transfer_id: transferId,
             p_inventory_item_id: item.id,
             p_quantity: item.quantity,
             p_unit: item.unit
-          });
+          }
+        );
           
         if (itemError) throw itemError;
 
-        // Update inventory quantity
-        const { error: updateError } = await supabase
-          .rpc('decrement_quantity', { 
-            row_id: item.id, 
-            amount: item.quantity 
-          });
+        const { error: updateError } = await supabase.rpc(
+          "decrement_quantity",
+          {
+            row_id: item.id,
+            amount: item.quantity
+          }
+        );
           
         if (updateError) throw updateError;
 
-        // Add to inventory history
         const { error: historyError } = await supabase
           .from("inventory_history")
           .insert({

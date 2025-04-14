@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-custom-toast";
 import { useToast } from "@/components/ui/use-toast";
 import { Command } from "cmdk";
-import { Search, RefreshCw, Mic, Settings, HelpCircle } from "lucide-react";
+import { Search, RefreshCw, Mic, Settings, HelpCircle, ArrowLeft } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { InventoryItem } from "@/types";
@@ -206,42 +206,43 @@ const Index = () => {
 
       <Footer />
 
-      <Command
-        className="dark"
-        open={isCommandPaletteOpen}
-        onOpenChange={setIsCommandPaletteOpen}
-      >
-        <Command.Dialog>
-          <Command.Input placeholder="Caută comenzi sau tastează un command" />
-          <Command.List>
-            <Command.Empty>Nu am găsit nimic.</Command.Empty>
+      {isCommandPaletteOpen && (
+        <Command>
+          <Command.Dialog
+            className="dark"
+            onOpenChange={setIsCommandPaletteOpen}
+          >
+            <Command.Input placeholder="Caută comenzi sau tastează un command" />
+            <Command.List>
+              <Command.Empty>Nu am găsit nimic.</Command.Empty>
 
-            <Command.Group heading="Setări">
-              <Command.Item
-                onSelect={() => {
-                  setIsCommandPaletteOpen(false);
-                  navigate("/dashboard/settings");
-                }}
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                Setări
-              </Command.Item>
-            </Command.Group>
+              <Command.Group heading="Setări">
+                <Command.Item
+                  onSelect={() => {
+                    setIsCommandPaletteOpen(false);
+                    navigate("/dashboard/settings");
+                  }}
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Setări
+                </Command.Item>
+              </Command.Group>
 
-            <Command.Group heading="Ajutor">
-              <Command.Item
-                onSelect={() => {
-                  setIsCommandPaletteOpen(false);
-                  navigate("/dashboard/help");
-                }}
-              >
-                <HelpCircle className="mr-2 h-4 w-4" />
-                Ajutor
-              </Command.Item>
-            </Command.Group>
-          </Command.List>
-        </Command.Dialog>
-      </Command>
+              <Command.Group heading="Ajutor">
+                <Command.Item
+                  onSelect={() => {
+                    setIsCommandPaletteOpen(false);
+                    navigate("/dashboard/help");
+                  }}
+                >
+                  <HelpCircle className="mr-2 h-4 w-4" />
+                  Ajutor
+                </Command.Item>
+              </Command.Group>
+            </Command.List>
+          </Command.Dialog>
+        </Command>
+      )}
     </div>
   );
 };
