@@ -62,9 +62,11 @@ export type Database = {
           created_at: string | null
           document_number: string | null
           entry_number: number
+          gross_quantity: number | null
           id: string
           manufacturer_id: string | null
           name: string
+          net_quantity: number | null
           product_id: string | null
           quantity: number
           receipt_date: string | null
@@ -80,9 +82,11 @@ export type Database = {
           created_at?: string | null
           document_number?: string | null
           entry_number?: number
+          gross_quantity?: number | null
           id?: string
           manufacturer_id?: string | null
           name: string
+          net_quantity?: number | null
           product_id?: string | null
           quantity?: number
           receipt_date?: string | null
@@ -98,9 +102,11 @@ export type Database = {
           created_at?: string | null
           document_number?: string | null
           entry_number?: number
+          gross_quantity?: number | null
           id?: string
           manufacturer_id?: string | null
           name?: string
+          net_quantity?: number | null
           product_id?: string | null
           quantity?: number
           receipt_date?: string | null

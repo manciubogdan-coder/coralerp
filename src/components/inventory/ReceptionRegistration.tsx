@@ -59,7 +59,6 @@ export function ReceptionRegistration({
       [field]: value
     };
     
-    // Recalculate net quantity whenever relevant fields change
     newPallets[index].netQuantity = calculateNetQuantity(newPallets[index]);
     
     setPallets(newPallets);
@@ -89,7 +88,6 @@ export function ReceptionRegistration({
       const selectedProduct = products.find(p => p.id === productId);
       if (!selectedProduct) return;
 
-      // Insert each pallet as a separate inventory entry
       for (const pallet of pallets) {
         if (pallet.grossQuantity <= 0) continue;
 
@@ -121,7 +119,6 @@ export function ReceptionRegistration({
       setIsOpen(false);
       onRegistrationComplete();
       
-      // Reset form
       setProductId(null);
       setSupplierId(null);
       setManufacturerId(null);
@@ -133,7 +130,6 @@ export function ReceptionRegistration({
         palletWeight: 0,
         netQuantity: 0
       }]);
-
     } catch (error: any) {
       toast({
         title: "Eroare",
@@ -157,7 +153,6 @@ export function ReceptionRegistration({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Product Selection */}
           <div className="space-y-2">
             <label className="font-medium">Produs</label>
             <Select value={productId || ''} onValueChange={setProductId}>
@@ -174,7 +169,6 @@ export function ReceptionRegistration({
             </Select>
           </div>
 
-          {/* Supplier Selection */}
           <div className="space-y-2">
             <label className="font-medium">Furnizor</label>
             <Select value={supplierId || ''} onValueChange={setSupplierId}>
@@ -191,7 +185,6 @@ export function ReceptionRegistration({
             </Select>
           </div>
 
-          {/* Manufacturer Selection */}
           <div className="space-y-2">
             <label className="font-medium">Producător</label>
             <Select value={manufacturerId || ''} onValueChange={setManufacturerId}>
@@ -208,7 +201,6 @@ export function ReceptionRegistration({
             </Select>
           </div>
 
-          {/* Document Number */}
           <div className="space-y-2">
             <label className="font-medium">Număr document</label>
             <Input
@@ -218,7 +210,6 @@ export function ReceptionRegistration({
             />
           </div>
 
-          {/* Pallets Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">Paleți</h3>
@@ -232,7 +223,6 @@ export function ReceptionRegistration({
               <div key={index} className="p-4 border rounded-lg space-y-4">
                 <h4 className="font-medium">Palet {index + 1}</h4>
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Gross Quantity */}
                   <div className="space-y-2">
                     <label className="text-sm">Cantitate brută (kg)</label>
                     <Input
@@ -242,7 +232,6 @@ export function ReceptionRegistration({
                     />
                   </div>
 
-                  {/* Pallet Weight */}
                   <div className="space-y-2">
                     <label className="text-sm">Greutate palet (kg)</label>
                     <Input
@@ -252,7 +241,6 @@ export function ReceptionRegistration({
                     />
                   </div>
 
-                  {/* Crate Type */}
                   <div className="space-y-2">
                     <label className="text-sm">Tip lădiță</label>
                     <Select 
@@ -272,7 +260,6 @@ export function ReceptionRegistration({
                     </Select>
                   </div>
 
-                  {/* Crate Count */}
                   <div className="space-y-2">
                     <label className="text-sm">Număr lădițe</label>
                     <Input
@@ -283,7 +270,6 @@ export function ReceptionRegistration({
                   </div>
                 </div>
 
-                {/* Net Quantity Display */}
                 <div className="mt-4 p-3 bg-gray-50 rounded-md">
                   <p className="text-sm font-medium">
                     Cantitate netă: {pallet.netQuantity.toFixed(2)} {selectedProduct?.default_unit || 'kg'}

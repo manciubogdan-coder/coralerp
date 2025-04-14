@@ -1,4 +1,3 @@
-
 // Inventory related interfaces
 export interface InventoryItem {
   id?: string;
@@ -16,9 +15,9 @@ export interface InventoryItem {
   crate_type_id?: string;
   crate_count?: number;
   crate_weight?: number;
-  gross_quantity?: number; // Adăugat câmp pentru cantitatea brută
-  net_quantity?: number;   // Adăugat câmp pentru cantitatea netă
-  isHeader?: boolean; // For grouped views
+  gross_quantity?: number;
+  net_quantity?: number;
+  isHeader?: boolean;
   action?: 'add' | 'remove' | 'set';
   // Added timestamps with the correct format
   created_at?: string | {
@@ -139,8 +138,8 @@ export interface CommandResult {
 export interface DashboardMenuItem {
   id: string;
   name: string;
-  icon: React.ComponentType; // Updated to use React.ComponentType instead of string
+  icon: React.ComponentType;
   route: string;
   description?: string;
-  path?: string; // Added for backward compatibility
+  path?: string;
 }
