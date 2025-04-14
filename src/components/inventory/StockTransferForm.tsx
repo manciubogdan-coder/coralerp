@@ -63,6 +63,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<TransferItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const form = useForm<TransferFormValues>({
     defaultValues: {
@@ -320,6 +321,17 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     item => !selectedItems.some(selected => selected.id === item.id)
   );
 
+  const filteredItems = availableItems.filter(item => {
+    const productName = item.products?.name || item.name || '';
+    const supplierName = item.supplier || item.suppliers?.name || '';
+    const manufacturerName = item.manufacturer || item.manufacturers?.name || '';
+    const searchLower = searchTerm.toLowerCase();
+
+    return productName.toLowerCase().includes(searchLower) ||
+           supplierName.toLowerCase().includes(searchLower) ||
+           manufacturerName.toLowerCase().includes(searchLower);
+  });
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -396,17 +408,47 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             <div className="border rounded-md p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-md font-medium">Produse de transferat</h3>
-                <Select onValueChange={handleAddItem}>
-                  <SelectTrigger className="w-[250px]">
+                <Select 
+                  onValueChange={handleAddItem}
+                  onOpenChange={(open) => {
+                    if (open) {
+                      setSearchTerm("");
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[400px]">
                     <SelectValue placeholder="Adăugați un produs" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableItems.length === 0 ? (
-                      <SelectItem value="no-items-available" disabled>Nu mai există produse disponibile</SelectItem>
+                    <div className="px-3 py-2">
+                      <Input
+                        placeholder="Caută produse..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="mb-2"
+                      />
+                    </div>
+                    {filteredItems.length === 0 ? (
+                      <SelectItem value="no-items-available" disabled>
+                        Nu există produse disponibile
+                      </SelectItem>
                     ) : (
-                      availableItems.map(item => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.products?.name || item.name} ({item.quantity} {item.unit})
+                      filteredItems.map(item => (
+                        <SelectItem key={item.id} value={item.id} className="py-3">
+                          <div className="flex flex-col">
+                            <span className="font-medium">
+                              {item.products?.name || item.name}
+                            </span>
+                            <span className="text-sm text-gray-500">
+                              Cantitate: {item.quantity} {item.unit}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {item.supplier || item.suppliers?.name ? 
+                                `Furnizor: ${item.supplier || item.suppliers?.name}` : ''}
+                              {item.manufacturer || item.manufacturers?.name ? 
+                                ` | Producător: ${item.manufacturer || item.manufacturers?.name}` : ''}
+                            </span>
+                          </div>
                         </SelectItem>
                       ))
                     )}
