@@ -38,6 +38,7 @@ interface TransferItem {
   product_id?: string;
   supplier_id?: string;
   manufacturer_id?: string;
+  created_at?: string;
 }
 
 interface ReturnFormProps {
@@ -315,8 +316,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       return (
         (transfer.product_name && transfer.product_name.toLowerCase().includes(searchLower)) ||
         (transfer.supplier_name && transfer.supplier_name.toLowerCase().includes(searchLower)) ||
-        (transfer.document_number && transfer.document_number.toLowerCase().includes(searchLower)) ||
-        (transfer.notes && transfer.notes.toLowerCase().includes(searchLower))
+        (transfer.document_number && transfer.document_number.toLowerCase().includes(searchTerm)) ||
+        (transfer.notes && transfer.notes.toLowerCase().includes(searchTerm))
       );
     }
     
@@ -387,7 +388,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                   <TableRow key={`${transfer.transfer_id}-${transfer.inventory_item_id}`}>
                     <TableCell>
                       {transfer.created_at 
-                        ? format(new Date(transfer.created_at), 'dd.MM.yyyy HH:mm')
+                        ? format(new Date(transfer.created_at), 'dd.MM.yyyy HH:mm:ss')
                         : transfer.transfer_date 
                           ? format(new Date(transfer.transfer_date), 'dd.MM.yyyy')
                           : '-'}
