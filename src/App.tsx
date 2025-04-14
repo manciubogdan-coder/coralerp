@@ -29,10 +29,10 @@ const App = () => (
               <AppSidebar />
               <SidebarInset>
                 <div className="flex flex-col min-h-screen w-full">
-                  <div className="flex items-center justify-start p-4 border-b">
-                    <SidebarTrigger className="mr-4" />
+                  <div className="flex items-center justify-between p-2 sm:p-4 border-b">
+                    <SidebarTrigger className="mr-2 sm:mr-4" />
                   </div>
-                  <main className="flex-1 p-4">
+                  <main className="flex-1 p-2 sm:p-4">
                     <Routes>
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/dashboard" element={<Navigate to="/" replace />} />

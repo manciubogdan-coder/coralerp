@@ -1,7 +1,6 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart4, Users, ShoppingCart, Package, Boxes, Eye } from "lucide-react";
+import { Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -21,7 +20,7 @@ const Dashboard = () => {
     {
       id: "inventory-overview",
       name: "Vizualizare Simplă Inventar",
-      icon: Eye,
+      icon: Package,
       route: "/inventory",
       description: "Vizualizare simplificată a stocului."
     },
@@ -59,20 +58,21 @@ const Dashboard = () => {
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
 
-      <main className="flex-1 container mx-auto p-4 md:p-6">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Panou de Control</h1>
+      <main className="flex-1 container mx-auto px-2 sm:px-4 py-2 sm:py-6">
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h1 className="text-xl sm:text-2xl font-bold">Panou de Control</h1>
           <Button
             variant="secondary"
             size="sm"
             onClick={() => navigate("/inventory")}
+            className="w-full sm:w-auto"
           >
             <Package className="h-4 w-4 mr-2" />
             Vizualizare Stoc
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {menuItems.map((item) => (
             <DashboardMenuItem key={item.id} item={item} />
           ))}
@@ -85,4 +85,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
