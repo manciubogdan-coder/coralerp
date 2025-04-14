@@ -316,8 +316,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       return (
         (transfer.product_name && transfer.product_name.toLowerCase().includes(searchLower)) ||
         (transfer.supplier_name && transfer.supplier_name.toLowerCase().includes(searchLower)) ||
-        (transfer.document_number && transfer.document_number.toLowerCase().includes(searchTerm)) ||
-        (transfer.notes && transfer.notes.toLowerCase().includes(searchTerm))
+        (transfer.document_number && transfer.document_number.toLowerCase().includes(searchLower)) ||
+        (transfer.notes && transfer.notes.toLowerCase().includes(searchLower))
       );
     }
     

@@ -478,6 +478,7 @@ export type Database = {
       stock_transfer_view: {
         Row: {
           crate_count: number | null
+          created_at: string | null
           destination: string | null
           document_number: string | null
           entry_number: number | null
