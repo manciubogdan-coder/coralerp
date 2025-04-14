@@ -134,41 +134,58 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSubmitting(true);
     
     try {
-      // Creare transfer direct fără RPC
-      const { data: transferData, error: transferError } = await supabase.rpc('create_stock_transfer', {
-        p_transfer_date: formData.transferDate,
-        p_destination: formData.destination,
-        p_notes: formData.notes
-      });
+      // Creare transfer prin insert direct
+      const { data: transferData, error: transferError } = await supabase
+        .from('stock_transfers')
+        .insert({
+          transfer_date: formData.transferDate,
+          destination: formData.destination,
+          notes: formData.notes
+        })
+        .select('id')
+        .single();
       
       if (transferError) throw transferError;
-
+      
       // Verificăm dacă avem un id valid
-      if (!transferData) {
+      if (!transferData || !transferData.id) {
         throw new Error("Nu s-a putut crea bonul de transfer.");
       }
       
-      const transferId = transferData;
+      const transferId = transferData.id;
       
       // Procesăm fiecare element din transfer
       for (const item of selectedItems) {
         // Adăugare element în transferul de stoc
-        const { error: itemError } = await supabase.rpc('create_stock_transfer_item', {
-          p_transfer_id: transferId,
-          p_inventory_item_id: item.id,
-          p_quantity: item.quantity,
-          p_unit: item.unit
-        });
+        const { error: itemError } = await supabase
+          .from('stock_transfer_items')
+          .insert({
+            transfer_id: transferId,
+            inventory_item_id: item.id,
+            quantity: item.quantity,
+            unit: item.unit
+          });
           
         if (itemError) throw itemError;
 
         // Decrementare cantitate din stoc
-        const { error: quantityError } = await supabase.rpc('decrement_quantity', {
-          row_id: item.id,
-          amount: item.quantity
-        });
-          
-        if (quantityError) throw quantityError;
+        const { data: inventoryItem, error: getError } = await supabase
+          .from('inventory')
+          .select('quantity')
+          .eq('id', item.id)
+          .single();
+        
+        if (getError) throw getError;
+        
+        const currentQuantity = inventoryItem?.quantity || 0;
+        const newQuantity = Math.max(0, currentQuantity - item.quantity);
+        
+        const { error: updateError } = await supabase
+          .from('inventory')
+          .update({ quantity: newQuantity })
+          .eq('id', item.id);
+           
+        if (updateError) throw updateError;
 
         // Adăugare în istoricul inventarului
         const { error: historyError } = await supabase

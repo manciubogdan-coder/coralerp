@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { LucideIcon } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
-interface DashboardMenuItemProps {
+export interface DashboardMenuItemProps {
   item: {
     id: string;
     name: string;
@@ -46,3 +46,12 @@ const DashboardMenuItem = ({ item }: DashboardMenuItemProps) => {
 };
 
 export default DashboardMenuItem;
+
+// Export the item type for use in other components
+export type DashboardMenuItem = {
+  id: string;
+  name: string;
+  icon: LucideIcon;
+  route: string;
+  description: string;
+};
