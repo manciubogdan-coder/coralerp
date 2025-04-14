@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -214,51 +213,28 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     try {
       // First create a transfer document
       const { data: transferData, error: transferError } = await supabase
-        .from("stock_transfers")
+        .from('stock_transfers')
         .insert({
           transfer_date: formData.transferDate,
           destination: formData.destination,
           notes: formData.notes
         })
-        .select("id")
+        .select()
         .single();
       
       if (transferError) throw transferError;
       
-      if (!transferData || !transferData.id) {
+      if (!transferData) {
         throw new Error("Nu s-a putut crea bonul de transfer.");
       }
       
-      const transferId = transferData.id;
-      
       // Process each item in the transfer
       for (const item of selectedItems) {
-        // 1. Record the transfer in inventory_history
-        const { error: historyError } = await supabase
-          .from("inventory_history")
-          .insert({
-            inventory_item_id: item.id,
-            action: "remove", // Using 'remove' action since we're removing from inventory
-            name: item.productName,
-            quantity: item.grossQuantity,
-            unit: item.unit,
-            operation_date: new Date().toISOString(),
-            crate_count: item.crateCount,
-            crate_type_id: item.crateTypeId,
-            crate_weight: item.crateWeight,
-            pallets: item.pallets,
-            gross_quantity: item.grossQuantity,
-            net_quantity: item.netQuantity,
-            notes: `Transfer către ${formData.destination}`
-          });
-          
-        if (historyError) throw historyError;
-        
-        // 2. Add item to stock_transfer_items
+        // Add item to stock_transfer_items
         const { error: transferItemError } = await supabase
-          .from("stock_transfer_items")
+          .from('stock_transfer_items')
           .insert({
-            transfer_id: transferId,
+            transfer_id: transferData.id,
             inventory_item_id: item.id,
             quantity: item.grossQuantity,
             unit: item.unit
@@ -266,7 +242,27 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           
         if (transferItemError) throw transferItemError;
 
-        // 3. Update inventory quantity
+        // Record the transfer in inventory_history
+        const { error: historyError } = await supabase
+          .from("inventory_history")
+          .insert({
+            inventory_item_id: item.id,
+            action: "transfer",
+            name: item.productName,
+            quantity: item.grossQuantity,
+            unit: item.unit,
+            operation_date: new Date().toISOString(),
+            crate_count: item.crateCount,
+            crate_type_id: item.crateTypeId,
+            crate_weight: item.crateWeight,
+            gross_quantity: item.grossQuantity,
+            net_quantity: item.netQuantity,
+            notes: `Transfer către ${formData.destination}`
+          });
+          
+        if (historyError) throw historyError;
+
+        // Update inventory quantity
         const { data: inventoryItem, error: getError } = await supabase
           .from('inventory')
           .select('quantity')

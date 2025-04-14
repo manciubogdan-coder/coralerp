@@ -321,6 +321,89 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_transfer_items: {
+        Row: {
+          created_at: string
+          id: string
+          inventory_item_id: string
+          quantity: number
+          transfer_id: string
+          unit: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inventory_item_id: string
+          quantity: number
+          transfer_id: string
+          unit: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inventory_item_id?: string
+          quantity?: number
+          transfer_id?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfer_items_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_with_history"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfer_view"
+            referencedColumns: ["transfer_id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_transfers: {
+        Row: {
+          created_at: string
+          destination: string
+          id: string
+          notes: string | null
+          transfer_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          destination: string
+          id?: string
+          notes?: string | null
+          transfer_date?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          destination?: string
+          id?: string
+          notes?: string | null
+          transfer_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       suppliers: {
         Row: {
           contact: string | null
@@ -403,6 +486,72 @@ export type Database = {
           supplier: string | null
           unit: string | null
           updated_at: string | null
+        }
+        Relationships: []
+      }
+      stock_transfer_view: {
+        Row: {
+          crate_count: number | null
+          destination: string | null
+          inventory_item_id: string | null
+          net_quantity: number | null
+          notes: string | null
+          product_name: string | null
+          quantity: number | null
+          transfer_date: string | null
+          transfer_id: string | null
+          unit: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfer_items_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_with_history"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transfer_operations: {
+        Row: {
+          crate_count: number | null
+          document_number: string | null
+          id: string | null
+          net_quantity: number | null
+          notes: string | null
+          operation_date: string | null
+          product_name: string | null
+          quantity: number | null
+          unit: string | null
+        }
+        Insert: {
+          crate_count?: number | null
+          document_number?: string | null
+          id?: string | null
+          net_quantity?: number | null
+          notes?: string | null
+          operation_date?: string | null
+          product_name?: string | null
+          quantity?: number | null
+          unit?: string | null
+        }
+        Update: {
+          crate_count?: number | null
+          document_number?: string | null
+          id?: string | null
+          net_quantity?: number | null
+          notes?: string | null
+          operation_date?: string | null
+          product_name?: string | null
+          quantity?: number | null
+          unit?: string | null
         }
         Relationships: []
       }
