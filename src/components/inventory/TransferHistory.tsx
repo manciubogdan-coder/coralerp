@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,9 @@ interface TransferItem {
   supplier_id?: string;
   manufacturer_id?: string;
   created_at?: string;
+  // Add missing properties
+  crate_type_id?: string;
+  crate_weight?: number;
 }
 
 interface ReturnFormProps {
