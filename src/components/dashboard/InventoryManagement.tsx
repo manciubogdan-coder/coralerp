@@ -1,20 +1,11 @@
-
 import React, { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-custom-toast";
-import { Pencil, Trash, Plus, Save, X, FileDown, Mail } from "lucide-react";
+import { FileDown, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ReceptionRegistration } from "@/components/inventory/ReceptionRegistration";
+import { Pencil, Trash, Plus, Save, X, FileDown, Mail } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -45,7 +36,6 @@ interface InventoryItem {
   created_at?: string | null;
   updated_at?: string | null;
   entry_number?: number;
-  // Added for join data
   suppliers?: { name: string };
   products?: { name: string };
   manufacturers?: { name: string };
@@ -688,9 +678,13 @@ const InventoryManagement = () => {
           <Button variant="outline" size="sm" onClick={handleSendEmail}>
             <Mail className="h-4 w-4 mr-2" /> Trimite Email
           </Button>
-          <Button onClick={handleAddNew} disabled={isAddingNew}>
-            <Plus className="h-4 w-4 mr-2" /> Adaugă în inventar
-          </Button>
+          <ReceptionRegistration
+            products={products}
+            suppliers={suppliers}
+            manufacturers={manufacturers}
+            crateTypes={crateTypes}
+            onRegistrationComplete={fetchInventory}
+          />
         </div>
       </div>
 

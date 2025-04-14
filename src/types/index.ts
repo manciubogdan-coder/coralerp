@@ -1,4 +1,3 @@
-
 // Inventory related interfaces
 export interface InventoryItem {
   id?: string;
@@ -57,7 +56,7 @@ export interface Product {
   name: string;
   description?: string;
   category?: string;
-  unit?: string;
+  default_unit: string;
   created_at?: string;
   updated_at?: string;
 }
