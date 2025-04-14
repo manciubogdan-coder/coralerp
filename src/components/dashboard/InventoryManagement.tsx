@@ -5,9 +5,13 @@ import { useAggregatedStock } from "@/hooks/use-aggregated-stock";
 import { InventoryToolbar } from "@/components/inventory/InventoryToolbar";
 import { InventoryViewOptions } from "@/components/inventory/InventoryViewOptions";
 import InventoryTable from "@/components/InventoryTable";
+import { TransferHistory } from "@/components/inventory/TransferHistory";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const InventoryManagement = () => {
   const [activeTab, setActiveTab] = useState("all");
+  const [viewMode, setViewMode] = useState<"inventory" | "transfers">("inventory");
+  
   const { 
     inventory,
     loading,
@@ -34,16 +38,35 @@ const InventoryManagement = () => {
         />
       </div>
 
-      <InventoryViewOptions
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        groupBy={groupBy}
-        setGroupBy={setGroupBy}
-      />
-
-      <div className="bg-white rounded-lg shadow-md">
-        <InventoryTable inventory={aggregatedData} />
-      </div>
+      <Tabs 
+        value={viewMode} 
+        onValueChange={(value) => setViewMode(value as "inventory" | "transfers")}
+        className="mb-4"
+      >
+        <TabsList>
+          <TabsTrigger value="inventory">Inventar Curent</TabsTrigger>
+          <TabsTrigger value="transfers">Istoric Transferuri</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="inventory">
+          <InventoryViewOptions
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            groupBy={groupBy}
+            setGroupBy={setGroupBy}
+          />
+          <div className="bg-white rounded-lg shadow-md">
+            <InventoryTable inventory={aggregatedData} />
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="transfers">
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <h3 className="text-lg font-medium mb-4">Istoric Transferuri Gestiune</h3>
+            <TransferHistory />
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
