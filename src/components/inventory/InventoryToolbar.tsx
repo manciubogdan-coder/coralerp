@@ -2,7 +2,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { FileDown, Mail } from "lucide-react";
-import { StockTransferForm } from "@/components/inventory/StockTransferForm";
+import StockTransferForm from "@/components/inventory/StockTransferForm";
 import { ReceptionRegistration } from "@/components/inventory/ReceptionRegistration";
 import { Product, Supplier, Manufacturer, CrateType } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";

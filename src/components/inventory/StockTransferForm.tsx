@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,11 @@ interface TransferItem {
   entry_number?: number;
 }
 
-const StockTransferForm = () => {
+interface StockTransferFormProps {
+  onTransferComplete?: () => void;
+}
+
+const StockTransferForm = ({ onTransferComplete }: StockTransferFormProps) => {
   const [products, setProducts] = useState<InventoryItem[]>([]);
   const [transferItems, setTransferItems] = useState<TransferItem[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -40,7 +45,8 @@ const StockTransferForm = () => {
           throw error;
         }
 
-        setProducts(data || []);
+        // Cast the data as InventoryItem[] to ensure TypeScript compatibility
+        setProducts(data as unknown as InventoryItem[]);
       } catch (error) {
         console.error("Error fetching products:", error);
         toast({
@@ -94,7 +100,7 @@ const StockTransferForm = () => {
 
       for (const item of items) {
         const { error } = await supabase
-          .from('stock_transfer')
+          .from('stock_transfers')
           .insert([
             {
               transfer_date: transferDate,
@@ -152,6 +158,11 @@ const StockTransferForm = () => {
         });
         setTransferItems([]);
         setEntryNumberInput('');
+        
+        // Call the onTransferComplete callback if provided
+        if (onTransferComplete) {
+          onTransferComplete();
+        }
       } else {
         toast({
           variant: "destructive",
@@ -205,13 +216,13 @@ const StockTransferForm = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="product">Produs:</Label>
-          <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+          <Select value={selectedProductId || ''} onValueChange={setSelectedProductId}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selectează un produs" />
             </SelectTrigger>
             <SelectContent>
               {products.map((product) => (
-                <SelectItem key={product.id} value={product.id}>
+                <SelectItem key={product.id} value={product.id || ''}>
                   {product.name}
                 </SelectItem>
               ))}
@@ -224,7 +235,7 @@ const StockTransferForm = () => {
             type="number"
             id="quantity"
             value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
+            onChange={(e) => setQuantity(e.target.value === '' ? '' : Number(e.target.value))}
             placeholder="Cantitate"
           />
         </div>
@@ -250,7 +261,7 @@ const StockTransferForm = () => {
             type="number"
             id="crateCount"
             value={crateCount}
-            onChange={(e) => setCrateCount(e.target.value)}
+            onChange={(e) => setCrateCount(e.target.value === '' ? '' : Number(e.target.value))}
             placeholder="Număr lăzi"
           />
         </div>
