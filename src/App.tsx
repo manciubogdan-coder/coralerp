@@ -32,7 +32,7 @@ const App = () => (
                 <div className="flex flex-col min-h-screen w-full">
                   <div className="flex items-center p-4 border-b">
                     <SidebarTrigger className="mr-4" />
-                    <h1 className="text-xl font-semibold">Inventory Management System</h1>
+                    {/* Removed the "Inventory Management System" heading */}
                   </div>
                   <main className="flex-1 p-4">
                     <Routes>

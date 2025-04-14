@@ -261,7 +261,7 @@ const SidebarTrigger = React.forwardRef<
       variant="default"
       size="icon"
       className={cn(
-        "h-10 w-10 bg-coral-DEFAULT hover:bg-coral-DEFAULT/90 text-white", 
+        "h-10 w-10 bg-green-DEFAULT hover:bg-green-DEFAULT/90 text-white border-2 border-white shadow-md", 
         className
       )}
       onClick={(event) => {
@@ -270,7 +270,7 @@ const SidebarTrigger = React.forwardRef<
       }}
       {...props}
     >
-      <PanelLeft />
+      <PanelLeft className="h-6 w-6" />
       <span className="sr-only">Deschide Meniu</span>
     </Button>
   )
