@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -78,7 +77,7 @@ const AppSidebar = () => {
   return (
     <Sidebar className={isMobile ? "bg-white" : ""}>
       <SidebarHeader className="p-4 border-b bg-white">
-        <h1 className="text-xl font-bold text-black">Inventory Manager</h1>
+        <h1 className="text-xl font-bold text-black">Stoc Depozit</h1>
       </SidebarHeader>
       
       <SidebarContent className={isMobile ? "bg-white" : ""}>
