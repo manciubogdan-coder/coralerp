@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-custom-toast";
 import { useToast } from "@/components/ui/use-toast";
-import { Search, RefreshCw, Mic, Settings, HelpCircle, ArrowLeft } from "lucide-react";
+import { Search, RefreshCw, Mic, Settings, HelpCircle } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { InventoryItem } from "@/types";
@@ -22,7 +22,6 @@ const Index = () => {
   const { toast: useToastHook } = useToast();
 
   useEffect(() => {
-    // Verificăm dacă există setarea pentru audio în localStorage
     const savedAudioSetting = localStorage.getItem('inventoryAudioEnabled');
     if (savedAudioSetting !== null) {
       setIsAudioEnabled(savedAudioSetting === 'true');
@@ -94,7 +93,6 @@ const Index = () => {
   };
 
   const handleExportExcelClick = () => {
-    // Prepare data for Excel export
     const processedData = filteredInventory.map(item => ({
       Nume: item.name,
       Cantitate: item.quantity,
@@ -118,18 +116,7 @@ const Index = () => {
 
       <main className="flex-1 container mx-auto p-4 md:p-6">
         <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/dashboard")}
-              className="mr-4"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Înapoi la panou
-            </Button>
-            <h1 className="text-2xl font-bold">Gestionare Inventar</h1>
-          </div>
+          <h1 className="text-2xl font-bold">Gestionare Inventar</h1>
 
           <div className="flex items-center space-x-2">
             <Button
