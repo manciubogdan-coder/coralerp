@@ -345,9 +345,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Producție">Producție</SelectItem>
-                          <SelectItem value="Secția de Ambalare">Secția de Ambalare</SelectItem>
-                          <SelectItem value="Secția de Procesare">Secția de Procesare</SelectItem>
-                          <SelectItem value="Laborator">Laborator</SelectItem>
+                          <SelectItem value="Distrugere">Distrugere</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormControl>
@@ -422,7 +420,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           <Input
                             type="number"
                             value={item.grossQuantity}
-                            onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value))}
+                            onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)}
                             min={0}
                             max={item.maxQuantity}
                           />
@@ -434,7 +432,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                             <Input
                               type="number"
                               value={item.crateCount}
-                              onChange={(e) => handleCrateCountChange(index, parseFloat(e.target.value))}
+                              onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
                               min={0}
                             />
                           </div>
@@ -445,7 +443,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           <Input
                             type="number"
                             value={item.pallets}
-                            onChange={(e) => handlePalletsChange(index, parseFloat(e.target.value))}
+                            onChange={(e) => handlePalletsChange(index, parseInt(e.target.value) || 0)}
                             min={0}
                           />
                         </div>
@@ -455,7 +453,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           <Input
                             type="number"
                             value={item.palletWeight}
-                            onChange={(e) => handlePalletWeightChange(index, parseFloat(e.target.value))}
+                            onChange={(e) => handlePalletWeightChange(index, parseFloat(e.target.value) || 0)}
                             min={0}
                           />
                         </div>
