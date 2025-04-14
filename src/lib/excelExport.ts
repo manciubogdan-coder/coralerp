@@ -1,9 +1,16 @@
 
 import * as XLSX from 'xlsx';
+import { InventoryItem } from '@/types';
 
-export const exportToExcel = (inventory: any[]) => {
+interface ExportItem {
+  Nume: string;
+  Cantitate: number;
+  Unitate: string;
+}
+
+export const exportToExcel = (inventory: InventoryItem[]) => {
   // Aggregate inventory by product name
-  const aggregatedInventory = inventory.reduce((acc, item) => {
+  const aggregatedInventory = inventory.reduce<Record<string, ExportItem>>((acc, item) => {
     const productName = item.name;
     if (!acc[productName]) {
       acc[productName] = {
@@ -14,7 +21,7 @@ export const exportToExcel = (inventory: any[]) => {
     }
     acc[productName].Cantitate += item.quantity;
     return acc;
-  }, {} as Record<string, { Nume: string; Cantitate: number; Unitate: string }>);
+  }, {});
 
   // Convert to array and filter out zero quantity items
   const exportData = Object.values(aggregatedInventory)
