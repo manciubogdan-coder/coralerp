@@ -11,23 +11,29 @@ interface InventoryTableProps {
 
 const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
-
-  // Aggregate inventory by product name - this is the critical part
-  const aggregatedInventory = inventory.reduce((acc, item) => {
-    const productName = item.name;
+  const [aggregatedInventory, setAggregatedInventory] = useState<Record<string, { name: string; quantity: number; unit: string }>>({});
+  
+  // Process inventory data when component mounts or inventory changes
+  useEffect(() => {
+    // Aggregate inventory by product name
+    const aggregated = inventory.reduce((acc, item) => {
+      const productName = item.name;
+      
+      if (!acc[productName]) {
+        acc[productName] = {
+          name: productName,
+          quantity: 0,
+          unit: item.unit
+        };
+      }
+      
+      // Sum the quantities
+      acc[productName].quantity += item.quantity;
+      return acc;
+    }, {} as Record<string, { name: string; quantity: number; unit: string }>);
     
-    if (!acc[productName]) {
-      acc[productName] = {
-        name: productName,
-        quantity: 0,
-        unit: item.unit
-      };
-    }
-    
-    // Sum the quantities
-    acc[productName].quantity += item.quantity;
-    return acc;
-  }, {} as Record<string, { name: string; quantity: number; unit: string }>);
+    setAggregatedInventory(aggregated);
+  }, [inventory]);
 
   // Convert to array and filter out zero quantity items
   const displayInventory = Object.values(aggregatedInventory)
