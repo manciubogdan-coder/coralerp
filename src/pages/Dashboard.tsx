@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Package, 
@@ -25,6 +25,7 @@ const Dashboard = () => {
       id: "products",
       name: "Produse",
       icon: Package,
+      route: "/dashboard/products",
       path: "/dashboard/products",
       description: "Gestionează catalogul de produse și specificații"
     },
@@ -32,6 +33,7 @@ const Dashboard = () => {
       id: "suppliers",
       name: "Furnizori",
       icon: Truck,
+      route: "/dashboard/suppliers",
       path: "/dashboard/suppliers",
       description: "Administrează furnizorii și datele de contact"
     },
@@ -39,6 +41,7 @@ const Dashboard = () => {
       id: "manufacturers",
       name: "Producători",
       icon: Factory,
+      route: "/dashboard/manufacturers",
       path: "/dashboard/manufacturers",
       description: "Gestionează producătorii și informațiile despre aceștia"
     },
@@ -46,6 +49,7 @@ const Dashboard = () => {
       id: "crate-types",
       name: "Tipuri de lădițe",
       icon: Box,
+      route: "/dashboard/crate-types",
       path: "/dashboard/crate-types",
       description: "Configurează tipurile de lădițe și greutățile acestora"
     },
@@ -53,6 +57,7 @@ const Dashboard = () => {
       id: "inventory",
       name: "Inventar",
       icon: Database,
+      route: "/dashboard/inventory",
       path: "/dashboard/inventory",
       description: "Adaugă și modifică manual intrările din inventar"
     }
@@ -81,7 +86,7 @@ const Dashboard = () => {
             <Card 
               key={item.id} 
               className="transition-all hover:shadow-md cursor-pointer"
-              onClick={() => navigate(item.path)}
+              onClick={() => navigate(item.path || item.route)}
             >
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-center">

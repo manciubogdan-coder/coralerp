@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -205,6 +206,21 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   };
 
   const visibleColumns = getVisibleColumns();
+
+  // Helper function to format timestamp
+  const formatTimestamp = (timestamp: string | { seconds: number; nanoseconds: number; } | undefined) => {
+    if (!timestamp) return '-';
+    
+    if (typeof timestamp === 'string') {
+      return new Date(timestamp).toLocaleString('ro-RO');
+    }
+    
+    if ('seconds' in timestamp) {
+      return new Date(timestamp.seconds * 1000).toLocaleString('ro-RO');
+    }
+    
+    return '-';
+  };
   
   return (
     <div>
@@ -333,9 +349,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                       )}
                       {visibleColumns.updatedAt && (
                         <TableCell className="text-right">
-                          {item.updated_at 
-                            ? new Date(item.updated_at.seconds * 1000).toLocaleString('ro-RO')
-                            : '-'}
+                          {formatTimestamp(item.updated_at)}
                         </TableCell>
                       )}
                     </TableRow>

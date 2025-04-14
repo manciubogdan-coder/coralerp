@@ -7,9 +7,7 @@ export function exportToExcel(inventory: InventoryItem[]) {
     'Produs': item.name,
     'Cantitate': item.quantity,
     'Unitate': item.unit,
-    'Ultima actualizare': item.updated_at 
-      ? new Date(item.updated_at.seconds * 1000).toLocaleString('ro-RO') 
-      : 'N/A'
+    'Ultima actualizare': formatTimestamp(item.updated_at)
   }));
   
   const worksheet = utils.json_to_sheet(formattedData);
@@ -32,4 +30,19 @@ export function exportToExcel(inventory: InventoryItem[]) {
   const filename = `Stoc_Coral_Bio_Greens_${dateStr}.xlsx`;
   
   writeFile(workbook, filename);
+}
+
+// Helper function to format timestamp consistently
+function formatTimestamp(timestamp: string | { seconds: number; nanoseconds: number; } | undefined): string {
+  if (!timestamp) return 'N/A';
+  
+  if (typeof timestamp === 'string') {
+    return new Date(timestamp).toLocaleString('ro-RO');
+  }
+  
+  if (timestamp && 'seconds' in timestamp) {
+    return new Date(timestamp.seconds * 1000).toLocaleString('ro-RO');
+  }
+  
+  return 'N/A';
 }
