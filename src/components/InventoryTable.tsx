@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -172,20 +171,24 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
     });
   }
 
+  const formatQuantity = (quantity: number) => {
+    return quantity.toFixed(2);
+  };
+
   const getVisibleColumns = () => {
     if (isMobile) {
       return {
-        entryNumber: true,
+        entryNumber: false,
         date: true,
         name: true,
         quantity: true, 
         unit: true,
         supplier: true,
-        manufacturer: true,
+        manufacturer: false,
         batch: true,
-        documentNumber: true,
-        crateType: true,
-        netQuantity: true,
+        documentNumber: false,
+        crateType: false,
+        netQuantity: false,
         updatedAt: false
       };
     }
@@ -223,7 +226,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   };
   
   return (
-    <div>
+    <div className="w-full overflow-x-auto">
       <div className="p-2 md:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
         <div className="relative w-full md:flex-1 md:mr-4">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -231,7 +234,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
             placeholder="Caută produs, furnizor, lot..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-10 w-full"
           />
         </div>
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
@@ -239,14 +242,18 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
             variant="outline" 
             size={isMobile ? "sm" : "default"}
             onClick={() => setShowEmptyItems(!showEmptyItems)}
-            className="flex items-center text-xs md:text-sm"
+            className="flex items-center text-xs md:text-sm w-full md:w-auto"
           >
             {showEmptyItems ? <EyeOff className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" /> : <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />}
             {showEmptyItems ? "Ascunde fără stoc" : "Arată fără stoc"}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size={isMobile ? "sm" : "default"} className="text-xs md:text-sm">
+              <Button 
+                variant="outline" 
+                size={isMobile ? "sm" : "default"} 
+                className="text-xs md:text-sm w-full md:w-auto flex items-center justify-center"
+              >
                 <Filter className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                 Grupare
               </Button>
@@ -286,91 +293,53 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
       </div>
       
       <div className="max-h-[400px] overflow-auto">
-        <div className="w-full overflow-x-auto">
-          <Table>
-            <TableHeader className="sticky top-0 bg-white">
-              <TableRow>
-                {visibleColumns.entryNumber && <TableHead>Nr. crt</TableHead>}
-                {visibleColumns.date && <TableHead>Data</TableHead>}
-                <TableHead>Produs</TableHead>
-                <TableHead className="text-right">Cantitate</TableHead>
-                <TableHead className="text-right">Unitate</TableHead>
-                {visibleColumns.supplier && <TableHead>Furnizor</TableHead>}
-                {visibleColumns.manufacturer && <TableHead>Producător</TableHead>}
-                {visibleColumns.batch && <TableHead>Nr. Lot</TableHead>}
-                {visibleColumns.documentNumber && <TableHead>Nr. document</TableHead>}
-                {visibleColumns.crateType && <TableHead>Tip ladită</TableHead>}
-                {visibleColumns.netQuantity && <TableHead className="text-right">Cant. netă</TableHead>}
-                {visibleColumns.updatedAt && <TableHead className="text-right">Ultima actualizare</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {displayedInventory.length > 0 ? (
-                displayedInventory.map((item) => {
-                  const productName = item.product_id ? products[item.product_id]?.name : item.name;
-                  const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
-                  const manufacturerName = item.manufacturer_id 
-                    ? manufacturers[item.manufacturer_id]?.name 
-                    : (item.manufacturer || '-');
-                  
-                  console.log(`Item ${item.id} manufacturer:`, item.manufacturer || "not set", 
-                              "manufacturer_id:", item.manufacturer_id || "not set");
-                  
-                  const crateTypeName = item.crate_type_id ? crateTypes[item.crate_type_id]?.name : '';
-                  
-                  return (
-                    <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
-                      {visibleColumns.entryNumber && (
-                        <TableCell>{item.entry_number || '-'}</TableCell>
-                      )}
-                      {visibleColumns.date && (
-                        <TableCell>
-                          {item.receipt_date 
-                            ? new Date(item.receipt_date).toLocaleDateString('ro-RO') 
-                            : '-'}
-                        </TableCell>
-                      )}
-                      <TableCell className={item.isHeader ? "font-bold" : "font-medium"}>
-                        {productName}
+        <Table className="w-full">
+          <TableHeader className="sticky top-0 bg-white">
+            <TableRow>
+              {visibleColumns.date && <TableHead className="text-left">Data</TableHead>}
+              <TableHead className="text-left">Produs</TableHead>
+              <TableHead className="text-right">Cantitate</TableHead>
+              <TableHead className="text-right">Unitate</TableHead>
+              {visibleColumns.supplier && <TableHead className="text-left">Furnizor</TableHead>}
+              {visibleColumns.batch && <TableHead className="text-left">Nr. Lot</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {displayedInventory.length > 0 ? (
+              displayedInventory.map((item) => {
+                const productName = item.product_id ? products[item.product_id]?.name : item.name;
+                const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
+                
+                return (
+                  <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
+                    {visibleColumns.date && (
+                      <TableCell>
+                        {item.receipt_date 
+                          ? new Date(item.receipt_date).toLocaleDateString('ro-RO') 
+                          : '-'}
                       </TableCell>
-                      <TableCell className="text-right">{item.quantity}</TableCell>
-                      <TableCell className="text-right">{item.unit}</TableCell>
-                      {visibleColumns.supplier && <TableCell>{supplierName || '-'}</TableCell>}
-                      {visibleColumns.manufacturer && <TableCell>{manufacturerName}</TableCell>}
-                      {visibleColumns.batch && <TableCell>{item.batch_number || '-'}</TableCell>}
-                      {visibleColumns.documentNumber && <TableCell>{item.document_number || '-'}</TableCell>}
-                      {visibleColumns.crateType && (
-                        <TableCell>
-                          {crateTypeName ? `${crateTypeName} (${item.crate_count || 0} buc)` : '-'}
-                        </TableCell>
-                      )}
-                      {visibleColumns.netQuantity && (
-                        <TableCell className="text-right">{item.net_quantity || item.quantity}</TableCell>
-                      )}
-                      {visibleColumns.updatedAt && (
-                        <TableCell className="text-right">
-                          {formatTimestamp(item.updated_at)}
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })
-              ) : searchTerm ? (
-                <TableRow>
-                  <TableCell colSpan={12} className="text-center py-6 text-gray-500">
-                    Nu s-au găsit produse pentru "{searchTerm}"
-                  </TableCell>
-                </TableRow>
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={12} className="text-center py-6 text-gray-500">
-                    Nu există produse în stoc. Adăugați produse folosind comenzi vocale sau text.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                    )}
+                    <TableCell className={`${item.isHeader ? "font-bold" : "font-medium"} whitespace-nowrap`}>
+                      {productName}
+                    </TableCell>
+                    <TableCell className="text-right">{formatQuantity(item.quantity)}</TableCell>
+                    <TableCell className="text-right">{item.unit}</TableCell>
+                    {visibleColumns.supplier && <TableCell>{supplierName || '-'}</TableCell>}
+                    {visibleColumns.batch && <TableCell>{item.batch_number || '-'}</TableCell>}
+                  </TableRow>
+                );
+              })
+            ) : (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-6 text-gray-500">
+                  {searchTerm
+                    ? `Nu s-au găsit produse pentru "${searchTerm}"`
+                    : "Nu există produse în stoc."}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
