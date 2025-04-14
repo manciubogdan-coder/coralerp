@@ -1,26 +1,26 @@
+
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ChartBarIcon,
-  CogIcon,
-  DocumentSearchIcon,
-  HomeIcon,
-  MailIcon,
-  MicrophoneIcon,
-  PauseIcon,
-  RefreshIcon,
-  TrashIcon,
-  UserGroupIcon,
-  VolumeUpIcon,
-  XCircleIcon,
-} from "@heroicons/react/outline";
+  BarChart3,
+  Settings,
+  FileSearch,
+  Home,
+  Mail,
+  Mic,
+  Pause,
+  RefreshCw,
+  Users2,
+  Volume2,
+  XCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-custom-toast";
 import { speakText, improveVoiceCommand, parseUserResponse, getMissingFieldsQuestion } from "@/lib/speechService";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-// Importați tipurile pentru SpeechRecognition
+// Declarația pentru SpeechRecognition pentru TypeScript
 declare global {
   interface Window {
     SpeechRecognition: any;
@@ -183,8 +183,8 @@ const Index = () => {
 
       const { action, response: initialResponse, item, needsMoreInfo } = await parseUserResponse(
         enhancedCommand,
-        inventory,
-        suppliers
+        inventory || [],
+        suppliers || []
       );
 
       let finalResponse = initialResponse;
@@ -266,30 +266,30 @@ const Index = () => {
             <h2 className="text-lg font-semibold text-gray-700 mb-3">Comenzi rapide</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Button variant="outline" className="justify-start" onClick={() => navigate("/dashboard")}>
-                <HomeIcon className="h-5 w-5 mr-2" />
+                <Home className="h-5 w-5 mr-2" />
                 Mergi la Dashboard
               </Button>
               <Button variant="outline" className="justify-start" onClick={() => navigate("/dashboard/inventory")}>
-                <DocumentSearchIcon className="h-5 w-5 mr-2" />
+                <FileSearch className="h-5 w-5 mr-2" />
                 Vezi Inventarul
               </Button>
               <Button variant="outline" className="justify-start" onClick={() => navigate("/dashboard/products")}>
-                <ChartBarIcon className="h-5 w-5 mr-2" />
+                <BarChart3 className="h-5 w-5 mr-2" />
                 Vezi Produsele
               </Button>
               <Button variant="outline" className="justify-start" onClick={() => navigate("/dashboard/suppliers")}>
-                <UserGroupIcon className="h-5 w-5 mr-2" />
+                <Users2 className="h-5 w-5 mr-2" />
                 Vezi Furnizorii
               </Button>
               <Button variant="outline" className="justify-start" onClick={() => navigate("/dashboard/manufacturers")}>
-                <CogIcon className="h-5 w-5 mr-2" />
+                <Settings className="h-5 w-5 mr-2" />
                 Vezi Producătorii
               </Button>
               <Button variant="outline" className="justify-start" onClick={() => {
                 navigator.clipboard.writeText(response);
                 toast({ description: "Răspuns copiat în clipboard!" });
               }}>
-                <MailIcon className="h-5 w-5 mr-2" />
+                <Mail className="h-5 w-5 mr-2" />
                 Copiază ultimul răspuns
               </Button>
             </div>
@@ -315,14 +315,14 @@ const Index = () => {
                     className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
                     onClick={clearCommand}
                   >
-                    <XCircleIcon className="h-5 w-5" />
+                    <XCircle className="h-5 w-5" />
                   </button>
                 )}
               </div>
 
               <Button type="submit" disabled={isProcessing}>
                 {isProcessing ? (
-                  <RefreshIcon className="animate-spin h-5 w-5" />
+                  <RefreshCw className="animate-spin h-5 w-5" />
                 ) : (
                   "Trimite"
                 )}
@@ -336,9 +336,9 @@ const Index = () => {
                 className="relative"
               >
                 {isListening ? (
-                  <PauseIcon className="h-5 w-5" />
+                  <Pause className="h-5 w-5" />
                 ) : (
-                  <MicrophoneIcon className="h-5 w-5" />
+                  <Mic className="h-5 w-5" />
                 )}
               </Button>
             </form>
@@ -375,7 +375,7 @@ const Index = () => {
                 title={audioEnabled ? "Dezactivează răspunsurile vocale" : "Activează răspunsurile vocale"}
                 className="h-9 w-9"
               >
-                <VolumeUpIcon className={`h-5 w-5 ${audioEnabled ? "text-green-500" : "text-gray-400"}`} />
+                <Volume2 className={`h-5 w-5 ${audioEnabled ? "text-green-500" : "text-gray-400"}`} />
               </Button>
             </div>
           </section>
