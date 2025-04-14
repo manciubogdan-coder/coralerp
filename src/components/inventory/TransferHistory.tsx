@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -253,25 +254,24 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
             />
           </div>
           
-          {transfer.crate_type_id && (
-            <div className="space-y-2">
-              <label htmlFor="crateCount" className="font-medium">
-                Număr lădițe returnate
-              </label>
-              <Input
-                id="crateCount"
-                type="number"
-                min="0"
-                value={crateCount}
-                onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
-              />
-              {transfer.crate_weight && crateCount > 0 && (
-                <div className="text-sm text-muted-foreground">
-                  Greutate totală lădițe: {(transfer.crate_weight * crateCount).toFixed(2)} kg
-                </div>
-              )}
-            </div>
-          )}
+          {/* Always show the crate count field, regardless of crate_type_id */}
+          <div className="space-y-2">
+            <label htmlFor="crateCount" className="font-medium">
+              Număr lădițe returnate
+            </label>
+            <Input
+              id="crateCount"
+              type="number"
+              min="0"
+              value={crateCount}
+              onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
+            />
+            {transfer.crate_weight && crateCount > 0 && (
+              <div className="text-sm text-muted-foreground">
+                Greutate totală lădițe: {(transfer.crate_weight * crateCount).toFixed(2)} kg
+              </div>
+            )}
+          </div>
           
           <div className="space-y-2">
             <label htmlFor="palletCount" className="font-medium">
