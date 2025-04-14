@@ -118,7 +118,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
       let query = supabase
         .from('inventory_history')
         .select('*', { count: 'exact' })
-        .order('operation_date', { ascending: false });
+        .order('operation_date', { ascending: false }); // Explicitly order by operation_date descending
       
       if (searchTerm) {
         query = query.ilike('name', `%${searchTerm}%`);

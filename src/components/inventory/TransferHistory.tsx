@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -273,7 +274,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     try {
       setLoading(true);
       
-      // Modified to order by transfer_date in descending order
+      // Explicitly ordering by transfer_date in descending order to ensure newest transfers appear first
       const { data, error } = await supabase
         .from('stock_transfer_view')
         .select('*')
@@ -283,6 +284,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       
       console.log("Fetched transfers:", data);
       
+      // Store the transfers directly as returned from the database
+      // This preserves the server-side sorting by date
       setTransfers(data || []);
       
       // Extract unique destinations for the filter
