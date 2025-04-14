@@ -1,17 +1,7 @@
 
 import React from "react";
-import { useToast } from "@/hooks/use-toast";
 
 const Header = () => {
-  const { toast } = useToast();
-  
-  const handleInfoClick = () => {
-    toast({
-      title: "Asistent Gestiune Depozit",
-      description: "Folosește comenzi vocale sau text pentru gestiunea stocurilor. Spune 'Ajutor' pentru lista de comenzi disponibile.",
-    });
-  };
-
   return (
     <header className="bg-white shadow-md">
       <div className="container mx-auto p-4 flex justify-between items-center">
@@ -28,13 +18,6 @@ const Header = () => {
             <p className="text-sm text-gray-600">Gestiune Depozit</p>
           </div>
         </div>
-        
-        <button 
-          onClick={handleInfoClick}
-          className="text-sm font-medium text-green-dark hover:text-coral-DEFAULT transition-colors"
-        >
-          Ajutor
-        </button>
       </div>
     </header>
   );

@@ -261,7 +261,7 @@ const SidebarTrigger = React.forwardRef<
       variant="default"
       size="icon"
       className={cn(
-        "h-10 w-10 bg-green-DEFAULT hover:bg-green-DEFAULT/90 text-white border-2 border-white shadow-md", 
+        "h-10 w-10 bg-green-500 hover:bg-green-600 text-white border-2 border-white shadow-md", 
         className
       )}
       onClick={(event) => {
