@@ -416,9 +416,6 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   const [page, setPage] = useState(1);
   const [itemsPerPage] = useState(10);
   
-  // Calculate totalPages based on filteredTransfers length
-  const totalPages = Math.max(1, Math.ceil((filteredTransfers?.length || 0) / itemsPerPage));
-  
   const fetchTransfers = async () => {
     try {
       setLoading(true);
@@ -479,6 +476,9 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     
     return true;
   });
+  
+  // Calculate totalPages based on filteredTransfers length (now after filteredTransfers is defined)
+  const totalPages = Math.max(1, Math.ceil(filteredTransfers.length / itemsPerPage));
   
   // Get current items for pagination
   const indexOfLastItem = page * itemsPerPage;
