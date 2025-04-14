@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-custom-toast";
-import { ArrowUturnLeft, Search } from "lucide-react";
+import { CornerDownLeft, Search } from "lucide-react";
 import { 
   Dialog, 
   DialogContent, 
@@ -36,6 +35,9 @@ interface TransferItem {
   crate_count?: number;
   notes?: string;
   inventory_item_id: string;
+  product_id?: string;
+  supplier_id?: string;
+  manufacturer_id?: string;
 }
 
 interface ReturnFormProps {
@@ -106,10 +108,10 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
         const { data: similarItems, error: similarError } = await supabase
           .from('inventory')
           .select('*')
-          .eq('product_id', transfer.product_id)
-          .eq('supplier_id', transfer.supplier_id)
-          .eq('manufacturer_id', transfer.manufacturer_id)
-          .eq('document_number', transfer.document_number);
+          .eq('product_id', transfer.product_id || '')
+          .eq('supplier_id', transfer.supplier_id || '')
+          .eq('manufacturer_id', transfer.manufacturer_id || '')
+          .eq('document_number', transfer.document_number || '');
           
         if (similarError) throw similarError;
         
@@ -136,12 +138,12 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
             .from('inventory')
             .insert({
               name: transfer.product_name,
-              product_id: transfer.product_id,
-              supplier_id: transfer.supplier_id,
-              supplier: transfer.supplier_name,
-              manufacturer_id: transfer.manufacturer_id,
-              document_number: transfer.document_number,
-              entry_number: transfer.entry_number,
+              product_id: transfer.product_id || null,
+              supplier_id: transfer.supplier_id || null,
+              supplier: transfer.supplier_name || null,
+              manufacturer_id: transfer.manufacturer_id || null,
+              document_number: transfer.document_number || null,
+              entry_number: transfer.entry_number || null,
               quantity: returnQuantity,
               unit: transfer.unit,
               crate_count: transfer.crate_count || 0,
@@ -199,7 +201,7 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" title="Returnează în stoc">
-          <ArrowUturnLeft className="h-4 w-4" />
+          <CornerDownLeft className="h-4 w-4" />
         </Button>
       </DialogTrigger>
       <DialogContent>
