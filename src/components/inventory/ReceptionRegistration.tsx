@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -103,11 +102,11 @@ export function ReceptionRegistration({
             manufacturer_id: manufacturerId,
             document_number: documentNumber,
             quantity: pallet.netQuantity,
-            unit: selectedProduct.default_unit || 'kg',
             gross_quantity: pallet.grossQuantity,
+            net_quantity: pallet.netQuantity,
+            unit: selectedProduct.default_unit || 'kg',
             crate_type_id: pallet.crateTypeId,
             crate_count: pallet.crateCount,
-            net_quantity: pallet.netQuantity,
             receipt_date: new Date().toISOString()
           });
 

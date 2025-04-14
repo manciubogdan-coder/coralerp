@@ -123,8 +123,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       crateWeight: selectedItem.crate_weight || 0,
       pallets: 0,
       palletWeight: 0,
-      grossQuantity: selectedItem.quantity,
-      netQuantity: selectedItem.quantity,
+      grossQuantity: selectedItem.gross_quantity || selectedItem.quantity,
+      netQuantity: selectedItem.net_quantity || selectedItem.quantity,
       // Informații adiționale salvate
       supplier: selectedItem.supplier || selectedItem.suppliers?.name,
       supplier_id: selectedItem.supplier_id,

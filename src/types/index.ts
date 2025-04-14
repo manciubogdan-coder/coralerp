@@ -16,6 +16,8 @@ export interface InventoryItem {
   crate_type_id?: string;
   crate_count?: number;
   crate_weight?: number;
+  gross_quantity?: number; // Adăugat câmp pentru cantitatea brută
+  net_quantity?: number;   // Adăugat câmp pentru cantitatea netă
   isHeader?: boolean; // For grouped views
   action?: 'add' | 'remove' | 'set';
   // Added timestamps with the correct format
