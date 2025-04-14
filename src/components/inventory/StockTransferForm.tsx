@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,14 @@ interface TransferItem {
   grossQuantity: number;
   netQuantity: number;
   originalCrateCount?: number;
+  // Informații adiționale pentru reintroducere
+  supplier?: string;
+  supplier_id?: string;
+  manufacturer?: string;
+  manufacturer_id?: string;
+  batch_number?: string;
+  document_number?: string;
+  entry_number?: number;
 }
 
 interface TransferFormValues {
@@ -117,7 +126,15 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       pallets: 0,
       palletWeight: 0,
       grossQuantity: selectedItem.quantity,
-      netQuantity: selectedItem.net_quantity || selectedItem.quantity
+      netQuantity: selectedItem.net_quantity || selectedItem.quantity,
+      // Informații adiționale salvate
+      supplier: selectedItem.supplier || selectedItem.suppliers?.name,
+      supplier_id: selectedItem.supplier_id,
+      manufacturer: selectedItem.manufacturer || selectedItem.manufacturers?.name,
+      manufacturer_id: selectedItem.manufacturer_id,
+      batch_number: selectedItem.batch_number,
+      document_number: selectedItem.document_number,
+      entry_number: selectedItem.entry_number
     }]);
   };
 
@@ -236,7 +253,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           .insert({
             transfer_id: transferData.id,
             inventory_item_id: item.id,
-            quantity: item.grossQuantity,
+            quantity: item.netQuantity, // Folosim cantitatea netă în loc de cea brută
             unit: item.unit
           });
           
@@ -249,9 +266,14 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             inventory_item_id: item.id,
             action: "transfer",
             name: item.productName,
-            quantity: item.grossQuantity,
+            quantity: item.netQuantity, // Folosim cantitatea netă în loc de cea brută
             unit: item.unit,
             operation_date: new Date().toISOString(),
+            supplier: item.supplier,
+            supplier_id: item.supplier_id,
+            manufacturer_id: item.manufacturer_id,
+            batch_number: item.batch_number,
+            document_number: item.document_number,
             crate_count: item.crateCount,
             crate_type_id: item.crateTypeId,
             crate_weight: item.crateWeight,
@@ -272,7 +294,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         if (getError) throw getError;
         
         const currentQuantity = inventoryItem?.quantity || 0;
-        const newQuantity = Math.max(0, currentQuantity - item.grossQuantity);
+        const newQuantity = Math.max(0, currentQuantity - item.netQuantity); // Folosim cantitatea netă în loc de cea brută
         
         const { error: updateError } = await supabase
           .from('inventory')
@@ -411,7 +433,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-medium">{item.productName}</p>
-                          <p className="text-xs text-gray-500">Max: {item.maxQuantity} {item.unit}</p>
+                          <p className="text-xs text-gray-500">
+                            Max: {item.maxQuantity} {item.unit} | Furnizor: {item.supplier || '-'} | Lot: {item.batch_number || '-'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Document: {item.document_number || '-'} | Intrare nr.: {item.entry_number || '-'}
+                          </p>
                         </div>
                         <Button 
                           size="sm" 
@@ -468,12 +495,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         </div>
                         
                         <div>
-                          <label className="text-sm">Cantitate netă</label>
+                          <label className="text-sm font-medium">Cantitate netă (se va extrage)</label>
                           <Input
                             type="number"
                             value={item.netQuantity}
                             disabled
-                            className="bg-gray-100"
+                            className="bg-gray-100 font-medium text-green-700"
                           />
                         </div>
                       </div>
