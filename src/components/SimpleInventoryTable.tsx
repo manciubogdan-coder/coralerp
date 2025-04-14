@@ -13,6 +13,7 @@ interface SimpleInventoryTableProps {
 
 const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [showGrossQuantity, setShowGrossQuantity] = useState(false);
 
   // Group and sum quantities by product name
   const groupedInventory = inventory.reduce((acc, item) => {
@@ -21,12 +22,14 @@ const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
       acc[key] = {
         name: key,
         quantity: 0,
+        gross_quantity: 0,
         unit: item.unit
       };
     }
     acc[key].quantity += item.quantity;
+    acc[key].gross_quantity += item.gross_quantity || item.quantity;
     return acc;
-  }, {} as Record<string, { name: string; quantity: number; unit: string }>);
+  }, {} as Record<string, { name: string; quantity: number; gross_quantity: number; unit: string }>);
 
   // Convert to array and filter by search
   const displayData = Object.values(groupedInventory)
@@ -36,17 +39,22 @@ const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
   const handleExport = () => {
     const dataToExport = displayData.map(item => ({
       Produs: item.name,
-      Cantitate: item.quantity.toFixed(2),
+      'Cantitate Netă': item.quantity.toFixed(2),
+      'Cantitate Brută': item.gross_quantity.toFixed(2),
       Unitate: item.unit
     }));
     
     exportToExcel(dataToExport);
   };
 
+  const toggleQuantityType = () => {
+    setShowGrossQuantity(!showGrossQuantity);
+  };
+
   return (
     <div className="w-full">
       <div className="p-4">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
           <div className="relative w-full md:max-w-sm">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -56,15 +64,24 @@ const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
               className="pl-10"
             />
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            className="ml-4"
-          >
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Export Excel
-          </Button>
+          <div className="flex space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleQuantityType}
+              className="whitespace-nowrap"
+            >
+              {showGrossQuantity ? "Arată cantitate netă" : "Arată cantitate brută"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Export Excel
+            </Button>
+          </div>
         </div>
         
         <div className="border rounded-lg">
@@ -72,7 +89,9 @@ const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
             <TableHeader>
               <TableRow>
                 <TableHead>Produs</TableHead>
-                <TableHead className="text-right">Cantitate Totală</TableHead>
+                <TableHead className="text-right">
+                  {showGrossQuantity ? "Cantitate Brută" : "Cantitate Netă"}
+                </TableHead>
                 <TableHead>Unitate</TableHead>
               </TableRow>
             </TableHeader>
@@ -81,7 +100,12 @@ const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
                 displayData.map((item) => (
                   <TableRow key={item.name}>
                     <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-right">{item.quantity.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      {showGrossQuantity 
+                        ? item.gross_quantity.toFixed(2) 
+                        : item.quantity.toFixed(2)
+                      }
+                    </TableCell>
                     <TableCell>{item.unit}</TableCell>
                   </TableRow>
                 ))

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +35,8 @@ interface TransferItem {
   productName: string;
   quantity: number;
   unit: string;
-  maxQuantity: number;
+  maxQuantity: number; // Cantitatea netă maximă disponibilă
+  maxGrossQuantity: number; // Cantitatea brută maximă estimată
   crateCount?: number;
   crateTypeId?: string;
   crateWeight?: number;
@@ -112,12 +114,17 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
     const productName = selectedItem.products?.name || selectedItem.name;
     
+    // Estimăm o cantitate brută maximă permisă ca fiind de 50% mai mare decât cea netă
+    // Aceasta este o estimare pentru a oferi o limită rezonabilă, dar permisivă
+    const maxGrossEstimate = selectedItem.quantity * 1.5;
+    
     setSelectedItems([...selectedItems, {
       id: selectedItem.id,
       productName,
       quantity: selectedItem.quantity,
       unit: selectedItem.unit,
       maxQuantity: selectedItem.quantity,
+      maxGrossQuantity: maxGrossEstimate,
       crateCount: selectedItem.crate_count || 0,
       originalCrateCount: selectedItem.crate_count || 0,
       crateTypeId: selectedItem.crate_type_id || undefined,
@@ -150,12 +157,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const handleGrossQuantityChange = (index: number, value: number) => {
     const updatedItems = [...selectedItems];
     const item = updatedItems[index];
-    const newQuantity = Math.min(Math.max(value, 0), item.maxQuantity);
+    
+    // Permite orice cantitate brută, fără limite superioare
+    const newGrossQuantity = Math.max(0, value);
     
     updatedItems[index] = {
       ...item,
-      grossQuantity: newQuantity,
-      quantity: newQuantity,
+      grossQuantity: newGrossQuantity,
     };
     
     // Recalculate net quantity
@@ -217,6 +225,17 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         variant: "destructive",
         title: "Eroare",
         description: "Adăugați cel puțin un produs pentru transfer."
+      });
+      return;
+    }
+
+    // Verificăm dacă cantitatea netă depășește cantitatea maximă disponibilă
+    const invalidItem = selectedItems.find(item => item.netQuantity > item.maxQuantity);
+    if (invalidItem) {
+      toast({
+        variant: "destructive",
+        title: "Cantitate netă depășită",
+        description: `Pentru ${invalidItem.productName} cantitatea netă (${invalidItem.netQuantity.toFixed(2)} ${invalidItem.unit}) depășește stocul disponibil (${invalidItem.maxQuantity.toFixed(2)} ${invalidItem.unit}).`
       });
       return;
     }
@@ -331,6 +350,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
            supplierName.toLowerCase().includes(searchLower) ||
            manufacturerName.toLowerCase().includes(searchLower);
   });
+
+  // Verifică dacă cantitatea netă rezultată din calculul cu noua cantitate brută este validă
+  const isNetQuantityValid = (item: TransferItem) => {
+    return item.netQuantity <= item.maxQuantity;
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -469,7 +493,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         <div>
                           <p className="font-medium">{item.productName}</p>
                           <p className="text-xs text-gray-500">
-                            Max: {item.maxQuantity.toFixed(2)} {item.unit} | Furnizor: {item.supplier || '-'}
+                            Cantitate netă disponibilă: {item.maxQuantity.toFixed(2)} {item.unit} | Furnizor: {item.supplier || '-'}
                           </p>
                           <p className="text-xs text-gray-500">
                             Document: {item.document_number || '-'} | Intrare nr.: {item.entry_number || '-'}
@@ -493,9 +517,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                             value={item.grossQuantity}
                             onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)}
                             min={0}
-                            max={item.maxQuantity}
                             step="0.01"
-                            className={item.grossQuantity > item.maxQuantity ? "border-amber-300 bg-amber-50" : ""}
+                            variant={!isNetQuantityValid(item) ? "warning" : "default"}
                           />
                         </div>
                         
@@ -538,8 +561,14 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                             type="number"
                             value={item.netQuantity.toFixed(2)}
                             readOnly
-                            className="bg-gray-100 font-medium text-green-700"
+                            className="bg-gray-100 font-medium"
+                            variant={!isNetQuantityValid(item) ? "warning" : "default"}
                           />
+                          {!isNetQuantityValid(item) && (
+                            <p className="text-xs text-amber-600 mt-1">
+                              Atenție: Cantitatea netă depășește stocul disponibil de {item.maxQuantity.toFixed(2)} {item.unit}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
