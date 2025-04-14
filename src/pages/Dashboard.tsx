@@ -1,6 +1,7 @@
+
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BarChart4, Users, ShoppingCart, Package, Boxes, Eye } from "lucide-react";
+import { BarChart4, Users, ShoppingCart, Package, Boxes, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -60,18 +61,7 @@ const Dashboard = () => {
 
       <main className="flex-1 container mx-auto p-4 md:p-6">
         <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/")}
-              className="mr-4"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Înapoi la pagina principală
-            </Button>
-            <h1 className="text-2xl font-bold">Panou de Control</h1>
-          </div>
+          <h1 className="text-2xl font-bold">Panou de Control</h1>
           <Button
             variant="secondary"
             size="sm"
@@ -95,3 +85,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
