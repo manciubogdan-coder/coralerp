@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -86,53 +85,57 @@ export function TransferHistory() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Data</TableHead>
+              <TableHead>ID Transfer</TableHead>
+              <TableHead>Dată Transfer</TableHead>
               <TableHead>Produs</TableHead>
               <TableHead>Furnizor</TableHead>
               <TableHead>Producător</TableHead>
-              <TableHead>Nr. Lot</TableHead>
-              <TableHead>Nr. Document</TableHead>
-              <TableHead>Nr. Intrare</TableHead>
               <TableHead>Destinație</TableHead>
+              <TableHead>Nr. Intrare</TableHead>
+              <TableHead>Nr. Document</TableHead>
+              <TableHead>Lot</TableHead>
               <TableHead className="text-right">Cantitate</TableHead>
               <TableHead>Unitate</TableHead>
-              <TableHead className="text-right">Cant. Netă</TableHead>
+              <TableHead className="text-right">Cantitate Netă</TableHead>
+              <TableHead>Nr. Lăzi</TableHead>
               <TableHead>Note</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
                   Se încarcă datele...
                 </TableCell>
               </TableRow>
             ) : transfers.length > 0 ? (
               transfers.map((transfer) => (
-                <TableRow key={`${transfer.transfer_id}-${transfer.product_name}`}>
-                  <TableCell>{format(new Date(transfer.transfer_date), "dd.MM.yyyy")}</TableCell>
+                <TableRow key={transfer.transfer_id}>
+                  <TableCell>{transfer.transfer_id || "-"}</TableCell>
+                  <TableCell>{transfer.transfer_date ? format(new Date(transfer.transfer_date), "dd.MM.yyyy") : "-"}</TableCell>
                   <TableCell>{transfer.product_name}</TableCell>
                   <TableCell>{transfer.supplier_name || "-"}</TableCell>
                   <TableCell>{transfer.manufacturer_name || "-"}</TableCell>
-                  <TableCell>{transfer.batch_number || "-"}</TableCell>
-                  <TableCell>{transfer.document_number || "-"}</TableCell>
-                  <TableCell>{transfer.entry_number || "-"}</TableCell>
                   <TableCell>
                     <Badge variant={transfer.destination === "Distrugere" ? "destructive" : "default"}>
                       {transfer.destination}
                     </Badge>
                   </TableCell>
+                  <TableCell>{transfer.entry_number || "-"}</TableCell>
+                  <TableCell>{transfer.document_number || "-"}</TableCell>
+                  <TableCell>{transfer.batch_number || "-"}</TableCell>
                   <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
                   <TableCell>{transfer.unit}</TableCell>
                   <TableCell className="text-right">
                     {transfer.net_quantity ? formatQuantity(transfer.net_quantity) : "-"}
                   </TableCell>
+                  <TableCell>{transfer.crate_count || "-"}</TableCell>
                   <TableCell>{transfer.notes || "-"}</TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
                   {searchTerm
                     ? "Nu s-au găsit transferuri conform criteriilor de căutare"
                     : "Nu există transferuri înregistrate"}
