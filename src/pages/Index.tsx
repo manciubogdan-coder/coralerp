@@ -16,7 +16,7 @@ import { sendEmail } from "@/lib/emailService";
 import { speakText, improveVoiceCommand, parseUserResponse, getMissingFieldsQuestion } from "@/lib/speechService";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
-import "../types/speech-recognition.d.ts";  // Importing the speech recognition type definition
+import "../types/speech-recognition.d.ts";
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -876,4 +876,56 @@ const Index = () => {
       setResponse(processedResponse);
       
       import("@/lib/AIAssistantTrainer").then(module => {
-        module.learn
+        module.learnFromConversation(input, processedResponse);
+        console.log("Asistentul a învățat", processedResponse);
+      });
+    } catch (error) {
+      console.error("Error processing command:", error);
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Nu s-a putut procesa comanda."
+      });
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <Header />
+      <main className="flex-1 container mx-auto p-4 md:p-6">
+        <Tabs defaultValue="inventory" className="w-full" onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="inventory">Inventar</TabsTrigger>
+            <TabsTrigger value="voice">Comenzi Vocale</TabsTrigger>
+            <TabsTrigger value="history">Istoric</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="inventory" className="mt-4">
+            <InventoryTable inventory={inventory} />
+          </TabsContent>
+          
+          <TabsContent value="voice" className="mt-4">
+            <VoiceCommandPanel
+              isRecording={isRecording}
+              toggleRecording={toggleRecording}
+              transcript={transcript}
+              conversations={conversations}
+              response={response}
+              charts={charts}
+              isAudioEnabled={isAudioEnabled}
+              toggleAudio={toggleAudio}
+              conversationsEndRef={conversationsEndRef}
+            />
+          </TabsContent>
+          
+          <TabsContent value="history" className="mt-4">
+            <InventoryHistory />
+          </TabsContent>
+        </Tabs>
+      </main>
+      <Footer />
+    </div>
+  );
+};
+
+export default Index;
