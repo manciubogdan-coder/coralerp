@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -30,9 +29,8 @@ const App = () => (
               <AppSidebar />
               <SidebarInset>
                 <div className="flex flex-col min-h-screen w-full">
-                  <div className="flex items-center p-4 border-b">
+                  <div className="flex items-center justify-start p-4 border-b">
                     <SidebarTrigger className="mr-4" />
-                    {/* Removed the "Inventory Management System" heading */}
                   </div>
                   <main className="flex-1 p-4">
                     <Routes>

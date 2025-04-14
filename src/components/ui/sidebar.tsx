@@ -259,9 +259,8 @@ const SidebarTrigger = React.forwardRef<
       ref={ref}
       data-sidebar="trigger"
       variant="default"
-      size="icon"
       className={cn(
-        "h-10 w-10 bg-green-500 hover:bg-green-600 text-white border-2 border-white shadow-md", 
+        "flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white border-2 border-white shadow-md", 
         className
       )}
       onClick={(event) => {
@@ -270,7 +269,8 @@ const SidebarTrigger = React.forwardRef<
       }}
       {...props}
     >
-      <PanelLeft className="h-6 w-6" />
+      <PanelLeft className="h-4 w-4" />
+      <span>Meniu</span>
       <span className="sr-only">Deschide Meniu</span>
     </Button>
   )
