@@ -1,7 +1,7 @@
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BarChart4, Users, ShoppingCart, Package, Boxes } from "lucide-react";
+import { ArrowLeft, BarChart4, Users, ShoppingCart, Package, Boxes, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -17,6 +17,13 @@ const Dashboard = () => {
       icon: Package,
       route: "/dashboard/inventory",
       description: "Gestionați stocul curent de produse."
+    },
+    {
+      id: "inventory-overview",
+      name: "Vizualizare Simplă Inventar",
+      icon: Eye,
+      route: "/inventory",
+      description: "Vizualizare simplificată a stocului."
     },
     {
       id: "products",

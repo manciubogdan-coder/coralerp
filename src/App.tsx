@@ -15,6 +15,7 @@ import CrateTypesPage from "./pages/dashboard/CrateTypesPage";
 import InventoryPage from "./pages/dashboard/InventoryPage";
 import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
+import InventoryOverviewPage from "./pages/InventoryPage";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ const App = () => (
                       <Route path="/dashboard/manufacturers" element={<ManufacturersPage />} />
                       <Route path="/dashboard/crate-types" element={<CrateTypesPage />} />
                       <Route path="/dashboard/inventory" element={<InventoryPage />} />
+                      <Route path="/inventory" element={<InventoryOverviewPage />} />
                       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>
