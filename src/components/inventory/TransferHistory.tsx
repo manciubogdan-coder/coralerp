@@ -13,7 +13,6 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 interface TransferOperation {
   transfer_id: string;
@@ -37,7 +36,6 @@ export function TransferHistory() {
   const [transfers, setTransfers] = useState<TransferOperation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const isMobile = useIsMobile();
 
   const formatQuantity = (quantity: number) => {
     return quantity.toFixed(2);
@@ -71,43 +69,13 @@ export function TransferHistory() {
       setLoading(false);
     }
   };
-  
-  const getVisibleColumns = () => {
-    if (isMobile) {
-      return {
-        date: true,
-        product: true,
-        supplier: true,
-        destination: true,
-        quantity: true,
-        unit: true,
-        batch: true
-      };
-    }
-    return {
-      date: true,
-      product: true,
-      supplier: true,
-      manufacturer: true,
-      batch: true,
-      documentNumber: true,
-      entryNumber: true,
-      destination: true,
-      quantity: true,
-      unit: true,
-      netQuantity: true,
-      notes: true
-    };
-  };
 
-  const visibleColumns = getVisibleColumns();
-  
   return (
     <div className="space-y-4">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
         <Input
-          placeholder="Caută produs, furnizor..."
+          placeholder="Caută produs, furnizor, lot..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10 w-full"
@@ -118,43 +86,53 @@ export function TransferHistory() {
         <Table>
           <TableHeader>
             <TableRow>
-              {visibleColumns.date && <TableHead>Data</TableHead>}
-              {visibleColumns.product && <TableHead>Produs</TableHead>}
-              {visibleColumns.supplier && <TableHead>Furnizor</TableHead>}
-              {visibleColumns.destination && <TableHead>Destinație</TableHead>}
-              {visibleColumns.quantity && <TableHead className="text-right">Cantitate</TableHead>}
-              {visibleColumns.unit && <TableHead>Unitate</TableHead>}
-              {visibleColumns.batch && <TableHead>Lot</TableHead>}
+              <TableHead>Data</TableHead>
+              <TableHead>Produs</TableHead>
+              <TableHead>Furnizor</TableHead>
+              <TableHead>Producător</TableHead>
+              <TableHead>Nr. Lot</TableHead>
+              <TableHead>Nr. Document</TableHead>
+              <TableHead>Nr. Intrare</TableHead>
+              <TableHead>Destinație</TableHead>
+              <TableHead className="text-right">Cantitate</TableHead>
+              <TableHead>Unitate</TableHead>
+              <TableHead className="text-right">Cant. Netă</TableHead>
+              <TableHead>Note</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={12} className="text-center py-6 text-gray-500">
                   Se încarcă datele...
                 </TableCell>
               </TableRow>
             ) : transfers.length > 0 ? (
               transfers.map((transfer) => (
                 <TableRow key={`${transfer.transfer_id}-${transfer.product_name}`}>
-                  {visibleColumns.date && <TableCell>{format(new Date(transfer.transfer_date), "dd.MM.yyyy")}</TableCell>}
-                  {visibleColumns.product && <TableCell>{transfer.product_name}</TableCell>}
-                  {visibleColumns.supplier && <TableCell>{transfer.supplier_name || "-"}</TableCell>}
-                  {visibleColumns.destination && (
-                    <TableCell>
-                      <Badge variant={transfer.destination === "Distrugere" ? "destructive" : "default"}>
-                        {transfer.destination}
-                      </Badge>
-                    </TableCell>
-                  )}
-                  {visibleColumns.quantity && <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>}
-                  {visibleColumns.unit && <TableCell>{transfer.unit}</TableCell>}
-                  {visibleColumns.batch && <TableCell>{transfer.batch_number || "-"}</TableCell>}
+                  <TableCell>{format(new Date(transfer.transfer_date), "dd.MM.yyyy")}</TableCell>
+                  <TableCell>{transfer.product_name}</TableCell>
+                  <TableCell>{transfer.supplier_name || "-"}</TableCell>
+                  <TableCell>{transfer.manufacturer_name || "-"}</TableCell>
+                  <TableCell>{transfer.batch_number || "-"}</TableCell>
+                  <TableCell>{transfer.document_number || "-"}</TableCell>
+                  <TableCell>{transfer.entry_number || "-"}</TableCell>
+                  <TableCell>
+                    <Badge variant={transfer.destination === "Distrugere" ? "destructive" : "default"}>
+                      {transfer.destination}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
+                  <TableCell>{transfer.unit}</TableCell>
+                  <TableCell className="text-right">
+                    {transfer.net_quantity ? formatQuantity(transfer.net_quantity) : "-"}
+                  </TableCell>
+                  <TableCell>{transfer.notes || "-"}</TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={12} className="text-center py-6 text-gray-500">
                   {searchTerm
                     ? "Nu s-au găsit transferuri conform criteriilor de căutare"
                     : "Nu există transferuri înregistrate"}
