@@ -876,4 +876,27 @@ const Index = () => {
       
       import("@/lib/AIAssistantTrainer").then(module => {
         module.learnFromConversation(input, processedResponse);
-        console.log("Asistentul a învățat
+        console.log("Asistentul a învățat", processedResponse);
+      });
+    } catch (error) {
+      console.error("Error processing command:", error);
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Nu s-a putut procesa comanda."
+      });
+    }
+  };
+
+  return (
+    <div>
+      <Header />
+      <main>
+        {/* Rest of component JSX */}
+      </main>
+      <Footer />
+    </div>
+  );
+};
+
+export default Index;
