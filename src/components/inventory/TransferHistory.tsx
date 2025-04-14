@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,12 +53,13 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [grossQuantity, setGrossQuantity] = useState<number>(transfer.quantity);
   const [crateCount, setCrateCount] = useState<number>(transfer.crate_count || 0);
+  const [crateWeight, setCrateWeight] = useState<number>(transfer.crate_weight || 0);
   const [palletCount, setPalletCount] = useState<number>(0);
   const [palletWeight, setPalletWeight] = useState<number>(0);
   const [notes, setNotes] = useState<string>("");
   
   const calculateNetQuantity = () => {
-    const totalCrateWeight = (transfer.crate_weight || 0) * crateCount;
+    const totalCrateWeight = crateWeight * crateCount;
     const totalPalletWeight = palletWeight;
     return Math.max(0, grossQuantity - totalCrateWeight - totalPalletWeight);
   };
@@ -254,7 +254,6 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
             />
           </div>
           
-          {/* Always show the crate count field, regardless of crate_type_id */}
           <div className="space-y-2">
             <label htmlFor="crateCount" className="font-medium">
               Număr lădițe returnate
@@ -266,12 +265,29 @@ const ReturnForm = ({ transfer, onReturnComplete }: ReturnFormProps) => {
               value={crateCount}
               onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
             />
-            {transfer.crate_weight && crateCount > 0 && (
-              <div className="text-sm text-muted-foreground">
-                Greutate totală lădițe: {(transfer.crate_weight * crateCount).toFixed(2)} kg
-              </div>
-            )}
           </div>
+          
+          {crateCount > 0 && !transfer.crate_weight && (
+            <div className="space-y-2">
+              <label htmlFor="crateWeight" className="font-medium">
+                Greutate per lădiță (kg)
+              </label>
+              <Input
+                id="crateWeight"
+                type="number"
+                min="0"
+                step="0.01"
+                value={crateWeight}
+                onChange={(e) => setCrateWeight(parseFloat(e.target.value) || 0)}
+              />
+            </div>
+          )}
+          
+          {crateCount > 0 && (crateWeight || transfer.crate_weight) > 0 && (
+            <div className="text-sm text-muted-foreground">
+              Greutate totală lădițe: {((transfer.crate_weight || crateWeight) * crateCount).toFixed(2)} kg
+            </div>
+          )}
           
           <div className="space-y-2">
             <label htmlFor="palletCount" className="font-medium">
