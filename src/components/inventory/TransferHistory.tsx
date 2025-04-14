@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
+import { CrateType } from "@/types";
 
 interface TransferHistoryProps {
   onTransferReturned?: () => void;
