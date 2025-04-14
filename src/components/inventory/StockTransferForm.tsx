@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ import {
   FormLabel,
   FormMessage 
 } from "@/components/ui/form";
-import { FileText, Plus } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useForm } from "react-hook-form";
 
 interface StockTransferFormProps {
@@ -248,7 +249,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           .insert({
             transfer_id: transferData.id,
             inventory_item_id: item.id,
-            quantity: item.netQuantity, // Use net quantity instead of gross
+            quantity: item.netQuantity,
             unit: item.unit
           });
           
@@ -259,9 +260,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           .from("inventory_history")
           .insert({
             inventory_item_id: item.id,
-            action: "transfer",
+            action: "remove",
             name: item.productName,
-            quantity: item.netQuantity, // Use net quantity instead of gross
+            quantity: item.netQuantity,
             unit: item.unit,
             operation_date: new Date().toISOString(),
             supplier: item.supplier,
@@ -286,7 +287,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         if (getError) throw getError;
         
         const currentQuantity = inventoryItem?.quantity || 0;
-        const newQuantity = Math.max(0, currentQuantity - item.netQuantity); // Use net quantity instead of gross
+        const newQuantity = Math.max(0, currentQuantity - item.netQuantity);
         
         const { error: updateError } = await supabase
           .from('inventory')

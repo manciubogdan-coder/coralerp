@@ -69,8 +69,7 @@ const ReturnForm = ({ transfer, onComplete }: ReturnFormProps) => {
           name: transfer.product_name,
           supplier: transfer.supplier_name,
           document_number: transfer.document_number,
-          entry_number: transfer.entry_number,
-          receipt_date: new Date().toISOString()
+          entry_number: transfer.entry_number
         });
 
       if (insertError) throw insertError;
