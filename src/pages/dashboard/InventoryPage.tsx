@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, RefreshCw, Mic } from "lucide-react";
@@ -18,12 +19,12 @@ const InventoryPage = () => {
     setRefreshKey(prevKey => prevKey + 1);
     
     if (isAudioEnabled) {
-      speakText("Datele din inventar au fost actualizate.");
+      speakText("Datele din stoc au fost actualizate.");
     }
     
     toast({
       title: "Reîmprospătare",
-      description: "Datele din inventar au fost actualizate."
+      description: "Datele din stoc au fost actualizate."
     });
   };
   
