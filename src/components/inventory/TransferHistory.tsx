@@ -460,100 +460,196 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     return quantity.toFixed(2);
   };
   
+  const [actionFilter, setActionFilter] = useState<string>("all");
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [dateRange, setDateRange] = useState<[Date | undefined, Date | undefined]>([undefined, undefined]);
+
+  const formatDateRange = () => {
+    if (dateRange[0] && dateRange[1]) {
+      return `${format(dateRange[0], 'dd.MM.yyyy')} - ${format(dateRange[1], 'dd.MM.yyyy')}`;
+    } else if (dateRange[0]) {
+      return `De la ${format(dateRange[0], 'dd.MM.yyyy')}`;
+    } else if (dateRange[1]) {
+      return `Până la ${format(dateRange[1], 'dd.MM.yyyy')}`;
+    }
+    return 'Selectați perioada';
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row justify-between gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Caută după produs, furnizor, document..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+    <div>
+      <div className="p-2 md:p-4 flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Caută produs..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 w-full"
+            />
+          </div>
+          
+          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+            <Select value={selectedDestination} onValueChange={setSelectedDestination}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filtrează după destinație" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toate destinațiile</SelectItem>
+                {destinations.map((destination) => (
+                  <SelectItem key={destination} value={destination}>
+                    {destination}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={actionFilter} onValueChange={setActionFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Tip operațiune" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toate operațiunile</SelectItem>
+                <SelectItem value="add">Adăugare</SelectItem>
+                <SelectItem value="remove">Eliminare</SelectItem>
+                <SelectItem value="set">Setare</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full md:w-[200px] justify-start text-left font-normal"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {formatDateRange()}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="range"
+                  selected={{ from: dateRange[0], to: dateRange[1] }}
+                  onSelect={(range) => {
+                    setDateRange([range?.from, range?.to]);
+                    if (range?.to) {
+                      setTimeout(() => setIsCalendarOpen(false), 100);
+                    }
+                  }}
+                  locale={ro}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-        <Select 
-          value={selectedDestination} 
-          onValueChange={setSelectedDestination}
-        >
-          <SelectTrigger className="w-full md:w-[200px]">
-            <SelectValue placeholder="Filtrează după destinație" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Toate destinațiile</SelectItem>
-            {destinations.map((destination) => (
-              <SelectItem key={destination} value={destination}>
-                {destination}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      
-      <div className="border rounded-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-gray-50 sticky top-0">
-              <TableRow>
-                <TableHead>Data și ora</TableHead>
-                <TableHead>Destinație</TableHead>
-                <TableHead>Nr. Document</TableHead>
-                <TableHead>Produs</TableHead>
-                <TableHead>Furnizor</TableHead>
-                <TableHead>Producător</TableHead>
-                <TableHead className="text-right">Cant. Brută</TableHead>
-                <TableHead className="text-right">Cant. Netă</TableHead>
-                <TableHead>UM</TableHead>
-                <TableHead>Note</TableHead>
-                <TableHead className="sticky right-0 bg-gray-50">Acțiuni</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
+        
+        <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-gray-50 sticky top-0">
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-6 text-gray-500">
-                    Se încarcă datele...
-                  </TableCell>
+                  <TableHead>Data și ora</TableHead>
+                  <TableHead>Destinație</TableHead>
+                  <TableHead>Nr. Document</TableHead>
+                  <TableHead>Produs</TableHead>
+                  <TableHead>Furnizor</TableHead>
+                  <TableHead>Producător</TableHead>
+                  <TableHead className="text-right">Cant. Brută</TableHead>
+                  <TableHead className="text-right">Cant. Netă</TableHead>
+                  <TableHead>UM</TableHead>
+                  <TableHead>Note</TableHead>
+                  <TableHead className="sticky right-0 bg-gray-50">Acțiuni</TableHead>
                 </TableRow>
-              ) : filteredTransfers.length > 0 ? (
-                filteredTransfers.map((transfer) => (
-                  <TableRow key={`${transfer.transfer_id}-${transfer.inventory_item_id}`}>
-                    <TableCell>
-                      {transfer.created_at 
-                        ? format(new Date(transfer.created_at), 'dd.MM.yyyy HH:mm:ss')
-                        : transfer.transfer_date 
-                          ? format(new Date(transfer.transfer_date), 'dd.MM.yyyy')
-                          : '-'}
-                    </TableCell>
-                    <TableCell>{transfer.destination}</TableCell>
-                    <TableCell>{transfer.document_number || "-"}</TableCell>
-                    <TableCell className="font-medium">{transfer.product_name}</TableCell>
-                    <TableCell>{transfer.supplier_name || "-"}</TableCell>
-                    <TableCell>{transfer.manufacturer_name || "-"}</TableCell>
-                    <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
-                    <TableCell className="text-right">{formatQuantity(transfer.net_quantity || transfer.quantity)}</TableCell>
-                    <TableCell>{transfer.unit}</TableCell>
-                    <TableCell>{transfer.notes || "-"}</TableCell>
-                    <TableCell className="sticky right-0 bg-white">
-                      <ReturnForm 
-                        transfer={transfer}
-                        onReturnComplete={handleTransferReturned}
-                      />
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={11} className="text-center py-6 text-gray-500">
+                      Se încarcă datele...
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={11} className="text-center py-6 text-gray-500">
-                    {searchTerm || (selectedDestination && selectedDestination !== "all")
-                      ? "Nu s-au găsit transferuri conform criteriilor de căutare"
-                      : "Nu există transferuri înregistrate"}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                ) : filteredTransfers.length > 0 ? (
+                  filteredTransfers.map((transfer) => (
+                    <TableRow key={`${transfer.transfer_id}-${transfer.inventory_item_id}`}>
+                      <TableCell>
+                        {transfer.created_at 
+                          ? format(new Date(transfer.created_at), 'dd.MM.yyyy HH:mm:ss')
+                          : transfer.transfer_date 
+                            ? format(new Date(transfer.transfer_date), 'dd.MM.yyyy')
+                            : '-'}
+                      </TableCell>
+                      <TableCell>{transfer.destination}</TableCell>
+                      <TableCell>{transfer.document_number || "-"}</TableCell>
+                      <TableCell className="font-medium">{transfer.product_name}</TableCell>
+                      <TableCell>{transfer.supplier_name || "-"}</TableCell>
+                      <TableCell>{transfer.manufacturer_name || "-"}</TableCell>
+                      <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
+                      <TableCell className="text-right">{formatQuantity(transfer.net_quantity || transfer.quantity)}</TableCell>
+                      <TableCell>{transfer.unit}</TableCell>
+                      <TableCell>{transfer.notes || "-"}</TableCell>
+                      <TableCell className="sticky right-0 bg-white">
+                        <ReturnForm 
+                          transfer={transfer}
+                          onReturnComplete={handleTransferReturned}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={11} className="text-center py-6 text-gray-500">
+                      {searchTerm || (selectedDestination && selectedDestination !== "all")
+                        ? "Nu s-au găsit transferuri conform criteriilor de căutare"
+                        : "Nu există transferuri înregistrate"}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
+        
+        <Pagination className="my-4">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious 
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                className={page <= 1 ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+            
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (page <= 3) {
+                pageNum = i + 1;
+              } else if (page >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = page - 2 + i;
+              }
+              
+              return (
+                <PaginationItem key={i}>
+                  <PaginationLink 
+                    isActive={pageNum === page}
+                    onClick={() => setPage(pageNum)}
+                  >
+                    {pageNum}
+                  </PaginationLink>
+                </PaginationItem>
+              );
+            })}
+            
+            <PaginationItem>
+              <PaginationNext 
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                className={page >= totalPages ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
       </div>
     </div>
   );
