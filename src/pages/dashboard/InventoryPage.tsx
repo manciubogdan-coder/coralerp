@@ -1,7 +1,7 @@
 
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, RefreshCw, Mic } from "lucide-react";
+import { ArrowLeft, RefreshCw, Mic, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-custom-toast";
 import Header from "@/components/Header";
@@ -26,6 +26,10 @@ const InventoryPage = () => {
       title: "Reîmprospătare",
       description: "Datele din stoc au fost actualizate."
     });
+  };
+
+  const handleCrateTypesClick = () => {
+    navigate("/dashboard/crate-types");
   };
   
   useEffect(() => {
@@ -71,6 +75,17 @@ const InventoryPage = () => {
           </div>
           
           <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCrateTypesClick}
+              className="flex items-center"
+              title="Gestionare tipuri de lădițe"
+            >
+              <Package className="h-4 w-4 mr-2" />
+              Tipuri de Lădițe
+            </Button>
+            
             <Button
               variant="ghost"
               size="icon"

@@ -19,11 +19,11 @@ const CrateTypesPage = () => {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/dashboard/inventory")}
             className="mr-4"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Înapoi la panou
+            Înapoi la inventar
           </Button>
           <h1 className="text-2xl font-bold">Gestionare Tipuri de Lădițe</h1>
         </div>
