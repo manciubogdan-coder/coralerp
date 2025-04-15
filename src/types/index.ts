@@ -1,3 +1,4 @@
+
 // Inventory related interfaces
 export interface InventoryItem {
   id?: string;
@@ -19,6 +20,7 @@ export interface InventoryItem {
   net_quantity?: number;
   isHeader?: boolean;
   action?: 'add' | 'remove' | 'set';
+  lot_number?: string;  // Added lot_number property
   // Added timestamps with the correct format
   created_at?: string | {
     seconds: number;
@@ -119,6 +121,7 @@ export interface InventoryHistoryItem {
   operation_date: Date;
   exit_timestamp?: Date;
   notes?: string;
+  lot_number?: string;  // Added lot_number property
 }
 
 // Command processing result
