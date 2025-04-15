@@ -212,6 +212,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         <Table className="w-full">
           <TableHeader className="sticky top-0 bg-white z-10">
             <TableRow>
+              <TableHead className="text-left">Nr. Lot</TableHead>
               <TableHead className="text-left">Data</TableHead>
               <TableHead className="text-left">Nr. Intrare</TableHead>
               <TableHead className="text-left">Produs</TableHead>
@@ -231,6 +232,7 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                 
                 return (
                   <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
+                    <TableCell>{item.lot_number || '-'}</TableCell>
                     <TableCell>
                       {item.receipt_date 
                         ? format(new Date(item.receipt_date), 'dd.MM.yyyy')

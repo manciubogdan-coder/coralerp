@@ -492,9 +492,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                     <div key={index} className="flex flex-col gap-3 p-3 border rounded-md bg-gray-50">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium">{item.productName}</p>
                           <p className="text-xs text-gray-500">
-                            Cantitate netă disponibilă: {item.maxQuantity.toFixed(2)} {item.unit} | Furnizor: {item.supplier || '-'}
+                            Lot: {item.lot_number || '-'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Furnizor: {item.supplier || '-'}
                           </p>
                           <p className="text-xs text-gray-500">
                             Document: {item.document_number || '-'} | Intrare nr.: {item.entry_number || '-'}
