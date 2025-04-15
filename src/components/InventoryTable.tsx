@@ -212,14 +212,14 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
         <Table className="w-full">
           <TableHeader className="sticky top-0 bg-white z-10">
             <TableRow>
-              <TableHead className="text-left">Nr. Lot</TableHead>
-              <TableHead className="text-left">Data</TableHead>
               <TableHead className="text-left">Nr. Intrare</TableHead>
+              <TableHead className="text-left">Data</TableHead>
               <TableHead className="text-left">Produs</TableHead>
               <TableHead className="text-right">Cantitate</TableHead>
               <TableHead className="text-left">Unitate</TableHead>
               <TableHead className="text-left">Furnizor</TableHead>
               <TableHead className="text-left">Producător</TableHead>
+              <TableHead className="text-left">Nr. Lot</TableHead>
               <TableHead className="text-left">Nr. Document</TableHead>
             </TableRow>
           </TableHeader>
@@ -232,13 +232,12 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                 
                 return (
                   <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
-                    <TableCell>{item.lot_number || '-'}</TableCell>
+                    <TableCell>{item.entry_number || '-'}</TableCell>
                     <TableCell>
                       {item.receipt_date 
                         ? format(new Date(item.receipt_date), 'dd.MM.yyyy')
                         : '-'}
                     </TableCell>
-                    <TableCell>{item.entry_number || '-'}</TableCell>
                     <TableCell className={`${item.isHeader ? "font-bold" : "font-medium"} whitespace-nowrap`}>
                       {productName}
                     </TableCell>
@@ -246,13 +245,14 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
                     <TableCell className="text-left">{item.unit}</TableCell>
                     <TableCell>{supplierName || '-'}</TableCell>
                     <TableCell>{manufacturerName || '-'}</TableCell>
+                    <TableCell>{item.lot_number || '-'}</TableCell>
                     <TableCell>{item.document_number || '-'}</TableCell>
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={9} className="text-center py-6 text-gray-500">
                   {searchTerm
                     ? `Nu s-au găsit produse pentru "${searchTerm}"`
                     : "Nu există produse în stoc."}
