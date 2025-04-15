@@ -64,6 +64,7 @@ export type Database = {
           entry_number: number
           gross_quantity: number | null
           id: string
+          lot_number: string | null
           manufacturer_id: string | null
           name: string
           net_quantity: number | null
@@ -84,6 +85,7 @@ export type Database = {
           entry_number?: number
           gross_quantity?: number | null
           id?: string
+          lot_number?: string | null
           manufacturer_id?: string | null
           name: string
           net_quantity?: number | null
@@ -104,6 +106,7 @@ export type Database = {
           entry_number?: number
           gross_quantity?: number | null
           id?: string
+          lot_number?: string | null
           manufacturer_id?: string | null
           name?: string
           net_quantity?: number | null
@@ -486,6 +489,7 @@ export type Database = {
           document_number: string | null
           entry_number: number | null
           inventory_item_id: string | null
+          lot_number: string | null
           manufacturer_name: string | null
           net_quantity: number | null
           notes: string | null
@@ -548,6 +552,10 @@ export type Database = {
       }
     }
     Functions: {
+      generate_lot_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_next_inventory_entry: {
         Args: Record<PropertyKey, never>
         Returns: number

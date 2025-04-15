@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +57,7 @@ interface TransferItem {
   created_at?: string;
   crate_type_id?: string;
   crate_weight?: number;
+  lot_number?: string;
 }
 
 interface ReturnFormProps {
@@ -477,10 +477,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     return true;
   });
   
-  // Calculate totalPages based on filteredTransfers length (now after filteredTransfers is defined)
   const totalPages = Math.max(1, Math.ceil(filteredTransfers.length / itemsPerPage));
   
-  // Get current items for pagination
   const indexOfLastItem = page * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredTransfers.slice(indexOfFirstItem, indexOfLastItem);
@@ -578,6 +576,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                   <TableHead>Destinație</TableHead>
                   <TableHead>Nr. Document</TableHead>
                   <TableHead>Produs</TableHead>
+                  <TableHead>Nr. Lot</TableHead>
                   <TableHead>Furnizor</TableHead>
                   <TableHead>Producător</TableHead>
                   <TableHead className="text-right">Cant. Brută</TableHead>
@@ -607,6 +606,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                       <TableCell>{transfer.destination}</TableCell>
                       <TableCell>{transfer.document_number || "-"}</TableCell>
                       <TableCell className="font-medium">{transfer.product_name}</TableCell>
+                      <TableCell>{transfer.lot_number || "-"}</TableCell>
                       <TableCell>{transfer.supplier_name || "-"}</TableCell>
                       <TableCell>{transfer.manufacturer_name || "-"}</TableCell>
                       <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
@@ -680,4 +680,3 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     </div>
   );
 }
-

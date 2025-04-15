@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +44,7 @@ interface TransferItem {
   grossQuantity: number;
   netQuantity: number;
   originalCrateCount?: number;
+  lot_number?: string;
   // Informații adiționale pentru reintroducere
   supplier?: string;
   supplier_id?: string;
@@ -139,7 +139,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       manufacturer: selectedItem.manufacturer || selectedItem.manufacturers?.name,
       manufacturer_id: selectedItem.manufacturer_id,
       document_number: selectedItem.document_number,
-      entry_number: selectedItem.entry_number
+      entry_number: selectedItem.entry_number,
+      lot_number: selectedItem.lot_number
     }]);
   };
 
@@ -464,7 +465,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                               {item.products?.name || item.name}
                             </span>
                             <span className="text-sm text-gray-500">
-                              Cantitate: {item.quantity} {item.unit}
+                              Cantitate: {item.quantity} {item.unit} | Lot: {item.lot_number || 'N/A'}
                             </span>
                             <span className="text-xs text-gray-500">
                               {item.supplier || item.suppliers?.name ? 
