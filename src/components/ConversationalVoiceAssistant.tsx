@@ -763,4 +763,84 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       
       // Întrebăm dacă mai putem ajuta cu altceva, chiar și după eroare
       setTimeout(() => {
-        assistantSays("Mai pot să te ajut
+        assistantSays("Mai pot să te ajut cu altceva? Spune-mi dacă dorești să faci o altă operațiune sau să închei conversația.");
+        processConversationStep('', 'askForMoreHelp');
+      }, 2000);
+    }
+  };
+  
+  return (
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      setOpen(newOpen);
+      if (!newOpen) {
+        endConversation();
+        setAssistantInitiative(false);
+      }
+    }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="flex items-center gap-2">
+          <Mic className="h-4 w-4" />
+          Asistent Vocal Inteligent
+        </Button>
+      </DialogTrigger>
+      
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center justify-between">
+            <span>Asistent Vocal Conversațional</span>
+            <Button 
+              onClick={toggleRecording}
+              variant={isRecording ? "destructive" : "outline"}
+              size="icon"
+              className="h-8 w-8 rounded-full"
+            >
+              {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="max-h-[400px] overflow-y-auto space-y-4 p-2">
+          {conversation.map((msg, idx) => (
+            <div key={idx} className={`flex ${msg.role === 'assistant' ? 'justify-start' : 'justify-end'}`}>
+              <div className={`max-w-[80%] p-3 rounded-lg ${
+                msg.role === 'assistant' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-blue-100 text-blue-800'
+              }`}>
+                <p>{msg.message}</p>
+                <p className="text-xs opacity-70 mt-1">
+                  {msg.timestamp.toLocaleTimeString()}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {isRecording && (
+          <div className="p-3 bg-gray-100 rounded-lg">
+            <p className="text-sm font-medium">Ascult...</p>
+            <p className="text-sm italic">{transcript}</p>
+          </div>
+        )}
+        
+        {conversation.length === 0 && !isRecording && (
+          <div className="p-4 text-center text-gray-500">
+            <p>Apasă butonul pentru a începe o conversație vocală</p>
+            <p className="text-xs mt-2">Asistentul va prelua inițiativa conversației</p>
+          </div>
+        )}
+        
+        {!isRecording && assistantInitiative && (
+          <div className="mt-4 text-center">
+            <Button 
+              onClick={toggleRecording} 
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Mic className="h-4 w-4 mr-2" /> Răspunde asistentului
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
