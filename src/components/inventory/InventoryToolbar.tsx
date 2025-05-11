@@ -1,8 +1,10 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { FileDown, Mail } from "lucide-react";
 import { StockTransferForm } from "@/components/inventory/StockTransferForm";
 import { ReceptionRegistration } from "@/components/inventory/ReceptionRegistration";
+import { VoiceStockTransfer } from "@/components/inventory/VoiceStockTransfer";
 import { Product, Supplier, Manufacturer, CrateType } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";
 import { sendEmail } from "@/lib/emailService";
@@ -39,11 +41,15 @@ export const InventoryToolbar = ({
   };
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 flex-wrap">
       <Button variant="outline" size="sm" onClick={handleExportExcel}>
         <FileDown className="h-4 w-4 mr-2" /> Export Excel
       </Button>
       <StockTransferForm onTransferComplete={onTransferComplete} />
+      <VoiceStockTransfer 
+        onTransferComplete={onTransferComplete}
+        products={products} 
+      />
       <ReceptionRegistration
         products={products}
         suppliers={suppliers}
