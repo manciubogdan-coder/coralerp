@@ -1,4 +1,3 @@
-
 // Fix the array property access
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
@@ -183,7 +182,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
     }
 
     try {
-      const { data: transferData_, error: transferError } = await supabase
+      const { data: transferData, error: transferError } = await supabase
         .from('stock_transfers')
         .insert({
           destination: transferData.destination,
@@ -219,7 +218,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         const { error: insertError } = await supabase
           .from('stock_transfer_items')
           .insert({
-            transfer_id: transferData_.id,
+            transfer_id: transferData.id,
             inventory_item_id: inventoryItem.id,
             quantity: item.quantity,
             unit: item.unit

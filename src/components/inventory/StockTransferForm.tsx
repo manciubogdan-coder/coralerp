@@ -1,36 +1,14 @@
-import React, { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import React, { useState } from 'react';
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-custom-toast";
-import { Product } from "@/types";
-import { format } from 'date-fns';
-import { ro } from 'date-fns/locale';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { PlusCircle, Trash, Send } from "lucide-react";
-
-interface StockTransferItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  unit: string;
-  lotNumber?: string;
-}
+import { toast } from "@/hooks/use-custom-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useInventoryData } from "@/hooks/use-inventory-data";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface StockTransferFormProps {
   onTransferComplete: () => void;
@@ -38,123 +16,69 @@ interface StockTransferFormProps {
 
 export const StockTransferForm = ({ onTransferComplete }: StockTransferFormProps) => {
   const [open, setOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [transferData, setTransferData] = useState<{
-    destination: string;
-    notes: string;
-    items: StockTransferItem[];
-  }>({
-    destination: "",
-    notes: "",
-    items: [],
+  const { products } = useInventoryData();
+  const [formData, setFormData] = useState({
+    destination: '',
+    notes: '',
+    items: [{ productId: '', quantity: '', unit: 'kg' }]
   });
-  const [newProduct, setNewProduct] = useState<{
-    productId: string;
-    productName: string;
-    quantity: number;
-    unit: string;
-    lotNumber?: string;
-  }>({
-    productId: "",
-    productName: "",
-    quantity: 0,
-    unit: "",
-    lotNumber: "",
-  });
-  const [transferErrors, setTransferErrors] = useState<{ [key: number]: string }>({});
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("products")
-          .select("*")
-          .order("name");
-
-        if (error) {
-          throw error;
-        }
-
-        setProducts(data || []);
-      } catch (error: any) {
-        toast({
-          variant: "destructive",
-          title: "Eroare la încărcarea produselor",
-          description: error.message,
-        });
-      }
-    };
-
-    fetchProducts();
-  }, []);
-
-  const addProduct = () => {
-    if (!newProduct.productId || !newProduct.quantity || !newProduct.unit) {
-      toast({
-        variant: "destructive",
-        title: "Eroare",
-        description: "Te rog completează toate câmpurile.",
-      });
-      return;
-    }
-
-    setTransferData((prev) => ({
+  const handleAddItem = () => {
+    setFormData(prev => ({
       ...prev,
-      items: [...prev.items, newProduct],
+      items: [...prev.items, { productId: '', quantity: '', unit: 'kg' }]
     }));
+  };
 
-    setNewProduct({
-      productId: "",
-      productName: "",
-      quantity: 0,
-      unit: "",
-      lotNumber: "",
+  const handleRemoveItem = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleItemChange = (index: number, field: string, value: string) => {
+    setFormData(prev => {
+      const updatedItems = [...prev.items];
+      updatedItems[index] = { ...updatedItems[index], [field]: value };
+      return { ...prev, items: updatedItems };
     });
   };
 
-  const removeProduct = (index: number) => {
-    const newItems = [...transferData.items];
-    newItems.splice(index, 1);
-    setTransferData((prev) => ({ ...prev, items: newItems }));
-  };
-
-  const handleTransfer = async () => {
-    let hasErrors = false;
-    setTransferErrors({});
-
-    if (!transferData.destination) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.destination) {
       toast({
-        variant: "destructive",
-        title: "Eroare",
-        description: "Te rog specifică destinația transferului.",
+        title: "Destinație lipsă",
+        description: "Vă rugăm să specificați o destinație pentru transfer",
+        variant: "warning"
       });
       return;
     }
 
-    if (transferData.items.length === 0) {
+    if (formData.items.some(item => !item.productId || !item.quantity)) {
       toast({
-        variant: "destructive",
-        title: "Eroare",
-        description: "Te rog adaugă cel puțin un produs pentru transfer.",
+        title: "Date incomplete",
+        description: "Vă rugăm să completați toate câmpurile pentru produse",
+        variant: "warning"
       });
       return;
     }
 
     try {
-      const { data: transferData_, error: transferError } = await supabase
+      const { data: transferData, error: transferError } = await supabase
         .from('stock_transfers')
         .insert({
-          destination: transferData.destination,
-          notes: transferData.notes || null
+          destination: formData.destination,
+          notes: formData.notes || null
         })
         .select('id')
         .single();
 
       if (transferError) throw transferError;
 
-      const items = transferData.items;
-
-      for (const item of items) {
+      for (const item of formData.items) {
         const { data: inventoryItems, error: inventoryError } = await supabase
           .from('inventory')
           .select('id, quantity, unit')
@@ -168,53 +92,57 @@ export const StockTransferForm = ({ onTransferComplete }: StockTransferFormProps
         if (!inventoryItems || inventoryItems.length === 0) {
           toast({
             title: "Eroare",
-            description: `Produsul ${item.productName} nu mai are stoc disponibil`,
+            description: `Produsul selectat nu mai are stoc disponibil`,
             variant: "destructive"
           });
           continue;
         }
 
         const inventoryItem = inventoryItems[0];
-        
+        const quantity = parseFloat(item.quantity);
+
         const { error: insertError } = await supabase
           .from('stock_transfer_items')
           .insert({
-            transfer_id: transferData_.id,
+            transfer_id: transferData.id,
             inventory_item_id: inventoryItem.id,
-            quantity: item.quantity,
+            quantity: quantity,
             unit: item.unit
           });
 
         if (insertError) throw insertError;
 
         const { error: updateError } = await supabase.rpc(
-          'decrement_quantity' as any,
+          'decrement_quantity',
           {
             item_id: inventoryItem.id,
-            decrement_by: item.quantity,
-            exit_document: transferData.destination
+            decrement_by: quantity,
+            exit_document: formData.destination
           }
         );
 
         if (updateError) throw updateError;
       }
 
-      if (hasErrors) {
-        return;
-      }
-
       toast({
-        title: "Succes",
-        description: "Transfer realizat cu succes!",
+        title: "Transfer finalizat",
+        description: "Transferul a fost înregistrat cu succes",
+        variant: "default"
       });
-      onTransferComplete();
+
+      setFormData({
+        destination: '',
+        notes: '',
+        items: [{ productId: '', quantity: '', unit: 'kg' }]
+      });
       setOpen(false);
-      setTransferData({ destination: "", notes: "", items: [] });
-    } catch (error: any) {
+      onTransferComplete();
+    } catch (error) {
+      console.error("Eroare la procesarea transferului:", error);
       toast({
-        variant: "destructive",
         title: "Eroare",
-        description: error.message,
+        description: "A apărut o eroare la procesarea transferului",
+        variant: "destructive"
       });
     }
   };
@@ -226,146 +154,113 @@ export const StockTransferForm = ({ onTransferComplete }: StockTransferFormProps
           <PlusCircle className="h-4 w-4 mr-2" /> Transfer Stoc
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl">
+
+      <DialogContent className="md:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Transfer Stoc</DialogTitle>
+          <DialogTitle>Transfer stoc</DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="col-span-1">
+            <div>
               <Label htmlFor="destination">Destinație</Label>
-              <Input
-                type="text"
-                id="destination"
-                value={transferData.destination}
-                onChange={(e) =>
-                  setTransferData((prev) => ({
-                    ...prev,
-                    destination: e.target.value,
-                  }))
-                }
+              <Input 
+                id="destination" 
+                value={formData.destination} 
+                onChange={e => setFormData(prev => ({ ...prev, destination: e.target.value }))} 
+                placeholder="Introduceți destinația"
               />
             </div>
-
-            <div className="col-span-1">
-              <Label htmlFor="notes">Note</Label>
-              <Input
-                type="text"
-                id="notes"
-                value={transferData.notes}
-                onChange={(e) =>
-                  setTransferData((prev) => ({ ...prev, notes: e.target.value }))
-                }
+            <div>
+              <Label htmlFor="notes">Observații</Label>
+              <Input 
+                id="notes" 
+                value={formData.notes} 
+                onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))} 
+                placeholder="Observații opționale"
               />
             </div>
           </div>
 
           <div>
-            <Label>Adaugă Produs</Label>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-2">
-              <div>
-                <Label htmlFor="product">Produs</Label>
-                <select
-                  id="product"
-                  className="w-full px-3 py-2 border rounded"
-                  value={newProduct.productId}
-                  onChange={(e) => {
-                    const selectedProduct = products.find(
-                      (p) => p.id === e.target.value
-                    );
-                    setNewProduct((prev) => ({
-                      ...prev,
-                      productId: e.target.value,
-                      productName: selectedProduct ? selectedProduct.name : "",
-                      unit: selectedProduct ? selectedProduct.default_unit : "",
-                    }));
-                  }}
-                >
-                  <option value="">Selectează un produs</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <Label htmlFor="quantity">Cantitate</Label>
-                <Input
-                  type="number"
-                  id="quantity"
-                  value={newProduct.quantity.toString()}
-                  onChange={(e) =>
-                    setNewProduct((prev) => ({
-                      ...prev,
-                      quantity: Number(e.target.value),
-                    }))
-                  }
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="unit">Unitate</Label>
-                <Input
-                  type="text"
-                  id="unit"
-                  value={newProduct.unit}
-                  readOnly
-                />
-              </div>
-
-              <div className="flex items-end">
-                <Button type="button" onClick={addProduct}>
-                  Adaugă
-                </Button>
-              </div>
+            <Label>Produse</Label>
+            <div className="space-y-2 mt-2">
+              {formData.items.map((item, index) => (
+                <div key={index} className="grid grid-cols-12 gap-2 items-center">
+                  <div className="col-span-5">
+                    <Select 
+                      value={item.productId} 
+                      onValueChange={value => handleItemChange(index, 'productId', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selectați produsul" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {products.map(product => (
+                          <SelectItem key={product.id} value={product.id}>
+                            {product.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-3">
+                    <Input 
+                      type="number" 
+                      placeholder="Cantitate" 
+                      value={item.quantity} 
+                      onChange={e => handleItemChange(index, 'quantity', e.target.value)}
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <Select 
+                      value={item.unit} 
+                      onValueChange={value => handleItemChange(index, 'unit', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="kg">kg</SelectItem>
+                        <SelectItem value="g">g</SelectItem>
+                        <SelectItem value="l">l</SelectItem>
+                        <SelectItem value="ml">ml</SelectItem>
+                        <SelectItem value="buc">buc</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-1">
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => handleRemoveItem(index)}
+                      disabled={formData.items.length === 1}
+                    >
+                      <Trash className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              onClick={handleAddItem} 
+              className="mt-2"
+            >
+              <PlusCircle className="h-4 w-4 mr-2" /> Adaugă produs
+            </Button>
           </div>
 
-          <div>
-            <Label>Produse pentru Transfer</Label>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Produs</TableHead>
-                  <TableHead>Cantitate</TableHead>
-                  <TableHead>Unitate</TableHead>
-                  <TableHead>Acțiune</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transferData.items.map((item, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{item.productName}</TableCell>
-                    <TableCell>{item.quantity}</TableCell>
-                    <TableCell>{item.unit}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeProduct(index)}
-                      >
-                        <Trash className="h-4 w-4 text-red-500" />
-                      </Button>
-                      {transferErrors[index] && (
-                        <div className="text-red-500">{transferErrors[index]}</div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="flex justify-end pt-4">
+            <Button type="submit" className="flex items-center">
+              <Send className="h-4 w-4 mr-2" /> Finalizează transfer
+            </Button>
           </div>
-        </div>
-
-        <Button type="button" onClick={handleTransfer}>
-          Realizează Transfer
-        </Button>
+        </form>
       </DialogContent>
     </Dialog>
   );
 };
-
-export default StockTransferForm;

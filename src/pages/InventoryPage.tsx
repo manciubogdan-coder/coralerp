@@ -14,7 +14,6 @@ import { CommandResult } from "@/types";
 import { toast } from "@/hooks/use-custom-toast";
 import { processInventoryCommand } from "@/lib/aiProcessor";
 import { speakText } from "@/lib/speechService";
-import { ConversationalVoiceAssistant } from "@/components/ConversationalVoiceAssistant";
 
 const InventoryPage = () => {
   const navigate = useNavigate();
@@ -96,7 +95,6 @@ const InventoryPage = () => {
           <h1 className="text-xl sm:text-2xl font-bold">Stoc Produse</h1>
           
           <div className="flex items-center gap-2">
-            <ConversationalVoiceAssistant onOperationComplete={fetchInventory} />
             <VoiceInputButton 
               isRecording={isRecording} 
               toggleRecording={toggleRecording} 
