@@ -1,3 +1,4 @@
+
 // Fix the select method argument issue
 import React, { useState, useEffect } from "react";
 import {
@@ -40,8 +41,6 @@ const InventoryHistory = () => {
         .from("inventory_history")
         .select("*", { count: 'exact' });
 
-      query = query.order("operation_date", { ascending: false });
-
       if (searchTerm) {
         query = query.ilike('name', `%${searchTerm}%`);
       }
@@ -54,6 +53,8 @@ const InventoryHistory = () => {
         const formattedDate = format(date, 'yyyy-MM-dd');
         query = query.gte('operation_date', `${formattedDate} 00:00:00`).lte('operation_date', `${formattedDate} 23:59:59`);
       }
+
+      query = query.order("operation_date", { ascending: false });
 
       const { data, error, count } = await query
         .range(page * itemsPerPage, (page + 1) * itemsPerPage - 1);
@@ -77,7 +78,7 @@ const InventoryHistory = () => {
   };
 
   useEffect(() => {
-    fetchInventoryHistoryItems();
+    fetchInventoryHistoryItems(page);
   }, [searchTerm, selectedAction, page, date]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,7 +163,7 @@ const InventoryHistory = () => {
               <TableHead>Product Name</TableHead>
               <TableHead>Quantity</TableHead>
               <TableHead>Operation Date</TableHead>
-              <TableHead>Details</TableHead>
+              <TableHead>Notes</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -177,7 +178,7 @@ const InventoryHistory = () => {
                   <TableCell>{item.name}</TableCell>
                   <TableCell>{item.quantity}</TableCell>
                   <TableCell>{new Date(item.operation_date).toLocaleDateString()}</TableCell>
-                  <TableCell>{item.details}</TableCell>
+                  <TableCell>{item.notes}</TableCell>
                 </TableRow>
               ))
             ) : (

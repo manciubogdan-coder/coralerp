@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -36,8 +37,10 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
   const { suppliers, products, manufacturers, crateTypes, fetchInventory } = useInventoryData();
   
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
+  const [inactivityTimer, setInactivityTimer] = useState<NodeJS.Timeout | null>(null);
+  const conversationEndedRef = useRef(false);
   
-  // Adăugăm un mesaj în conversație
+  // Adaugă un mesaj în conversație
   const addMessage = (role: 'assistant' | 'user', message: string) => {
     setConversation(prev => [...prev, {
       role,
@@ -52,16 +55,39 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
     speakText(message);
   };
   
+  // Resetează timerul de inactivitate
+  const resetInactivityTimer = () => {
+    if (inactivityTimer) {
+      clearTimeout(inactivityTimer);
+    }
+    
+    const timer = setTimeout(() => {
+      if (open && conversationMode !== 'idle' && !conversationEndedRef.current) {
+        assistantSays("Se pare că nu mai există activitate. Mai pot să te ajut cu ceva?");
+      }
+    }, 30000); // 30 secunde
+    
+    setInactivityTimer(timer);
+  };
+  
   // Începe conversația când dialogul se deschide
   useEffect(() => {
     if (open && conversationMode === 'idle') {
       setConversation([]);
+      conversationEndedRef.current = false;
       setTimeout(() => {
         const greeting = "Salut! Cu ce te pot ajuta astăzi? Poți să-mi spui dacă vrei să faci o recepție de marfă, un transfer de stoc sau să introduci marfă din producție.";
         assistantSays(greeting);
-        startConversation('askOperation');
+        startConversation('greeting');
+        resetInactivityTimer();
       }, 500);
     }
+    
+    return () => {
+      if (inactivityTimer) {
+        clearTimeout(inactivityTimer);
+      }
+    };
   }, [open, conversationMode, startConversation]);
   
   // Procesează transcriptul când devine disponibil
@@ -70,14 +96,16 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
     
     console.log(`Procesez transcriptul pentru pasul ${currentStep}:`, finalTranscript);
     addMessage('user', finalTranscript);
+    resetInactivityTimer();
     
     const processTranscript = async () => {
       switch (currentStep) {
-        case 'askOperation': {
+        case 'greeting':
+          // Determinăm operațiunea
           const operation = determineOperation(finalTranscript);
           if (operation === 'unknown') {
             assistantSays("Nu am înțeles ce operațiune dorești să faci. Te rog să-mi spui din nou dacă vrei să faci o recepție de marfă, un transfer de stoc sau să introduci marfă din producție.");
-            processConversationStep('', 'askOperation');
+            processConversationStep('', 'greeting');
           } else {
             processConversationStep('', 'askProduct', { operation });
             
@@ -90,7 +118,24 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
             }
           }
           break;
-        }
+          
+        case 'askOperation':
+          const operationDirect = determineOperation(finalTranscript);
+          if (operationDirect === 'unknown') {
+            assistantSays("Nu am înțeles ce operațiune dorești să faci. Te rog să-mi spui din nou dacă vrei să faci o recepție de marfă, un transfer de stoc sau să introduci marfă din producție.");
+            processConversationStep('', 'askOperation');
+          } else {
+            processConversationStep('', 'askProduct', { operation: operationDirect });
+            
+            if (operationDirect === 'reception') {
+              assistantSays("Bun, vom face o recepție de marfă. Ce produs dorești să recepționezi?");
+            } else if (operationDirect === 'transfer') {
+              assistantSays("Perfect, vom face un transfer de stoc. Ce produs dorești să transferi?");
+            } else if (operationDirect === 'production') {
+              assistantSays("Ok, vom introduce marfă din producție. Ce produs dorești să introduci?");
+            }
+          }
+          break;
         
         case 'askProduct': {
           const productName = finalTranscript.toLowerCase();
@@ -363,17 +408,47 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
             
             // Executăm operațiunea în funcție de tipul acesteia
             if (collectedData.operation === 'reception') {
-              performReception();
+              await performReception();
             } else if (collectedData.operation === 'transfer') {
-              performTransfer();
+              await performTransfer();
             } else if (collectedData.operation === 'production') {
-              performProduction();
+              await performProduction();
             }
           } else {
-            const completedData = endConversation();
+            endConversation();
             assistantSays("Operațiunea a fost anulată. Mulțumesc pentru informații!");
-            setOpen(false);
+            conversationEndedRef.current = true;
+            setTimeout(() => {
+              assistantSays("Mai pot să te ajut cu altceva? Spune-mi dacă dorești să faci o altă operațiune sau să închei conversația.");
+              processConversationStep('', 'askForMoreHelp');
+            }, 2000);
           }
+          break;
+        }
+        
+        case 'askForMoreHelp': {
+          const response = finalTranscript.toLowerCase();
+          if (response.includes('da') || response.includes('ajut') || response.includes('altceva')) {
+            assistantSays("Cu ce te mai pot ajuta? Poți să-mi spui dacă vrei să faci o recepție de marfă, un transfer de stoc sau să introduci marfă din producție.");
+            processConversationStep('', 'askOperation');
+          } else {
+            assistantSays("Mulțumesc pentru conversație! Să ai o zi bună! Când mai ai nevoie de ajutor, sunt aici.");
+            conversationEndedRef.current = true;
+            setTimeout(() => {
+              setOpen(false);
+              endConversation();
+            }, 3000);
+          }
+          break;
+        }
+        
+        case 'finishingConversation': {
+          assistantSays("Mulțumesc pentru conversație! Să ai o zi bună! Când mai ai nevoie de ajutor, sunt aici.");
+          conversationEndedRef.current = true;
+          setTimeout(() => {
+            setOpen(false);
+            endConversation();
+          }, 3000);
           break;
         }
       }
@@ -479,9 +554,9 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
   const performReception = async () => {
     try {
       // Calculăm greutatea netă dacă avem lădițe
-      let netQuantity = collectedData.quantity;
+      let netQuantity = collectedData.quantity || 0;
       if (collectedData.hasCrates && collectedData.crateCount && collectedData.crateWeight) {
-        netQuantity = collectedData.quantity - (collectedData.crateCount * collectedData.crateWeight);
+        netQuantity = netQuantity - (collectedData.crateCount * collectedData.crateWeight);
       }
       
       const { error } = await supabase.from('inventory').insert({
@@ -505,8 +580,8 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       // Reîmprospătăm datele de inventar
       await fetchInventory();
       
-      const completedData = endConversation();
-      assistantSays("Operațiunea de recepție a fost realizată cu succes! Produsele au fost adăugate în inventar. Mai pot să te ajut cu altceva?");
+      endConversation();
+      assistantSays("Operațiunea de recepție a fost realizată cu succes! Produsele au fost adăugate în inventar.");
       
       toast({
         title: "Recepție finalizată",
@@ -516,9 +591,15 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       
       onOperationComplete();
       
+      // Întrebăm dacă mai putem ajuta cu altceva
+      setTimeout(() => {
+        assistantSays("Mai pot să te ajut cu altceva? Spune-mi dacă dorești să faci o altă operațiune sau să închei conversația.");
+        processConversationStep('', 'askForMoreHelp');
+      }, 2000);
+      
     } catch (error) {
       console.error("Eroare la procesarea recepției:", error);
-      assistantSays("A apărut o eroare la procesarea recepției. Te rog să încerci din nou. Pot să te ajut cu altceva?");
+      assistantSays("A apărut o eroare la procesarea recepției. Te rog să încerci din nou.");
       endConversation();
       
       toast({
@@ -526,6 +607,12 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
         description: "Nu am putut finaliza operațiunea de recepție.",
         variant: "destructive"
       });
+      
+      // Întrebăm dacă mai putem ajuta cu altceva, chiar și după eroare
+      setTimeout(() => {
+        assistantSays("Mai pot să te ajut cu altceva? Spune-mi dacă dorești să faci o altă operațiune sau să închei conversația.");
+        processConversationStep('', 'askForMoreHelp');
+      }, 2000);
     }
   };
   
@@ -575,10 +662,10 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       
       // Decrementăm cantitatea din inventar
       const { error: updateError } = await supabase.rpc(
-        'decrement_quantity' as any,
+        'decrement_quantity',
         {
           item_id: inventoryItem.id,
-          decrement_by: collectedData.quantity,
+          decrement_by: collectedData.quantity || 0,
           exit_document: collectedData.destination
         }
       );
@@ -588,8 +675,8 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       // Reîmprospătăm datele de inventar
       await fetchInventory();
       
-      const completedData = endConversation();
-      assistantSays("Operațiunea de transfer a fost realizată cu succes! Mai pot să te ajut cu altceva?");
+      endConversation();
+      assistantSays("Operațiunea de transfer a fost realizată cu succes!");
       
       toast({
         title: "Transfer finalizat",
@@ -599,9 +686,15 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       
       onOperationComplete();
       
+      // Întrebăm dacă mai putem ajuta cu altceva
+      setTimeout(() => {
+        assistantSays("Mai pot să te ajut cu altceva? Spune-mi dacă dorești să faci o altă operațiune sau să închei conversația.");
+        processConversationStep('', 'askForMoreHelp');
+      }, 2000);
+      
     } catch (error) {
       console.error("Eroare la procesarea transferului:", error);
-      assistantSays("A apărut o eroare la procesarea transferului. Te rog să încerci din nou. Pot să te ajut cu altceva?");
+      assistantSays("A apărut o eroare la procesarea transferului. Te rog să încerci din nou.");
       endConversation();
       
       toast({
@@ -609,6 +702,12 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
         description: "Nu am putut finaliza operațiunea de transfer.",
         variant: "destructive"
       });
+      
+      // Întrebăm dacă mai putem ajuta cu altceva, chiar și după eroare
+      setTimeout(() => {
+        assistantSays("Mai pot să te ajut cu altceva? Spune-mi dacă dorești să faci o altă operațiune sau să închei conversația.");
+        processConversationStep('', 'askForMoreHelp');
+      }, 2000);
     }
   };
   
@@ -631,8 +730,8 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       // Reîmprospătăm datele de inventar
       await fetchInventory();
       
-      const completedData = endConversation();
-      assistantSays("Operațiunea de introducere din producție a fost realizată cu succes! Produsele au fost adăugate în inventar. Mai pot să te ajut cu altceva?");
+      endConversation();
+      assistantSays("Operațiunea de introducere din producție a fost realizată cu succes! Produsele au fost adăugate în inventar.");
       
       toast({
         title: "Producție finalizată",
@@ -642,9 +741,15 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       
       onOperationComplete();
       
+      // Întrebăm dacă mai putem ajuta cu altceva
+      setTimeout(() => {
+        assistantSays("Mai pot să te ajut cu altceva? Spune-mi dacă dorești să faci o altă operațiune sau să închei conversația.");
+        processConversationStep('', 'askForMoreHelp');
+      }, 2000);
+      
     } catch (error) {
       console.error("Eroare la procesarea introducerii din producție:", error);
-      assistantSays("A apărut o eroare la procesarea introducerii din producție. Te rog să încerci din nou. Pot să te ajut cu altceva?");
+      assistantSays("A apărut o eroare la procesarea introducerii din producție. Te rog să încerci din nou.");
       endConversation();
       
       toast({
@@ -652,11 +757,22 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
         description: "Nu am putut finaliza operațiunea de introducere din producție.",
         variant: "destructive"
       });
+      
+      // Întrebăm dacă mai putem ajuta cu altceva, chiar și după eroare
+      setTimeout(() => {
+        assistantSays("Mai pot să te ajut cu altceva? Spune-mi dacă dorești să faci o altă operațiune sau să închei conversația.");
+        processConversationStep('', 'askForMoreHelp');
+      }, 2000);
     }
   };
   
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      setOpen(newOpen);
+      if (!newOpen) {
+        endConversation();
+      }
+    }}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="flex items-center gap-2">
           <Mic className="h-4 w-4" />

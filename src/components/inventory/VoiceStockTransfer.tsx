@@ -219,7 +219,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         const { error: insertError } = await supabase
           .from('stock_transfer_items')
           .insert({
-            transfer_id: transferData_.id, // Access id from single record
+            transfer_id: transferData_.id,
             inventory_item_id: inventoryItem.id,
             quantity: item.quantity,
             unit: item.unit
@@ -228,7 +228,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         if (insertError) throw insertError;
 
         const { error: updateError } = await supabase.rpc(
-          'decrement_quantity' as any,
+          'decrement_quantity',
           {
             item_id: inventoryItem.id,
             decrement_by: item.quantity,
