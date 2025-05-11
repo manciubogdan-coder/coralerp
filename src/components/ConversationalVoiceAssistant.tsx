@@ -39,6 +39,7 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   const [inactivityTimer, setInactivityTimer] = useState<NodeJS.Timeout | null>(null);
   const conversationEndedRef = useRef(false);
+  const [assistantInitiative, setAssistantInitiative] = useState(false);
   
   // Adaugă un mesaj în conversație
   const addMessage = (role: 'assistant' | 'user', message: string) => {
@@ -64,6 +65,7 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
     const timer = setTimeout(() => {
       if (open && conversationMode !== 'idle' && !conversationEndedRef.current) {
         assistantSays("Se pare că nu mai există activitate. Mai pot să te ajut cu ceva?");
+        setAssistantInitiative(true);
       }
     }, 30000); // 30 secunde
     
@@ -75,8 +77,9 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
     if (open && conversationMode === 'idle') {
       setConversation([]);
       conversationEndedRef.current = false;
+      setAssistantInitiative(true);
       setTimeout(() => {
-        const greeting = "Salut! Cu ce te pot ajuta astăzi? Poți să-mi spui dacă vrei să faci o recepție de marfă, un transfer de stoc sau să introduci marfă din producție.";
+        const greeting = "Salut! Eu sunt asistentul tău pentru gestionarea stocului. Cu ce te pot ajuta astăzi? Poți să-mi spui dacă vrei să faci o recepție de marfă, un transfer de stoc sau să introduci marfă din producție.";
         assistantSays(greeting);
         startConversation('greeting');
         resetInactivityTimer();
@@ -96,6 +99,7 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
     
     console.log(`Procesez transcriptul pentru pasul ${currentStep}:`, finalTranscript);
     addMessage('user', finalTranscript);
+    setAssistantInitiative(true);
     resetInactivityTimer();
     
     const processTranscript = async () => {
@@ -771,12 +775,13 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       setOpen(newOpen);
       if (!newOpen) {
         endConversation();
+        setAssistantInitiative(false);
       }
     }}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="flex items-center gap-2">
           <Mic className="h-4 w-4" />
-          Asistent Vocal Conversațional
+          Asistent Vocal Inteligent
         </Button>
       </DialogTrigger>
       
@@ -816,6 +821,24 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
           <div className="p-3 bg-gray-100 rounded-lg">
             <p className="text-sm font-medium">Ascult...</p>
             <p className="text-sm italic">{transcript}</p>
+          </div>
+        )}
+        
+        {conversation.length === 0 && !isRecording && (
+          <div className="p-4 text-center text-gray-500">
+            <p>Apasă butonul pentru a începe o conversație vocală</p>
+            <p className="text-xs mt-2">Asistentul va prelua inițiativa conversației</p>
+          </div>
+        )}
+        
+        {!isRecording && assistantInitiative && (
+          <div className="mt-4 text-center">
+            <Button 
+              onClick={toggleRecording} 
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Mic className="h-4 w-4 mr-2" /> Răspunde asistentului
+            </Button>
           </div>
         )}
       </DialogContent>
