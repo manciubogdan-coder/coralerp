@@ -15,4 +15,10 @@ declare module '@supabase/supabase-js' {
       }
     ): Promise<{ data: T; error: Error | null }>;
   }
+
+  export function createClient(
+    supabaseUrl: string,
+    supabaseKey: string,
+    options?: any
+  ): SupabaseClient;
 }
