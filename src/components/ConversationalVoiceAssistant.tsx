@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { Button } from "@/components/ui/button";
@@ -30,7 +29,7 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
   
   const { suppliers, products, manufacturers, crateTypes, fetchInventory } = useInventoryData();
   
-  const [conversation, setConversation] = useState<{
+  const [conversation, setConversation<{
     role: 'assistant' | 'user';
     message: string;
     timestamp: Date;
@@ -577,7 +576,7 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       const { error: updateError } = await supabase.rpc(
         'decrement_quantity' as any,
         {
-          item_id: inventoryItem.id,
+          item_id: inventoryItem.id, // Fix the property access here
           decrement_by: collectedData.quantity,
           exit_document: collectedData.destination
         }

@@ -217,7 +217,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         const { error: insertError } = await supabase
           .from('stock_transfer_items')
           .insert({
-            transfer_id: transferData_.id,
+            transfer_id: transferData_.id, // Access id from single record
             inventory_item_id: inventoryItem.id,
             quantity: item.quantity,
             unit: item.unit

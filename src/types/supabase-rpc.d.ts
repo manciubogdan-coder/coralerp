@@ -44,13 +44,13 @@ declare module '@supabase/supabase-js' {
       onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null
     ): Promise<TResult1 | TResult2>;
     
-    // Direct access to data for await syntax
+    // Direct access to data, error, count
     data: T[];
     error: Error | null;
     count?: number;
   }
 
-  interface PostgrestTransformBuilder<T> {
+  interface PostgrestTransformBuilder<T> extends PostgrestFilterBuilder<T> {
     select(columns?: string): PostgrestTransformBuilder<T>;
     order(column: string, options?: { ascending?: boolean }): PostgrestTransformBuilder<T>;
     limit(count: number): PostgrestTransformBuilder<T>;
@@ -58,7 +58,7 @@ declare module '@supabase/supabase-js' {
     single(): PostgrestFilterBuilder<T>;
     maybeSingle(): PostgrestFilterBuilder<T>;
     
-    // Filter methods that should be available in TransformBuilder
+    // We need to include filter methods directly in TransformBuilder
     eq(column: string, value: any): PostgrestFilterBuilder<T>;
     neq(column: string, value: any): PostgrestFilterBuilder<T>;
     gt(column: string, value: any): PostgrestFilterBuilder<T>;
@@ -72,12 +72,13 @@ declare module '@supabase/supabase-js' {
     contains(column: string, value: any): PostgrestFilterBuilder<T>;
     containedBy(column: string, value: any): PostgrestFilterBuilder<T>;
     
+    // Add Promise compatibility
     then<TResult1 = PostgrestResponse<T[]>, TResult2 = never>(
       onfulfilled?: ((value: PostgrestResponse<T[]>) => TResult1 | PromiseLike<TResult1>) | undefined | null,
       onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null
     ): Promise<TResult1 | TResult2>;
     
-    // Direct access to data for await syntax
+    // Direct access to data, error, count
     data: T[];
     error: Error | null;
     count?: number;
@@ -102,7 +103,7 @@ declare module '@supabase/supabase-js' {
     options?: any
   ): SupabaseClient;
 
-  // Make Promise properties accessible directly
+  // Make Promise properties directly accessible
   interface Promise<T> {
     data: any;
     error: Error | null;

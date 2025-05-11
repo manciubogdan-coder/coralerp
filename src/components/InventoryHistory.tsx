@@ -110,9 +110,9 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
   const fetchHistory = async () => {
     try {
       let query = supabase
-        .from('inventory_history')
-        .select('*', { count: 'exact' })
-        .order('operation_date', { ascending: false });
+        .from("inventory_history")
+        .select("*", { count: 'exact' })
+        .order("operation_date", { ascending: false });
 
       if (searchTerm) {
         query = query.ilike('name', `%${searchTerm}%`);
