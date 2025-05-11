@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -49,9 +50,10 @@ export const TransferHistory = ({ onTransferReturned }: { onTransferReturned: ()
         }
         
         if (data) {
-          // Fix the type issue here, by extracting the string values from data
-          const destinationStrings = data.map(item => item.destination as string)
-            .filter((value, index, self) => self.indexOf(value) === index); // Remove duplicates
+          // Extract the destination strings and remove duplicates
+          const destinationStrings = data
+            .map(item => item.destination as string)
+            .filter((value, index, self) => self.indexOf(value) === index);
           
           setDestinations(destinationStrings);
         }

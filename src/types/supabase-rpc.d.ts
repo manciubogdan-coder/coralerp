@@ -13,6 +13,6 @@ declare module '@supabase/supabase-js' {
         head?: boolean;
         count?: null | 'exact' | 'planned' | 'estimated';
       }
-    ): { data: T; error: Error | null };
+    ): Promise<{ data: T; error: Error | null }>;
   }
 }

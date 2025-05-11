@@ -1,20 +1,12 @@
 
 import { createClient } from '@supabase/supabase-js'
 
-// Make sure to read the environment variables correctly
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-// Check if we have the required values and provide meaningful error messages
-if (!supabaseUrl) {
-  console.error("Error: VITE_SUPABASE_URL environment variable is not set")
-}
-if (!supabaseAnonKey) {
-  console.error("Error: VITE_SUPABASE_ANON_KEY environment variable is not set")
-}
+// Use hardcoded values for the Supabase project until environment variables are available
+const supabaseUrl = 'https://mfcdlifjxxdrekzdatfb.supabase.co'
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY2RsaWZqeHhkcmVremRhdGZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQyMTg0MTMsImV4cCI6MjA1OTc5NDQxM30.P7molAFqPEpn4hwwEvKzYTEFHRlJhhvQ8GM29CqEDxk'
 
 // Create the Supabase client with proper error handling
-export const supabase = createClient(
-  supabaseUrl || '', 
-  supabaseAnonKey || ''
-)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// For debugging purposes
+console.log('Supabase client initialized with URL:', supabaseUrl)
