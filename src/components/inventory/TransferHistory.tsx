@@ -430,9 +430,10 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       console.log("Fetched transfers:", data);
       setTransfers(data || []);
       
+      // Fix the type error by type casting the unique destinations
       const uniqueDestinations = Array.from(
-        new Set((data || []).map((transfer) => transfer.destination))
-      );
+        new Set((data || []).map((transfer: any) => transfer.destination))
+      ).filter((destination): destination is string => typeof destination === 'string');
       
       setDestinations(uniqueDestinations);
       

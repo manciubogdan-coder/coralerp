@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { improveVoiceCommand } from '@/lib/speechService';
 
@@ -8,11 +9,11 @@ export const useVoiceInput = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [finalTranscript, setFinalTranscript] = useState('');
-  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const [recognition, setRecognition] = useState<any>(null);
 
   useEffect(() => {
     // Use the global types from the declaration file
-    const SpeechRecognitionAPI: typeof SpeechRecognition = 
+    const SpeechRecognitionAPI = 
       window.SpeechRecognition || window.webkitSpeechRecognition;
       
     if (!SpeechRecognitionAPI) {
