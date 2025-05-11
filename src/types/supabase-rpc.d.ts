@@ -38,8 +38,19 @@ declare module '@supabase/supabase-js' {
           limit: (count: number) => Promise<{ data: T[]; error: Error | null }>;
           range: (from: number, to: number) => Promise<{ data: T[]; error: Error | null }>;
           select: (columns?: string) => Promise<{ data: T[]; error: Error | null }>;
+          eq: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
+          neq: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
+          gt: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
+          lt: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
+          gte: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
+          lte: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
+          like: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
+          ilike: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
+          is: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
+          in: (column: string, values: any[]) => Promise<{ data: T[]; error: Error | null }>;
+          contains: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
+          containedBy: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
         };
-        order: (column: string, options?: { ascending?: boolean }) => Promise<{ data: T[]; error: Error | null }>;
         limit: (count: number) => Promise<{ data: T[]; error: Error | null }>;
         eq: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
         neq: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
@@ -65,7 +76,6 @@ declare module '@supabase/supabase-js' {
         gte: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
         lte: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
         match: (query: any) => Promise<{ data: T[]; error: Error | null }>;
-        eq: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
       };
       delete: () => {
         eq: (column: string, value: any) => Promise<{ data: T[]; error: Error | null }>;
