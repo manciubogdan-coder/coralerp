@@ -12,6 +12,12 @@ interface ConversationalVoiceAssistantProps {
   onOperationComplete: () => void;
 }
 
+interface ConversationMessage {
+  role: 'assistant' | 'user';
+  message: string;
+  timestamp: Date;
+}
+
 export const ConversationalVoiceAssistant = ({ onOperationComplete }: ConversationalVoiceAssistantProps) => {
   const [open, setOpen] = useState(false);
   const { 
@@ -29,11 +35,7 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
   
   const { suppliers, products, manufacturers, crateTypes, fetchInventory } = useInventoryData();
   
-  const [conversation, setConversation<{
-    role: 'assistant' | 'user';
-    message: string;
-    timestamp: Date;
-  }[]>([]);
+  const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   
   // Adăugăm un mesaj în conversație
   const addMessage = (role: 'assistant' | 'user', message: string) => {
@@ -576,7 +578,7 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       const { error: updateError } = await supabase.rpc(
         'decrement_quantity' as any,
         {
-          item_id: inventoryItem.id, // Fix the property access here
+          item_id: inventoryItem.id,
           decrement_by: collectedData.quantity,
           exit_document: collectedData.destination
         }
