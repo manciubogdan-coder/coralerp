@@ -10,6 +10,10 @@ export const useVoiceInput = () => {
   const [transcript, setTranscript] = useState('');
   const [finalTranscript, setFinalTranscript] = useState('');
   const [recognition, setRecognition] = useState<any>(null);
+  // Adăugăm un nou state pentru a ține evidența conversației
+  const [conversationMode, setConversationMode] = useState<'idle' | 'active'>('idle');
+  const [currentStep, setCurrentStep] = useState<string>('');
+  const [collectedData, setCollectedData] = useState<Record<string, any>>({});
 
   useEffect(() => {
     // Use the global types from the declaration file
@@ -66,7 +70,7 @@ export const useVoiceInput = () => {
         recognition.abort();
       }
     };
-  }, [isRecording]);
+  }, [isRecording, recognition]);
 
   // Funcție pentru a porni/opri înregistrarea
   const toggleRecording = useCallback(() => {
@@ -89,11 +93,61 @@ export const useVoiceInput = () => {
     return improveVoiceCommand(command);
   }, []);
 
+  // Metodă pentru a începe o nouă conversație ghidată
+  const startConversation = useCallback((initialStep: string) => {
+    setConversationMode('active');
+    setCurrentStep(initialStep);
+    setCollectedData({});
+    
+    if (!isRecording) {
+      toggleRecording();
+    }
+  }, [isRecording, toggleRecording]);
+
+  // Metodă pentru a procesa și a avansa în conversație
+  const processConversationStep = useCallback((response: string, nextStep?: string, data?: Record<string, any>) => {
+    // Actualizăm datele colectate dacă avem date noi
+    if (data) {
+      setCollectedData(prev => ({ ...prev, ...data }));
+    }
+    
+    // Dacă există un pas următor, setăm pasul curent
+    if (nextStep) {
+      setCurrentStep(nextStep);
+    } else {
+      // Dacă nu există pas următor, conversația s-a terminat
+      setConversationMode('idle');
+    }
+    
+    // Resetăm transcript-ul pentru a permite o nouă intrare
+    setTranscript('');
+    setFinalTranscript('');
+  }, []);
+
+  // Metodă pentru a termina conversația
+  const endConversation = useCallback(() => {
+    setConversationMode('idle');
+    setCurrentStep('');
+    
+    if (isRecording) {
+      toggleRecording();
+    }
+    
+    return collectedData;
+  }, [isRecording, toggleRecording, collectedData]);
+
   return {
     isRecording,
     transcript,
     finalTranscript,
     toggleRecording,
-    processCommand
+    processCommand,
+    // Adăugăm metodele pentru conversație
+    startConversation,
+    processConversationStep,
+    endConversation,
+    conversationMode,
+    currentStep,
+    collectedData
   };
 };
