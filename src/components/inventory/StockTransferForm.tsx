@@ -152,7 +152,9 @@ export const StockTransferForm = ({ onTransferComplete }: StockTransferFormProps
 
       if (transferError) throw transferError;
 
-      for (const [index, item] of transferData.items.entries()) {
+      const items = transferData.items;
+
+      for (const item of items) {
         const { data: inventoryItems, error: inventoryError } = await supabase
           .from('inventory')
           .select('id, quantity, unit')
@@ -162,18 +164,18 @@ export const StockTransferForm = ({ onTransferComplete }: StockTransferFormProps
           .limit(1);
 
         if (inventoryError) throw inventoryError;
-
-        if (!inventoryItems || inventoryItems.length === 0 || inventoryItems[0].quantity < item.quantity) {
-          setTransferErrors(prev => ({
-            ...prev,
-            [index]: `Nu există stoc suficient pentru ${item.productName}`
-          }));
-          hasErrors = true;
+        
+        if (!inventoryItems || inventoryItems.length === 0) {
+          toast({
+            title: "Eroare",
+            description: `Produsul ${item.productName} nu mai are stoc disponibil`,
+            variant: "destructive"
+          });
           continue;
         }
 
         const inventoryItem = inventoryItems[0];
-
+        
         const { error: insertError } = await supabase
           .from('stock_transfer_items')
           .insert({
@@ -365,3 +367,5 @@ export const StockTransferForm = ({ onTransferComplete }: StockTransferFormProps
     </Dialog>
   );
 };
+
+export default StockTransferForm;

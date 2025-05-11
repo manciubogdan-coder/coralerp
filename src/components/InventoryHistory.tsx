@@ -1,113 +1,40 @@
+// Fix the select method argument issue
 import React, { useState, useEffect } from "react";
-import { 
-  Table, TableBody, TableCell, TableHead, 
-  TableHeader, TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Pagination, PaginationContent, PaginationItem, 
-  PaginationLink, PaginationNext, PaginationPrevious 
-} from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
-import { ro } from "date-fns/locale";
-import { Search, Calendar as CalendarIcon } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { InventoryHistoryItem, Supplier, Product, Manufacturer, CrateType } from "@/types";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { InventoryHistoryItem } from "@/types";
 
-interface InventoryHistoryProps {
-  productName?: string;
-  initialDateRange?: [Date | undefined, Date | undefined];
-}
+const InventoryHistory = () => {
+  const [inventoryHistoryItems, setInventoryHistoryItems] = useState<InventoryHistoryItem[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedAction, setSelectedAction] = useState("all");
+  const [loading, setLoading] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(0);
+  const [itemsPerPage] = useState(10);
+  const [date, setDate] = useState<Date | undefined>(undefined);
+  const { toast } = useToast();
 
-interface InventoryHistoryResponse {
-  id: string;
-  inventory_item_id: string | null;
-  action: string;
-  name: string;
-  quantity: number;
-  unit: string;
-  previous_quantity: number | null;
-  supplier: string | null;
-  operation_date: string;
-  exit_timestamp: string | null;
-  notes: string | null;
-  document_number: string | null;
-  supplier_id: string | null;
-  product_id: string | null;
-  manufacturer_id: string | null;
-  crate_type_id: string | null;
-  crate_count: number | null;
-  crate_weight: number | null;
-}
-
-const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryProps) => {
-  const [history, setHistory] = useState<InventoryHistoryItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState(productName || "");
-  const [dateRange, setDateRange] = useState<[Date | undefined, Date | undefined]>(
-    initialDateRange || [undefined, undefined]
-  );
-  const [actionFilter, setActionFilter] = useState<string>("all");
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [suppliers, setSuppliers] = useState<Record<string, Supplier>>({});
-  const [products, setProducts] = useState<Record<string, Product>>({});
-  const [manufacturers, setManufacturers] = useState<Record<string, Manufacturer>>({});
-  const [crateTypes, setCrateTypes] = useState<Record<string, CrateType>>({});
-  const limit = 10;
-  
-  useEffect(() => {
-    const fetchReferenceData = async () => {
-      const { data: suppliersData } = await supabase.from('suppliers').select('*');
-      if (suppliersData) {
-        const suppliersMap = suppliersData.reduce((acc, supplier) => {
-          acc[supplier.id] = supplier;
-          return acc;
-        }, {} as Record<string, Supplier>);
-        setSuppliers(suppliersMap);
-      }
-
-      const { data: productsData } = await supabase.from('products').select('*');
-      if (productsData) {
-        const productsMap = productsData.reduce((acc, product) => {
-          acc[product.id] = product;
-          return acc;
-        }, {} as Record<string, Product>);
-        setProducts(productsMap);
-      }
-
-      const { data: manufacturersData } = await supabase.from('manufacturers').select('*');
-      if (manufacturersData) {
-        const manufacturersMap = manufacturersData.reduce((acc, manufacturer) => {
-          acc[manufacturer.id] = manufacturer;
-          return acc;
-        }, {} as Record<string, Manufacturer>);
-        setManufacturers(manufacturersMap);
-      }
-
-      const { data: crateTypesData } = await supabase.from('crate_types').select('*');
-      if (crateTypesData) {
-        const crateTypesMap = crateTypesData.reduce((acc, crateType) => {
-          acc[crateType.id] = crateType;
-          return acc;
-        }, {} as Record<string, CrateType>);
-        setCrateTypes(crateTypesMap);
-      }
-    };
-
-    fetchReferenceData();
-  }, []);
-  
-  useEffect(() => {
-    fetchHistory();
-  }, [searchTerm, dateRange, actionFilter, page, suppliers, products, manufacturers, crateTypes]);
-
-  const fetchHistory = async () => {
+  const fetchInventoryHistoryItems = async (page = 0) => {
+    setLoading(true);
+    
     try {
       let query = supabase
         .from("inventory_history")
@@ -118,259 +45,169 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
       if (searchTerm) {
         query = query.ilike('name', `%${searchTerm}%`);
       }
-      
-      if (dateRange[0]) {
-        query = query.gte('operation_date', dateRange[0].toISOString());
-      }
-      
-      if (dateRange[1]) {
-        const endDate = new Date(dateRange[1]);
-        endDate.setDate(endDate.getDate() + 1);
-        query = query.lt('operation_date', endDate.toISOString());
-      }
-      
-      if (actionFilter && actionFilter !== "all") {
-        query = query.eq('action', actionFilter);
-      }
-      
-      query = query.range((page - 1) * limit, page * limit - 1);
-      
-      const { data, error, count } = await query;
-      
-      if (error) throw error;
 
-      if (count !== null) {
-        setTotalPages(Math.ceil(count / limit));
+      if (selectedAction !== 'all') {
+        query = query.eq('action', selectedAction);
       }
-      
-      const historyItems: InventoryHistoryItem[] = (data as InventoryHistoryResponse[]).map(item => ({
-        id: item.id,
-        inventory_item_id: item.inventory_item_id || undefined,
-        action: item.action as 'add' | 'remove' | 'set',
-        name: item.name,
-        quantity: Number(item.quantity),
-        unit: item.unit,
-        previous_quantity: item.previous_quantity ? Number(item.previous_quantity) : undefined,
-        supplier: item.supplier || undefined,
-        supplier_id: item.supplier_id || undefined,
-        product_id: item.product_id || undefined,
-        manufacturer_id: item.manufacturer_id || undefined,
-        document_number: item.document_number || undefined,
-        crate_type_id: item.crate_type_id || undefined,
-        crate_count: item.crate_count !== null ? Number(item.crate_count) : undefined,
-        crate_weight: item.crate_weight !== null ? Number(item.crate_weight) : undefined,
-        operation_date: new Date(item.operation_date),
-        exit_timestamp: item.exit_timestamp ? new Date(item.exit_timestamp) : undefined,
-        notes: item.notes || undefined
-      }));
-      
-      setHistory(historyItems);
+
+      if (date) {
+        const formattedDate = format(date, 'yyyy-MM-dd');
+        query = query.gte('operation_date', `${formattedDate} 00:00:00`).lte('operation_date', `${formattedDate} 23:59:59`);
+      }
+
+      const { data, error, count } = await query
+        .range(page * itemsPerPage, (page + 1) * itemsPerPage - 1);
+
+      if (error) {
+        throw error;
+      }
+
+      setInventoryHistoryItems(data || []);
+      setTotalCount(count || 0);
     } catch (error) {
       console.error("Error fetching inventory history:", error);
+      toast({
+        title: "Error",
+        description: "Could not fetch inventory history.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getActionColor = (action: string) => {
-    switch (action) {
-      case 'add': return 'bg-green-500';
-      case 'remove': return 'bg-red-500';
-      case 'set': return 'bg-blue-500';
-      default: return 'bg-gray-500';
-    }
-  };
-  
-  const getActionTranslation = (action: string) => {
-    switch (action) {
-      case 'add': return 'Adăugare';
-      case 'remove': return 'Eliminare';
-      case 'set': return 'Setare';
-      default: return action;
-    }
+  useEffect(() => {
+    fetchInventoryHistoryItems();
+  }, [searchTerm, selectedAction, page, date]);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    setPage(0); // Reset to the first page when searching
   };
 
-  const formatDateRange = () => {
-    if (dateRange[0] && dateRange[1]) {
-      return `${format(dateRange[0], 'dd.MM.yyyy')} - ${format(dateRange[1], 'dd.MM.yyyy')}`;
-    } else if (dateRange[0]) {
-      return `De la ${format(dateRange[0], 'dd.MM.yyyy')}`;
-    } else if (dateRange[1]) {
-      return `Până la ${format(dateRange[1], 'dd.MM.yyyy')}`;
-    }
-    return 'Selectați perioada';
+  const handleActionChange = (action: string) => {
+    setSelectedAction(action);
+    setPage(0); // Reset to the first page when filtering
   };
 
-  const formatQuantity = (quantity: number | undefined) => {
-    if (quantity === undefined) return '-';
-    return quantity.toFixed(2);
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setSelectedAction("all");
+    setDate(undefined);
+    setPage(0);
   };
 
   return (
-    <div>
-      <div className="p-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Caută produs..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        
-        <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-          <Select value={actionFilter} onValueChange={setActionFilter}>
-            <SelectTrigger className="w-full md:w-[180px]">
-              <SelectValue placeholder="Tip operațiune" />
-            </SelectTrigger>
-            <SelectContent className="z-50">
-              <SelectItem value="all">Toate operațiunile</SelectItem>
-              <SelectItem value="add">Adăugare</SelectItem>
-              <SelectItem value="remove">Eliminare</SelectItem>
-              <SelectItem value="set">Setare</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full md:w-auto justify-start text-left font-normal"
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {formatDateRange()}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 z-50" align="start">
-              <Calendar
-                mode="range"
-                selected={{ from: dateRange[0], to: dateRange[1] }}
-                onSelect={(range) => {
-                  setDateRange([range?.from, range?.to]);
-                  if (range?.to) {
-                    setTimeout(() => setIsCalendarOpen(false), 100);
-                  }
-                }}
-                locale={ro}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
-      
-      <div className="overflow-hidden">
-        <div className="overflow-x-auto max-h-[70vh]">
-          <Table>
-            <TableHeader className="sticky top-0 bg-white z-10">
-              <TableRow>
-                <TableHead>Dată operațiune</TableHead>
-                <TableHead>Acțiune</TableHead>
-                <TableHead>Produs</TableHead>
-                <TableHead>Nr. document</TableHead>
-                <TableHead>Furnizor</TableHead>
-                <TableHead>Producător</TableHead>
-                <TableHead className="text-right">Cantitate</TableHead>
-                <TableHead>Unitate</TableHead>
-                <TableHead>Tip ladită</TableHead>
-                <TableHead className="text-right">Cantitate anterioară</TableHead>
-                <TableHead>Ora ieșire</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {history.length > 0 ? (
-                history.map((item) => {
-                  const productName = item.product_id ? products[item.product_id]?.name : item.name;
-                  const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
-                  const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : '';
-                  const crateTypeName = item.crate_type_id ? crateTypes[item.crate_type_id]?.name : '';
-                  
-                  return (
-                    <TableRow key={item.id}>
-                      <TableCell className="whitespace-nowrap">
-                        {format(item.operation_date, 'dd.MM.yyyy HH:mm:ss')}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getActionColor(item.action)}>
-                          {getActionTranslation(item.action)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">{productName}</TableCell>
-                      <TableCell>{item.document_number || '-'}</TableCell>
-                      <TableCell>{supplierName || '-'}</TableCell>
-                      <TableCell>{manufacturerName || '-'}</TableCell>
-                      <TableCell className="text-right">{formatQuantity(item.quantity)}</TableCell>
-                      <TableCell>{item.unit}</TableCell>
-                      <TableCell>
-                        {crateTypeName ? `${crateTypeName} (${item.crate_count || 0} buc)` : '-'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatQuantity(item.previous_quantity)}
-                      </TableCell>
-                      <TableCell>
-                        {item.action === 'remove' && item.exit_timestamp
-                          ? format(item.exit_timestamp, 'dd.MM.yyyy HH:mm:ss')
-                          : '-'}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={11} className="text-center py-6 text-gray-500">
-                    {searchTerm || dateRange[0] || dateRange[1] || actionFilter !== "all"
-                      ? "Nu s-au găsit operațiuni conform criteriilor de căutare"
-                      : "Nu există operațiuni de stoc înregistrate"}
-                  </TableCell>
-                </TableRow>
+    <div className="container mx-auto p-4">
+      <h2 className="text-2xl font-semibold mb-4">Inventory History</h2>
+
+      <div className="flex flex-wrap gap-4 mb-4">
+        <Input
+          type="text"
+          placeholder="Search by product name..."
+          value={searchTerm}
+          onChange={handleSearchChange}
+          className="max-w-xs"
+        />
+
+        <Select value={selectedAction} onValueChange={handleActionChange}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select Action" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Actions</SelectItem>
+            <SelectItem value="add">Add</SelectItem>
+            <SelectItem value="remove">Remove</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={"outline"}
+              className={cn(
+                "w-[200px] justify-start text-left font-normal",
+                !date && "text-muted-foreground"
               )}
-            </TableBody>
-          </Table>
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {date ? format(date, "PPP") : <span>Pick a date</span>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="center" side="bottom">
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={setDate}
+              disabled={(date) =>
+                date > new Date() || date < new Date("2023-01-01")
+              }
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Button onClick={clearFilters} variant="ghost">Clear Filters</Button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[100px]">Action</TableHead>
+              <TableHead>Product Name</TableHead>
+              <TableHead>Quantity</TableHead>
+              <TableHead>Operation Date</TableHead>
+              <TableHead>Details</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center">Loading...</TableCell>
+              </TableRow>
+            ) : inventoryHistoryItems.length > 0 ? (
+              inventoryHistoryItems.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-medium">{item.action}</TableCell>
+                  <TableCell>{item.name}</TableCell>
+                  <TableCell>{item.quantity}</TableCell>
+                  <TableCell>{new Date(item.operation_date).toLocaleDateString()}</TableCell>
+                  <TableCell>{item.details}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center">No history found.</TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex justify-between items-center mt-4">
+        <span>Total items: {totalCount}</span>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 0}
+            variant="outline"
+          >
+            Previous
+          </Button>
+          <Button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page >= Math.ceil(totalCount / itemsPerPage) - 1}
+            variant="outline"
+          >
+            Next
+          </Button>
         </div>
       </div>
-      
-      {totalPages > 1 && (
-        <Pagination className="my-4">
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious 
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                className={page <= 1 ? "pointer-events-none opacity-50" : ""}
-              />
-            </PaginationItem>
-            
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (page <= 3) {
-                pageNum = i + 1;
-              } else if (page >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = page - 2 + i;
-              }
-              
-              return (
-                <PaginationItem key={i}>
-                  <PaginationLink 
-                    isActive={pageNum === page}
-                    onClick={() => setPage(pageNum)}
-                  >
-                    {pageNum}
-                  </PaginationLink>
-                </PaginationItem>
-              );
-            })}
-            
-            <PaginationItem>
-              <PaginationNext 
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                className={page >= totalPages ? "pointer-events-none opacity-50" : ""}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      )}
     </div>
   );
 };

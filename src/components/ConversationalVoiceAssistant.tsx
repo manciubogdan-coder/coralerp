@@ -506,7 +506,7 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       await fetchInventory();
       
       const completedData = endConversation();
-      assistantSays("Operațiunea de recepție a fost realizată cu succes! Produsele au fost adăugate în inventar.");
+      assistantSays("Operațiunea de recepție a fost realizată cu succes! Produsele au fost adăugate în inventar. Mai pot să te ajut cu altceva?");
       
       toast({
         title: "Recepție finalizată",
@@ -515,11 +515,10 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       });
       
       onOperationComplete();
-      setOpen(false);
       
     } catch (error) {
       console.error("Eroare la procesarea recepției:", error);
-      assistantSays("A apărut o eroare la procesarea recepției. Te rog să încerci din nou.");
+      assistantSays("A apărut o eroare la procesarea recepției. Te rog să încerci din nou. Pot să te ajut cu altceva?");
       endConversation();
       
       toast({
@@ -590,7 +589,7 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       await fetchInventory();
       
       const completedData = endConversation();
-      assistantSays("Operațiunea de transfer a fost realizată cu succes!");
+      assistantSays("Operațiunea de transfer a fost realizată cu succes! Mai pot să te ajut cu altceva?");
       
       toast({
         title: "Transfer finalizat",
@@ -599,11 +598,10 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       });
       
       onOperationComplete();
-      setOpen(false);
       
     } catch (error) {
       console.error("Eroare la procesarea transferului:", error);
-      assistantSays("A apărut o eroare la procesarea transferului. Te rog să încerci din nou.");
+      assistantSays("A apărut o eroare la procesarea transferului. Te rog să încerci din nou. Pot să te ajut cu altceva?");
       endConversation();
       
       toast({
@@ -634,7 +632,7 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       await fetchInventory();
       
       const completedData = endConversation();
-      assistantSays("Operațiunea de introducere din producție a fost realizată cu succes! Produsele au fost adăugate în inventar.");
+      assistantSays("Operațiunea de introducere din producție a fost realizată cu succes! Produsele au fost adăugate în inventar. Mai pot să te ajut cu altceva?");
       
       toast({
         title: "Producție finalizată",
@@ -643,11 +641,10 @@ export const ConversationalVoiceAssistant = ({ onOperationComplete }: Conversati
       });
       
       onOperationComplete();
-      setOpen(false);
       
     } catch (error) {
       console.error("Eroare la procesarea introducerii din producție:", error);
-      assistantSays("A apărut o eroare la procesarea introducerii din producție. Te rog să încerci din nou.");
+      assistantSays("A apărut o eroare la procesarea introducerii din producție. Te rog să încerci din nou. Pot să te ajut cu altceva?");
       endConversation();
       
       toast({

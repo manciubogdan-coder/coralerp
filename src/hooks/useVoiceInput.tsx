@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 export type ConversationStep = 
   'idle' |
+  'greeting' |
   'askOperation' | 
   'askProduct' | 
   'confirmProduct' |
@@ -20,7 +21,9 @@ export type ConversationStep =
   'askCrateCount' | 
   'askDestination' |
   'confirmOperation' |
-  'processingOperation';
+  'processingOperation' |
+  'finishingConversation' |
+  'askForMoreHelp';
 
 export type ConversationMode = 'idle' | 'active';
 
@@ -46,6 +49,7 @@ export type CollectedData = {
   suggestedCrateType?: string;
   crateCount?: number;
   destination?: string;
+  needMoreHelp?: boolean;
 };
 
 export const useVoiceInput = () => {
@@ -58,6 +62,7 @@ export const useVoiceInput = () => {
   const [conversationMode, setConversationMode] = useState<ConversationMode>('idle');
   const [currentStep, setCurrentStep] = useState<ConversationStep>('idle');
   const [collectedData, setCollectedData] = useState<CollectedData>({});
+  const [inactivityTimer, setInactivityTimer] = useState<NodeJS.Timeout | null>(null);
   
   const recognitionRef = useRef<any>(null);
   const lastFinalTranscriptRef = useRef<string>("");
@@ -65,6 +70,30 @@ export const useVoiceInput = () => {
   // Check if SpeechRecognition is available in the browser
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const hasSpeechRecognition = !!SpeechRecognition;
+
+  // Reset inactivity timer when in active conversation
+  useEffect(() => {
+    if (conversationMode === 'active') {
+      if (inactivityTimer) {
+        clearTimeout(inactivityTimer);
+      }
+      
+      const timer = setTimeout(() => {
+        // Only trigger if we're still in active conversation mode
+        if (conversationMode === 'active' && currentStep !== 'processingOperation' && currentStep !== 'finishingConversation') {
+          setCurrentStep('askForMoreHelp');
+        }
+      }, 60000); // 60 second timeout
+      
+      setInactivityTimer(timer);
+    }
+    
+    return () => {
+      if (inactivityTimer) {
+        clearTimeout(inactivityTimer);
+      }
+    };
+  }, [finalTranscript, conversationMode, currentStep]);
 
   const processCommand = useCallback((command: string) => {
     const lastTranscript = lastFinalTranscriptRef.current;
@@ -150,9 +179,12 @@ export const useVoiceInput = () => {
     setConversationMode('idle');
     setCurrentStep('idle');
     setCollectedData({});
+    if (inactivityTimer) {
+      clearTimeout(inactivityTimer);
+    }
     console.log('Conversation ended with data:', finalData);
     return finalData;
-  }, [collectedData]);
+  }, [collectedData, inactivityTimer]);
 
   return {
     isRecording,
