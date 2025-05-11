@@ -1,3 +1,4 @@
+
 // Inventory related interfaces
 export interface InventoryItem {
   id?: string;
@@ -125,10 +126,15 @@ export interface InventoryHistoryItem {
 
 // Command processing result
 export interface CommandResult {
-  action: 'add' | 'remove' | 'show' | 'set' | 'report' | 'unknown' | 'error';
+  action: 'add' | 'remove' | 'set' | 'view' | 'query' | 'export' | 'email';
   response: string;
-  success: boolean;
-  data?: any;
+  item?: InventoryItem;
+  charts?: ChartData[];
+  needsMoreInfo?: {
+    question: string;
+    type: 'batch_selection' | 'missing_fields' | 'supplier_info';
+    options?: InventoryItem[];
+  };
 }
 
 // Dashboard menu item

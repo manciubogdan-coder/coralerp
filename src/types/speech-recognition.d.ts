@@ -1,36 +1,33 @@
 
-/**
- * TypeScript declarations for Web Speech API
- * These provide type support for the SpeechRecognition API
- */
-
-interface SpeechRecognitionEventMap {
-  "audioend": Event;
-  "audiostart": Event;
-  "end": Event;
-  "error": SpeechRecognitionErrorEvent;
-  "nomatch": SpeechRecognitionEvent;
-  "result": SpeechRecognitionEvent;
-  "soundend": Event;
-  "soundstart": Event;
-  "speechend": Event;
-  "speechstart": Event;
-  "start": Event;
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message: string;
 }
 
 interface SpeechRecognitionEvent extends Event {
-  readonly resultIndex: number;
-  readonly results: SpeechRecognitionResultList;
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
 }
 
-interface SpeechRecognitionErrorEvent extends Event {
-  readonly error: string;
-  readonly message: string;
+interface SpeechRecognitionResultList {
+  [index: number]: SpeechRecognitionResult;
+  length: number;
+}
+
+interface SpeechRecognitionResult {
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+  length: number;
+}
+
+interface SpeechRecognitionAlternative {
+  confidence: number;
+  transcript: string;
 }
 
 interface SpeechRecognition extends EventTarget {
   continuous: boolean;
-  grammars: SpeechGrammarList;
+  grammars: any;
   interimResults: boolean;
   lang: string;
   maxAlternatives: number;
@@ -48,21 +45,18 @@ interface SpeechRecognition extends EventTarget {
   abort(): void;
   start(): void;
   stop(): void;
-  addEventListener<K extends keyof SpeechRecognitionEventMap>(type: K, listener: (this: SpeechRecognition, ev: SpeechRecognitionEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
-  removeEventListener<K extends keyof SpeechRecognitionEventMap>(type: K, listener: (this: SpeechRecognition, ev: SpeechRecognitionEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
-  removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
-}
-
-interface SpeechRecognitionConstructor {
-  new(): SpeechRecognition;
-  prototype: SpeechRecognition;
 }
 
 declare global {
   interface Window {
-    SpeechRecognition?: SpeechRecognitionConstructor;
-    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    SpeechRecognition: {
+      new(): SpeechRecognition;
+      prototype: SpeechRecognition;
+    };
+    webkitSpeechRecognition: {
+      new(): SpeechRecognition;
+      prototype: SpeechRecognition;
+    };
   }
 }
 

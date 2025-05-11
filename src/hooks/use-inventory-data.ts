@@ -80,7 +80,6 @@ export const useInventoryData = () => {
     manufacturers,
     crateTypes,
     fetchInventory,
-    fetchReferenceData,
-    refetchInventory: fetchInventory  // Alias fetchInventory as refetchInventory for compatibility
+    fetchReferenceData
   };
 };
