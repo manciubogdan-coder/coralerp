@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -77,6 +78,10 @@ export const StockTransferForm = ({ onTransferComplete }: StockTransferFormProps
         .single();
 
       if (transferError) throw transferError;
+
+      if (!transferData) {
+        throw new Error('Nu s-a putut crea transferul de stoc');
+      }
 
       for (const item of formData.items) {
         const { data: inventoryItems, error: inventoryError } = await supabase

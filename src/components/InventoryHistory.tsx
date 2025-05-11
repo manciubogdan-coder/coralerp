@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   Table,
@@ -32,12 +33,33 @@ const InventoryHistory = ({ inventoryHistory }: InventoryHistoryProps) => {
     return format(date, 'yyyy-MM-dd');
   };
 
+  // Helper function to convert various date formats to a proper Date object
+  const convertToDate = (dateValue: string | { seconds: number; nanoseconds: number; } | Date | undefined): Date | undefined => {
+    if (!dateValue) return undefined;
+    
+    if (dateValue instanceof Date) {
+      return dateValue;
+    }
+    
+    if (typeof dateValue === 'string') {
+      return new Date(dateValue);
+    }
+    
+    if (typeof dateValue === 'object' && 'seconds' in dateValue) {
+      // Convert Firestore timestamp to Date
+      return new Date(dateValue.seconds * 1000);
+    }
+    
+    return undefined;
+  };
+
   const filteredHistory = inventoryHistory.filter(item => {
-    const itemDate = item.created_at ? formatDate(new Date(item.created_at)) : '';
+    const itemDate = item.created_at ? convertToDate(item.created_at) : undefined;
+    const formattedItemDate = itemDate ? formatDate(itemDate) : '';
     const searchText = searchTerm.toLowerCase();
     const productName = item.name?.toLowerCase() || '';
 
-    const dateMatch = !date || itemDate === formatDate(date);
+    const dateMatch = !date || formattedItemDate === formatDate(date);
     const searchMatch = productName.includes(searchText);
 
     return dateMatch && searchMatch;
@@ -109,7 +131,9 @@ const InventoryHistory = ({ inventoryHistory }: InventoryHistoryProps) => {
           <TableBody>
             {filteredHistory.map((item) => (
               <TableRow key={item.id}>
-                <TableCell className="font-medium">{formatDate(new Date(item.created_at))}</TableCell>
+                <TableCell className="font-medium">
+                  {formatDate(convertToDate(item.created_at))}
+                </TableCell>
                 <TableCell>{item.name}</TableCell>
                 <TableCell>{item.quantity}</TableCell>
                 <TableCell>{item.unit}</TableCell>

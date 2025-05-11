@@ -21,7 +21,7 @@ interface VoiceStockTransferProps {
 export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockTransferProps) => {
   const [open, setOpen] = useState(false);
   const { isRecording, transcript, finalTranscript, toggleRecording, processCommand } = useVoiceInput();
-  const [transferData, setTransferData] = useState<{
+  const [transferFormData, setTransferFormData] = useState<{
     destination: string;
     notes: string;
     items: {
@@ -46,7 +46,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
       if (lowercaseText.includes('destinație') || lowercaseText.includes('destinatia') || lowercaseText.includes('pentru')) {
         const destinationMatch = lowercaseText.match(/(?:destinație|destinatia|pentru)\s+([a-zăîâșțĂÎÂȘȚ\s]+)/i);
         if (destinationMatch && destinationMatch[1]) {
-          setTransferData(prev => ({
+          setTransferFormData(prev => ({
             ...prev,
             destination: destinationMatch[1].trim()
           }));
@@ -76,7 +76,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
               unit: unit === 'litri' || unit === 'litru' ? 'l' : unit
             };
             
-            setTransferData(prev => ({
+            setTransferFormData(prev => ({
               ...prev,
               items: [...prev.items, newItem]
             }));
@@ -104,7 +104,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
       else if (lowercaseText.includes('notă') || lowercaseText.includes('nota') || lowercaseText.includes('observații')) {
         const noteMatch = lowercaseText.match(/(?:notă|nota|observații)\s+(.+)/i);
         if (noteMatch && noteMatch[1]) {
-          setTransferData(prev => ({
+          setTransferFormData(prev => ({
             ...prev,
             notes: noteMatch[1].trim()
           }));
@@ -120,15 +120,15 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         if (deleteMatch && deleteMatch[1]) {
           const productToDelete = deleteMatch[1].trim();
           
-          const itemIndex = transferData.items.findIndex(item => 
+          const itemIndex = transferFormData.items.findIndex(item => 
             item.productName.toLowerCase().includes(productToDelete.toLowerCase())
           );
           
           if (itemIndex !== -1) {
-            const updatedItems = [...transferData.items];
+            const updatedItems = [...transferFormData.items];
             updatedItems.splice(itemIndex, 1);
             
-            setTransferData(prev => ({
+            setTransferFormData(prev => ({
               ...prev,
               items: updatedItems
             }));
@@ -160,10 +160,10 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
     };
     
     processFinalTranscript();
-  }, [finalTranscript, open, products, transferData.items]);
+  }, [finalTranscript, open, products, transferFormData.items]);
 
   const handleTransferSubmit = async () => {
-    if (!transferData.destination) {
+    if (!transferFormData.destination) {
       toast({
         title: "Destinație lipsă",
         description: "Vă rugăm să specificați o destinație pentru transfer",
@@ -172,7 +172,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
       return;
     }
 
-    if (transferData.items.length === 0) {
+    if (transferFormData.items.length === 0) {
       toast({
         title: "Produse lipsă",
         description: "Vă rugăm să adăugați cel puțin un produs pentru transfer",
@@ -182,18 +182,22 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
     }
 
     try {
-      const { data: transferData, error: transferError } = await supabase
+      const { data: stockTransferData, error: transferError } = await supabase
         .from('stock_transfers')
         .insert({
-          destination: transferData.destination,
-          notes: transferData.notes || null
+          destination: transferFormData.destination,
+          notes: transferFormData.notes || null
         })
         .select('id')
         .single();
 
       if (transferError) throw transferError;
+      
+      if (!stockTransferData) {
+        throw new Error('Nu s-a putut crea transferul');
+      }
 
-      for (const item of transferData.items) {
+      for (const item of transferFormData.items) {
         const { data: inventoryItems, error: inventoryError } = await supabase
           .from('inventory')
           .select('id, quantity, unit')
@@ -218,7 +222,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         const { error: insertError } = await supabase
           .from('stock_transfer_items')
           .insert({
-            transfer_id: transferData.id,
+            transfer_id: stockTransferData.id,
             inventory_item_id: inventoryItem.id,
             quantity: item.quantity,
             unit: item.unit
@@ -231,7 +235,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
           {
             item_id: inventoryItem.id,
             decrement_by: item.quantity,
-            exit_document: transferData.destination
+            exit_document: transferFormData.destination
           }
         );
 
@@ -244,7 +248,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         variant: "default"
       });
 
-      setTransferData({
+      setTransferFormData({
         destination: '',
         notes: '',
         items: []
@@ -262,9 +266,9 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
   };
 
   const removeItem = (index: number) => {
-    const updatedItems = [...transferData.items];
+    const updatedItems = [...transferFormData.items];
     updatedItems.splice(index, 1);
-    setTransferData(prev => ({ ...prev, items: updatedItems }));
+    setTransferFormData(prev => ({ ...prev, items: updatedItems }));
   };
 
   return (
@@ -294,8 +298,8 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
             <Label htmlFor="destination">Destinație</Label>
             <Input 
               id="destination" 
-              value={transferData.destination} 
-              onChange={e => setTransferData(prev => ({ ...prev, destination: e.target.value }))} 
+              value={transferFormData.destination} 
+              onChange={e => setTransferFormData(prev => ({ ...prev, destination: e.target.value }))} 
               placeholder="Spune: 'destinație [locația]'"
             />
           </div>
@@ -304,8 +308,8 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
             <Label htmlFor="notes">Observații</Label>
             <Input 
               id="notes" 
-              value={transferData.notes} 
-              onChange={e => setTransferData(prev => ({ ...prev, notes: e.target.value }))} 
+              value={transferFormData.notes} 
+              onChange={e => setTransferFormData(prev => ({ ...prev, notes: e.target.value }))} 
               placeholder="Spune: 'notă [textul observației]'"
             />
           </div>
@@ -313,8 +317,8 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
           <div>
             <Label>Produse</Label>
             <div className="mt-2 border rounded-md divide-y">
-              {transferData.items.length > 0 ? (
-                transferData.items.map((item, index) => (
+              {transferFormData.items.length > 0 ? (
+                transferFormData.items.map((item, index) => (
                   <div key={index} className="flex items-center justify-between p-2 hover:bg-gray-50">
                     <div>
                       <span className="font-medium">{item.productName}</span>
@@ -341,7 +345,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
             <Button 
               variant="default" 
               onClick={handleTransferSubmit}
-              disabled={transferData.destination.trim() === '' || transferData.items.length === 0}
+              disabled={transferFormData.destination.trim() === '' || transferFormData.items.length === 0}
               className="flex items-center"
             >
               <Send className="h-4 w-4 mr-2" /> Finalizează transfer
