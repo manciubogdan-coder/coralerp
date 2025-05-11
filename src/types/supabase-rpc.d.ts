@@ -1,0 +1,18 @@
+
+/**
+ * TypeScript declaration file for Supabase RPC functions
+ * This allows us to properly type the RPC calls
+ */
+
+declare module '@supabase/supabase-js' {
+  interface SupabaseClient {
+    rpc<T = any>(
+      fn: string, // Allow any string for function names
+      params?: object,
+      options?: {
+        head?: boolean;
+        count?: null | 'exact' | 'planned' | 'estimated';
+      }
+    ): { data: T; error: Error | null };
+  }
+}

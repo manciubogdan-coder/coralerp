@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { improveVoiceCommand } from '@/lib/speechService';
 
@@ -12,14 +11,16 @@ export const useVoiceInput = () => {
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
 
   useEffect(() => {
-    // Import types from the declaration file
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    // Use the global types from the declaration file
+    const SpeechRecognitionAPI: typeof SpeechRecognition = 
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+      
+    if (!SpeechRecognitionAPI) {
       console.error('Browserul nu suportă recunoașterea vocală');
       return;
     }
     
-    const recognitionInstance = new SpeechRecognition();
+    const recognitionInstance = new SpeechRecognitionAPI();
     recognitionInstance.continuous = true;
     recognitionInstance.interimResults = true;
     recognitionInstance.lang = 'ro-RO';

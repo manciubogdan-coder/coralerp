@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -37,16 +36,13 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
     items: []
   });
 
-  // Procesează transcriptul final când devine disponibil
   useEffect(() => {
     if (!finalTranscript || !open) return;
     
     const processFinalTranscript = () => {
       const lowercaseText = finalTranscript.toLowerCase();
       
-      // Identifică tipul comenzii
       if (lowercaseText.includes('destinație') || lowercaseText.includes('destinatia') || lowercaseText.includes('pentru')) {
-        // Comandă pentru setarea destinației
         const destinationMatch = lowercaseText.match(/(?:destinație|destinatia|pentru)\s+([a-zăîâșțĂÎÂȘȚ\s]+)/i);
         if (destinationMatch && destinationMatch[1]) {
           setTransferData(prev => ({
@@ -60,7 +56,6 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         }
       } 
       else if (lowercaseText.includes('adaugă') || lowercaseText.includes('adauga')) {
-        // Comandă pentru adăugarea unui produs
         const productMatch = lowercaseText.match(/adaug[ăa]\s+([0-9,.]+)\s*(kg|litri|litru|l|buc)\s+(?:de\s+)?([a-zăîâșțĂÎÂȘȚ\s]+)/i);
         
         if (productMatch) {
@@ -68,7 +63,6 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
           const unit = productMatch[2];
           const productName = productMatch[3].trim();
           
-          // Caută produsul în lista de produse
           const foundProduct = products.find(p => 
             p.name.toLowerCase().includes(productName.toLowerCase())
           );
@@ -107,7 +101,6 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         }
       }
       else if (lowercaseText.includes('notă') || lowercaseText.includes('nota') || lowercaseText.includes('observații')) {
-        // Comandă pentru adăugarea unei note
         const noteMatch = lowercaseText.match(/(?:notă|nota|observații)\s+(.+)/i);
         if (noteMatch && noteMatch[1]) {
           setTransferData(prev => ({
@@ -122,7 +115,6 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         }
       }
       else if (lowercaseText.includes('șterge') || lowercaseText.includes('sterge') || lowercaseText.includes('elimină') || lowercaseText.includes('elimina')) {
-        // Comandă pentru ștergerea unui produs
         const deleteMatch = lowercaseText.match(/(?:șterge|sterge|elimină|elimina)\s+([a-zăîâșțĂÎÂȘȚ\s]+)/i);
         if (deleteMatch && deleteMatch[1]) {
           const productToDelete = deleteMatch[1].trim();
@@ -155,7 +147,6 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         }
       }
       else if (lowercaseText.includes('finalizează') || lowercaseText.includes('finalizeaza') || lowercaseText.includes('trimite') || lowercaseText.includes('salvează')) {
-        // Comandă pentru finalizarea și trimiterea transferului
         handleTransferSubmit();
       }
       else {
@@ -190,7 +181,6 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
     }
 
     try {
-      // Creează transferul în baza de date
       const { data: transferData_, error: transferError } = await supabase
         .from('stock_transfers')
         .insert({
@@ -202,9 +192,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
 
       if (transferError) throw transferError;
 
-      // Adaugă produsele la transfer
       for (const item of transferData.items) {
-        // Obține produsul din inventar
         const { data: inventoryItems, error: inventoryError } = await supabase
           .from('inventory')
           .select('id, quantity, unit')
@@ -226,7 +214,6 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
 
         const inventoryItem = inventoryItems[0];
 
-        // Adaugă elementul la transfer
         const { error: insertError } = await supabase
           .from('stock_transfer_items')
           .insert({
@@ -238,13 +225,14 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
 
         if (insertError) throw insertError;
 
-        // Actualizează cantitatea în stoc - Fixed type error by using rpc as a direct function call
-        const { error: updateError } = await supabase
-          .rpc('decrement_quantity', {
+        const { error: updateError } = await supabase.rpc(
+          'decrement_quantity' as any,
+          {
             item_id: inventoryItem.id,
             decrement_by: item.quantity,
             exit_document: transferData.destination
-          });
+          }
+        );
 
         if (updateError) throw updateError;
       }
@@ -255,7 +243,6 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
         variant: "default"
       });
 
-      // Resetează formularul și închide dialogul
       setTransferData({
         destination: '',
         notes: '',
