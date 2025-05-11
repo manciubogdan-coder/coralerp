@@ -13,44 +13,74 @@ declare module '@supabase/supabase-js' {
 
   interface PostgrestQueryBuilder<T> {
     select(columns?: string): PostgrestFilterBuilder<T>;
-    insert(values: Partial<T> | Partial<T>[], options?: { upsert?: boolean }): Promise<PostgrestResponse<T[]>>;
-    upsert(values: Partial<T> | Partial<T>[]): Promise<PostgrestResponse<T[]>>;
+    insert(values: Partial<T> | Partial<T>[], options?: { upsert?: boolean }): PostgrestFilterBuilder<T>;
+    upsert(values: Partial<T> | Partial<T>[]): PostgrestFilterBuilder<T>;
     update(values: Partial<T>, options?: any): PostgrestFilterBuilder<T>;
     delete(): PostgrestFilterBuilder<T>;
-    eq(column: string, value: any): Promise<PostgrestResponse<T[]>>;
-    neq(column: string, value: any): Promise<PostgrestResponse<T[]>>;
-    gt(column: string, value: any): Promise<PostgrestResponse<T[]>>;
-    lt(column: string, value: any): Promise<PostgrestResponse<T[]>>;
-    gte(column: string, value: any): Promise<PostgrestResponse<T[]>>;
-    lte(column: string, value: any): Promise<PostgrestResponse<T[]>>;
-    like(column: string, value: any): Promise<PostgrestResponse<T[]>>;
-    ilike(column: string, value: any): Promise<PostgrestResponse<T[]>>;
-    is(column: string, value: any): Promise<PostgrestResponse<T[]>>;
-    in(column: string, values: any[]): Promise<PostgrestResponse<T[]>>;
-    contains(column: string, value: any): Promise<PostgrestResponse<T[]>>;
-    containedBy(column: string, value: any): Promise<PostgrestResponse<T[]>>;
+    eq(column: string, value: any): PostgrestFilterBuilder<T>;
+    neq(column: string, value: any): PostgrestFilterBuilder<T>;
+    gt(column: string, value: any): PostgrestFilterBuilder<T>;
+    lt(column: string, value: any): PostgrestFilterBuilder<T>;
+    gte(column: string, value: any): PostgrestFilterBuilder<T>;
+    lte(column: string, value: any): PostgrestFilterBuilder<T>;
+    like(column: string, value: any): PostgrestFilterBuilder<T>;
+    ilike(column: string, value: any): PostgrestFilterBuilder<T>;
+    is(column: string, value: any): PostgrestFilterBuilder<T>;
+    in(column: string, values: any[]): PostgrestFilterBuilder<T>;
+    contains(column: string, value: any): PostgrestFilterBuilder<T>;
+    containedBy(column: string, value: any): PostgrestFilterBuilder<T>;
     order(column: string, options?: { ascending?: boolean }): PostgrestTransformBuilder<T>;
     limit(count: number): PostgrestTransformBuilder<T>;
     range(from: number, to: number): PostgrestTransformBuilder<T>;
-    single(): Promise<PostgrestResponse<T>>;
-    maybeSingle(): Promise<PostgrestResponse<T | null>>;
-    // Support for count
-    count(options?: { count?: 'exact' | 'planned' | 'estimated' }): Promise<PostgrestResponse<T[]>>;
+    single(): PostgrestFilterBuilder<T>;
+    maybeSingle(): PostgrestFilterBuilder<T>;
+    match(query: any): PostgrestFilterBuilder<T>;
+    count(options?: { count?: 'exact' | 'planned' | 'estimated' }): PostgrestFilterBuilder<T>;
   }
 
   interface PostgrestFilterBuilder<T> extends PostgrestQueryBuilder<T> {
-    // Additional filter methods
-    match(query: any): Promise<PostgrestResponse<T[]>>;
+    then<TResult1 = PostgrestResponse<T[]>, TResult2 = never>(
+      onfulfilled?: ((value: PostgrestResponse<T[]>) => TResult1 | PromiseLike<TResult1>) | undefined | null,
+      onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null
+    ): Promise<TResult1 | TResult2>;
+    
+    // Direct access to data for await syntax
+    data: T[];
+    error: Error | null;
+    count?: number;
   }
 
   interface PostgrestTransformBuilder<T> {
     select(columns?: string): PostgrestTransformBuilder<T>;
-    limit(count: number): PostgrestTransformBuilder<T>;
     order(column: string, options?: { ascending?: boolean }): PostgrestTransformBuilder<T>;
+    limit(count: number): PostgrestTransformBuilder<T>;
     range(from: number, to: number): PostgrestTransformBuilder<T>;
-    single(): Promise<PostgrestResponse<T>>;
-    maybeSingle(): Promise<PostgrestResponse<T | null>>;
-    then(onfulfilled: (value: PostgrestResponse<T[]>) => any): Promise<any>;
+    single(): PostgrestFilterBuilder<T>;
+    maybeSingle(): PostgrestFilterBuilder<T>;
+    
+    // Filter methods that should be available in TransformBuilder
+    eq(column: string, value: any): PostgrestFilterBuilder<T>;
+    neq(column: string, value: any): PostgrestFilterBuilder<T>;
+    gt(column: string, value: any): PostgrestFilterBuilder<T>;
+    lt(column: string, value: any): PostgrestFilterBuilder<T>;
+    gte(column: string, value: any): PostgrestFilterBuilder<T>;
+    lte(column: string, value: any): PostgrestFilterBuilder<T>;
+    like(column: string, value: any): PostgrestFilterBuilder<T>;
+    ilike(column: string, value: any): PostgrestFilterBuilder<T>;
+    is(column: string, value: any): PostgrestFilterBuilder<T>;
+    in(column: string, values: any[]): PostgrestFilterBuilder<T>;
+    contains(column: string, value: any): PostgrestFilterBuilder<T>;
+    containedBy(column: string, value: any): PostgrestFilterBuilder<T>;
+    
+    then<TResult1 = PostgrestResponse<T[]>, TResult2 = never>(
+      onfulfilled?: ((value: PostgrestResponse<T[]>) => TResult1 | PromiseLike<TResult1>) | undefined | null,
+      onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null
+    ): Promise<TResult1 | TResult2>;
+    
+    // Direct access to data for await syntax
+    data: T[];
+    error: Error | null;
+    count?: number;
   }
 
   interface SupabaseClient {
@@ -61,7 +91,7 @@ declare module '@supabase/supabase-js' {
         head?: boolean;
         count?: null | 'exact' | 'planned' | 'estimated';
       }
-    ): Promise<PostgrestResponse<T>>;
+    ): PostgrestFilterBuilder<T>;
     
     from<T = any>(table: string): PostgrestQueryBuilder<T>;
   }
@@ -72,26 +102,29 @@ declare module '@supabase/supabase-js' {
     options?: any
   ): SupabaseClient;
 
-  // Add support for awaitable chaining
+  // Make Promise properties accessible directly
   interface Promise<T> {
-    select(columns?: string): Promise<T>;
-    eq(column: string, value: any): Promise<T>;
-    neq(column: string, value: any): Promise<T>;
-    gt(column: string, value: any): Promise<T>;
-    lt(column: string, value: any): Promise<T>;
-    gte(column: string, value: any): Promise<T>;
-    lte(column: string, value: any): Promise<T>;
-    like(column: string, value: any): Promise<T>;
-    ilike(column: string, value: any): Promise<T>;
-    is(column: string, value: any): Promise<T>;
-    in(column: string, values: any[]): Promise<T>;
-    contains(column: string, value: any): Promise<T>;
-    containedBy(column: string, value: any): Promise<T>;
-    order(column: string, options?: { ascending?: boolean }): Promise<T>;
-    limit(count: number): Promise<T>;
-    range(from: number, to: number): Promise<T>;
-    single(): Promise<T>;
-    maybeSingle(): Promise<T>;
-    match(query: any): Promise<T>;
+    data: any;
+    error: Error | null;
+    count?: number;
+    select(columns?: string): this;
+    eq(column: string, value: any): this;
+    neq(column: string, value: any): this;
+    gt(column: string, value: any): this;
+    lt(column: string, value: any): this;
+    gte(column: string, value: any): this;
+    lte(column: string, value: any): this;
+    like(column: string, value: any): this;
+    ilike(column: string, value: any): this;
+    is(column: string, value: any): this;
+    in(column: string, values: any[]): this;
+    contains(column: string, value: any): this;
+    containedBy(column: string, value: any): this;
+    order(column: string, options?: { ascending?: boolean }): this;
+    limit(count: number): this;
+    range(from: number, to: number): this;
+    single(): this;
+    maybeSingle(): this;
+    match(query: any): this;
   }
 }
