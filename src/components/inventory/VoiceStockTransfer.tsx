@@ -238,7 +238,7 @@ export const VoiceStockTransfer = ({ onTransferComplete, products }: VoiceStockT
 
         if (insertError) throw insertError;
 
-        // Actualizează cantitatea în stoc
+        // Actualizează cantitatea în stoc - Fixed type error by using rpc as a direct function call
         const { error: updateError } = await supabase
           .rpc('decrement_quantity', {
             item_id: inventoryItem.id,

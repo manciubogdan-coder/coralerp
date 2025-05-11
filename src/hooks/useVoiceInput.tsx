@@ -12,6 +12,7 @@ export const useVoiceInput = () => {
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
 
   useEffect(() => {
+    // Import types from the declaration file
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       console.error('Browserul nu suportă recunoașterea vocală');

@@ -28,3 +28,15 @@ export async function processCommand(
     response: "Command processed",
   };
 }
+
+// Add the missing processInventoryCommand function
+export async function processInventoryCommand(
+  command: string,
+  inventory?: InventoryItem[]
+): Promise<CommandResult> {
+  console.log("Processing inventory command:", command);
+  
+  // For now, this is just a wrapper around processCommand
+  // In a real implementation, this would have inventory-specific logic
+  return processCommand(command, inventory);
+}

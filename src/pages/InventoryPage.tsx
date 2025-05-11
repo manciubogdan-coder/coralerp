@@ -17,7 +17,7 @@ import { speakText } from "@/lib/speechService";
 
 const InventoryPage = () => {
   const navigate = useNavigate();
-  const { inventory, loading, refetchInventory } = useInventoryData();
+  const { inventory, loading, fetchInventory } = useInventoryData();
   const { isRecording, transcript, finalTranscript, toggleRecording, processCommand } = useVoiceInput();
   const [processingCommand, setProcessingCommand] = useState(false);
   
@@ -68,7 +68,7 @@ const InventoryPage = () => {
           
           // Reîmprospătează datele de inventar după adăugare/scoatere
           if (result.action === 'add' || result.action === 'remove' || result.action === 'set') {
-            refetchInventory();
+            fetchInventory();
           }
         }
       } catch (error) {
@@ -84,7 +84,7 @@ const InventoryPage = () => {
     };
     
     processVoiceCommand();
-  }, [finalTranscript, processCommand, refetchInventory]);
+  }, [finalTranscript, processCommand, fetchInventory]);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
