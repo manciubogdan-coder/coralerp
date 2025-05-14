@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -70,8 +70,10 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const listScrollAreaRef = useRef<HTMLDivElement>(null);
   
   const form = useForm<TransferFormValues>({
     defaultValues: {
@@ -87,14 +89,40 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     }
   }, [isOpen]);
   
-  // Add this effect to focus the search input when search is opened on mobile
+  // Improved mobile focus management
   useEffect(() => {
     if (isSearchOpen && searchInputRef.current && isMobile) {
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 200);
+      // Delay to ensure the dropdown is fully open
+      const focusTimer = setTimeout(() => {
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+          // Force the keyboard to stay open
+          searchInputRef.current.click();
+        }
+      }, 300);
+      
+      return () => clearTimeout(focusTimer);
     }
   }, [isSearchOpen, isMobile]);
+  
+  // Add event listeners to prevent keyboard dismissal
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      // Prevent default only if we're in the search area and it's open
+      if (isSearchOpen && searchContainerRef.current?.contains(e.target as Node)) {
+        // Allow scrolling but prevent other touch behaviors that might dismiss keyboard
+        if (!(e.target as HTMLElement).classList.contains('scroll-button')) {
+          e.stopPropagation();
+        }
+      }
+    };
+    
+    document.addEventListener('touchstart', handleTouchStart, { passive: false });
+    
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+    };
+  }, [isSearchOpen]);
 
   const fetchInventory = async () => {
     try {
@@ -130,7 +158,6 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     const productName = selectedItem.products?.name || selectedItem.name;
     
     // Estimăm o cantitate brută maximă permisă ca fiind de 50% mai mare decât cea netă
-    // Aceasta este o estimare pentru a oferi o limită rezonabilă, dar permisivă
     const maxGrossEstimate = selectedItem.quantity * 1.5;
     
     setSelectedItems([...selectedItems, {
@@ -148,7 +175,6 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       palletWeight: 0,
       grossQuantity: selectedItem.gross_quantity || selectedItem.quantity,
       netQuantity: selectedItem.net_quantity || selectedItem.quantity,
-      // Informații adiționale salvate
       supplier: selectedItem.supplier || selectedItem.suppliers?.name,
       supplier_id: selectedItem.supplier_id,
       manufacturer: selectedItem.manufacturer || selectedItem.manufacturers?.name,
@@ -157,6 +183,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       entry_number: selectedItem.entry_number,
       lot_number: selectedItem.lot_number
     }]);
+    
+    // Close the search dropdown after selection on mobile
+    if (isMobile) {
+      setIsSearchOpen(false);
+    }
   };
 
   const calculateNetQuantity = (item: TransferItem) => {
@@ -354,10 +385,15 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
   const handleSearchFocus = () => {
     setIsSearchFocused(true);
+    
     if (isMobile) {
       // Force keyboard to stay open
       setTimeout(() => {
-        searchInputRef.current?.focus();
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+          // Simulate user click to ensure keyboard appears
+          searchInputRef.current.click();
+        }
       }, 100);
     }
   };
@@ -377,18 +413,26 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
            manufacturerName.toLowerCase().includes(searchLower);
   });
 
-  // Implement custom scroll controls for mobile
+  // Enhanced focus management for mobile
   const scrollListUp = () => {
-    const selectContent = document.querySelector(".select-content-scroll");
-    if (selectContent) {
-      selectContent.scrollTop -= 200; // Adjust scroll amount as needed
+    if (listScrollAreaRef.current) {
+      listScrollAreaRef.current.scrollTop -= 250; // Larger scroll amount for better UX
+    } else {
+      const selectContent = document.querySelector(".select-content-scroll");
+      if (selectContent) {
+        selectContent.scrollTop -= 250;
+      }
     }
   };
 
   const scrollListDown = () => {
-    const selectContent = document.querySelector(".select-content-scroll");
-    if (selectContent) {
-      selectContent.scrollTop += 200; // Adjust scroll amount as needed
+    if (listScrollAreaRef.current) {
+      listScrollAreaRef.current.scrollTop += 250; // Larger scroll amount for better UX
+    } else {
+      const selectContent = document.querySelector(".select-content-scroll");
+      if (selectContent) {
+        selectContent.scrollTop += 250;
+      }
     }
   };
 
@@ -485,8 +529,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                       setTimeout(() => {
                         if (searchInputRef.current) {
                           searchInputRef.current.focus();
+                          // For mobile, force tap/click to ensure keyboard appears
+                          if (isMobile) {
+                            searchInputRef.current.click();
+                          }
                         }
-                      }, 100);
+                      }, 300);
                     } else {
                       setIsSearchFocused(false);
                     }
@@ -496,76 +544,92 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                     <SelectValue placeholder="Adăugați un produs" />
                   </SelectTrigger>
                   <SelectContent className="bg-white select-content-scroll">
-                    <div className="px-3 py-2 sticky top-0 bg-white z-10 border-b">
+                    <div 
+                      className="px-3 py-2 sticky top-0 bg-white z-10 border-b"
+                      ref={searchContainerRef}
+                    >
                       <Input
                         ref={searchInputRef}
                         placeholder="Caută produse..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className={`mb-2 ${isMobile ? 'h-12 text-base' : ''}`}
+                        className={`mb-2 ${isMobile ? 'h-14 text-lg' : ''}`}
                         preventMobileKeyboardDismiss={true}
                         onFocus={handleSearchFocus}
                         autoFocus={isMobile}
+                        onClick={(e) => {
+                          // Prevent click from bubbling and potentially closing the dropdown
+                          e.stopPropagation();
+                          // Refocus the input to ensure keyboard stays open
+                          searchInputRef.current?.focus();
+                        }}
                       />
                       
-                      {/* Mobile scroll controls */}
+                      {/* Mobile scroll controls with larger touch targets */}
                       {isMobile && (
-                        <div className="flex justify-between mt-2">
+                        <div className="flex justify-between mt-2 gap-2">
                           <Button 
                             type="button"
                             variant="outline"
-                            size="sm"
-                            className="w-full h-12 text-base flex items-center justify-center"
-                            onClick={scrollListUp}
+                            className="w-full h-16 text-lg flex items-center justify-center scroll-button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              scrollListUp();
+                            }}
                           >
-                            <ChevronUp className="h-6 w-6" />
-                            <span className="ml-1">Derulează în sus</span>
+                            <ChevronUp className="h-8 w-8" />
+                            <span className="ml-2">Sus</span>
                           </Button>
-                          <div className="w-2"></div>
                           <Button
                             type="button" 
                             variant="outline"
-                            size="sm"
-                            className="w-full h-12 text-base flex items-center justify-center"
-                            onClick={scrollListDown}
+                            className="w-full h-16 text-lg flex items-center justify-center scroll-button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              scrollListDown();
+                            }}
                           >
-                            <span className="mr-1">Derulează în jos</span>
-                            <ChevronDown className="h-6 w-6" />
+                            <span className="mr-2">Jos</span>
+                            <ChevronDown className="h-8 w-8" />
                           </Button>
                         </div>
                       )}
                     </div>
                     
-                    <ScrollArea className="max-h-[50vh]">
-                      {filteredItems.length === 0 ? (
-                        <div className="p-3 text-center text-gray-500">
-                          Nu există produse disponibile
-                        </div>
-                      ) : (
-                        filteredItems.map(item => (
-                          <SelectItem 
-                            key={item.id} 
-                            value={item.id} 
-                            className={`py-4 ${isMobile ? 'text-base' : ''}`}
-                          >
-                            <div className="flex flex-col">
-                              <span className="font-medium">
-                                {item.products?.name || item.name}
-                              </span>
-                              <span className="text-sm text-gray-500">
-                                Cantitate: {item.quantity} {item.unit} | Lot: {item.lot_number || 'N/A'}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {item.supplier || item.suppliers?.name ? 
-                                  `Furnizor: ${item.supplier || item.suppliers?.name}` : ''}
-                                {item.manufacturer || item.manufacturers?.name ? 
-                                  ` | Producător: ${item.manufacturer || item.manufacturers?.name}` : ''}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))
-                      )}
-                    </ScrollArea>
+                    <div ref={listScrollAreaRef}>
+                      <ScrollArea className="max-h-[40vh]">
+                        {filteredItems.length === 0 ? (
+                          <div className="p-3 text-center text-gray-500">
+                            Nu există produse disponibile
+                          </div>
+                        ) : (
+                          filteredItems.map(item => (
+                            <SelectItem 
+                              key={item.id} 
+                              value={item.id} 
+                              className={`py-5 ${isMobile ? 'text-lg' : ''}`}
+                            >
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {item.products?.name || item.name}
+                                </span>
+                                <span className={`${isMobile ? 'text-base' : 'text-sm'} text-gray-500`}>
+                                  Cantitate: {item.quantity} {item.unit} | Lot: {item.lot_number || 'N/A'}
+                                </span>
+                                <span className={`${isMobile ? 'text-sm' : 'text-xs'} text-gray-500`}>
+                                  {item.supplier || item.suppliers?.name ? 
+                                    `Furnizor: ${item.supplier || item.suppliers?.name}` : ''}
+                                  {item.manufacturer || item.manufacturers?.name ? 
+                                    ` | Producător: ${item.manufacturer || item.manufacturers?.name}` : ''}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </ScrollArea>
+                    </div>
                   </SelectContent>
                 </Select>
               </div>
@@ -680,7 +744,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
               <Button 
                 type="submit" 
                 disabled={selectedItems.length === 0 || isSubmitting}
-                className={isMobile ? 'h-12 text-base' : ''}
+                className={isMobile ? 'h-14 text-base' : ''}
               >
                 {isSubmitting ? "Se procesează..." : "Creare bon de transfer"}
               </Button>
