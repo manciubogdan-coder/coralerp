@@ -1,12 +1,13 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { FileDown, Mail } from "lucide-react";
+import { FileDown } from "lucide-react";
 import { StockTransferForm } from "@/components/inventory/StockTransferForm";
 import { ReceptionRegistration } from "@/components/inventory/ReceptionRegistration";
 import { Product, Supplier, Manufacturer, CrateType } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";
-import { sendEmail } from "@/lib/emailService";
 import { toast } from "@/hooks/use-custom-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface InventoryToolbarProps {
   inventory: any[];
@@ -25,6 +26,8 @@ export const InventoryToolbar = ({
   manufacturers,
   crateTypes
 }: InventoryToolbarProps) => {
+  const isMobile = useIsMobile();
+  
   const handleExportExcel = () => {
     const dataForExport = inventory.map(item => ({
       ...item,
@@ -39,8 +42,8 @@ export const InventoryToolbar = ({
   };
 
   return (
-    <div className="flex gap-2">
-      <Button variant="outline" size="sm" onClick={handleExportExcel}>
+    <div className="flex flex-wrap gap-2">
+      <Button variant="outline" size={isMobile ? "default" : "sm"} onClick={handleExportExcel}>
         <FileDown className="h-4 w-4 mr-2" /> Export Excel
       </Button>
       <StockTransferForm onTransferComplete={onTransferComplete} />

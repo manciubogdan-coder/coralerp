@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/form";
 import { FileText } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;
@@ -66,6 +67,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [selectedItems, setSelectedItems] = useState<TransferItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const isMobile = useIsMobile();
 
   const form = useForm<TransferFormValues>({
     defaultValues: {
@@ -360,7 +363,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size={isMobile ? "default" : "sm"}>
           <FileText className="h-4 w-4 mr-2" />
           Bon de Transfer
         </Button>
@@ -404,9 +407,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         <SelectTrigger>
                           <SelectValue placeholder="Selectați destinația" />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Producție">Producție</SelectItem>
-                          <SelectItem value="Distrugere">Distrugere</SelectItem>
+                        <SelectContent className="bg-white">
+                          <SelectItem value="Producție" className="py-3 text-base">Producție</SelectItem>
+                          <SelectItem value="Distrugere" className="py-3 text-base">Distrugere</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormControl>
@@ -438,28 +441,38 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                   onOpenChange={(open) => {
                     if (open) {
                       setSearchTerm("");
+                      setIsSearchFocused(true);
+                    } else {
+                      setIsSearchFocused(false);
                     }
                   }}
                 >
-                  <SelectTrigger className="w-[400px]">
+                  <SelectTrigger className={`w-full sm:w-[400px] ${isMobile ? 'h-12' : ''}`}>
                     <SelectValue placeholder="Adăugați un produs" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <div className="px-3 py-2">
+                  <SelectContent className="bg-white">
+                    <div className="px-3 py-2 sticky top-0 bg-white z-10 border-b">
                       <Input
                         placeholder="Caută produse..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="mb-2"
+                        className={`mb-2 ${isMobile ? 'h-12' : ''}`}
+                        onFocus={() => setIsSearchFocused(true)}
+                        onBlur={() => setIsSearchFocused(false)}
+                        autoFocus={isMobile} // Auto focus for mobile
                       />
                     </div>
                     {filteredItems.length === 0 ? (
-                      <SelectItem value="no-items-available" disabled>
+                      <div className="p-3 text-center text-gray-500">
                         Nu există produse disponibile
-                      </SelectItem>
+                      </div>
                     ) : (
                       filteredItems.map(item => (
-                        <SelectItem key={item.id} value={item.id} className="py-3">
+                        <SelectItem 
+                          key={item.id} 
+                          value={item.id} 
+                          className={`py-4 ${isMobile ? 'text-base' : ''}`}
+                        >
                           <div className="flex flex-col">
                             <span className="font-medium">
                               {item.products?.name || item.name}
@@ -505,7 +518,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         <Button 
                           size="sm" 
                           variant="ghost" 
-                          className="h-8 w-8 p-0" 
+                          className={`${isMobile ? 'h-10 w-10' : 'h-8 w-8'} p-0`}
                           onClick={() => handleRemoveItem(index)}
                         >
                           &times;
@@ -522,6 +535,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                             min={0}
                             step="0.01"
                             variant={!isNetQuantityValid(item) ? "warning" : "default"}
+                            className={isMobile ? 'h-12' : ''}
                           />
                         </div>
                         
@@ -533,6 +547,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                               value={item.crateCount}
                               onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
                               min={0}
+                              className={isMobile ? 'h-12' : ''}
                             />
                           </div>
                         )}
@@ -544,6 +559,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                             value={item.pallets}
                             onChange={(e) => handlePalletsChange(index, parseInt(e.target.value) || 0)}
                             min={0}
+                            className={isMobile ? 'h-12' : ''}
                           />
                         </div>
                         
@@ -555,6 +571,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                             onChange={(e) => handlePalletWeightChange(index, parseFloat(e.target.value) || 0)}
                             min={0}
                             step="0.01"
+                            className={isMobile ? 'h-12' : ''}
                           />
                         </div>
                         
@@ -564,7 +581,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                             type="number"
                             value={item.netQuantity.toFixed(2)}
                             readOnly
-                            className="bg-gray-100 font-medium"
+                            className={`bg-gray-100 font-medium ${isMobile ? 'h-12' : ''}`}
                             variant={!isNetQuantityValid(item) ? "warning" : "default"}
                           />
                           {!isNetQuantityValid(item) && (
@@ -584,7 +601,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
               <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
                 Anulează
               </Button>
-              <Button type="submit" disabled={selectedItems.length === 0 || isSubmitting}>
+              <Button 
+                type="submit" 
+                disabled={selectedItems.length === 0 || isSubmitting}
+                className={isMobile ? 'h-12' : ''}
+              >
                 {isSubmitting ? "Se procesează..." : "Creare bon de transfer"}
               </Button>
             </DialogFooter>
