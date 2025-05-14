@@ -7,7 +7,7 @@ import {
 } from "sonner"
 
 type ToasterToast = ToastProps & {
-  id: string
+  id?: string
   title?: React.ReactNode
   description?: React.ReactNode
   action?: ToastActionElement
@@ -48,12 +48,14 @@ function toast(props: ToasterToast) {
     variant = "default",
     action,
     cancel,
+    id = `toast-${Date.now()}`, // Generate a unique ID if not provided
     ...rest
   } = props
 
   return sonnerToast[variant === "destructive" ? "error" : "message"](
     title,
     {
+      id,
       description,
       action,
       cancel,

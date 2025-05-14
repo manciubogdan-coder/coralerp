@@ -7,11 +7,17 @@ type ToastOptions = Parameters<typeof baseToast>[0];
 
 // Extend the base toast function with our custom features
 export const toast = (options: ToastOptions) => {
+  // Add an ID if missing
+  const toastOptions = {
+    id: `toast-${Date.now()}`,
+    ...options
+  };
+  
   // If there's a description and speech synthesis is available, speak the text
-  if (options.description && window.speechSynthesis) {
-    speakText(options.description.toString());
+  if (toastOptions.description && window.speechSynthesis) {
+    speakText(toastOptions.description.toString());
   }
   
   // Call the base toast function
-  return baseToast(options);
+  return baseToast(toastOptions);
 };
