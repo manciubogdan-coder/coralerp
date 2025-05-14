@@ -1,23 +1,49 @@
 
-// Make sure we're importing from the correct location
-import { toast as baseToast } from "@/hooks/use-toast";
-import { speakText } from "@/lib/speechService";
+import { toast as originalToast, useToast as useOriginalToast } from "@/hooks/use-toast";
+import { type ToastActionElement } from "@/components/ui/toast";
 
-type ToastOptions = Parameters<typeof baseToast>[0];
+type ToastVariant = "default" | "destructive" | "warning";
 
-// Extend the base toast function with our custom features
-export const toast = (options: ToastOptions) => {
-  // Add an ID if missing
-  const toastOptions = {
-    id: `toast-${Date.now()}`,
-    ...options
+interface CustomToastProps {
+  variant?: ToastVariant;
+  title?: string;
+  description?: string;
+  action?: ToastActionElement;
+  [key: string]: any;
+}
+
+export function useCustomToast() {
+  const { toast: originalToastFn, ...rest } = useOriginalToast();
+  
+  const toast = ({ 
+    variant = "default", 
+    ...props 
+  }: CustomToastProps) => {
+    // Map warning variant to default but with custom styling if needed
+    const mappedVariant = variant === "warning" ? "default" : variant;
+    
+    return originalToastFn({
+      ...props,
+      variant: mappedVariant,
+      className: variant === "warning" ? "bg-amber-50 border-amber-300 text-amber-900" : undefined,
+    });
   };
   
-  // If there's a description and speech synthesis is available, speak the text
-  if (toastOptions.description && window.speechSynthesis) {
-    speakText(toastOptions.description.toString());
-  }
+  return { 
+    ...rest, 
+    toast 
+  };
+}
+
+export const toast = (props: CustomToastProps) => {
+  const { variant = "default", ...rest } = props;
   
-  // Call the base toast function
-  return baseToast(toastOptions);
+  // Map warning variant to default but with custom styling
+  const mappedVariant = variant === "warning" ? "default" : variant;
+  
+  return originalToast({
+    ...rest,
+    variant: mappedVariant,
+    className: variant === "warning" ? "bg-amber-50 border-amber-300 text-amber-900" : undefined,
+  });
 };

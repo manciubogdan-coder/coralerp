@@ -77,7 +77,6 @@ const TeachAssistant: React.FC<TeachAssistantProps> = ({
     setAutoLearningEnabled(newState);
     
     toast({
-      id: `auto-learning-${Date.now()}`,
       title: newState ? "Învățare automată activată" : "Învățare automată dezactivată",
       description: newState 
         ? "Asistentul va învăța automat din conversații." 
@@ -92,7 +91,6 @@ const TeachAssistant: React.FC<TeachAssistantProps> = ({
     setAnalyticalCapabilities(newState);
     
     toast({
-      id: `analytical-${Date.now()}`,
       title: newState ? "Capacități analitice activate" : "Capacități analitice dezactivate",
       description: newState 
         ? "Asistentul va folosi formule matematice și va genera rapoarte." 
