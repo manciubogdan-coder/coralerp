@@ -1,32 +1,117 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RefreshCw, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-custom-toast";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import SimpleInventoryTable from "@/components/SimpleInventoryTable";
-import { useInventoryData } from "@/hooks/use-inventory-data";
+import InventoryManagement from "@/components/dashboard/InventoryManagement";
+import { speakText } from "@/lib/speechService";
 
 const InventoryPage = () => {
   const navigate = useNavigate();
-  const { inventory, loading } = useInventoryData();
-
+  const [refreshKey, setRefreshKey] = React.useState(0);
+  const [isAudioEnabled, setIsAudioEnabled] = React.useState(true);
+  
+  const handleRefresh = () => {
+    console.log("Refreshing inventory data...");
+    setRefreshKey(prevKey => prevKey + 1);
+    
+    if (isAudioEnabled) {
+      speakText("Datele din stoc au fost actualizate.");
+    }
+    
+    toast({
+      title: "Reîmprospătare",
+      description: "Datele din stoc au fost actualizate."
+    });
+  };
+  
+  React.useEffect(() => {
+    const savedAudioSetting = localStorage.getItem('inventoryAudioEnabled');
+    if (savedAudioSetting !== null) {
+      setIsAudioEnabled(savedAudioSetting === 'true');
+    }
+    
+    console.log("Inventory page loaded, triggering initial data refresh");
+    setRefreshKey(prevKey => prevKey + 1);
+    
+    // Fix for mobile keyboard issues - add this meta tag dynamically
+    const meta = document.createElement('meta');
+    meta.name = 'viewport';
+    meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    document.getElementsByTagName('head')[0].appendChild(meta);
+    
+    return () => {
+      // Remove the meta tag when component unmounts
+      const metaTags = document.getElementsByTagName('meta');
+      for (let i = 0; i < metaTags.length; i++) {
+        if (metaTags[i].name === 'viewport') {
+          metaTags[i].remove();
+          break;
+        }
+      }
+    };
+  }, []);
+  
+  const toggleAudio = () => {
+    const newSetting = !isAudioEnabled;
+    setIsAudioEnabled(newSetting);
+    localStorage.setItem('inventoryAudioEnabled', String(newSetting));
+    
+    toast({
+      title: newSetting ? "Audio activat" : "Audio dezactivat",
+      description: newSetting ? 
+        "Răspunsurile vocale au fost activate." : 
+        "Răspunsurile vocale au fost dezactivate."
+    });
+  };
+  
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
       
-      <main className="flex-1 container mx-auto px-2 sm:px-4 py-2 sm:py-6">
-        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <h1 className="text-xl sm:text-2xl font-bold">Stoc Produse</h1>
+      <main className="flex-1 container mx-auto p-2 md:p-6">
+        <div className="mb-4 md:mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0">
+          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => navigate("/dashboard")}
+              className="w-full md:w-auto justify-center md:justify-start"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Înapoi la panou
+            </Button>
+            <h1 className="text-xl md:text-2xl font-bold">Gestionare Stoc Depozit</h1>
+          </div>
+          
+          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleAudio}
+              title={isAudioEnabled ? "Dezactivează răspunsurile vocale" : "Activează răspunsurile vocale"}
+              className="h-9 w-9"
+            >
+              <Mic className={`h-4 w-4 ${isAudioEnabled ? "text-green-500" : "text-gray-400"}`} />
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              title="Reîmprospătează datele din stoc"
+              className="w-full md:w-auto justify-center"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Reîmprospătează
+            </Button>
+          </div>
         </div>
         
-        <div className="bg-white rounded-lg shadow-md">
-          {loading ? (
-            <div className="p-4 sm:p-8 text-center text-gray-500">Se încarcă datele...</div>
-          ) : (
-            <SimpleInventoryTable inventory={inventory} />
-          )}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <InventoryManagement key={refreshKey} />
         </div>
       </main>
       

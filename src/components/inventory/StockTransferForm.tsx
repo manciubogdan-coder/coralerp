@@ -22,9 +22,10 @@ import {
   FormLabel,
   FormMessage 
 } from "@/components/ui/form";
-import { FileText } from "lucide-react";
+import { FileText, ChevronUp, ChevronDown } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;
@@ -68,8 +69,10 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
-
+  
   const form = useForm<TransferFormValues>({
     defaultValues: {
       transferDate: new Date().toISOString().split('T')[0],
@@ -83,6 +86,15 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       fetchInventory();
     }
   }, [isOpen]);
+  
+  // Add this effect to focus the search input when search is opened on mobile
+  useEffect(() => {
+    if (isSearchOpen && searchInputRef.current && isMobile) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 200);
+    }
+  }, [isSearchOpen, isMobile]);
 
   const fetchInventory = async () => {
     try {
@@ -340,6 +352,16 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     }
   };
 
+  const handleSearchFocus = () => {
+    setIsSearchFocused(true);
+    if (isMobile) {
+      // Force keyboard to stay open
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    }
+  };
+
   const availableItems = inventory.filter(
     item => !selectedItems.some(selected => selected.id === item.id)
   );
@@ -354,6 +376,21 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
            supplierName.toLowerCase().includes(searchLower) ||
            manufacturerName.toLowerCase().includes(searchLower);
   });
+
+  // Implement custom scroll controls for mobile
+  const scrollListUp = () => {
+    const selectContent = document.querySelector(".select-content-scroll");
+    if (selectContent) {
+      selectContent.scrollTop -= 200; // Adjust scroll amount as needed
+    }
+  };
+
+  const scrollListDown = () => {
+    const selectContent = document.querySelector(".select-content-scroll");
+    if (selectContent) {
+      selectContent.scrollTop += 200; // Adjust scroll amount as needed
+    }
+  };
 
   // Verifică dacă cantitatea netă rezultată din calculul cu noua cantitate brută este validă
   const isNetQuantityValid = (item: TransferItem) => {
@@ -438,58 +475,97 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                 <h3 className="text-md font-medium">Produse de transferat</h3>
                 <Select 
                   onValueChange={handleAddItem}
+                  open={isSearchOpen}
                   onOpenChange={(open) => {
+                    setIsSearchOpen(open);
                     if (open) {
                       setSearchTerm("");
                       setIsSearchFocused(true);
+                      // Schedule focus for after the dropdown opens
+                      setTimeout(() => {
+                        if (searchInputRef.current) {
+                          searchInputRef.current.focus();
+                        }
+                      }, 100);
                     } else {
                       setIsSearchFocused(false);
                     }
                   }}
                 >
-                  <SelectTrigger className={`w-full sm:w-[400px] ${isMobile ? 'h-12' : ''}`}>
+                  <SelectTrigger className={`w-full sm:w-[400px] ${isMobile ? 'h-12 text-base' : ''}`}>
                     <SelectValue placeholder="Adăugați un produs" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white">
+                  <SelectContent className="bg-white select-content-scroll">
                     <div className="px-3 py-2 sticky top-0 bg-white z-10 border-b">
                       <Input
+                        ref={searchInputRef}
                         placeholder="Caută produse..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className={`mb-2 ${isMobile ? 'h-12' : ''}`}
-                        onFocus={() => setIsSearchFocused(true)}
-                        onBlur={() => setIsSearchFocused(false)}
-                        autoFocus={isMobile} // Auto focus for mobile
+                        className={`mb-2 ${isMobile ? 'h-12 text-base' : ''}`}
+                        preventMobileKeyboardDismiss={true}
+                        onFocus={handleSearchFocus}
+                        autoFocus={isMobile}
                       />
+                      
+                      {/* Mobile scroll controls */}
+                      {isMobile && (
+                        <div className="flex justify-between mt-2">
+                          <Button 
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full h-12 text-base flex items-center justify-center"
+                            onClick={scrollListUp}
+                          >
+                            <ChevronUp className="h-6 w-6" />
+                            <span className="ml-1">Derulează în sus</span>
+                          </Button>
+                          <div className="w-2"></div>
+                          <Button
+                            type="button" 
+                            variant="outline"
+                            size="sm"
+                            className="w-full h-12 text-base flex items-center justify-center"
+                            onClick={scrollListDown}
+                          >
+                            <span className="mr-1">Derulează în jos</span>
+                            <ChevronDown className="h-6 w-6" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    {filteredItems.length === 0 ? (
-                      <div className="p-3 text-center text-gray-500">
-                        Nu există produse disponibile
-                      </div>
-                    ) : (
-                      filteredItems.map(item => (
-                        <SelectItem 
-                          key={item.id} 
-                          value={item.id} 
-                          className={`py-4 ${isMobile ? 'text-base' : ''}`}
-                        >
-                          <div className="flex flex-col">
-                            <span className="font-medium">
-                              {item.products?.name || item.name}
-                            </span>
-                            <span className="text-sm text-gray-500">
-                              Cantitate: {item.quantity} {item.unit} | Lot: {item.lot_number || 'N/A'}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {item.supplier || item.suppliers?.name ? 
-                                `Furnizor: ${item.supplier || item.suppliers?.name}` : ''}
-                              {item.manufacturer || item.manufacturers?.name ? 
-                                ` | Producător: ${item.manufacturer || item.manufacturers?.name}` : ''}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))
-                    )}
+                    
+                    <ScrollArea className="max-h-[50vh]">
+                      {filteredItems.length === 0 ? (
+                        <div className="p-3 text-center text-gray-500">
+                          Nu există produse disponibile
+                        </div>
+                      ) : (
+                        filteredItems.map(item => (
+                          <SelectItem 
+                            key={item.id} 
+                            value={item.id} 
+                            className={`py-4 ${isMobile ? 'text-base' : ''}`}
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {item.products?.name || item.name}
+                              </span>
+                              <span className="text-sm text-gray-500">
+                                Cantitate: {item.quantity} {item.unit} | Lot: {item.lot_number || 'N/A'}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {item.supplier || item.suppliers?.name ? 
+                                  `Furnizor: ${item.supplier || item.suppliers?.name}` : ''}
+                                {item.manufacturer || item.manufacturers?.name ? 
+                                  ` | Producător: ${item.manufacturer || item.manufacturers?.name}` : ''}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </ScrollArea>
                   </SelectContent>
                 </Select>
               </div>
@@ -604,7 +680,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
               <Button 
                 type="submit" 
                 disabled={selectedItems.length === 0 || isSubmitting}
-                className={isMobile ? 'h-12' : ''}
+                className={isMobile ? 'h-12 text-base' : ''}
               >
                 {isSubmitting ? "Se procesează..." : "Creare bon de transfer"}
               </Button>

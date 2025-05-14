@@ -6,10 +6,28 @@ import { cn } from "@/lib/utils"
 // Extended input interface to include a 'warning' variant
 interface InputProps extends React.ComponentProps<"input"> {
   variant?: "default" | "warning";
+  preventMobileKeyboardDismiss?: boolean; // Add new prop to prevent keyboard dismissal
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, variant = "default", ...props }, ref) => {
+  ({ className, type, variant = "default", preventMobileKeyboardDismiss, ...props }, ref) => {
+    // Special handling for mobile devices to prevent keyboard dismissal
+    const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+      if (preventMobileKeyboardDismiss) {
+        // Prevent the default behavior that might cause keyboard dismissal
+        e.preventDefault();
+        // Ensure the input remains focused
+        setTimeout(() => {
+          e.target.focus();
+        }, 100);
+      }
+      
+      // Call any original onFocus handler if it exists
+      if (props.onFocus) {
+        props.onFocus(e);
+      }
+    };
+
     return (
       <input
         type={type}
@@ -19,6 +37,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           className
         )}
         ref={ref}
+        onFocus={handleFocus}
         {...props}
       />
     )
