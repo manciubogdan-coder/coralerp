@@ -44,22 +44,8 @@ export function ProductSelectionModal({
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      
-      // Add meta tag to prevent pinch zoom
-      const meta = document.createElement('meta');
-      meta.name = 'viewport';
-      meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
-      document.getElementsByTagName('head')[0].appendChild(meta);
-      
       return () => {
         document.body.style.overflow = '';
-        
-        // Clean up meta tag
-        document.querySelectorAll('meta[name="viewport"]').forEach(meta => {
-          if (meta.getAttribute('content')?.includes('maximum-scale=1.0')) {
-            meta.remove();
-          }
-        });
       };
     }
   }, [isOpen]);
@@ -109,8 +95,6 @@ export function ProductSelectionModal({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="mb-2 h-14 text-lg pl-10"
-              preventMobileKeyboardDismiss={true}
-              autoFocus
             />
             {searchTerm && (
               <Button 
@@ -125,6 +109,7 @@ export function ProductSelectionModal({
           </div>
         </div>
         
+        {/* Main content area with products */}
         <div 
           ref={listScrollAreaRef}
           className="flex-1 overflow-auto"
@@ -161,29 +146,29 @@ export function ProductSelectionModal({
           </div>
         </div>
         
-        {/* Fixed scroll controls at the bottom */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-2 flex gap-2">
+        {/* Sticky navigation buttons at the bottom */}
+        <div className="sticky bottom-0 left-0 right-0 bg-white border-t p-2 flex gap-2">
           <Button 
             variant="outline"
-            className="w-1/2 h-16 text-xl flex items-center justify-center"
+            className="w-1/2 h-14 text-lg flex items-center justify-center"
             onClick={(e) => {
               e.stopPropagation();
               scrollListUp();
             }}
           >
-            <ChevronUp className="h-8 w-8" />
+            <ChevronUp className="h-6 w-6" />
             <span className="ml-2">Sus</span>
           </Button>
           <Button
             variant="outline" 
-            className="w-1/2 h-16 text-xl flex items-center justify-center"
+            className="w-1/2 h-14 text-lg flex items-center justify-center"
             onClick={(e) => {
               e.stopPropagation();
               scrollListDown();
             }}
           >
             <span className="mr-2">Jos</span>
-            <ChevronDown className="h-8 w-8" />
+            <ChevronDown className="h-6 w-6" />
           </Button>
         </div>
       </div>

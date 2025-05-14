@@ -36,6 +36,17 @@ const InventoryPage = () => {
     
     console.log("Inventory page loaded, triggering initial data refresh");
     setRefreshKey(prevKey => prevKey + 1);
+    
+    // Fix for mobile keyboard issues - ensure viewport doesn't prevent zooming
+    const metaViewport = document.querySelector('meta[name="viewport"]');
+    if (metaViewport) {
+      metaViewport.setAttribute('content', 'width=device-width, initial-scale=1.0');
+    } else {
+      const meta = document.createElement('meta');
+      meta.name = 'viewport';
+      meta.content = 'width=device-width, initial-scale=1.0';
+      document.getElementsByTagName('head')[0].appendChild(meta);
+    }
   }, []);
   
   const toggleAudio = () => {
