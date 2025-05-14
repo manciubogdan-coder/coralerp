@@ -70,10 +70,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isManualSelectionMode, setIsManualSelectionMode] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const listScrollAreaRef = useRef<HTMLDivElement>(null);
+  const searchResultsRef = useRef<HTMLDivElement>(null);
   
   const form = useForm<TransferFormValues>({
     defaultValues: {
@@ -105,7 +107,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     }
   }, [isSearchOpen, isMobile]);
   
-  // Add event listeners to prevent keyboard dismissal with improved handling
+  // Enhanced touch interaction handling
   useEffect(() => {
     const handleTouchStart = (e: TouchEvent) => {
       // Only prevent default for search-related elements
@@ -117,16 +119,15 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       }
     };
     
-    // Add more aggressive prevention of keyboard dismissal
+    // Mobile-specific listeners to prevent keyboard dismissal
     const handleFocusOut = (e: FocusEvent) => {
-      if (isSearchOpen && searchInputRef.current && isMobile) {
-        // If focus is moving out of the search input, try to refocus it
-        if (e.target === searchInputRef.current) {
-          e.preventDefault();
-          setTimeout(() => {
-            searchInputRef.current?.focus();
-          }, 100);
-        }
+      if (isSearchOpen && searchInputRef.current && isMobile && isManualSelectionMode) {
+        // If focus is moving out of the search input but we're in manual selection mode
+        // prevent the default action and keep focus
+        e.preventDefault();
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 100);
       }
     };
     
@@ -135,26 +136,39 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       searchInputRef.current.addEventListener('focusout', handleFocusOut);
     }
     
-    // Add a meta tag to prevent mobile zoom/scale changes
+    // Prevent zoom/scale on mobile
     const metaViewport = document.createElement('meta');
     metaViewport.name = 'viewport';
     metaViewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
     document.head.appendChild(metaViewport);
     
+    // Add a global touchmove handler to prevent scrolling the background when search is open
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isSearchOpen && !searchContainerRef.current?.contains(e.target as Node) && 
+          !searchResultsRef.current?.contains(e.target as Node)) {
+        e.preventDefault();
+      }
+    };
+    
+    if (isSearchOpen && isMobile) {
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    }
+    
     return () => {
       document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchmove', handleTouchMove);
       if (searchInputRef.current) {
         searchInputRef.current.removeEventListener('focusout', handleFocusOut);
       }
       
-      // Remove the meta tag when component unmounts
+      // Clean up meta tag
       document.querySelectorAll('meta[name="viewport"]').forEach(meta => {
         if (meta.getAttribute('content')?.includes('maximum-scale=1.0')) {
           meta.remove();
         }
       });
     };
-  }, [isSearchOpen, isMobile]);
+  }, [isSearchOpen, isMobile, isManualSelectionMode]);
   
   const fetchInventory = async () => {
     try {
@@ -216,9 +230,23 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       lot_number: selectedItem.lot_number
     }]);
     
-    // Close the search dropdown after selection on mobile
+    // Close the search mode after selection on mobile
     if (isMobile) {
       setIsSearchOpen(false);
+      setIsManualSelectionMode(false);
+    }
+  };
+
+  // Direct product selection without using dropdown's built-in selection
+  const handleManualItemSelection = (itemId: string) => {
+    handleAddItem(itemId);
+    
+    // Ensure the dropdown and keyboard stay closed after selection
+    setIsSearchOpen(false);
+    setIsManualSelectionMode(false);
+    
+    if (searchInputRef.current) {
+      searchInputRef.current.blur();
     }
   };
 
@@ -419,11 +447,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSearchFocused(true);
     
     if (isMobile) {
-      // Force keyboard to stay open with more aggressive approach
+      // Enable manual selection mode when searching on mobile
+      setIsManualSelectionMode(true);
+      
       setTimeout(() => {
         if (searchInputRef.current) {
           searchInputRef.current.focus();
-          // Simulate user click to ensure keyboard appears
           searchInputRef.current.click();
         }
       }, 100);
@@ -445,32 +474,149 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
            manufacturerName.toLowerCase().includes(searchLower);
   });
 
-  // Enhanced focus management for mobile
+  // Enhanced scroll functions with larger increments for mobile
   const scrollListUp = () => {
     if (listScrollAreaRef.current) {
-      listScrollAreaRef.current.scrollTop -= 250; // Larger scroll amount for better UX
+      listScrollAreaRef.current.scrollTop -= 300; // Larger scroll amount for better UX
     } else {
       const selectContent = document.querySelector(".select-content-scroll");
       if (selectContent) {
-        selectContent.scrollTop -= 250;
+        selectContent.scrollTop -= 300;
       }
     }
   };
 
   const scrollListDown = () => {
     if (listScrollAreaRef.current) {
-      listScrollAreaRef.current.scrollTop += 250; // Larger scroll amount for better UX
+      listScrollAreaRef.current.scrollTop += 300; // Larger scroll amount for better UX
     } else {
       const selectContent = document.querySelector(".select-content-scroll");
       if (selectContent) {
-        selectContent.scrollTop += 250;
+        selectContent.scrollTop += 300;
       }
     }
   };
 
-  // Verifică dacă cantitatea netă rezultată din calculul cu noua cantitate brută este validă
+  // Check if net quantity is valid
   const isNetQuantityValid = (item: TransferItem) => {
     return item.netQuantity <= item.maxQuantity;
+  };
+  
+  // Custom product selection list instead of using the Select component's built-in options
+  const renderProductSearchResults = () => {
+    if (!isSearchOpen || !isManualSelectionMode) return null;
+    
+    return (
+      <div 
+        className="fixed inset-0 bg-black/40 z-50 flex flex-col"
+        onClick={() => {
+          setIsSearchOpen(false);
+          setIsManualSelectionMode(false);
+        }}
+      >
+        <div 
+          className="mt-20 bg-white rounded-t-xl flex-1 p-4 overflow-hidden flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+          ref={searchResultsRef}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Selectare Produse</h3>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-gray-500"
+              onClick={() => {
+                setIsSearchOpen(false);
+                setIsManualSelectionMode(false);
+              }}
+            >
+              Închide
+            </Button>
+          </div>
+          
+          <div
+            ref={searchContainerRef}
+            className="sticky top-0 bg-white z-10 border-b pb-4"
+          >
+            <Input
+              ref={searchInputRef}
+              placeholder="Caută produse..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="mb-2 h-14 text-lg"
+              preventMobileKeyboardDismiss={true}
+              onFocus={handleSearchFocus}
+              autoFocus={isMobile}
+              onClick={(e) => {
+                e.stopPropagation();
+                searchInputRef.current?.focus();
+              }}
+            />
+          </div>
+          
+          <ScrollArea className="flex-1 mt-4 pb-20" ref={listScrollAreaRef}>
+            <div className="space-y-2">
+              {filteredItems.length === 0 ? (
+                <div className="p-3 text-center text-gray-500">
+                  Nu există produse disponibile
+                </div>
+              ) : (
+                filteredItems.map(item => (
+                  <div 
+                    key={item.id} 
+                    className="p-4 border rounded-lg bg-gray-50 hover:bg-gray-100 active:bg-gray-200"
+                    onClick={() => handleManualItemSelection(item.id)}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium text-lg">
+                        {item.products?.name || item.name}
+                      </span>
+                      <span className="text-base text-gray-500">
+                        Cantitate: {item.quantity} {item.unit} | Lot: {item.lot_number || 'N/A'}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {item.supplier || item.suppliers?.name ? 
+                          `Furnizor: ${item.supplier || item.suppliers?.name}` : ''}
+                        {item.manufacturer || item.manufacturers?.name ? 
+                          ` | Producător: ${item.manufacturer || item.manufacturers?.name}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+          
+          {/* Fixed scroll controls at the bottom */}
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-2 flex gap-2">
+            <Button 
+              variant="outline"
+              className="w-1/2 h-16 text-xl flex items-center justify-center"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                scrollListUp();
+              }}
+            >
+              <ChevronUp className="h-8 w-8" />
+              <span className="ml-2">Sus</span>
+            </Button>
+            <Button
+              variant="outline" 
+              className="w-1/2 h-16 text-xl flex items-center justify-center"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                scrollListDown();
+              }}
+            >
+              <span className="mr-2">Jos</span>
+              <ChevronDown className="h-8 w-8" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -549,122 +695,91 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             <div className="border rounded-md p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-md font-medium">Produse de transferat</h3>
-                <Select 
-                  onValueChange={handleAddItem}
-                  open={isSearchOpen}
-                  onOpenChange={(open) => {
-                    setIsSearchOpen(open);
-                    if (open) {
-                      setSearchTerm("");
-                      setIsSearchFocused(true);
-                      // Schedule focus for after the dropdown opens
-                      setTimeout(() => {
-                        if (searchInputRef.current) {
-                          searchInputRef.current.focus();
-                          // For mobile, force tap/click to ensure keyboard appears
-                          if (isMobile) {
-                            searchInputRef.current.click();
+                
+                {/* Mobile-optimized product selection */}
+                {isMobile ? (
+                  <Button 
+                    variant="outline"
+                    className="w-full h-12 text-base"
+                    onClick={() => {
+                      setIsSearchOpen(true);
+                      setIsManualSelectionMode(true);
+                    }}
+                  >
+                    Adaugă produse
+                  </Button>
+                ) : (
+                  <Select 
+                    onValueChange={handleAddItem}
+                    open={isSearchOpen}
+                    onOpenChange={(open) => {
+                      setIsSearchOpen(open);
+                      if (open) {
+                        setSearchTerm("");
+                        setIsSearchFocused(true);
+                        setTimeout(() => {
+                          if (searchInputRef.current) {
+                            searchInputRef.current.focus();
                           }
-                        }
-                      }, 300);
-                    } else {
-                      setIsSearchFocused(false);
-                    }
-                  }}
-                >
-                  <SelectTrigger className={`w-full sm:w-[400px] ${isMobile ? 'h-12 text-base' : ''}`}>
-                    <SelectValue placeholder="Adăugați un produs" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white select-content-scroll">
-                    <div 
-                      className="px-3 py-2 sticky top-0 bg-white z-10 border-b"
-                      ref={searchContainerRef}
-                      style={{ marginBottom: isMobile ? '200px' : '0' }}
-                    >
-                      <Input
-                        ref={searchInputRef}
-                        placeholder="Caută produse..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className={`mb-2 ${isMobile ? 'h-14 text-lg' : ''}`}
-                        preventMobileKeyboardDismiss={true}
-                        onFocus={handleSearchFocus}
-                        autoFocus={isMobile}
-                        onClick={(e) => {
-                          // Prevent click from bubbling and potentially closing the dropdown
-                          e.stopPropagation();
-                          // Refocus the input to ensure keyboard stays open
-                          searchInputRef.current?.focus();
-                        }}
-                      />
+                        }, 300);
+                      } else {
+                        setIsSearchFocused(false);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full sm:w-[400px]">
+                      <SelectValue placeholder="Adăugați un produs" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white select-content-scroll">
+                      <div 
+                        className="px-3 py-2 sticky top-0 bg-white z-10 border-b"
+                        ref={searchContainerRef}
+                      >
+                        <Input
+                          ref={searchInputRef}
+                          placeholder="Caută produse..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="mb-2"
+                          onFocus={handleSearchFocus}
+                        />
+                      </div>
                       
-                      {/* Mobile scroll controls with larger touch targets */}
-                      {isMobile && (
-                        <div className="flex justify-between mt-2 gap-2">
-                          <Button 
-                            type="button"
-                            variant="outline"
-                            className="w-full h-20 text-2xl flex items-center justify-center scroll-button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              scrollListUp();
-                            }}
-                          >
-                            <ChevronUp className="h-10 w-10" />
-                            <span className="ml-2">Sus</span>
-                          </Button>
-                          <Button
-                            type="button" 
-                            variant="outline"
-                            className="w-full h-20 text-2xl flex items-center justify-center scroll-button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              scrollListDown();
-                            }}
-                          >
-                            <span className="mr-2">Jos</span>
-                            <ChevronDown className="h-10 w-10" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div ref={listScrollAreaRef}>
-                      <ScrollArea className="max-h-[40vh]">
-                        {filteredItems.length === 0 ? (
-                          <div className="p-3 text-center text-gray-500">
-                            Nu există produse disponibile
-                          </div>
-                        ) : (
-                          filteredItems.map(item => (
-                            <SelectItem 
-                              key={item.id} 
-                              value={item.id} 
-                              className={`py-5 ${isMobile ? 'text-lg' : ''}`}
-                            >
-                              <div className="flex flex-col">
-                                <span className="font-medium">
-                                  {item.products?.name || item.name}
-                                </span>
-                                <span className={`${isMobile ? 'text-base' : 'text-sm'} text-gray-500`}>
-                                  Cantitate: {item.quantity} {item.unit} | Lot: {item.lot_number || 'N/A'}
-                                </span>
-                                <span className={`${isMobile ? 'text-sm' : 'text-xs'} text-gray-500`}>
-                                  {item.supplier || item.suppliers?.name ? 
-                                    `Furnizor: ${item.supplier || item.suppliers?.name}` : ''}
-                                  {item.manufacturer || item.manufacturers?.name ? 
-                                    ` | Producător: ${item.manufacturer || item.manufacturers?.name}` : ''}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))
-                        )}
-                      </ScrollArea>
-                    </div>
-                  </SelectContent>
-                </Select>
+                      <div ref={listScrollAreaRef}>
+                        <ScrollArea className="max-h-[40vh]">
+                          {filteredItems.length === 0 ? (
+                            <div className="p-3 text-center text-gray-500">
+                              Nu există produse disponibile
+                            </div>
+                          ) : (
+                            filteredItems.map(item => (
+                              <SelectItem 
+                                key={item.id} 
+                                value={item.id} 
+                                className="py-3"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="font-medium">
+                                    {item.products?.name || item.name}
+                                  </span>
+                                  <span className="text-sm text-gray-500">
+                                    Cantitate: {item.quantity} {item.unit} | Lot: {item.lot_number || 'N/A'}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {item.supplier || item.suppliers?.name ? 
+                                      `Furnizor: ${item.supplier || item.suppliers?.name}` : ''}
+                                    {item.manufacturer || item.manufacturers?.name ? 
+                                      ` | Producător: ${item.manufacturer || item.manufacturers?.name}` : ''}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
+                        </ScrollArea>
+                      </div>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               {selectedItems.length === 0 ? (
@@ -785,6 +900,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           </form>
         </Form>
       </DialogContent>
+      
+      {/* Render the mobile product selection UI */}
+      {renderProductSearchResults()}
     </Dialog>
   );
 }
