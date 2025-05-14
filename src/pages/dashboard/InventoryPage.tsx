@@ -3,7 +3,7 @@ import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, RefreshCw, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-custom-toast";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import InventoryManagement from "@/components/dashboard/InventoryManagement";
@@ -39,13 +39,13 @@ const InventoryPage = () => {
   }, []);
   
   const toggleAudio = () => {
-    const newState = !isAudioEnabled;
-    setIsAudioEnabled(newState);
+    const newSetting = !isAudioEnabled;
+    setIsAudioEnabled(newSetting);
     localStorage.setItem('inventoryAudioEnabled', String(newSetting));
     
     toast({
-      title: newState ? "Audio activat" : "Audio dezactivat",
-      description: newState ? 
+      title: newSetting ? "Audio activat" : "Audio dezactivat",
+      description: newSetting ? 
         "Răspunsurile vocale au fost activate." : 
         "Răspunsurile vocale au fost dezactivate."
     });

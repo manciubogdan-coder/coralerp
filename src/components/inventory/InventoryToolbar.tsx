@@ -6,7 +6,7 @@ import { StockTransferForm } from "@/components/inventory/StockTransferForm";
 import { ReceptionRegistration } from "@/components/inventory/ReceptionRegistration";
 import { Product, Supplier, Manufacturer, CrateType } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-custom-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface InventoryToolbarProps {
