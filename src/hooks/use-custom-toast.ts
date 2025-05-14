@@ -1,49 +1,17 @@
 
-import { toast as originalToast, useToast as useOriginalToast } from "@/hooks/use-toast";
-import { type ToastActionElement } from "@/components/ui/toast";
+// Make sure we're importing from the correct location
+import { toast as baseToast } from "@/hooks/use-toast";
+import { speakText } from "@/lib/speechService";
 
-type ToastVariant = "default" | "destructive" | "warning";
+type ToastOptions = Parameters<typeof baseToast>[0];
 
-interface CustomToastProps {
-  variant?: ToastVariant;
-  title?: string;
-  description?: string;
-  action?: ToastActionElement;
-  [key: string]: any;
-}
-
-export function useCustomToast() {
-  const { toast: originalToastFn, ...rest } = useOriginalToast();
+// Extend the base toast function with our custom features
+export const toast = (options: ToastOptions) => {
+  // If there's a description and speech synthesis is available, speak the text
+  if (options.description && window.speechSynthesis) {
+    speakText(options.description.toString());
+  }
   
-  const toast = ({ 
-    variant = "default", 
-    ...props 
-  }: CustomToastProps) => {
-    // Map warning variant to default but with custom styling if needed
-    const mappedVariant = variant === "warning" ? "default" : variant;
-    
-    return originalToastFn({
-      ...props,
-      variant: mappedVariant,
-      className: variant === "warning" ? "bg-amber-50 border-amber-300 text-amber-900" : undefined,
-    });
-  };
-  
-  return { 
-    ...rest, 
-    toast 
-  };
-}
-
-export const toast = (props: CustomToastProps) => {
-  const { variant = "default", ...rest } = props;
-  
-  // Map warning variant to default but with custom styling
-  const mappedVariant = variant === "warning" ? "default" : variant;
-  
-  return originalToast({
-    ...rest,
-    variant: mappedVariant,
-    className: variant === "warning" ? "bg-amber-50 border-amber-300 text-amber-900" : undefined,
-  });
+  // Call the base toast function
+  return baseToast(options);
 };

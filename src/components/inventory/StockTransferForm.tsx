@@ -92,11 +92,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   // Improved mobile focus management
   useEffect(() => {
     if (isSearchOpen && searchInputRef.current && isMobile) {
-      // Delay to ensure the dropdown is fully open
+      // Delay to ensure the dropdown is fully open and keyboard appears
       const focusTimer = setTimeout(() => {
         if (searchInputRef.current) {
           searchInputRef.current.focus();
-          // Force the keyboard to stay open
+          // Force the keyboard to stay open by triggering a click
           searchInputRef.current.click();
         }
       }, 300);
@@ -105,10 +105,10 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     }
   }, [isSearchOpen, isMobile]);
   
-  // Add event listeners to prevent keyboard dismissal
+  // Add event listeners to prevent keyboard dismissal with improved handling
   useEffect(() => {
     const handleTouchStart = (e: TouchEvent) => {
-      // Prevent default only if we're in the search area and it's open
+      // Only prevent default for search-related elements
       if (isSearchOpen && searchContainerRef.current?.contains(e.target as Node)) {
         // Allow scrolling but prevent other touch behaviors that might dismiss keyboard
         if (!(e.target as HTMLElement).classList.contains('scroll-button')) {
@@ -117,13 +117,45 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       }
     };
     
+    // Add more aggressive prevention of keyboard dismissal
+    const handleFocusOut = (e: FocusEvent) => {
+      if (isSearchOpen && searchInputRef.current && isMobile) {
+        // If focus is moving out of the search input, try to refocus it
+        if (e.target === searchInputRef.current) {
+          e.preventDefault();
+          setTimeout(() => {
+            searchInputRef.current?.focus();
+          }, 100);
+        }
+      }
+    };
+    
     document.addEventListener('touchstart', handleTouchStart, { passive: false });
+    if (searchInputRef.current) {
+      searchInputRef.current.addEventListener('focusout', handleFocusOut);
+    }
+    
+    // Add a meta tag to prevent mobile zoom/scale changes
+    const metaViewport = document.createElement('meta');
+    metaViewport.name = 'viewport';
+    metaViewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    document.head.appendChild(metaViewport);
     
     return () => {
       document.removeEventListener('touchstart', handleTouchStart);
+      if (searchInputRef.current) {
+        searchInputRef.current.removeEventListener('focusout', handleFocusOut);
+      }
+      
+      // Remove the meta tag when component unmounts
+      document.querySelectorAll('meta[name="viewport"]').forEach(meta => {
+        if (meta.getAttribute('content')?.includes('maximum-scale=1.0')) {
+          meta.remove();
+        }
+      });
     };
-  }, [isSearchOpen]);
-
+  }, [isSearchOpen, isMobile]);
+  
   const fetchInventory = async () => {
     try {
       const { data, error } = await supabase
@@ -387,7 +419,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSearchFocused(true);
     
     if (isMobile) {
-      // Force keyboard to stay open
+      // Force keyboard to stay open with more aggressive approach
       setTimeout(() => {
         if (searchInputRef.current) {
           searchInputRef.current.focus();
@@ -547,6 +579,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                     <div 
                       className="px-3 py-2 sticky top-0 bg-white z-10 border-b"
                       ref={searchContainerRef}
+                      style={{ marginBottom: isMobile ? '200px' : '0' }}
                     >
                       <Input
                         ref={searchInputRef}
@@ -571,20 +604,20 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           <Button 
                             type="button"
                             variant="outline"
-                            className="w-full h-16 text-lg flex items-center justify-center scroll-button"
+                            className="w-full h-20 text-2xl flex items-center justify-center scroll-button"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                               scrollListUp();
                             }}
                           >
-                            <ChevronUp className="h-8 w-8" />
+                            <ChevronUp className="h-10 w-10" />
                             <span className="ml-2">Sus</span>
                           </Button>
                           <Button
                             type="button" 
                             variant="outline"
-                            className="w-full h-16 text-lg flex items-center justify-center scroll-button"
+                            className="w-full h-20 text-2xl flex items-center justify-center scroll-button"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -592,7 +625,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                             }}
                           >
                             <span className="mr-2">Jos</span>
-                            <ChevronDown className="h-8 w-8" />
+                            <ChevronDown className="h-10 w-10" />
                           </Button>
                         </div>
                       )}
