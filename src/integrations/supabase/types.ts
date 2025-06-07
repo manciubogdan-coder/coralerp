@@ -9,6 +9,801 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      agvanzari_agent_price_lists: {
+        Row: {
+          activ: boolean | null
+          agent_id: string | null
+          created_at: string | null
+          id: string
+          pret_special: number
+          product_id: string | null
+          valabil_de_la: string | null
+          valabil_pana_la: string | null
+        }
+        Insert: {
+          activ?: boolean | null
+          agent_id?: string | null
+          created_at?: string | null
+          id?: string
+          pret_special: number
+          product_id?: string | null
+          valabil_de_la?: string | null
+          valabil_pana_la?: string | null
+        }
+        Update: {
+          activ?: boolean | null
+          agent_id?: string | null
+          created_at?: string | null
+          id?: string
+          pret_special?: number
+          product_id?: string | null
+          valabil_de_la?: string | null
+          valabil_pana_la?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agvanzari_agent_price_lists_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agvanzari_agent_price_lists_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agvanzari_agents: {
+        Row: {
+          activ: boolean | null
+          comision_procent: number | null
+          created_at: string | null
+          email: string
+          id: string
+          nume: string
+          telefon: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          activ?: boolean | null
+          comision_procent?: number | null
+          created_at?: string | null
+          email: string
+          id?: string
+          nume: string
+          telefon?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          activ?: boolean | null
+          comision_procent?: number | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          nume?: string
+          telefon?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      agvanzari_categories: {
+        Row: {
+          created_at: string | null
+          descriere: string | null
+          id: string
+          nume: string
+        }
+        Insert: {
+          created_at?: string | null
+          descriere?: string | null
+          id?: string
+          nume: string
+        }
+        Update: {
+          created_at?: string | null
+          descriere?: string | null
+          id?: string
+          nume?: string
+        }
+        Relationships: []
+      }
+      agvanzari_clients: {
+        Row: {
+          adresa: string
+          banca: string | null
+          cod_postal: string | null
+          created_at: string | null
+          cui: string
+          email: string | null
+          iban: string | null
+          id: string
+          judet: string
+          nr_reg_com: string | null
+          nume_firma: string
+          oras: string
+          persoana_contact: string | null
+          telefon: string | null
+          tip_client: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          adresa: string
+          banca?: string | null
+          cod_postal?: string | null
+          created_at?: string | null
+          cui: string
+          email?: string | null
+          iban?: string | null
+          id?: string
+          judet: string
+          nr_reg_com?: string | null
+          nume_firma: string
+          oras: string
+          persoana_contact?: string | null
+          telefon?: string | null
+          tip_client?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          adresa?: string
+          banca?: string | null
+          cod_postal?: string | null
+          created_at?: string | null
+          cui?: string
+          email?: string | null
+          iban?: string | null
+          id?: string
+          judet?: string
+          nr_reg_com?: string | null
+          nume_firma?: string
+          oras?: string
+          persoana_contact?: string | null
+          telefon?: string | null
+          tip_client?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      agvanzari_document_settings: {
+        Row: {
+          adresa_firma: string | null
+          banca_firma: string | null
+          created_at: string | null
+          cui: string | null
+          culoare_primara: string | null
+          culoare_secundara: string | null
+          email_firma: string | null
+          font_familie: string | null
+          iban_firma: string | null
+          id: string
+          include_semnatura: boolean | null
+          include_stampila: boolean | null
+          logo_url: string | null
+          nr_reg_com: string | null
+          nume_firma: string | null
+          telefon_firma: string | null
+          text_footer: string | null
+          tip_document: string
+          updated_at: string | null
+        }
+        Insert: {
+          adresa_firma?: string | null
+          banca_firma?: string | null
+          created_at?: string | null
+          cui?: string | null
+          culoare_primara?: string | null
+          culoare_secundara?: string | null
+          email_firma?: string | null
+          font_familie?: string | null
+          iban_firma?: string | null
+          id?: string
+          include_semnatura?: boolean | null
+          include_stampila?: boolean | null
+          logo_url?: string | null
+          nr_reg_com?: string | null
+          nume_firma?: string | null
+          telefon_firma?: string | null
+          text_footer?: string | null
+          tip_document: string
+          updated_at?: string | null
+        }
+        Update: {
+          adresa_firma?: string | null
+          banca_firma?: string | null
+          created_at?: string | null
+          cui?: string | null
+          culoare_primara?: string | null
+          culoare_secundara?: string | null
+          email_firma?: string | null
+          font_familie?: string | null
+          iban_firma?: string | null
+          id?: string
+          include_semnatura?: boolean | null
+          include_stampila?: boolean | null
+          logo_url?: string | null
+          nr_reg_com?: string | null
+          nume_firma?: string | null
+          telefon_firma?: string | null
+          text_footer?: string | null
+          tip_document?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      agvanzari_invoice_items: {
+        Row: {
+          cantitate: number
+          created_at: string | null
+          id: string
+          invoice_id: string | null
+          nume_produs: string
+          pret_unitar: number
+          product_id: string | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          tva_procent: number
+          unitate_masura: string
+        }
+        Insert: {
+          cantitate: number
+          created_at?: string | null
+          id?: string
+          invoice_id?: string | null
+          nume_produs: string
+          pret_unitar: number
+          product_id?: string | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          tva_procent: number
+          unitate_masura: string
+        }
+        Update: {
+          cantitate?: number
+          created_at?: string | null
+          id?: string
+          invoice_id?: string | null
+          nume_produs?: string
+          pret_unitar?: number
+          product_id?: string | null
+          total_cu_tva?: number
+          total_fara_tva?: number
+          total_tva?: number
+          tva_procent?: number
+          unitate_masura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agvanzari_invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agvanzari_invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agvanzari_invoices: {
+        Row: {
+          agent_id: string | null
+          client_id: string | null
+          created_at: string | null
+          data_achitare: string | null
+          data_emitere: string | null
+          data_scadenta: string | null
+          document_pdf_url: string | null
+          id: string
+          mod_plata: string | null
+          numar_factura: string
+          observatii_plata: string | null
+          order_id: string | null
+          seria_factura: string | null
+          status_plata: string | null
+          suma_achitata: number | null
+          termen_plata_zile: number | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          updated_at: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          data_achitare?: string | null
+          data_emitere?: string | null
+          data_scadenta?: string | null
+          document_pdf_url?: string | null
+          id?: string
+          mod_plata?: string | null
+          numar_factura: string
+          observatii_plata?: string | null
+          order_id?: string | null
+          seria_factura?: string | null
+          status_plata?: string | null
+          suma_achitata?: number | null
+          termen_plata_zile?: number | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          updated_at?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          data_achitare?: string | null
+          data_emitere?: string | null
+          data_scadenta?: string | null
+          document_pdf_url?: string | null
+          id?: string
+          mod_plata?: string | null
+          numar_factura?: string
+          observatii_plata?: string | null
+          order_id?: string | null
+          seria_factura?: string | null
+          status_plata?: string | null
+          suma_achitata?: number | null
+          termen_plata_zile?: number | null
+          total_cu_tva?: number
+          total_fara_tva?: number
+          total_tva?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agvanzari_invoices_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agvanzari_invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agvanzari_invoices_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agvanzari_order_items: {
+        Row: {
+          cantitate: number
+          created_at: string | null
+          id: string
+          observatii: string | null
+          order_id: string | null
+          pret_unitar: number
+          product_id: string | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          tva_procent: number
+        }
+        Insert: {
+          cantitate: number
+          created_at?: string | null
+          id?: string
+          observatii?: string | null
+          order_id?: string | null
+          pret_unitar: number
+          product_id?: string | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          tva_procent: number
+        }
+        Update: {
+          cantitate?: number
+          created_at?: string | null
+          id?: string
+          observatii?: string | null
+          order_id?: string | null
+          pret_unitar?: number
+          product_id?: string | null
+          total_cu_tva?: number
+          total_fara_tva?: number
+          total_tva?: number
+          tva_procent?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agvanzari_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agvanzari_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agvanzari_orders: {
+        Row: {
+          agent_id: string | null
+          client_id: string | null
+          created_at: string | null
+          data_comanda: string | null
+          data_livrare_dorita: string | null
+          id: string
+          numar_comanda: string
+          observatii: string | null
+          status: string | null
+          total_cu_tva: number | null
+          total_fara_tva: number | null
+          total_tva: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          data_comanda?: string | null
+          data_livrare_dorita?: string | null
+          id?: string
+          numar_comanda: string
+          observatii?: string | null
+          status?: string | null
+          total_cu_tva?: number | null
+          total_fara_tva?: number | null
+          total_tva?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          data_comanda?: string | null
+          data_livrare_dorita?: string | null
+          id?: string
+          numar_comanda?: string
+          observatii?: string | null
+          status?: string | null
+          total_cu_tva?: number | null
+          total_fara_tva?: number | null
+          total_tva?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agvanzari_orders_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agvanzari_orders_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agvanzari_products: {
+        Row: {
+          activ: boolean | null
+          category_id: string | null
+          created_at: string | null
+          descriere: string | null
+          id: string
+          nume: string
+          pret_baza: number
+          tva_procent: number | null
+          unitate_masura: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          activ?: boolean | null
+          category_id?: string | null
+          created_at?: string | null
+          descriere?: string | null
+          id?: string
+          nume: string
+          pret_baza: number
+          tva_procent?: number | null
+          unitate_masura?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          activ?: boolean | null
+          category_id?: string | null
+          created_at?: string | null
+          descriere?: string | null
+          id?: string
+          nume?: string
+          pret_baza?: number
+          tva_procent?: number | null
+          unitate_masura?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agvanzari_products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agvanzari_return_items: {
+        Row: {
+          cantitate_returnata: number
+          created_at: string | null
+          id: string
+          motiv_item: string | null
+          product_id: string | null
+          return_id: string | null
+          valoare_estimata: number | null
+        }
+        Insert: {
+          cantitate_returnata: number
+          created_at?: string | null
+          id?: string
+          motiv_item?: string | null
+          product_id?: string | null
+          return_id?: string | null
+          valoare_estimata?: number | null
+        }
+        Update: {
+          cantitate_returnata?: number
+          created_at?: string | null
+          id?: string
+          motiv_item?: string | null
+          product_id?: string | null
+          return_id?: string | null
+          valoare_estimata?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agvanzari_return_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agvanzari_return_items_return_id_fkey"
+            columns: ["return_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_returns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agvanzari_returns: {
+        Row: {
+          agent_id: string | null
+          client_id: string | null
+          created_at: string | null
+          data_retur: string | null
+          id: string
+          motiv_retur: string
+          numar_retur: string
+          observatii: string | null
+          order_id: string | null
+          status: string | null
+          updated_at: string | null
+          valoare_estimata: number | null
+        }
+        Insert: {
+          agent_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          data_retur?: string | null
+          id?: string
+          motiv_retur: string
+          numar_retur: string
+          observatii?: string | null
+          order_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+          valoare_estimata?: number | null
+        }
+        Update: {
+          agent_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          data_retur?: string | null
+          id?: string
+          motiv_retur?: string
+          numar_retur?: string
+          observatii?: string | null
+          order_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+          valoare_estimata?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agvanzari_returns_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agvanzari_returns_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agvanzari_returns_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "agvanzari_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      angajati: {
+        Row: {
+          cod_angajat: string
+          created_at: string
+          id: string
+          nume: string
+          poza: string | null
+          updated_at: string
+        }
+        Insert: {
+          cod_angajat: string
+          created_at?: string
+          id?: string
+          nume: string
+          poza?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cod_angajat?: string
+          created_at?: string
+          id?: string
+          nume?: string
+          poza?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      angajati_sistem_pontaj: {
+        Row: {
+          cod_angajat: string
+          created_at: string
+          id: string
+          nume: string
+          poza_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          cod_angajat: string
+          created_at?: string
+          id?: string
+          nume: string
+          poza_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cod_angajat?: string
+          created_at?: string
+          id?: string
+          nume?: string
+          poza_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      concedii: {
+        Row: {
+          angajat_id: string
+          created_at: string
+          data_inceput: string
+          data_sfarsit: string
+          document_url: string | null
+          id: string
+          numar_document: string | null
+          numar_zile: number
+          observatii: string | null
+          tip_concediu: string
+          updated_at: string
+        }
+        Insert: {
+          angajat_id: string
+          created_at?: string
+          data_inceput: string
+          data_sfarsit: string
+          document_url?: string | null
+          id?: string
+          numar_document?: string | null
+          numar_zile: number
+          observatii?: string | null
+          tip_concediu: string
+          updated_at?: string
+        }
+        Update: {
+          angajat_id?: string
+          created_at?: string
+          data_inceput?: string
+          data_sfarsit?: string
+          document_url?: string | null
+          id?: string
+          numar_document?: string | null
+          numar_zile?: number
+          observatii?: string | null
+          tip_concediu?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concedii_angajat_id_fkey"
+            columns: ["angajat_id"]
+            isOneToOne: false
+            referencedRelation: "angajati_sistem_pontaj"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conturi_pontaje: {
+        Row: {
+          activ: boolean
+          created_at: string
+          email: string
+          id: string
+          nume: string
+          parola_hash: string
+          rol: string
+          updated_at: string
+        }
+        Insert: {
+          activ?: boolean
+          created_at?: string
+          email: string
+          id?: string
+          nume: string
+          parola_hash: string
+          rol?: string
+          updated_at?: string
+        }
+        Update: {
+          activ?: boolean
+          created_at?: string
+          email?: string
+          id?: string
+          nume?: string
+          parola_hash?: string
+          rol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           id: string
@@ -288,6 +1083,509 @@ export type Database = {
         }
         Relationships: []
       }
+      paleti_entries: {
+        Row: {
+          created_at: string
+          created_by_user: string | null
+          data_operatie: string
+          id: string
+          numar_inmatriculare: string | null
+          numar_paleti: number
+          nume_firma: string
+          nume_sofer: string | null
+          observatii: string | null
+          ora_operatie: string
+          tip_operatie: string
+          tip_paleti_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user?: string | null
+          data_operatie?: string
+          id?: string
+          numar_inmatriculare?: string | null
+          numar_paleti: number
+          nume_firma: string
+          nume_sofer?: string | null
+          observatii?: string | null
+          ora_operatie?: string
+          tip_operatie: string
+          tip_paleti_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user?: string | null
+          data_operatie?: string
+          id?: string
+          numar_inmatriculare?: string | null
+          numar_paleti?: number
+          nume_firma?: string
+          nume_sofer?: string | null
+          observatii?: string | null
+          ora_operatie?: string
+          tip_operatie?: string
+          tip_paleti_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paleti_entries_tip_paleti_id_fkey"
+            columns: ["tip_paleti_id"]
+            isOneToOne: false
+            referencedRelation: "tip_paleti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pontaj_leave_conflicts: {
+        Row: {
+          actiune_luata: string
+          angajat_id: string | null
+          concediu_id: string | null
+          created_at: string | null
+          data_conflict: string
+          id: string
+          pontaj_id: string | null
+          tip_concediu: string
+        }
+        Insert: {
+          actiune_luata: string
+          angajat_id?: string | null
+          concediu_id?: string | null
+          created_at?: string | null
+          data_conflict: string
+          id?: string
+          pontaj_id?: string | null
+          tip_concediu: string
+        }
+        Update: {
+          actiune_luata?: string
+          angajat_id?: string | null
+          concediu_id?: string | null
+          created_at?: string | null
+          data_conflict?: string
+          id?: string
+          pontaj_id?: string | null
+          tip_concediu?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pontaj_leave_conflicts_angajat_id_fkey"
+            columns: ["angajat_id"]
+            isOneToOne: false
+            referencedRelation: "angajati_sistem_pontaj"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pontaj_leave_conflicts_pontaj_id_fkey"
+            columns: ["pontaj_id"]
+            isOneToOne: false
+            referencedRelation: "pontaje"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pontaje: {
+        Row: {
+          angajat_id: string
+          created_at: string
+          data: string
+          dispozitiv: string | null
+          id: string
+          ora_inregistrare: string
+          tip: string
+        }
+        Insert: {
+          angajat_id: string
+          created_at?: string
+          data?: string
+          dispozitiv?: string | null
+          id?: string
+          ora_inregistrare?: string
+          tip: string
+        }
+        Update: {
+          angajat_id?: string
+          created_at?: string
+          data?: string
+          dispozitiv?: string | null
+          id?: string
+          ora_inregistrare?: string
+          tip?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pontaje_angajat_id_fkey"
+            columns: ["angajat_id"]
+            isOneToOne: false
+            referencedRelation: "angajati_sistem_pontaj"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portari_accounts: {
+        Row: {
+          activ: boolean
+          created_at: string
+          id: string
+          nume_complet: string
+          password_hash: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          activ?: boolean
+          created_at?: string
+          id?: string
+          nume_complet: string
+          password_hash: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          activ?: boolean
+          created_at?: string
+          id?: string
+          nume_complet?: string
+          password_hash?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      productie_clienti: {
+        Row: {
+          adresa: string | null
+          created_at: string
+          email: string | null
+          id: string
+          nume_magazin: string
+          punct_livrare: string
+          telefon: string | null
+          updated_at: string
+        }
+        Insert: {
+          adresa?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nume_magazin: string
+          punct_livrare: string
+          telefon?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adresa?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nume_magazin?: string
+          punct_livrare?: string
+          telefon?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      productie_comenzi: {
+        Row: {
+          baxare: string | null
+          cantitate: number
+          created_at: string
+          id: string
+          linie_id: string | null
+          magazin: string
+          numar_comanda: string
+          produs_id: string | null
+          punct_livrare: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          baxare?: string | null
+          cantitate: number
+          created_at?: string
+          id?: string
+          linie_id?: string | null
+          magazin: string
+          numar_comanda: string
+          produs_id?: string | null
+          punct_livrare: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          baxare?: string | null
+          cantitate?: number
+          created_at?: string
+          id?: string
+          linie_id?: string | null
+          magazin?: string
+          numar_comanda?: string
+          produs_id?: string | null
+          punct_livrare?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productie_comenzi_linie_id_fkey"
+            columns: ["linie_id"]
+            isOneToOne: false
+            referencedRelation: "productie_linii"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productie_comenzi_produs_id_fkey"
+            columns: ["produs_id"]
+            isOneToOne: false
+            referencedRelation: "productie_produse"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productie_linii: {
+        Row: {
+          capacitate_ora: number
+          created_at: string
+          id: string
+          nume: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          capacitate_ora?: number
+          created_at?: string
+          id?: string
+          nume: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          capacitate_ora?: number
+          created_at?: string
+          id?: string
+          nume?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      productie_productivitate: {
+        Row: {
+          cantitate_produsa: number
+          created_at: string
+          data_lucru: string
+          id: string
+          linie_id: string | null
+          nume_operator: string
+          productivitate_bucati_minut: number | null
+          productivitate_bucati_ora: number | null
+          produs_id: string | null
+          sesiune_id: string | null
+          timp_lucru_minute: number
+        }
+        Insert: {
+          cantitate_produsa: number
+          created_at?: string
+          data_lucru?: string
+          id?: string
+          linie_id?: string | null
+          nume_operator: string
+          productivitate_bucati_minut?: number | null
+          productivitate_bucati_ora?: number | null
+          produs_id?: string | null
+          sesiune_id?: string | null
+          timp_lucru_minute: number
+        }
+        Update: {
+          cantitate_produsa?: number
+          created_at?: string
+          data_lucru?: string
+          id?: string
+          linie_id?: string | null
+          nume_operator?: string
+          productivitate_bucati_minut?: number | null
+          productivitate_bucati_ora?: number | null
+          produs_id?: string | null
+          sesiune_id?: string | null
+          timp_lucru_minute?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productie_productivitate_linie_id_fkey"
+            columns: ["linie_id"]
+            isOneToOne: false
+            referencedRelation: "productie_linii"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productie_productivitate_produs_id_fkey"
+            columns: ["produs_id"]
+            isOneToOne: false
+            referencedRelation: "productie_produse"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productie_productivitate_sesiune_id_fkey"
+            columns: ["sesiune_id"]
+            isOneToOne: false
+            referencedRelation: "productie_sesiuni_lucru"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productie_produse: {
+        Row: {
+          created_at: string
+          descriere: string | null
+          id: string
+          nume: string
+          unitate_masura: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          nume: string
+          unitate_masura?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          nume?: string
+          unitate_masura?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      productie_reguli_distribuire: {
+        Row: {
+          created_at: string
+          id: string
+          linie_preferata_id: string | null
+          prioritate: number
+          produs_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          linie_preferata_id?: string | null
+          prioritate?: number
+          produs_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          linie_preferata_id?: string | null
+          prioritate?: number
+          produs_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productie_reguli_distribuire_linie_preferata_id_fkey"
+            columns: ["linie_preferata_id"]
+            isOneToOne: false
+            referencedRelation: "productie_linii"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productie_reguli_distribuire_produs_id_fkey"
+            columns: ["produs_id"]
+            isOneToOne: false
+            referencedRelation: "productie_produse"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productie_schimburi: {
+        Row: {
+          created_at: string
+          id: string
+          nume: string
+          ora_sfarsit: string
+          ora_start: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nume: string
+          ora_sfarsit: string
+          ora_start: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nume?: string
+          ora_sfarsit?: string
+          ora_start?: string
+        }
+        Relationships: []
+      }
+      productie_sesiuni_lucru: {
+        Row: {
+          cantitate_produsa: number | null
+          comanda_id: string | null
+          created_at: string
+          id: string
+          linie_id: string | null
+          numar_angajati: number
+          nume_operator: string
+          ora_sfarsit: string | null
+          ora_start: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cantitate_produsa?: number | null
+          comanda_id?: string | null
+          created_at?: string
+          id?: string
+          linie_id?: string | null
+          numar_angajati?: number
+          nume_operator: string
+          ora_sfarsit?: string | null
+          ora_start?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cantitate_produsa?: number | null
+          comanda_id?: string | null
+          created_at?: string
+          id?: string
+          linie_id?: string | null
+          numar_angajati?: number
+          nume_operator?: string
+          ora_sfarsit?: string | null
+          ora_start?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productie_sesiuni_lucru_comanda_id_fkey"
+            columns: ["comanda_id"]
+            isOneToOne: false
+            referencedRelation: "productie_comenzi"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productie_sesiuni_lucru_linie_id_fkey"
+            columns: ["linie_id"]
+            isOneToOne: false
+            referencedRelation: "productie_linii"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           created_at: string
@@ -314,6 +1612,56 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          nume: string | null
+          rol: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          nume?: string | null
+          rol?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nume?: string | null
+          rol?: string
+        }
+        Relationships: []
+      }
+      stoc_paleti: {
+        Row: {
+          id: string
+          tip_paleti_id: string
+          total_paleti: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tip_paleti_id: string
+          total_paleti?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tip_paleti_id?: string
+          total_paleti?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stoc_paleti_tip_paleti_id_fkey"
+            columns: ["tip_paleti_id"]
+            isOneToOne: false
+            referencedRelation: "tip_paleti"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stock_transfer_items: {
         Row: {
@@ -427,6 +1775,75 @@ export type Database = {
           id?: string
           name?: string
           phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tip_paleti: {
+        Row: {
+          created_at: string
+          descriere: string | null
+          id: string
+          nume: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          nume: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          nume?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      vehicle_entries: {
+        Row: {
+          created_at: string
+          created_by_user: string | null
+          data_iesirii: string | null
+          data_intrarii: string
+          id: string
+          numar_inmatriculare: string
+          nume_persoana: string
+          observatii: string | null
+          ora_iesirii: string | null
+          ora_intrarii: string
+          tip_masina: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user?: string | null
+          data_iesirii?: string | null
+          data_intrarii: string
+          id?: string
+          numar_inmatriculare: string
+          nume_persoana: string
+          observatii?: string | null
+          ora_iesirii?: string | null
+          ora_intrarii: string
+          tip_masina: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user?: string | null
+          data_iesirii?: string | null
+          data_intrarii?: string
+          id?: string
+          numar_inmatriculare?: string
+          nume_persoana?: string
+          observatii?: string | null
+          ora_iesirii?: string | null
+          ora_intrarii?: string
+          tip_masina?: string
           updated_at?: string
         }
         Relationships: []
@@ -552,13 +1969,60 @@ export type Database = {
       }
     }
     Functions: {
+      create_portar_account: {
+        Args: {
+          username_input: string
+          password_input: string
+          nume_input: string
+        }
+        Returns: string
+      }
+      creeaza_cont: {
+        Args: {
+          email_input: string
+          parola_input: string
+          nume_input: string
+          rol_input?: string
+        }
+        Returns: string
+      }
+      determine_attendance_type: {
+        Args: { employee_id: string }
+        Returns: string
+      }
       generate_lot_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_order_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: string
       }
       get_next_inventory_entry: {
         Args: Record<PropertyKey, never>
         Returns: number
+      }
+      verifica_parola: {
+        Args: { email_input: string; parola_input: string }
+        Returns: {
+          user_id: string
+          nume: string
+          rol: string
+          activ: boolean
+        }[]
+      }
+      verify_portar_password: {
+        Args: { username_input: string; password_input: string }
+        Returns: {
+          user_id: string
+          username: string
+          nume_complet: string
+          activ: boolean
+        }[]
       }
     }
     Enums: {

@@ -39,13 +39,13 @@ const InventoryPage = () => {
   }, []);
   
   const toggleAudio = () => {
-    const newSetting = !isAudioEnabled;
-    setIsAudioEnabled(newSetting);
-    localStorage.setItem('inventoryAudioEnabled', String(newSetting));
+    const newAudioSetting = !isAudioEnabled;
+    setIsAudioEnabled(newAudioSetting);
+    localStorage.setItem('inventoryAudioEnabled', String(newAudioSetting));
     
     toast({
-      title: newSetting ? "Audio activat" : "Audio dezactivat",
-      description: newSetting ? 
+      title: newAudioSetting ? "Audio activat" : "Audio dezactivat",
+      description: newAudioSetting ? 
         "Răspunsurile vocale au fost activate." : 
         "Răspunsurile vocale au fost dezactivate."
     });
