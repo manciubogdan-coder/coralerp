@@ -1265,6 +1265,7 @@ export type Database = {
           punct_livrare: string
           telefon: string | null
           updated_at: string
+          zona_livrare_id: string | null
         }
         Insert: {
           adresa?: string | null
@@ -1275,6 +1276,7 @@ export type Database = {
           punct_livrare: string
           telefon?: string | null
           updated_at?: string
+          zona_livrare_id?: string | null
         }
         Update: {
           adresa?: string | null
@@ -1285,13 +1287,24 @@ export type Database = {
           punct_livrare?: string
           telefon?: string | null
           updated_at?: string
+          zona_livrare_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "productie_clienti_zona_livrare_id_fkey"
+            columns: ["zona_livrare_id"]
+            isOneToOne: false
+            referencedRelation: "productie_zone_livrare"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       productie_comenzi: {
         Row: {
           baxare: string | null
           cantitate: number
+          cantitate_din_restock: number | null
+          cantitate_reala_produsa: number | null
           created_at: string
           id: string
           linie_id: string | null
@@ -1305,6 +1318,8 @@ export type Database = {
         Insert: {
           baxare?: string | null
           cantitate: number
+          cantitate_din_restock?: number | null
+          cantitate_reala_produsa?: number | null
           created_at?: string
           id?: string
           linie_id?: string | null
@@ -1318,6 +1333,8 @@ export type Database = {
         Update: {
           baxare?: string | null
           cantitate?: number
+          cantitate_din_restock?: number | null
+          cantitate_reala_produsa?: number | null
           created_at?: string
           id?: string
           linie_id?: string | null
@@ -1344,6 +1361,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      productie_comenzi_ingrediente: {
+        Row: {
+          cantitate_necesara: number
+          comanda_id: string
+          created_at: string
+          id: string
+          ingredient_custom_nume: string | null
+          ingredient_id: string | null
+          observatii: string | null
+          unitate_masura: string
+          updated_at: string
+        }
+        Insert: {
+          cantitate_necesara?: number
+          comanda_id: string
+          created_at?: string
+          id?: string
+          ingredient_custom_nume?: string | null
+          ingredient_id?: string | null
+          observatii?: string | null
+          unitate_masura?: string
+          updated_at?: string
+        }
+        Update: {
+          cantitate_necesara?: number
+          comanda_id?: string
+          created_at?: string
+          id?: string
+          ingredient_custom_nume?: string | null
+          ingredient_id?: string | null
+          observatii?: string | null
+          unitate_masura?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productie_comenzi_ingrediente_comanda_id_fkey"
+            columns: ["comanda_id"]
+            isOneToOne: false
+            referencedRelation: "productie_comenzi"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productie_comenzi_ingrediente_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "productie_ingrediente"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productie_ingrediente: {
+        Row: {
+          created_at: string
+          descriere: string | null
+          id: string
+          nume: string
+          unitate_masura: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          nume: string
+          unitate_masura?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          nume?: string
+          unitate_masura?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       productie_linii: {
         Row: {
@@ -1463,6 +1558,42 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_profiles: {
+        Row: {
+          aprobat: boolean
+          aprobat_de: string | null
+          created_at: string
+          data_aprobare: string | null
+          id: string
+          nume: string
+          observatii_aprobare: string | null
+          rol: string
+          updated_at: string
+        }
+        Insert: {
+          aprobat?: boolean
+          aprobat_de?: string | null
+          created_at?: string
+          data_aprobare?: string | null
+          id: string
+          nume: string
+          observatii_aprobare?: string | null
+          rol?: string
+          updated_at?: string
+        }
+        Update: {
+          aprobat?: boolean
+          aprobat_de?: string | null
+          created_at?: string
+          data_aprobare?: string | null
+          id?: string
+          nume?: string
+          observatii_aprobare?: string | null
+          rol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       productie_reguli_distribuire: {
         Row: {
           created_at: string
@@ -1501,6 +1632,140 @@ export type Database = {
             columns: ["produs_id"]
             isOneToOne: false
             referencedRelation: "productie_produse"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productie_restocari: {
+        Row: {
+          cantitate_surplus: number
+          comanda_originala_id: string | null
+          created_at: string
+          data_productie: string
+          id: string
+          produs_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cantitate_surplus?: number
+          comanda_originala_id?: string | null
+          created_at?: string
+          data_productie?: string
+          id?: string
+          produs_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cantitate_surplus?: number
+          comanda_originala_id?: string | null
+          created_at?: string
+          data_productie?: string
+          id?: string
+          produs_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productie_restocari_comanda_originala_id_fkey"
+            columns: ["comanda_originala_id"]
+            isOneToOne: false
+            referencedRelation: "productie_comenzi"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productie_restocari_produs_id_fkey"
+            columns: ["produs_id"]
+            isOneToOne: false
+            referencedRelation: "productie_produse"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productie_retete: {
+        Row: {
+          activa: boolean
+          created_at: string
+          descriere: string | null
+          id: string
+          nume_reteta: string
+          produs_id: string
+          updated_at: string
+          versiune: number
+        }
+        Insert: {
+          activa?: boolean
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          nume_reteta: string
+          produs_id: string
+          updated_at?: string
+          versiune?: number
+        }
+        Update: {
+          activa?: boolean
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          nume_reteta?: string
+          produs_id?: string
+          updated_at?: string
+          versiune?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productie_retete_produs_id_fkey"
+            columns: ["produs_id"]
+            isOneToOne: false
+            referencedRelation: "productie_produse"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productie_retete_ingrediente: {
+        Row: {
+          cantitate_necesara: number
+          created_at: string
+          id: string
+          ingredient_id: string
+          observatii: string | null
+          reteta_id: string
+          unitate_masura: string
+        }
+        Insert: {
+          cantitate_necesara: number
+          created_at?: string
+          id?: string
+          ingredient_id: string
+          observatii?: string | null
+          reteta_id: string
+          unitate_masura?: string
+        }
+        Update: {
+          cantitate_necesara?: number
+          created_at?: string
+          id?: string
+          ingredient_id?: string
+          observatii?: string | null
+          reteta_id?: string
+          unitate_masura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productie_retete_ingrediente_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "productie_ingrediente"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productie_retete_ingrediente_reteta_id_fkey"
+            columns: ["reteta_id"]
+            isOneToOne: false
+            referencedRelation: "productie_retete"
             referencedColumns: ["id"]
           },
         ]
@@ -1586,6 +1851,39 @@ export type Database = {
           },
         ]
       }
+      productie_zone_livrare: {
+        Row: {
+          created_at: string
+          culoare: string | null
+          descriere: string | null
+          id: string
+          nume_zona: string
+          ora_limita_plecare: string | null
+          prioritate: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          culoare?: string | null
+          descriere?: string | null
+          id?: string
+          nume_zona: string
+          ora_limita_plecare?: string | null
+          prioritate?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          culoare?: string | null
+          descriere?: string | null
+          id?: string
+          nume_zona?: string
+          ora_limita_plecare?: string | null
+          prioritate?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           created_at: string
@@ -1631,6 +1929,267 @@ export type Database = {
           id?: string
           nume?: string | null
           rol?: string
+        }
+        Relationships: []
+      }
+      simlash_categorii_cheltuieli: {
+        Row: {
+          activ: boolean
+          created_at: string
+          descriere: string | null
+          id: string
+          nume: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          activ?: boolean
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          nume: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          activ?: boolean
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          nume?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      simlash_cheltuieli: {
+        Row: {
+          categorie: string
+          created_at: string
+          data_cheltuiala: string
+          factura_url: string | null
+          id: string
+          nume: string
+          observatii: string | null
+          suma: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          categorie: string
+          created_at?: string
+          data_cheltuiala?: string
+          factura_url?: string | null
+          id?: string
+          nume: string
+          observatii?: string | null
+          suma: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          categorie?: string
+          created_at?: string
+          data_cheltuiala?: string
+          factura_url?: string | null
+          id?: string
+          nume?: string
+          observatii?: string | null
+          suma?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      simlash_clienti: {
+        Row: {
+          created_at: string
+          data_nasterii: string | null
+          email: string | null
+          id: string
+          nume: string
+          observatii: string | null
+          programari_anulate: number
+          telefon: string | null
+          total_programari: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data_nasterii?: string | null
+          email?: string | null
+          id?: string
+          nume: string
+          observatii?: string | null
+          programari_anulate?: number
+          telefon?: string | null
+          total_programari?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data_nasterii?: string | null
+          email?: string | null
+          id?: string
+          nume?: string
+          observatii?: string | null
+          programari_anulate?: number
+          telefon?: string | null
+          total_programari?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      simlash_profiles: {
+        Row: {
+          adresa: string | null
+          created_at: string
+          email: string | null
+          id: string
+          nume_proprietar: string
+          nume_salon: string
+          specializari: string[] | null
+          telefon: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          adresa?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nume_proprietar: string
+          nume_salon: string
+          specializari?: string[] | null
+          telefon?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          adresa?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nume_proprietar?: string
+          nume_salon?: string
+          specializari?: string[] | null
+          telefon?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      simlash_programari: {
+        Row: {
+          client_id: string
+          created_at: string
+          data_programare: string
+          durata_minute: number
+          id: string
+          note_tehnician: string | null
+          observatii: string | null
+          observatii_tehnice: string | null
+          pret: number
+          produse_folosite: string | null
+          recomandari: string | null
+          serviciu_id: string
+          starea_genelor: string | null
+          status: string
+          updated_at: string
+          urmatoarea_intretinere: string | null
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          data_programare: string
+          durata_minute: number
+          id?: string
+          note_tehnician?: string | null
+          observatii?: string | null
+          observatii_tehnice?: string | null
+          pret: number
+          produse_folosite?: string | null
+          recomandari?: string | null
+          serviciu_id: string
+          starea_genelor?: string | null
+          status?: string
+          updated_at?: string
+          urmatoarea_intretinere?: string | null
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          data_programare?: string
+          durata_minute?: number
+          id?: string
+          note_tehnician?: string | null
+          observatii?: string | null
+          observatii_tehnice?: string | null
+          pret?: number
+          produse_folosite?: string | null
+          recomandari?: string | null
+          serviciu_id?: string
+          starea_genelor?: string | null
+          status?: string
+          updated_at?: string
+          urmatoarea_intretinere?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simlash_programari_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "simlash_clienti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simlash_programari_serviciu_id_fkey"
+            columns: ["serviciu_id"]
+            isOneToOne: false
+            referencedRelation: "simlash_servicii"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simlash_servicii: {
+        Row: {
+          activ: boolean
+          categorie: string
+          created_at: string
+          descriere: string | null
+          durata_minute: number
+          id: string
+          nume: string
+          pret_standard: number
+          updated_at: string
+        }
+        Insert: {
+          activ?: boolean
+          categorie: string
+          created_at?: string
+          descriere?: string | null
+          durata_minute?: number
+          id?: string
+          nume: string
+          pret_standard: number
+          updated_at?: string
+        }
+        Update: {
+          activ?: boolean
+          categorie?: string
+          created_at?: string
+          descriere?: string | null
+          durata_minute?: number
+          id?: string
+          nume?: string
+          pret_standard?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1779,6 +2338,478 @@ export type Database = {
         }
         Relationships: []
       }
+      taskkid_achievements: {
+        Row: {
+          conditie_valoare: number | null
+          created_at: string | null
+          culoare: string | null
+          descriere: string
+          icon: string
+          id: string
+          nume: string
+          tip: string
+        }
+        Insert: {
+          conditie_valoare?: number | null
+          created_at?: string | null
+          culoare?: string | null
+          descriere: string
+          icon: string
+          id?: string
+          nume: string
+          tip: string
+        }
+        Update: {
+          conditie_valoare?: number | null
+          created_at?: string | null
+          culoare?: string | null
+          descriere?: string
+          icon?: string
+          id?: string
+          nume?: string
+          tip?: string
+        }
+        Relationships: []
+      }
+      taskkid_categories: {
+        Row: {
+          created_at: string | null
+          culoare: string | null
+          descriere: string | null
+          id: string
+          nume: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          culoare?: string | null
+          descriere?: string | null
+          id?: string
+          nume: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          culoare?: string | null
+          descriere?: string | null
+          id?: string
+          nume?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      taskkid_child_achievements: {
+        Row: {
+          achievement_id: string
+          child_id: string
+          data_obtinere: string | null
+          id: string
+        }
+        Insert: {
+          achievement_id: string
+          child_id: string
+          data_obtinere?: string | null
+          id?: string
+        }
+        Update: {
+          achievement_id?: string
+          child_id?: string
+          data_obtinere?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taskkid_child_achievements_achievement_id_fkey"
+            columns: ["achievement_id"]
+            isOneToOne: false
+            referencedRelation: "taskkid_achievements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      taskkid_children: {
+        Row: {
+          avatar_url: string | null
+          bani_total: number | null
+          child_email: string | null
+          child_password_hash: string | null
+          created_at: string | null
+          culoare_favorita: string | null
+          experienta: number | null
+          id: string
+          nivel: number | null
+          nume_copil: string
+          puncte_totale: number | null
+          sold_disponibil_bani: number | null
+          sold_disponibil_puncte: number | null
+          streak_zilnic: number | null
+          updated_at: string | null
+          user_id: string
+          varsta: number
+        }
+        Insert: {
+          avatar_url?: string | null
+          bani_total?: number | null
+          child_email?: string | null
+          child_password_hash?: string | null
+          created_at?: string | null
+          culoare_favorita?: string | null
+          experienta?: number | null
+          id?: string
+          nivel?: number | null
+          nume_copil: string
+          puncte_totale?: number | null
+          sold_disponibil_bani?: number | null
+          sold_disponibil_puncte?: number | null
+          streak_zilnic?: number | null
+          updated_at?: string | null
+          user_id: string
+          varsta: number
+        }
+        Update: {
+          avatar_url?: string | null
+          bani_total?: number | null
+          child_email?: string | null
+          child_password_hash?: string | null
+          created_at?: string | null
+          culoare_favorita?: string | null
+          experienta?: number | null
+          id?: string
+          nivel?: number | null
+          nume_copil?: string
+          puncte_totale?: number | null
+          sold_disponibil_bani?: number | null
+          sold_disponibil_puncte?: number | null
+          streak_zilnic?: number | null
+          updated_at?: string | null
+          user_id?: string
+          varsta?: number
+        }
+        Relationships: []
+      }
+      taskkid_family_settings: {
+        Row: {
+          created_at: string | null
+          id: string
+          limba: string | null
+          mod_privat: boolean | null
+          moneda: string | null
+          notificari_email: boolean | null
+          notificari_push: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          limba?: string | null
+          mod_privat?: boolean | null
+          moneda?: string | null
+          notificari_email?: boolean | null
+          notificari_push?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          limba?: string | null
+          mod_privat?: boolean | null
+          moneda?: string | null
+          notificari_email?: boolean | null
+          notificari_push?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taskkid_family_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "taskkid_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      taskkid_history: {
+        Row: {
+          bani_castigati: number | null
+          child_id: string
+          confirmat_de_parinte: boolean | null
+          data_completare: string | null
+          id: string
+          observatii: string | null
+          puncte_castigate: number | null
+          task_id: string
+        }
+        Insert: {
+          bani_castigati?: number | null
+          child_id: string
+          confirmat_de_parinte?: boolean | null
+          data_completare?: string | null
+          id?: string
+          observatii?: string | null
+          puncte_castigate?: number | null
+          task_id: string
+        }
+        Update: {
+          bani_castigati?: number | null
+          child_id?: string
+          confirmat_de_parinte?: boolean | null
+          data_completare?: string | null
+          id?: string
+          observatii?: string | null
+          puncte_castigate?: number | null
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taskkid_history_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "taskkid_children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "taskkid_history_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "taskkid_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      taskkid_notifications: {
+        Row: {
+          child_id: string | null
+          citit: boolean | null
+          created_at: string | null
+          id: string
+          mesaj: string
+          task_id: string | null
+          tip: string
+          titlu: string
+          user_id: string | null
+        }
+        Insert: {
+          child_id?: string | null
+          citit?: boolean | null
+          created_at?: string | null
+          id?: string
+          mesaj: string
+          task_id?: string | null
+          tip: string
+          titlu: string
+          user_id?: string | null
+        }
+        Update: {
+          child_id?: string | null
+          citit?: boolean | null
+          created_at?: string | null
+          id?: string
+          mesaj?: string
+          task_id?: string | null
+          tip?: string
+          titlu?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taskkid_notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "taskkid_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      taskkid_payments: {
+        Row: {
+          child_id: string
+          created_at: string
+          data_plata: string
+          id: string
+          observatii: string | null
+          suma_platita: number
+          tip_plata: string
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          data_plata?: string
+          id?: string
+          observatii?: string | null
+          suma_platita?: number
+          tip_plata?: string
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          data_plata?: string
+          id?: string
+          observatii?: string | null
+          suma_platita?: number
+          tip_plata?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taskkid_payments_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "taskkid_children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      taskkid_rewards: {
+        Row: {
+          child_id: string | null
+          cost_bani: number | null
+          cost_puncte: number | null
+          created_at: string | null
+          data_revendicare: string | null
+          denumire: string
+          descriere: string | null
+          icon: string | null
+          id: string
+          status: string | null
+          tip: string | null
+          user_id: string | null
+        }
+        Insert: {
+          child_id?: string | null
+          cost_bani?: number | null
+          cost_puncte?: number | null
+          created_at?: string | null
+          data_revendicare?: string | null
+          denumire: string
+          descriere?: string | null
+          icon?: string | null
+          id?: string
+          status?: string | null
+          tip?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          child_id?: string | null
+          cost_bani?: number | null
+          cost_puncte?: number | null
+          created_at?: string | null
+          data_revendicare?: string | null
+          denumire?: string
+          descriere?: string | null
+          icon?: string | null
+          id?: string
+          status?: string | null
+          tip?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taskkid_rewards_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "taskkid_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      taskkid_tasks: {
+        Row: {
+          bani: number | null
+          category_id: string | null
+          child_id: string
+          created_at: string | null
+          deadline: string | null
+          descriere: string | null
+          dificultate: number | null
+          id: string
+          puncte: number | null
+          recurring: string | null
+          status: string | null
+          timp_estimat: number | null
+          titlu: string
+          updated_at: string | null
+        }
+        Insert: {
+          bani?: number | null
+          category_id?: string | null
+          child_id: string
+          created_at?: string | null
+          deadline?: string | null
+          descriere?: string | null
+          dificultate?: number | null
+          id?: string
+          puncte?: number | null
+          recurring?: string | null
+          status?: string | null
+          timp_estimat?: number | null
+          titlu: string
+          updated_at?: string | null
+        }
+        Update: {
+          bani?: number | null
+          category_id?: string | null
+          child_id?: string
+          created_at?: string | null
+          deadline?: string | null
+          descriere?: string | null
+          dificultate?: number | null
+          id?: string
+          puncte?: number | null
+          recurring?: string | null
+          status?: string | null
+          timp_estimat?: number | null
+          titlu?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taskkid_tasks_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "taskkid_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "taskkid_tasks_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "taskkid_children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      taskkid_users: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          email: string
+          id: string
+          nume_parinte: string
+          password_hash: string
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email: string
+          id?: string
+          nume_parinte: string
+          password_hash: string
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          nume_parinte?: string
+          password_hash?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       tip_paleti: {
         Row: {
           created_at: string
@@ -1898,6 +2929,30 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_user_approvals: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          nume: string | null
+          observatii_aprobare: string | null
+          rol: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          nume?: string | null
+          observatii_aprobare?: string | null
+          rol?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          nume?: string | null
+          observatii_aprobare?: string | null
+          rol?: string | null
+        }
+        Relationships: []
+      }
       stock_transfer_view: {
         Row: {
           crate_count: number | null
@@ -1969,6 +3024,40 @@ export type Database = {
       }
     }
     Functions: {
+      approve_user: {
+        Args: { user_id_to_approve: string; approver_notes?: string }
+        Returns: boolean
+      }
+      authenticate_child: {
+        Args: { email_input: string; password_input: string }
+        Returns: {
+          child_id: string
+          nume_copil: string
+          user_id: string
+          varsta: number
+          culoare_favorita: string
+          puncte_totale: number
+          bani_total: number
+          nivel: number
+          streak_zilnic: number
+          experienta: number
+        }[]
+      }
+      calculate_streak: {
+        Args: { child_uuid: string }
+        Returns: number
+      }
+      create_child_account: {
+        Args: {
+          parent_user_id: string
+          nume_copil_input: string
+          varsta_input: number
+          culoare_favorita_input: string
+          email_input: string
+          password_input: string
+        }
+        Returns: string
+      }
       create_portar_account: {
         Args: {
           username_input: string
@@ -1998,6 +3087,28 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_all_users_for_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          nume: string
+          rol: string
+          aprobat: boolean
+          created_at: string
+          data_aprobare: string
+          aprobat_de: string
+          observatii_aprobare: string
+          updated_at: string
+        }[]
+      }
+      get_current_production_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_current_user_approval_status: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -2005,6 +3116,18 @@ export type Database = {
       get_next_inventory_entry: {
         Args: Record<PropertyKey, never>
         Returns: number
+      }
+      is_admin_user: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      reject_user: {
+        Args: { user_id_to_reject: string; rejection_reason?: string }
+        Returns: boolean
+      }
+      update_child_password: {
+        Args: { child_id_input: string; new_password_input: string }
+        Returns: boolean
       }
       verifica_parola: {
         Args: { email_input: string; parola_input: string }

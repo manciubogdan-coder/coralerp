@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import { toast } from "@/hooks/use-custom-toast";
-import { Search, CornerDownLeft, CalendarIcon } from "lucide-react";
+import { Search, CornerDownLeft, CalendarIcon, FileDown } from "lucide-react";
 import { 
   Dialog, 
   DialogContent, 
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/pagination";
 import { Calendar } from "@/components/ui/calendar";
 import { CrateType } from "@/types";
+import { exportToExcel } from "@/lib/excelExport";
 
 interface TransferHistoryProps {
   onTransferReturned?: () => void;
@@ -459,6 +460,54 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     }
   };
   
+  const handleExportExcel = () => {
+    let transfersToExport = filteredTransfers;
+    
+    // Apply date range filter for export
+    if (dateRange[0] || dateRange[1]) {
+      transfersToExport = transfersToExport.filter((transfer) => {
+        const transferDate = transfer.created_at 
+          ? new Date(transfer.created_at) 
+          : new Date(transfer.transfer_date);
+        
+        if (dateRange[0] && transferDate < dateRange[0]) return false;
+        if (dateRange[1]) {
+          const endDate = new Date(dateRange[1]);
+          endDate.setDate(endDate.getDate() + 1); // Include the end date
+          if (transferDate >= endDate) return false;
+        }
+        return true;
+      });
+    }
+    
+    const dataForExport = transfersToExport.map(transfer => ({
+      "Data și ora": transfer.created_at 
+        ? format(new Date(transfer.created_at), 'dd.MM.yyyy HH:mm:ss')
+        : transfer.transfer_date 
+          ? format(new Date(transfer.transfer_date), 'dd.MM.yyyy')
+          : '-',
+      "Destinație": transfer.destination,
+      "Nr. Document": transfer.document_number || "-",
+      "Produs": transfer.product_name,
+      "Nr. Lot": transfer.lot_number || "-",
+      "Furnizor": transfer.supplier_name || "-",
+      "Producător": transfer.manufacturer_name || "-",
+      "Cantitate Brută": formatQuantity(transfer.quantity),
+      "Cantitate Netă": formatQuantity(transfer.net_quantity || transfer.quantity),
+      "Unitate Măsură": transfer.unit,
+      "Note": transfer.notes || "-"
+    }));
+    
+    const filename = `istoric_transferuri_${dateRange[0] ? format(dateRange[0], 'dd-MM-yyyy') : 'toate'}_${dateRange[1] ? format(dateRange[1], 'dd-MM-yyyy') : 'prezent'}.xlsx`;
+    
+    exportToExcel(dataForExport, filename);
+    
+    toast({
+      title: "Export realizat cu succes",
+      description: `Fișierul ${filename} a fost generat și descărcat.`
+    });
+  };
+  
   const filteredTransfers = transfers.filter((transfer) => {
     if (selectedDestination !== "all" && transfer.destination !== selectedDestination) {
       return false;
@@ -564,6 +613,16 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                 />
               </PopoverContent>
             </Popover>
+            
+            <Button
+              variant="outline"
+              onClick={handleExportExcel}
+              disabled={loading || filteredTransfers.length === 0}
+              className="w-full md:w-auto"
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              Export Excel
+            </Button>
           </div>
         </div>
         
