@@ -6,11 +6,12 @@ import { InventoryToolbar } from "@/components/inventory/InventoryToolbar";
 import { InventoryViewOptions } from "@/components/inventory/InventoryViewOptions";
 import InventoryTable from "@/components/InventoryTable";
 import { TransferHistory } from "@/components/inventory/TransferHistory";
+import { ReceptionHistory } from "@/components/inventory/ReceptionHistory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const InventoryManagement = () => {
   const [activeTab, setActiveTab] = useState("all");
-  const [viewMode, setViewMode] = useState<"inventory" | "transfers">("inventory");
+  const [viewMode, setViewMode] = useState<"inventory" | "transfers" | "receptions">("inventory");
   
   const { 
     inventory,
@@ -45,12 +46,13 @@ const InventoryManagement = () => {
 
       <Tabs 
         value={viewMode} 
-        onValueChange={(value) => setViewMode(value as "inventory" | "transfers")}
+        onValueChange={(value) => setViewMode(value as "inventory" | "transfers" | "receptions")}
         className="mb-4"
       >
         <TabsList>
           <TabsTrigger value="inventory">Stoc Curent</TabsTrigger>
           <TabsTrigger value="transfers">Istoric Transferuri</TabsTrigger>
+          <TabsTrigger value="receptions">Istoric Recepții</TabsTrigger>
         </TabsList>
         
         <TabsContent value="inventory">
@@ -69,6 +71,13 @@ const InventoryManagement = () => {
           <div className="bg-white rounded-lg shadow-md p-4">
             <h3 className="text-lg font-medium mb-4">Istoric Transferuri Gestiune</h3>
             <TransferHistory onTransferReturned={handleTransferReturned} />
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="receptions">
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <h3 className="text-lg font-medium mb-4">Istoric Recepții</h3>
+            <ReceptionHistory />
           </div>
         </TabsContent>
       </Tabs>
