@@ -36,6 +36,13 @@ interface ReportFilters {
   reportType: string;
 }
 
+interface ChartFilters {
+  dailyConsumption: { days: number; };
+  topProducts: { limit: number; };
+  dailyActivity: { days: number; };
+  supplierDistribution: { limit: number; };
+}
+
 interface ChartData {
   dailyConsumption: Array<{ date: string; cantitate: number; operatii: number; }>;
   topProducts: Array<{ produs: string; cantitate: number; operatii: number; }>;
@@ -58,6 +65,13 @@ export const ReportsManagement = () => {
     topProducts: [],
     dailyActivity: [],
     supplierDistribution: []
+  });
+  
+  const [chartFilters, setChartFilters] = useState<ChartFilters>({
+    dailyConsumption: { days: 14 },
+    topProducts: { limit: 8 },
+    dailyActivity: { days: 10 },
+    supplierDistribution: { limit: 6 }
   });
 
   // Culori pentru grafice
@@ -363,7 +377,7 @@ export const ReportsManagement = () => {
         operatii: data.operatii
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(-14); // Ultimele 14 zile
+      .slice(-chartFilters.dailyConsumption.days);
   };
 
   const generateTopProductsData = async () => {
@@ -397,7 +411,7 @@ export const ReportsManagement = () => {
         operatii: data.operatii
       }))
       .sort((a, b) => b.cantitate - a.cantitate)
-      .slice(0, 8);
+      .slice(0, chartFilters.topProducts.limit);
   };
 
   const generateDailyActivityData = async () => {
@@ -434,7 +448,7 @@ export const ReportsManagement = () => {
         iesiri: Math.round(data.iesiri * 100) / 100
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(-10);
+      .slice(-chartFilters.dailyActivity.days);
   };
 
   const generateSupplierDistributionData = async () => {
@@ -465,7 +479,7 @@ export const ReportsManagement = () => {
         procent: Math.round((cantitate / total) * 100 * 100) / 100
       }))
       .sort((a, b) => b.cantitate - a.cantitate)
-      .slice(0, 6);
+      .slice(0, chartFilters.supplierDistribution.limit);
   };
 
   useEffect(() => {
@@ -480,8 +494,31 @@ export const ReportsManagement = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-purple-600" />
-              Consum Zilnic (Ultimele 14 zile)
+              Consum Zilnic
             </CardTitle>
+            <div className="flex items-center gap-4 mt-4">
+              <Label className="text-sm">Zile afișate:</Label>
+              <Select
+                value={chartFilters.dailyConsumption.days.toString()}
+                onValueChange={(value) => {
+                  setChartFilters(prev => ({
+                    ...prev,
+                    dailyConsumption: { days: parseInt(value) }
+                  }));
+                  loadChartData();
+                }}
+              >
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">7</SelectItem>
+                  <SelectItem value="14">14</SelectItem>
+                  <SelectItem value="21">21</SelectItem>
+                  <SelectItem value="30">30</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -533,6 +570,29 @@ export const ReportsManagement = () => {
               <BarChart3 className="h-5 w-5 text-cyan-600" />
               Top Produse Consumate
             </CardTitle>
+            <div className="flex items-center gap-4 mt-4">
+              <Label className="text-sm">Nr. produse:</Label>
+              <Select
+                value={chartFilters.topProducts.limit.toString()}
+                onValueChange={(value) => {
+                  setChartFilters(prev => ({
+                    ...prev,
+                    topProducts: { limit: parseInt(value) }
+                  }));
+                  loadChartData();
+                }}
+              >
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="8">8</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="15">15</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -574,6 +634,30 @@ export const ReportsManagement = () => {
               <Users className="h-5 w-5 text-emerald-600" />
               Activitate Zilnică (Intrări vs Ieșiri)
             </CardTitle>
+            <div className="flex items-center gap-4 mt-4">
+              <Label className="text-sm">Zile afișate:</Label>
+              <Select
+                value={chartFilters.dailyActivity.days.toString()}
+                onValueChange={(value) => {
+                  setChartFilters(prev => ({
+                    ...prev,
+                    dailyActivity: { days: parseInt(value) }
+                  }));
+                  loadChartData();
+                }}
+              >
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">7</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="14">14</SelectItem>
+                  <SelectItem value="21">21</SelectItem>
+                  <SelectItem value="30">30</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -621,6 +705,29 @@ export const ReportsManagement = () => {
               <PieChart className="h-5 w-5 text-amber-600" />
               Distribuție pe Furnizori
             </CardTitle>
+            <div className="flex items-center gap-4 mt-4">
+              <Label className="text-sm">Nr. furnizori:</Label>
+              <Select
+                value={chartFilters.supplierDistribution.limit.toString()}
+                onValueChange={(value) => {
+                  setChartFilters(prev => ({
+                    ...prev,
+                    supplierDistribution: { limit: parseInt(value) }
+                  }));
+                  loadChartData();
+                }}
+              >
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="4">4</SelectItem>
+                  <SelectItem value="6">6</SelectItem>
+                  <SelectItem value="8">8</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
