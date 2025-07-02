@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useInventoryData } from "@/hooks/use-inventory-data";
 import { useAggregatedStock } from "@/hooks/use-aggregated-stock";
 import { InventoryToolbar } from "@/components/inventory/InventoryToolbar";
@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const InventoryManagement = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [viewMode, setViewMode] = useState<"inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption">("inventory");
+  const [refreshKey, setRefreshKey] = useState(0);
   
   const { 
     inventory,
@@ -28,8 +29,15 @@ const InventoryManagement = () => {
   const { aggregatedData, groupBy, setGroupBy } = useAggregatedStock(inventory);
 
   const handleTransferReturned = () => {
-    console.log("Transfer returned, refreshing inventory data");
+    console.log("Transfer returned, refreshing all data");
     fetchInventory();
+    setRefreshKey(prev => prev + 1);
+  };
+
+  const handleAnyDataChange = () => {
+    console.log("Data changed, refreshing all tabs");
+    fetchInventory();
+    setRefreshKey(prev => prev + 1);
   };
 
   return (
@@ -38,7 +46,7 @@ const InventoryManagement = () => {
         <h2 className="text-xl font-semibold">Stoc Depozit</h2>
         <InventoryToolbar
           inventory={inventory}
-          onTransferComplete={fetchInventory}
+          onTransferComplete={handleAnyDataChange}
           products={products}
           suppliers={suppliers}
           manufacturers={manufacturers}
@@ -74,28 +82,28 @@ const InventoryManagement = () => {
         <TabsContent value="transfers">
           <div className="bg-white rounded-lg shadow-md p-4">
             <h3 className="text-lg font-medium mb-4">Istoric Transferuri Gestiune</h3>
-            <TransferHistory onTransferReturned={handleTransferReturned} />
+            <TransferHistory key={refreshKey} onTransferReturned={handleTransferReturned} />
           </div>
         </TabsContent>
         
         <TabsContent value="receptions">
           <div className="bg-white rounded-lg shadow-md p-4">
             <h3 className="text-lg font-medium mb-4">Istoric Recepții</h3>
-            <ReceptionHistory />
+            <ReceptionHistory key={refreshKey} />
           </div>
         </TabsContent>
         
         <TabsContent value="daily-stock">
           <div className="bg-white rounded-lg shadow-md p-4">
             <h3 className="text-lg font-medium mb-4">Stoc Început Zi</h3>
-            <DailyStockGroupView />
+            <DailyStockGroupView key={refreshKey} />
           </div>
         </TabsContent>
         
         <TabsContent value="daily-consumption">
           <div className="bg-white rounded-lg shadow-md p-4">
             <h3 className="text-lg font-medium mb-4">Consum Zilnic pe Loturi</h3>
-            <DailyLotConsumption />
+            <DailyLotConsumption key={refreshKey} />
           </div>
         </TabsContent>
       </Tabs>
