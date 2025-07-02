@@ -198,7 +198,7 @@ export const DailyLotConsumption = () => {
           
           const outboundQty = movement.net_quantity || movement.quantity;
           lot.outbound_quantity += outboundQty;
-          lot.final_stock = lot.initial_stock - lot.outbound_quantity + lot.received_quantity;
+          // Nu calculăm final_stock aici, se va calcula la sfârșit
           product.total_outbound += outboundQty;
         }
       });
@@ -246,9 +246,15 @@ export const DailyLotConsumption = () => {
         product.total_received += receivedQty;
       });
 
-      // Calculate totals
+      // Calculate final stock for all lots and product totals
       productMap.forEach(product => {
-        product.total_final = product.total_initial - product.total_outbound + product.total_received;
+        // Calculate final stock for each lot
+        product.lots.forEach(lot => {
+          lot.final_stock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
+        });
+        
+        // Calculate product totals
+        product.total_final = product.total_initial + product.total_received - product.total_outbound;
       });
 
       setConsumptionData(Array.from(productMap.values()));
