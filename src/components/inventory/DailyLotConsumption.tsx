@@ -82,9 +82,11 @@ export const DailyLotConsumption = () => {
         }
       }
 
-      // If still no snapshots, get current inventory as initial stock
+      // If still no snapshots, calculate initial stock from current inventory and movements
       if (!finalInitialStock || finalInitialStock.length === 0) {
-        console.log('No snapshots found, using current inventory as initial stock');
+        console.log('No snapshots found, calculating initial stock from current inventory and movements');
+        
+        // Get current inventory
         const { data: currentInventory, error: inventoryError } = await supabase
           .from("inventory")
           .select(`
@@ -96,10 +98,63 @@ export const DailyLotConsumption = () => {
             products:product_id (name, cod_produs)
           `);
 
-        if (!inventoryError && currentInventory) {
-          finalInitialStock = currentInventory;
-          console.log('Using current inventory as initial stock:', currentInventory.length, 'items');
-        }
+        if (inventoryError) throw inventoryError;
+
+        // Get all movements AFTER the selected date to "rewind" the stock
+        const nextDay = new Date(selectedDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const nextDayStr = nextDay.toISOString().split('T')[0];
+        
+        const { data: futureMovements, error: movementsError } = await supabase
+          .from("inventory_history")
+          .select(`
+            name,
+            lot_number,
+            quantity,
+            net_quantity,
+            action
+          `)
+          .gte('operation_date', `${nextDayStr}T00:00:00`);
+
+        if (movementsError) throw movementsError;
+
+        // Calculate initial stock by reversing future movements
+        const initialStockMap = new Map<string, any>();
+        
+        // Start with current inventory
+        (currentInventory || []).forEach(item => {
+          const key = `${item.name}_${item.lot_number || 'Fără lot'}`;
+          initialStockMap.set(key, {
+            name: item.name,
+            lot_number: item.lot_number,
+            quantity: item.net_quantity || item.quantity,
+            net_quantity: item.net_quantity || item.quantity,
+            unit: item.unit,
+            products: item.products
+          });
+        });
+
+        // Reverse future movements to get stock at beginning of selected date
+        (futureMovements || []).forEach(movement => {
+          const key = `${movement.name}_${movement.lot_number || 'Fără lot'}`;
+          const existingItem = initialStockMap.get(key);
+          const movementQty = movement.net_quantity || movement.quantity;
+          
+          if (existingItem) {
+            if (movement.action === 'add') {
+              // Reverse add by subtracting
+              existingItem.quantity -= movementQty;
+              existingItem.net_quantity -= movementQty;
+            } else if (movement.action === 'remove') {
+              // Reverse remove by adding
+              existingItem.quantity += movementQty;
+              existingItem.net_quantity += movementQty;
+            }
+          }
+        });
+
+        finalInitialStock = Array.from(initialStockMap.values()).filter(item => item.quantity > 0);
+        console.log('Calculated initial stock from movements:', finalInitialStock.length, 'items');
       } else {
         console.log('Using snapshots as initial stock:', finalInitialStock.length, 'items');
       }
