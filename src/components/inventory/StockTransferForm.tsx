@@ -280,6 +280,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         if (transferItemError) throw transferItemError;
 
         // Record the transfer in inventory_history
+        console.log('Debug transfer item:', {
+          id: item.id,
+          productName: item.productName,
+          lot_number: item.lot_number,
+          netQuantity: item.netQuantity
+        });
+        
         const { error: historyError } = await supabase
           .from("inventory_history")
           .insert({
