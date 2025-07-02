@@ -26,7 +26,29 @@ const InventoryManagement = () => {
     fetchInventory
   } = useInventoryData();
   
-  const { aggregatedData, groupBy, setGroupBy } = useAggregatedStock(inventory);
+  // Apply date filtering before aggregation
+  const filteredInventory = inventory.filter(item => {
+    if (!item.receipt_date) return activeTab === "all";
+    
+    const receiptDate = new Date(item.receipt_date);
+    const now = new Date();
+    
+    switch (activeTab) {
+      case "today":
+        return receiptDate.toDateString() === now.toDateString();
+      case "week":
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return receiptDate >= weekAgo;
+      case "month":
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        return receiptDate >= monthAgo;
+      case "all":
+      default:
+        return true;
+    }
+  });
+
+  const { aggregatedData, groupBy, setGroupBy } = useAggregatedStock(filteredInventory);
 
   const handleTransferReturned = () => {
     console.log("Transfer returned, refreshing all data");
