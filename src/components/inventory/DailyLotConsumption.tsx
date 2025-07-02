@@ -158,50 +158,62 @@ export const DailyLotConsumption = () => {
         product.total_initial += initialQuantity;
       });
 
-      // Process outbound movements (only for the selected date)
+      // Process all movements for the selected date (both remove and add)
       (movements || []).forEach(movement => {
+        const productKey = `${movement.name}_${movement.products?.cod_produs || ''}`;
+        let product = productMap.get(productKey);
+        
+        // If product doesn't exist, create it
+        if (!product) {
+          product = {
+            product_name: movement.name,
+            product_code: movement.products?.cod_produs || '',
+            unit: movement.unit,
+            total_initial: 0,
+            total_outbound: 0,
+            total_received: 0,
+            total_final: 0,
+            lots: []
+          };
+          productMap.set(productKey, product);
+        }
+        
+        // Use the lot number from the movement, it should always have one
+        const lotNumber = movement.lot_number || 'Fără lot';
+        let lot = product.lots.find(l => l.lot_number === lotNumber);
+        
+        // If lot doesn't exist, create it
+        if (!lot) {
+          lot = {
+            product_name: movement.name,
+            product_code: movement.products?.cod_produs || '',
+            lot_number: lotNumber,
+            unit: movement.unit,
+            initial_stock: 0,
+            outbound_quantity: 0,
+            received_quantity: 0,
+            final_stock: 0
+          };
+          product.lots.push(lot);
+        }
+        
+        const movementQty = movement.net_quantity || movement.quantity;
+        
         if (movement.action === 'remove') {
-          const productKey = `${movement.name}_${movement.products?.cod_produs || ''}`;
-          let product = productMap.get(productKey);
+          lot.outbound_quantity += movementQty;
+          product.total_outbound += movementQty;
+        } else if (movement.action === 'add') {
+          // This handles returns from production back to warehouse
+          lot.outbound_quantity -= movementQty; // Reduce the outbound quantity
+          product.total_outbound -= movementQty;
           
-          // If product doesn't exist, create it
-          if (!product) {
-            product = {
-              product_name: movement.name,
-              product_code: movement.products?.cod_produs || '',
-              unit: movement.unit,
-              total_initial: 0,
-              total_outbound: 0,
-              total_received: 0,
-              total_final: 0,
-              lots: []
-            };
-            productMap.set(productKey, product);
+          // If outbound becomes negative, it means more was returned than taken out
+          if (lot.outbound_quantity < 0) {
+            lot.received_quantity += Math.abs(lot.outbound_quantity);
+            product.total_received += Math.abs(lot.outbound_quantity);
+            lot.outbound_quantity = 0;
+            product.total_outbound = Math.max(0, product.total_outbound);
           }
-          
-          // Use the lot number from the movement, it should always have one
-          const lotNumber = movement.lot_number || 'Fără lot';
-          let lot = product.lots.find(l => l.lot_number === lotNumber);
-          
-          // If lot doesn't exist, create it
-          if (!lot) {
-            lot = {
-              product_name: movement.name,
-              product_code: movement.products?.cod_produs || '',
-              lot_number: lotNumber,
-              unit: movement.unit,
-              initial_stock: 0,
-              outbound_quantity: 0,
-              received_quantity: 0,
-              final_stock: 0
-            };
-            product.lots.push(lot);
-          }
-          
-          const outboundQty = movement.net_quantity || movement.quantity;
-          lot.outbound_quantity += outboundQty;
-          // Nu calculăm final_stock aici, se va calcula la sfârșit
-          product.total_outbound += outboundQty;
         }
       });
 
