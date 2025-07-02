@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -26,7 +27,7 @@ interface ReceptionItem {
   crate_count: number;
 }
 
-type GroupingMode = 'none' | 'product' | 'article' | 'lot';
+type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';
 
 export const ReceptionHistory = () => {
   const [receptions, setReceptions] = useState<ReceptionItem[]>([]);
@@ -168,10 +169,10 @@ export const ReceptionHistory = () => {
           Grupare după produs
         </Button>
         <Button
-          variant={groupBy === 'article' ? 'default' : 'outline'}
-          onClick={() => setGroupBy('article')}
+          variant={groupBy === 'supplier' ? 'default' : 'outline'}
+          onClick={() => setGroupBy('supplier')}
         >
-          Grupare după articol
+          Grupare după furnizor
         </Button>
         <Button
           variant={groupBy === 'lot' ? 'default' : 'outline'}

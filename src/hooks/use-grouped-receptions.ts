@@ -19,7 +19,7 @@ interface ReceptionItem {
   crate_count: number;
 }
 
-type GroupingMode = 'none' | 'product' | 'article' | 'lot';
+type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';
 
 export const useGroupedReceptions = (
   receptions: ReceptionItem[],
@@ -39,8 +39,8 @@ export const useGroupedReceptions = (
         case 'product':
           groupKey = item.name;
           break;
-        case 'article':
-          groupKey = item.products?.cod_produs || 'Fără cod';
+        case 'supplier':
+          groupKey = item.suppliers?.name || 'Fără furnizor';
           break;
         case 'lot':
           groupKey = item.lot_number || 'Fără lot';
