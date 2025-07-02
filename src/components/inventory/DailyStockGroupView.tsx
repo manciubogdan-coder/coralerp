@@ -38,8 +38,11 @@ interface GroupedProduct {
 export const DailyStockGroupView = () => {
   const [stockSnapshots, setStockSnapshots] = useState<DailyStockItem[]>([]);
   const [groupedData, setGroupedData] = useState<GroupedProduct[]>([]);
+  const [filteredGroupedData, setFilteredGroupedData] = useState<GroupedProduct[]>([]);
+  const [filteredStockSnapshots, setFilteredStockSnapshots] = useState<DailyStockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [groupedView, setGroupedView] = useState(false);
+  const [productFilter, setProductFilter] = useState("");
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     today.setDate(today.getDate() - 1);
@@ -76,12 +79,13 @@ export const DailyStockGroupView = () => {
         throw error;
       }
 
-      setStockSnapshots(data || []);
+      const snapshots = data || [];
+      setStockSnapshots(snapshots);
       
       // Group data by product
       const grouped = new Map<string, GroupedProduct>();
       
-      (data || []).forEach(item => {
+      snapshots.forEach(item => {
         const key = `${item.name}_${item.products?.cod_produs || ''}`;
         
         if (!grouped.has(key)) {
@@ -101,7 +105,10 @@ export const DailyStockGroupView = () => {
         group.lots.push(item);
       });
       
-      setGroupedData(Array.from(grouped.values()));
+      const groupedResults = Array.from(grouped.values());
+      setGroupedData(groupedResults);
+      setFilteredGroupedData(groupedResults);
+      setFilteredStockSnapshots(snapshots);
     } catch (error: any) {
       console.error("Error fetching daily stock snapshots:", error);
       toast({
@@ -118,11 +125,30 @@ export const DailyStockGroupView = () => {
     fetchDailyStock();
   }, [selectedDate]);
 
+  useEffect(() => {
+    if (productFilter.trim() === "") {
+      setFilteredGroupedData(groupedData);
+      setFilteredStockSnapshots(stockSnapshots);
+    } else {
+      const filteredGrouped = groupedData.filter(product =>
+        product.product_name.toLowerCase().includes(productFilter.toLowerCase()) ||
+        product.product_code.toLowerCase().includes(productFilter.toLowerCase())
+      );
+      setFilteredGroupedData(filteredGrouped);
+
+      const filteredSnapshots = stockSnapshots.filter(item =>
+        item.name.toLowerCase().includes(productFilter.toLowerCase()) ||
+        (item.products?.cod_produs && item.products.cod_produs.toLowerCase().includes(productFilter.toLowerCase()))
+      );
+      setFilteredStockSnapshots(filteredSnapshots);
+    }
+  }, [productFilter, groupedData, stockSnapshots]);
+
   const handleExport = () => {
     let dataToExport: any[] = [];
     
     if (groupedView) {
-      dataToExport = groupedData.map(product => ({
+      dataToExport = filteredGroupedData.map(product => ({
         'Data Snapshot': new Date(selectedDate).toLocaleDateString('ro-RO'),
         'Produs': product.product_name,
         'Cod Produs': product.product_code,
@@ -132,7 +158,7 @@ export const DailyStockGroupView = () => {
         'Numărul de loturi': product.lots.length
       }));
     } else {
-      dataToExport = stockSnapshots.map(item => ({
+      dataToExport = filteredStockSnapshots.map(item => ({
         'Data Snapshot': new Date(item.snapshot_date).toLocaleDateString('ro-RO'),
         'Nr. Intrare': item.entry_number || '',
         'Produs': item.name,
@@ -201,6 +227,13 @@ export const DailyStockGroupView = () => {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="w-auto"
           />
+          <Input
+            type="text"
+            placeholder="Filtrează după produs..."
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="w-auto min-w-[200px]"
+          />
         </div>
         
         <div className="flex gap-2 items-center">
@@ -215,17 +248,23 @@ export const DailyStockGroupView = () => {
           <Button onClick={triggerSnapshot} variant="outline">
             Creează Snapshot Acum
           </Button>
-          <Button onClick={handleExport} disabled={stockSnapshots.length === 0}>
+          <Button onClick={handleExport} disabled={groupedView ? filteredGroupedData.length === 0 : filteredStockSnapshots.length === 0}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Export Excel
           </Button>
         </div>
       </div>
 
-      {stockSnapshots.length === 0 ? (
+      {(groupedView ? filteredGroupedData.length === 0 : filteredStockSnapshots.length === 0) ? (
         <div className="text-center py-8 text-gray-500">
-          <p>Nu există snapshot pentru data selectată.</p>
-          <p className="text-sm mt-2">Snapshot-urile se creează automat în fiecare zi la ora 5:00 dimineața.</p>
+          {productFilter ? (
+            <p>Nu există produse care să se potrivească cu filtrul.</p>
+          ) : (
+            <>
+              <p>Nu există snapshot pentru data selectată.</p>
+              <p className="text-sm mt-2">Snapshot-urile se creează automat în fiecare zi la ora 5:00 dimineața.</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="border rounded-lg overflow-x-auto">
@@ -242,7 +281,7 @@ export const DailyStockGroupView = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {groupedData.map((product, index) => (
+                {filteredGroupedData.map((product, index) => (
                   <TableRow key={index}>
                     <TableCell className="font-medium">{product.product_name}</TableCell>
                     <TableCell>{product.product_code}</TableCell>
@@ -274,7 +313,7 @@ export const DailyStockGroupView = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {stockSnapshots.map((item) => (
+                {filteredStockSnapshots.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.entry_number || '-'}</TableCell>
                     <TableCell className="font-medium">{item.name}</TableCell>

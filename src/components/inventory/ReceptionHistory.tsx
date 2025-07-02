@@ -31,12 +31,14 @@ type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';
 
 export const ReceptionHistory = () => {
   const [receptions, setReceptions] = useState<ReceptionItem[]>([]);
+  const [filteredReceptions, setFilteredReceptions] = useState<ReceptionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [productFilter, setProductFilter] = useState("");
   const [groupBy, setGroupBy] = useState<GroupingMode>('none');
 
-  const groupedData = useGroupedReceptions(receptions, groupBy);
+  const groupedData = useGroupedReceptions(filteredReceptions, groupBy);
 
   const fetchReceptions = async () => {
     try {
@@ -77,7 +79,9 @@ export const ReceptionHistory = () => {
       }
 
       console.log("Reception history data:", data);
-      setReceptions(data || []);
+      const receptionsData = data || [];
+      setReceptions(receptionsData);
+      setFilteredReceptions(receptionsData);
     } catch (error: any) {
       console.error("Error fetching reception history:", error);
       toast({
@@ -94,8 +98,20 @@ export const ReceptionHistory = () => {
     fetchReceptions();
   }, [dateFrom, dateTo]);
 
+  useEffect(() => {
+    if (productFilter.trim() === "") {
+      setFilteredReceptions(receptions);
+    } else {
+      const filtered = receptions.filter(item =>
+        item.name.toLowerCase().includes(productFilter.toLowerCase()) ||
+        (item.products?.cod_produs && item.products.cod_produs.toLowerCase().includes(productFilter.toLowerCase()))
+      );
+      setFilteredReceptions(filtered);
+    }
+  }, [productFilter, receptions]);
+
   const handleExport = () => {
-    const dataToExport = receptions.map(item => ({
+    const dataToExport = filteredReceptions.map(item => ({
       'Nr. Intrare': item.entry_number,
       'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '',
       'Produs': item.name,
@@ -147,9 +163,16 @@ export const ReceptionHistory = () => {
               className="w-auto"
             />
           </div>
+          <Input
+            type="text"
+            placeholder="Filtrează după produs..."
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="w-auto min-w-[200px]"
+          />
         </div>
         
-        <Button onClick={handleExport} disabled={receptions.length === 0}>
+        <Button onClick={handleExport} disabled={filteredReceptions.length === 0}>
           <FileSpreadsheet className="h-4 w-4 mr-2" />
           Export Excel
         </Button>

@@ -31,7 +31,9 @@ interface ProductSummary {
 
 export const DailyLotConsumption = () => {
   const [consumptionData, setConsumptionData] = useState<ProductSummary[]>([]);
+  const [filteredData, setFilteredData] = useState<ProductSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [productFilter, setProductFilter] = useState("");
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     today.setDate(today.getDate() - 1); // Yesterday by default
@@ -257,7 +259,9 @@ export const DailyLotConsumption = () => {
         product.total_final = product.total_initial + product.total_received - product.total_outbound;
       });
 
-      setConsumptionData(Array.from(productMap.values()));
+      const results = Array.from(productMap.values());
+      setConsumptionData(results);
+      setFilteredData(results);
     } catch (error: any) {
       console.error("Error fetching consumption data:", error);
       toast({
@@ -274,10 +278,22 @@ export const DailyLotConsumption = () => {
     fetchConsumptionData();
   }, [selectedDate]);
 
+  useEffect(() => {
+    if (productFilter.trim() === "") {
+      setFilteredData(consumptionData);
+    } else {
+      const filtered = consumptionData.filter(product =>
+        product.product_name.toLowerCase().includes(productFilter.toLowerCase()) ||
+        product.product_code.toLowerCase().includes(productFilter.toLowerCase())
+      );
+      setFilteredData(filtered);
+    }
+  }, [productFilter, consumptionData]);
+
   const handleExport = () => {
     const dataToExport: any[] = [];
     
-    consumptionData.forEach(product => {
+    filteredData.forEach(product => {
       // Add product summary row
       dataToExport.push({
         'Produs': product.product_name,
@@ -344,17 +360,24 @@ export const DailyLotConsumption = () => {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="w-auto"
           />
+          <Input
+            type="text"
+            placeholder="Filtrează după produs..."
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="w-auto min-w-[200px]"
+          />
         </div>
         
-        <Button onClick={handleExport} disabled={consumptionData.length === 0}>
+        <Button onClick={handleExport} disabled={filteredData.length === 0}>
           <FileSpreadsheet className="h-4 w-4 mr-2" />
           Export Excel
         </Button>
       </div>
 
-      {consumptionData.length === 0 ? (
+      {filteredData.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
-          <p>Nu există date pentru data selectată.</p>
+          <p>{productFilter ? "Nu există produse care să se potrivească cu filtrul." : "Nu există date pentru data selectată."}</p>
         </div>
       ) : (
         <div className="border rounded-lg overflow-x-auto">
@@ -372,7 +395,7 @@ export const DailyLotConsumption = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {consumptionData.map((product, productIndex) => [
+              {filteredData.map((product, productIndex) => [
                 // Product summary row
                 <TableRow key={`${product.product_name}-${product.product_code}-summary`} className="bg-muted font-semibold">
                   <TableCell className="font-bold">{product.product_name}</TableCell>
