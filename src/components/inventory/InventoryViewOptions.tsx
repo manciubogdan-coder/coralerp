@@ -6,8 +6,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface InventoryViewOptionsProps {
   activeTab: string;
   setActiveTab: (value: string) => void;
-  groupBy: 'product' | 'supplier' | 'manufacturer';
-  setGroupBy: (value: 'product' | 'supplier' | 'manufacturer') => void;
+  groupBy: 'product' | 'supplier' | 'manufacturer' | 'lot';
+  setGroupBy: (value: 'product' | 'supplier' | 'manufacturer' | 'lot') => void;
 }
 
 export const InventoryViewOptions = ({
@@ -45,6 +45,12 @@ export const InventoryViewOptions = ({
           onClick={() => setGroupBy('manufacturer')}
         >
           Grupare după Producător
+        </Button>
+        <Button
+          variant={groupBy === 'lot' ? 'default' : 'outline'}
+          onClick={() => setGroupBy('lot')}
+        >
+          Grupare după Lot
         </Button>
       </div>
     </>

@@ -235,39 +235,48 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         console.log("Creat nou item în inventar:", inventoryData);
       }
       
-      // 3. Înregistrează în istoric
-      console.log('=== DEBUGGING RETURN HISTORY ===');
-      const historyDate = new Date().toISOString();
-      console.log('Inserting into inventory_history:', {
-        inventory_item_id: updatedId,
-        action: 'add',
-        name: transfer.product_name,
-        quantity: grossQuantity,
-        net_quantity: netQuantity,
-        unit: transfer.unit,
-        operation_date: historyDate,
-        document_number: transfer.document_number,
-        lot_number: transfer.lot_number,
-        notes: `Returnat din ${transfer.destination}. ${notes}`.trim()
-      });
-      
-      const { error: historyError } = await supabase
-        .from('inventory_history')
-        .insert({
-          inventory_item_id: updatedId,
-          action: 'add',
-          name: transfer.product_name,
-          quantity: grossQuantity,
-          net_quantity: netQuantity,
-          unit: transfer.unit,
-          operation_date: historyDate,
-          document_number: transfer.document_number,
-          lot_number: transfer.lot_number,
-          crate_count: crateCount,
-          crate_type_id: selectedCrateTypeId || null,
-          crate_weight: crateWeight || null,
-          notes: `Returnat din ${transfer.destination}. ${notes}`.trim()
-        });
+       // 3. Înregistrează în istoric
+       console.log('=== DEBUGGING RETURN HISTORY ===');
+       const historyDate = new Date().toISOString();
+       
+       // Get the actual lot_number from the original inventory item if not available on transfer
+       const actualLotNumber = transfer.lot_number || (originalItem && originalItem.lot_number) || 
+         (await supabase
+           .from('inventory')
+           .select('lot_number')
+           .eq('id', transfer.inventory_item_id)
+           .single()).data?.lot_number;
+       
+       console.log('Inserting into inventory_history:', {
+         inventory_item_id: updatedId,
+         action: 'add',
+         name: transfer.product_name,
+         quantity: grossQuantity,
+         net_quantity: netQuantity,
+         unit: transfer.unit,
+         operation_date: historyDate,
+         document_number: transfer.document_number,
+         lot_number: actualLotNumber,
+         notes: `Returnat din ${transfer.destination}. ${notes}`.trim()
+       });
+       
+       const { error: historyError } = await supabase
+         .from('inventory_history')
+         .insert({
+           inventory_item_id: updatedId,
+           action: 'add',
+           name: transfer.product_name,
+           quantity: grossQuantity,
+           net_quantity: netQuantity,
+           unit: transfer.unit,
+           operation_date: historyDate,
+           document_number: transfer.document_number,
+           lot_number: actualLotNumber,
+           crate_count: crateCount,
+           crate_type_id: selectedCrateTypeId || null,
+           crate_weight: crateWeight || null,
+           notes: `Returnat din ${transfer.destination}. ${notes}`.trim()
+         });
         
       if (historyError) {
         console.error('History error:', historyError);

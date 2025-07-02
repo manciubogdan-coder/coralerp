@@ -9,7 +9,7 @@ interface AggregatedStock extends InventoryItem {
 }
 
 export const useAggregatedStock = (inventory: InventoryItem[]) => {
-  const [groupBy, setGroupBy] = useState<'product' | 'supplier' | 'manufacturer'>('product');
+  const [groupBy, setGroupBy] = useState<'product' | 'supplier' | 'manufacturer' | 'lot'>('product');
 
   const aggregatedData = useMemo(() => {
     const grouped = new Map<string, AggregatedStock>();
@@ -21,8 +21,11 @@ export const useAggregatedStock = (inventory: InventoryItem[]) => {
         key = `${item.product_id || item.name}`;
       } else if (groupBy === 'supplier') {
         key = `${item.supplier_id || item.supplier || 'Unknown'}`;
-      } else {
+      } else if (groupBy === 'manufacturer') {
         key = `${item.manufacturer_id || item.manufacturer || 'Unknown'}`;
+      } else {
+        // Group by lot: product + lot number
+        key = `${item.product_id || item.name}-${item.lot_number || 'No_Lot'}`;
       }
 
       if (!grouped.has(key)) {
@@ -52,6 +55,8 @@ export const useAggregatedStock = (inventory: InventoryItem[]) => {
       // Update the group name to use the product name from relations if available
       if (groupBy === 'product' && item.products?.name) {
         group.name = item.products.name;
+      } else if (groupBy === 'lot' && item.products?.name) {
+        group.name = `${item.products.name} (Lot: ${item.lot_number || 'N/A'})`;
       }
     });
 

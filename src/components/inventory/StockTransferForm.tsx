@@ -280,10 +280,17 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         if (transferItemError) throw transferItemError;
 
         // Record the transfer in inventory_history
+        // Get the actual lot_number from the inventory item if not available on selected item
+        const actualLotNumber = item.lot_number || (await supabase
+          .from('inventory')
+          .select('lot_number')
+          .eq('id', item.id)
+          .single()).data?.lot_number;
+        
         console.log('Debug transfer item:', {
           id: item.id,
           productName: item.productName,
-          lot_number: item.lot_number,
+          lot_number: actualLotNumber,
           netQuantity: item.netQuantity
         });
         
@@ -296,7 +303,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             quantity: item.netQuantity,
             net_quantity: item.netQuantity,
             unit: item.unit,
-            lot_number: item.lot_number,
+            lot_number: actualLotNumber,
             operation_date: new Date().toISOString(),
             supplier: item.supplier,
             supplier_id: item.supplier_id,
