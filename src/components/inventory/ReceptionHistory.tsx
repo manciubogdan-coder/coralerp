@@ -18,9 +18,11 @@ interface ReceptionItem {
   net_quantity: number;
   unit: string;
   document_number: string;
+  lot_number: string;
   suppliers?: { name: string };
   manufacturers?: { name: string };
   crate_types?: { name: string; weight: number };
+  products?: { name: string; cod_produs: string };
   crate_count: number;
 }
 
@@ -45,10 +47,12 @@ export const ReceptionHistory = () => {
           net_quantity,
           unit,
           document_number,
+          lot_number,
           crate_count,
           suppliers:supplier_id (name),
           manufacturers:manufacturer_id (name),
-          crate_types:crate_type_id (name, weight)
+          crate_types:crate_type_id (name, weight),
+          products:product_id (name, cod_produs)
         `)
         .not('receipt_date', 'is', null)
         .order("receipt_date", { ascending: false });
@@ -89,8 +93,9 @@ export const ReceptionHistory = () => {
       'Nr. Intrare': item.entry_number,
       'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '',
       'Produs': item.name,
+      'Cod Produs': item.products?.cod_produs || '',
+      'Nr Lot': item.lot_number || '',
       'Cantitate Netă': item.net_quantity?.toFixed(2) || item.quantity.toFixed(2),
-      'Cantitate Brută': item.gross_quantity?.toFixed(2) || '',
       'Unitate': item.unit,
       'Document': item.document_number || '',
       'Furnizor': item.suppliers?.name || '',
@@ -144,13 +149,15 @@ export const ReceptionHistory = () => {
         </Button>
       </div>
 
-      <div className="border rounded-lg">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Nr. Intrare</TableHead>
               <TableHead>Data Recepție</TableHead>
               <TableHead>Produs</TableHead>
+              <TableHead>Cod Produs</TableHead>
+              <TableHead>Nr Lot</TableHead>
               <TableHead className="text-right">Cantitate Netă</TableHead>
               <TableHead>Unitate</TableHead>
               <TableHead>Document</TableHead>
@@ -167,6 +174,8 @@ export const ReceptionHistory = () => {
                     {item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-'}
                   </TableCell>
                   <TableCell className="font-medium">{item.name}</TableCell>
+                  <TableCell>{item.products?.cod_produs || '-'}</TableCell>
+                  <TableCell>{item.lot_number || '-'}</TableCell>
                   <TableCell className="text-right">
                     {(item.net_quantity || item.quantity).toFixed(2)}
                   </TableCell>
@@ -178,7 +187,7 @@ export const ReceptionHistory = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={10} className="text-center py-6 text-gray-500">
                   Nu s-au găsit recepții în intervalul selectat.
                 </TableCell>
               </TableRow>
