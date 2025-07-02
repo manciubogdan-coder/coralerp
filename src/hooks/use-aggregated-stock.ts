@@ -37,7 +37,10 @@ export const useAggregatedStock = (inventory: InventoryItem[]) => {
       }
 
       const group = grouped.get(key)!;
-      group.quantity = (group.quantity || 0) + (item.quantity || 0);
+      // Use net_quantity with fallback to quantity, same as other parts of the app
+      const itemQuantity = item.net_quantity || item.quantity || 0;
+      group.quantity = (group.quantity || 0) + itemQuantity;
+      group.net_quantity = (group.net_quantity || 0) + itemQuantity;
       group.total_pallets = (group.total_pallets || 0) + 1;
       group.total_crates = (group.total_crates || 0) + (item.crate_count || 0);
       group.items?.push(item);
