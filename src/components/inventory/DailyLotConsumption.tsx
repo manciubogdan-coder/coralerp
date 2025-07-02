@@ -82,6 +82,28 @@ export const DailyLotConsumption = () => {
         }
       }
 
+      // If still no snapshots, get current inventory as initial stock
+      if (!finalInitialStock || finalInitialStock.length === 0) {
+        console.log('No snapshots found, using current inventory as initial stock');
+        const { data: currentInventory, error: inventoryError } = await supabase
+          .from("inventory")
+          .select(`
+            name,
+            lot_number,
+            quantity,
+            net_quantity,
+            unit,
+            products:product_id (name, cod_produs)
+          `);
+
+        if (!inventoryError && currentInventory) {
+          finalInitialStock = currentInventory;
+          console.log('Using current inventory as initial stock:', currentInventory.length, 'items');
+        }
+      } else {
+        console.log('Using snapshots as initial stock:', finalInitialStock.length, 'items');
+      }
+
       // Get all inventory movements for the selected date
       const { data: movements, error: movementsError } = await supabase
         .from("inventory_history")
