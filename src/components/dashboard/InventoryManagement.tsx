@@ -7,11 +7,13 @@ import { InventoryViewOptions } from "@/components/inventory/InventoryViewOption
 import InventoryTable from "@/components/InventoryTable";
 import { TransferHistory } from "@/components/inventory/TransferHistory";
 import { ReceptionHistory } from "@/components/inventory/ReceptionHistory";
+import { DailyStockHistory } from "@/components/inventory/DailyStockHistory";
+import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const InventoryManagement = () => {
   const [activeTab, setActiveTab] = useState("all");
-  const [viewMode, setViewMode] = useState<"inventory" | "transfers" | "receptions">("inventory");
+  const [viewMode, setViewMode] = useState<"inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption">("inventory");
   
   const { 
     inventory,
@@ -46,13 +48,15 @@ const InventoryManagement = () => {
 
       <Tabs 
         value={viewMode} 
-        onValueChange={(value) => setViewMode(value as "inventory" | "transfers" | "receptions")}
+        onValueChange={(value) => setViewMode(value as "inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption")}
         className="mb-4"
       >
         <TabsList>
           <TabsTrigger value="inventory">Stoc Curent</TabsTrigger>
           <TabsTrigger value="transfers">Istoric Transferuri</TabsTrigger>
           <TabsTrigger value="receptions">Istoric Recepții</TabsTrigger>
+          <TabsTrigger value="daily-stock">Stoc Început Zi</TabsTrigger>
+          <TabsTrigger value="daily-consumption">Consum Zilnic pe Loturi</TabsTrigger>
         </TabsList>
         
         <TabsContent value="inventory">
@@ -78,6 +82,20 @@ const InventoryManagement = () => {
           <div className="bg-white rounded-lg shadow-md p-4">
             <h3 className="text-lg font-medium mb-4">Istoric Recepții</h3>
             <ReceptionHistory />
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="daily-stock">
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <h3 className="text-lg font-medium mb-4">Stoc Început Zi</h3>
+            <DailyStockHistory />
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="daily-consumption">
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <h3 className="text-lg font-medium mb-4">Consum Zilnic pe Loturi</h3>
+            <DailyLotConsumption />
           </div>
         </TabsContent>
       </Tabs>
