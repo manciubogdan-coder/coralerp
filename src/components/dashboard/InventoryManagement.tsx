@@ -7,7 +7,7 @@ import { InventoryViewOptions } from "@/components/inventory/InventoryViewOption
 import InventoryTable from "@/components/InventoryTable";
 import { TransferHistory } from "@/components/inventory/TransferHistory";
 import { ReceptionHistory } from "@/components/inventory/ReceptionHistory";
-import { DailyStockHistory } from "@/components/inventory/DailyStockHistory";
+import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView";
 import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -88,7 +88,7 @@ const InventoryManagement = () => {
         <TabsContent value="daily-stock">
           <div className="bg-white rounded-lg shadow-md p-4">
             <h3 className="text-lg font-medium mb-4">Stoc Început Zi</h3>
-            <DailyStockHistory />
+            <DailyStockGroupView />
           </div>
         </TabsContent>
         

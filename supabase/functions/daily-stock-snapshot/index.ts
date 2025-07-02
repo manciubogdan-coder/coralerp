@@ -23,7 +23,7 @@ serve(async (req) => {
     
     console.log('Creating daily stock snapshot for date:', today);
 
-    // Check if snapshot already exists for today
+    // Check if snapshot already exists for today - if yes, delete it first
     const { data: existingSnapshot } = await supabaseClient
       .from('daily_stock_snapshots')
       .select('id')
@@ -31,17 +31,16 @@ serve(async (req) => {
       .limit(1);
 
     if (existingSnapshot && existingSnapshot.length > 0) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: 'Snapshot already exists for today',
-          date: today 
-        }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400
-        }
-      );
+      console.log('Deleting existing snapshot for', today);
+      const { error: deleteError } = await supabaseClient
+        .from('daily_stock_snapshots')
+        .delete()
+        .eq('snapshot_date', today);
+        
+      if (deleteError) {
+        console.error('Error deleting existing snapshot:', deleteError);
+        throw deleteError;
+      }
     }
 
     // Get current inventory data

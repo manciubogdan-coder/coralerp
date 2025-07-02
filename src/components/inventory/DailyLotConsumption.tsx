@@ -85,7 +85,7 @@ export const DailyLotConsumption = () => {
           products:product_id (name, cod_produs)
         `)
         .gte('operation_date', `${selectedDate}T00:00:00`)
-        .lt('operation_date', `${selectedDate}T23:59:59`);
+        .lte('operation_date', `${selectedDate}T23:59:59`);
 
       if (movementsError) throw movementsError;
 
@@ -102,7 +102,7 @@ export const DailyLotConsumption = () => {
           products:product_id (name, cod_produs)
         `)
         .gte('receipt_date', `${selectedDate}T00:00:00`)
-        .lt('receipt_date', `${selectedDate}T23:59:59`);
+        .lte('receipt_date', `${selectedDate}T23:59:59`);
 
       if (receptionsError) throw receptionsError;
 
@@ -204,7 +204,7 @@ export const DailyLotConsumption = () => {
         }
       });
 
-      // Process outbound movements
+      // Process outbound movements (only for the selected date)
       (movements || []).forEach(movement => {
         if (movement.action === 'remove') {
           const productKey = `${movement.name}_${movement.products?.cod_produs || ''}`;
@@ -225,6 +225,7 @@ export const DailyLotConsumption = () => {
             productMap.set(productKey, product);
           }
           
+          // Use the lot number from the movement, it should always have one
           const lotNumber = movement.lot_number || 'Fără lot';
           let lot = product.lots.find(l => l.lot_number === lotNumber);
           
