@@ -11,6 +11,7 @@ import SuppliersPage from "./pages/dashboard/SuppliersPage";
 import ManufacturersPage from "./pages/dashboard/ManufacturersPage";
 import CrateTypesPage from "./pages/dashboard/CrateTypesPage";
 import InventoryPage from "./pages/dashboard/InventoryPage";
+import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
 import InventoryOverviewPage from "./pages/InventoryPage";
@@ -41,6 +42,7 @@ const App = () => (
                       <Route path="/dashboard/manufacturers" element={<ManufacturersPage />} />
                       <Route path="/dashboard/crate-types" element={<CrateTypesPage />} />
                       <Route path="/dashboard/inventory" element={<InventoryPage />} />
+                      <Route path="/dashboard/analytics" element={<AnalyticsPage />} />
                       <Route path="/inventory" element={<InventoryOverviewPage />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>

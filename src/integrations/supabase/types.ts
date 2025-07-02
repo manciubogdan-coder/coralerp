@@ -3184,6 +3184,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      generate_missing_snapshots: {
+        Args: { start_date?: string; end_date?: string }
+        Returns: {
+          snapshot_date: string
+          items_count: number
+          status: string
+        }[]
+      }
       generate_order_number: {
         Args: Record<PropertyKey, never>
         Returns: string
