@@ -34,6 +34,7 @@ const Index = () => {
   const fetchInventory = async () => {
     try {
       setLoading(true);
+      // Use the same aggregation logic as SimpleInventoryTable to ensure consistency
       const { data, error } = await supabase
         .from("inventory")
         .select(`
@@ -46,7 +47,28 @@ const Index = () => {
         throw error;
       }
 
-      setInventory(data || []);
+      // Group and sum quantities by product name (same logic as SimpleInventoryTable)
+      const groupedInventory = (data || []).reduce((acc, item) => {
+        const key = item.name;
+        if (!acc[key]) {
+          acc[key] = {
+            id: item.id, // Use first item's ID
+            name: key,
+            quantity: 0,
+            unit: item.unit,
+            supplier: item.supplier,
+            document_number: item.document_number,
+            receipt_date: item.receipt_date,
+            products: item.products
+          };
+        }
+        acc[key].quantity += (item.net_quantity || item.quantity);
+        return acc;
+      }, {} as Record<string, any>);
+
+      // Convert to array
+      const aggregatedData = Object.values(groupedInventory);
+      setInventory(aggregatedData);
     } catch (error: any) {
       toast({
         variant: "destructive",
