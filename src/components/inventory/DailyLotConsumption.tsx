@@ -278,7 +278,7 @@ export const DailyLotConsumption = () => {
         }
       });
 
-      // Process new receptions
+      // Process new receptions - calculez cantitatea realmente recepționată
       (receptions || []).forEach(reception => {
         const productKey = `${reception.name}_${reception.products?.cod_produs || ''}`;
         let product = productMap.get(productKey);
@@ -315,8 +315,17 @@ export const DailyLotConsumption = () => {
           product.lots.push(lot);
         }
 
-        const receivedQty = reception.net_quantity || reception.quantity;
-        lot.received_quantity += receivedQty;
+        // IMPORTANT: Calculez cantitatea realmente recepționată adăugând înapoi ieșirile
+        const currentStock = reception.net_quantity || reception.quantity;
+        const outboundFromThisLot = outboundMovements.get(`${reception.name}_${lotKey}`) || 0;
+        const receivedQty = currentStock + outboundFromThisLot;
+        
+        console.log(`Reception calculation for ${reception.name} lot ${lotKey}:`);
+        console.log(`- Current stock: ${currentStock}`);
+        console.log(`- Outbound from lot: ${outboundFromThisLot}`);
+        console.log(`- Calculated received: ${receivedQty}`);
+        
+        lot.received_quantity = receivedQty;
         lot.final_stock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
         product.total_received += receivedQty;
       });
