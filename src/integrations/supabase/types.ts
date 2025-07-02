@@ -1049,6 +1049,7 @@ export type Database = {
           exit_timestamp: string | null
           id: string
           inventory_item_id: string | null
+          lot_number: string | null
           manufacturer_id: string | null
           name: string
           net_quantity: number | null
@@ -1071,6 +1072,7 @@ export type Database = {
           exit_timestamp?: string | null
           id?: string
           inventory_item_id?: string | null
+          lot_number?: string | null
           manufacturer_id?: string | null
           name: string
           net_quantity?: number | null
@@ -1093,6 +1095,7 @@ export type Database = {
           exit_timestamp?: string | null
           id?: string
           inventory_item_id?: string | null
+          lot_number?: string | null
           manufacturer_id?: string | null
           name?: string
           net_quantity?: number | null
