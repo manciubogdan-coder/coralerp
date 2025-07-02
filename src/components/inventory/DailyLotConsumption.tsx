@@ -161,22 +161,43 @@ export const DailyLotConsumption = () => {
       // Process all movements for the selected date - calculate net consumption
       const netMovements = new Map<string, number>(); // key: productName_lotNumber, value: net quantity removed
       
+      console.log('=== DEBUGGING DAILY CONSUMPTION ===');
+      console.log('Selected date:', selectedDate);
+      console.log('Total movements found:', movements?.length || 0);
+      
       (movements || []).forEach(movement => {
         const lotKey = `${movement.name}_${movement.lot_number || 'Fără lot'}`;
         const movementQty = movement.net_quantity || movement.quantity;
         
+        console.log('Processing movement:', {
+          action: movement.action,
+          product: movement.name,
+          lot: movement.lot_number,
+          quantity: movementQty,
+          date: movement.operation_date
+        });
+        
         if (movement.action === 'remove') {
           netMovements.set(lotKey, (netMovements.get(lotKey) || 0) + movementQty);
+          console.log(`REMOVE: ${lotKey} +${movementQty} = ${netMovements.get(lotKey)}`);
         } else if (movement.action === 'add') {
           // Returns from production - subtract from net consumption
           netMovements.set(lotKey, (netMovements.get(lotKey) || 0) - movementQty);
+          console.log(`ADD (return): ${lotKey} -${movementQty} = ${netMovements.get(lotKey)}`);
         }
       });
 
+      console.log('Final net movements:', Object.fromEntries(netMovements));
+
       // Now process only the net movements (actual consumption)
       netMovements.forEach((netQuantity, lotKey) => {
+        console.log(`Processing lot ${lotKey} with net quantity: ${netQuantity}`);
+        
         // Skip if net quantity is 0 or negative (no real consumption)
-        if (netQuantity <= 0) return;
+        if (netQuantity <= 0) {
+          console.log(`Skipping ${lotKey} - no net consumption (${netQuantity})`);
+          return;
+        }
         
         // Find the movement to get product details
         const sampleMovement = movements?.find(m => 
