@@ -139,8 +139,6 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         const { error: updateError } = await supabase
           .from('stock_transfers')
           .update({ 
-            quantity: newTransferQuantity,
-            net_quantity: newTransferNetQuantity,
             notes: `${transfer.notes || ''} [Actualizat după returnare parțială]`.trim()
           })
           .eq('id', transfer.transfer_id);
