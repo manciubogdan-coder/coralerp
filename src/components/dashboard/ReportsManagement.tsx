@@ -1,14 +1,31 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, FileSpreadsheet, Download } from "lucide-react";
+import { CalendarIcon, FileSpreadsheet, Download, BarChart3, TrendingUp, Users, PieChart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell
+} from "recharts";
 
 interface ReportFilters {
   startDate: string;
@@ -17,6 +34,13 @@ interface ReportFilters {
   suppliers: string[];
   actions: string[];
   reportType: string;
+}
+
+interface ChartData {
+  dailyConsumption: Array<{ date: string; cantitate: number; operatii: number; }>;
+  topProducts: Array<{ produs: string; cantitate: number; operatii: number; }>;
+  dailyActivity: Array<{ date: string; intrari: number; iesiri: number; }>;
+  supplierDistribution: Array<{ furnizor: string; cantitate: number; procent: number; }>;
 }
 
 export const ReportsManagement = () => {
@@ -29,6 +53,18 @@ export const ReportsManagement = () => {
     reportType: 'inventory_history'
   });
   const [loading, setLoading] = useState(false);
+  const [chartData, setChartData] = useState<ChartData>({
+    dailyConsumption: [],
+    topProducts: [],
+    dailyActivity: [],
+    supplierDistribution: []
+  });
+
+  // Culori pentru grafice
+  const CHART_COLORS = [
+    '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', 
+    '#ef4444', '#ec4899', '#84cc16', '#6366f1'
+  ];
 
   const reportTypes = [
     { value: 'inventory_history', label: 'Istoric Mișcări Stoc' },
@@ -274,8 +310,356 @@ export const ReportsManagement = () => {
     })) || [];
   };
 
+  // Funcții pentru generarea datelor pentru grafice
+  const loadChartData = async () => {
+    try {
+      const [dailyConsumption, topProducts, dailyActivity, supplierDistribution] = await Promise.all([
+        generateDailyConsumptionData(),
+        generateTopProductsData(),
+        generateDailyActivityData(),
+        generateSupplierDistributionData()
+      ]);
+
+      setChartData({
+        dailyConsumption,
+        topProducts,
+        dailyActivity,
+        supplierDistribution
+      });
+    } catch (error) {
+      console.error('Error loading chart data:', error);
+    }
+  };
+
+  const generateDailyConsumptionData = async () => {
+    const { data, error } = await supabase
+      .from('inventory_history')
+      .select('operation_date, quantity, net_quantity')
+      .eq('action', 'remove')
+      .gte('operation_date', `${filters.startDate}T00:00:00`)
+      .lte('operation_date', `${filters.endDate}T23:59:59`);
+
+    if (error) throw error;
+
+    const dailyData = new Map<string, { cantitate: number; operatii: number; }>();
+    
+    data?.forEach(item => {
+      const date = item.operation_date.split('T')[0];
+      const quantity = item.net_quantity || item.quantity;
+      
+      if (!dailyData.has(date)) {
+        dailyData.set(date, { cantitate: 0, operatii: 0 });
+      }
+      
+      const dayData = dailyData.get(date)!;
+      dayData.cantitate += quantity;
+      dayData.operatii += 1;
+    });
+
+    return Array.from(dailyData.entries())
+      .map(([date, data]) => ({
+        date: new Date(date).toLocaleDateString('ro-RO', { month: 'short', day: 'numeric' }),
+        cantitate: Math.round(data.cantitate * 100) / 100,
+        operatii: data.operatii
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-14); // Ultimele 14 zile
+  };
+
+  const generateTopProductsData = async () => {
+    const { data, error } = await supabase
+      .from('inventory_history')
+      .select('name, quantity, net_quantity')
+      .eq('action', 'remove')
+      .gte('operation_date', `${filters.startDate}T00:00:00`)
+      .lte('operation_date', `${filters.endDate}T23:59:59`);
+
+    if (error) throw error;
+
+    const productData = new Map<string, { cantitate: number; operatii: number; }>();
+    
+    data?.forEach(item => {
+      const quantity = item.net_quantity || item.quantity;
+      
+      if (!productData.has(item.name)) {
+        productData.set(item.name, { cantitate: 0, operatii: 0 });
+      }
+      
+      const prodData = productData.get(item.name)!;
+      prodData.cantitate += quantity;
+      prodData.operatii += 1;
+    });
+
+    return Array.from(productData.entries())
+      .map(([produs, data]) => ({
+        produs: produs.length > 15 ? produs.substring(0, 15) + '...' : produs,
+        cantitate: Math.round(data.cantitate * 100) / 100,
+        operatii: data.operatii
+      }))
+      .sort((a, b) => b.cantitate - a.cantitate)
+      .slice(0, 8);
+  };
+
+  const generateDailyActivityData = async () => {
+    const { data, error } = await supabase
+      .from('inventory_history')
+      .select('operation_date, action, quantity, net_quantity')
+      .gte('operation_date', `${filters.startDate}T00:00:00`)
+      .lte('operation_date', `${filters.endDate}T23:59:59`);
+
+    if (error) throw error;
+
+    const dailyData = new Map<string, { intrari: number; iesiri: number; }>();
+    
+    data?.forEach(item => {
+      const date = item.operation_date.split('T')[0];
+      const quantity = item.net_quantity || item.quantity;
+      
+      if (!dailyData.has(date)) {
+        dailyData.set(date, { intrari: 0, iesiri: 0 });
+      }
+      
+      const dayData = dailyData.get(date)!;
+      if (item.action === 'add') {
+        dayData.intrari += quantity;
+      } else {
+        dayData.iesiri += quantity;
+      }
+    });
+
+    return Array.from(dailyData.entries())
+      .map(([date, data]) => ({
+        date: new Date(date).toLocaleDateString('ro-RO', { month: 'short', day: 'numeric' }),
+        intrari: Math.round(data.intrari * 100) / 100,
+        iesiri: Math.round(data.iesiri * 100) / 100
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-10);
+  };
+
+  const generateSupplierDistributionData = async () => {
+    const { data, error } = await supabase
+      .from('inventory_history')
+      .select('supplier, quantity, net_quantity')
+      .eq('action', 'remove')
+      .gte('operation_date', `${filters.startDate}T00:00:00`)
+      .lte('operation_date', `${filters.endDate}T23:59:59`);
+
+    if (error) throw error;
+
+    const supplierData = new Map<string, number>();
+    let total = 0;
+    
+    data?.forEach(item => {
+      const supplier = item.supplier || 'Necunoscut';
+      const quantity = item.net_quantity || item.quantity;
+      
+      supplierData.set(supplier, (supplierData.get(supplier) || 0) + quantity);
+      total += quantity;
+    });
+
+    return Array.from(supplierData.entries())
+      .map(([furnizor, cantitate]) => ({
+        furnizor: furnizor.length > 12 ? furnizor.substring(0, 12) + '...' : furnizor,
+        cantitate: Math.round(cantitate * 100) / 100,
+        procent: Math.round((cantitate / total) * 100 * 100) / 100
+      }))
+      .sort((a, b) => b.cantitate - a.cantitate)
+      .slice(0, 6);
+  };
+
+  useEffect(() => {
+    loadChartData();
+  }, [filters.startDate, filters.endDate]);
+
   return (
     <div className="space-y-6">
+      {/* Grafice Interactive */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="animate-fade-in">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-purple-600" />
+              Consum Zilnic (Ultimele 14 zile)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={chartData.dailyConsumption}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="date" 
+                  stroke="#666"
+                  fontSize={12}
+                />
+                <YAxis stroke="#666" fontSize={12} />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                  formatter={(value: any, name: string) => [
+                    `${value} ${name === 'cantitate' ? 'kg' : 'operații'}`,
+                    name === 'cantitate' ? 'Cantitate' : 'Operații'
+                  ]}
+                />
+                <Legend />
+                <Line 
+                  type="monotone" 
+                  dataKey="cantitate" 
+                  stroke="#8b5cf6" 
+                  strokeWidth={3}
+                  dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 4 }}
+                  activeDot={{ r: 6, stroke: '#8b5cf6', strokeWidth: 2 }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="operatii" 
+                  stroke="#06b6d4" 
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={{ fill: '#06b6d4', strokeWidth: 2, r: 3 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="animate-fade-in">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-cyan-600" />
+              Top Produse Consumate
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={chartData.topProducts} layout="horizontal">
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis type="number" stroke="#666" fontSize={12} />
+                <YAxis 
+                  type="category" 
+                  dataKey="produs" 
+                  stroke="#666" 
+                  fontSize={10}
+                  width={100}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                  formatter={(value: any, name: string) => [
+                    `${value} ${name === 'cantitate' ? 'kg' : 'operații'}`,
+                    name === 'cantitate' ? 'Cantitate' : 'Operații'
+                  ]}
+                />
+                <Bar 
+                  dataKey="cantitate" 
+                  fill="#06b6d4"
+                  radius={[0, 4, 4, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="animate-fade-in">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-emerald-600" />
+              Activitate Zilnică (Intrări vs Ieșiri)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={chartData.dailyActivity}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" stroke="#666" fontSize={12} />
+                <YAxis stroke="#666" fontSize={12} />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                  formatter={(value: any, name: string) => [
+                    `${value} kg`,
+                    name === 'intrari' ? 'Intrări' : 'Ieșiri'
+                  ]}
+                />
+                <Legend />
+                <Area 
+                  type="monotone" 
+                  dataKey="intrari" 
+                  stackId="1"
+                  stroke="#10b981" 
+                  fill="#10b981"
+                  fillOpacity={0.6}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="iesiri" 
+                  stackId="2"
+                  stroke="#ef4444" 
+                  fill="#ef4444"
+                  fillOpacity={0.6}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="animate-fade-in">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <PieChart className="h-5 w-5 text-amber-600" />
+              Distribuție pe Furnizori
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <RechartsPieChart>
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                  formatter={(value: any, name: string) => [
+                    `${value} kg (${chartData.supplierDistribution.find(item => item.furnizor === name)?.procent}%)`,
+                    'Cantitate'
+                  ]}
+                />
+                <Pie 
+                  data={chartData.supplierDistribution}
+                  cx="50%" 
+                  cy="50%" 
+                  label={({ furnizor, procent }) => `${furnizor} (${procent}%)`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="cantitate"
+                >
+                  {chartData.supplierDistribution.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={CHART_COLORS[index % CHART_COLORS.length]} 
+                    />
+                  ))}
+                </Pie>
+              </RechartsPieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Rapoarte */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
