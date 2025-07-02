@@ -158,17 +158,42 @@ export const DailyLotConsumption = () => {
         product.total_initial += initialQuantity;
       });
 
-      // Process all movements for the selected date (both remove and add)
+      // Process all movements for the selected date - calculate net consumption
+      const netMovements = new Map<string, number>(); // key: productName_lotNumber, value: net quantity removed
+      
       (movements || []).forEach(movement => {
-        const productKey = `${movement.name}_${movement.products?.cod_produs || ''}`;
+        const lotKey = `${movement.name}_${movement.lot_number || 'Fără lot'}`;
+        const movementQty = movement.net_quantity || movement.quantity;
+        
+        if (movement.action === 'remove') {
+          netMovements.set(lotKey, (netMovements.get(lotKey) || 0) + movementQty);
+        } else if (movement.action === 'add') {
+          // Returns from production - subtract from net consumption
+          netMovements.set(lotKey, (netMovements.get(lotKey) || 0) - movementQty);
+        }
+      });
+
+      // Now process only the net movements (actual consumption)
+      netMovements.forEach((netQuantity, lotKey) => {
+        // Skip if net quantity is 0 or negative (no real consumption)
+        if (netQuantity <= 0) return;
+        
+        // Find the movement to get product details
+        const sampleMovement = movements?.find(m => 
+          `${m.name}_${m.lot_number || 'Fără lot'}` === lotKey && m.action === 'remove'
+        );
+        
+        if (!sampleMovement) return;
+        
+        const productKey = `${sampleMovement.name}_${sampleMovement.products?.cod_produs || ''}`;
         let product = productMap.get(productKey);
         
         // If product doesn't exist, create it
         if (!product) {
           product = {
-            product_name: movement.name,
-            product_code: movement.products?.cod_produs || '',
-            unit: movement.unit,
+            product_name: sampleMovement.name,
+            product_code: sampleMovement.products?.cod_produs || '',
+            unit: sampleMovement.unit,
             total_initial: 0,
             total_outbound: 0,
             total_received: 0,
@@ -178,17 +203,16 @@ export const DailyLotConsumption = () => {
           productMap.set(productKey, product);
         }
         
-        // Use the lot number from the movement, it should always have one
-        const lotNumber = movement.lot_number || 'Fără lot';
+        const lotNumber = sampleMovement.lot_number || 'Fără lot';
         let lot = product.lots.find(l => l.lot_number === lotNumber);
         
         // If lot doesn't exist, create it
         if (!lot) {
           lot = {
-            product_name: movement.name,
-            product_code: movement.products?.cod_produs || '',
+            product_name: sampleMovement.name,
+            product_code: sampleMovement.products?.cod_produs || '',
             lot_number: lotNumber,
-            unit: movement.unit,
+            unit: sampleMovement.unit,
             initial_stock: 0,
             outbound_quantity: 0,
             received_quantity: 0,
@@ -197,24 +221,9 @@ export const DailyLotConsumption = () => {
           product.lots.push(lot);
         }
         
-        const movementQty = movement.net_quantity || movement.quantity;
-        
-        if (movement.action === 'remove') {
-          lot.outbound_quantity += movementQty;
-          product.total_outbound += movementQty;
-        } else if (movement.action === 'add') {
-          // This handles returns from production back to warehouse
-          lot.outbound_quantity -= movementQty; // Reduce the outbound quantity
-          product.total_outbound -= movementQty;
-          
-          // If outbound becomes negative, it means more was returned than taken out
-          if (lot.outbound_quantity < 0) {
-            lot.received_quantity += Math.abs(lot.outbound_quantity);
-            product.total_received += Math.abs(lot.outbound_quantity);
-            lot.outbound_quantity = 0;
-            product.total_outbound = Math.max(0, product.total_outbound);
-          }
-        }
+        // Add only the net consumption
+        lot.outbound_quantity += netQuantity;
+        product.total_outbound += netQuantity;
       });
 
       // Process new receptions
