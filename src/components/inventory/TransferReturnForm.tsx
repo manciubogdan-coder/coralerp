@@ -255,6 +255,9 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         description: `Cantitate de ${netQuantity} ${transfer.unit} returnată și transferul actualizat.`
       });
       
+      // Refresh the page to update all tabs
+      window.location.reload();
+      
       setIsOpen(false);
       if (onReturnComplete) onReturnComplete();
       
