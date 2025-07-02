@@ -211,6 +211,20 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
       }
       
       // 3. Înregistrează în istoric
+      console.log('=== DEBUGGING RETURN HISTORY ===');
+      console.log('Inserting into inventory_history:', {
+        inventory_item_id: updatedId,
+        action: 'add',
+        name: transfer.product_name,
+        quantity: grossQuantity,
+        net_quantity: netQuantity,
+        unit: transfer.unit,
+        operation_date: new Date().toISOString(),
+        document_number: transfer.document_number,
+        lot_number: transfer.lot_number,
+        notes: `Returnat din ${transfer.destination}. ${notes}`.trim()
+      });
+      
       const { error: historyError } = await supabase
         .from('inventory_history')
         .insert({
@@ -229,7 +243,12 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
           notes: `Returnat din ${transfer.destination}. ${notes}`.trim()
         });
         
-      if (historyError) throw historyError;
+      if (historyError) {
+        console.error('History error:', historyError);
+        throw historyError;
+      }
+      
+      console.log('Successfully inserted into inventory_history');
       
       toast({
         title: "Succes",
