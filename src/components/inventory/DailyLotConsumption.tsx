@@ -42,20 +42,6 @@ export const DailyLotConsumption = () => {
     try {
       setLoading(true);
       
-      // Get all current inventory to understand what products/lots exist
-      const { data: currentInventory, error: currentError } = await supabase
-        .from("inventory")
-        .select(`
-          name,
-          lot_number,
-          quantity,
-          net_quantity,
-          unit,
-          products:product_id (name, cod_produs)
-        `);
-
-      if (currentError) throw currentError;
-
       // Get snapshot data for the beginning of the day
       const { data: initialStock, error: initialError } = await supabase
         .from("daily_stock_snapshots")
@@ -70,6 +56,30 @@ export const DailyLotConsumption = () => {
         .eq('snapshot_date', selectedDate);
 
       if (initialError) throw initialError;
+
+      // If no snapshot exists for the selected date, try the previous day's snapshot
+      let finalInitialStock = initialStock;
+      if (!initialStock || initialStock.length === 0) {
+        const previousDay = new Date(selectedDate);
+        previousDay.setDate(previousDay.getDate() - 1);
+        const previousDateStr = previousDay.toISOString().split('T')[0];
+        
+        const { data: previousStock, error: previousError } = await supabase
+          .from("daily_stock_snapshots")
+          .select(`
+            name,
+            lot_number,
+            quantity,
+            net_quantity,
+            unit,
+            products:product_id (name, cod_produs)
+          `)
+          .eq('snapshot_date', previousDateStr);
+
+        if (!previousError && previousStock) {
+          finalInitialStock = previousStock;
+        }
+      }
 
       // Get all inventory movements for the selected date
       const { data: movements, error: movementsError } = await supabase
@@ -109,31 +119,10 @@ export const DailyLotConsumption = () => {
       // Process data to create consumption report
       const productMap = new Map<string, ProductSummary>();
 
-      // First, process all products that exist or had activity
-      const allProductNames = new Set();
-      
-      // Add products from current inventory
-      (currentInventory || []).forEach(item => {
-        allProductNames.add(`${item.name}_${item.products?.cod_produs || ''}`);
-      });
-      
-      // Add products from initial stock
-      (initialStock || []).forEach(item => {
-        allProductNames.add(`${item.name}_${item.products?.cod_produs || ''}`);
-      });
-      
-      // Add products from movements
-      (movements || []).forEach(item => {
-        allProductNames.add(`${item.name}_${item.products?.cod_produs || ''}`);
-      });
-      
-      // Add products from receptions
-      (receptions || []).forEach(item => {
-        allProductNames.add(`${item.name}_${item.products?.cod_produs || ''}`);
-      });
+      // Process data to identify all products with activity
 
-      // Process initial stock
-      (initialStock || []).forEach(item => {
+      // Process initial stock from snapshots
+      (finalInitialStock || []).forEach(item => {
         const productKey = `${item.name}_${item.products?.cod_produs || ''}`;
         
         if (!productMap.has(productKey)) {
@@ -165,43 +154,6 @@ export const DailyLotConsumption = () => {
 
         product.lots.push(lotItem);
         product.total_initial += initialQuantity;
-      });
-
-      // Add products that exist currently but had no initial stock (were received today)
-      (currentInventory || []).forEach(item => {
-        const productKey = `${item.name}_${item.products?.cod_produs || ''}`;
-        
-        if (!productMap.has(productKey)) {
-          productMap.set(productKey, {
-            product_name: item.name,
-            product_code: item.products?.cod_produs || '',
-            unit: item.unit,
-            total_initial: 0,
-            total_outbound: 0,
-            total_received: 0,
-            total_final: 0,
-            lots: []
-          });
-        }
-
-        const product = productMap.get(productKey)!;
-        const lotNumber = item.lot_number || 'Fără lot';
-        
-        // Check if this lot already exists
-        let lot = product.lots.find(l => l.lot_number === lotNumber);
-        if (!lot) {
-          lot = {
-            product_name: item.name,
-            product_code: item.products?.cod_produs || '',
-            lot_number: lotNumber,
-            unit: item.unit,
-            initial_stock: 0,
-            outbound_quantity: 0,
-            received_quantity: 0,
-            final_stock: 0
-          };
-          product.lots.push(lot);
-        }
       });
 
       // Process outbound movements (only for the selected date)
@@ -413,35 +365,33 @@ export const DailyLotConsumption = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {consumptionData.map((product, productIndex) => (
-                <React.Fragment key={`${product.product_name}-${product.product_code}`}>
-                  {/* Product summary row */}
-                  <TableRow className="bg-muted font-semibold">
-                    <TableCell className="font-bold">{product.product_name}</TableCell>
-                    <TableCell className="font-bold">{product.product_code}</TableCell>
-                    <TableCell className="font-bold">TOTAL PRODUS</TableCell>
-                    <TableCell>{product.unit}</TableCell>
-                    <TableCell className="text-right">{product.total_initial.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{product.total_outbound.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{product.total_received.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{product.total_final.toFixed(2)}</TableCell>
+              {consumptionData.map((product, productIndex) => [
+                // Product summary row
+                <TableRow key={`${product.product_name}-${product.product_code}-summary`} className="bg-muted font-semibold">
+                  <TableCell className="font-bold">{product.product_name}</TableCell>
+                  <TableCell className="font-bold">{product.product_code}</TableCell>
+                  <TableCell className="font-bold">TOTAL PRODUS</TableCell>
+                  <TableCell>{product.unit}</TableCell>
+                  <TableCell className="text-right">{product.total_initial.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{product.total_outbound.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{product.total_received.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{product.total_final.toFixed(2)}</TableCell>
+                </TableRow>,
+                
+                // Lot detail rows
+                ...product.lots.map((lot, lotIndex) => (
+                  <TableRow key={`${product.product_name}-${lot.lot_number}-${lotIndex}`}>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                    <TableCell className="pl-8">{lot.lot_number}</TableCell>
+                    <TableCell>{lot.unit}</TableCell>
+                    <TableCell className="text-right">{lot.initial_stock.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{lot.outbound_quantity.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{lot.received_quantity.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{lot.final_stock.toFixed(2)}</TableCell>
                   </TableRow>
-                  
-                  {/* Lot detail rows */}
-                  {product.lots.map((lot, lotIndex) => (
-                    <TableRow key={`${product.product_name}-${lot.lot_number}-${lotIndex}`}>
-                      <TableCell></TableCell>
-                      <TableCell></TableCell>
-                      <TableCell className="pl-8">{lot.lot_number}</TableCell>
-                      <TableCell>{lot.unit}</TableCell>
-                      <TableCell className="text-right">{lot.initial_stock.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">{lot.outbound_quantity.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">{lot.received_quantity.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">{lot.final_stock.toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
-                </React.Fragment>
-              ))}
+                ))
+              ]).flat()}
             </TableBody>
           </Table>
         </div>
