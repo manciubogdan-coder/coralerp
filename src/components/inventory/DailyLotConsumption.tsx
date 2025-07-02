@@ -93,6 +93,7 @@ export const DailyLotConsumption = () => {
           unit,
           action,
           operation_date,
+          notes,
           products:product_id (name, cod_produs)
         `)
         .gte('operation_date', `${selectedDate}T00:00:00`)
@@ -158,7 +159,8 @@ export const DailyLotConsumption = () => {
       });
 
       // Process all movements for the selected date - calculate net consumption
-      const netMovements = new Map<string, number>(); // key: productName_lotNumber, value: net quantity removed
+      const outboundMovements = new Map<string, number>(); // key: productName_lotNumber, value: total outbound
+      const returnMovements = new Map<string, number>(); // key: productName_lotNumber, value: total returns
       
       console.log('=== DEBUGGING DAILY CONSUMPTION ===');
       console.log('Selected date:', selectedDate);
@@ -173,30 +175,30 @@ export const DailyLotConsumption = () => {
           product: movement.name,
           lot: movement.lot_number,
           quantity: movementQty,
-          date: movement.operation_date
+          date: movement.operation_date,
+          notes: movement.notes
         });
         
         if (movement.action === 'remove') {
-          netMovements.set(lotKey, (netMovements.get(lotKey) || 0) + movementQty);
-          console.log(`REMOVE: ${lotKey} +${movementQty} = ${netMovements.get(lotKey)}`);
+          outboundMovements.set(lotKey, (outboundMovements.get(lotKey) || 0) + movementQty);
+          console.log(`REMOVE: ${lotKey} +${movementQty} = ${outboundMovements.get(lotKey)}`);
         } else if (movement.action === 'add') {
-          // Returns from production - subtract from net consumption
-          netMovements.set(lotKey, (netMovements.get(lotKey) || 0) - movementQty);
-          console.log(`ADD (return): ${lotKey} -${movementQty} = ${netMovements.get(lotKey)}`);
+          // Check if this is a return (has "Returnat" in notes)
+          if (movement.notes && movement.notes.includes('Returnat')) {
+            returnMovements.set(lotKey, (returnMovements.get(lotKey) || 0) + movementQty);
+            console.log(`RETURN: ${lotKey} +${movementQty} = ${returnMovements.get(lotKey)}`);
+          }
         }
       });
 
-      console.log('Final net movements:', Object.fromEntries(netMovements));
+      console.log('Final outbound movements:', Object.fromEntries(outboundMovements));
+      console.log('Final return movements:', Object.fromEntries(returnMovements));
 
-      // Now process only the net movements (actual consumption)
-      netMovements.forEach((netQuantity, lotKey) => {
-        console.log(`Processing lot ${lotKey} with net quantity: ${netQuantity}`);
+      // Process outbound movements (remove actions)
+      outboundMovements.forEach((quantity, lotKey) => {
+        if (quantity <= 0) return;
         
-        // Skip if net quantity is 0 or negative (no real consumption)
-        if (netQuantity <= 0) {
-          console.log(`Skipping ${lotKey} - no net consumption (${netQuantity})`);
-          return;
-        }
+        console.log(`Processing outbound lot ${lotKey} with quantity: ${quantity}`);
         
         // Find the movement to get product details
         const sampleMovement = movements?.find(m => 
@@ -241,9 +243,37 @@ export const DailyLotConsumption = () => {
           product.lots.push(lot);
         }
         
-        // Add only the net consumption
-        lot.outbound_quantity += netQuantity;
-        product.total_outbound += netQuantity;
+        lot.outbound_quantity += quantity;
+        product.total_outbound += quantity;
+      });
+
+      // Process return movements (add actions with "Returnat" in notes) - these reduce outbound
+      returnMovements.forEach((quantity, lotKey) => {
+        if (quantity <= 0) return;
+        
+        console.log(`Processing return lot ${lotKey} with quantity: ${quantity}`);
+        
+        // Find the movement to get product details
+        const sampleMovement = movements?.find(m => 
+          `${m.name}_${m.lot_number || 'Fără lot'}` === lotKey && m.action === 'add' && m.notes?.includes('Returnat')
+        );
+        
+        if (!sampleMovement) return;
+        
+        const productKey = `${sampleMovement.name}_${sampleMovement.products?.cod_produs || ''}`;
+        let product = productMap.get(productKey);
+        
+        if (product) {
+          const lotNumber = sampleMovement.lot_number || 'Fără lot';
+          let lot = product.lots.find(l => l.lot_number === lotNumber);
+          
+          if (lot) {
+            // Reduce outbound quantity by return amount
+            lot.outbound_quantity = Math.max(0, lot.outbound_quantity - quantity);
+            product.total_outbound = Math.max(0, product.total_outbound - quantity);
+            console.log(`Reduced outbound for ${lotKey} by ${quantity}, new outbound: ${lot.outbound_quantity}`);
+          }
+        }
       });
 
       // Process new receptions
