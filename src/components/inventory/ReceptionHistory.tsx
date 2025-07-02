@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -7,6 +6,7 @@ import { Calendar, FileSpreadsheet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
+import { useGroupedReceptions } from "@/hooks/use-grouped-receptions";
 
 interface ReceptionItem {
   id: string;
@@ -26,11 +26,16 @@ interface ReceptionItem {
   crate_count: number;
 }
 
+type GroupingMode = 'none' | 'product' | 'article' | 'lot';
+
 export const ReceptionHistory = () => {
   const [receptions, setReceptions] = useState<ReceptionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [groupBy, setGroupBy] = useState<GroupingMode>('none');
+
+  const groupedData = useGroupedReceptions(receptions, groupBy);
 
   const fetchReceptions = async () => {
     try {
@@ -149,6 +154,33 @@ export const ReceptionHistory = () => {
         </Button>
       </div>
 
+      <div className="mb-4 flex gap-2 flex-wrap">
+        <Button
+          variant={groupBy === 'none' ? 'default' : 'outline'}
+          onClick={() => setGroupBy('none')}
+        >
+          Fără grupare
+        </Button>
+        <Button
+          variant={groupBy === 'product' ? 'default' : 'outline'}
+          onClick={() => setGroupBy('product')}
+        >
+          Grupare după produs
+        </Button>
+        <Button
+          variant={groupBy === 'article' ? 'default' : 'outline'}
+          onClick={() => setGroupBy('article')}
+        >
+          Grupare după articol
+        </Button>
+        <Button
+          variant={groupBy === 'lot' ? 'default' : 'outline'}
+          onClick={() => setGroupBy('lot')}
+        >
+          Grupare după lot
+        </Button>
+      </div>
+
       <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
@@ -166,25 +198,30 @@ export const ReceptionHistory = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {receptions.length > 0 ? (
-              receptions.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium">{item.entry_number}</TableCell>
-                  <TableCell>
-                    {item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-'}
-                  </TableCell>
-                  <TableCell className="font-medium">{item.name}</TableCell>
-                  <TableCell>{item.products?.cod_produs || '-'}</TableCell>
-                  <TableCell>{item.lot_number || '-'}</TableCell>
-                  <TableCell className="text-right">
-                    {(item.net_quantity || item.quantity).toFixed(2)}
-                  </TableCell>
-                  <TableCell>{item.unit}</TableCell>
-                  <TableCell>{item.document_number || '-'}</TableCell>
-                  <TableCell>{item.suppliers?.name || '-'}</TableCell>
-                  <TableCell>{item.manufacturers?.name || '-'}</TableCell>
-                </TableRow>
-              ))
+            {groupedData.length > 0 ? (
+              groupedData.map((item) => {
+                const isGroupHeader = 'isGroupHeader' in item && item.isGroupHeader;
+                return (
+                  <TableRow key={item.id} className={isGroupHeader ? "bg-muted font-semibold" : ""}>
+                    <TableCell className="font-medium">
+                      {isGroupHeader ? '' : item.entry_number}
+                    </TableCell>
+                    <TableCell>
+                      {isGroupHeader ? '' : (item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-')}
+                    </TableCell>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell>{isGroupHeader ? '' : (item.products?.cod_produs || '-')}</TableCell>
+                    <TableCell>{isGroupHeader ? '' : (item.lot_number || '-')}</TableCell>
+                    <TableCell className="text-right">
+                      {isGroupHeader ? '' : (item.net_quantity || item.quantity).toFixed(2)}
+                    </TableCell>
+                    <TableCell>{isGroupHeader ? '' : item.unit}</TableCell>
+                    <TableCell>{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
+                    <TableCell>{isGroupHeader ? '' : (item.suppliers?.name || '-')}</TableCell>
+                    <TableCell>{isGroupHeader ? '' : (item.manufacturers?.name || '-')}</TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={10} className="text-center py-6 text-gray-500">
