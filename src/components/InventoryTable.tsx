@@ -1,19 +1,22 @@
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Search, Filter, Eye, EyeOff } from "lucide-react";
 import { InventoryItem, Supplier, Product, Manufacturer, CrateType } from "@/types";
-import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { exportToExcel } from "@/lib/excelExport";
+import { toast } from "@/hooks/use-custom-toast";
 
 interface InventoryTableProps {
   inventory: InventoryItem[];
+  showExportButton?: boolean;
 }
 
-const InventoryTable = ({ inventory }: InventoryTableProps) => {
+const InventoryTable = ({ inventory, showExportButton = false }: InventoryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [groupBySupplier, setGroupBySupplier] = useState(false);
   const [groupByProduct, setGroupByProduct] = useState(false);
@@ -23,6 +26,19 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
   const [manufacturers, setManufacturers] = useState<Record<string, Manufacturer>>({});
   const [crateTypes, setCrateTypes] = useState<Record<string, CrateType>>({});
   const isMobile = useIsMobile();
+  
+  const handleExportExcel = () => {
+    const dataForExport = inventory.map(item => ({
+      ...item,
+      receipt_date: item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : ''
+    }));
+    
+    exportToExcel(dataForExport);
+    toast({
+      title: "Export realizat",
+      description: "Fișierul Excel a fost generat și descărcat."
+    });
+  };
   
   console.log("InventoryTable initialized with", inventory.length, "items");
   
@@ -173,6 +189,16 @@ const InventoryTable = ({ inventory }: InventoryTableProps) => {
             {showEmptyItems ? <EyeOff className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" /> : <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />}
             {showEmptyItems ? "Ascunde fără stoc" : "Arată fără stoc"}
           </Button>
+          {showExportButton && (
+            <Button 
+              variant="outline" 
+              size={isMobile ? "sm" : "default"} 
+              onClick={handleExportExcel}
+              className="text-xs md:text-sm w-full md:w-auto"
+            >
+              Export Excel
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 

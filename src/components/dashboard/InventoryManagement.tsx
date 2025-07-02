@@ -45,7 +45,6 @@ const InventoryManagement = () => {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Stoc Depozit</h2>
         <InventoryToolbar
-          inventory={inventory}
           onTransferComplete={handleAnyDataChange}
           products={products}
           suppliers={suppliers}
@@ -75,7 +74,7 @@ const InventoryManagement = () => {
             setGroupBy={setGroupBy}
           />
           <div className="bg-white rounded-lg shadow-md">
-            <InventoryTable inventory={aggregatedData} />
+            <InventoryTable inventory={aggregatedData} showExportButton={true} />
           </div>
         </TabsContent>
         
