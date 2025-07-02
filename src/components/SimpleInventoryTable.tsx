@@ -25,7 +25,7 @@ const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
         unit: item.unit
       };
     }
-    acc[key].quantity += item.quantity;
+    acc[key].quantity += (item.net_quantity || item.quantity);
     return acc;
   }, {} as Record<string, { name: string; cod_produs: string; quantity: number; unit: string }>);
 
