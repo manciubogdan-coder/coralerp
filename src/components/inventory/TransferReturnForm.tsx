@@ -140,18 +140,27 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         
         console.log("Transfer item complet returnat și șters din istoric");
       } else {
-        // Actualizează cantitatea în stock_transfer_items
+        // Calculează noua cantitate netă proporțional
+        const originalNetQuantity = transfer.net_quantity || transfer.quantity;
+        const reductionRatio = netQuantity / originalNetQuantity;
+        const newNetQuantity = originalNetQuantity - netQuantity;
+        
+        // Actualizează ambele cantități în stock_transfer_items
         const { error: updateError } = await supabase
           .from('stock_transfer_items')
           .update({ 
-            quantity: newTransferQuantity
+            quantity: newTransferQuantity,
+            net_quantity: newNetQuantity
           })
           .eq('transfer_id', transfer.transfer_id)
           .eq('inventory_item_id', transfer.inventory_item_id);
           
         if (updateError) throw updateError;
         
-        console.log("Transfer item actualizat cu cantitatea rămasă:", newTransferQuantity);
+        console.log("Transfer item actualizat cu cantitățile rămase:", {
+          quantity: newTransferQuantity,
+          net_quantity: newNetQuantity
+        });
       }
       
       // 2. Actualizează notele în stock_transfers
