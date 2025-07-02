@@ -35,8 +35,10 @@ export const DailyLotConsumption = () => {
   const [loading, setLoading] = useState(true);
   const [productFilter, setProductFilter] = useState("");
   const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
+    // Setez implicit data de ieri pentru că azi nu există încă mișcări
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return yesterday.toISOString().split('T')[0];
   });
 
   const fetchConsumptionData = async () => {
