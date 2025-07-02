@@ -108,7 +108,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
       return;
     }
 
-    if (grossQuantity > transfer.quantity) {
+    if (netQuantity > transfer.quantity) {
       toast({
         variant: "destructive",
         title: "Eroare",

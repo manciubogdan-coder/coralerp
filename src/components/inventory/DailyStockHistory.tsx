@@ -31,7 +31,6 @@ export const DailyStockHistory = () => {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
-    today.setDate(today.getDate() - 1); // Yesterday by default
     return today.toISOString().split('T')[0];
   });
 
