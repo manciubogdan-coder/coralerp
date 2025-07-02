@@ -225,13 +225,14 @@ export const DailyLotConsumption = () => {
         const lotKey = reception.lot_number || 'Fără lot';
         let lot = product.lots.find(l => l.lot_number === lotKey);
         
+        // Pentru recepțiile noi, stocul inițial al lotului trebuie să fie 0
         if (!lot) {
           lot = {
             product_name: reception.name,
             product_code: reception.products?.cod_produs || '',
             lot_number: lotKey,
             unit: reception.unit,
-            initial_stock: 0,
+            initial_stock: 0, // Loturile noi încep cu stoc inițial 0
             outbound_quantity: 0,
             received_quantity: 0,
             final_stock: 0
@@ -241,7 +242,7 @@ export const DailyLotConsumption = () => {
 
         const receivedQty = reception.net_quantity || reception.quantity;
         lot.received_quantity += receivedQty;
-        lot.final_stock += receivedQty;
+        lot.final_stock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
         product.total_received += receivedQty;
       });
 
