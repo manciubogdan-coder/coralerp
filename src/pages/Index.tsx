@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,10 @@ const Index = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from("inventory")
-        .select("*")
+        .select(`
+          *,
+          products:product_id (name, cod_produs)
+        `)
         .order("name");
 
       if (error) {
@@ -59,7 +63,8 @@ const Index = () => {
   };
 
   const filteredInventory = inventory.filter((item) =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase())
+    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.products?.cod_produs && item.products.cod_produs.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const handleRefresh = () => {
@@ -94,6 +99,7 @@ const Index = () => {
 
   const handleExportExcelClick = () => {
     const processedData = filteredInventory.map(item => ({
+      'Cod Produs': item.products?.cod_produs || '-',
       Nume: item.name,
       Cantitate: item.quantity,
       Unitate: item.unit,
@@ -164,6 +170,7 @@ const Index = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b">
+                  <th className="p-3 text-left">Cod Produs</th>
                   <th className="p-3 text-left">Nume</th>
                   <th className="p-3 text-left">Cantitate</th>
                   <th className="p-3 text-left">Unitate</th>
@@ -173,6 +180,7 @@ const Index = () => {
               <tbody>
                 {filteredInventory.map((item) => (
                   <tr key={item.id} className="border-b last:border-0">
+                    <td className="p-3">{item.products?.cod_produs || "-"}</td>
                     <td className="p-3">{item.name}</td>
                     <td className="p-3">{item.quantity}</td>
                     <td className="p-3">{item.unit}</td>

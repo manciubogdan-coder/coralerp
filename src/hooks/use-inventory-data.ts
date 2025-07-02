@@ -20,7 +20,7 @@ export const useInventoryData = () => {
         .select(`
           *,
           suppliers:supplier_id (name),
-          products:product_id (name),
+          products:product_id (name, cod_produs),
           manufacturers:manufacturer_id (name),
           crate_types:crate_type_id (name, weight)
         `)

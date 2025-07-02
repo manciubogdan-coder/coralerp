@@ -41,7 +41,7 @@ export interface InventoryItem {
   };
   // For join queries
   suppliers?: { name: string };
-  products?: { name: string };
+  products?: { name: string; cod_produs?: string };
   manufacturers?: { name: string };
   crate_types?: { name: string; weight: number };
 }
@@ -63,6 +63,7 @@ export interface Product {
   description?: string;
   category?: string;
   default_unit: string;
+  cod_produs?: string;
   created_at?: string;
   updated_at?: string;
 }

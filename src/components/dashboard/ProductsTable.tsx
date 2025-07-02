@@ -20,7 +20,7 @@ const ProductsTable = () => {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
-  const [newItem, setNewItem] = useState<Partial<Product>>({ name: "", default_unit: "kg", description: "" });
+  const [newItem, setNewItem] = useState<Partial<Product>>({ name: "", default_unit: "kg", description: "", cod_produs: "" });
   const [editItem, setEditItem] = useState<Product | null>(null);
 
   useEffect(() => {
@@ -53,7 +53,7 @@ const ProductsTable = () => {
 
   const handleAddNew = () => {
     setIsAddingNew(true);
-    setNewItem({ name: "", default_unit: "kg", description: "" });
+    setNewItem({ name: "", default_unit: "kg", description: "", cod_produs: "" });
   };
 
   const handleCancelAdd = () => {
@@ -88,6 +88,7 @@ const ProductsTable = () => {
             name: newItem.name,
             default_unit: newItem.default_unit || "kg",
             description: newItem.description || null,
+            cod_produs: newItem.cod_produs || null,
           },
         ])
         .select();
@@ -132,6 +133,7 @@ const ProductsTable = () => {
           name: editItem.name,
           default_unit: editItem.default_unit,
           description: editItem.description,
+          cod_produs: editItem.cod_produs,
         })
         .eq("id", editItem.id);
 
@@ -195,6 +197,7 @@ const ProductsTable = () => {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Cod Produs</TableHead>
             <TableHead>Nume</TableHead>
             <TableHead>Unitate de măsură</TableHead>
             <TableHead>Descriere</TableHead>
@@ -204,6 +207,13 @@ const ProductsTable = () => {
         <TableBody>
           {isAddingNew && (
             <TableRow>
+              <TableCell>
+                <Input
+                  value={newItem.cod_produs || ""}
+                  onChange={(e) => setNewItem({ ...newItem, cod_produs: e.target.value })}
+                  placeholder="Cod produs"
+                />
+              </TableCell>
               <TableCell>
                 <Input
                   value={newItem.name}
@@ -240,6 +250,16 @@ const ProductsTable = () => {
 
           {products.map((product) => (
             <TableRow key={product.id}>
+              <TableCell>
+                {editingId === product.id ? (
+                  <Input
+                    value={editItem?.cod_produs || ""}
+                    onChange={(e) => setEditItem({ ...editItem!, cod_produs: e.target.value })}
+                  />
+                ) : (
+                  product.cod_produs || "-"
+                )}
+              </TableCell>
               <TableCell>
                 {editingId === product.id ? (
                   <Input
@@ -301,7 +321,7 @@ const ProductsTable = () => {
 
           {products.length === 0 && !isAddingNew && !loading && (
             <TableRow>
-              <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                 Nu există produse. Adăugați unul nou folosind butonul de mai sus.
               </TableCell>
             </TableRow>
@@ -309,7 +329,7 @@ const ProductsTable = () => {
 
           {loading && (
             <TableRow>
-              <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                 Se încarcă produsele...
               </TableCell>
             </TableRow>

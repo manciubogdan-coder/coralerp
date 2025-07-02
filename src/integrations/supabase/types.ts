@@ -1886,6 +1886,7 @@ export type Database = {
       }
       products: {
         Row: {
+          cod_produs: string | null
           created_at: string
           default_unit: string
           description: string | null
@@ -1894,6 +1895,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cod_produs?: string | null
           created_at?: string
           default_unit?: string
           description?: string | null
@@ -1902,6 +1904,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cod_produs?: string | null
           created_at?: string
           default_unit?: string
           description?: string | null
