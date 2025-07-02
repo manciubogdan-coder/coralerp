@@ -120,33 +120,49 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
     try {
       setIsSubmitting(true);
       
-      // 1. Actualizează transferul original cu noua cantitate rămasă
+      // 1. Actualizează cantitatea din stock_transfer_items
       const newTransferQuantity = transfer.quantity - netQuantity;
-      const newTransferNetQuantity = (transfer.net_quantity || transfer.quantity) - netQuantity;
+      
+      console.log('=== DEBUGGING TRANSFER UPDATE ===');
+      console.log('Original quantity:', transfer.quantity);
+      console.log('Returned net quantity:', netQuantity);
+      console.log('New transfer quantity:', newTransferQuantity);
       
       if (newTransferQuantity <= 0) {
-        // Dacă s-a returnat tot, șterge transferul
+        // Dacă s-a returnat tot, șterge item-ul din transfer
         const { error: deleteError } = await supabase
-          .from('stock_transfers')
+          .from('stock_transfer_items')
           .delete()
-          .eq('id', transfer.transfer_id);
+          .eq('transfer_id', transfer.transfer_id)
+          .eq('inventory_item_id', transfer.inventory_item_id);
           
         if (deleteError) throw deleteError;
         
-        console.log("Transfer complet returnat și șters din istoric");
+        console.log("Transfer item complet returnat și șters din istoric");
       } else {
-        // Actualizează transferul cu cantitatea rămasă
+        // Actualizează cantitatea în stock_transfer_items
         const { error: updateError } = await supabase
-          .from('stock_transfers')
+          .from('stock_transfer_items')
           .update({ 
-            notes: `${transfer.notes || ''} [Actualizat după returnare parțială]`.trim()
+            quantity: newTransferQuantity
           })
-          .eq('id', transfer.transfer_id);
+          .eq('transfer_id', transfer.transfer_id)
+          .eq('inventory_item_id', transfer.inventory_item_id);
           
         if (updateError) throw updateError;
         
-        console.log("Transfer actualizat cu cantitatea rămasă:", newTransferQuantity);
+        console.log("Transfer item actualizat cu cantitatea rămasă:", newTransferQuantity);
       }
+      
+      // 2. Actualizează notele în stock_transfers
+      const { error: notesError } = await supabase
+        .from('stock_transfers')
+        .update({ 
+          notes: `${transfer.notes || ''} [Actualizat după returnare parțială]`.trim()
+        })
+        .eq('id', transfer.transfer_id);
+        
+      if (notesError) throw notesError;
       
       // 2. Adaugă cantitatea returnată în stoc
       const { data: originalItem, error: fetchError } = await supabase
