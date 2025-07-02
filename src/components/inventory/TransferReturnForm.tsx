@@ -222,6 +222,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
           unit: transfer.unit,
           operation_date: new Date().toISOString(),
           document_number: transfer.document_number,
+          lot_number: transfer.lot_number,
           crate_count: crateCount,
           crate_type_id: selectedCrateTypeId || null,
           crate_weight: crateWeight || null,
