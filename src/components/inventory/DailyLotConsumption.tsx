@@ -381,10 +381,13 @@ export const DailyLotConsumption = () => {
       // Calculate quantities for each lot
       productMap.forEach(product => {
         product.lots.forEach(lot => {
-          // Ieșirile pentru acest lot
+          // Ieșirile pentru acest lot (din outboundMovements)
           const lotMovementKey = `${product.product_name}_${lot.lot_number}`;
-          const outboundFromThisLot = outboundMovements.get(lotMovementKey) || 0;
-          lot.outbound_quantity = outboundFromThisLot;
+          const rawOutbound = outboundMovements.get(lotMovementKey) || 0;
+          const returns = returnMovements.get(lotMovementKey) || 0;
+          
+          // Ieșirile nete = ieșirile brute - retururile
+          lot.outbound_quantity = Math.max(0, rawOutbound - returns);
           
           // Recepțiile noi pentru acest lot (doar din ziua selectată)
           const newReceiptsForThisLot = newReceiptMovements.get(lotMovementKey) || 0;
@@ -393,7 +396,9 @@ export const DailyLotConsumption = () => {
           console.log(`Final calculation for lot ${lot.lot_number}:`);
           console.log(`- Initial stock: ${lot.initial_stock}`);
           console.log(`- Final stock (current): ${lot.final_stock}`);
-          console.log(`- Outbound: ${outboundFromThisLot}`);
+          console.log(`- Raw outbound: ${rawOutbound}`);
+          console.log(`- Returns: ${returns}`);
+          console.log(`- Net outbound (after returns): ${lot.outbound_quantity}`);
           console.log(`- New receipts: ${newReceiptsForThisLot}`);
         });
       });
