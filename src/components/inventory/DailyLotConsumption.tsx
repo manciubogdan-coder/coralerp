@@ -103,22 +103,27 @@ export const DailyLotConsumption = () => {
 
       if (movementsError) throw movementsError;
 
-      // Get new receptions for the selected date
-      const { data: receptions, error: receptionsError } = await supabase
-        .from("inventory")
-        .select(`
-          name,
-          lot_number,
-          quantity,
-          net_quantity,
-          unit,
-          receipt_date,
-          products:product_id (name, cod_produs)
-        `)
-        .gte('receipt_date', `${selectedDate}T00:00:00`)
-        .lte('receipt_date', `${selectedDate}T23:59:59`);
+      // Get current inventory for products that had movements on the selected date
+      // This gives us the CURRENT stock, not the stock at beginning of day
+      const productsWithMovements = [...new Set((movements || []).map(m => m.name))];
+      
+      let receptions: any[] = [];
+      if (productsWithMovements.length > 0) {
+        const { data: currentInventory, error: receptionsError } = await supabase
+          .from("inventory")
+          .select(`
+            name,
+            lot_number,
+            quantity,
+            net_quantity,
+            unit,
+            products:product_id (name, cod_produs)
+          `)
+          .in('name', productsWithMovements);
 
-      if (receptionsError) throw receptionsError;
+        if (receptionsError) throw receptionsError;
+        receptions = currentInventory || [];
+      }
 
       // Process data to create consumption report
       const productMap = new Map<string, ProductSummary>();
@@ -325,20 +330,16 @@ export const DailyLotConsumption = () => {
         console.log(`- Outbound from lot: ${outboundFromThisLot}`);
         console.log(`- Calculated received: ${receivedQty}`);
         
+        // Setez cantitatea recepționată reală și stocul final la stocul curent
         lot.received_quantity = receivedQty;
-        lot.final_stock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
+        lot.final_stock = currentStock; // Stocul final = stocul curent din inventory
         product.total_received += receivedQty;
       });
 
-      // Calculate final stock for all lots and product totals
+      // Calculate product totals - already calculated correctly in the processing above
       productMap.forEach(product => {
-        // Calculate final stock for each lot
-        product.lots.forEach(lot => {
-          lot.final_stock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
-        });
-        
-        // Calculate product totals
-        product.total_final = product.total_initial + product.total_received - product.total_outbound;
+        // Recalculez totalul final pe baza stocului curent real
+        product.total_final = product.lots.reduce((sum, lot) => sum + lot.final_stock, 0);
       });
 
       const results = Array.from(productMap.values());
