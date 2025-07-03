@@ -103,13 +103,33 @@ export const DailyLotConsumption = () => {
 
       if (movementsError) throw movementsError;
 
+      // Get entries added on the selected date (new receipts)
+      const { data: newReceipts, error: newReceiptsError } = await supabase
+        .from("inventory_history")
+        .select(`
+          name,
+          lot_number,
+          quantity,
+          net_quantity,
+          unit,
+          action,
+          operation_date,
+          notes,
+          products:product_id (name, cod_produs)
+        `)
+        .eq('action', 'add')
+        .gte('operation_date', `${selectedDate}T00:00:00`)
+        .lte('operation_date', `${selectedDate}T23:59:59`)
+        .is('notes', null); // Exclude returns (they have "Returnat" in notes)
+
+      if (newReceiptsError) throw newReceiptsError;
+
       // Get current inventory for products that had movements on the selected date
-      // This gives us the CURRENT stock, not the stock at beginning of day
       const productsWithMovements = [...new Set((movements || []).map(m => m.name))];
       
-      let receptions: any[] = [];
+      let currentInventory: any[] = [];
       if (productsWithMovements.length > 0) {
-        const { data: currentInventory, error: receptionsError } = await supabase
+        const { data: inventory, error: inventoryError } = await supabase
           .from("inventory")
           .select(`
             name,
@@ -121,8 +141,8 @@ export const DailyLotConsumption = () => {
           `)
           .in('name', productsWithMovements);
 
-        if (receptionsError) throw receptionsError;
-        receptions = currentInventory || [];
+        if (inventoryError) throw inventoryError;
+        currentInventory = inventory || [];
       }
 
       // Process data to create consumption report
@@ -283,16 +303,27 @@ export const DailyLotConsumption = () => {
         }
       });
 
+      // Process new receipts from selected date
+      const newReceiptMovements = new Map<string, number>(); // key: productName_lotNumber, value: total new receipts
+      
+      (newReceipts || []).forEach(receipt => {
+        const lotKey = `${receipt.name}_${receipt.lot_number || 'Fără lot'}`;
+        const receiptQty = receipt.net_quantity || receipt.quantity;
+        newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
+        
+        console.log(`NEW RECEIPT: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
+      });
+
       // Process current inventory for products that had activity
-      (receptions || []).forEach(reception => {
-        const productKey = `${reception.name}_${reception.products?.cod_produs || ''}`;
+      (currentInventory || []).forEach(inventory => {
+        const productKey = `${inventory.name}_${inventory.products?.cod_produs || ''}`;
         let product = productMap.get(productKey);
         
         if (!product) {
           product = {
-            product_name: reception.name,
-            product_code: reception.products?.cod_produs || '',
-            unit: reception.unit,
+            product_name: inventory.name,
+            product_code: inventory.products?.cod_produs || '',
+            unit: inventory.unit,
             total_initial: 0,
             total_outbound: 0,
             total_received: 0,
@@ -302,15 +333,15 @@ export const DailyLotConsumption = () => {
           productMap.set(productKey, product);
         }
 
-        const lotKey = reception.lot_number || 'Fără lot';
+        const lotKey = inventory.lot_number || 'Fără lot';
         let lot = product.lots.find(l => l.lot_number === lotKey);
         
         if (!lot) {
           lot = {
-            product_name: reception.name,
-            product_code: reception.products?.cod_produs || '',
+            product_name: inventory.name,
+            product_code: inventory.products?.cod_produs || '',
             lot_number: lotKey,
-            unit: reception.unit,
+            unit: inventory.unit,
             initial_stock: 0,
             outbound_quantity: 0,
             received_quantity: 0,
@@ -319,16 +350,16 @@ export const DailyLotConsumption = () => {
           product.lots.push(lot);
         }
 
-        // IMPORTANT: Agreghez toate intrările pentru același lot
-        const currentStockForThisEntry = reception.net_quantity || reception.quantity;
+        // Stocul final = stocul curent din inventory pentru acest lot
+        const currentStockForThisEntry = inventory.net_quantity || inventory.quantity;
         lot.final_stock += currentStockForThisEntry; // Adun toate intrările pentru acest lot
         
-        console.log(`Processing entry for lot ${lotKey} - ${reception.name}:`);
-        console.log(`- Entry stock: ${currentStockForThisEntry}`);
+        console.log(`Processing current inventory for lot ${lotKey} - ${inventory.name}:`);
+        console.log(`- Current stock: ${currentStockForThisEntry}`);
         console.log(`- Running total for lot: ${lot.final_stock}`);
       });
 
-      // Acum calculez ieșirile și recepțiile pentru fiecare lot
+      // Calculate quantities for each lot
       productMap.forEach(product => {
         product.lots.forEach(lot => {
           // Ieșirile pentru acest lot
@@ -336,17 +367,15 @@ export const DailyLotConsumption = () => {
           const outboundFromThisLot = outboundMovements.get(lotMovementKey) || 0;
           lot.outbound_quantity = outboundFromThisLot;
           
-          // IMPORTANT: Recepția = stocul inițial + diferența dintre stocul final și inițial
-          // Dacă stocul final > stocul inițial = au fost recepții noi
-          // Recepția totală = stocul inițial + recepțiile noi din ziua curentă
-          const receivedQty = lot.initial_stock + (lot.final_stock - lot.initial_stock + outboundFromThisLot);
-          lot.received_quantity = receivedQty;
+          // Recepțiile noi pentru acest lot (doar din ziua selectată)
+          const newReceiptsForThisLot = newReceiptMovements.get(lotMovementKey) || 0;
+          lot.received_quantity = newReceiptsForThisLot;
           
           console.log(`Final calculation for lot ${lot.lot_number}:`);
           console.log(`- Initial stock: ${lot.initial_stock}`);
-          console.log(`- Final stock (aggregated): ${lot.final_stock}`);
+          console.log(`- Final stock (current): ${lot.final_stock}`);
           console.log(`- Outbound: ${outboundFromThisLot}`);
-          console.log(`- Calculated received: ${receivedQty}`);
+          console.log(`- New receipts: ${newReceiptsForThisLot}`);
         });
       });
 
