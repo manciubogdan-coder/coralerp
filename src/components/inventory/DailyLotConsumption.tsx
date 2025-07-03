@@ -319,23 +319,32 @@ export const DailyLotConsumption = () => {
           product.lots.push(lot);
         }
 
-        // Stocul final = stocul curent din inventory pentru acest lot
-        const currentStockForLot = reception.net_quantity || reception.quantity;
-        lot.final_stock = currentStockForLot;
+        // IMPORTANT: Agreghez toate intrările pentru același lot
+        const currentStockForThisEntry = reception.net_quantity || reception.quantity;
+        lot.final_stock += currentStockForThisEntry; // Adun toate intrările pentru acest lot
         
-        // Ieșirile pentru acest lot
-        const lotMovementKey = `${reception.name}_${lotKey}`;
-        const outboundFromThisLot = outboundMovements.get(lotMovementKey) || 0;
-        lot.outbound_quantity = outboundFromThisLot;
-        
-        // Recepția reală = stocul curent + ieșirile
-        const receivedQty = currentStockForLot + outboundFromThisLot;
-        lot.received_quantity = receivedQty;
-        
-        console.log(`Processing lot ${lotKey} for ${reception.name}:`);
-        console.log(`- Current stock: ${currentStockForLot}`);
-        console.log(`- Outbound: ${outboundFromThisLot}`);
-        console.log(`- Calculated received: ${receivedQty}`);
+        console.log(`Processing entry for lot ${lotKey} - ${reception.name}:`);
+        console.log(`- Entry stock: ${currentStockForThisEntry}`);
+        console.log(`- Running total for lot: ${lot.final_stock}`);
+      });
+
+      // Acum calculez ieșirile și recepțiile pentru fiecare lot
+      productMap.forEach(product => {
+        product.lots.forEach(lot => {
+          // Ieșirile pentru acest lot
+          const lotMovementKey = `${product.product_name}_${lot.lot_number}`;
+          const outboundFromThisLot = outboundMovements.get(lotMovementKey) || 0;
+          lot.outbound_quantity = outboundFromThisLot;
+          
+          // Recepția reală = stocul curent agregat + ieșirile
+          const receivedQty = lot.final_stock + outboundFromThisLot;
+          lot.received_quantity = receivedQty;
+          
+          console.log(`Final calculation for lot ${lot.lot_number}:`);
+          console.log(`- Final stock (aggregated): ${lot.final_stock}`);
+          console.log(`- Outbound: ${outboundFromThisLot}`);
+          console.log(`- Calculated received: ${receivedQty}`);
+        });
       });
 
       // Calculate product totals
