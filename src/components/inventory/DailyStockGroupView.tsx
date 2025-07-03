@@ -274,9 +274,7 @@ export const DailyStockGroupView = () => {
                   <TableHead>Produs</TableHead>
                   <TableHead>Cod Produs</TableHead>
                   <TableHead className="text-right">Cantitate Netă Totală</TableHead>
-                  <TableHead className="text-right">Cantitate Brută Totală</TableHead>
                   <TableHead>Unitate</TableHead>
-                  <TableHead className="text-right">Nr. Loturi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -285,9 +283,7 @@ export const DailyStockGroupView = () => {
                     <TableCell className="font-medium">{product.product_name}</TableCell>
                     <TableCell>{product.product_code}</TableCell>
                     <TableCell className="text-right">{product.total_net_quantity.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{product.total_gross_quantity.toFixed(2)}</TableCell>
                     <TableCell>{product.unit}</TableCell>
-                    <TableCell className="text-right">{product.lots.length}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
