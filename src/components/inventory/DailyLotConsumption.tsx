@@ -303,15 +303,17 @@ export const DailyLotConsumption = () => {
         }
       });
 
-      // Process new receipts from selected date
+      // Process new receipts from selected date - doar intrările cu action='add' și fără 'Returnat' în notes
       const newReceiptMovements = new Map<string, number>(); // key: productName_lotNumber, value: total new receipts
       
-      (newReceipts || []).forEach(receipt => {
-        const lotKey = `${receipt.name}_${receipt.lot_number || 'Fără lot'}`;
-        const receiptQty = receipt.net_quantity || receipt.quantity;
-        newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
-        
-        console.log(`NEW RECEIPT: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
+      (movements || []).forEach(movement => {
+        if (movement.action === 'add' && (!movement.notes || !movement.notes.includes('Returnat'))) {
+          const lotKey = `${movement.name}_${movement.lot_number || 'Fără lot'}`;
+          const receiptQty = movement.net_quantity || movement.quantity;
+          newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
+          
+          console.log(`NEW RECEIPT from movements: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
+        }
       });
 
       // Process current inventory for products that had activity
