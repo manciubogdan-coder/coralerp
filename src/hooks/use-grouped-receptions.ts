@@ -3,9 +3,11 @@ import { useMemo } from 'react';
 
 interface ReceptionItem {
   id: string;
-  operation_date: string;
+  entry_number: number;
+  receipt_date: string;
   name: string;
   quantity: number;
+  gross_quantity: number;
   net_quantity: number;
   unit: string;
   document_number: string;
@@ -60,9 +62,11 @@ export const useGroupedReceptions = (
       const totalNetQuantity = items.reduce((sum, item) => sum + (item.net_quantity || item.quantity), 0);
       const groupHeader: ReceptionItem = {
         id: `group-${groupName}`,
-        operation_date: '',
+        entry_number: 0,
+        receipt_date: '',
         name: `${groupName} (${items.length} intrări, ${totalNetQuantity.toFixed(2)} ${items[0]?.unit || ''})`,
         quantity: totalNetQuantity,
+        gross_quantity: 0,
         net_quantity: totalNetQuantity,
         unit: items[0]?.unit || '',
         document_number: '',

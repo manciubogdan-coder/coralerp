@@ -11,9 +11,11 @@ import { useGroupedReceptions } from "@/hooks/use-grouped-receptions";
 
 interface ReceptionItem {
   id: string;
-  operation_date: string;
+  entry_number: number;
+  receipt_date: string;
   name: string;
   quantity: number;
+  gross_quantity: number;
   net_quantity: number;
   unit: string;
   document_number: string;
@@ -42,30 +44,32 @@ export const ReceptionHistory = () => {
     try {
       setLoading(true);
       let query = supabase
-        .from("inventory_history")
+        .from("inventory")
         .select(`
           id,
+          entry_number,
+          receipt_date,
           name,
           quantity,
+          gross_quantity,
           net_quantity,
           unit,
           document_number,
           lot_number,
           crate_count,
-          operation_date,
           suppliers:supplier_id (name),
           manufacturers:manufacturer_id (name),
           crate_types:crate_type_id (name, weight),
           products:product_id (name, cod_produs)
         `)
-        .eq('action', 'add')
-        .order("operation_date", { ascending: false });
+        .not('receipt_date', 'is', null)
+        .order("receipt_date", { ascending: false });
 
       if (dateFrom) {
-        query = query.gte('operation_date', dateFrom);
+        query = query.gte('receipt_date', dateFrom);
       }
       if (dateTo) {
-        query = query.lte('operation_date', dateTo + 'T23:59:59');
+        query = query.lte('receipt_date', dateTo + 'T23:59:59');
       }
 
       const { data, error } = await query;
@@ -108,7 +112,8 @@ export const ReceptionHistory = () => {
 
   const handleExport = () => {
     const dataToExport = filteredReceptions.map(item => ({
-      'Data Recepție': item.operation_date ? new Date(item.operation_date).toLocaleDateString('ro-RO') : '',
+      'Nr. Intrare': item.entry_number,
+      'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '',
       'Produs': item.name,
       'Cod Produs': item.products?.cod_produs || '',
       'Nr Lot': item.lot_number || '',
@@ -204,6 +209,7 @@ export const ReceptionHistory = () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Nr. Intrare</TableHead>
               <TableHead>Data Recepție</TableHead>
               <TableHead>Produs</TableHead>
               <TableHead>Cod Produs</TableHead>
@@ -221,8 +227,11 @@ export const ReceptionHistory = () => {
                 const isGroupHeader = 'isGroupHeader' in item && item.isGroupHeader;
                 return (
                   <TableRow key={item.id} className={isGroupHeader ? "bg-muted font-semibold" : ""}>
+                    <TableCell className="font-medium">
+                      {isGroupHeader ? '' : item.entry_number}
+                    </TableCell>
                     <TableCell>
-                      {isGroupHeader ? '' : (item.operation_date ? new Date(item.operation_date).toLocaleDateString('ro-RO') : '-')}
+                      {isGroupHeader ? '' : (item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-')}
                     </TableCell>
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell>{isGroupHeader ? '' : (item.products?.cod_produs || '-')}</TableCell>
@@ -239,7 +248,7 @@ export const ReceptionHistory = () => {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={10} className="text-center py-6 text-gray-500">
                   Nu s-au găsit recepții în intervalul selectat.
                 </TableCell>
               </TableRow>
