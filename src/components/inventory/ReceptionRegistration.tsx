@@ -121,6 +121,7 @@ export function ReceptionRegistration({
         if (receptionError) throw receptionError;
 
         // Și în tabela inventory pentru stocul curent
+        // IMPORTANT: quantity trebuie să fie gross_quantity pentru ca trigger-ul să calculeze corect
         const { error } = await supabase
           .from('inventory')
           .insert({
@@ -129,9 +130,7 @@ export function ReceptionRegistration({
             supplier_id: supplierId,
             manufacturer_id: manufacturerId,
             document_number: documentNumber,
-            quantity: pallet.netQuantity,
-            gross_quantity: pallet.grossQuantity,
-            net_quantity: pallet.netQuantity,
+            quantity: pallet.grossQuantity, // Trimitem gross_quantity, trigger-ul va calcula net_quantity
             unit: selectedProduct.default_unit || 'kg',
             crate_type_id: pallet.crateTypeId,
             crate_count: pallet.crateCount,
