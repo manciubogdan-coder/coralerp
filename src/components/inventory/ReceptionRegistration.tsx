@@ -91,6 +91,36 @@ export function ReceptionRegistration({
       for (const pallet of pallets) {
         if (pallet.grossQuantity <= 0) continue;
 
+        // Obținem următorul entry_number
+        const { data: nextEntryData, error: entryError } = await supabase
+          .rpc('get_next_inventory_entry');
+        
+        if (entryError) throw entryError;
+        const entryNumber = nextEntryData;
+
+        // Salvăm în tabela receptions
+        const { error: receptionError } = await supabase
+          .from('receptions')
+          .insert({
+            entry_number: entryNumber,
+            product_id: productId,
+            name: selectedProduct.name,
+            supplier_id: supplierId,
+            manufacturer_id: manufacturerId,
+            document_number: documentNumber,
+            quantity: pallet.netQuantity,
+            gross_quantity: pallet.grossQuantity,
+            net_quantity: pallet.netQuantity,
+            unit: selectedProduct.default_unit || 'kg',
+            crate_type_id: pallet.crateTypeId,
+            crate_count: pallet.crateCount,
+            crate_weight: pallet.palletWeight,
+            receipt_date: new Date().toISOString()
+          });
+
+        if (receptionError) throw receptionError;
+
+        // Și în tabela inventory pentru stocul curent
         const { error } = await supabase
           .from('inventory')
           .insert({
@@ -105,6 +135,7 @@ export function ReceptionRegistration({
             unit: selectedProduct.default_unit || 'kg',
             crate_type_id: pallet.crateTypeId,
             crate_count: pallet.crateCount,
+            crate_weight: pallet.palletWeight,
             receipt_date: new Date().toISOString()
           });
 
