@@ -283,10 +283,40 @@ export const DailyLotConsumption = () => {
         }
       });
 
-      // Process new receipts from selected date - doar intrările cu action='add' și fără 'Returnat' în notes
+      // Process new receipts from selected date - din tabela receptions și din movements cu action='add' fără 'Returnat'
       const newReceiptMovements = new Map<string, number>(); // key: productName_lotNumber, value: total new receipts
       
       console.log('=== CHECKING FOR NEW RECEIPTS ===');
+      
+      // Check receipts from receptions table
+      const { data: dailyReceptions, error: receptionsError } = await supabase
+        .from("receptions")
+        .select(`
+          name,
+          lot_number,
+          quantity,
+          net_quantity,
+          unit,
+          products:product_id (name, cod_produs)
+        `)
+        .gte('receipt_date', `${selectedDate}T00:00:00`)
+        .lte('receipt_date', `${selectedDate}T23:59:59`);
+
+      if (receptionsError) {
+        console.error("Error fetching daily receptions:", receptionsError);
+      } else {
+        console.log('Daily receptions found:', dailyReceptions?.length || 0);
+        
+        (dailyReceptions || []).forEach(reception => {
+          const lotKey = `${reception.name}_${reception.lot_number || 'Fără lot'}`;
+          const receiptQty = reception.net_quantity || reception.quantity;
+          newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
+          
+          console.log(`NEW RECEIPT from receptions table: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
+        });
+      }
+      
+      // Also check movements for any additional receipts (returns, adjustments, etc.)
       console.log('All movements for receipts analysis:', movements?.length);
       
       (movements || []).forEach(movement => {
