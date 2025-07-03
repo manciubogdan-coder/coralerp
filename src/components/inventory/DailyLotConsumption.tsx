@@ -283,7 +283,7 @@ export const DailyLotConsumption = () => {
         }
       });
 
-      // Process new receptions - calculez cantitatea realmente recepționată
+      // Process current inventory for products that had activity
       (receptions || []).forEach(reception => {
         const productKey = `${reception.name}_${reception.products?.cod_produs || ''}`;
         let product = productMap.get(productKey);
@@ -305,14 +305,13 @@ export const DailyLotConsumption = () => {
         const lotKey = reception.lot_number || 'Fără lot';
         let lot = product.lots.find(l => l.lot_number === lotKey);
         
-        // Pentru recepțiile noi, stocul inițial al lotului trebuie să fie 0
         if (!lot) {
           lot = {
             product_name: reception.name,
             product_code: reception.products?.cod_produs || '',
             lot_number: lotKey,
             unit: reception.unit,
-            initial_stock: 0, // Loturile noi încep cu stoc inițial 0
+            initial_stock: 0,
             outbound_quantity: 0,
             received_quantity: 0,
             final_stock: 0
@@ -320,25 +319,30 @@ export const DailyLotConsumption = () => {
           product.lots.push(lot);
         }
 
-        // IMPORTANT: Calculez cantitatea realmente recepționată adăugând înapoi ieșirile
-        const currentStock = reception.net_quantity || reception.quantity;
-        const outboundFromThisLot = outboundMovements.get(`${reception.name}_${lotKey}`) || 0;
-        const receivedQty = currentStock + outboundFromThisLot;
+        // Stocul final = stocul curent din inventory pentru acest lot
+        const currentStockForLot = reception.net_quantity || reception.quantity;
+        lot.final_stock = currentStockForLot;
         
-        console.log(`Reception calculation for ${reception.name} lot ${lotKey}:`);
-        console.log(`- Current stock: ${currentStock}`);
-        console.log(`- Outbound from lot: ${outboundFromThisLot}`);
-        console.log(`- Calculated received: ${receivedQty}`);
+        // Ieșirile pentru acest lot
+        const lotMovementKey = `${reception.name}_${lotKey}`;
+        const outboundFromThisLot = outboundMovements.get(lotMovementKey) || 0;
+        lot.outbound_quantity = outboundFromThisLot;
         
-        // Setez cantitatea recepționată reală și stocul final la stocul curent
+        // Recepția reală = stocul curent + ieșirile
+        const receivedQty = currentStockForLot + outboundFromThisLot;
         lot.received_quantity = receivedQty;
-        lot.final_stock = currentStock; // Stocul final = stocul curent din inventory
-        product.total_received += receivedQty;
+        
+        console.log(`Processing lot ${lotKey} for ${reception.name}:`);
+        console.log(`- Current stock: ${currentStockForLot}`);
+        console.log(`- Outbound: ${outboundFromThisLot}`);
+        console.log(`- Calculated received: ${receivedQty}`);
       });
 
-      // Calculate product totals - already calculated correctly in the processing above
+      // Calculate product totals
       productMap.forEach(product => {
-        // Recalculez totalul final pe baza stocului curent real
+        product.total_initial = product.lots.reduce((sum, lot) => sum + lot.initial_stock, 0);
+        product.total_outbound = product.lots.reduce((sum, lot) => sum + lot.outbound_quantity, 0);
+        product.total_received = product.lots.reduce((sum, lot) => sum + lot.received_quantity, 0);
         product.total_final = product.lots.reduce((sum, lot) => sum + lot.final_stock, 0);
       });
 
