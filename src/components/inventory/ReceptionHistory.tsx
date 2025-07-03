@@ -44,7 +44,7 @@ export const ReceptionHistory = () => {
     try {
       setLoading(true);
       let query = supabase
-        .from("inventory")
+        .from("receptions")
         .select(`
           id,
           entry_number,
@@ -62,7 +62,6 @@ export const ReceptionHistory = () => {
           crate_types:crate_type_id (name, weight),
           products:product_id (name, cod_produs)
         `)
-        .not('receipt_date', 'is', null)
         .order("receipt_date", { ascending: false });
 
       if (dateFrom) {

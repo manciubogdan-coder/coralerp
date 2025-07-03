@@ -2033,6 +2033,98 @@ export type Database = {
         }
         Relationships: []
       }
+      receptions: {
+        Row: {
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
+          created_at: string
+          document_number: string | null
+          entry_number: number
+          gross_quantity: number | null
+          id: string
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          net_quantity: number | null
+          product_id: string | null
+          quantity: number
+          receipt_date: string
+          supplier_id: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          net_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          receipt_date?: string
+          supplier_id?: string | null
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          net_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          receipt_date?: string
+          supplier_id?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receptions_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "crate_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receptions_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receptions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receptions_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       simlash_categorii_cheltuieli: {
         Row: {
           activ: boolean
