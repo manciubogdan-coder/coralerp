@@ -286,7 +286,12 @@ export const DailyLotConsumption = () => {
       // Process new receipts from selected date - doar intrările cu action='add' și fără 'Returnat' în notes
       const newReceiptMovements = new Map<string, number>(); // key: productName_lotNumber, value: total new receipts
       
+      console.log('=== CHECKING FOR NEW RECEIPTS ===');
+      console.log('All movements for receipts analysis:', movements?.length);
+      
       (movements || []).forEach(movement => {
+        console.log(`Analyzing movement: action=${movement.action}, notes=${movement.notes}, product=${movement.name}, lot=${movement.lot_number}`);
+        
         if (movement.action === 'add' && (!movement.notes || !movement.notes.includes('Returnat'))) {
           const lotKey = `${movement.name}_${movement.lot_number || 'Fără lot'}`;
           const receiptQty = movement.net_quantity || movement.quantity;
@@ -295,6 +300,8 @@ export const DailyLotConsumption = () => {
           console.log(`NEW RECEIPT from movements: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
         }
       });
+      
+      console.log('Final newReceiptMovements map:', Object.fromEntries(newReceiptMovements));
 
       // Process current inventory for products that had activity
       (currentInventory || []).forEach(inventory => {
