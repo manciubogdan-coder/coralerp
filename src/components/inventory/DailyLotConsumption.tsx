@@ -103,26 +103,6 @@ export const DailyLotConsumption = () => {
 
       if (movementsError) throw movementsError;
 
-      // Get entries added on the selected date (new receipts)
-      const { data: newReceipts, error: newReceiptsError } = await supabase
-        .from("inventory_history")
-        .select(`
-          name,
-          lot_number,
-          quantity,
-          net_quantity,
-          unit,
-          action,
-          operation_date,
-          notes,
-          products:product_id (name, cod_produs)
-        `)
-        .eq('action', 'add')
-        .gte('operation_date', `${selectedDate}T00:00:00`)
-        .lte('operation_date', `${selectedDate}T23:59:59`)
-        .is('notes', null); // Exclude returns (they have "Returnat" in notes)
-
-      if (newReceiptsError) throw newReceiptsError;
 
       // Get current inventory for products that had movements on the selected date
       const productsWithMovements = [...new Set((movements || []).map(m => m.name))];
