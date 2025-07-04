@@ -377,6 +377,18 @@ export const DailyLotConsumption = () => {
         console.log(`- Current stock: ${currentStockForThisEntry}`);
         console.log(`- Running total for lot: ${lot.final_stock}`);
       });
+      
+      // Pentru produsele care au doar ieșiri (fără stoc curent), calculez stocul inițial din ieșiri
+      productMap.forEach(product => {
+        product.lots.forEach(lot => {
+          if (lot.initial_stock === 0 && lot.outbound_quantity > 0 && lot.final_stock === 0) {
+            // Dacă nu avem stoc inițial din snapshot, dar avem ieșiri și stocul final este 0,
+            // înseamnă că stocul inițial era egal cu ieșirile
+            lot.initial_stock = lot.outbound_quantity;
+            console.log(`Calculated initial stock for ${lot.product_name} lot ${lot.lot_number}: ${lot.initial_stock}`);
+          }
+        });
+      });
 
       // Calculate quantities for each lot
       productMap.forEach(product => {
