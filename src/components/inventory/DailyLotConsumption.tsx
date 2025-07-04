@@ -405,13 +405,17 @@ export const DailyLotConsumption = () => {
           const newReceiptsForThisLot = newReceiptMovements.get(lotMovementKey) || 0;
           lot.received_quantity = newReceiptsForThisLot;
           
+          // CORECTEZ CALCULUL: Stoc Final = Stoc Inițial + Recepții - Ieșiri
+          // NU din inventarul curent, ci din formula matematică
+          const calculatedFinalStock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
+          lot.final_stock = Math.max(0, calculatedFinalStock);
+          
           console.log(`Final calculation for lot ${lot.lot_number}:`);
           console.log(`- Initial stock: ${lot.initial_stock}`);
-          console.log(`- Final stock (current): ${lot.final_stock}`);
-          console.log(`- Raw outbound: ${rawOutbound}`);
-          console.log(`- Returns: ${returns}`);
-          console.log(`- Net outbound (after returns): ${lot.outbound_quantity}`);
-          console.log(`- New receipts: ${newReceiptsForThisLot}`);
+          console.log(`- Outbound: ${lot.outbound_quantity}`);
+          console.log(`- Received: ${lot.received_quantity}`);
+          console.log(`- Calculated final stock: ${calculatedFinalStock}`);
+          console.log(`- Final stock (corrected): ${lot.final_stock}`);
         });
       });
 
