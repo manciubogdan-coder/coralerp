@@ -157,8 +157,12 @@ export const DailyLotConsumption = () => {
         
         console.log(`=== SNAPSHOT PRODUCT DEBUG ===`);
         console.log(`Product: ${firstItem.name}`);
-        console.log(`Products object:`, firstItem.products);
-        console.log(`Product code: ${firstItem.products?.cod_produs || 'MISSING'}`);
+        console.log(`Product ID: ${firstItem.product_id || 'MISSING'}`);
+        console.log(`Products exists: ${firstItem.products ? 'YES' : 'NO'}`);
+        if (firstItem.products) {
+          console.log(`Product code from products: ${firstItem.products.cod_produs || 'EMPTY'}`);
+        }
+        console.log(`Final product_code: ${firstItem.products?.cod_produs || 'MISSING'}`);
         
         if (!productMap.has(productKey)) {
           productMap.set(productKey, {
