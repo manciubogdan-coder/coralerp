@@ -363,24 +363,18 @@ export const DailyLotConsumption = () => {
           const newReceiptsForThisLot = newReceiptMovements.get(lotMovementKey) || 0;
           lot.received_quantity = newReceiptsForThisLot;
           
-          // Calculez stocul final din inventarul curent pentru acest lot
-          const currentStock = currentInventory
-            .filter(inv => inv.name === product.product_name && (inv.lot_number || 'Fără lot') === lot.lot_number)
-            .reduce((sum, inv) => sum + (inv.net_quantity || inv.quantity), 0);
+          // STOCUL INIȚIAL vine din SNAPSHOT (deja setat mai sus în cod)
+          // Nu calculez din inventarul curent, ci iau din snapshot!
           
-          // CALCULEZ STOCUL INIȚIAL CORECT
-          // Stoc Inițial = Stoc Final Curent + Ieșiri - Recepții Noi
-          if (lot.initial_stock === 0) {
-            lot.initial_stock = Math.max(0, currentStock + lot.outbound_quantity - lot.received_quantity);
-            console.log(`Calculated initial stock for ${lot.product_name} lot ${lot.lot_number}:`);
-            console.log(`- Current stock: ${currentStock}`);
-            console.log(`- Outbound: ${lot.outbound_quantity}`);
-            console.log(`- New receipts: ${lot.received_quantity}`);
-            console.log(`- Calculated initial: ${lot.initial_stock}`);
-          }
+          // CALCULEZ STOCUL FINAL cu formula corectă:
+          // Stoc Final = Stoc Inițial (din snapshot) + Recepții Noi - Ieșiri
+          lot.final_stock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
           
-          // Stocul final = stocul curent din inventar
-          lot.final_stock = currentStock;
+          console.log(`Correct calculation for lot ${lot.lot_number}:`);
+          console.log(`- Initial stock (from snapshot): ${lot.initial_stock}`);
+          console.log(`- New receipts: ${lot.received_quantity}`);
+          console.log(`- Outbound: ${lot.outbound_quantity}`);
+          console.log(`- Final stock = ${lot.initial_stock} + ${lot.received_quantity} - ${lot.outbound_quantity} = ${lot.final_stock}`);
           
           console.log(`Final calculation for lot ${lot.lot_number}:`);
           console.log(`- Initial stock: ${lot.initial_stock}`);
