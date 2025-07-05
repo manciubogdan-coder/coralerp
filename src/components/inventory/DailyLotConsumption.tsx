@@ -250,38 +250,10 @@ export const DailyLotConsumption = () => {
           product.lots.push(lot);
         }
         
-        lot.outbound_quantity += quantity;
-        product.total_outbound += quantity;
+        // Note: outbound_quantity will be calculated later
       });
 
-      // Process return movements (add actions with "Returnat" in notes) - these reduce outbound
-      returnMovements.forEach((quantity, lotKey) => {
-        if (quantity <= 0) return;
-        
-        console.log(`Processing return lot ${lotKey} with quantity: ${quantity}`);
-        
-        // Find the movement to get product details
-        const sampleMovement = movements?.find(m => 
-          `${m.name}_${m.lot_number || 'Fără lot'}` === lotKey && m.action === 'add' && m.notes?.includes('Returnat')
-        );
-        
-        if (!sampleMovement) return;
-        
-        const productKey = `${sampleMovement.name}_${sampleMovement.products?.cod_produs || ''}`;
-        let product = productMap.get(productKey);
-        
-        if (product) {
-          const lotNumber = sampleMovement.lot_number || 'Fără lot';
-          let lot = product.lots.find(l => l.lot_number === lotNumber);
-          
-          if (lot) {
-            // Reduce outbound quantity by return amount
-            lot.outbound_quantity = Math.max(0, lot.outbound_quantity - quantity);
-            product.total_outbound = Math.max(0, product.total_outbound - quantity);
-            console.log(`Reduced outbound for ${lotKey} by ${quantity}, new outbound: ${lot.outbound_quantity}`);
-          }
-        }
-      });
+      // Note: Returns will be handled later in the final calculation
 
       // Process new receipts from selected date - din tabela receptions și din movements cu action='add' fără 'Returnat'
       const newReceiptMovements = new Map<string, number>(); // key: productName_lotNumber, value: total new receipts
@@ -369,27 +341,13 @@ export const DailyLotConsumption = () => {
           product.lots.push(lot);
         }
 
-        // Stocul final = stocul curent din inventory pentru acest lot
+        // Note: final_stock will be calculated later using the formula
         const currentStockForThisEntry = inventory.net_quantity || inventory.quantity;
-        lot.final_stock += currentStockForThisEntry; // Adun toate intrările pentru acest lot
         
         console.log(`Processing current inventory for lot ${lotKey} - ${inventory.name}:`);
         console.log(`- Current stock: ${currentStockForThisEntry}`);
-        console.log(`- Running total for lot: ${lot.final_stock}`);
       });
       
-      // Pentru produsele care au doar ieșiri (fără stoc curent), calculez stocul inițial din ieșiri
-      productMap.forEach(product => {
-        product.lots.forEach(lot => {
-          if (lot.initial_stock === 0 && lot.outbound_quantity > 0 && lot.final_stock === 0) {
-            // Dacă nu avem stoc inițial din snapshot, dar avem ieșiri și stocul final este 0,
-            // înseamnă că stocul inițial era egal cu ieșirile
-            lot.initial_stock = lot.outbound_quantity;
-            console.log(`Calculated initial stock for ${lot.product_name} lot ${lot.lot_number}: ${lot.initial_stock}`);
-          }
-        });
-      });
-
       // Calculate quantities for each lot
       productMap.forEach(product => {
         product.lots.forEach(lot => {
@@ -404,6 +362,14 @@ export const DailyLotConsumption = () => {
           // Recepțiile noi pentru acest lot (doar din ziua selectată)
           const newReceiptsForThisLot = newReceiptMovements.get(lotMovementKey) || 0;
           lot.received_quantity = newReceiptsForThisLot;
+          
+          // Pentru produsele care au doar ieșiri (fără stoc curent din snapshot), calculez stocul inițial din ieșiri
+          if (lot.initial_stock === 0 && lot.outbound_quantity > 0) {
+            // Dacă nu avem stoc inițial din snapshot, dar avem ieșiri,
+            // înseamnă că stocul inițial era cel puțin egal cu ieșirile
+            lot.initial_stock = lot.outbound_quantity;
+            console.log(`Calculated initial stock for ${lot.product_name} lot ${lot.lot_number}: ${lot.initial_stock}`);
+          }
           
           // CORECTEZ CALCULUL: Stoc Final = Stoc Inițial + Recepții - Ieșiri
           // NU din inventarul curent, ci din formula matematică
