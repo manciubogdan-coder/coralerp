@@ -199,23 +199,35 @@ export const DailyLotConsumption = () => {
         const lotKey = `${movement.name}_${movement.lot_number || 'Fără lot'}`;
         const movementQty = movement.net_quantity || movement.quantity;
         
-        console.log('Processing movement:', {
-          action: movement.action,
-          product: movement.name,
-          lot: movement.lot_number,
-          quantity: movementQty,
-          date: movement.operation_date,
-          notes: movement.notes
-        });
+        console.log('=== PROCESSING MOVEMENT ===');
+        console.log('Action:', movement.action);
+        console.log('Product:', movement.name);
+        console.log('Lot:', movement.lot_number);
+        console.log('Quantity:', movementQty);
+        console.log('Date:', movement.operation_date);
+        console.log('Notes:', movement.notes);
+        console.log('Lot Key:', lotKey);
         
         if (movement.action === 'remove') {
-          outboundMovements.set(lotKey, (outboundMovements.get(lotKey) || 0) + movementQty);
-          console.log(`REMOVE: ${lotKey} +${movementQty} = ${outboundMovements.get(lotKey)}`);
+          const currentTotal = outboundMovements.get(lotKey) || 0;
+          const newTotal = currentTotal + movementQty;
+          outboundMovements.set(lotKey, newTotal);
+          console.log(`REMOVE MOVEMENT: ${lotKey}`);
+          console.log(`- Previous total: ${currentTotal}`);
+          console.log(`- Adding: ${movementQty}`);
+          console.log(`- New total: ${newTotal}`);
+          
+          // ALERT pentru cantități mari suspecte
+          if (newTotal > 5000) {
+            console.warn(`⚠️ SUSPICIOUS HIGH OUTBOUND: ${lotKey} = ${newTotal} kg`);
+          }
         } else if (movement.action === 'add') {
           // Check if this is a return (has "Returnat" in notes)
           if (movement.notes && movement.notes.includes('Returnat')) {
-            returnMovements.set(lotKey, (returnMovements.get(lotKey) || 0) + movementQty);
-            console.log(`RETURN: ${lotKey} +${movementQty} = ${returnMovements.get(lotKey)}`);
+            const currentReturns = returnMovements.get(lotKey) || 0;
+            const newReturns = currentReturns + movementQty;
+            returnMovements.set(lotKey, newReturns);
+            console.log(`RETURN MOVEMENT: ${lotKey} +${movementQty} = ${newReturns}`);
           }
         }
       });
