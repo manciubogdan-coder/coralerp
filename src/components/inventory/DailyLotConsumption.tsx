@@ -130,15 +130,36 @@ export const DailyLotConsumption = () => {
 
       // Process data to identify all products with activity
 
-      // Process initial stock from snapshots
+      // Process initial stock from snapshots - GROUP BY PRODUCT + LOT
+      const snapshotGroupedByLot = new Map<string, { items: any[], totalQuantity: number }>();
+      
+      // First, group all snapshot items by product + lot
       (finalInitialStock || []).forEach(item => {
-        const productKey = `${item.name}_${item.products?.cod_produs || ''}`;
+        const lotKey = `${item.name}_${item.lot_number || 'Fără lot'}`;
+        const initialQuantity = item.net_quantity || item.quantity;
+        
+        if (!snapshotGroupedByLot.has(lotKey)) {
+          snapshotGroupedByLot.set(lotKey, {
+            items: [],
+            totalQuantity: 0
+          });
+        }
+        
+        const group = snapshotGroupedByLot.get(lotKey)!;
+        group.items.push(item);
+        group.totalQuantity += initialQuantity;
+      });
+      
+      // Now process grouped snapshot data
+      snapshotGroupedByLot.forEach((group, lotKey) => {
+        const firstItem = group.items[0]; // Use first item for product details
+        const productKey = `${firstItem.name}_${firstItem.products?.cod_produs || ''}`;
         
         if (!productMap.has(productKey)) {
           productMap.set(productKey, {
-            product_name: item.name,
-            product_code: item.products?.cod_produs || '',
-            unit: item.unit,
+            product_name: firstItem.name,
+            product_code: firstItem.products?.cod_produs || '',
+            unit: firstItem.unit,
             total_initial: 0,
             total_outbound: 0,
             total_received: 0,
@@ -148,21 +169,22 @@ export const DailyLotConsumption = () => {
         }
 
         const product = productMap.get(productKey)!;
-        const initialQuantity = item.net_quantity || item.quantity;
         
         const lotItem: LotConsumptionItem = {
-          product_name: item.name,
-          product_code: item.products?.cod_produs || '',
-          lot_number: item.lot_number || 'Fără lot',
-          unit: item.unit,
-          initial_stock: initialQuantity,
+          product_name: firstItem.name,
+          product_code: firstItem.products?.cod_produs || '',
+          lot_number: firstItem.lot_number || 'Fără lot',
+          unit: firstItem.unit,
+          initial_stock: group.totalQuantity,
           outbound_quantity: 0,
           received_quantity: 0,
-          final_stock: initialQuantity
+          final_stock: group.totalQuantity
         };
 
         product.lots.push(lotItem);
-        product.total_initial += initialQuantity;
+        product.total_initial += group.totalQuantity;
+        
+        console.log(`Grouped snapshot for ${firstItem.name} lot ${firstItem.lot_number || 'Fără lot'}: ${group.totalQuantity} kg from ${group.items.length} entries`);
       });
 
       // Process all movements for the selected date - calculate net consumption
