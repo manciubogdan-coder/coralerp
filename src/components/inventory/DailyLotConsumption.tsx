@@ -598,7 +598,7 @@ export const DailyLotConsumption = () => {
             <TableBody>
               {filteredData.map((product, productIndex) => [
                 // Product summary row
-                <TableRow key={`${product.product_name}-${product.product_code}-summary`} className="bg-muted font-semibold">
+                <TableRow key={`product-${productIndex}-${product.product_name}-${product.product_code || 'no-code'}-summary`} className="bg-muted font-semibold">
                   <TableCell className="font-bold">{product.product_name}</TableCell>
                   <TableCell className="font-bold">{product.product_code}</TableCell>
                   <TableCell className="font-bold">TOTAL PRODUS</TableCell>
@@ -611,7 +611,7 @@ export const DailyLotConsumption = () => {
                 
                 // Lot detail rows
                 ...product.lots.map((lot, lotIndex) => (
-                  <TableRow key={`${product.product_name}-${lot.lot_number}-${lotIndex}`}>
+                  <TableRow key={`lot-${productIndex}-${lotIndex}-${product.product_name}-${lot.lot_number}`}>
                     <TableCell></TableCell>
                     <TableCell></TableCell>
                     <TableCell className="pl-8">{lot.lot_number}</TableCell>
