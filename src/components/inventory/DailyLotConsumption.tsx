@@ -241,6 +241,15 @@ export const DailyLotConsumption = () => {
         
         console.log(`Processing outbound lot ${lotKey} with quantity: ${quantity}`);
         
+        // DEBUGGING pentru probleme suspecte
+        if (quantity > 5000) {
+          console.error(`🚨 SUSPICIOUS OUTBOUND: ${lotKey} = ${quantity} kg - investigating...`);
+          const relatedMovements = movements?.filter(m => 
+            `${m.name}_${m.lot_number || 'Fără lot'}` === lotKey && m.action === 'remove'
+          ) || [];
+          console.error('Related movements:', relatedMovements);
+        }
+        
         // Find the movement to get product details
         const sampleMovement = movements?.find(m => 
           `${m.name}_${m.lot_number || 'Fără lot'}` === lotKey && m.action === 'remove'
