@@ -363,25 +363,31 @@ export const DailyLotConsumption = () => {
           const newReceiptsForThisLot = newReceiptMovements.get(lotMovementKey) || 0;
           lot.received_quantity = newReceiptsForThisLot;
           
-          // Pentru produsele care au doar ieșiri (fără stoc curent din snapshot), calculez stocul inițial din ieșiri
-          if (lot.initial_stock === 0 && lot.outbound_quantity > 0) {
-            // Dacă nu avem stoc inițial din snapshot, dar avem ieșiri,
-            // înseamnă că stocul inițial era cel puțin egal cu ieșirile
-            lot.initial_stock = lot.outbound_quantity;
-            console.log(`Calculated initial stock for ${lot.product_name} lot ${lot.lot_number}: ${lot.initial_stock}`);
+          // Calculez stocul final din inventarul curent pentru acest lot
+          const currentStock = currentInventory
+            .filter(inv => inv.name === product.product_name && (inv.lot_number || 'Fără lot') === lot.lot_number)
+            .reduce((sum, inv) => sum + (inv.net_quantity || inv.quantity), 0);
+          
+          // CALCULEZ STOCUL INIȚIAL CORECT
+          // Stoc Inițial = Stoc Final Curent + Ieșiri - Recepții Noi
+          if (lot.initial_stock === 0) {
+            lot.initial_stock = Math.max(0, currentStock + lot.outbound_quantity - lot.received_quantity);
+            console.log(`Calculated initial stock for ${lot.product_name} lot ${lot.lot_number}:`);
+            console.log(`- Current stock: ${currentStock}`);
+            console.log(`- Outbound: ${lot.outbound_quantity}`);
+            console.log(`- New receipts: ${lot.received_quantity}`);
+            console.log(`- Calculated initial: ${lot.initial_stock}`);
           }
           
-          // CORECTEZ CALCULUL: Stoc Final = Stoc Inițial + Recepții - Ieșiri
-          // NU din inventarul curent, ci din formula matematică
-          const calculatedFinalStock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
-          lot.final_stock = Math.max(0, calculatedFinalStock);
+          // Stocul final = stocul curent din inventar
+          lot.final_stock = currentStock;
           
           console.log(`Final calculation for lot ${lot.lot_number}:`);
           console.log(`- Initial stock: ${lot.initial_stock}`);
           console.log(`- Outbound: ${lot.outbound_quantity}`);
           console.log(`- Received: ${lot.received_quantity}`);
-          console.log(`- Calculated final stock: ${calculatedFinalStock}`);
-          console.log(`- Final stock (corrected): ${lot.final_stock}`);
+          console.log(`- Final stock: ${lot.final_stock}`);
+          console.log(`- Verification: ${lot.initial_stock} + ${lot.received_quantity} - ${lot.outbound_quantity} = ${lot.initial_stock + lot.received_quantity - lot.outbound_quantity}`);
         });
       });
 
