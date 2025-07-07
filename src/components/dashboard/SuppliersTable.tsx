@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useInventoryType } from "@/App";
 
 interface Supplier {
   id: string;
@@ -22,6 +23,7 @@ interface Supplier {
 }
 
 const SuppliersTable = () => {
+  const { inventoryType } = useInventoryType();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,15 +31,19 @@ const SuppliersTable = () => {
   const [newItem, setNewItem] = useState<Partial<Supplier>>({ name: "", contact: "", phone: "", email: "" });
   const [editItem, setEditItem] = useState<Supplier | null>(null);
 
+  // Get the correct table name based on inventory type
+  const getTableName = () => inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
+
   useEffect(() => {
     fetchSuppliers();
-  }, []);
+  }, [inventoryType]); // Re-fetch when inventory type changes
 
   const fetchSuppliers = async () => {
     try {
       setLoading(true);
+      const tableName = getTableName();
       const { data, error } = await supabase
-        .from("suppliers")
+        .from(tableName)
         .select("*")
         .order("name");
 
@@ -45,12 +51,12 @@ const SuppliersTable = () => {
         throw error;
       }
 
-      console.log("Furnizori încărcați:", data);
+      console.log(`Loading ${inventoryType} suppliers from table:`, tableName, data);
       setSuppliers(data || []);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Eroare la încărcarea furnizorilor",
+        title: `Eroare la încărcarea furnizorilor ${inventoryType}`,
         description: error.message,
       });
     } finally {
@@ -88,8 +94,9 @@ const SuppliersTable = () => {
         return;
       }
 
+      const tableName = getTableName();
       const { data, error } = await supabase
-        .from("suppliers")
+        .from(tableName)
         .insert([
           {
             name: newItem.name,
@@ -134,8 +141,9 @@ const SuppliersTable = () => {
         return;
       }
 
+      const tableName = getTableName();
       const { error } = await supabase
-        .from("suppliers")
+        .from(tableName)
         .update({
           name: editItem.name,
           contact: editItem.contact || null,
@@ -167,8 +175,9 @@ const SuppliersTable = () => {
   const handleDelete = async (supplierId: string, supplierName: string) => {
     if (window.confirm(`Sigur doriți să ștergeți furnizorul "${supplierName}"?`)) {
       try {
+        const tableName = getTableName();
         const { error } = await supabase
-          .from("suppliers")
+          .from(tableName)
           .delete()
           .eq("id", supplierId);
 
