@@ -45,7 +45,7 @@ export const DailyLotConsumption = () => {
     try {
       setLoading(true);
       
-      // Get snapshot data for the beginning of the day
+      // Get snapshot data for the beginning of the day - only lots received up to selected date
       const { data: initialStock, error: initialError } = await supabase
         .from("daily_stock_snapshots")
         .select(`
@@ -54,9 +54,11 @@ export const DailyLotConsumption = () => {
           quantity,
           net_quantity,
           unit,
+          receipt_date,
           products:product_id (name, cod_produs)
         `)
-        .eq('snapshot_date', selectedDate);
+        .eq('snapshot_date', selectedDate)
+        .lte('receipt_date', `${selectedDate}T23:59:59`);
 
       if (initialError) throw initialError;
 
@@ -75,9 +77,11 @@ export const DailyLotConsumption = () => {
             quantity,
             net_quantity,
             unit,
+            receipt_date,
             products:product_id (name, cod_produs)
           `)
-          .eq('snapshot_date', previousDateStr);
+          .eq('snapshot_date', previousDateStr)
+          .lte('receipt_date', `${selectedDate}T23:59:59`);
 
         if (!previousError && previousStock) {
           finalInitialStock = previousStock;
@@ -117,9 +121,11 @@ export const DailyLotConsumption = () => {
             quantity,
             net_quantity,
             unit,
+            receipt_date,
             products:product_id (name, cod_produs)
           `)
-          .in('name', productsWithMovements);
+          .in('name', productsWithMovements)
+          .lte('receipt_date', `${selectedDate}T23:59:59`);
 
         if (inventoryError) throw inventoryError;
         currentInventory = inventory || [];
