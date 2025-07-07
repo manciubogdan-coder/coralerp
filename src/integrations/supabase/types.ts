@@ -672,6 +672,424 @@ export type Database = {
           },
         ]
       }
+      ambalaje_crate_types: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          weight?: number
+        }
+        Relationships: []
+      }
+      ambalaje_daily_stock_snapshots: {
+        Row: {
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
+          created_at: string
+          document_number: string | null
+          entry_number: number | null
+          gross_quantity: number | null
+          id: string
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          net_quantity: number | null
+          product_id: string | null
+          quantity: number
+          receipt_date: string | null
+          snapshot_date: string
+          supplier_id: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number?: number | null
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          net_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          receipt_date?: string | null
+          snapshot_date: string
+          supplier_id?: string | null
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number?: number | null
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          net_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          receipt_date?: string | null
+          snapshot_date?: string
+          supplier_id?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_daily_stock_snapshots_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_crate_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_daily_stock_snapshots_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_daily_stock_snapshots_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_daily_stock_snapshots_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ambalaje_inventory: {
+        Row: {
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
+          created_at: string | null
+          document_number: string | null
+          entry_number: number
+          gross_quantity: number | null
+          id: string
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          net_quantity: number | null
+          product_id: string | null
+          quantity: number
+          receipt_date: string | null
+          supplier: string | null
+          supplier_id: string | null
+          unit: string
+          updated_at: string | null
+        }
+        Insert: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string | null
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          net_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          receipt_date?: string | null
+          supplier?: string | null
+          supplier_id?: string | null
+          unit: string
+          updated_at?: string | null
+        }
+        Update: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string | null
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          net_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          receipt_date?: string | null
+          supplier?: string | null
+          supplier_id?: string | null
+          unit?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_inventory_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_crate_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_inventory_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_inventory_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ambalaje_inventory_history: {
+        Row: {
+          action: string
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
+          document_number: string | null
+          exit_timestamp: string | null
+          id: string
+          inventory_item_id: string | null
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          net_quantity: number | null
+          notes: string | null
+          operation_date: string
+          pallets: number | null
+          previous_quantity: number | null
+          product_id: string | null
+          quantity: number
+          supplier: string | null
+          supplier_id: string | null
+          unit: string
+        }
+        Insert: {
+          action: string
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          document_number?: string | null
+          exit_timestamp?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          net_quantity?: number | null
+          notes?: string | null
+          operation_date?: string
+          pallets?: number | null
+          previous_quantity?: number | null
+          product_id?: string | null
+          quantity: number
+          supplier?: string | null
+          supplier_id?: string | null
+          unit: string
+        }
+        Update: {
+          action?: string
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          document_number?: string | null
+          exit_timestamp?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          net_quantity?: number | null
+          notes?: string | null
+          operation_date?: string
+          pallets?: number | null
+          previous_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          supplier?: string | null
+          supplier_id?: string | null
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_inventory_history_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_crate_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_inventory_history_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_inventory_history_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_inventory_history_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_inventory_history_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ambalaje_manufacturers: {
+        Row: {
+          country: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ambalaje_products: {
+        Row: {
+          category: string | null
+          cod_produs: string | null
+          created_at: string
+          default_unit: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          cod_produs?: string | null
+          created_at?: string
+          default_unit: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          cod_produs?: string | null
+          created_at?: string
+          default_unit?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ambalaje_suppliers: {
+        Row: {
+          address: string | null
+          contact: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          contact?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          contact?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       angajati: {
         Row: {
           cod_angajat: string
