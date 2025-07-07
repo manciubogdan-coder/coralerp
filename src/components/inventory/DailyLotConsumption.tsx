@@ -6,6 +6,7 @@ import { Calendar, FileSpreadsheet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
+import { useInventoryType } from "@/App";
 
 interface LotConsumptionItem {
   product_name: string;
@@ -30,6 +31,7 @@ interface ProductSummary {
 }
 
 export const DailyLotConsumption = () => {
+  const { inventoryType } = useInventoryType();
   const [consumptionData, setConsumptionData] = useState<ProductSummary[]>([]);
   const [filteredData, setFilteredData] = useState<ProductSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,9 +47,24 @@ export const DailyLotConsumption = () => {
     try {
       setLoading(true);
       
+      const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
+      const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const receptionsTable = inventoryType === 'ambalaje' ? 'ambalaje_receptions' : 'receptions';
+      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
+      
+      // For ambalaje, we don't have these advanced tables yet
+      if (inventoryType === 'ambalaje') {
+        console.log(`Skipping daily lot consumption for ${inventoryType} - advanced tables don't exist yet`);
+        setConsumptionData([]);
+        setFilteredData([]);
+        setLoading(false);
+        return;
+      }
+      
       // Get snapshot data for the beginning of the day - only lots received up to selected date
       const { data: initialStock, error: initialError } = await supabase
-        .from("daily_stock_snapshots")
+        .from(snapshotTable)
         .select(`
           name,
           lot_number,
@@ -70,7 +87,7 @@ export const DailyLotConsumption = () => {
         const previousDateStr = previousDay.toISOString().split('T')[0];
         
         const { data: previousStock, error: previousError } = await supabase
-          .from("daily_stock_snapshots")
+          .from(snapshotTable)
           .select(`
             name,
             lot_number,
@@ -90,7 +107,7 @@ export const DailyLotConsumption = () => {
 
       // Get all inventory movements for the selected date
       const { data: movements, error: movementsError } = await supabase
-        .from("inventory_history")
+        .from(historyTable)
         .select(`
           name,
           lot_number,
@@ -114,7 +131,7 @@ export const DailyLotConsumption = () => {
       let currentInventory: any[] = [];
       if (productsWithMovements.length > 0) {
         const { data: inventory, error: inventoryError } = await supabase
-          .from("inventory")
+          .from(inventoryTable)
           .select(`
             name,
             lot_number,
@@ -320,33 +337,38 @@ export const DailyLotConsumption = () => {
       
       console.log('=== CHECKING FOR NEW RECEIPTS ===');
       
-      // Check receipts from receptions table
-      const { data: dailyReceptions, error: receptionsError } = await supabase
-        .from("receptions")
-        .select(`
-          name,
-          lot_number,
-          quantity,
-          net_quantity,
-          unit,
-          products:product_id (name, cod_produs)
-        `)
-        .gte('receipt_date', `${selectedDate}T00:00:00`)
-        .lte('receipt_date', `${selectedDate}T23:59:59`);
+      // Check receipts from receptions table - conditionally based on if table exists
+      let dailyReceptions: any[] = [];
+      if (inventoryType === 'materii-prime') {
+        const { data, error: receptionsError } = await supabase
+          .from(receptionsTable)
+          .select(`
+            name,
+            lot_number,
+            quantity,
+            net_quantity,
+            unit,
+            products:product_id (name, cod_produs)
+          `)
+          .gte('receipt_date', `${selectedDate}T00:00:00`)
+          .lte('receipt_date', `${selectedDate}T23:59:59`);
 
-      if (receptionsError) {
-        console.error("Error fetching daily receptions:", receptionsError);
-      } else {
-        console.log('Daily receptions found:', dailyReceptions?.length || 0);
-        
-        (dailyReceptions || []).forEach(reception => {
-          const lotKey = `${reception.name}_${reception.lot_number || 'Fără lot'}`;
-          const receiptQty = reception.net_quantity || reception.quantity;
-          newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
-          
-          console.log(`NEW RECEIPT from receptions table: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
-        });
+        if (receptionsError) {
+          console.error("Error fetching daily receptions:", receptionsError);
+        } else {
+          dailyReceptions = data || [];
+        }
       }
+
+      console.log('Daily receptions found:', dailyReceptions?.length || 0);
+      
+      (dailyReceptions || []).forEach(reception => {
+        const lotKey = `${reception.name}_${reception.lot_number || 'Fără lot'}`;
+        const receiptQty = reception.net_quantity || reception.quantity;
+        newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
+        
+        console.log(`NEW RECEIPT from receptions table: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
+      });
       
       // Also check movements for any additional receipts (returns, adjustments, etc.)
       console.log('All movements for receipts analysis:', movements?.length);

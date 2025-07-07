@@ -25,6 +25,7 @@ import {
 import { FileText } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useInventoryType } from "@/App";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;
@@ -62,6 +63,7 @@ interface TransferFormValues {
 }
 
 export function StockTransferForm({ onTransferComplete }: StockTransferFormProps) {
+  const { inventoryType } = useInventoryType();
   const [isOpen, setIsOpen] = useState(false);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<TransferItem[]>([]);
@@ -86,8 +88,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
   const fetchInventory = async () => {
     try {
+      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
+      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
+      const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
+      
       const { data, error } = await supabase
-        .from("inventory")
+        .from(tableName)
         .select(`
           *,
           suppliers:supplier_id (name),
@@ -280,9 +287,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         if (transferItemError) throw transferItemError;
 
         // Record the transfer in inventory_history
+        const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+        const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+        
         // Get the actual lot_number from the inventory item if not available on selected item
         const actualLotNumber = item.lot_number || (await supabase
-          .from('inventory')
+          .from(inventoryTable)
           .select('lot_number')
           .eq('id', item.id)
           .single()).data?.lot_number;
@@ -295,7 +305,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         });
         
         const { error: historyError } = await supabase
-          .from("inventory_history")
+          .from(historyTable)
           .insert({
             inventory_item_id: item.id,
             action: "remove",
@@ -319,7 +329,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
         // Update inventory quantity
         const { data: inventoryItem, error: getError } = await supabase
-          .from('inventory')
+          .from(inventoryTable)
           .select('quantity')
           .eq('id', item.id)
           .single();
@@ -330,7 +340,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         const newQuantity = Math.max(0, currentQuantity - item.netQuantity);
         
         const { error: updateError } = await supabase
-          .from('inventory')
+          .from(inventoryTable)
           .update({ quantity: newQuantity })
           .eq('id', item.id);
            

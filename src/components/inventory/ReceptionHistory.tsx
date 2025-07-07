@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useGroupedReceptions } from "@/hooks/use-grouped-receptions";
+import { useInventoryType } from "@/App";
 
 interface ReceptionItem {
   id: string;
@@ -30,6 +31,7 @@ interface ReceptionItem {
 type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';
 
 export const ReceptionHistory = () => {
+  const { inventoryType } = useInventoryType();
   const [receptions, setReceptions] = useState<ReceptionItem[]>([]);
   const [filteredReceptions, setFilteredReceptions] = useState<ReceptionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,8 +45,23 @@ export const ReceptionHistory = () => {
   const fetchReceptions = async () => {
     try {
       setLoading(true);
+      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_receptions' : 'receptions';
+      const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
+      const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
+      const crateTypesTable = inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
+      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
+      
+      // For ambalaje, we don't have the receptions table yet
+      if (inventoryType === 'ambalaje') {
+        console.log(`Skipping receptions for ${inventoryType} - table doesn't exist yet`);
+        setReceptions([]);
+        setFilteredReceptions([]);
+        setLoading(false);
+        return;
+      }
+      
       let query = supabase
-        .from("receptions")
+        .from(tableName)
         .select(`
           id,
           entry_number,

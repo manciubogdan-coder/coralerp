@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-custom-toast";
 import { Plus, Save, PackagePlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Product, Supplier, Manufacturer } from "@/types";
+import { useInventoryType } from "@/App";
 
 interface PalletEntry {
   grossQuantity: number;
@@ -31,6 +32,7 @@ export function ReceptionRegistration({
   crateTypes,
   onRegistrationComplete 
 }: ReceptionRegistrationProps) {
+  const { inventoryType } = useInventoryType();
   const [isOpen, setIsOpen] = useState(false);
   const [productId, setProductId] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState<string | null>(null);
@@ -99,31 +101,37 @@ export function ReceptionRegistration({
         const entryNumber = nextEntryData;
 
         // Salvăm în tabela receptions
-        const { error: receptionError } = await supabase
-          .from('receptions')
-          .insert({
-            entry_number: entryNumber,
-            product_id: productId,
-            name: selectedProduct.name,
-            supplier_id: supplierId,
-            manufacturer_id: manufacturerId,
-            document_number: documentNumber,
-            quantity: pallet.netQuantity,
-            gross_quantity: pallet.grossQuantity,
-            net_quantity: pallet.netQuantity,
-            unit: selectedProduct.default_unit || 'kg',
-            crate_type_id: pallet.crateTypeId,
-            crate_count: pallet.crateCount,
-            crate_weight: pallet.palletWeight,
-            receipt_date: new Date().toISOString()
-          });
+        const receptionsTable = inventoryType === 'ambalaje' ? 'ambalaje_receptions' : 'receptions';
+        const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+        
+        // For ambalaje, we don't have receptions table yet, so skip
+        if (inventoryType === 'materii-prime') {
+          const { error: receptionError } = await supabase
+            .from(receptionsTable)
+            .insert({
+              entry_number: entryNumber,
+              product_id: productId,
+              name: selectedProduct.name,
+              supplier_id: supplierId,
+              manufacturer_id: manufacturerId,
+              document_number: documentNumber,
+              quantity: pallet.netQuantity,
+              gross_quantity: pallet.grossQuantity,
+              net_quantity: pallet.netQuantity,
+              unit: selectedProduct.default_unit || 'kg',
+              crate_type_id: pallet.crateTypeId,
+              crate_count: pallet.crateCount,
+              crate_weight: pallet.palletWeight,
+              receipt_date: new Date().toISOString()
+            });
 
-        if (receptionError) throw receptionError;
+          if (receptionError) throw receptionError;
+        }
 
         // Și în tabela inventory pentru stocul curent
         // IMPORTANT: quantity trebuie să fie gross_quantity pentru ca trigger-ul să calculeze corect
         const { error } = await supabase
-          .from('inventory')
+          .from(inventoryTable)
           .insert({
             product_id: productId,
             name: selectedProduct.name,
