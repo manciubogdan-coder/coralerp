@@ -24,6 +24,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { exportToExcel } from "@/lib/excelExport";
 import { TransferReturnForm } from "./TransferReturnForm";
+import { useInventoryType } from "@/App";
 
 interface TransferHistoryProps {
   onTransferReturned?: () => void;
@@ -54,6 +55,7 @@ interface TransferItem {
 }
 
 export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
+  const { inventoryType } = useInventoryType();
   const [transfers, setTransfers] = useState<TransferItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -69,6 +71,16 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     try {
       setLoading(true);
       
+      // For ambalaje, we don't have transfer tables yet
+      if (inventoryType === 'ambalaje') {
+        console.log('Transfer tables for ambalaje do not exist yet');
+        setTransfers([]);
+        setDestinations([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Use the existing view for materii-prime
       const { data, error } = await supabase
         .from('stock_transfer_view')
         .select('*')
@@ -76,7 +88,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
         
       if (error) throw error;
       
-      console.log("Fetched transfers:", data);
+      console.log(`Fetched ${inventoryType} transfers:`, data);
       setTransfers(data || []);
       
       const uniqueDestinations = Array.from(
@@ -99,7 +111,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   
   useEffect(() => {
     fetchTransfers();
-  }, []);
+  }, [inventoryType]);
   
   const handleTransferReturned = () => {
     fetchTransfers();
