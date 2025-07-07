@@ -341,7 +341,7 @@ export const DailyLotConsumption = () => {
       let dailyReceptions: any[] = [];
       if (inventoryType === 'materii-prime') {
         const { data, error: receptionsError } = await supabase
-          .from(receptionsTable)
+          .from('receptions')
           .select(`
             name,
             lot_number,

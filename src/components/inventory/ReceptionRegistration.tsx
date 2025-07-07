@@ -100,14 +100,13 @@ export function ReceptionRegistration({
         if (entryError) throw entryError;
         const entryNumber = nextEntryData;
 
-        // Salvăm în tabela receptions
-        const receptionsTable = inventoryType === 'ambalaje' ? 'ambalaje_receptions' : 'receptions';
+        // Salvăm în tabela receptions (only for materii-prime)
         const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
         
         // For ambalaje, we don't have receptions table yet, so skip
         if (inventoryType === 'materii-prime') {
           const { error: receptionError } = await supabase
-            .from(receptionsTable)
+            .from('receptions')
             .insert({
               entry_number: entryNumber,
               product_id: productId,
