@@ -159,16 +159,7 @@ export const DailyLotConsumption = () => {
       // Now process grouped snapshot data
       snapshotGroupedByLot.forEach((group, lotKey) => {
         const firstItem = group.items[0]; // Use first item for product details
-        const productKey = `${firstItem.name}_${firstItem.products?.cod_produs || ''}`;
-        
-        console.log(`=== SNAPSHOT PRODUCT DEBUG ===`);
-        console.log(`Product: ${firstItem.name}`);
-        console.log(`Product ID: ${firstItem.product_id || 'MISSING'}`);
-        console.log(`Products exists: ${firstItem.products ? 'YES' : 'NO'}`);
-        if (firstItem.products) {
-          console.log(`Product code from products: ${firstItem.products.cod_produs || 'EMPTY'}`);
-        }
-        console.log(`Final product_code: ${firstItem.products?.cod_produs || 'MISSING'}`);
+        const productKey = firstItem.name; // Use only product name as key to avoid duplicates
         
         if (!productMap.has(productKey)) {
           productMap.set(productKey, {
@@ -181,6 +172,12 @@ export const DailyLotConsumption = () => {
             total_final: 0,
             lots: []
           });
+        } else {
+          // If product exists, update code if this entry has one and the existing doesn't
+          const existingProduct = productMap.get(productKey)!;
+          if (!existingProduct.product_code && firstItem.products?.cod_produs) {
+            existingProduct.product_code = firstItem.products.cod_produs;
+          }
         }
 
         const product = productMap.get(productKey)!;
@@ -272,7 +269,7 @@ export const DailyLotConsumption = () => {
         
         if (!sampleMovement) return;
         
-        const productKey = `${sampleMovement.name}_${sampleMovement.products?.cod_produs || ''}`;
+        const productKey = sampleMovement.name; // Use only product name as key
         let product = productMap.get(productKey);
         
         // If product doesn't exist, create it
@@ -288,6 +285,11 @@ export const DailyLotConsumption = () => {
             lots: []
           };
           productMap.set(productKey, product);
+        } else {
+          // If product exists, update code if this entry has one and the existing doesn't
+          if (!product.product_code && sampleMovement.products?.cod_produs) {
+            product.product_code = sampleMovement.products.cod_produs;
+          }
         }
         
         const lotNumber = sampleMovement.lot_number || 'Fără lot';
@@ -365,7 +367,7 @@ export const DailyLotConsumption = () => {
 
       // Process current inventory for products that had activity
       (currentInventory || []).forEach(inventory => {
-        const productKey = `${inventory.name}_${inventory.products?.cod_produs || ''}`;
+        const productKey = inventory.name; // Use only product name as key
         let product = productMap.get(productKey);
         
         if (!product) {
@@ -380,6 +382,11 @@ export const DailyLotConsumption = () => {
             lots: []
           };
           productMap.set(productKey, product);
+        } else {
+          // If product exists, update code if this entry has one and the existing doesn't
+          if (!product.product_code && inventory.products?.cod_produs) {
+            product.product_code = inventory.products.cod_produs;
+          }
         }
 
         const lotKey = inventory.lot_number || 'Fără lot';
@@ -466,7 +473,8 @@ export const DailyLotConsumption = () => {
         product.total_final = product.lots.reduce((sum, lot) => sum + lot.final_stock, 0);
       });
 
-      const results = Array.from(productMap.values());
+      const results = Array.from(productMap.values())
+        .sort((a, b) => a.product_name.localeCompare(b.product_name)); // Sort alphabetically by product name
       setConsumptionData(results);
       setFilteredData(results);
     } catch (error: any) {
