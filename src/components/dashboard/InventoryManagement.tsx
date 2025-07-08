@@ -96,7 +96,14 @@ const InventoryManagement = () => {
             setGroupBy={setGroupBy}
           />
           <div className="bg-white rounded-lg shadow-md">
-            <InventoryTable inventory={aggregatedData} showExportButton={true} />
+            <InventoryTable 
+              inventory={aggregatedData} 
+              showExportButton={true}
+              suppliers={suppliers.reduce((acc, supplier) => ({ ...acc, [supplier.id]: supplier }), {})}
+              products={products.reduce((acc, product) => ({ ...acc, [product.id]: product }), {})}
+              manufacturers={manufacturers.reduce((acc, manufacturer) => ({ ...acc, [manufacturer.id]: manufacturer }), {})}
+              crateTypes={crateTypes.reduce((acc, crateType) => ({ ...acc, [crateType.id]: crateType }), {})}
+            />
           </div>
         </TabsContent>
         

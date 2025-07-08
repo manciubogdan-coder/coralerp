@@ -67,13 +67,21 @@ export const ReceptionHistory = () => {
           crate_types:crate_type_id (name, weight),
           products:product_id (name, cod_produs)
         `)
+        .not('receipt_date', 'is', null)
         .order("receipt_date", { ascending: false });
 
-      if (dateFrom) {
-        query = query.gte('receipt_date', dateFrom);
-      }
-      if (dateTo) {
-        query = query.lte('receipt_date', dateTo + 'T23:59:59');
+      // Set default date range if none provided (last 30 days)
+      if (!dateFrom && !dateTo) {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        query = query.gte('receipt_date', thirtyDaysAgo.toISOString().split('T')[0]);
+      } else {
+        if (dateFrom) {
+          query = query.gte('receipt_date', dateFrom);
+        }
+        if (dateTo) {
+          query = query.lte('receipt_date', dateTo + 'T23:59:59');
+        }
       }
 
       const { data, error } = await query;
