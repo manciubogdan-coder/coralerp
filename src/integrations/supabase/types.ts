@@ -1057,6 +1057,78 @@ export type Database = {
         }
         Relationships: []
       }
+      ambalaje_stock_transfer_items: {
+        Row: {
+          created_at: string
+          id: string
+          inventory_item_id: string
+          net_quantity: number | null
+          quantity: number
+          transfer_id: string
+          unit: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inventory_item_id: string
+          net_quantity?: number | null
+          quantity: number
+          transfer_id: string
+          unit: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inventory_item_id?: string
+          net_quantity?: number | null
+          quantity?: number
+          transfer_id?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_stock_transfer_items_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_stock_transfers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ambalaje_stock_transfers: {
+        Row: {
+          created_at: string
+          destination: string
+          id: string
+          notes: string | null
+          transfer_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          destination: string
+          id?: string
+          notes?: string | null
+          transfer_date?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          destination?: string
+          id?: string
+          notes?: string | null
+          transfer_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ambalaje_suppliers: {
         Row: {
           address: string | null

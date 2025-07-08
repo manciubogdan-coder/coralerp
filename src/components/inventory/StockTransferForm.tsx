@@ -254,9 +254,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSubmitting(true);
     
     try {
+      // Use appropriate transfer tables based on inventory type
+      const transferTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
+      const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
+      
       // First create a transfer document
       const { data: transferData, error: transferError } = await supabase
-        .from('stock_transfers')
+        .from(transferTable)
         .insert({
           transfer_date: formData.transferDate,
           destination: formData.destination,
@@ -273,9 +277,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       
       // Process each item in the transfer
       for (const item of selectedItems) {
-        // Add item to stock_transfer_items
+        // Add item to transfer items table
         const { error: transferItemError } = await supabase
-          .from('stock_transfer_items')
+          .from(transferItemsTable)
           .insert({
             transfer_id: transferData.id,
             inventory_item_id: item.id,
