@@ -1097,6 +1097,13 @@ export type Database = {
             foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
             columns: ["transfer_id"]
             isOneToOne: false
+            referencedRelation: "ambalaje_stock_transfer_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
             referencedRelation: "ambalaje_stock_transfers"
             referencedColumns: ["id"]
           },
@@ -3572,6 +3579,36 @@ export type Database = {
       }
     }
     Views: {
+      ambalaje_stock_transfer_view: {
+        Row: {
+          created_at: string | null
+          destination: string | null
+          document_number: string | null
+          entry_number: number | null
+          id: string | null
+          inventory_item_id: string | null
+          lot_number: string | null
+          manufacturer_name: string | null
+          name: string | null
+          net_quantity: number | null
+          notes: string | null
+          product_code: string | null
+          product_name: string | null
+          quantity: number | null
+          supplier_name: string | null
+          transfer_date: string | null
+          unit: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_stock_transfer_items_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_inventory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consumption_analytics: {
         Row: {
           action: string | null
