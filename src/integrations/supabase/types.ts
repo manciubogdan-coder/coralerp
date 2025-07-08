@@ -3595,8 +3595,10 @@ export type Database = {
           product_code: string | null
           product_name: string | null
           quantity: number | null
+          supplier: string | null
           supplier_name: string | null
           transfer_date: string | null
+          transfer_id: string | null
           unit: string | null
         }
         Relationships: [
@@ -3605,6 +3607,20 @@ export type Database = {
             columns: ["inventory_item_id"]
             isOneToOne: false
             referencedRelation: "ambalaje_inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_stock_transfer_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_stock_transfers"
             referencedColumns: ["id"]
           },
         ]

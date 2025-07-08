@@ -53,9 +53,9 @@ export const DailyLotConsumption = () => {
       const receptionsTable = inventoryType === 'ambalaje' ? 'ambalaje_receptions' : 'receptions';
       const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
       
-      // For ambalaje, we don't have these advanced tables yet
+      // For ambalaje, we don't have daily snapshots yet, so skip
       if (inventoryType === 'ambalaje') {
-        console.log(`Skipping daily lot consumption for ${inventoryType} - advanced tables don't exist yet`);
+        console.log(`Skipping daily lot consumption for ${inventoryType} - daily snapshots don't exist yet`);
         setConsumptionData([]);
         setFilteredData([]);
         setLoading(false);

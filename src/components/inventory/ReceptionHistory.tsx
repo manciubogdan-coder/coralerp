@@ -45,17 +45,11 @@ export const ReceptionHistory = () => {
   const fetchReceptions = async () => {
     try {
       setLoading(true);
-      // For ambalaje, we don't have the receptions table yet
-      if (inventoryType === 'ambalaje') {
-        console.log(`Skipping receptions for ${inventoryType} - table doesn't exist yet`);
-        setReceptions([]);
-        setFilteredReceptions([]);
-        setLoading(false);
-        return;
-      }
+      // Use the correct table based on inventory type
+      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
       
       let query = supabase
-        .from('receptions')
+        .from(tableName)
         .select(`
           id,
           entry_number,
