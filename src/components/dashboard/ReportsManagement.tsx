@@ -9,6 +9,7 @@ import { CalendarIcon, FileSpreadsheet, Download, BarChart3, TrendingUp, Users, 
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
+import { useInventoryType } from "@/App";
 import { 
   LineChart, 
   Line, 
@@ -51,6 +52,7 @@ interface ChartData {
 }
 
 export const ReportsManagement = () => {
+  const { inventoryType } = useInventoryType();
   const [filters, setFilters] = useState<ReportFilters>({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
@@ -155,8 +157,10 @@ export const ReportsManagement = () => {
   };
 
   const generateInventoryHistoryReport = async () => {
+    const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+    
     let query = supabase
-      .from('inventory_history')
+      .from(historyTable)
       .select(`
         operation_date,
         action,
@@ -195,8 +199,13 @@ export const ReportsManagement = () => {
   };
 
   const generateCurrentInventoryReport = async () => {
+    const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+    const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
+    const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
+    const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
+    
     const { data, error } = await supabase
-      .from('inventory')
+      .from(inventoryTable)
       .select(`
         name,
         lot_number,
@@ -236,8 +245,10 @@ export const ReportsManagement = () => {
   };
 
   const generateConsumptionAnalysisReport = async () => {
+    const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+    
     const { data, error } = await supabase
-      .from('inventory_history')
+      .from(historyTable)
       .select('name, quantity, net_quantity, unit, operation_date')
       .eq('action', 'remove')
       .gte('operation_date', `${filters.startDate}T00:00:00`)
@@ -280,8 +291,10 @@ export const ReportsManagement = () => {
   };
 
   const generateDailySnapshotsReport = async () => {
+    const snapshotsTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
+    
     const { data, error } = await supabase
-      .from('daily_stock_snapshots')
+      .from(snapshotsTable)
       .select('*')
       .gte('snapshot_date', filters.startDate)
       .lte('snapshot_date', filters.endDate)
@@ -302,8 +315,10 @@ export const ReportsManagement = () => {
   };
 
   const generateTransfersSummaryReport = async () => {
+    const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+    
     const { data, error } = await supabase
-      .from('inventory_history')
+      .from(historyTable)
       .select('*')
       .like('notes', '%Transfer%')
       .gte('operation_date', `${filters.startDate}T00:00:00`)
@@ -346,8 +361,10 @@ export const ReportsManagement = () => {
   };
 
   const generateDailyConsumptionData = async () => {
+    const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+    
     const { data, error } = await supabase
-      .from('inventory_history')
+      .from(historyTable)
       .select('operation_date, quantity, net_quantity')
       .eq('action', 'remove')
       .gte('operation_date', `${filters.startDate}T00:00:00`)
@@ -381,8 +398,10 @@ export const ReportsManagement = () => {
   };
 
   const generateTopProductsData = async () => {
+    const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+    
     const { data, error } = await supabase
-      .from('inventory_history')
+      .from(historyTable)
       .select('name, quantity, net_quantity')
       .eq('action', 'remove')
       .gte('operation_date', `${filters.startDate}T00:00:00`)
@@ -415,8 +434,10 @@ export const ReportsManagement = () => {
   };
 
   const generateDailyActivityData = async () => {
+    const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+    
     const { data, error } = await supabase
-      .from('inventory_history')
+      .from(historyTable)
       .select('operation_date, action, quantity, net_quantity')
       .gte('operation_date', `${filters.startDate}T00:00:00`)
       .lte('operation_date', `${filters.endDate}T23:59:59`);
@@ -452,8 +473,10 @@ export const ReportsManagement = () => {
   };
 
   const generateSupplierDistributionData = async () => {
+    const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+    
     const { data, error } = await supabase
-      .from('inventory_history')
+      .from(historyTable)
       .select('supplier, quantity, net_quantity')
       .eq('action', 'remove')
       .gte('operation_date', `${filters.startDate}T00:00:00`)
@@ -484,7 +507,7 @@ export const ReportsManagement = () => {
 
   useEffect(() => {
     loadChartData();
-  }, [filters.startDate, filters.endDate]);
+  }, [filters.startDate, filters.endDate, inventoryType]);
 
   return (
     <div className="space-y-6">

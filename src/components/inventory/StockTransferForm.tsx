@@ -565,18 +565,18 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           />
                         </div>
                         
-                        {item.crateTypeId && (
-                          <div>
-                            <label className="text-sm">Număr lădițe</label>
-                            <Input
-                              type="number"
-                              value={item.crateCount}
-                              onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
-                              min={0}
-                              className={isMobile ? 'h-12' : ''}
-                            />
-                          </div>
-                        )}
+                         {inventoryType === 'materii-prime' && item.crateTypeId && (
+                           <div>
+                             <label className="text-sm">Număr lădițe</label>
+                             <Input
+                               type="number"
+                               value={item.crateCount}
+                               onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
+                               min={0}
+                               className={isMobile ? 'h-12' : ''}
+                             />
+                           </div>
+                         )}
                         
                         <div>
                           <label className="text-sm">Număr paleți</label>

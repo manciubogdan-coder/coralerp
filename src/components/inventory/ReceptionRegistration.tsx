@@ -78,7 +78,9 @@ export function ReceptionRegistration({
 
   const handleSubmit = async () => {
     try {
-      if (!productId || !supplierId || !manufacturerId || !documentNumber) {
+      // For ambalaje, manufacturer is not required
+      const isManufacturerRequired = inventoryType === 'materii-prime';
+      if (!productId || !supplierId || (isManufacturerRequired && !manufacturerId) || !documentNumber) {
         toast({
           title: "Date incomplete",
           description: "Vă rugăm să completați toate câmpurile obligatorii.",
@@ -222,21 +224,23 @@ export function ReceptionRegistration({
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <label className="font-medium">Producător</label>
-            <Select value={manufacturerId || ''} onValueChange={setManufacturerId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selectează producătorul" />
-              </SelectTrigger>
-              <SelectContent>
-                {manufacturers.map(manufacturer => (
-                  <SelectItem key={manufacturer.id} value={manufacturer.id}>
-                    {manufacturer.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {inventoryType === 'materii-prime' && (
+            <div className="space-y-2">
+              <label className="font-medium">Producător</label>
+              <Select value={manufacturerId || ''} onValueChange={setManufacturerId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selectează producătorul" />
+                </SelectTrigger>
+                <SelectContent>
+                  {manufacturers.map(manufacturer => (
+                    <SelectItem key={manufacturer.id} value={manufacturer.id}>
+                      {manufacturer.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="font-medium">Număr document</label>
@@ -278,33 +282,37 @@ export function ReceptionRegistration({
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm">Tip lădiță</label>
-                    <Select 
-                      value={pallet.crateTypeId || ''} 
-                      onValueChange={(value) => handlePalletChange(index, 'crateTypeId', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selectează tipul de lădiță" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {crateTypes.map(crateType => (
-                          <SelectItem key={crateType.id} value={crateType.id}>
-                            {crateType.name} ({crateType.weight} kg)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                   {inventoryType === 'materii-prime' && (
+                     <>
+                       <div className="space-y-2">
+                         <label className="text-sm">Tip lădiță</label>
+                         <Select 
+                           value={pallet.crateTypeId || ''} 
+                           onValueChange={(value) => handlePalletChange(index, 'crateTypeId', value)}
+                         >
+                           <SelectTrigger>
+                             <SelectValue placeholder="Selectează tipul de lădiță" />
+                           </SelectTrigger>
+                           <SelectContent>
+                             {crateTypes.map(crateType => (
+                               <SelectItem key={crateType.id} value={crateType.id}>
+                                 {crateType.name} ({crateType.weight} kg)
+                               </SelectItem>
+                             ))}
+                           </SelectContent>
+                         </Select>
+                       </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm">Număr lădițe</label>
-                    <Input
-                      type="number"
-                      value={pallet.crateCount || ''}
-                      onChange={(e) => handlePalletChange(index, 'crateCount', parseInt(e.target.value) || 0)}
-                    />
-                  </div>
+                       <div className="space-y-2">
+                         <label className="text-sm">Număr lădițe</label>
+                         <Input
+                           type="number"
+                           value={pallet.crateCount || ''}
+                           onChange={(e) => handlePalletChange(index, 'crateCount', parseInt(e.target.value) || 0)}
+                         />
+                       </div>
+                     </>
+                   )}
                 </div>
 
                 <div className="mt-4 p-3 bg-gray-50 rounded-md">
@@ -317,7 +325,7 @@ export function ReceptionRegistration({
           </div>
 
           <div className="flex justify-end pt-4">
-            <Button onClick={handleSubmit} disabled={!productId || !supplierId || !manufacturerId || !documentNumber}>
+            <Button onClick={handleSubmit} disabled={!productId || !supplierId || (inventoryType === 'materii-prime' && !manufacturerId) || !documentNumber}>
               <Save className="h-4 w-4 mr-2" />
               Salvează recepția
             </Button>
