@@ -2968,7 +2968,7 @@ export type Database = {
             columns: ["transfer_id"]
             isOneToOne: false
             referencedRelation: "stock_transfer_view"
-            referencedColumns: ["transfer_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "stock_transfer_items_transfer_id_fkey"
@@ -3699,18 +3699,21 @@ export type Database = {
       }
       stock_transfer_view: {
         Row: {
-          crate_count: number | null
           created_at: string | null
           destination: string | null
           document_number: string | null
           entry_number: number | null
+          id: string | null
           inventory_item_id: string | null
           lot_number: string | null
           manufacturer_name: string | null
+          name: string | null
           net_quantity: number | null
           notes: string | null
+          product_code: string | null
           product_name: string | null
           quantity: number | null
+          supplier: string | null
           supplier_name: string | null
           transfer_date: string | null
           transfer_id: string | null
@@ -3729,6 +3732,20 @@ export type Database = {
             columns: ["inventory_item_id"]
             isOneToOne: false
             referencedRelation: "inventory_with_history"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfer_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfers"
             referencedColumns: ["id"]
           },
         ]
