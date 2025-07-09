@@ -190,6 +190,14 @@ export const ReceptionHistory = () => {
 
       if (error) throw error;
 
+      // Actualizez și inventarul curent prin refetch
+      const { data: currentInventory } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('id', editingItem.id);
+
+      console.log('Current inventory after update:', currentInventory);
+
       toast({
         title: "Recepție actualizată",
         description: "Recepția a fost actualizată cu succes."
@@ -197,7 +205,9 @@ export const ReceptionHistory = () => {
 
       setIsEditDialogOpen(false);
       setEditingItem(null);
-      fetchReceptions();
+      
+      // Reîncărcare completă pentru a reflecta modificările
+      await fetchReceptions();
     } catch (error: any) {
       console.error("Error updating reception:", error);
       toast({
