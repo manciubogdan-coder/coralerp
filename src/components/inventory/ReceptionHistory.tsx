@@ -159,21 +159,34 @@ export const ReceptionHistory = () => {
     try {
       const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
       
-      const { error } = await supabase
+      console.log('Updating reception with data:', {
+        id: editingItem.id,
+        tableName,
+        formData: editFormData
+      });
+
+      const updateData = {
+        name: editFormData.name,
+        quantity: editFormData.quantity,
+        gross_quantity: editFormData.gross_quantity,
+        net_quantity: editFormData.net_quantity,
+        unit: editFormData.unit,
+        document_number: editFormData.document_number || null,
+        lot_number: editFormData.lot_number || null,
+        crate_count: editFormData.crate_count,
+        receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
+        updated_at: new Date().toISOString()
+      };
+
+      console.log('Update data to send:', updateData);
+      
+      const { data, error } = await supabase
         .from(tableName)
-        .update({
-          name: editFormData.name,
-          quantity: editFormData.quantity,
-          gross_quantity: editFormData.gross_quantity,
-          net_quantity: editFormData.net_quantity,
-          unit: editFormData.unit,
-          document_number: editFormData.document_number,
-          lot_number: editFormData.lot_number,
-          crate_count: editFormData.crate_count,
-          receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date).toISOString() : null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', editingItem.id);
+        .update(updateData)
+        .eq('id', editingItem.id)
+        .select();
+
+      console.log('Update result:', { data, error });
 
       if (error) throw error;
 
