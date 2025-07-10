@@ -343,12 +343,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         const currentQuantity = inventoryItem?.quantity || 0;
         const newQuantity = Math.max(0, currentQuantity - item.netQuantity);
         
-        // Update ONLY the quantity field to preserve reception data
+        // Update ONLY the quantity field - do NOT modify any reception data
         const { error: updateError } = await supabase
           .from(inventoryTable)
           .update({ 
-            quantity: newQuantity,
-            updated_at: new Date().toISOString()
+            quantity: newQuantity
           })
           .eq('id', item.id);
            
