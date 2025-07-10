@@ -331,7 +331,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           
         if (historyError) throw historyError;
 
-        // Update inventory quantity ONLY - preserve all reception data
+        // Update inventory quantity
         const { data: inventoryItem, error: getError } = await supabase
           .from(inventoryTable)
           .select('quantity')
@@ -343,12 +343,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         const currentQuantity = inventoryItem?.quantity || 0;
         const newQuantity = Math.max(0, currentQuantity - item.netQuantity);
         
-        // Update ONLY the quantity field - do NOT modify any reception data
         const { error: updateError } = await supabase
           .from(inventoryTable)
-          .update({ 
-            quantity: newQuantity
-          })
+          .update({ quantity: newQuantity })
           .eq('id', item.id);
            
         if (updateError) throw updateError;
