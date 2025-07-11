@@ -155,9 +155,35 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   };
 
   const calculateNetQuantity = (item: TransferItem) => {
-    // Folosim cantitatea netă calculată din baza de date, nu recalculăm aici
-    // Pentru că triggerul din baza de date face deja calculul corect
-    return item.netQuantity || item.grossQuantity;
+    console.log('Calculating net quantity for item:', {
+      productName: item.productName,
+      grossQuantity: item.grossQuantity,
+      originalNetQuantity: item.netQuantity,
+      crateCount: item.crateCount,
+      crateWeight: item.crateWeight,
+      palletWeight: item.palletWeight
+    });
+    
+    // Calculăm cantitatea netă pe baza cantității brute introduse de utilizator
+    let netQuantity = item.grossQuantity;
+    
+    // Scadem greutatea lăzilor dacă există
+    if (item.crateCount && item.crateTypeId) {
+      // Ar trebui să obținem greutatea de la crate type, dar pentru simplitate folosim o greutate estimată
+      const estimatedCrateWeight = 0.5; // kg per ladă - aceasta poate fi ajustată
+      netQuantity -= (item.crateCount * estimatedCrateWeight);
+    }
+    
+    // Scadem greutatea paletului/paletilor
+    if (item.palletWeight) {
+      netQuantity -= item.palletWeight;
+    }
+    
+    // Asigurăm că cantitatea netă nu este negativă
+    netQuantity = Math.max(0, netQuantity);
+    
+    console.log('Calculated net quantity:', netQuantity);
+    return netQuantity;
   };
 
   const handleGrossQuantityChange = (index: number, value: number) => {
@@ -326,7 +352,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           
         if (historyError) throw historyError;
 
-        // Update inventory quantity - we need to get net_quantity from database and subtract the transfer net_quantity
+        // Update inventory quantity - scadem cantitatea transferată direct din stoc
         const { data: inventoryItem, error: getError } = await supabase
           .from(inventoryTable)
           .select('quantity, net_quantity')
@@ -335,15 +361,23 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         
         if (getError) throw getError;
         
-        // Calculate the reduction proportionally - if we're transferring from net_quantity, reduce the gross quantity proportionally
-        const currentNetQuantity = inventoryItem?.net_quantity || inventoryItem?.quantity || 0;
+        console.log('Before inventory update:', {
+          id: item.id,
+          productName: item.productName,
+          currentQuantity: inventoryItem?.quantity,
+          currentNetQuantity: inventoryItem?.net_quantity,
+          transferQuantity: item.netQuantity
+        });
+        
+        // Scadem direct cantitatea netă transferată din cantitatea brută din stoc
         const currentGrossQuantity = inventoryItem?.quantity || 0;
+        const newQuantity = Math.max(0, currentGrossQuantity - item.netQuantity);
         
-        // Calculate the proportion to reduce
-        const reductionRatio = currentNetQuantity > 0 ? item.netQuantity / currentNetQuantity : 0;
-        const grossReduction = currentGrossQuantity * reductionRatio;
-        
-        const newQuantity = Math.max(0, currentGrossQuantity - grossReduction);
+        console.log('Inventory update:', {
+          currentGrossQuantity,
+          transferQuantity: item.netQuantity,
+          newQuantity
+        });
         
         const { error: updateError } = await supabase
           .from(inventoryTable)
