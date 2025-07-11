@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { supabase } from "@/integrations/supabase/client";
+import { useInventoryType } from "@/App";
 import { 
   LineChart, 
   Line, 
@@ -45,6 +46,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 const AnalyticsPage = () => {
   const navigate = useNavigate();
+  const { inventoryType } = useInventoryType();
   const [consumptionTrends, setConsumptionTrends] = useState<ConsumptionTrend[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [dailyActivity, setDailyActivity] = useState<DailyActivity[]>([]);
@@ -52,18 +54,21 @@ const AnalyticsPage = () => {
 
   useEffect(() => {
     fetchAnalyticsData();
-  }, []);
+  }, [inventoryType]);
 
   const fetchAnalyticsData = async () => {
     try {
       setLoading(true);
+
+      // Use correct history table based on inventory type
+      const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
 
       // Fetch consumption trends (last 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
       const { data: trendsData } = await supabase
-        .from('inventory_history')
+        .from(historyTable)
         .select('operation_date, quantity, net_quantity, name')
         .eq('action', 'remove')
         .gte('operation_date', thirtyDaysAgo.toISOString())
@@ -94,7 +99,7 @@ const AnalyticsPage = () => {
 
       // Fetch top consumed products (last 30 days)
       const { data: topProductsData } = await supabase
-        .from('inventory_history')
+        .from(historyTable)
         .select('name, quantity, net_quantity')
         .eq('action', 'remove')
         .gte('operation_date', thirtyDaysAgo.toISOString());
@@ -128,7 +133,7 @@ const AnalyticsPage = () => {
       fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
       
       const { data: activityData } = await supabase
-        .from('inventory_history')
+        .from(historyTable)
         .select('operation_date, action, quantity, net_quantity')
         .gte('operation_date', fourteenDaysAgo.toISOString());
 

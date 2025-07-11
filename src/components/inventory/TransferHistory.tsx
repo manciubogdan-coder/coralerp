@@ -24,6 +24,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { exportToExcel } from "@/lib/excelExport";
 import { TransferReturnForm } from "./TransferReturnForm";
+import { useInventoryType } from "@/App";
 
 interface TransferHistoryProps {
   onTransferReturned?: () => void;
@@ -34,6 +35,7 @@ interface TransferItem {
   transfer_date: string;
   destination: string;
   product_name: string;
+  product_code?: string;
   supplier_name?: string;
   manufacturer_name?: string;
   document_number?: string;
@@ -54,6 +56,7 @@ interface TransferItem {
 }
 
 export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
+  const { inventoryType } = useInventoryType();
   const [transfers, setTransfers] = useState<TransferItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -69,14 +72,17 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     try {
       setLoading(true);
       
+      // Use the correct view based on inventory type
+      const viewName = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_view' : 'stock_transfer_view';
+      
       const { data, error } = await supabase
-        .from('stock_transfer_view')
+        .from(viewName)
         .select('*')
         .order('created_at', { ascending: false });
         
       if (error) throw error;
       
-      console.log("Fetched transfers:", data);
+      console.log(`Fetched ${inventoryType} transfers:`, data);
       setTransfers(data || []);
       
       const uniqueDestinations = Array.from(
@@ -99,7 +105,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   
   useEffect(() => {
     fetchTransfers();
-  }, []);
+  }, [inventoryType]);
   
   const handleTransferReturned = () => {
     fetchTransfers();
@@ -137,6 +143,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       "Destinație": transfer.destination,
       "Nr. Document": transfer.document_number || "-",
       "Produs": transfer.product_name,
+      "Cod Produs": transfer.product_code || "-",
       "Nr. Lot": transfer.lot_number || "-",
       "Furnizor": transfer.supplier_name || "-",
       "Producător": transfer.manufacturer_name || "-",
@@ -283,6 +290,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                   <TableHead>Destinație</TableHead>
                   <TableHead>Nr. Document</TableHead>
                   <TableHead>Produs</TableHead>
+                  <TableHead>Cod Produs</TableHead>
                   <TableHead>Nr. Lot</TableHead>
                   <TableHead>Furnizor</TableHead>
                   <TableHead>Producător</TableHead>
@@ -296,7 +304,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center py-6 text-gray-500">
+                    <TableCell colSpan={13} className="text-center py-6 text-gray-500">
                       Se încarcă datele...
                     </TableCell>
                   </TableRow>
@@ -313,6 +321,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                       <TableCell>{transfer.destination}</TableCell>
                       <TableCell>{transfer.document_number || "-"}</TableCell>
                       <TableCell className="font-medium">{transfer.product_name}</TableCell>
+                      <TableCell>{transfer.product_code || "-"}</TableCell>
                       <TableCell>{transfer.lot_number || "-"}</TableCell>
                       <TableCell>{transfer.supplier_name || "-"}</TableCell>
                       <TableCell>{transfer.manufacturer_name || "-"}</TableCell>
@@ -330,7 +339,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center py-6 text-gray-500">
+                    <TableCell colSpan={13} className="text-center py-6 text-gray-500">
                       {searchTerm || (selectedDestination && selectedDestination !== "all")
                         ? "Nu s-au găsit transferuri conform criteriilor de căutare"
                         : "Nu există transferuri înregistrate"}

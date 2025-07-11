@@ -3,11 +3,14 @@ import React, { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Calendar, FileSpreadsheet } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Calendar, FileSpreadsheet, Edit, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useGroupedReceptions } from "@/hooks/use-grouped-receptions";
+import { useInventoryType } from "@/App";
 
 interface ReceptionItem {
   id: string;
@@ -30,6 +33,7 @@ interface ReceptionItem {
 type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';
 
 export const ReceptionHistory = () => {
+  const { inventoryType } = useInventoryType();
   const [receptions, setReceptions] = useState<ReceptionItem[]>([]);
   const [filteredReceptions, setFilteredReceptions] = useState<ReceptionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,14 +41,30 @@ export const ReceptionHistory = () => {
   const [dateTo, setDateTo] = useState("");
   const [productFilter, setProductFilter] = useState("");
   const [groupBy, setGroupBy] = useState<GroupingMode>('none');
+  const [editingItem, setEditingItem] = useState<ReceptionItem | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    quantity: 0,
+    gross_quantity: 0,
+    net_quantity: 0,
+    unit: '',
+    document_number: '',
+    lot_number: '',
+    crate_count: 0,
+    receipt_date: ''
+  });
 
   const groupedData = useGroupedReceptions(filteredReceptions, groupBy);
 
   const fetchReceptions = async () => {
     try {
       setLoading(true);
+      // Use the correct table based on inventory type
+      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      
       let query = supabase
-        .from("receptions")
+        .from(tableName)
         .select(`
           id,
           entry_number,
@@ -62,13 +82,21 @@ export const ReceptionHistory = () => {
           crate_types:crate_type_id (name, weight),
           products:product_id (name, cod_produs)
         `)
+        .not('receipt_date', 'is', null)
         .order("receipt_date", { ascending: false });
 
-      if (dateFrom) {
-        query = query.gte('receipt_date', dateFrom);
-      }
-      if (dateTo) {
-        query = query.lte('receipt_date', dateTo + 'T23:59:59');
+      // Set default date range if none provided (last 30 days)
+      if (!dateFrom && !dateTo) {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        query = query.gte('receipt_date', thirtyDaysAgo.toISOString().split('T')[0]);
+      } else {
+        if (dateFrom) {
+          query = query.gte('receipt_date', dateFrom);
+        }
+        if (dateTo) {
+          query = query.lte('receipt_date', dateTo + 'T23:59:59');
+        }
       }
 
       const { data, error } = await query;
@@ -108,6 +136,116 @@ export const ReceptionHistory = () => {
       setFilteredReceptions(filtered);
     }
   }, [productFilter, receptions]);
+
+  const handleEdit = (item: ReceptionItem) => {
+    setEditingItem(item);
+    setEditFormData({
+      name: item.name,
+      quantity: item.quantity,
+      gross_quantity: item.gross_quantity || item.quantity,
+      net_quantity: item.net_quantity || item.quantity,
+      unit: item.unit,
+      document_number: item.document_number || '',
+      lot_number: item.lot_number || '',
+      crate_count: item.crate_count || 0,
+      receipt_date: item.receipt_date ? item.receipt_date.split('T')[0] : ''
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItem) return;
+
+    try {
+      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      
+      console.log('Updating reception with data:', {
+        id: editingItem.id,
+        tableName,
+        formData: editFormData
+      });
+
+      const updateData = {
+        name: editFormData.name,
+        quantity: editFormData.quantity,
+        gross_quantity: editFormData.gross_quantity,
+        net_quantity: editFormData.net_quantity,
+        unit: editFormData.unit,
+        document_number: editFormData.document_number || null,
+        lot_number: editFormData.lot_number || null,
+        crate_count: editFormData.crate_count,
+        receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
+        updated_at: new Date().toISOString()
+      };
+
+      console.log('Update data to send:', updateData);
+      
+      const { data, error } = await supabase
+        .from(tableName)
+        .update(updateData)
+        .eq('id', editingItem.id)
+        .select();
+
+      console.log('Update result:', { data, error });
+
+      if (error) throw error;
+
+      // Actualizez și inventarul curent prin refetch
+      const { data: currentInventory } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('id', editingItem.id);
+
+      console.log('Current inventory after update:', currentInventory);
+
+      toast({
+        title: "Recepție actualizată",
+        description: "Recepția a fost actualizată cu succes."
+      });
+
+      setIsEditDialogOpen(false);
+      setEditingItem(null);
+      
+      // Reîncărcare completă pentru a reflecta modificările
+      await fetchReceptions();
+    } catch (error: any) {
+      console.error("Error updating reception:", error);
+      toast({
+        variant: "destructive",
+        title: "Eroare la actualizare",
+        description: error.message
+      });
+    }
+  };
+
+  const handleDelete = async (item: ReceptionItem) => {
+    if (!confirm('Sigur doriți să ștergeți această recepție?')) return;
+
+    try {
+      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      
+      const { error } = await supabase
+        .from(tableName)
+        .delete()
+        .eq('id', item.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Recepție ștearsă",
+        description: "Recepția a fost ștearsă cu succes."
+      });
+
+      fetchReceptions();
+    } catch (error: any) {
+      console.error("Error deleting reception:", error);
+      toast({
+        variant: "destructive",
+        title: "Eroare la ștergere",
+        description: error.message
+      });
+    }
+  };
 
   const handleExport = () => {
     const dataToExport = filteredReceptions.map(item => ({
@@ -218,6 +356,7 @@ export const ReceptionHistory = () => {
               <TableHead>Document</TableHead>
               <TableHead>Furnizor</TableHead>
               <TableHead>Producător</TableHead>
+              <TableHead className="text-center">Acțiuni</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -242,12 +381,34 @@ export const ReceptionHistory = () => {
                     <TableCell>{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
                     <TableCell>{isGroupHeader ? '' : (item.suppliers?.name || '-')}</TableCell>
                     <TableCell>{isGroupHeader ? '' : (item.manufacturers?.name || '-')}</TableCell>
+                    <TableCell className="text-center">
+                      {!isGroupHeader && (
+                        <div className="flex gap-2 justify-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEdit(item)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDelete(item)}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={11} className="text-center py-6 text-gray-500">
                   Nu s-au găsit recepții în intervalul selectat.
                 </TableCell>
               </TableRow>
@@ -255,6 +416,96 @@ export const ReceptionHistory = () => {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editare Recepție</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Nume Produs</Label>
+              <Input
+                id="name"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-2">
+                <Label htmlFor="quantity">Cantitate Brută</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  step="0.01"
+                  value={editFormData.quantity}
+                  onChange={(e) => setEditFormData({...editFormData, quantity: parseFloat(e.target.value) || 0})}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="net_quantity">Cantitate Netă</Label>
+                <Input
+                  id="net_quantity"
+                  type="number"
+                  step="0.01"
+                  value={editFormData.net_quantity}
+                  onChange={(e) => setEditFormData({...editFormData, net_quantity: parseFloat(e.target.value) || 0})}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="unit">Unitate</Label>
+              <Input
+                id="unit"
+                value={editFormData.unit}
+                onChange={(e) => setEditFormData({...editFormData, unit: e.target.value})}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="receipt_date">Data Recepție</Label>
+              <Input
+                id="receipt_date"
+                type="date"
+                value={editFormData.receipt_date}
+                onChange={(e) => setEditFormData({...editFormData, receipt_date: e.target.value})}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="document_number">Număr Document</Label>
+              <Input
+                id="document_number"
+                value={editFormData.document_number}
+                onChange={(e) => setEditFormData({...editFormData, document_number: e.target.value})}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="lot_number">Număr Lot</Label>
+              <Input
+                id="lot_number"
+                value={editFormData.lot_number}
+                onChange={(e) => setEditFormData({...editFormData, lot_number: e.target.value})}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="crate_count">Număr Lădițe</Label>
+              <Input
+                id="crate_count"
+                type="number"
+                value={editFormData.crate_count}
+                onChange={(e) => setEditFormData({...editFormData, crate_count: parseInt(e.target.value) || 0})}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Anulează
+            </Button>
+            <Button onClick={handleSaveEdit}>
+              Salvează
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

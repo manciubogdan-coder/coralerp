@@ -25,6 +25,7 @@ import {
 import { FileText } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useInventoryType } from "@/App";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;
@@ -62,6 +63,7 @@ interface TransferFormValues {
 }
 
 export function StockTransferForm({ onTransferComplete }: StockTransferFormProps) {
+  const { inventoryType } = useInventoryType();
   const [isOpen, setIsOpen] = useState(false);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<TransferItem[]>([]);
@@ -86,8 +88,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
   const fetchInventory = async () => {
     try {
+      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
+      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
+      const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
+      
       const { data, error } = await supabase
-        .from("inventory")
+        .from(tableName)
         .select(`
           *,
           suppliers:supplier_id (name),
@@ -247,9 +254,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSubmitting(true);
     
     try {
+      // Use appropriate transfer tables based on inventory type
+      const transferTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
+      const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
+      
       // First create a transfer document
       const { data: transferData, error: transferError } = await supabase
-        .from('stock_transfers')
+        .from(transferTable)
         .insert({
           transfer_date: formData.transferDate,
           destination: formData.destination,
@@ -266,9 +277,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       
       // Process each item in the transfer
       for (const item of selectedItems) {
-        // Add item to stock_transfer_items
+        // Add item to transfer items table
         const { error: transferItemError } = await supabase
-          .from('stock_transfer_items')
+          .from(transferItemsTable)
           .insert({
             transfer_id: transferData.id,
             inventory_item_id: item.id,
@@ -280,9 +291,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         if (transferItemError) throw transferItemError;
 
         // Record the transfer in inventory_history
+        const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+        const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+        
         // Get the actual lot_number from the inventory item if not available on selected item
         const actualLotNumber = item.lot_number || (await supabase
-          .from('inventory')
+          .from(inventoryTable)
           .select('lot_number')
           .eq('id', item.id)
           .single()).data?.lot_number;
@@ -295,7 +309,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         });
         
         const { error: historyError } = await supabase
-          .from("inventory_history")
+          .from(historyTable)
           .insert({
             inventory_item_id: item.id,
             action: "remove",
@@ -317,9 +331,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           
         if (historyError) throw historyError;
 
-        // Update inventory quantity
+        // Update inventory quantity ONLY - preserve all reception data
         const { data: inventoryItem, error: getError } = await supabase
-          .from('inventory')
+          .from(inventoryTable)
           .select('quantity')
           .eq('id', item.id)
           .single();
@@ -329,9 +343,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         const currentQuantity = inventoryItem?.quantity || 0;
         const newQuantity = Math.max(0, currentQuantity - item.netQuantity);
         
+        // Update ONLY the quantity field - do NOT modify any reception data
         const { error: updateError } = await supabase
-          .from('inventory')
-          .update({ quantity: newQuantity })
+          .from(inventoryTable)
+          .update({ 
+            quantity: newQuantity
+          })
           .eq('id', item.id);
            
         if (updateError) throw updateError;
@@ -555,18 +572,18 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           />
                         </div>
                         
-                        {item.crateTypeId && (
-                          <div>
-                            <label className="text-sm">Număr lădițe</label>
-                            <Input
-                              type="number"
-                              value={item.crateCount}
-                              onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
-                              min={0}
-                              className={isMobile ? 'h-12' : ''}
-                            />
-                          </div>
-                        )}
+                         {inventoryType === 'materii-prime' && item.crateTypeId && (
+                           <div>
+                             <label className="text-sm">Număr lădițe</label>
+                             <Input
+                               type="number"
+                               value={item.crateCount}
+                               onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
+                               min={0}
+                               className={isMobile ? 'h-12' : ''}
+                             />
+                           </div>
+                         )}
                         
                         <div>
                           <label className="text-sm">Număr paleți</label>

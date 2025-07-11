@@ -20,13 +20,18 @@ const CurrentInventoryTable = ({ inventory }: CurrentInventoryTableProps) => {
     if (!acc[productName]) {
       acc[productName] = {
         name: productName,
+        cod_produs: item.products?.cod_produs || '',
         quantity: 0,
         unit: item.unit
       };
     }
     acc[productName].quantity += item.quantity;
+    // Update product code if this item has one and the existing doesn't
+    if (!acc[productName].cod_produs && item.products?.cod_produs) {
+      acc[productName].cod_produs = item.products.cod_produs;
+    }
     return acc;
-  }, {} as Record<string, { name: string; quantity: number; unit: string }>);
+  }, {} as Record<string, { name: string; cod_produs: string; quantity: number; unit: string }>);
 
   // Convert grouped object to array, filter by search term, and sort
   const displayedInventory = Object.values(groupedInventory)
@@ -50,25 +55,27 @@ const CurrentInventoryTable = ({ inventory }: CurrentInventoryTableProps) => {
       
         <div className="max-h-[70vh] overflow-auto">
           <Table>
-            <TableHeader className="sticky top-0 bg-white z-10">
-              <TableRow>
-                <TableHead className="text-left">Produs</TableHead>
-                <TableHead className="text-right">Cantitate Totală</TableHead>
-                <TableHead className="text-left">Unitate</TableHead>
-              </TableRow>
-            </TableHeader>
+              <TableHeader className="sticky top-0 bg-white z-10">
+                <TableRow>
+                  <TableHead className="text-left">Produs</TableHead>
+                  <TableHead className="text-left">Cod Produs</TableHead>
+                  <TableHead className="text-right">Cantitate Totală</TableHead>
+                  <TableHead className="text-left">Unitate</TableHead>
+                </TableRow>
+              </TableHeader>
             <TableBody>
               {displayedInventory.length > 0 ? (
-                displayedInventory.map((item) => (
-                  <TableRow key={item.name}>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-right">{item.quantity.toFixed(2)}</TableCell>
-                    <TableCell>{item.unit}</TableCell>
-                  </TableRow>
-                ))
+                  displayedInventory.map((item) => (
+                    <TableRow key={item.name}>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell>{item.cod_produs || "-"}</TableCell>
+                      <TableCell className="text-right">{item.quantity.toFixed(2)}</TableCell>
+                      <TableCell>{item.unit}</TableCell>
+                    </TableRow>
+                  ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center py-6 text-gray-500">
+                  <TableCell colSpan={4} className="text-center py-6 text-gray-500">
                     {searchTerm
                       ? `Nu s-au găsit produse pentru "${searchTerm}"`
                       : "Nu există produse în stoc."}

@@ -6,6 +6,7 @@ import { Calendar, FileSpreadsheet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
+import { useInventoryType } from "@/App";
 
 interface LotConsumptionItem {
   product_name: string;
@@ -30,6 +31,7 @@ interface ProductSummary {
 }
 
 export const DailyLotConsumption = () => {
+  const { inventoryType } = useInventoryType();
   const [consumptionData, setConsumptionData] = useState<ProductSummary[]>([]);
   const [filteredData, setFilteredData] = useState<ProductSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,18 +47,35 @@ export const DailyLotConsumption = () => {
     try {
       setLoading(true);
       
-      // Get snapshot data for the beginning of the day
+      const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
+      const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const receptionsTable = inventoryType === 'ambalaje' ? 'ambalaje_receptions' : 'receptions';
+      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
+      
+      // For ambalaje, we don't have daily snapshots yet, so skip
+      if (inventoryType === 'ambalaje') {
+        console.log(`Skipping daily lot consumption for ${inventoryType} - daily snapshots don't exist yet`);
+        setConsumptionData([]);
+        setFilteredData([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Get snapshot data for the beginning of the day - only lots received up to selected date
       const { data: initialStock, error: initialError } = await supabase
-        .from("daily_stock_snapshots")
+        .from(snapshotTable)
         .select(`
           name,
           lot_number,
           quantity,
           net_quantity,
           unit,
+          receipt_date,
           products:product_id (name, cod_produs)
         `)
-        .eq('snapshot_date', selectedDate);
+        .eq('snapshot_date', selectedDate)
+        .lte('receipt_date', `${selectedDate}T23:59:59`);
 
       if (initialError) throw initialError;
 
@@ -68,16 +87,18 @@ export const DailyLotConsumption = () => {
         const previousDateStr = previousDay.toISOString().split('T')[0];
         
         const { data: previousStock, error: previousError } = await supabase
-          .from("daily_stock_snapshots")
+          .from(snapshotTable)
           .select(`
             name,
             lot_number,
             quantity,
             net_quantity,
             unit,
+            receipt_date,
             products:product_id (name, cod_produs)
           `)
-          .eq('snapshot_date', previousDateStr);
+          .eq('snapshot_date', previousDateStr)
+          .lte('receipt_date', `${selectedDate}T23:59:59`);
 
         if (!previousError && previousStock) {
           finalInitialStock = previousStock;
@@ -86,7 +107,7 @@ export const DailyLotConsumption = () => {
 
       // Get all inventory movements for the selected date
       const { data: movements, error: movementsError } = await supabase
-        .from("inventory_history")
+        .from(historyTable)
         .select(`
           name,
           lot_number,
@@ -110,16 +131,18 @@ export const DailyLotConsumption = () => {
       let currentInventory: any[] = [];
       if (productsWithMovements.length > 0) {
         const { data: inventory, error: inventoryError } = await supabase
-          .from("inventory")
+          .from(inventoryTable)
           .select(`
             name,
             lot_number,
             quantity,
             net_quantity,
             unit,
+            receipt_date,
             products:product_id (name, cod_produs)
           `)
-          .in('name', productsWithMovements);
+          .in('name', productsWithMovements)
+          .lte('receipt_date', `${selectedDate}T23:59:59`);
 
         if (inventoryError) throw inventoryError;
         currentInventory = inventory || [];
@@ -153,7 +176,7 @@ export const DailyLotConsumption = () => {
       // Now process grouped snapshot data
       snapshotGroupedByLot.forEach((group, lotKey) => {
         const firstItem = group.items[0]; // Use first item for product details
-        const productKey = `${firstItem.name}_${firstItem.products?.cod_produs || ''}`;
+        const productKey = firstItem.name; // Use only product name as key to avoid duplicates
         
         if (!productMap.has(productKey)) {
           productMap.set(productKey, {
@@ -166,6 +189,12 @@ export const DailyLotConsumption = () => {
             total_final: 0,
             lots: []
           });
+        } else {
+          // If product exists, update code if this entry has one and the existing doesn't
+          const existingProduct = productMap.get(productKey)!;
+          if (!existingProduct.product_code && firstItem.products?.cod_produs) {
+            existingProduct.product_code = firstItem.products.cod_produs;
+          }
         }
 
         const product = productMap.get(productKey)!;
@@ -257,7 +286,7 @@ export const DailyLotConsumption = () => {
         
         if (!sampleMovement) return;
         
-        const productKey = `${sampleMovement.name}_${sampleMovement.products?.cod_produs || ''}`;
+        const productKey = sampleMovement.name; // Use only product name as key
         let product = productMap.get(productKey);
         
         // If product doesn't exist, create it
@@ -273,6 +302,11 @@ export const DailyLotConsumption = () => {
             lots: []
           };
           productMap.set(productKey, product);
+        } else {
+          // If product exists, update code if this entry has one and the existing doesn't
+          if (!product.product_code && sampleMovement.products?.cod_produs) {
+            product.product_code = sampleMovement.products.cod_produs;
+          }
         }
         
         const lotNumber = sampleMovement.lot_number || 'Fără lot';
@@ -303,33 +337,38 @@ export const DailyLotConsumption = () => {
       
       console.log('=== CHECKING FOR NEW RECEIPTS ===');
       
-      // Check receipts from receptions table
-      const { data: dailyReceptions, error: receptionsError } = await supabase
-        .from("receptions")
-        .select(`
-          name,
-          lot_number,
-          quantity,
-          net_quantity,
-          unit,
-          products:product_id (name, cod_produs)
-        `)
-        .gte('receipt_date', `${selectedDate}T00:00:00`)
-        .lte('receipt_date', `${selectedDate}T23:59:59`);
+      // Check receipts from receptions table - conditionally based on if table exists
+      let dailyReceptions: any[] = [];
+      if (inventoryType === 'materii-prime') {
+        const { data, error: receptionsError } = await supabase
+          .from('receptions')
+          .select(`
+            name,
+            lot_number,
+            quantity,
+            net_quantity,
+            unit,
+            products:product_id (name, cod_produs)
+          `)
+          .gte('receipt_date', `${selectedDate}T00:00:00`)
+          .lte('receipt_date', `${selectedDate}T23:59:59`);
 
-      if (receptionsError) {
-        console.error("Error fetching daily receptions:", receptionsError);
-      } else {
-        console.log('Daily receptions found:', dailyReceptions?.length || 0);
-        
-        (dailyReceptions || []).forEach(reception => {
-          const lotKey = `${reception.name}_${reception.lot_number || 'Fără lot'}`;
-          const receiptQty = reception.net_quantity || reception.quantity;
-          newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
-          
-          console.log(`NEW RECEIPT from receptions table: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
-        });
+        if (receptionsError) {
+          console.error("Error fetching daily receptions:", receptionsError);
+        } else {
+          dailyReceptions = data || [];
+        }
       }
+
+      console.log('Daily receptions found:', dailyReceptions?.length || 0);
+      
+      (dailyReceptions || []).forEach(reception => {
+        const lotKey = `${reception.name}_${reception.lot_number || 'Fără lot'}`;
+        const receiptQty = reception.net_quantity || reception.quantity;
+        newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
+        
+        console.log(`NEW RECEIPT from receptions table: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
+      });
       
       // Also check movements for any additional receipts (returns, adjustments, etc.)
       console.log('All movements for receipts analysis:', movements?.length);
@@ -350,7 +389,7 @@ export const DailyLotConsumption = () => {
 
       // Process current inventory for products that had activity
       (currentInventory || []).forEach(inventory => {
-        const productKey = `${inventory.name}_${inventory.products?.cod_produs || ''}`;
+        const productKey = inventory.name; // Use only product name as key
         let product = productMap.get(productKey);
         
         if (!product) {
@@ -365,6 +404,11 @@ export const DailyLotConsumption = () => {
             lots: []
           };
           productMap.set(productKey, product);
+        } else {
+          // If product exists, update code if this entry has one and the existing doesn't
+          if (!product.product_code && inventory.products?.cod_produs) {
+            product.product_code = inventory.products.cod_produs;
+          }
         }
 
         const lotKey = inventory.lot_number || 'Fără lot';
@@ -451,7 +495,8 @@ export const DailyLotConsumption = () => {
         product.total_final = product.lots.reduce((sum, lot) => sum + lot.final_stock, 0);
       });
 
-      const results = Array.from(productMap.values());
+      const results = Array.from(productMap.values())
+        .sort((a, b) => a.product_name.localeCompare(b.product_name)); // Sort alphabetically by product name
       setConsumptionData(results);
       setFilteredData(results);
     } catch (error: any) {
@@ -589,7 +634,7 @@ export const DailyLotConsumption = () => {
             <TableBody>
               {filteredData.map((product, productIndex) => [
                 // Product summary row
-                <TableRow key={`${product.product_name}-${product.product_code}-summary`} className="bg-muted font-semibold">
+                <TableRow key={`product-${productIndex}-${product.product_name}-${product.product_code || 'no-code'}-summary`} className="bg-muted font-semibold">
                   <TableCell className="font-bold">{product.product_name}</TableCell>
                   <TableCell className="font-bold">{product.product_code}</TableCell>
                   <TableCell className="font-bold">TOTAL PRODUS</TableCell>
@@ -602,7 +647,7 @@ export const DailyLotConsumption = () => {
                 
                 // Lot detail rows
                 ...product.lots.map((lot, lotIndex) => (
-                  <TableRow key={`${product.product_name}-${lot.lot_number}-${lotIndex}`}>
+                  <TableRow key={`lot-${productIndex}-${lotIndex}-${product.product_name}-${lot.lot_number}`}>
                     <TableCell></TableCell>
                     <TableCell></TableCell>
                     <TableCell className="pl-8">{lot.lot_number}</TableCell>
