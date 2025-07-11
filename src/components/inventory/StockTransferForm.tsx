@@ -141,7 +141,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       crateWeight: selectedItem.crate_weight || 0,
       pallets: 0,
       palletWeight: 0,
-      grossQuantity: selectedItem.gross_quantity || selectedItem.quantity,
+      grossQuantity: selectedItem.quantity, // Folosim quantity din baza de date
       netQuantity: selectedItem.net_quantity || selectedItem.quantity,
       // Informații adiționale salvate
       supplier: selectedItem.supplier || selectedItem.suppliers?.name,
@@ -155,14 +155,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   };
 
   const calculateNetQuantity = (item: TransferItem) => {
-    // Calculate deductions from crates
-    const totalCrateWeight = (item.crateWeight || 0) * (item.crateCount || 0);
-    
-    // Calculate deductions from pallets
-    const totalPalletWeight = item.palletWeight || 0;
-    
-    // Calculate net quantity by subtracting total weights from gross quantity
-    return Math.max(0, item.grossQuantity - totalCrateWeight - totalPalletWeight);
+    // Folosim cantitatea netă calculată din baza de date, nu recalculăm aici
+    // Pentru că triggerul din baza de date face deja calculul corect
+    return item.netQuantity || item.grossQuantity;
   };
 
   const handleGrossQuantityChange = (index: number, value: number) => {
