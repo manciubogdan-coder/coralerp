@@ -155,11 +155,6 @@ export const DailyLotConsumption = () => {
         const firstItem = group.items[0]; // Use first item for product details
         const productKey = `${firstItem.name}_${firstItem.products?.cod_produs || ''}`;
         
-        console.log(`=== SNAPSHOT PRODUCT DEBUG ===`);
-        console.log(`Product: ${firstItem.name}`);
-        console.log(`Products object:`, firstItem.products);
-        console.log(`Product code: ${firstItem.products?.cod_produs || 'MISSING'}`);
-        
         if (!productMap.has(productKey)) {
           productMap.set(productKey, {
             product_name: firstItem.name,
