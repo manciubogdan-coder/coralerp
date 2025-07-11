@@ -283,7 +283,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           .insert({
             transfer_id: transferData.id,
             inventory_item_id: item.id,
-            quantity: item.grossQuantity,
+            quantity: item.netQuantity,
             net_quantity: item.netQuantity,
             unit: item.unit
           });
@@ -331,17 +331,24 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           
         if (historyError) throw historyError;
 
-        // Update inventory quantity
+        // Update inventory quantity - we need to get net_quantity from database and subtract the transfer net_quantity
         const { data: inventoryItem, error: getError } = await supabase
           .from(inventoryTable)
-          .select('quantity')
+          .select('quantity, net_quantity')
           .eq('id', item.id)
           .single();
         
         if (getError) throw getError;
         
-        const currentQuantity = inventoryItem?.quantity || 0;
-        const newQuantity = Math.max(0, currentQuantity - item.netQuantity);
+        // Calculate the reduction proportionally - if we're transferring from net_quantity, reduce the gross quantity proportionally
+        const currentNetQuantity = inventoryItem?.net_quantity || inventoryItem?.quantity || 0;
+        const currentGrossQuantity = inventoryItem?.quantity || 0;
+        
+        // Calculate the proportion to reduce
+        const reductionRatio = currentNetQuantity > 0 ? item.netQuantity / currentNetQuantity : 0;
+        const grossReduction = currentGrossQuantity * reductionRatio;
+        
+        const newQuantity = Math.max(0, currentGrossQuantity - grossReduction);
         
         const { error: updateError } = await supabase
           .from(inventoryTable)
