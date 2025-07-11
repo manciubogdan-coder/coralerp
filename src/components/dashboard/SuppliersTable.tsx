@@ -12,7 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useInventoryType } from "@/App";
 
 interface Supplier {
   id: string;
@@ -20,31 +19,25 @@ interface Supplier {
   contact?: string;
   phone?: string;
   email?: string;
-  supplier_code?: string;
 }
 
 const SuppliersTable = () => {
-  const { inventoryType } = useInventoryType();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
-  const [newItem, setNewItem] = useState<Partial<Supplier>>({ name: "", contact: "", phone: "", email: "", supplier_code: "" });
+  const [newItem, setNewItem] = useState<Partial<Supplier>>({ name: "", contact: "", phone: "", email: "" });
   const [editItem, setEditItem] = useState<Supplier | null>(null);
-
-  // Get the correct table name based on inventory type
-  const getTableName = () => inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
 
   useEffect(() => {
     fetchSuppliers();
-  }, [inventoryType]); // Re-fetch when inventory type changes
+  }, []);
 
   const fetchSuppliers = async () => {
     try {
       setLoading(true);
-      const tableName = getTableName();
       const { data, error } = await supabase
-        .from(tableName)
+        .from("suppliers")
         .select("*")
         .order("name");
 
@@ -52,12 +45,12 @@ const SuppliersTable = () => {
         throw error;
       }
 
-      console.log(`Loading ${inventoryType} suppliers from table:`, tableName, data);
+      console.log("Furnizori încărcați:", data);
       setSuppliers(data || []);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: `Eroare la încărcarea furnizorilor ${inventoryType}`,
+        title: "Eroare la încărcarea furnizorilor",
         description: error.message,
       });
     } finally {
@@ -67,7 +60,7 @@ const SuppliersTable = () => {
 
   const handleAddNew = () => {
     setIsAddingNew(true);
-    setNewItem({ name: "", contact: "", phone: "", email: "", supplier_code: "" });
+    setNewItem({ name: "", contact: "", phone: "", email: "" });
   };
 
   const handleCancelAdd = () => {
@@ -95,16 +88,14 @@ const SuppliersTable = () => {
         return;
       }
 
-      const tableName = getTableName();
       const { data, error } = await supabase
-        .from(tableName)
+        .from("suppliers")
         .insert([
           {
             name: newItem.name,
             contact: newItem.contact || null,
             phone: newItem.phone || null,
             email: newItem.email || null,
-            supplier_code: newItem.supplier_code || null,
           },
         ])
         .select();
@@ -143,15 +134,13 @@ const SuppliersTable = () => {
         return;
       }
 
-      const tableName = getTableName();
       const { error } = await supabase
-        .from(tableName)
+        .from("suppliers")
         .update({
           name: editItem.name,
           contact: editItem.contact || null,
           phone: editItem.phone || null,
           email: editItem.email || null,
-          supplier_code: editItem.supplier_code || null,
         })
         .eq("id", editItem.id);
 
@@ -178,9 +167,8 @@ const SuppliersTable = () => {
   const handleDelete = async (supplierId: string, supplierName: string) => {
     if (window.confirm(`Sigur doriți să ștergeți furnizorul "${supplierName}"?`)) {
       try {
-        const tableName = getTableName();
         const { error } = await supabase
-          .from(tableName)
+          .from("suppliers")
           .delete()
           .eq("id", supplierId);
 
@@ -217,7 +205,6 @@ const SuppliersTable = () => {
         <TableHeader>
           <TableRow>
             <TableHead>Nume</TableHead>
-            <TableHead>Cod Furnizor</TableHead>
             <TableHead>Persoana de contact</TableHead>
             <TableHead>Telefon</TableHead>
             <TableHead>Email</TableHead>
@@ -232,13 +219,6 @@ const SuppliersTable = () => {
                   value={newItem.name}
                   onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
                   placeholder="Nume furnizor"
-                />
-              </TableCell>
-              <TableCell>
-                <Input
-                  value={newItem.supplier_code || ""}
-                  onChange={(e) => setNewItem({ ...newItem, supplier_code: e.target.value })}
-                  placeholder="Cod furnizor"
                 />
               </TableCell>
               <TableCell>
@@ -285,16 +265,6 @@ const SuppliersTable = () => {
                   />
                 ) : (
                   supplier.name
-                )}
-              </TableCell>
-              <TableCell>
-                {editingId === supplier.id ? (
-                  <Input
-                    value={editItem?.supplier_code || ""}
-                    onChange={(e) => setEditItem({ ...editItem!, supplier_code: e.target.value })}
-                  />
-                ) : (
-                  supplier.supplier_code || "-"
                 )}
               </TableCell>
               <TableCell>
@@ -358,7 +328,7 @@ const SuppliersTable = () => {
 
           {suppliers.length === 0 && !isAddingNew && !loading && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                 Nu există furnizori. Adăugați unul nou folosind butonul de mai sus.
               </TableCell>
             </TableRow>
@@ -366,7 +336,7 @@ const SuppliersTable = () => {
 
           {loading && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                 Se încarcă furnizorii...
               </TableCell>
             </TableRow>

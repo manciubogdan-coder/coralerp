@@ -13,7 +13,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useInventoryType } from "@/App";
 
 interface Manufacturer {
   id: string;
@@ -23,7 +22,6 @@ interface Manufacturer {
 }
 
 const ManufacturersTable = () => {
-  const { inventoryType } = useInventoryType();
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -31,19 +29,15 @@ const ManufacturersTable = () => {
   const [newItem, setNewItem] = useState<Partial<Manufacturer>>({ name: "", country: "", description: "" });
   const [editItem, setEditItem] = useState<Manufacturer | null>(null);
 
-  // Get the correct table name based on inventory type
-  const getTableName = () => inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
-
   useEffect(() => {
     fetchManufacturers();
-  }, [inventoryType]); // Re-fetch when inventory type changes
+  }, []);
 
   const fetchManufacturers = async () => {
     try {
       setLoading(true);
-      const tableName = getTableName();
       const { data, error } = await supabase
-        .from(tableName)
+        .from("manufacturers")
         .select("*")
         .order("name");
 
@@ -51,12 +45,11 @@ const ManufacturersTable = () => {
         throw error;
       }
 
-      console.log(`Loading ${inventoryType} manufacturers from table:`, tableName, data);
       setManufacturers(data || []);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: `Eroare la încărcarea producătorilor ${inventoryType}`,
+        title: "Eroare la încărcarea producătorilor",
         description: error.message,
       });
     } finally {
@@ -94,9 +87,8 @@ const ManufacturersTable = () => {
         return;
       }
 
-      const tableName = getTableName();
       const { data, error } = await supabase
-        .from(tableName)
+        .from("manufacturers")
         .insert([
           {
             name: newItem.name,
@@ -140,9 +132,8 @@ const ManufacturersTable = () => {
         return;
       }
 
-      const tableName = getTableName();
       const { error } = await supabase
-        .from(tableName)
+        .from("manufacturers")
         .update({
           name: editItem.name,
           country: editItem.country || null,
@@ -173,9 +164,8 @@ const ManufacturersTable = () => {
   const handleDelete = async (manufacturerId: string, manufacturerName: string) => {
     if (window.confirm(`Sigur doriți să ștergeți producătorul "${manufacturerName}"?`)) {
       try {
-        const tableName = getTableName();
         const { error } = await supabase
-          .from(tableName)
+          .from("manufacturers")
           .delete()
           .eq("id", manufacturerId);
 

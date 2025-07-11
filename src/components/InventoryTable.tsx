@@ -14,28 +14,17 @@ import { toast } from "@/hooks/use-custom-toast";
 interface InventoryTableProps {
   inventory: InventoryItem[];
   showExportButton?: boolean;
-  suppliers?: Record<string, Supplier>;
-  products?: Record<string, Product>;
-  manufacturers?: Record<string, Manufacturer>;
-  crateTypes?: Record<string, CrateType>;
 }
 
-const InventoryTable = ({ 
-  inventory, 
-  showExportButton = false,
-  suppliers: propsSuppliers = {},
-  products: propsProducts = {},
-  manufacturers: propsManufacturers = {},
-  crateTypes: propsCrateTypes = {}
-}: InventoryTableProps) => {
+const InventoryTable = ({ inventory, showExportButton = false }: InventoryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [groupBySupplier, setGroupBySupplier] = useState(false);
   const [groupByProduct, setGroupByProduct] = useState(false);
   const [showEmptyItems, setShowEmptyItems] = useState(false);
-  const suppliers = propsSuppliers;
-  const products = propsProducts;
-  const manufacturers = propsManufacturers;
-  const crateTypes = propsCrateTypes;
+  const [suppliers, setSuppliers] = useState<Record<string, Supplier>>({});
+  const [products, setProducts] = useState<Record<string, Product>>({});
+  const [manufacturers, setManufacturers] = useState<Record<string, Manufacturer>>({});
+  const [crateTypes, setCrateTypes] = useState<Record<string, CrateType>>({});
   const isMobile = useIsMobile();
   
   const handleExportExcel = () => {
@@ -53,6 +42,50 @@ const InventoryTable = ({
   
   console.log("InventoryTable initialized with", inventory.length, "items");
   
+  React.useEffect(() => {
+    const fetchReferenceData = async () => {
+      console.log("Fetching reference data for inventory table");
+      const { data: suppliersData } = await supabase.from('suppliers').select('*');
+      if (suppliersData) {
+        const suppliersMap = suppliersData.reduce((acc, supplier) => {
+          acc[supplier.id] = supplier;
+          return acc;
+        }, {} as Record<string, Supplier>);
+        setSuppliers(suppliersMap);
+        console.log("Suppliers data loaded:", suppliersData);
+      }
+
+      const { data: productsData } = await supabase.from('products').select('*');
+      if (productsData) {
+        const productsMap = productsData.reduce((acc, product) => {
+          acc[product.id] = product;
+          return acc;
+        }, {} as Record<string, Product>);
+        setProducts(productsMap);
+      }
+
+      const { data: manufacturersData } = await supabase.from('manufacturers').select('*');
+      if (manufacturersData) {
+        const manufacturersMap = manufacturersData.reduce((acc, manufacturer) => {
+          acc[manufacturer.id] = manufacturer;
+          return acc;
+        }, {} as Record<string, Manufacturer>);
+        setManufacturers(manufacturersMap);
+        console.log("Manufacturers data loaded:", manufacturersData);
+      }
+
+      const { data: crateTypesData } = await supabase.from('crate_types').select('*');
+      if (crateTypesData) {
+        const crateTypesMap = crateTypesData.reduce((acc, crateType) => {
+          acc[crateType.id] = crateType;
+          return acc;
+        }, {} as Record<string, CrateType>);
+        setCrateTypes(crateTypesMap);
+      }
+    };
+
+    fetchReferenceData();
+  }, []);
   
   const nonEmptyInventory = showEmptyItems 
     ? inventory 
@@ -210,8 +243,7 @@ const InventoryTable = ({
             <TableRow>
               <TableHead className="text-left">Nr. Intrare</TableHead>
               <TableHead className="text-left">Data</TableHead>
-                  <TableHead className="text-left">Produs</TableHead>
-                  <TableHead className="text-left">Cod Produs</TableHead>
+              <TableHead className="text-left">Produs</TableHead>
               <TableHead className="text-right">Cantitate</TableHead>
               <TableHead className="text-left">Unitate</TableHead>
               <TableHead className="text-left">Furnizor</TableHead>
@@ -238,7 +270,6 @@ const InventoryTable = ({
                     <TableCell className={`${item.isHeader ? "font-bold" : "font-medium"} whitespace-nowrap`}>
                       {productName}
                     </TableCell>
-                    <TableCell>{products[item.product_id || '']?.cod_produs || '-'}</TableCell>
                     <TableCell className="text-right">{formatQuantity(item.net_quantity || item.quantity)}</TableCell>
                     <TableCell className="text-left">{item.unit}</TableCell>
                     <TableCell>{supplierName || '-'}</TableCell>
@@ -250,7 +281,7 @@ const InventoryTable = ({
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={9} className="text-center py-6 text-gray-500">
                   {searchTerm
                     ? `Nu s-au găsit produse pentru "${searchTerm}"`
                     : "Nu există produse în stoc."}

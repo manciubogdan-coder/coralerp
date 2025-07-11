@@ -13,7 +13,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useInventoryType } from "@/App";
 
 interface CrateType {
   id: string;
@@ -23,7 +22,6 @@ interface CrateType {
 }
 
 const CrateTypesTable = () => {
-  const { inventoryType } = useInventoryType();
   const [crateTypes, setCrateTypes] = useState<CrateType[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -31,19 +29,15 @@ const CrateTypesTable = () => {
   const [newItem, setNewItem] = useState<Partial<CrateType>>({ name: "", weight: 0, description: "" });
   const [editItem, setEditItem] = useState<CrateType | null>(null);
 
-  // Get the correct table name based on inventory type
-  const getTableName = () => inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
-
   useEffect(() => {
     fetchCrateTypes();
-  }, [inventoryType]); // Re-fetch when inventory type changes
+  }, []);
 
   const fetchCrateTypes = async () => {
     try {
       setLoading(true);
-      const tableName = getTableName();
       const { data, error } = await supabase
-        .from(tableName)
+        .from("crate_types")
         .select("*")
         .order("name");
 
@@ -51,12 +45,11 @@ const CrateTypesTable = () => {
         throw error;
       }
 
-      console.log(`Loading ${inventoryType} crate types from table:`, tableName, data);
       setCrateTypes(data || []);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: `Eroare la încărcarea tipurilor de lădițe ${inventoryType}`,
+        title: "Eroare la încărcarea tipurilor de lădițe",
         description: error.message,
       });
     } finally {
@@ -103,9 +96,8 @@ const CrateTypesTable = () => {
         return;
       }
 
-      const tableName = getTableName();
       const { data, error } = await supabase
-        .from(tableName)
+        .from("crate_types")
         .insert([
           {
             name: newItem.name,
@@ -158,9 +150,8 @@ const CrateTypesTable = () => {
         return;
       }
 
-      const tableName = getTableName();
       const { error } = await supabase
-        .from(tableName)
+        .from("crate_types")
         .update({
           name: editItem.name,
           weight: Number(editItem.weight),
@@ -191,9 +182,8 @@ const CrateTypesTable = () => {
   const handleDelete = async (crateTypeId: string, crateTypeName: string) => {
     if (window.confirm(`Sigur doriți să ștergeți tipul de lădiță "${crateTypeName}"?`)) {
       try {
-        const tableName = getTableName();
         const { error } = await supabase
-          .from(tableName)
+          .from("crate_types")
           .delete()
           .eq("id", crateTypeId);
 

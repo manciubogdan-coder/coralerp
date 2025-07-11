@@ -14,10 +14,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Product } from "@/types";
-import { useInventoryType } from "@/App";
 
 const ProductsTable = () => {
-  const { inventoryType } = useInventoryType();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -25,19 +23,15 @@ const ProductsTable = () => {
   const [newItem, setNewItem] = useState<Partial<Product>>({ name: "", default_unit: "kg", description: "", cod_produs: "" });
   const [editItem, setEditItem] = useState<Product | null>(null);
 
-  // Get the correct table name based on inventory type
-  const getTableName = () => inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
-
   useEffect(() => {
     fetchProducts();
-  }, [inventoryType]); // Re-fetch when inventory type changes
+  }, []);
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const tableName = getTableName();
       const { data, error } = await supabase
-        .from(tableName)
+        .from("products")
         .select("*")
         .order("name");
 
@@ -45,12 +39,11 @@ const ProductsTable = () => {
         throw error;
       }
 
-      console.log(`Loading ${inventoryType} products from table:`, tableName, data);
       setProducts(data || []);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: `Eroare la încărcarea produselor ${inventoryType}`,
+        title: "Eroare la încărcarea produselor",
         description: error.message,
       });
     } finally {
@@ -88,9 +81,8 @@ const ProductsTable = () => {
         return;
       }
 
-      const tableName = getTableName();
       const { data, error } = await supabase
-        .from(tableName)
+        .from("products")
         .insert([
           {
             name: newItem.name,
@@ -135,9 +127,8 @@ const ProductsTable = () => {
         return;
       }
 
-      const tableName = getTableName();
       const { error } = await supabase
-        .from(tableName)
+        .from("products")
         .update({
           name: editItem.name,
           default_unit: editItem.default_unit,
@@ -169,9 +160,8 @@ const ProductsTable = () => {
   const handleDelete = async (productId: string, productName: string) => {
     if (window.confirm(`Sigur doriți să ștergeți produsul "${productName}"?`)) {
       try {
-        const tableName = getTableName();
         const { error } = await supabase
-          .from(tableName)
+          .from("products")
           .delete()
           .eq("id", productId);
 

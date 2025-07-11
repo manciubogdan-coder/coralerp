@@ -7,7 +7,6 @@ import { toast } from "@/hooks/use-custom-toast";
 import { Plus, Save, PackagePlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Product, Supplier, Manufacturer } from "@/types";
-import { useInventoryType } from "@/App";
 
 interface PalletEntry {
   grossQuantity: number;
@@ -32,7 +31,6 @@ export function ReceptionRegistration({
   crateTypes,
   onRegistrationComplete 
 }: ReceptionRegistrationProps) {
-  const { inventoryType } = useInventoryType();
   const [isOpen, setIsOpen] = useState(false);
   const [productId, setProductId] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState<string | null>(null);
@@ -78,9 +76,7 @@ export function ReceptionRegistration({
 
   const handleSubmit = async () => {
     try {
-      // For ambalaje, manufacturer is not required
-      const isManufacturerRequired = inventoryType === 'materii-prime';
-      if (!productId || !supplierId || (isManufacturerRequired && !manufacturerId) || !documentNumber) {
+      if (!productId || !supplierId || !manufacturerId || !documentNumber) {
         toast({
           title: "Date incomplete",
           description: "Vă rugăm să completați toate câmpurile obligatorii.",
@@ -102,37 +98,32 @@ export function ReceptionRegistration({
         if (entryError) throw entryError;
         const entryNumber = nextEntryData;
 
-        // Salvăm în tabela receptions (only for materii-prime)
-        const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
-        
-        // For ambalaje, we don't have receptions table yet, so skip
-        if (inventoryType === 'materii-prime') {
-          const { error: receptionError } = await supabase
-            .from('receptions')
-            .insert({
-              entry_number: entryNumber,
-              product_id: productId,
-              name: selectedProduct.name,
-              supplier_id: supplierId,
-              manufacturer_id: manufacturerId,
-              document_number: documentNumber,
-              quantity: pallet.netQuantity,
-              gross_quantity: pallet.grossQuantity,
-              net_quantity: pallet.netQuantity,
-              unit: selectedProduct.default_unit || 'kg',
-              crate_type_id: pallet.crateTypeId,
-              crate_count: pallet.crateCount,
-              crate_weight: pallet.palletWeight,
-              receipt_date: new Date().toISOString()
-            });
+        // Salvăm în tabela receptions
+        const { error: receptionError } = await supabase
+          .from('receptions')
+          .insert({
+            entry_number: entryNumber,
+            product_id: productId,
+            name: selectedProduct.name,
+            supplier_id: supplierId,
+            manufacturer_id: manufacturerId,
+            document_number: documentNumber,
+            quantity: pallet.netQuantity,
+            gross_quantity: pallet.grossQuantity,
+            net_quantity: pallet.netQuantity,
+            unit: selectedProduct.default_unit || 'kg',
+            crate_type_id: pallet.crateTypeId,
+            crate_count: pallet.crateCount,
+            crate_weight: pallet.palletWeight,
+            receipt_date: new Date().toISOString()
+          });
 
-          if (receptionError) throw receptionError;
-        }
+        if (receptionError) throw receptionError;
 
         // Și în tabela inventory pentru stocul curent
         // IMPORTANT: quantity trebuie să fie gross_quantity pentru ca trigger-ul să calculeze corect
         const { error } = await supabase
-          .from(inventoryTable)
+          .from('inventory')
           .insert({
             product_id: productId,
             name: selectedProduct.name,
@@ -224,23 +215,21 @@ export function ReceptionRegistration({
             </Select>
           </div>
 
-          {inventoryType === 'materii-prime' && (
-            <div className="space-y-2">
-              <label className="font-medium">Producător</label>
-              <Select value={manufacturerId || ''} onValueChange={setManufacturerId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selectează producătorul" />
-                </SelectTrigger>
-                <SelectContent>
-                  {manufacturers.map(manufacturer => (
-                    <SelectItem key={manufacturer.id} value={manufacturer.id}>
-                      {manufacturer.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="space-y-2">
+            <label className="font-medium">Producător</label>
+            <Select value={manufacturerId || ''} onValueChange={setManufacturerId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selectează producătorul" />
+              </SelectTrigger>
+              <SelectContent>
+                {manufacturers.map(manufacturer => (
+                  <SelectItem key={manufacturer.id} value={manufacturer.id}>
+                    {manufacturer.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="space-y-2">
             <label className="font-medium">Număr document</label>
@@ -282,37 +271,33 @@ export function ReceptionRegistration({
                     />
                   </div>
 
-                   {inventoryType === 'materii-prime' && (
-                     <>
-                       <div className="space-y-2">
-                         <label className="text-sm">Tip lădiță</label>
-                         <Select 
-                           value={pallet.crateTypeId || ''} 
-                           onValueChange={(value) => handlePalletChange(index, 'crateTypeId', value)}
-                         >
-                           <SelectTrigger>
-                             <SelectValue placeholder="Selectează tipul de lădiță" />
-                           </SelectTrigger>
-                           <SelectContent>
-                             {crateTypes.map(crateType => (
-                               <SelectItem key={crateType.id} value={crateType.id}>
-                                 {crateType.name} ({crateType.weight} kg)
-                               </SelectItem>
-                             ))}
-                           </SelectContent>
-                         </Select>
-                       </div>
+                  <div className="space-y-2">
+                    <label className="text-sm">Tip lădiță</label>
+                    <Select 
+                      value={pallet.crateTypeId || ''} 
+                      onValueChange={(value) => handlePalletChange(index, 'crateTypeId', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selectează tipul de lădiță" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {crateTypes.map(crateType => (
+                          <SelectItem key={crateType.id} value={crateType.id}>
+                            {crateType.name} ({crateType.weight} kg)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                       <div className="space-y-2">
-                         <label className="text-sm">Număr lădițe</label>
-                         <Input
-                           type="number"
-                           value={pallet.crateCount || ''}
-                           onChange={(e) => handlePalletChange(index, 'crateCount', parseInt(e.target.value) || 0)}
-                         />
-                       </div>
-                     </>
-                   )}
+                  <div className="space-y-2">
+                    <label className="text-sm">Număr lădițe</label>
+                    <Input
+                      type="number"
+                      value={pallet.crateCount || ''}
+                      onChange={(e) => handlePalletChange(index, 'crateCount', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
                 </div>
 
                 <div className="mt-4 p-3 bg-gray-50 rounded-md">
@@ -325,7 +310,7 @@ export function ReceptionRegistration({
           </div>
 
           <div className="flex justify-end pt-4">
-            <Button onClick={handleSubmit} disabled={!productId || !supplierId || (inventoryType === 'materii-prime' && !manufacturerId) || !documentNumber}>
+            <Button onClick={handleSubmit} disabled={!productId || !supplierId || !manufacturerId || !documentNumber}>
               <Save className="h-4 w-4 mr-2" />
               Salvează recepția
             </Button>

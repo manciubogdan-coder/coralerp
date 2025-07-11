@@ -25,7 +25,6 @@ import {
 import { FileText } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useInventoryType } from "@/App";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;
@@ -63,7 +62,6 @@ interface TransferFormValues {
 }
 
 export function StockTransferForm({ onTransferComplete }: StockTransferFormProps) {
-  const { inventoryType } = useInventoryType();
   const [isOpen, setIsOpen] = useState(false);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<TransferItem[]>([]);
@@ -88,13 +86,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
   const fetchInventory = async () => {
     try {
-      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
-      const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
-      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
-      const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
-      
       const { data, error } = await supabase
-        .from(tableName)
+        .from("inventory")
         .select(`
           *,
           suppliers:supplier_id (name),
@@ -133,7 +126,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       productName,
       quantity: selectedItem.quantity,
       unit: selectedItem.unit,
-      maxQuantity: selectedItem.net_quantity || selectedItem.quantity,
+      maxQuantity: selectedItem.quantity,
       maxGrossQuantity: maxGrossEstimate,
       crateCount: selectedItem.crate_count || 0,
       originalCrateCount: selectedItem.crate_count || 0,
@@ -141,7 +134,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       crateWeight: selectedItem.crate_weight || 0,
       pallets: 0,
       palletWeight: 0,
-      grossQuantity: selectedItem.quantity, // Folosim quantity din baza de date
+      grossQuantity: selectedItem.gross_quantity || selectedItem.quantity,
       netQuantity: selectedItem.net_quantity || selectedItem.quantity,
       // Informații adiționale salvate
       supplier: selectedItem.supplier || selectedItem.suppliers?.name,
@@ -155,35 +148,14 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   };
 
   const calculateNetQuantity = (item: TransferItem) => {
-    console.log('Calculating net quantity for item:', {
-      productName: item.productName,
-      grossQuantity: item.grossQuantity,
-      originalNetQuantity: item.netQuantity,
-      crateCount: item.crateCount,
-      crateWeight: item.crateWeight,
-      palletWeight: item.palletWeight
-    });
+    // Calculate deductions from crates
+    const totalCrateWeight = (item.crateWeight || 0) * (item.crateCount || 0);
     
-    // Calculăm cantitatea netă pe baza cantității brute introduse de utilizator
-    let netQuantity = item.grossQuantity;
+    // Calculate deductions from pallets
+    const totalPalletWeight = item.palletWeight || 0;
     
-    // Scadem greutatea lăzilor dacă există
-    if (item.crateCount && item.crateTypeId) {
-      // Ar trebui să obținem greutatea de la crate type, dar pentru simplitate folosim o greutate estimată
-      const estimatedCrateWeight = 0.5; // kg per ladă - aceasta poate fi ajustată
-      netQuantity -= (item.crateCount * estimatedCrateWeight);
-    }
-    
-    // Scadem greutatea paletului/paletilor
-    if (item.palletWeight) {
-      netQuantity -= item.palletWeight;
-    }
-    
-    // Asigurăm că cantitatea netă nu este negativă
-    netQuantity = Math.max(0, netQuantity);
-    
-    console.log('Calculated net quantity:', netQuantity);
-    return netQuantity;
+    // Calculate net quantity by subtracting total weights from gross quantity
+    return Math.max(0, item.grossQuantity - totalCrateWeight - totalPalletWeight);
   };
 
   const handleGrossQuantityChange = (index: number, value: number) => {
@@ -275,13 +247,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSubmitting(true);
     
     try {
-      // Use appropriate transfer tables based on inventory type
-      const transferTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
-      const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
-      
       // First create a transfer document
       const { data: transferData, error: transferError } = await supabase
-        .from(transferTable)
+        .from('stock_transfers')
         .insert({
           transfer_date: formData.transferDate,
           destination: formData.destination,
@@ -298,13 +266,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       
       // Process each item in the transfer
       for (const item of selectedItems) {
-        // Add item to transfer items table
+        // Add item to stock_transfer_items
         const { error: transferItemError } = await supabase
-          .from(transferItemsTable)
+          .from('stock_transfer_items')
           .insert({
             transfer_id: transferData.id,
             inventory_item_id: item.id,
-            quantity: item.netQuantity,
+            quantity: item.grossQuantity,
             net_quantity: item.netQuantity,
             unit: item.unit
           });
@@ -312,12 +280,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         if (transferItemError) throw transferItemError;
 
         // Record the transfer in inventory_history
-        const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
-        const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
-        
         // Get the actual lot_number from the inventory item if not available on selected item
         const actualLotNumber = item.lot_number || (await supabase
-          .from(inventoryTable)
+          .from('inventory')
           .select('lot_number')
           .eq('id', item.id)
           .single()).data?.lot_number;
@@ -330,7 +295,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         });
         
         const { error: historyError } = await supabase
-          .from(historyTable)
+          .from("inventory_history")
           .insert({
             inventory_item_id: item.id,
             action: "remove",
@@ -352,35 +317,20 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           
         if (historyError) throw historyError;
 
-        // Update inventory quantity - scadem cantitatea transferată direct din stoc
+        // Update inventory quantity
         const { data: inventoryItem, error: getError } = await supabase
-          .from(inventoryTable)
-          .select('quantity, net_quantity')
+          .from('inventory')
+          .select('quantity')
           .eq('id', item.id)
           .single();
         
         if (getError) throw getError;
         
-        console.log('Before inventory update:', {
-          id: item.id,
-          productName: item.productName,
-          currentQuantity: inventoryItem?.quantity,
-          currentNetQuantity: inventoryItem?.net_quantity,
-          transferQuantity: item.netQuantity
-        });
-        
-        // Scadem direct cantitatea netă transferată din cantitatea brută din stoc
-        const currentGrossQuantity = inventoryItem?.quantity || 0;
-        const newQuantity = Math.max(0, currentGrossQuantity - item.netQuantity);
-        
-        console.log('Inventory update:', {
-          currentGrossQuantity,
-          transferQuantity: item.netQuantity,
-          newQuantity
-        });
+        const currentQuantity = inventoryItem?.quantity || 0;
+        const newQuantity = Math.max(0, currentQuantity - item.netQuantity);
         
         const { error: updateError } = await supabase
-          .from(inventoryTable)
+          .from('inventory')
           .update({ quantity: newQuantity })
           .eq('id', item.id);
            
@@ -605,18 +555,18 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           />
                         </div>
                         
-                         {inventoryType === 'materii-prime' && item.crateTypeId && (
-                           <div>
-                             <label className="text-sm">Număr lădițe</label>
-                             <Input
-                               type="number"
-                               value={item.crateCount}
-                               onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
-                               min={0}
-                               className={isMobile ? 'h-12' : ''}
-                             />
-                           </div>
-                         )}
+                        {item.crateTypeId && (
+                          <div>
+                            <label className="text-sm">Număr lădițe</label>
+                            <Input
+                              type="number"
+                              value={item.crateCount}
+                              onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
+                              min={0}
+                              className={isMobile ? 'h-12' : ''}
+                            />
+                          </div>
+                        )}
                         
                         <div>
                           <label className="text-sm">Număr paleți</label>

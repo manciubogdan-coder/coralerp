@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "12.2.3 (519615d)"
-  }
   public: {
     Tables: {
       agvanzari_agent_price_lists: {
@@ -671,506 +666,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      ambalaje_crate_types: {
-        Row: {
-          created_at: string
-          description: string | null
-          id: string
-          name: string
-          updated_at: string
-          weight: number
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          name: string
-          updated_at?: string
-          weight?: number
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          name?: string
-          updated_at?: string
-          weight?: number
-        }
-        Relationships: []
-      }
-      ambalaje_daily_stock_snapshots: {
-        Row: {
-          crate_count: number | null
-          crate_type_id: string | null
-          crate_weight: number | null
-          created_at: string
-          document_number: string | null
-          entry_number: number | null
-          gross_quantity: number | null
-          id: string
-          lot_number: string | null
-          manufacturer_id: string | null
-          name: string
-          net_quantity: number | null
-          product_id: string | null
-          quantity: number
-          receipt_date: string | null
-          snapshot_date: string
-          supplier_id: string | null
-          unit: string
-          updated_at: string
-        }
-        Insert: {
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
-          created_at?: string
-          document_number?: string | null
-          entry_number?: number | null
-          gross_quantity?: number | null
-          id?: string
-          lot_number?: string | null
-          manufacturer_id?: string | null
-          name: string
-          net_quantity?: number | null
-          product_id?: string | null
-          quantity?: number
-          receipt_date?: string | null
-          snapshot_date: string
-          supplier_id?: string | null
-          unit: string
-          updated_at?: string
-        }
-        Update: {
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
-          created_at?: string
-          document_number?: string | null
-          entry_number?: number | null
-          gross_quantity?: number | null
-          id?: string
-          lot_number?: string | null
-          manufacturer_id?: string | null
-          name?: string
-          net_quantity?: number | null
-          product_id?: string | null
-          quantity?: number
-          receipt_date?: string | null
-          snapshot_date?: string
-          supplier_id?: string | null
-          unit?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ambalaje_daily_stock_snapshots_crate_type_id_fkey"
-            columns: ["crate_type_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_crate_types"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_daily_stock_snapshots_manufacturer_id_fkey"
-            columns: ["manufacturer_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_manufacturers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_daily_stock_snapshots_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_daily_stock_snapshots_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_suppliers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ambalaje_inventory: {
-        Row: {
-          crate_count: number | null
-          crate_type_id: string | null
-          crate_weight: number | null
-          created_at: string | null
-          document_number: string | null
-          entry_number: number
-          gross_quantity: number | null
-          id: string
-          lot_number: string | null
-          manufacturer_id: string | null
-          name: string
-          net_quantity: number | null
-          product_id: string | null
-          quantity: number
-          receipt_date: string | null
-          supplier: string | null
-          supplier_id: string | null
-          unit: string
-          updated_at: string | null
-        }
-        Insert: {
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
-          created_at?: string | null
-          document_number?: string | null
-          entry_number?: number
-          gross_quantity?: number | null
-          id?: string
-          lot_number?: string | null
-          manufacturer_id?: string | null
-          name: string
-          net_quantity?: number | null
-          product_id?: string | null
-          quantity?: number
-          receipt_date?: string | null
-          supplier?: string | null
-          supplier_id?: string | null
-          unit: string
-          updated_at?: string | null
-        }
-        Update: {
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
-          created_at?: string | null
-          document_number?: string | null
-          entry_number?: number
-          gross_quantity?: number | null
-          id?: string
-          lot_number?: string | null
-          manufacturer_id?: string | null
-          name?: string
-          net_quantity?: number | null
-          product_id?: string | null
-          quantity?: number
-          receipt_date?: string | null
-          supplier?: string | null
-          supplier_id?: string | null
-          unit?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ambalaje_inventory_crate_type_id_fkey"
-            columns: ["crate_type_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_crate_types"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_inventory_manufacturer_id_fkey"
-            columns: ["manufacturer_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_manufacturers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_inventory_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_inventory_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_suppliers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ambalaje_inventory_history: {
-        Row: {
-          action: string
-          crate_count: number | null
-          crate_type_id: string | null
-          crate_weight: number | null
-          document_number: string | null
-          exit_timestamp: string | null
-          id: string
-          inventory_item_id: string | null
-          lot_number: string | null
-          manufacturer_id: string | null
-          name: string
-          net_quantity: number | null
-          notes: string | null
-          operation_date: string
-          pallets: number | null
-          previous_quantity: number | null
-          product_id: string | null
-          quantity: number
-          supplier: string | null
-          supplier_id: string | null
-          unit: string
-        }
-        Insert: {
-          action: string
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
-          document_number?: string | null
-          exit_timestamp?: string | null
-          id?: string
-          inventory_item_id?: string | null
-          lot_number?: string | null
-          manufacturer_id?: string | null
-          name: string
-          net_quantity?: number | null
-          notes?: string | null
-          operation_date?: string
-          pallets?: number | null
-          previous_quantity?: number | null
-          product_id?: string | null
-          quantity: number
-          supplier?: string | null
-          supplier_id?: string | null
-          unit: string
-        }
-        Update: {
-          action?: string
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
-          document_number?: string | null
-          exit_timestamp?: string | null
-          id?: string
-          inventory_item_id?: string | null
-          lot_number?: string | null
-          manufacturer_id?: string | null
-          name?: string
-          net_quantity?: number | null
-          notes?: string | null
-          operation_date?: string
-          pallets?: number | null
-          previous_quantity?: number | null
-          product_id?: string | null
-          quantity?: number
-          supplier?: string | null
-          supplier_id?: string | null
-          unit?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ambalaje_inventory_history_crate_type_id_fkey"
-            columns: ["crate_type_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_crate_types"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_inventory_history_inventory_item_id_fkey"
-            columns: ["inventory_item_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_inventory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_inventory_history_manufacturer_id_fkey"
-            columns: ["manufacturer_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_manufacturers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_inventory_history_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_inventory_history_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_suppliers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ambalaje_manufacturers: {
-        Row: {
-          country: string | null
-          created_at: string
-          description: string | null
-          id: string
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          country?: string | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          country?: string | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          name?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      ambalaje_products: {
-        Row: {
-          category: string | null
-          cod_produs: string | null
-          created_at: string
-          default_unit: string
-          description: string | null
-          id: string
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          category?: string | null
-          cod_produs?: string | null
-          created_at?: string
-          default_unit: string
-          description?: string | null
-          id?: string
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          category?: string | null
-          cod_produs?: string | null
-          created_at?: string
-          default_unit?: string
-          description?: string | null
-          id?: string
-          name?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      ambalaje_stock_transfer_items: {
-        Row: {
-          created_at: string
-          id: string
-          inventory_item_id: string
-          net_quantity: number | null
-          quantity: number
-          transfer_id: string
-          unit: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          inventory_item_id: string
-          net_quantity?: number | null
-          quantity: number
-          transfer_id: string
-          unit: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          inventory_item_id?: string
-          net_quantity?: number | null
-          quantity?: number
-          transfer_id?: string
-          unit?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ambalaje_stock_transfer_items_inventory_item_id_fkey"
-            columns: ["inventory_item_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_inventory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
-            columns: ["transfer_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_stock_transfer_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
-            columns: ["transfer_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_stock_transfers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ambalaje_stock_transfers: {
-        Row: {
-          created_at: string
-          destination: string
-          id: string
-          notes: string | null
-          transfer_date: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          destination: string
-          id?: string
-          notes?: string | null
-          transfer_date?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          destination?: string
-          id?: string
-          notes?: string | null
-          transfer_date?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      ambalaje_suppliers: {
-        Row: {
-          address: string | null
-          contact: string | null
-          created_at: string
-          email: string | null
-          id: string
-          name: string
-          phone: string | null
-          supplier_code: string | null
-          updated_at: string
-        }
-        Insert: {
-          address?: string | null
-          contact?: string | null
-          created_at?: string
-          email?: string | null
-          id?: string
-          name: string
-          phone?: string | null
-          supplier_code?: string | null
-          updated_at?: string
-        }
-        Update: {
-          address?: string | null
-          contact?: string | null
-          created_at?: string
-          email?: string | null
-          id?: string
-          name?: string
-          phone?: string | null
-          supplier_code?: string | null
-          updated_at?: string
-        }
-        Relationships: []
       }
       angajati: {
         Row: {
@@ -2968,7 +2463,7 @@ export type Database = {
             columns: ["transfer_id"]
             isOneToOne: false
             referencedRelation: "stock_transfer_view"
-            referencedColumns: ["id"]
+            referencedColumns: ["transfer_id"]
           },
           {
             foreignKeyName: "stock_transfer_items_transfer_id_fkey"
@@ -3579,52 +3074,6 @@ export type Database = {
       }
     }
     Views: {
-      ambalaje_stock_transfer_view: {
-        Row: {
-          created_at: string | null
-          destination: string | null
-          document_number: string | null
-          entry_number: number | null
-          id: string | null
-          inventory_item_id: string | null
-          lot_number: string | null
-          manufacturer_name: string | null
-          name: string | null
-          net_quantity: number | null
-          notes: string | null
-          product_code: string | null
-          product_name: string | null
-          quantity: number | null
-          supplier: string | null
-          supplier_name: string | null
-          transfer_date: string | null
-          transfer_id: string | null
-          unit: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ambalaje_stock_transfer_items_inventory_item_id_fkey"
-            columns: ["inventory_item_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_inventory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
-            columns: ["transfer_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_stock_transfer_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
-            columns: ["transfer_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_stock_transfers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       consumption_analytics: {
         Row: {
           action: string | null
@@ -3699,21 +3148,18 @@ export type Database = {
       }
       stock_transfer_view: {
         Row: {
+          crate_count: number | null
           created_at: string | null
           destination: string | null
           document_number: string | null
           entry_number: number | null
-          id: string | null
           inventory_item_id: string | null
           lot_number: string | null
           manufacturer_name: string | null
-          name: string | null
           net_quantity: number | null
           notes: string | null
-          product_code: string | null
           product_name: string | null
           quantity: number | null
-          supplier: string | null
           supplier_name: string | null
           transfer_date: string | null
           transfer_id: string | null
@@ -3732,20 +3178,6 @@ export type Database = {
             columns: ["inventory_item_id"]
             isOneToOne: false
             referencedRelation: "inventory_with_history"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_transfer_items_transfer_id_fkey"
-            columns: ["transfer_id"]
-            isOneToOne: false
-            referencedRelation: "stock_transfer_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_transfer_items_transfer_id_fkey"
-            columns: ["transfer_id"]
-            isOneToOne: false
-            referencedRelation: "stock_transfers"
             referencedColumns: ["id"]
           },
         ]
@@ -3926,25 +3358,21 @@ export type Database = {
   }
 }
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = Database[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
+    | { schema: keyof Database },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof Database
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
@@ -3962,16 +3390,14 @@ export type Tables<
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    | { schema: keyof Database },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof Database
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
@@ -3987,16 +3413,14 @@ export type TablesInsert<
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    | { schema: keyof Database },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof Database
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
@@ -4012,16 +3436,14 @@ export type TablesUpdate<
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+    | { schema: keyof Database },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof Database
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
@@ -4029,16 +3451,14 @@ export type Enums<
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
+    | { schema: keyof Database },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof Database
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never

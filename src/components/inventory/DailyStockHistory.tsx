@@ -6,7 +6,6 @@ import { Calendar, FileSpreadsheet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
-import { useInventoryType } from "@/App";
 
 interface DailyStockItem {
   id: string;
@@ -28,7 +27,6 @@ interface DailyStockItem {
 }
 
 export const DailyStockHistory = () => {
-  const { inventoryType } = useInventoryType();
   const [stockSnapshots, setStockSnapshots] = useState<DailyStockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -39,22 +37,8 @@ export const DailyStockHistory = () => {
   const fetchDailyStock = async () => {
     try {
       setLoading(true);
-      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
-      const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
-      const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
-      const crateTypesTable = inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
-      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
-      
-      // For ambalaje, we don't have the daily snapshots table yet
-      if (inventoryType === 'ambalaje') {
-        console.log(`Skipping daily snapshots for ${inventoryType} - table doesn't exist yet`);
-        setStockSnapshots([]);
-        setLoading(false);
-        return;
-      }
-      
       const { data, error } = await supabase
-        .from(tableName)
+        .from("daily_stock_snapshots")
         .select(`
           id,
           snapshot_date,
