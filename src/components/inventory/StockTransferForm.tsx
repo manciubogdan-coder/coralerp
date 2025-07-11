@@ -133,7 +133,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       productName,
       quantity: selectedItem.quantity,
       unit: selectedItem.unit,
-      maxQuantity: selectedItem.quantity,
+      maxQuantity: selectedItem.net_quantity || selectedItem.quantity,
       maxGrossQuantity: maxGrossEstimate,
       crateCount: selectedItem.crate_count || 0,
       originalCrateCount: selectedItem.crate_count || 0,
