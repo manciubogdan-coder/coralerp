@@ -70,6 +70,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [crateTypes, setCrateTypes] = useState<{id: string, name: string, weight: number}[]>([]);
   const isMobile = useIsMobile();
 
   const form = useForm<TransferFormValues>({
@@ -83,8 +84,24 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   useEffect(() => {
     if (isOpen) {
       fetchInventory();
+      fetchCrateTypes();
     }
   }, [isOpen]);
+
+  const fetchCrateTypes = async () => {
+    try {
+      const crateTypesTable = inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
+      const { data, error } = await supabase
+        .from(crateTypesTable)
+        .select('id, name, weight')
+        .order('name');
+      
+      if (error) throw error;
+      setCrateTypes(data || []);
+    } catch (error: any) {
+      console.error('Error fetching crate types:', error);
+    }
+  };
 
   const fetchInventory = async () => {
     try {
@@ -155,13 +172,20 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   };
 
   const calculateNetQuantity = (item: TransferItem) => {
-    // Calculate deductions from crates
-    const totalCrateWeight = (item.crateWeight || 0) * (item.crateCount || 0);
+    // Calculăm deducerile din lăzi folosind greutatea corectă din baza de date
+    let totalCrateWeight = 0;
+    if (item.crateTypeId && item.crateCount && item.crateCount > 0) {
+      // Găsim tipul de lădiță în lista crateTypes sau facem query direct
+      const crateType = crateTypes.find(ct => ct.id === item.crateTypeId);
+      if (crateType) {
+        totalCrateWeight = crateType.weight * item.crateCount;
+      }
+    }
     
-    // Calculate deductions from pallets
+    // Calculăm deducerile din paleți
     const totalPalletWeight = item.palletWeight || 0;
     
-    // Calculate net quantity by subtracting total weights from gross quantity
+    // Calculăm cantitatea netă scăzând greutățile din cantitatea brută
     return Math.max(0, item.grossQuantity - totalCrateWeight - totalPalletWeight);
   };
 
@@ -331,23 +355,30 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           
         if (historyError) throw historyError;
 
-        // Update inventory quantity ONLY - preserve all reception data
+        // Update inventory quantity - scadem cantitatea NETĂ din stocul BRUT
         const { data: inventoryItem, error: getError } = await supabase
           .from(inventoryTable)
-          .select('quantity')
+          .select('quantity, gross_quantity, net_quantity')
           .eq('id', item.id)
           .single();
         
         if (getError) throw getError;
         
-        const currentQuantity = inventoryItem?.quantity || 0;
-        const newQuantity = Math.max(0, currentQuantity - item.netQuantity);
+        const currentGrossQuantity = inventoryItem?.quantity || 0;
+        const newGrossQuantity = Math.max(0, currentGrossQuantity - item.netQuantity);
         
-        // Update ONLY the quantity field - do NOT modify any reception data
+        console.log('Transfer update:', {
+          itemId: item.id,
+          currentGross: currentGrossQuantity,
+          removingNet: item.netQuantity,
+          newGross: newGrossQuantity
+        });
+        
+        // Update quantity (care este gross_quantity) - trigger-ul va recalcula net_quantity automat
         const { error: updateError } = await supabase
           .from(inventoryTable)
           .update({ 
-            quantity: newQuantity
+            quantity: newGrossQuantity
           })
           .eq('id', item.id);
            

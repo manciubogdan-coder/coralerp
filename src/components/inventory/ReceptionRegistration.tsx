@@ -129,7 +129,7 @@ export function ReceptionRegistration({
           if (receptionError) throw receptionError;
         }
 
-        // Și în tabela inventory pentru stocul curent
+        // Pentru recepții, creăm un lot separat pentru fiecare palet
         // IMPORTANT: quantity trebuie să fie gross_quantity pentru ca trigger-ul să calculeze corect
         const { error } = await supabase
           .from(inventoryTable)
@@ -144,7 +144,8 @@ export function ReceptionRegistration({
             crate_type_id: pallet.crateTypeId,
             crate_count: pallet.crateCount,
             crate_weight: pallet.palletWeight,
-            receipt_date: new Date().toISOString()
+            receipt_date: new Date().toISOString(),
+            entry_number: entryNumber // Fiecare palet are propriul entry_number (lot)
           });
 
         if (error) throw error;
