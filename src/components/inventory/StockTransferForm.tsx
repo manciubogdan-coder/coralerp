@@ -141,26 +141,26 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
     const productName = selectedItem.products?.name || selectedItem.name;
     
-    // Pentru transfer, folosim cantitatea disponibilă exactă din lot
-    const maxNetQuantity = selectedItem.net_quantity || selectedItem.quantity;
-    const maxGrossQuantity = selectedItem.quantity; // gross quantity din stoc
+    // Estimăm o cantitate brută maximă permisă ca fiind de 50% mai mare decât cea netă
+    // Aceasta este o estimare pentru a oferi o limită rezonabilă, dar permisivă
+    const maxGrossEstimate = selectedItem.quantity * 1.5;
     
     setSelectedItems([...selectedItems, {
       id: selectedItem.id,
       productName,
       quantity: selectedItem.quantity,
       unit: selectedItem.unit,
-      maxQuantity: maxNetQuantity, // Cantitatea netă maximă disponibilă pentru transfer
-      maxGrossQuantity: maxGrossQuantity,
+      maxQuantity: selectedItem.quantity,
+      maxGrossQuantity: maxGrossEstimate,
       crateCount: selectedItem.crate_count || 0,
       originalCrateCount: selectedItem.crate_count || 0,
       crateTypeId: selectedItem.crate_type_id || undefined,
       crateWeight: selectedItem.crate_weight || 0,
       pallets: 0,
       palletWeight: 0,
-      grossQuantity: selectedItem.quantity, // Inițial cu tot stocul brut
-      netQuantity: maxNetQuantity, // Inițial cu toată cantitatea netă disponibilă
-      // Informații din lot
+      grossQuantity: selectedItem.gross_quantity || selectedItem.quantity,
+      netQuantity: selectedItem.net_quantity || selectedItem.quantity,
+      // Informații adiționale salvate
       supplier: selectedItem.supplier || selectedItem.suppliers?.name,
       supplier_id: selectedItem.supplier_id,
       manufacturer: selectedItem.manufacturer || selectedItem.manufacturers?.name,
@@ -172,33 +172,36 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   };
 
   const calculateNetQuantity = (item: TransferItem) => {
-    // Pentru transferuri la nivel de lot, calculăm net din gross
-    // folosind proporția din lotul original
-    const originalItem = inventory.find(inv => inv.id === item.id);
-    if (!originalItem || !originalItem.quantity || originalItem.quantity === 0) {
-      return 0;
+    // Calculăm deducerile din lăzi folosind greutatea corectă din baza de date
+    let totalCrateWeight = 0;
+    if (item.crateTypeId && item.crateCount && item.crateCount > 0) {
+      // Găsim tipul de lădiță în lista crateTypes sau facem query direct
+      const crateType = crateTypes.find(ct => ct.id === item.crateTypeId);
+      if (crateType) {
+        totalCrateWeight = crateType.weight * item.crateCount;
+      }
     }
     
-    // Calculăm proporția ce se transferă din lotul original
-    const transferRatio = item.grossQuantity / originalItem.quantity;
-    const maxNetFromLot = originalItem.net_quantity || originalItem.quantity;
+    // Calculăm deducerile din paleți
+    const totalPalletWeight = item.palletWeight || 0;
     
-    return Math.max(0, Math.min(maxNetFromLot * transferRatio, maxNetFromLot));
+    // Calculăm cantitatea netă scăzând greutățile din cantitatea brută
+    return Math.max(0, item.grossQuantity - totalCrateWeight - totalPalletWeight);
   };
 
   const handleGrossQuantityChange = (index: number, value: number) => {
     const updatedItems = [...selectedItems];
     const item = updatedItems[index];
     
-    // Limităm la cantitatea maximă brută disponibilă în lot
-    const newGrossQuantity = Math.max(0, Math.min(value, item.maxGrossQuantity));
+    // Permite orice cantitate brută, fără limite superioare
+    const newGrossQuantity = Math.max(0, value);
     
     updatedItems[index] = {
       ...item,
       grossQuantity: newGrossQuantity,
     };
     
-    // Recalculează net quantity bazat pe proporție din lot
+    // Recalculate net quantity
     updatedItems[index].netQuantity = calculateNetQuantity(updatedItems[index]);
     
     setSelectedItems(updatedItems);
@@ -352,7 +355,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           
         if (historyError) throw historyError;
 
-        // Update inventory quantity - scadem cantitatea BRUTĂ transferată din lotul original
+        // Update inventory quantity - scadem cantitatea NETĂ din stocul BRUT
         const { data: inventoryItem, error: getError } = await supabase
           .from(inventoryTable)
           .select('quantity, gross_quantity, net_quantity')
@@ -362,19 +365,16 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         if (getError) throw getError;
         
         const currentGrossQuantity = inventoryItem?.quantity || 0;
-        const newGrossQuantity = Math.max(0, currentGrossQuantity - item.grossQuantity);
+        const newGrossQuantity = Math.max(0, currentGrossQuantity - item.netQuantity);
         
-        console.log('Transfer lot update:', {
-          lotId: item.id,
-          entryNumber: item.entry_number,
-          lotNumber: item.lot_number,
+        console.log('Transfer update:', {
+          itemId: item.id,
           currentGross: currentGrossQuantity,
-          removingGross: item.grossQuantity,
           removingNet: item.netQuantity,
           newGross: newGrossQuantity
         });
         
-        // Update quantity (care este gross_quantity) - trigger-ul va recalcula net_quantity proporțional
+        // Update quantity (care este gross_quantity) - trigger-ul va recalcula net_quantity automat
         const { error: updateError } = await supabase
           .from(inventoryTable)
           .update({ 
