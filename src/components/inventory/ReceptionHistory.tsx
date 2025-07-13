@@ -212,28 +212,41 @@ export const ReceptionHistory = () => {
       const inventoryTableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
       const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
       
-      // Adaugă intrare în istoric pentru ștergerea recepției
-      const { error: historyError } = await supabase
-        .from(historyTable)
-        .insert({
-          inventory_item_id: item.id,
-          name: item.name,
-          action: 'deleted_reception',
-          quantity: item.quantity,
-          previous_quantity: item.quantity,
-          unit: item.unit,
-          supplier: item.suppliers?.name,
-          supplier_id: item.supplier_id,
-          manufacturer_id: item.manufacturer_id,
-          product_id: item.product_id,
-          lot_number: item.lot_number,
-          document_number: item.document_number,
-          notes: `Recepție ștearsă - Intrarea nr. ${item.entry_number}`,
-          operation_date: new Date().toISOString()
-        });
+      // Găsește înregistrarea din stocul curent bazată pe entry_number
+      const { data: currentStockItem, error: stockFindError } = await supabase
+        .from(inventoryTableName)
+        .select('*')
+        .eq('entry_number', item.entry_number)
+        .single();
 
-      if (historyError) {
-        console.error("Error adding history entry:", historyError);
+      if (stockFindError && stockFindError.code !== 'PGRST116') {
+        console.error("Error finding stock item:", stockFindError);
+      }
+
+      // Adaugă intrare în istoric pentru ștergerea recepției
+      if (currentStockItem) {
+        const { error: historyError } = await supabase
+          .from(historyTable)
+          .insert({
+            inventory_item_id: currentStockItem.id,
+            name: item.name,
+            action: 'deleted_reception',
+            quantity: currentStockItem.quantity,
+            previous_quantity: currentStockItem.quantity,
+            unit: item.unit,
+            supplier: item.suppliers?.name,
+            supplier_id: item.supplier_id,
+            manufacturer_id: item.manufacturer_id,
+            product_id: item.product_id,
+            lot_number: item.lot_number,
+            document_number: item.document_number,
+            notes: `Recepție ștearsă - Intrarea nr. ${item.entry_number}`,
+            operation_date: new Date().toISOString()
+          });
+
+        if (historyError) {
+          console.error("Error adding history entry:", historyError);
+        }
       }
       
       // Șterge recepția din tabelul de recepții
@@ -244,20 +257,22 @@ export const ReceptionHistory = () => {
 
       if (receptionError) throw receptionError;
 
-      // Șterge și din inventarul curent dacă există
-      const { error: inventoryError } = await supabase
-        .from(inventoryTableName)
-        .delete()
-        .eq('id', item.id);
+      // Șterge și din inventarul curent dacă există (bazat pe entry_number)
+      if (currentStockItem) {
+        const { error: inventoryError } = await supabase
+          .from(inventoryTableName)
+          .delete()
+          .eq('entry_number', item.entry_number);
 
-      // Nu aruncăm eroare dacă nu există în inventar (poate a fost deja transferat complet)
-      if (inventoryError) {
-        console.warn("Could not delete from inventory (may already be transferred):", inventoryError);
+        if (inventoryError) {
+          console.error("Error deleting from inventory:", inventoryError);
+          throw inventoryError;
+        }
       }
 
       toast({
         title: "Recepție ștearsă",
-        description: "Recepția a fost ștearsă cu succes."
+        description: "Recepția și stocul aferent au fost șterse cu succes."
       });
 
       fetchReceptions();
