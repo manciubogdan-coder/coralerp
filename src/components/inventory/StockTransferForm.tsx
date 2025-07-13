@@ -45,6 +45,12 @@ interface TransferItem {
   product_id?: string;
   supplier_id?: string;
   manufacturer_id?: string;
+  // Pentru calcul net (doar pentru afișare, nu se stochează)
+  grossQuantity?: number;
+  crateTypeId?: string | null;
+  crateCount?: number;
+  crateWeight?: number;
+  netQuantity?: number;
 }
 
 interface TransferFormValues {
@@ -61,6 +67,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [crateTypes, setCrateTypes] = useState<any[]>([]);
   const isMobile = useIsMobile();
 
   const form = useForm<TransferFormValues>({
@@ -74,8 +81,24 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   useEffect(() => {
     if (isOpen) {
       fetchInventory();
+      fetchCrateTypes();
     }
   }, [isOpen]);
+
+  const fetchCrateTypes = async () => {
+    try {
+      const crateTypesTable = inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
+      const { data, error } = await supabase
+        .from(crateTypesTable)
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+      setCrateTypes(data || []);
+    } catch (error: any) {
+      console.error("Error fetching crate types:", error);
+    }
+  };
 
   const fetchInventory = async () => {
     try {
@@ -206,6 +229,72 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     };
     
     setSelectedItems(updatedItems);
+  };
+
+  const handleGrossQuantityChange = (index: number, value: number) => {
+    const updatedItems = [...selectedItems];
+    const item = updatedItems[index];
+    
+    updatedItems[index] = {
+      ...item,
+      grossQuantity: value
+    };
+    
+    calculateNetQuantity(index, updatedItems);
+    setSelectedItems(updatedItems);
+  };
+
+  const handleCrateTypeChange = (index: number, crateTypeId: string) => {
+    const updatedItems = [...selectedItems];
+    
+    updatedItems[index] = {
+      ...updatedItems[index],
+      crateTypeId: crateTypeId === "no-crate" ? null : crateTypeId
+    };
+    
+    calculateNetQuantity(index, updatedItems);
+    setSelectedItems(updatedItems);
+  };
+
+  const handleCrateCountChange = (index: number, count: number) => {
+    const updatedItems = [...selectedItems];
+    
+    updatedItems[index] = {
+      ...updatedItems[index],
+      crateCount: count
+    };
+    
+    calculateNetQuantity(index, updatedItems);
+    setSelectedItems(updatedItems);
+  };
+
+  const handleCrateWeightChange = (index: number, weight: number) => {
+    const updatedItems = [...selectedItems];
+    
+    updatedItems[index] = {
+      ...updatedItems[index],
+      crateWeight: weight
+    };
+    
+    calculateNetQuantity(index, updatedItems);
+    setSelectedItems(updatedItems);
+  };
+
+  const calculateNetQuantity = (index: number, items: TransferItem[]) => {
+    const item = items[index];
+    if (!item.grossQuantity) return;
+
+    const selectedCrateType = crateTypes.find(ct => ct.id === item.crateTypeId);
+    const crateWeight = selectedCrateType && item.crateTypeId ? selectedCrateType.weight * (item.crateCount || 0) : 0;
+    const palletWeight = item.crateWeight || 0;
+    
+    const calculatedNet = Math.max(0, item.grossQuantity - crateWeight - palletWeight);
+    
+    items[index] = {
+      ...item,
+      netQuantity: calculatedNet,
+      quantity: calculatedNet // Folosim cantitatea netă ca și cantitate de transfer
+    };
   };
 
   const handleRemoveItem = (index: number) => {
@@ -441,26 +530,28 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         Nu există produse disponibile
                       </div>
                     ) : (
-                      Object.entries(groupedByLot).map(([groupKey, group]) => (
-                        <SelectItem 
-                          key={groupKey} 
-                          value={groupKey} 
-                          className={`py-4 ${isMobile ? 'text-base' : ''}`}
-                        >
-                          <div className="flex flex-col">
-                            <span className="font-medium">
-                              {group.productName} - Lot: {group.lotNumber || 'N/A'}
-                            </span>
-                            <span className="text-sm text-blue-600 font-medium">
-                              Total disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {group.supplier ? `Furnizor: ${group.supplier}` : ''}
-                              {group.manufacturer ? ` | Producător: ${group.manufacturer}` : ''}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))
+                      Object.entries(groupedByLot)
+                        .sort(([, a], [, b]) => a.productName.localeCompare(b.productName))
+                        .map(([groupKey, group]) => (
+                          <SelectItem 
+                            key={groupKey} 
+                            value={groupKey} 
+                            className={`py-4 ${isMobile ? 'text-base' : ''}`}
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {group.productName} - Lot: {group.lotNumber || 'N/A'}
+                              </span>
+                              <span className="text-sm text-blue-600 font-medium">
+                                Total disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {group.supplier ? `Furnizor: ${group.supplier}` : ''}
+                                {group.manufacturer ? ` | Producător: ${group.manufacturer}` : ''}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))
                     )}
                   </SelectContent>
                 </Select>
@@ -498,9 +589,80 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         </Button>
                       </div>
                       
-                      <div className="grid grid-cols-1 gap-2">
+                      <div className="space-y-3">
+                        {/* Cantitate brută pentru calcul */}
                         <div>
-                          <label className="text-sm">Cantitate de transferat {item.unit}</label>
+                          <label className="text-sm">Cantitate brută {item.unit} (pentru calcul)</label>
+                          <Input
+                            type="number"
+                            value={item.grossQuantity || ''}
+                            onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)}
+                            min={0}
+                            step="0.01"
+                            placeholder="Introduceți cantitatea brută"
+                            className={isMobile ? 'h-12' : ''}
+                          />
+                        </div>
+
+                        {/* Selector tip lădiță */}
+                        <div>
+                          <label className="text-sm">Tip lădiță</label>
+                          <Select
+                            value={item.crateTypeId || "no-crate"}
+                            onValueChange={(value) => handleCrateTypeChange(index, value)}
+                          >
+                            <SelectTrigger className={isMobile ? 'h-12' : ''}>
+                              <SelectValue placeholder="Selectează tipul de lădiță" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white">
+                              <SelectItem value="no-crate">Fără lăzi</SelectItem>
+                              {crateTypes.map(crateType => (
+                                <SelectItem key={crateType.id} value={crateType.id}>
+                                  {crateType.name} ({crateType.weight} kg)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Număr lăzi */}
+                        <div>
+                          <label className="text-sm">Numărul de lăzi</label>
+                          <Input
+                            type="number"
+                            value={item.crateCount || ''}
+                            onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
+                            placeholder="Numărul de lăzi"
+                            disabled={!item.crateTypeId}
+                            className={isMobile ? 'h-12' : ''}
+                          />
+                        </div>
+
+                        {/* Greutatea paletului */}
+                        <div>
+                          <label className="text-sm">Greutatea paletului (kg)</label>
+                          <Input
+                            type="number"
+                            value={item.crateWeight || ''}
+                            onChange={(e) => handleCrateWeightChange(index, parseFloat(e.target.value) || 0)}
+                            placeholder="Greutatea paletului"
+                            step="0.01"
+                            className={isMobile ? 'h-12' : ''}
+                          />
+                        </div>
+
+                        {/* Afișare cantitate netă calculată */}
+                        {item.netQuantity !== undefined && (
+                          <div className="p-2 bg-blue-50 rounded border">
+                            <label className="text-sm font-medium text-blue-700">
+                              Cantitate netă calculată: {item.netQuantity.toFixed(2)} {item.unit}
+                            </label>
+                          </div>
+                        )}
+
+                        {/* Cantitate finală de transfer */}
+                        <div>
+                          <label className="text-sm">Cantitate finală de transferat {item.unit}</label>
                           <Input
                             type="number"
                             value={item.quantity}
