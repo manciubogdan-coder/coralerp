@@ -44,7 +44,7 @@ export function ReceptionRegistration({
 
   const calculateNetQuantity = () => {
     const selectedCrateType = crateTypes.find(ct => ct.id === crateTypeId);
-    const crateWeight = selectedCrateType ? selectedCrateType.weight * crateCount : 0;
+    const crateWeight = selectedCrateType && crateTypeId !== "no-crate" ? selectedCrateType.weight * crateCount : 0;
     const calculatedNet = Math.max(0, grossQuantity - crateWeight - palletWeight);
     setNetQuantity(calculatedNet);
   };
@@ -231,7 +231,7 @@ export function ReceptionRegistration({
                     <SelectValue placeholder="Selectează tipul de lădiță" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Fără lăzi</SelectItem>
+                    <SelectItem value="no-crate">Fără lăzi</SelectItem>
                     {crateTypes.map(crateType => (
                       <SelectItem key={crateType.id} value={crateType.id}>
                         {crateType.name} ({crateType.weight} kg)
@@ -248,7 +248,7 @@ export function ReceptionRegistration({
                   value={crateCount || ''}
                   onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
                   placeholder="Numărul de lăzi"
-                  disabled={!crateTypeId}
+                  disabled={!crateTypeId || crateTypeId === "no-crate"}
                 />
               </div>
             </div>
