@@ -32,28 +32,19 @@ interface StockTransferFormProps {
 }
 
 interface TransferItem {
-  id: string;
+  lotKey: string; // Cheie unică pentru combinația produs-lot
   productName: string;
+  lot_number: string;
   quantity: number;
   unit: string;
-  maxQuantity: number; // Cantitatea netă maximă disponibilă
-  maxGrossQuantity: number; // Cantitatea brută maximă estimată
-  crateCount?: number;
-  crateTypeId?: string;
-  crateWeight?: number;
-  pallets?: number;
-  palletWeight?: number;
-  grossQuantity: number;
-  netQuantity: number;
-  originalCrateCount?: number;
-  lot_number?: string;
-  // Informații adiționale pentru reintroducere
+  maxQuantity: number;
+  items: InventoryItem[]; // Toate intrările pentru acest lot
+  // Informații pentru afișare
   supplier?: string;
-  supplier_id?: string;
   manufacturer?: string;
+  product_id?: string;
+  supplier_id?: string;
   manufacturer_id?: string;
-  document_number?: string;
-  entry_number?: number;
 }
 
 interface TransferFormValues {
@@ -70,7 +61,6 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [crateTypes, setCrateTypes] = useState<{id: string, name: string, weight: number}[]>([]);
   const isMobile = useIsMobile();
 
   const form = useForm<TransferFormValues>({
@@ -84,24 +74,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   useEffect(() => {
     if (isOpen) {
       fetchInventory();
-      fetchCrateTypes();
     }
   }, [isOpen]);
-
-  const fetchCrateTypes = async () => {
-    try {
-      const crateTypesTable = inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
-      const { data, error } = await supabase
-        .from(crateTypesTable)
-        .select('id, name, weight')
-        .order('name');
-      
-      if (error) throw error;
-      setCrateTypes(data || []);
-    } catch (error: any) {
-      console.error('Error fetching crate types:', error);
-    }
-  };
 
   const fetchInventory = async () => {
     try {
@@ -132,268 +106,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     }
   };
 
-  const handleAddItem = (itemId: string) => {
-    const selectedItem = inventory.find(item => item.id === itemId);
-    if (!selectedItem) return;
-
-    const productName = selectedItem.products?.name || selectedItem.name;
-    
-    // Estimăm o cantitate brută maximă permisă ca fiind de 50% mai mare decât cea netă
-    // Aceasta este o estimare pentru a oferi o limită rezonabilă, dar permisivă
-    const maxGrossEstimate = selectedItem.quantity * 1.5;
-    
-    setSelectedItems([...selectedItems, {
-      id: selectedItem.id,
-      productName,
-      quantity: selectedItem.quantity,
-      unit: selectedItem.unit,
-      maxQuantity: selectedItem.quantity,
-      maxGrossQuantity: maxGrossEstimate,
-      crateCount: 0,
-      originalCrateCount: 0,
-      crateTypeId: undefined,
-      crateWeight: 0,
-      pallets: 0,
-      palletWeight: 0,
-      grossQuantity: selectedItem.quantity,
-      netQuantity: selectedItem.quantity,
-      // Informații adiționale salvate
-      supplier: selectedItem.supplier || selectedItem.suppliers?.name,
-      supplier_id: selectedItem.supplier_id,
-      manufacturer: selectedItem.manufacturer || selectedItem.manufacturers?.name,
-      manufacturer_id: selectedItem.manufacturer_id,
-      document_number: selectedItem.document_number,
-      entry_number: selectedItem.entry_number,
-      lot_number: selectedItem.lot_number
-    }]);
-  };
-
-  const calculateNetQuantity = (item: TransferItem) => {
-    // Calculăm deducerile din lăzi folosind greutatea corectă din baza de date
-    let totalCrateWeight = 0;
-    if (item.crateTypeId && item.crateCount && item.crateCount > 0) {
-      // Găsim tipul de lădiță în lista crateTypes sau facem query direct
-      const crateType = crateTypes.find(ct => ct.id === item.crateTypeId);
-      if (crateType) {
-        totalCrateWeight = crateType.weight * item.crateCount;
-      }
-    }
-    
-    // Calculăm deducerile din paleți
-    const totalPalletWeight = item.palletWeight || 0;
-    
-    // Calculăm cantitatea netă scăzând greutățile din cantitatea brută
-    return Math.max(0, item.grossQuantity - totalCrateWeight - totalPalletWeight);
-  };
-
-  const handleGrossQuantityChange = (index: number, value: number) => {
-    const updatedItems = [...selectedItems];
-    const item = updatedItems[index];
-    
-    // Permite orice cantitate brută, fără limite superioare
-    const newGrossQuantity = Math.max(0, value);
-    
-    updatedItems[index] = {
-      ...item,
-      grossQuantity: newGrossQuantity,
-    };
-    
-    // Recalculate net quantity
-    updatedItems[index].netQuantity = calculateNetQuantity(updatedItems[index]);
-    
-    setSelectedItems(updatedItems);
-  };
-
-  const handleCrateCountChange = (index: number, value: number) => {
-    const updatedItems = [...selectedItems];
-    const item = updatedItems[index];
-    const newCrateCount = Math.max(0, value);
-    
-    updatedItems[index] = {
-      ...item,
-      crateCount: newCrateCount
-    };
-    
-    // Recalculate net quantity
-    updatedItems[index].netQuantity = calculateNetQuantity(updatedItems[index]);
-    
-    setSelectedItems(updatedItems);
-  };
-
-  const handlePalletsChange = (index: number, value: number) => {
-    const updatedItems = [...selectedItems];
-    updatedItems[index] = {
-      ...updatedItems[index],
-      pallets: Math.max(0, value)
-    };
-    setSelectedItems(updatedItems);
-  };
-  
-  const handlePalletWeightChange = (index: number, value: number) => {
-    const updatedItems = [...selectedItems];
-    const item = updatedItems[index];
-    const newPalletWeight = Math.max(0, value);
-    
-    updatedItems[index] = {
-      ...item,
-      palletWeight: newPalletWeight
-    };
-    
-    // Recalculate net quantity
-    updatedItems[index].netQuantity = calculateNetQuantity(updatedItems[index]);
-    
-    setSelectedItems(updatedItems);
-  };
-
-  const handleRemoveItem = (index: number) => {
-    const updatedItems = [...selectedItems];
-    updatedItems.splice(index, 1);
-    setSelectedItems(updatedItems);
-  };
-
-  const onSubmit = async (formData: TransferFormValues) => {
-    if (selectedItems.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "Eroare",
-        description: "Adăugați cel puțin un produs pentru transfer."
-      });
-      return;
-    }
-
-    // Verificăm dacă cantitatea netă depășește cantitatea maximă disponibilă
-    const invalidItem = selectedItems.find(item => item.netQuantity > item.maxQuantity);
-    if (invalidItem) {
-      toast({
-        variant: "destructive",
-        title: "Cantitate netă depășită",
-        description: `Pentru ${invalidItem.productName} cantitatea netă (${invalidItem.netQuantity.toFixed(2)} ${invalidItem.unit}) depășește stocul disponibil (${invalidItem.maxQuantity.toFixed(2)} ${invalidItem.unit}).`
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    
-    try {
-      // Use appropriate transfer tables based on inventory type
-      const transferTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
-      const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
-      
-      // First create a transfer document
-      const { data: transferData, error: transferError } = await supabase
-        .from(transferTable)
-        .insert({
-          transfer_date: formData.transferDate,
-          destination: formData.destination,
-          notes: formData.notes
-        })
-        .select()
-        .single();
-      
-      if (transferError) throw transferError;
-      
-      if (!transferData) {
-        throw new Error("Nu s-a putut crea bonul de transfer.");
-      }
-      
-      // Process each item in the transfer
-      for (const item of selectedItems) {
-        // Add item to transfer items table
-        const { error: transferItemError } = await supabase
-          .from(transferItemsTable)
-          .insert({
-            transfer_id: transferData.id,
-            inventory_item_id: item.id,
-            quantity: item.netQuantity,
-            unit: item.unit
-          });
-          
-        if (transferItemError) throw transferItemError;
-
-        // Record the transfer in inventory_history
-        const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
-        const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
-        
-        // Get the actual lot_number from the inventory item if not available on selected item
-        const actualLotNumber = item.lot_number;
-        
-        console.log('Debug transfer item:', {
-          id: item.id,
-          productName: item.productName,
-          lot_number: actualLotNumber,
-          netQuantity: item.netQuantity
-        });
-        
-        const { error: historyError } = await supabase
-          .from(historyTable)
-          .insert({
-            inventory_item_id: item.id,
-            action: "remove",
-            name: item.productName,
-            quantity: item.netQuantity,
-            unit: item.unit,
-            lot_number: actualLotNumber,
-            operation_date: new Date().toISOString(),
-            supplier: item.supplier,
-            supplier_id: item.supplier_id,
-            manufacturer_id: item.manufacturer_id,
-            document_number: item.document_number,
-            notes: `Transfer către ${formData.destination}`
-          });
-          
-        if (historyError) throw historyError;
-
-        // Update inventory quantity - scadem cantitatea transferată din stoc
-        const { data: inventoryItem, error: getError } = await supabase
-          .from(inventoryTable)
-          .select('quantity')
-          .eq('id', item.id)
-          .single();
-        
-        if (getError) throw getError;
-        
-        const currentQuantity = inventoryItem?.quantity || 0;
-        const newQuantity = Math.max(0, currentQuantity - item.netQuantity);
-        
-        console.log('Transfer update:', {
-          itemId: item.id,
-          currentQuantity: currentQuantity,
-          removingQuantity: item.netQuantity,
-          newQuantity: newQuantity
-        });
-        
-        // Update quantity
-        const { error: updateError } = await supabase
-          .from(inventoryTable)
-          .update({ 
-            quantity: newQuantity
-          })
-          .eq('id', item.id);
-           
-        if (updateError) throw updateError;
-      }
-
-      toast({
-        title: "Succes",
-        description: `Bon de transfer creat cu succes.`
-      });
-
-      setSelectedItems([]);
-      setIsOpen(false);
-      if (onTransferComplete) onTransferComplete();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Eroare la procesarea transferului",
-        description: error.message
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const availableItems = inventory.filter(
-    item => !selectedItems.some(selected => selected.id === item.id)
+  const availableItems = inventory.filter(item => 
+    !selectedItems.some(selected => {
+      const itemLotKey = `${item.products?.name || item.name}-${item.lot_number || 'fara-lot'}`;
+      return selected.lotKey === itemLotKey;
+    })
   );
 
   const filteredItems = availableItems.filter(item => {
@@ -441,9 +158,166 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     manufacturer?: string;
   }>);
 
-  // Verifică dacă cantitatea netă rezultată din calculul cu noua cantitate brută este validă
-  const isNetQuantityValid = (item: TransferItem) => {
-    return item.netQuantity <= item.maxQuantity;
+  const handleAddItem = (lotKey: string) => {
+    const group = groupedByLot[lotKey];
+    if (!group) return;
+
+    const transferItem: TransferItem = {
+      lotKey,
+      productName: group.productName,
+      lot_number: group.lotNumber || '',
+      quantity: group.totalQuantity,
+      unit: group.unit,
+      maxQuantity: group.totalQuantity,
+      items: group.items,
+      supplier: group.supplier,
+      manufacturer: group.manufacturer,
+      product_id: group.items[0]?.product_id,
+      supplier_id: group.items[0]?.supplier_id,
+      manufacturer_id: group.items[0]?.manufacturer_id
+    };
+    
+    setSelectedItems([...selectedItems, transferItem]);
+  };
+
+  const handleQuantityChange = (index: number, value: number) => {
+    const updatedItems = [...selectedItems];
+    const item = updatedItems[index];
+    
+    const newQuantity = Math.max(0, Math.min(value, item.maxQuantity));
+    
+    updatedItems[index] = {
+      ...item,
+      quantity: newQuantity
+    };
+    
+    setSelectedItems(updatedItems);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setSelectedItems(selectedItems.filter((_, i) => i !== index));
+  };
+
+  const onSubmit = async (formData: TransferFormValues) => {
+    if (selectedItems.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Vă rugăm să selectați cel puțin un produs pentru transfer."
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const transfersTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
+      const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
+      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+
+      // Creează transferul principal
+      const { data: transfer, error: transferError } = await supabase
+        .from(transfersTable)
+        .insert({
+          transfer_date: formData.transferDate,
+          destination: formData.destination,
+          notes: formData.notes
+        })
+        .select()
+        .single();
+
+      if (transferError) throw transferError;
+
+      // Pentru fiecare lot selectat, scade cantitatea din intrările disponibile
+      for (const item of selectedItems) {
+        let remainingQuantity = item.quantity;
+        
+        // Sortează intrările după data recepției (FIFO)
+        const sortedItems = [...item.items].sort((a, b) => 
+          new Date(a.receipt_date || '').getTime() - new Date(b.receipt_date || '').getTime()
+        );
+
+        for (const inventoryItem of sortedItems) {
+          if (remainingQuantity <= 0) break;
+
+          const quantityToDeduct = Math.min(remainingQuantity, inventoryItem.quantity);
+          const newQuantity = inventoryItem.quantity - quantityToDeduct;
+
+          // Actualizează cantitatea în inventar
+          const { error: updateError } = await supabase
+            .from(inventoryTable)
+            .update({ quantity: newQuantity })
+            .eq('id', inventoryItem.id);
+
+          if (updateError) throw updateError;
+
+          // Adaugă în istoric
+          const { error: historyError } = await supabase
+            .from(historyTable)
+            .insert({
+              inventory_item_id: inventoryItem.id,
+              name: inventoryItem.name,
+              action: 'transfer_out',
+              quantity: quantityToDeduct,
+              previous_quantity: inventoryItem.quantity,
+              unit: inventoryItem.unit,
+              supplier: inventoryItem.supplier || inventoryItem.suppliers?.name,
+              supplier_id: inventoryItem.supplier_id,
+              manufacturer_id: inventoryItem.manufacturer_id,
+              product_id: inventoryItem.product_id,
+              lot_number: inventoryItem.lot_number,
+              document_number: inventoryItem.document_number,
+              notes: `Transfer către ${formData.destination}`,
+              operation_date: formData.transferDate
+            });
+
+          if (historyError) throw historyError;
+
+          // Creează item-ul de transfer
+          const { error: transferItemError } = await supabase
+            .from(transferItemsTable)
+            .insert({
+              transfer_id: transfer.id,
+              inventory_item_id: inventoryItem.id,
+              quantity: quantityToDeduct,
+              unit: inventoryItem.unit
+            });
+
+          if (transferItemError) throw transferItemError;
+
+          remainingQuantity -= quantityToDeduct;
+        }
+      }
+
+      toast({
+        title: "Transfer creat cu succes",
+        description: `Bonul de transfer pentru ${formData.destination} a fost generat.`
+      });
+
+      setIsOpen(false);
+      setSelectedItems([]);
+      form.reset();
+      
+      if (onTransferComplete) {
+        onTransferComplete();
+      }
+
+    } catch (error: any) {
+      console.error("Error creating transfer:", error);
+      toast({
+        variant: "destructive",
+        title: "Eroare la crearea transferului",
+        description: error.message
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Verifică dacă cantitatea este validă
+  const isQuantityValid = (item: TransferItem) => {
+    return item.quantity <= item.maxQuantity && item.quantity > 0;
   };
 
   return (
@@ -554,9 +428,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                       </div>
                     ) : (
                       Object.entries(groupedByLot).map(([groupKey, group]) => (
-                        <div key={groupKey} className="px-3 py-2">
-                          <div className="flex flex-col mb-2">
-                            <span className="font-medium text-sm">
+                        <SelectItem 
+                          key={groupKey} 
+                          value={groupKey} 
+                          className={`py-4 ${isMobile ? 'text-base' : ''}`}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-medium">
                               {group.productName} - Lot: {group.lotNumber || 'N/A'}
                             </span>
                             <span className="text-sm text-blue-600 font-medium">
@@ -567,25 +445,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                               {group.manufacturer ? ` | Producător: ${group.manufacturer}` : ''}
                             </span>
                           </div>
-                          <div className="ml-4 space-y-1">
-                            {group.items.map(item => (
-                              <SelectItem 
-                                key={item.id} 
-                                value={item.id} 
-                                className={`py-2 ${isMobile ? 'text-base' : ''}`}
-                              >
-                                <div className="flex justify-between items-center w-full">
-                                  <span className="text-sm">
-                                    Intrare #{item.entry_number}
-                                  </span>
-                                  <span className="text-sm font-medium">
-                                    {item.quantity} {item.unit}
-                                  </span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </div>
-                        </div>
+                        </SelectItem>
                       ))
                     )}
                   </SelectContent>
@@ -603,14 +463,15 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                     <div key={index} className="flex flex-col gap-3 p-3 border rounded-md bg-gray-50">
                       <div className="flex items-center justify-between">
                         <div>
+                          <h4 className="font-medium">{item.productName}</h4>
                           <p className="text-xs text-gray-500">
                             Lot: {item.lot_number || '-'}
                           </p>
                           <p className="text-xs text-gray-500">
                             Furnizor: {item.supplier || '-'}
                           </p>
-                          <p className="text-xs text-gray-500">
-                            Document: {item.document_number || '-'} | Intrare nr.: {item.entry_number || '-'}
+                          <p className="text-sm text-blue-600">
+                            Disponibil: {item.maxQuantity} {item.unit}
                           </p>
                         </div>
                         <Button 
@@ -623,68 +484,21 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         </Button>
                       </div>
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 gap-2">
                         <div>
-                          <label className="text-sm">Cantitate brută {item.unit}</label>
+                          <label className="text-sm">Cantitate de transferat {item.unit}</label>
                           <Input
                             type="number"
-                            value={item.grossQuantity}
-                            onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)}
+                            value={item.quantity}
+                            onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
                             min={0}
-                            step="0.01"
-                            variant={!isNetQuantityValid(item) ? "warning" : "default"}
-                            className={isMobile ? 'h-12' : ''}
-                          />
-                        </div>
-                        
-                         {inventoryType === 'materii-prime' && item.crateTypeId && (
-                           <div>
-                             <label className="text-sm">Număr lădițe</label>
-                             <Input
-                               type="number"
-                               value={item.crateCount}
-                               onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
-                               min={0}
-                               className={isMobile ? 'h-12' : ''}
-                             />
-                           </div>
-                         )}
-                        
-                        <div>
-                          <label className="text-sm">Număr paleți</label>
-                          <Input
-                            type="number"
-                            value={item.pallets}
-                            onChange={(e) => handlePalletsChange(index, parseInt(e.target.value) || 0)}
-                            min={0}
-                            className={isMobile ? 'h-12' : ''}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="text-sm">Greutate paleți (kg)</label>
-                          <Input
-                            type="number"
-                            value={item.palletWeight}
-                            onChange={(e) => handlePalletWeightChange(index, parseFloat(e.target.value) || 0)}
-                            min={0}
+                            max={item.maxQuantity}
                             step="0.01"
                             className={isMobile ? 'h-12' : ''}
                           />
-                        </div>
-                        
-                        <div>
-                          <label className="text-sm font-medium">Cantitate netă (se va extrage)</label>
-                          <Input
-                            type="number"
-                            value={item.netQuantity.toFixed(2)}
-                            readOnly
-                            className={`bg-gray-100 font-medium ${isMobile ? 'h-12' : ''}`}
-                            variant={!isNetQuantityValid(item) ? "warning" : "default"}
-                          />
-                          {!isNetQuantityValid(item) && (
-                            <p className="text-xs text-amber-600 mt-1">
-                              Atenție: Cantitatea netă depășește stocul disponibil de {item.maxQuantity.toFixed(2)} {item.unit}
+                          {!isQuantityValid(item) && (
+                            <p className="text-xs text-red-600 mt-1">
+                              Cantitatea trebuie să fie între 0.01 și {item.maxQuantity.toFixed(2)} {item.unit}
                             </p>
                           )}
                         </div>
