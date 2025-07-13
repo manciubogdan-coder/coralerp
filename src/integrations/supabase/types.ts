@@ -796,76 +796,57 @@ export type Database = {
       }
       ambalaje_inventory: {
         Row: {
-          crate_count: number | null
-          crate_type_id: string | null
-          crate_weight: number | null
           created_at: string | null
           document_number: string | null
           entry_number: number
-          gross_quantity: number | null
           id: string
           lot_number: string | null
           manufacturer_id: string | null
           name: string
-          net_quantity: number | null
           product_id: string | null
           quantity: number
           receipt_date: string | null
           supplier: string | null
           supplier_id: string | null
+          supplier_name: string | null
           unit: string
           updated_at: string | null
         }
         Insert: {
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
           created_at?: string | null
           document_number?: string | null
           entry_number?: number
-          gross_quantity?: number | null
           id?: string
           lot_number?: string | null
           manufacturer_id?: string | null
           name: string
-          net_quantity?: number | null
           product_id?: string | null
           quantity?: number
           receipt_date?: string | null
           supplier?: string | null
           supplier_id?: string | null
+          supplier_name?: string | null
           unit: string
           updated_at?: string | null
         }
         Update: {
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
           created_at?: string | null
           document_number?: string | null
           entry_number?: number
-          gross_quantity?: number | null
           id?: string
           lot_number?: string | null
           manufacturer_id?: string | null
           name?: string
-          net_quantity?: number | null
           product_id?: string | null
           quantity?: number
           receipt_date?: string | null
           supplier?: string | null
           supplier_id?: string | null
+          supplier_name?: string | null
           unit?: string
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "ambalaje_inventory_crate_type_id_fkey"
-            columns: ["crate_type_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_crate_types"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "ambalaje_inventory_manufacturer_id_fkey"
             columns: ["manufacturer_id"]
@@ -892,9 +873,6 @@ export type Database = {
       ambalaje_inventory_history: {
         Row: {
           action: string
-          crate_count: number | null
-          crate_type_id: string | null
-          crate_weight: number | null
           document_number: string | null
           exit_timestamp: string | null
           id: string
@@ -902,7 +880,6 @@ export type Database = {
           lot_number: string | null
           manufacturer_id: string | null
           name: string
-          net_quantity: number | null
           notes: string | null
           operation_date: string
           pallets: number | null
@@ -915,9 +892,6 @@ export type Database = {
         }
         Insert: {
           action: string
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
           document_number?: string | null
           exit_timestamp?: string | null
           id?: string
@@ -925,7 +899,6 @@ export type Database = {
           lot_number?: string | null
           manufacturer_id?: string | null
           name: string
-          net_quantity?: number | null
           notes?: string | null
           operation_date?: string
           pallets?: number | null
@@ -938,9 +911,6 @@ export type Database = {
         }
         Update: {
           action?: string
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
           document_number?: string | null
           exit_timestamp?: string | null
           id?: string
@@ -948,7 +918,6 @@ export type Database = {
           lot_number?: string | null
           manufacturer_id?: string | null
           name?: string
-          net_quantity?: number | null
           notes?: string | null
           operation_date?: string
           pallets?: number | null
@@ -960,13 +929,6 @@ export type Database = {
           unit?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "ambalaje_inventory_history_crate_type_id_fkey"
-            columns: ["crate_type_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_crate_types"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "ambalaje_inventory_history_inventory_item_id_fkey"
             columns: ["inventory_item_id"]
@@ -1091,13 +1053,6 @@ export type Database = {
             columns: ["inventory_item_id"]
             isOneToOne: false
             referencedRelation: "ambalaje_inventory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
-            columns: ["transfer_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_stock_transfer_view"
             referencedColumns: ["id"]
           },
           {
@@ -1451,76 +1406,57 @@ export type Database = {
       }
       inventory: {
         Row: {
-          crate_count: number | null
-          crate_type_id: string | null
-          crate_weight: number | null
           created_at: string | null
           document_number: string | null
           entry_number: number
-          gross_quantity: number | null
           id: string
           lot_number: string | null
           manufacturer_id: string | null
           name: string
-          net_quantity: number | null
           product_id: string | null
           quantity: number
           receipt_date: string | null
           supplier: string | null
           supplier_id: string | null
+          supplier_name: string | null
           unit: string
           updated_at: string | null
         }
         Insert: {
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
           created_at?: string | null
           document_number?: string | null
           entry_number?: number
-          gross_quantity?: number | null
           id?: string
           lot_number?: string | null
           manufacturer_id?: string | null
           name: string
-          net_quantity?: number | null
           product_id?: string | null
           quantity?: number
           receipt_date?: string | null
           supplier?: string | null
           supplier_id?: string | null
+          supplier_name?: string | null
           unit: string
           updated_at?: string | null
         }
         Update: {
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
           created_at?: string | null
           document_number?: string | null
           entry_number?: number
-          gross_quantity?: number | null
           id?: string
           lot_number?: string | null
           manufacturer_id?: string | null
           name?: string
-          net_quantity?: number | null
           product_id?: string | null
           quantity?: number
           receipt_date?: string | null
           supplier?: string | null
           supplier_id?: string | null
+          supplier_name?: string | null
           unit?: string
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "inventory_crate_type_id_fkey"
-            columns: ["crate_type_id"]
-            isOneToOne: false
-            referencedRelation: "crate_types"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "inventory_manufacturer_id_fkey"
             columns: ["manufacturer_id"]
@@ -1547,9 +1483,6 @@ export type Database = {
       inventory_history: {
         Row: {
           action: string
-          crate_count: number | null
-          crate_type_id: string | null
-          crate_weight: number | null
           document_number: string | null
           exit_timestamp: string | null
           id: string
@@ -1557,7 +1490,6 @@ export type Database = {
           lot_number: string | null
           manufacturer_id: string | null
           name: string
-          net_quantity: number | null
           notes: string | null
           operation_date: string
           pallets: number | null
@@ -1570,9 +1502,6 @@ export type Database = {
         }
         Insert: {
           action: string
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
           document_number?: string | null
           exit_timestamp?: string | null
           id?: string
@@ -1580,7 +1509,6 @@ export type Database = {
           lot_number?: string | null
           manufacturer_id?: string | null
           name: string
-          net_quantity?: number | null
           notes?: string | null
           operation_date?: string
           pallets?: number | null
@@ -1593,9 +1521,6 @@ export type Database = {
         }
         Update: {
           action?: string
-          crate_count?: number | null
-          crate_type_id?: string | null
-          crate_weight?: number | null
           document_number?: string | null
           exit_timestamp?: string | null
           id?: string
@@ -1603,7 +1528,6 @@ export type Database = {
           lot_number?: string | null
           manufacturer_id?: string | null
           name?: string
-          net_quantity?: number | null
           notes?: string | null
           operation_date?: string
           pallets?: number | null
@@ -1616,24 +1540,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "inventory_history_crate_type_id_fkey"
-            columns: ["crate_type_id"]
-            isOneToOne: false
-            referencedRelation: "crate_types"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "inventory_history_inventory_item_id_fkey"
             columns: ["inventory_item_id"]
             isOneToOne: false
             referencedRelation: "inventory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inventory_history_inventory_item_id_fkey"
-            columns: ["inventory_item_id"]
-            isOneToOne: false
-            referencedRelation: "inventory_with_history"
             referencedColumns: ["id"]
           },
           {
@@ -2957,13 +2867,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "stock_transfer_items_inventory_item_id_fkey"
-            columns: ["inventory_item_id"]
-            isOneToOne: false
-            referencedRelation: "inventory_with_history"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "stock_transfer_items_transfer_id_fkey"
             columns: ["transfer_id"]
             isOneToOne: false
@@ -3579,100 +3482,6 @@ export type Database = {
       }
     }
     Views: {
-      ambalaje_stock_transfer_view: {
-        Row: {
-          created_at: string | null
-          destination: string | null
-          document_number: string | null
-          entry_number: number | null
-          id: string | null
-          inventory_item_id: string | null
-          lot_number: string | null
-          manufacturer_name: string | null
-          name: string | null
-          net_quantity: number | null
-          notes: string | null
-          product_code: string | null
-          product_name: string | null
-          quantity: number | null
-          supplier: string | null
-          supplier_name: string | null
-          transfer_date: string | null
-          transfer_id: string | null
-          unit: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ambalaje_stock_transfer_items_inventory_item_id_fkey"
-            columns: ["inventory_item_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_inventory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
-            columns: ["transfer_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_stock_transfer_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ambalaje_stock_transfer_items_transfer_id_fkey"
-            columns: ["transfer_id"]
-            isOneToOne: false
-            referencedRelation: "ambalaje_stock_transfers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      consumption_analytics: {
-        Row: {
-          action: string | null
-          name: string | null
-          operation_count: number | null
-          operation_day: string | null
-          removed_quantity: number | null
-          unit: string | null
-        }
-        Relationships: []
-      }
-      inventory_aggregated_view: {
-        Row: {
-          entries: number | null
-          first_receipt: string | null
-          last_receipt: string | null
-          name: string | null
-          supplier: string | null
-          total_quantity: number | null
-          unit: string | null
-        }
-        Relationships: []
-      }
-      inventory_analytics: {
-        Row: {
-          all_suppliers: string | null
-          first_receipt: string | null
-          last_receipt: string | null
-          name: string | null
-          total_quantity: number | null
-          unit: string | null
-        }
-        Relationships: []
-      }
-      inventory_with_history: {
-        Row: {
-          created_at: string | null
-          id: string | null
-          name: string | null
-          operations_count: number | null
-          quantity: number | null
-          receipt_date: string | null
-          supplier: string | null
-          unit: string | null
-          updated_at: string | null
-        }
-        Relationships: []
-      }
       pending_user_approvals: {
         Row: {
           created_at: string | null
@@ -3728,13 +3537,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "stock_transfer_items_inventory_item_id_fkey"
-            columns: ["inventory_item_id"]
-            isOneToOne: false
-            referencedRelation: "inventory_with_history"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "stock_transfer_items_transfer_id_fkey"
             columns: ["transfer_id"]
             isOneToOne: false
@@ -3749,39 +3551,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      transfer_operations: {
-        Row: {
-          crate_count: number | null
-          document_number: string | null
-          id: string | null
-          notes: string | null
-          operation_date: string | null
-          product_name: string | null
-          quantity: number | null
-          unit: string | null
-        }
-        Insert: {
-          crate_count?: number | null
-          document_number?: string | null
-          id?: string | null
-          notes?: string | null
-          operation_date?: string | null
-          product_name?: string | null
-          quantity?: number | null
-          unit?: string | null
-        }
-        Update: {
-          crate_count?: number | null
-          document_number?: string | null
-          id?: string | null
-          notes?: string | null
-          operation_date?: string | null
-          product_name?: string | null
-          quantity?: number | null
-          unit?: string | null
-        }
-        Relationships: []
       }
     }
     Functions: {
