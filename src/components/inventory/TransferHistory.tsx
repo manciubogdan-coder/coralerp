@@ -72,21 +72,60 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     try {
       setLoading(true);
       
-      // Use the correct view based on inventory type
-      const viewName = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_view' : 'stock_transfer_view';
+      // Use the correct tables to build a query instead of views
+      const transfersTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
+      const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
+      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
       
       const { data, error } = await supabase
-        .from(viewName)
-        .select('*')
+        .from(transferItemsTable)
+        .select(`
+          *,
+          stock_transfers:transfer_id (
+            transfer_date,
+            destination,
+            notes,
+            created_at
+          ),
+          inventory:inventory_item_id (
+            name,
+            lot_number,
+            document_number,
+            entry_number,
+            suppliers:supplier_id (name),
+            manufacturers:manufacturer_id (name),
+            products:product_id (name, cod_produs)
+          )
+        `)
         .order('created_at', { ascending: false });
         
       if (error) throw error;
       
       console.log(`Fetched ${inventoryType} transfers:`, data);
-      setTransfers(data || []);
+      
+      // Transform the data to match the expected format
+      const transformedData = (data || []).map(item => ({
+        transfer_id: item.transfer_id,
+        transfer_date: item.stock_transfers?.transfer_date || '',
+        destination: item.stock_transfers?.destination || '',
+        product_name: item.inventory?.products?.name || item.inventory?.name || '',
+        product_code: item.inventory?.products?.cod_produs || '',
+        supplier_name: item.inventory?.suppliers?.name || '',
+        manufacturer_name: item.inventory?.manufacturers?.name || '',
+        document_number: item.inventory?.document_number || '',
+        entry_number: item.inventory?.entry_number || 0,
+        quantity: item.quantity,
+        unit: item.unit,
+        notes: item.stock_transfers?.notes || '',
+        inventory_item_id: item.inventory_item_id,
+        created_at: item.stock_transfers?.created_at || item.created_at,
+        lot_number: item.inventory?.lot_number || ''
+      }));
+      
+      setTransfers(transformedData);
       
       const uniqueDestinations = Array.from(
-        new Set((data || []).map((transfer) => transfer.destination))
+        new Set(transformedData.map((transfer) => transfer.destination))
       );
       
       setDestinations(uniqueDestinations);
@@ -147,8 +186,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       "Nr. Lot": transfer.lot_number || "-",
       "Furnizor": transfer.supplier_name || "-",
       "Producător": transfer.manufacturer_name || "-",
-      "Cantitate Brută": formatQuantity(transfer.quantity),
-      "Cantitate Netă": formatQuantity(transfer.net_quantity || transfer.quantity),
+      "Cantitate": formatQuantity(transfer.quantity),
       "Unitate Măsură": transfer.unit,
       "Note": transfer.notes || "-"
     }));
@@ -294,8 +332,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                   <TableHead>Nr. Lot</TableHead>
                   <TableHead>Furnizor</TableHead>
                   <TableHead>Producător</TableHead>
-                  <TableHead className="text-right">Cant. Brută</TableHead>
-                  <TableHead className="text-right">Cant. Netă</TableHead>
+                  <TableHead className="text-right">Cantitate</TableHead>
                   <TableHead>UM</TableHead>
                   <TableHead>Note</TableHead>
                   <TableHead className="sticky right-0 bg-gray-50">Acțiuni</TableHead>
@@ -326,7 +363,6 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                       <TableCell>{transfer.supplier_name || "-"}</TableCell>
                       <TableCell>{transfer.manufacturer_name || "-"}</TableCell>
                       <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
-                      <TableCell className="text-right">{formatQuantity(transfer.net_quantity || transfer.quantity)}</TableCell>
                       <TableCell>{transfer.unit}</TableCell>
                       <TableCell>{transfer.notes || "-"}</TableCell>
                       <TableCell className="sticky right-0 bg-white">
@@ -338,8 +374,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                     </TableRow>
                   ))
                 ) : (
-                  <TableRow>
-                    <TableCell colSpan={13} className="text-center py-6 text-gray-500">
+                <TableRow>
+                  <TableCell colSpan={12} className="text-center py-6 text-gray-500">
                       {searchTerm || (selectedDestination && selectedDestination !== "all")
                         ? "Nu s-au găsit transferuri conform criteriilor de căutare"
                         : "Nu există transferuri înregistrate"}

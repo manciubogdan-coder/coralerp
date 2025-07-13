@@ -18,16 +18,12 @@ interface ReceptionItem {
   receipt_date: string;
   name: string;
   quantity: number;
-  gross_quantity: number;
-  net_quantity: number;
   unit: string;
   document_number: string;
   lot_number: string;
   suppliers?: { name: string };
   manufacturers?: { name: string };
-  crate_types?: { name: string; weight: number };
   products?: { name: string; cod_produs: string };
-  crate_count: number;
 }
 
 type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';
@@ -46,12 +42,9 @@ export const ReceptionHistory = () => {
   const [editFormData, setEditFormData] = useState({
     name: '',
     quantity: 0,
-    gross_quantity: 0,
-    net_quantity: 0,
     unit: '',
     document_number: '',
     lot_number: '',
-    crate_count: 0,
     receipt_date: ''
   });
 
@@ -71,15 +64,11 @@ export const ReceptionHistory = () => {
           receipt_date,
           name,
           quantity,
-          gross_quantity,
-          net_quantity,
           unit,
           document_number,
           lot_number,
-          crate_count,
           suppliers:supplier_id (name),
           manufacturers:manufacturer_id (name),
-          crate_types:crate_type_id (name, weight),
           products:product_id (name, cod_produs)
         `)
         .not('receipt_date', 'is', null)
@@ -142,12 +131,9 @@ export const ReceptionHistory = () => {
     setEditFormData({
       name: item.name,
       quantity: item.quantity,
-      gross_quantity: item.gross_quantity || item.quantity,
-      net_quantity: item.net_quantity || item.quantity,
       unit: item.unit,
       document_number: item.document_number || '',
       lot_number: item.lot_number || '',
-      crate_count: item.crate_count || 0,
       receipt_date: item.receipt_date ? item.receipt_date.split('T')[0] : ''
     });
     setIsEditDialogOpen(true);
@@ -168,12 +154,9 @@ export const ReceptionHistory = () => {
       const updateData = {
         name: editFormData.name,
         quantity: editFormData.quantity,
-        gross_quantity: editFormData.gross_quantity,
-        net_quantity: editFormData.net_quantity,
         unit: editFormData.unit,
         document_number: editFormData.document_number || null,
         lot_number: editFormData.lot_number || null,
-        crate_count: editFormData.crate_count,
         receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
         updated_at: new Date().toISOString()
       };
@@ -254,13 +237,11 @@ export const ReceptionHistory = () => {
       'Produs': item.name,
       'Cod Produs': item.products?.cod_produs || '',
       'Nr Lot': item.lot_number || '',
-      'Cantitate Netă': item.net_quantity?.toFixed(2) || item.quantity.toFixed(2),
+      'Cantitate': item.quantity.toFixed(2),
       'Unitate': item.unit,
       'Document': item.document_number || '',
       'Furnizor': item.suppliers?.name || '',
-      'Producător': item.manufacturers?.name || '',
-      'Tip Lădiță': item.crate_types?.name || '',
-      'Nr. Lădițe': item.crate_count || ''
+      'Producător': item.manufacturers?.name || ''
     }));
     
     const filename = `istoric_receptii_${dateFrom || 'toate'}_${dateTo || 'toate'}.xlsx`;
@@ -351,7 +332,7 @@ export const ReceptionHistory = () => {
               <TableHead>Produs</TableHead>
               <TableHead>Cod Produs</TableHead>
               <TableHead>Nr Lot</TableHead>
-              <TableHead className="text-right">Cantitate Netă</TableHead>
+              <TableHead className="text-right">Cantitate</TableHead>
               <TableHead>Unitate</TableHead>
               <TableHead>Document</TableHead>
               <TableHead>Furnizor</TableHead>
@@ -375,7 +356,7 @@ export const ReceptionHistory = () => {
                     <TableCell>{isGroupHeader ? '' : (item.products?.cod_produs || '-')}</TableCell>
                     <TableCell>{isGroupHeader ? '' : (item.lot_number || '-')}</TableCell>
                     <TableCell className="text-right">
-                      {isGroupHeader ? '' : (item.net_quantity || item.quantity).toFixed(2)}
+                      {isGroupHeader ? '' : item.quantity.toFixed(2)}
                     </TableCell>
                     <TableCell>{isGroupHeader ? '' : item.unit}</TableCell>
                     <TableCell>{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
@@ -431,27 +412,15 @@ export const ReceptionHistory = () => {
                 onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="grid gap-2">
-                <Label htmlFor="quantity">Cantitate Brută</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  step="0.01"
-                  value={editFormData.quantity}
-                  onChange={(e) => setEditFormData({...editFormData, quantity: parseFloat(e.target.value) || 0})}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="net_quantity">Cantitate Netă</Label>
-                <Input
-                  id="net_quantity"
-                  type="number"
-                  step="0.01"
-                  value={editFormData.net_quantity}
-                  onChange={(e) => setEditFormData({...editFormData, net_quantity: parseFloat(e.target.value) || 0})}
-                />
-              </div>
+            <div className="grid gap-2">
+              <Label htmlFor="quantity">Cantitate</Label>
+              <Input
+                id="quantity"
+                type="number"
+                step="0.01"
+                value={editFormData.quantity}
+                onChange={(e) => setEditFormData({...editFormData, quantity: parseFloat(e.target.value) || 0})}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="unit">Unitate</Label>
@@ -484,15 +453,6 @@ export const ReceptionHistory = () => {
                 id="lot_number"
                 value={editFormData.lot_number}
                 onChange={(e) => setEditFormData({...editFormData, lot_number: e.target.value})}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="crate_count">Număr Lădițe</Label>
-              <Input
-                id="crate_count"
-                type="number"
-                value={editFormData.crate_count}
-                onChange={(e) => setEditFormData({...editFormData, crate_count: parseInt(e.target.value) || 0})}
               />
             </div>
           </div>

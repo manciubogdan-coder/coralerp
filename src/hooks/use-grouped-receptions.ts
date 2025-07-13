@@ -7,16 +7,12 @@ interface ReceptionItem {
   receipt_date: string;
   name: string;
   quantity: number;
-  gross_quantity: number;
-  net_quantity: number;
   unit: string;
   document_number: string;
   lot_number: string;
   suppliers?: { name: string };
   manufacturers?: { name: string };
-  crate_types?: { name: string; weight: number };
   products?: { name: string; cod_produs: string };
-  crate_count: number;
 }
 
 type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';
@@ -59,19 +55,16 @@ export const useGroupedReceptions = (
     const result: ReceptionItem[] = [];
     Object.entries(groups).forEach(([groupName, items]) => {
       // Add a virtual group header item
-      const totalNetQuantity = items.reduce((sum, item) => sum + (item.net_quantity || item.quantity), 0);
+      const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
       const groupHeader: ReceptionItem = {
         id: `group-${groupName}`,
         entry_number: 0,
         receipt_date: '',
-        name: `${groupName} (${items.length} intrări, ${totalNetQuantity.toFixed(2)} ${items[0]?.unit || ''})`,
-        quantity: totalNetQuantity,
-        gross_quantity: 0,
-        net_quantity: totalNetQuantity,
+        name: `${groupName} (${items.length} intrări, ${totalQuantity.toFixed(2)} ${items[0]?.unit || ''})`,
+        quantity: totalQuantity,
         unit: items[0]?.unit || '',
         document_number: '',
         lot_number: '',
-        crate_count: 0,
         isGroupHeader: true
       } as ReceptionItem & { isGroupHeader: boolean };
       

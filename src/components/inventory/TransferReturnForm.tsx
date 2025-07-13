@@ -149,17 +149,15 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         const { error: updateError } = await supabase
           .from('stock_transfer_items')
           .update({ 
-            quantity: newTransferQuantity,
-            net_quantity: newNetQuantity
+            quantity: newNetQuantity
           })
           .eq('transfer_id', transfer.transfer_id)
           .eq('inventory_item_id', transfer.inventory_item_id);
           
         if (updateError) throw updateError;
         
-        console.log("Transfer item actualizat cu cantitățile rămase:", {
-          quantity: newTransferQuantity,
-          net_quantity: newNetQuantity
+        console.log("Transfer item actualizat cu cantitatea rămasă:", {
+          quantity: newNetQuantity
         });
       }
       
@@ -192,8 +190,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         const { error: updateError } = await supabase
           .from('inventory')
           .update({ 
-            quantity: newQuantity,
-            crate_count: originalItem.crate_count + crateCount
+            quantity: newQuantity
           })
           .eq('id', transfer.inventory_item_id);
           
@@ -202,8 +199,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         
         console.log("Actualizat item existent în inventar:", {
           id: transfer.inventory_item_id,
-          newQuantity,
-          newCrateCount: originalItem.crate_count + crateCount
+          newQuantity
         });
       } else {
         // Creează un nou item în inventar dacă nu există
@@ -219,11 +215,6 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
             entry_number: transfer.entry_number || null,
             quantity: netQuantity,
             unit: transfer.unit,
-            crate_count: crateCount,
-            crate_type_id: selectedCrateTypeId || null,
-            crate_weight: crateWeight || null,
-            gross_quantity: grossQuantity,
-            net_quantity: netQuantity,
             lot_number: transfer.lot_number
           })
           .select()
@@ -266,15 +257,11 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
            inventory_item_id: updatedId,
            action: 'add',
            name: transfer.product_name,
-           quantity: grossQuantity,
-           net_quantity: netQuantity,
+           quantity: netQuantity,
            unit: transfer.unit,
            operation_date: historyDate,
            document_number: transfer.document_number,
            lot_number: actualLotNumber,
-           crate_count: crateCount,
-           crate_type_id: selectedCrateTypeId || null,
-           crate_weight: crateWeight || null,
            notes: `Returnat din ${transfer.destination}. ${notes}`.trim()
          });
         

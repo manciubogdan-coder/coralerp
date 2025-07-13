@@ -152,14 +152,14 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       unit: selectedItem.unit,
       maxQuantity: selectedItem.quantity,
       maxGrossQuantity: maxGrossEstimate,
-      crateCount: selectedItem.crate_count || 0,
-      originalCrateCount: selectedItem.crate_count || 0,
-      crateTypeId: selectedItem.crate_type_id || undefined,
-      crateWeight: selectedItem.crate_weight || 0,
+      crateCount: 0,
+      originalCrateCount: 0,
+      crateTypeId: undefined,
+      crateWeight: 0,
       pallets: 0,
       palletWeight: 0,
-      grossQuantity: selectedItem.gross_quantity || selectedItem.quantity,
-      netQuantity: selectedItem.net_quantity || selectedItem.quantity,
+      grossQuantity: selectedItem.quantity,
+      netQuantity: selectedItem.quantity,
       // Informații adiționale salvate
       supplier: selectedItem.supplier || selectedItem.suppliers?.name,
       supplier_id: selectedItem.supplier_id,
@@ -307,8 +307,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           .insert({
             transfer_id: transferData.id,
             inventory_item_id: item.id,
-            quantity: item.grossQuantity,
-            net_quantity: item.netQuantity,
+            quantity: item.netQuantity,
             unit: item.unit
           });
           
@@ -319,11 +318,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
         
         // Get the actual lot_number from the inventory item if not available on selected item
-        const actualLotNumber = item.lot_number || (await supabase
-          .from(inventoryTable)
-          .select('lot_number')
-          .eq('id', item.id)
-          .single()).data?.lot_number;
+        const actualLotNumber = item.lot_number;
         
         console.log('Debug transfer item:', {
           id: item.id,
@@ -339,7 +334,6 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             action: "remove",
             name: item.productName,
             quantity: item.netQuantity,
-            net_quantity: item.netQuantity,
             unit: item.unit,
             lot_number: actualLotNumber,
             operation_date: new Date().toISOString(),
@@ -347,38 +341,35 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             supplier_id: item.supplier_id,
             manufacturer_id: item.manufacturer_id,
             document_number: item.document_number,
-            crate_count: item.crateCount,
-            crate_type_id: item.crateTypeId,
-            crate_weight: item.crateWeight,
             notes: `Transfer către ${formData.destination}`
           });
           
         if (historyError) throw historyError;
 
-        // Update inventory quantity - scadem cantitatea BRUTĂ transferată din stocul BRUT
+        // Update inventory quantity - scadem cantitatea transferată din stoc
         const { data: inventoryItem, error: getError } = await supabase
           .from(inventoryTable)
-          .select('quantity, gross_quantity, net_quantity')
+          .select('quantity')
           .eq('id', item.id)
           .single();
         
         if (getError) throw getError;
         
-        const currentGrossQuantity = inventoryItem?.quantity || 0;
-        const newGrossQuantity = Math.max(0, currentGrossQuantity - item.grossQuantity);
+        const currentQuantity = inventoryItem?.quantity || 0;
+        const newQuantity = Math.max(0, currentQuantity - item.netQuantity);
         
         console.log('Transfer update:', {
           itemId: item.id,
-          currentGross: currentGrossQuantity,
-          removingGross: item.grossQuantity,
-          newGross: newGrossQuantity
+          currentQuantity: currentQuantity,
+          removingQuantity: item.netQuantity,
+          newQuantity: newQuantity
         });
         
-        // Update DOAR quantity (gross) - trigger-ul NU va mai recalcula proporțional
+        // Update quantity
         const { error: updateError } = await supabase
           .from(inventoryTable)
           .update({ 
-            quantity: newGrossQuantity
+            quantity: newQuantity
           })
           .eq('id', item.id);
            
