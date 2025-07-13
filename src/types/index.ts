@@ -3,24 +3,20 @@
 export interface InventoryItem {
   id?: string;
   name: string;
-  quantity: number;
+  quantity: number; // Doar cantitatea netă
   unit: string;
   supplier?: string;
   supplier_id?: string;
+  supplier_name?: string;
   product_id?: string;
   manufacturer_id?: string;
   manufacturer?: string; 
   receipt_date?: string | Date;
   document_number?: string;
   entry_number?: number;
-  crate_type_id?: string;
-  crate_count?: number;
-  crate_weight?: number;
-  gross_quantity?: number;
-  net_quantity?: number;
+  lot_number?: string;
   isHeader?: boolean;
   action?: 'add' | 'remove' | 'set';
-  lot_number?: string;  // Added lot_number property
   // Added timestamps with the correct format
   created_at?: string | {
     seconds: number;
@@ -43,7 +39,27 @@ export interface InventoryItem {
   suppliers?: { name: string };
   products?: { name: string; cod_produs?: string };
   manufacturers?: { name: string };
-  crate_types?: { name: string; weight: number };
+}
+
+// Interface pentru inventory history (fără coloanele eliminate)
+export interface InventoryHistoryResponse {
+  action: string;
+  document_number: string | null;
+  exit_timestamp: string | null;
+  id: string;
+  inventory_item_id: string | null;
+  lot_number: string | null;
+  manufacturer_id: string | null;
+  name: string;
+  notes: string | null;
+  operation_date: string;
+  pallets: number | null;
+  previous_quantity: number | null;
+  product_id: string | null;
+  quantity: number;
+  supplier: string | null;
+  supplier_id: string | null;
+  unit: string;
 }
 
 // Chart data for visualization

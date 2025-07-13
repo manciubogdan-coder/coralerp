@@ -4,18 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-custom-toast";
-import { Plus, Save, PackagePlus } from "lucide-react";
+import { Plus, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Product, Supplier, Manufacturer } from "@/types";
 import { useInventoryType } from "@/App";
-
-interface PalletEntry {
-  grossQuantity: number;
-  crateTypeId: string | null;
-  crateCount: number;
-  palletWeight: number;
-  netQuantity: number;
-}
 
 interface ReceptionRegistrationProps {
   products: Product[];
@@ -38,52 +30,37 @@ export function ReceptionRegistration({
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [manufacturerId, setManufacturerId] = useState<string | null>(null);
   const [documentNumber, setDocumentNumber] = useState('');
-  const [pallets, setPallets] = useState<PalletEntry[]>([{
-    grossQuantity: 0,
-    crateTypeId: null,
-    crateCount: 0,
-    palletWeight: 0,
-    netQuantity: 0
-  }]);
+  
+  // Câmpuri pentru calcul - nu se salvează
+  const [grossQuantity, setGrossQuantity] = useState<number>(0);
+  const [crateTypeId, setCrateTypeId] = useState<string | null>(null);
+  const [crateCount, setCrateCount] = useState<number>(0);
+  const [palletWeight, setPalletWeight] = useState<number>(0);
+  
+  // Cantitatea netă calculată - aceasta se salvează
+  const [netQuantity, setNetQuantity] = useState<number>(0);
 
   const selectedProduct = products.find(p => p.id === productId);
 
-  const calculateNetQuantity = (pallet: PalletEntry): number => {
-    const selectedCrateType = crateTypes.find(ct => ct.id === pallet.crateTypeId);
-    const crateWeight = selectedCrateType ? selectedCrateType.weight * pallet.crateCount : 0;
-    return Math.max(0, pallet.grossQuantity - crateWeight - pallet.palletWeight);
+  const calculateNetQuantity = () => {
+    const selectedCrateType = crateTypes.find(ct => ct.id === crateTypeId);
+    const crateWeight = selectedCrateType ? selectedCrateType.weight * crateCount : 0;
+    const calculatedNet = Math.max(0, grossQuantity - crateWeight - palletWeight);
+    setNetQuantity(calculatedNet);
   };
 
-  const handlePalletChange = (index: number, field: keyof PalletEntry, value: any) => {
-    const newPallets = [...pallets];
-    newPallets[index] = {
-      ...newPallets[index],
-      [field]: value
-    };
-    
-    newPallets[index].netQuantity = calculateNetQuantity(newPallets[index]);
-    
-    setPallets(newPallets);
-  };
-
-  const addNewPallet = () => {
-    setPallets([...pallets, {
-      grossQuantity: 0,
-      crateTypeId: null,
-      crateCount: 0,
-      palletWeight: 0,
-      netQuantity: 0
-    }]);
-  };
+  // Recalculez cantitatea netă când se schimbă valorile
+  React.useEffect(() => {
+    calculateNetQuantity();
+  }, [grossQuantity, crateTypeId, crateCount, palletWeight]);
 
   const handleSubmit = async () => {
     try {
-      // For ambalaje, manufacturer is not required
       const isManufacturerRequired = inventoryType === 'materii-prime';
-      if (!productId || !supplierId || (isManufacturerRequired && !manufacturerId) || !documentNumber) {
+      if (!productId || !supplierId || (isManufacturerRequired && !manufacturerId) || !documentNumber || netQuantity <= 0) {
         toast({
           title: "Date incomplete",
-          description: "Vă rugăm să completați toate câmpurile obligatorii.",
+          description: "Vă rugăm să completați toate câmpurile și asigurați-vă că cantitatea netă este pozitivă.",
           variant: "destructive"
         });
         return;
@@ -92,84 +69,49 @@ export function ReceptionRegistration({
       const selectedProduct = products.find(p => p.id === productId);
       if (!selectedProduct) return;
 
-      for (const pallet of pallets) {
-        if (pallet.grossQuantity <= 0) continue;
+      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      
+      console.log('Salvez recepție cu cantitate netă:', {
+        productName: selectedProduct.name,
+        grossQuantity,
+        netQuantity,
+        calculationDetails: { crateTypeId, crateCount, palletWeight }
+      });
 
-        // Obținem următorul entry_number
-        const { data: nextEntryData, error: entryError } = await supabase
-          .rpc('get_next_inventory_entry');
-        
-        if (entryError) throw entryError;
-        const entryNumber = nextEntryData;
+      // Salvez DOAR cantitatea netă - informațiile despre lăzi sunt doar pentru calcul
+      const { error } = await supabase
+        .from(inventoryTable)
+        .insert({
+          product_id: productId,
+          name: selectedProduct.name,
+          supplier_id: supplierId,
+          manufacturer_id: manufacturerId,
+          document_number: documentNumber,
+          quantity: netQuantity, // DOAR cantitatea netă
+          unit: selectedProduct.default_unit || 'kg',
+          receipt_date: new Date().toISOString()
+        });
 
-        // Salvăm în tabela receptions (only for materii-prime)
-        const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
-        
-        // For ambalaje, we don't have receptions table yet, so skip
-        if (inventoryType === 'materii-prime') {
-          const { error: receptionError } = await supabase
-            .from('receptions')
-            .insert({
-              entry_number: entryNumber,
-              product_id: productId,
-              name: selectedProduct.name,
-              supplier_id: supplierId,
-              manufacturer_id: manufacturerId,
-              document_number: documentNumber,
-              quantity: pallet.netQuantity,
-              gross_quantity: pallet.grossQuantity,
-              net_quantity: pallet.netQuantity,
-              unit: selectedProduct.default_unit || 'kg',
-              crate_type_id: pallet.crateTypeId,
-              crate_count: pallet.crateCount,
-              crate_weight: pallet.palletWeight,
-              receipt_date: new Date().toISOString()
-            });
-
-          if (receptionError) throw receptionError;
-        }
-
-        // Pentru recepții, creăm un lot separat pentru fiecare palet
-        // IMPORTANT: quantity trebuie să fie gross_quantity pentru ca trigger-ul să calculeze corect
-        const { error } = await supabase
-          .from(inventoryTable)
-          .insert({
-            product_id: productId,
-            name: selectedProduct.name,
-            supplier_id: supplierId,
-            manufacturer_id: manufacturerId,
-            document_number: documentNumber,
-            quantity: pallet.grossQuantity, // Trimitem gross_quantity, trigger-ul va calcula net_quantity
-            unit: selectedProduct.default_unit || 'kg',
-            crate_type_id: pallet.crateTypeId,
-            crate_count: pallet.crateCount,
-            crate_weight: pallet.palletWeight,
-            receipt_date: new Date().toISOString(),
-            entry_number: entryNumber // Fiecare palet are propriul entry_number (lot)
-          });
-
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       toast({
         title: "Recepție înregistrată",
-        description: "Produsele au fost adăugate în inventar cu succes."
+        description: `Cantitate netă stocată: ${netQuantity.toFixed(2)} ${selectedProduct.default_unit || 'kg'}`
       });
 
       setIsOpen(false);
       onRegistrationComplete();
       
+      // Reset form
       setProductId(null);
       setSupplierId(null);
       setManufacturerId(null);
       setDocumentNumber('');
-      setPallets([{
-        grossQuantity: 0,
-        crateTypeId: null,
-        crateCount: 0,
-        palletWeight: 0,
-        netQuantity: 0
-      }]);
+      setGrossQuantity(0);
+      setCrateTypeId(null);
+      setCrateCount(0);
+      setPalletWeight(0);
+      setNetQuantity(0);
     } catch (error: any) {
       toast({
         title: "Eroare",
@@ -189,7 +131,7 @@ export function ReceptionRegistration({
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Înregistrare recepție nouă</DialogTitle>
+          <DialogTitle>Înregistrare recepție nouă (cantitate netă)</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -239,7 +181,7 @@ export function ReceptionRegistration({
                     </SelectItem>
                   ))}
                 </SelectContent>
-              </Select>
+                </Select>
             </div>
           )}
 
@@ -252,83 +194,82 @@ export function ReceptionRegistration({
             />
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Paleți</h3>
-              <Button variant="outline" onClick={addNewPallet} disabled={!productId}>
-                <PackagePlus className="h-4 w-4 mr-2" />
-                Adaugă palet
-              </Button>
+          {/* Secțiune calcul cantitate netă */}
+          <div className="p-4 border rounded-lg bg-gray-50 space-y-4">
+            <h3 className="font-semibold text-lg">Calcul cantitate netă</h3>
+            <p className="text-sm text-gray-600">
+              Introduceți cantitatea brută și detaliile pentru lăzi/paleți. Sistemul va calcula și stoca doar cantitatea netă.
+            </p>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Cantitate brută (kg)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={grossQuantity || ''}
+                  onChange={(e) => setGrossQuantity(parseFloat(e.target.value) || 0)}
+                  placeholder="Cantitatea totală brută"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Greutate palet (kg)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={palletWeight || ''}
+                  onChange={(e) => setPalletWeight(parseFloat(e.target.value) || 0)}
+                  placeholder="Greutatea paletului"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tip lădiță</label>
+                <Select value={crateTypeId || ''} onValueChange={setCrateTypeId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selectează tipul de lădiță" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Fără lăzi</SelectItem>
+                    {crateTypes.map(crateType => (
+                      <SelectItem key={crateType.id} value={crateType.id}>
+                        {crateType.name} ({crateType.weight} kg)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Număr lădițe</label>
+                <Input
+                  type="number"
+                  value={crateCount || ''}
+                  onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
+                  placeholder="Numărul de lăzi"
+                  disabled={!crateTypeId}
+                />
+              </div>
             </div>
 
-            {pallets.map((pallet, index) => (
-              <div key={index} className="p-4 border rounded-lg space-y-4">
-                <h4 className="font-medium">Palet {index + 1}</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm">Cantitate brută (kg)</label>
-                    <Input
-                      type="number"
-                      value={pallet.grossQuantity || ''}
-                      onChange={(e) => handlePalletChange(index, 'grossQuantity', parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm">Greutate palet (kg)</label>
-                    <Input
-                      type="number"
-                      value={pallet.palletWeight || ''}
-                      onChange={(e) => handlePalletChange(index, 'palletWeight', parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-
-                   {inventoryType === 'materii-prime' && (
-                     <>
-                       <div className="space-y-2">
-                         <label className="text-sm">Tip lădiță</label>
-                         <Select 
-                           value={pallet.crateTypeId || ''} 
-                           onValueChange={(value) => handlePalletChange(index, 'crateTypeId', value)}
-                         >
-                           <SelectTrigger>
-                             <SelectValue placeholder="Selectează tipul de lădiță" />
-                           </SelectTrigger>
-                           <SelectContent>
-                             {crateTypes.map(crateType => (
-                               <SelectItem key={crateType.id} value={crateType.id}>
-                                 {crateType.name} ({crateType.weight} kg)
-                               </SelectItem>
-                             ))}
-                           </SelectContent>
-                         </Select>
-                       </div>
-
-                       <div className="space-y-2">
-                         <label className="text-sm">Număr lădițe</label>
-                         <Input
-                           type="number"
-                           value={pallet.crateCount || ''}
-                           onChange={(e) => handlePalletChange(index, 'crateCount', parseInt(e.target.value) || 0)}
-                         />
-                       </div>
-                     </>
-                   )}
-                </div>
-
-                <div className="mt-4 p-3 bg-gray-50 rounded-md">
-                  <p className="text-sm font-medium">
-                    Cantitate netă: {pallet.netQuantity.toFixed(2)} {selectedProduct?.default_unit || 'kg'}
-                  </p>
-                </div>
+            <div className="mt-4 p-4 bg-white rounded-md border-2 border-green-200">
+              <div className="text-lg font-bold text-green-700">
+                Cantitate netă: {netQuantity.toFixed(2)} {selectedProduct?.default_unit || 'kg'}
               </div>
-            ))}
+              <div className="text-sm text-gray-600 mt-1">
+                Aceasta este cantitatea care va fi stocată în sistem
+              </div>
+            </div>
           </div>
 
           <div className="flex justify-end pt-4">
-            <Button onClick={handleSubmit} disabled={!productId || !supplierId || (inventoryType === 'materii-prime' && !manufacturerId) || !documentNumber}>
+            <Button 
+              onClick={handleSubmit} 
+              disabled={!productId || !supplierId || (inventoryType === 'materii-prime' && !manufacturerId) || !documentNumber || netQuantity <= 0}
+            >
               <Save className="h-4 w-4 mr-2" />
-              Salvează recepția
+              Salvează recepția (cantitate netă)
             </Button>
           </div>
         </div>

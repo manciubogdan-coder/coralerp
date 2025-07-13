@@ -50,17 +50,21 @@ const TeachAssistant: React.FC<TeachAssistantProps> = ({
     
     const syncAnalyticalData = async () => {
       try {
-        // Fetch analytics data to improve AI knowledge
-        // Using .from() with string parameter since it's a view
-        const { data: analyticsData } = await supabase
-          .from('inventory_analytics')
-          .select('*') as { data: any[] | null };
+        // Încerc să obțin analiza simplă din inventory
+        const { data: inventoryData, error: inventoryError } = await supabase
+          .from('inventory')
+          .select('name, quantity, unit')
+          .order('quantity', { ascending: false })
+          .limit(10);
+
+        const { data: consumptionData, error: consumptionError } = await supabase
+          .from('inventory_history')
+          .select('name, quantity, operation_date')
+          .eq('action', 'remove')
+          .order('operation_date', { ascending: false })
+          .limit(10);
           
-        const { data: consumptionData } = await supabase
-          .from('consumption_analytics')
-          .select('*') as { data: any[] | null };
-          
-        console.log("Analytics data loaded for AI training:", analyticsData?.length || 0, "items");
+        console.log("Inventory data loaded for AI training:", inventoryData?.length || 0, "items");
         console.log("Consumption data loaded for AI training:", consumptionData?.length || 0, "items");
         
         // This data is now available for the AI assistant to use in calculations

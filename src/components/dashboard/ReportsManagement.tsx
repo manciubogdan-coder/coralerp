@@ -167,7 +167,6 @@ export const ReportsManagement = () => {
         name,
         lot_number,
         quantity,
-        net_quantity,
         unit,
         notes,
         document_number,
@@ -189,8 +188,7 @@ export const ReportsManagement = () => {
       'Acțiune': item.action === 'add' ? 'Intrare' : 'Ieșire',
       'Produs': item.name,
       'Lot': item.lot_number || 'Fără lot',
-      'Cantitate Brută': item.quantity,
-      'Cantitate Netă': item.net_quantity || item.quantity,
+      'Cantitate': item.quantity,
       'Unitate': item.unit,
       'Furnizor': item.supplier || '-',
       'Document': item.document_number || '-',
@@ -210,15 +208,11 @@ export const ReportsManagement = () => {
         name,
         lot_number,
         quantity,
-        net_quantity,
-        gross_quantity,
         unit,
         receipt_date,
         document_number,
         entry_number,
         supplier,
-        crate_count,
-        crate_weight,
         products:product_id (name, cod_produs),
         suppliers:supplier_id (name),
         manufacturers:manufacturer_id (name)
@@ -231,16 +225,13 @@ export const ReportsManagement = () => {
       'Produs': item.name,
       'Cod Produs': item.products?.cod_produs || '-',
       'Lot': item.lot_number || 'Fără lot',
-      'Cantitate Brută': item.gross_quantity || item.quantity,
-      'Cantitate Netă': item.net_quantity || item.quantity,
+      'Cantitate': `${item.quantity.toFixed(2)} ${item.unit}`,
       'Unitate': item.unit,
       'Nr. Intrare': item.entry_number,
       'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-',
       'Furnizor': item.suppliers?.name || item.supplier || '-',
       'Producător': item.manufacturers?.name || '-',
-      'Nr. Document': item.document_number || '-',
-      'Nr. Lăzi': item.crate_count || 0,
-      'Greutate Lăzi': item.crate_weight || 0
+      'Nr. Document': item.document_number || '-'
     })) || [];
   };
 
@@ -249,7 +240,7 @@ export const ReportsManagement = () => {
     
     const { data, error } = await supabase
       .from(historyTable)
-      .select('name, quantity, net_quantity, unit, operation_date')
+      .select('name, quantity, unit, operation_date')
       .eq('action', 'remove')
       .gte('operation_date', `${filters.startDate}T00:00:00`)
       .lte('operation_date', `${filters.endDate}T23:59:59`);
@@ -260,7 +251,7 @@ export const ReportsManagement = () => {
     const productConsumption = new Map<string, { total: number; count: number; unit: string; dates: string[] }>();
     
     data?.forEach(item => {
-      const quantity = item.net_quantity || item.quantity;
+      const quantity = item.quantity;
       const date = item.operation_date.split('T')[0];
       
       if (!productConsumption.has(item.name)) {
@@ -307,7 +298,6 @@ export const ReportsManagement = () => {
       'Produs': item.name,
       'Lot': item.lot_number || 'Fără lot',
       'Cantitate': item.quantity,
-      'Cantitate Netă': item.net_quantity || item.quantity,
       'Unitate': item.unit,
       'Nr. Intrare': item.entry_number || '-',
       'Document': item.document_number || '-'
@@ -332,7 +322,7 @@ export const ReportsManagement = () => {
       'Tip': item.action === 'add' ? 'Retur' : 'Transfer',
       'Produs': item.name,
       'Lot': item.lot_number || 'Fără lot',
-      'Cantitate': item.net_quantity || item.quantity,
+      'Cantitate': item.quantity,
       'Unitate': item.unit,
       'Observații': item.notes || '-',
       'Furnizor': item.supplier || '-'
@@ -365,7 +355,7 @@ export const ReportsManagement = () => {
     
     const { data, error } = await supabase
       .from(historyTable)
-      .select('operation_date, quantity, net_quantity')
+      .select('operation_date, quantity')
       .eq('action', 'remove')
       .gte('operation_date', `${filters.startDate}T00:00:00`)
       .lte('operation_date', `${filters.endDate}T23:59:59`);
@@ -376,7 +366,7 @@ export const ReportsManagement = () => {
     
     data?.forEach(item => {
       const date = item.operation_date.split('T')[0];
-      const quantity = item.net_quantity || item.quantity;
+      const quantity = item.quantity;
       
       if (!dailyData.has(date)) {
         dailyData.set(date, { cantitate: 0, operatii: 0 });
@@ -402,7 +392,7 @@ export const ReportsManagement = () => {
     
     const { data, error } = await supabase
       .from(historyTable)
-      .select('name, quantity, net_quantity')
+      .select('name, quantity')
       .eq('action', 'remove')
       .gte('operation_date', `${filters.startDate}T00:00:00`)
       .lte('operation_date', `${filters.endDate}T23:59:59`);
@@ -412,7 +402,7 @@ export const ReportsManagement = () => {
     const productData = new Map<string, { cantitate: number; operatii: number; }>();
     
     data?.forEach(item => {
-      const quantity = item.net_quantity || item.quantity;
+      const quantity = item.quantity;
       
       if (!productData.has(item.name)) {
         productData.set(item.name, { cantitate: 0, operatii: 0 });
@@ -438,7 +428,7 @@ export const ReportsManagement = () => {
     
     const { data, error } = await supabase
       .from(historyTable)
-      .select('operation_date, action, quantity, net_quantity')
+      .select('operation_date, action, quantity')
       .gte('operation_date', `${filters.startDate}T00:00:00`)
       .lte('operation_date', `${filters.endDate}T23:59:59`);
 
@@ -448,7 +438,7 @@ export const ReportsManagement = () => {
     
     data?.forEach(item => {
       const date = item.operation_date.split('T')[0];
-      const quantity = item.net_quantity || item.quantity;
+      const quantity = item.quantity;
       
       if (!dailyData.has(date)) {
         dailyData.set(date, { intrari: 0, iesiri: 0 });
@@ -477,7 +467,7 @@ export const ReportsManagement = () => {
     
     const { data, error } = await supabase
       .from(historyTable)
-      .select('supplier, quantity, net_quantity')
+      .select('supplier, quantity')
       .eq('action', 'remove')
       .gte('operation_date', `${filters.startDate}T00:00:00`)
       .lte('operation_date', `${filters.endDate}T23:59:59`);
@@ -489,7 +479,7 @@ export const ReportsManagement = () => {
     
     data?.forEach(item => {
       const supplier = item.supplier || 'Necunoscut';
-      const quantity = item.net_quantity || item.quantity;
+      const quantity = item.quantity;
       
       supplierData.set(supplier, (supplierData.get(supplier) || 0) + quantity);
       total += quantity;
