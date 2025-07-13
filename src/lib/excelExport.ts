@@ -13,26 +13,6 @@ export const exportToExcel = (
   filename: string = "raport.xlsx", 
   options?: ExcelExportOptions
 ) => {
-  // Formatează numerele să folosească virgula în loc de punct
-  const formatNumber = (value: any): any => {
-    if (typeof value === 'number') {
-      return value.toString().replace('.', ',');
-    }
-    if (typeof value === 'string' && !isNaN(parseFloat(value))) {
-      return parseFloat(value).toString().replace('.', ',');
-    }
-    return value;
-  };
-
-  // Procesează datele pentru a formata numerele
-  const formattedData = data.map(row => {
-    const formattedRow: any = {};
-    Object.keys(row).forEach(key => {
-      formattedRow[key] = formatNumber(row[key]);
-    });
-    return formattedRow;
-  });
-
   // Creează headerul cu informații despre raport
   const headerData: any[] = [];
   
@@ -56,26 +36,48 @@ export const exportToExcel = (
   headerData.push({ '': '' }); // Linie goală
 
   // Combină headerul cu datele
-  const allData = [...headerData, ...formattedData];
+  const allData = [...headerData, ...data];
 
   // Convertește datele în worksheet
   const worksheet = XLSX.utils.json_to_sheet(allData);
   
+  // Găsește celulele cu numere și setează formatul
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+  
+  for (let R = headerData.length; R <= range.e.r; ++R) {
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const cellAddress = XLSX.utils.encode_cell({ c: C, r: R });
+      const cell = worksheet[cellAddress];
+      
+      if (cell && typeof cell.v === 'number') {
+        // Setează formatul pentru numere cu virgulă ca separator zecimal
+        cell.z = '#,##0.00';
+        cell.t = 'n'; // Specifică că este număr
+      }
+    }
+  }
+  
   // Setează lățimea coloanelor automat
   const cols = [];
-  if (formattedData.length > 0) {
-    Object.keys(formattedData[0]).forEach(key => {
+  if (data.length > 0) {
+    Object.keys(data[0]).forEach(key => {
       const maxLength = Math.max(
         key.length,
-        ...formattedData.map(row => String(row[key] || '').length)
+        ...data.map(row => String(row[key] || '').length)
       );
       cols.push({ wch: Math.min(maxLength + 2, 50) });
     });
     worksheet['!cols'] = cols;
   }
 
-  // Creează workbook
+  // Creează workbook cu setări locale pentru România
   const workbook = XLSX.utils.book_new();
+  workbook.Props = {
+    ...workbook.Props,
+    Application: "Sistem Inventar",
+    Company: "Coral Biogreens"
+  };
+  
   XLSX.utils.book_append_sheet(workbook, worksheet, "Raport");
   
   // Generează fișierul Excel
