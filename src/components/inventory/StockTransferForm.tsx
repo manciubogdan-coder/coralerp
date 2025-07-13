@@ -108,7 +108,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
   const availableItems = inventory.filter(item => 
     !selectedItems.some(selected => {
-      const itemLotKey = `${item.products?.name || item.name}-${item.lot_number || 'fara-lot'}`;
+      const productName = item.products?.name || item.name || 'Produs necunoscut';
+      const lotKey = item.lot_number || 'fara-lot';
+      const itemLotKey = `${productName}-${lotKey}`;
       return selected.lotKey === itemLotKey;
     })
   );
@@ -129,8 +131,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   // Grupează produsele după lot pentru afișare
   const groupedByLot = filteredItems.reduce((acc, item) => {
     const lotKey = item.lot_number || 'fara-lot';
-    const productName = item.products?.name || item.name;
+    const productName = item.products?.name || item.name || 'Produs necunoscut';
     const groupKey = `${productName}-${lotKey}`;
+    
+    // Verifică că groupKey nu este gol
+    if (!groupKey || groupKey.trim() === '' || groupKey === '-') {
+      return acc;
+    }
     
     if (!acc[groupKey]) {
       acc[groupKey] = {
