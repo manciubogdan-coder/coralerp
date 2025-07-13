@@ -106,9 +106,6 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const fetchInventory = async () => {
     try {
       const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
-      const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
-      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
-      const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
       
       const { data, error } = await supabase
         .from(tableName)
@@ -119,7 +116,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           manufacturers:manufacturer_id (name)
         `)
         .gt("quantity", 0)
-        .order("name");
+        .order("lot_number", { ascending: true });
 
       if (error) {
         throw error;
@@ -403,12 +400,46 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     const productName = item.products?.name || item.name || '';
     const supplierName = item.supplier || item.suppliers?.name || '';
     const manufacturerName = item.manufacturer || item.manufacturers?.name || '';
+    const lotNumber = item.lot_number || '';
     const searchLower = searchTerm.toLowerCase();
 
     return productName.toLowerCase().includes(searchLower) ||
            supplierName.toLowerCase().includes(searchLower) ||
-           manufacturerName.toLowerCase().includes(searchLower);
+           manufacturerName.toLowerCase().includes(searchLower) ||
+           lotNumber.toLowerCase().includes(searchLower);
   });
+
+  // Grupează produsele după lot pentru afișare
+  const groupedByLot = filteredItems.reduce((acc, item) => {
+    const lotKey = item.lot_number || 'fara-lot';
+    const productName = item.products?.name || item.name;
+    const groupKey = `${productName}-${lotKey}`;
+    
+    if (!acc[groupKey]) {
+      acc[groupKey] = {
+        productName,
+        lotNumber: item.lot_number,
+        items: [],
+        totalQuantity: 0,
+        unit: item.unit,
+        supplier: item.supplier || item.suppliers?.name,
+        manufacturer: item.manufacturer || item.manufacturers?.name
+      };
+    }
+    
+    acc[groupKey].items.push(item);
+    acc[groupKey].totalQuantity += item.quantity;
+    
+    return acc;
+  }, {} as Record<string, {
+    productName: string;
+    lotNumber: string | null;
+    items: InventoryItem[];
+    totalQuantity: number;
+    unit: string;
+    supplier?: string;
+    manufacturer?: string;
+  }>);
 
   // Verifică dacă cantitatea netă rezultată din calculul cu noua cantitate brută este validă
   const isNetQuantityValid = (item: TransferItem) => {
@@ -517,32 +548,44 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         autoFocus={isMobile} // Auto focus for mobile
                       />
                     </div>
-                    {filteredItems.length === 0 ? (
+                    {Object.keys(groupedByLot).length === 0 ? (
                       <div className="p-3 text-center text-gray-500">
                         Nu există produse disponibile
                       </div>
                     ) : (
-                      filteredItems.map(item => (
-                        <SelectItem 
-                          key={item.id} 
-                          value={item.id} 
-                          className={`py-4 ${isMobile ? 'text-base' : ''}`}
-                        >
-                          <div className="flex flex-col">
-                            <span className="font-medium">
-                              {item.products?.name || item.name}
+                      Object.entries(groupedByLot).map(([groupKey, group]) => (
+                        <div key={groupKey} className="px-3 py-2">
+                          <div className="flex flex-col mb-2">
+                            <span className="font-medium text-sm">
+                              {group.productName} - Lot: {group.lotNumber || 'N/A'}
                             </span>
-                            <span className="text-sm text-gray-500">
-                              Cantitate: {item.quantity} {item.unit} | Lot: {item.lot_number || 'N/A'}
+                            <span className="text-sm text-blue-600 font-medium">
+                              Total disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
                             </span>
                             <span className="text-xs text-gray-500">
-                              {item.supplier || item.suppliers?.name ? 
-                                `Furnizor: ${item.supplier || item.suppliers?.name}` : ''}
-                              {item.manufacturer || item.manufacturers?.name ? 
-                                ` | Producător: ${item.manufacturer || item.manufacturers?.name}` : ''}
+                              {group.supplier ? `Furnizor: ${group.supplier}` : ''}
+                              {group.manufacturer ? ` | Producător: ${group.manufacturer}` : ''}
                             </span>
                           </div>
-                        </SelectItem>
+                          <div className="ml-4 space-y-1">
+                            {group.items.map(item => (
+                              <SelectItem 
+                                key={item.id} 
+                                value={item.id} 
+                                className={`py-2 ${isMobile ? 'text-base' : ''}`}
+                              >
+                                <div className="flex justify-between items-center w-full">
+                                  <span className="text-sm">
+                                    Intrare #{item.entry_number}
+                                  </span>
+                                  <span className="text-sm font-medium">
+                                    {item.quantity} {item.unit}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </div>
+                        </div>
                       ))
                     )}
                   </SelectContent>

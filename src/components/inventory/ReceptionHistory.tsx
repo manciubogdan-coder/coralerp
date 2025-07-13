@@ -21,6 +21,9 @@ interface ReceptionItem {
   unit: string;
   document_number: string;
   lot_number: string;
+  supplier_id?: string;
+  manufacturer_id?: string;
+  product_id?: string;
   suppliers?: { name: string };
   manufacturers?: { name: string };
   products?: { name: string; cod_produs: string };
@@ -206,7 +209,33 @@ export const ReceptionHistory = () => {
 
     try {
       const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
       
+      // Adaugă intrare în istoric pentru ștergerea recepției
+      const { error: historyError } = await supabase
+        .from(historyTable)
+        .insert({
+          inventory_item_id: item.id,
+          name: item.name,
+          action: 'deleted_reception',
+          quantity: item.quantity,
+          previous_quantity: item.quantity,
+          unit: item.unit,
+          supplier: item.suppliers?.name,
+          supplier_id: item.supplier_id,
+          manufacturer_id: item.manufacturer_id,
+          product_id: item.product_id,
+          lot_number: item.lot_number,
+          document_number: item.document_number,
+          notes: `Recepție ștearsă - Intrarea nr. ${item.entry_number}`,
+          operation_date: new Date().toISOString()
+        });
+
+      if (historyError) {
+        console.error("Error adding history entry:", historyError);
+      }
+      
+      // Șterge recepția din inventar
       const { error } = await supabase
         .from(tableName)
         .delete()
@@ -216,7 +245,7 @@ export const ReceptionHistory = () => {
 
       toast({
         title: "Recepție ștearsă",
-        description: "Recepția a fost ștearsă cu succes."
+        description: "Recepția a fost ștearsă cu succes din stoc."
       });
 
       fetchReceptions();
