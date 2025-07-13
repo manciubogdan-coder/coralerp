@@ -374,12 +374,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           newGross: newGrossQuantity
         });
         
-        // Update quantity (care este gross_quantity) și net_quantity manual
+        // Update DOAR quantity (gross) - trigger-ul NU va mai recalcula proporțional
         const { error: updateError } = await supabase
           .from(inventoryTable)
           .update({ 
-            quantity: newGrossQuantity,
-            net_quantity: Math.max(0, (inventoryItem?.net_quantity || 0) - item.netQuantity)
+            quantity: newGrossQuantity
           })
           .eq('id', item.id);
            
