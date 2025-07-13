@@ -36,25 +36,31 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { targetDate } = await req.json().catch(() => ({}))
+    const { targetDate, inventoryType = 'main' } = await req.json().catch(() => ({}))
     const snapshotDate = targetDate || new Date().toISOString().split('T')[0]
 
-    console.log(`Creating stock snapshot for date: ${snapshotDate}`)
+    console.log(`Creating stock snapshot for ${inventoryType} inventory, date: ${snapshotDate}`)
+
+    // Determine table names based on inventory type
+    const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory'
+    const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots'
+    const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history'
 
     // Check if snapshot already exists for this date
     const { data: existingSnapshot } = await supabase
-      .from('daily_stock_snapshots')
+      .from(snapshotTable)
       .select('id')
       .eq('snapshot_date', snapshotDate)
       .limit(1)
 
     if (existingSnapshot && existingSnapshot.length > 0) {
-      console.log(`Snapshot already exists for ${snapshotDate}`)
+      console.log(`Snapshot already exists for ${snapshotDate} (${inventoryType})`)
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: `Snapshot already exists for ${snapshotDate}`,
-          existing: true 
+          existing: true,
+          inventoryType 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -62,7 +68,7 @@ serve(async (req) => {
 
     // Get current inventory
     const { data: inventory, error: inventoryError } = await supabase
-      .from('inventory')
+      .from(inventoryTable)
       .select('*')
 
     if (inventoryError) {
@@ -70,12 +76,13 @@ serve(async (req) => {
     }
 
     if (!inventory || inventory.length === 0) {
-      console.log('No inventory data found')
+      console.log(`No ${inventoryType} inventory data found`)
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'No inventory data to snapshot',
-          count: 0 
+          message: `No ${inventoryType} inventory data to snapshot`,
+          count: 0,
+          inventoryType 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -85,7 +92,7 @@ serve(async (req) => {
     let finalInventory = inventory
     
     if (targetDate && targetDate !== new Date().toISOString().split('T')[0]) {
-      console.log(`Calculating historical stock for ${targetDate}`)
+      console.log(`Calculating historical stock for ${targetDate} (${inventoryType})`)
       
       // Get all movements after the target date
       const nextDay = new Date(targetDate)
@@ -93,7 +100,7 @@ serve(async (req) => {
       const nextDayStr = nextDay.toISOString().split('T')[0]
       
       const { data: futureMovements, error: movementsError } = await supabase
-        .from('inventory_history')
+        .from(historyTable)
         .select('*')
         .gte('operation_date', `${nextDayStr}T00:00:00`)
 
@@ -156,20 +163,21 @@ serve(async (req) => {
 
     // Insert snapshot data
     const { error: insertError } = await supabase
-      .from('daily_stock_snapshots')
+      .from(snapshotTable)
       .insert(snapshotData)
 
     if (insertError) {
       throw insertError
     }
 
-    console.log(`Successfully created snapshot for ${snapshotDate} with ${snapshotData.length} items`)
+    console.log(`Successfully created ${inventoryType} snapshot for ${snapshotDate} with ${snapshotData.length} items`)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Stock snapshot created for ${snapshotDate}`,
-        count: snapshotData.length 
+        message: `${inventoryType} stock snapshot created for ${snapshotDate}`,
+        count: snapshotData.length,
+        inventoryType 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
