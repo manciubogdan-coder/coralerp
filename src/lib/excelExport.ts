@@ -13,6 +13,40 @@ export const exportToExcel = (
   filename: string = "raport.xlsx", 
   options?: ExcelExportOptions
 ) => {
+  // Funcție pentru a converti valori în numere dacă este posibil
+  const processValue = (value: any): any => {
+    if (value === null || value === undefined || value === '') {
+      return '';
+    }
+    
+    // Verifică dacă este un număr sau string care poate fi convertit în număr
+    if (typeof value === 'number') {
+      return value;
+    }
+    
+    if (typeof value === 'string') {
+      // Înlocuiește virgula cu punct pentru parsing
+      const normalizedValue = value.replace(',', '.');
+      const numericValue = parseFloat(normalizedValue);
+      
+      // Dacă poate fi convertit în număr și nu este NaN
+      if (!isNaN(numericValue) && isFinite(numericValue)) {
+        return numericValue;
+      }
+    }
+    
+    return value;
+  };
+
+  // Procesează datele pentru a converti numerele
+  const processedData = data.map(row => {
+    const processedRow: any = {};
+    Object.keys(row).forEach(key => {
+      processedRow[key] = processValue(row[key]);
+    });
+    return processedRow;
+  });
+
   // Creează headerul cu informații despre raport
   const headerData: any[] = [];
   
@@ -36,12 +70,12 @@ export const exportToExcel = (
   headerData.push({ '': '' }); // Linie goală
 
   // Combină headerul cu datele
-  const allData = [...headerData, ...data];
+  const allData = [...headerData, ...processedData];
 
   // Convertește datele în worksheet
   const worksheet = XLSX.utils.json_to_sheet(allData);
   
-  // Găsește celulele cu numere și setează formatul
+  // Găsește celulele cu numere și setează formatul pentru regiunea România
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
   
   for (let R = headerData.length; R <= range.e.r; ++R) {
@@ -50,8 +84,8 @@ export const exportToExcel = (
       const cell = worksheet[cellAddress];
       
       if (cell && typeof cell.v === 'number') {
-        // Setează formatul pentru numere cu virgulă ca separator zecimal
-        cell.z = '#,##0.00';
+        // Setează formatul pentru numere cu virgulă ca separator zecimal (format românesc)
+        cell.z = '#,##0.00_-';
         cell.t = 'n'; // Specifică că este număr
       }
     }
@@ -59,11 +93,11 @@ export const exportToExcel = (
   
   // Setează lățimea coloanelor automat
   const cols = [];
-  if (data.length > 0) {
-    Object.keys(data[0]).forEach(key => {
+  if (processedData.length > 0) {
+    Object.keys(processedData[0]).forEach(key => {
       const maxLength = Math.max(
         key.length,
-        ...data.map(row => String(row[key] || '').length)
+        ...processedData.map(row => String(row[key] || '').length)
       );
       cols.push({ wch: Math.min(maxLength + 2, 50) });
     });
