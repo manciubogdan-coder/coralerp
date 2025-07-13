@@ -245,41 +245,19 @@ export const ReceptionHistory = () => {
         console.error("Error finding stock item:", stockFindError);
       }
 
-      // Adaugă intrare în istoric pentru ștergerea recepției
+      // Șterge mai întâi toate intrările din istoric care fac referire la acest item
       if (currentStockItem) {
-        const { error: historyError } = await supabase
+        const { error: historyDeleteError } = await supabase
           .from(historyTable)
-          .insert({
-            inventory_item_id: currentStockItem.id,
-            name: item.name,
-            action: 'deleted_reception',
-            quantity: currentStockItem.quantity,
-            previous_quantity: currentStockItem.quantity,
-            unit: item.unit,
-            supplier: item.suppliers?.name,
-            supplier_id: item.supplier_id,
-            manufacturer_id: item.manufacturer_id,
-            product_id: item.product_id,
-            lot_number: item.lot_number,
-            document_number: item.document_number,
-            notes: `Recepție ștearsă - Intrarea nr. ${item.entry_number}`,
-            operation_date: new Date().toISOString()
-          });
+          .delete()
+          .eq('inventory_item_id', currentStockItem.id);
 
-        if (historyError) {
-          console.error("Error adding history entry:", historyError);
+        if (historyDeleteError) {
+          console.error("Error deleting history entries:", historyDeleteError);
         }
       }
       
-      // Șterge recepția din tabelul de recepții
-      const { error: receptionError } = await supabase
-        .from(receptionTableName)
-        .delete()
-        .eq('id', item.id);
-
-      if (receptionError) throw receptionError;
-
-      // Șterge și din inventarul curent dacă există (bazat pe entry_number)
+      // Șterge din inventarul curent dacă există (bazat pe entry_number)
       if (currentStockItem) {
         const { error: inventoryError } = await supabase
           .from(inventoryTableName)
@@ -292,9 +270,17 @@ export const ReceptionHistory = () => {
         }
       }
 
+      // Șterge recepția din tabelul de recepții
+      const { error: receptionError } = await supabase
+        .from(receptionTableName)
+        .delete()
+        .eq('id', item.id);
+
+      if (receptionError) throw receptionError;
+
       toast({
         title: "Recepție ștearsă",
-        description: "Recepția și stocul aferent au fost șterse cu succes."
+        description: "Recepția și toate datele aferente au fost șterse cu succes."
       });
 
       fetchReceptions();
