@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { CornerDownLeft } from "lucide-react";
 import { CrateType } from "@/types";
+import { useInventoryType } from "@/App";
 
 interface TransferItem {
   transfer_id: string;
@@ -46,6 +47,7 @@ interface TransferReturnFormProps {
 }
 
 export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferReturnFormProps) => {
+  const { inventoryType } = useInventoryType();
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [grossQuantity, setGrossQuantity] = useState<number>(transfer.quantity);
@@ -59,8 +61,9 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
   
   useEffect(() => {
     const fetchCrateTypes = async () => {
+      const crateTypesTable = inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
       const { data, error } = await supabase
-        .from('crate_types')
+        .from(crateTypesTable)
         .select('*')
         .order('name');
         
@@ -120,10 +123,17 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
     try {
       setIsSubmitting(true);
       
-      // 1. Actualizează cantitatea din stock_transfer_items
+      // Determină tabelele în funcție de tipul de inventar
+      const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
+      const transfersTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
+      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+      
+      // 1. Actualizează cantitatea din transfer items
       const newTransferQuantity = transfer.quantity - netQuantity;
       
       console.log('=== DEBUGGING TRANSFER UPDATE ===');
+      console.log('Inventory type:', inventoryType);
       console.log('Original quantity:', transfer.quantity);
       console.log('Returned net quantity:', netQuantity);
       console.log('New transfer quantity:', newTransferQuantity);
@@ -131,7 +141,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
       if (newTransferQuantity <= 0) {
         // Dacă s-a returnat tot, șterge item-ul din transfer
         const { error: deleteError } = await supabase
-          .from('stock_transfer_items')
+          .from(transferItemsTable)
           .delete()
           .eq('transfer_id', transfer.transfer_id)
           .eq('inventory_item_id', transfer.inventory_item_id);
@@ -145,9 +155,9 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         const reductionRatio = netQuantity / originalNetQuantity;
         const newNetQuantity = originalNetQuantity - netQuantity;
         
-        // Actualizează ambele cantități în stock_transfer_items
+        // Actualizează ambele cantități în transfer items
         const { error: updateError } = await supabase
-          .from('stock_transfer_items')
+          .from(transferItemsTable)
           .update({ 
             quantity: newNetQuantity
           })
@@ -161,9 +171,9 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         });
       }
       
-      // 2. Actualizează notele în stock_transfers
+      // 2. Actualizează notele în transfers
       const { error: notesError } = await supabase
-        .from('stock_transfers')
+        .from(transfersTable)
         .update({ 
           notes: `${transfer.notes || ''} [Actualizat după returnare parțială]`.trim()
         })
@@ -171,9 +181,9 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         
       if (notesError) throw notesError;
       
-      // 2. Adaugă cantitatea returnată în stoc
+      // 3. Adaugă cantitatea returnată în stoc
       const { data: originalItem, error: fetchError } = await supabase
-        .from('inventory')
+        .from(inventoryTable)
         .select('*')
         .eq('id', transfer.inventory_item_id)
         .single();
@@ -188,7 +198,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         const newQuantity = originalItem.quantity + netQuantity;
         
         const { error: updateError } = await supabase
-          .from('inventory')
+          .from(inventoryTable)
           .update({ 
             quantity: newQuantity
           })
@@ -204,7 +214,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
       } else {
         // Creează un nou item în inventar dacă nu există
         const { data: inventoryData, error: insertError } = await supabase
-          .from('inventory')
+          .from(inventoryTable)
           .insert({
             name: transfer.product_name,
             product_id: transfer.product_id || null,
@@ -226,24 +236,23 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         console.log("Creat nou item în inventar:", inventoryData);
       }
       
-       // 3. Înregistrează în istoric
+       // 4. Înregistrează în istoric
        console.log('=== DEBUGGING RETURN HISTORY ===');
        const historyDate = new Date().toISOString();
        
        // Get the actual lot_number from the original inventory item if not available on transfer
        const actualLotNumber = transfer.lot_number || (originalItem && originalItem.lot_number) || 
          (await supabase
-           .from('inventory')
+           .from(inventoryTable)
            .select('lot_number')
            .eq('id', transfer.inventory_item_id)
            .single()).data?.lot_number;
        
-       console.log('Inserting into inventory_history:', {
+       console.log('Inserting into history table:', historyTable, {
          inventory_item_id: updatedId,
-         action: 'add',
+         action: 'transfer_in',
          name: transfer.product_name,
-         quantity: grossQuantity,
-         net_quantity: netQuantity,
+         quantity: netQuantity,
          unit: transfer.unit,
          operation_date: historyDate,
          document_number: transfer.document_number,
@@ -252,10 +261,10 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
        });
        
        const { error: historyError } = await supabase
-         .from('inventory_history')
+         .from(historyTable)
          .insert({
            inventory_item_id: updatedId,
-           action: 'add',
+           action: 'transfer_in',
            name: transfer.product_name,
            quantity: netQuantity,
            unit: transfer.unit,
@@ -270,7 +279,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         throw historyError;
       }
       
-      console.log('Successfully inserted into inventory_history');
+      console.log('Successfully inserted into history table:', historyTable);
       
       toast({
         title: "Succes",
