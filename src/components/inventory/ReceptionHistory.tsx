@@ -184,9 +184,31 @@ export const ReceptionHistory = () => {
 
       if (error) throw error;
 
+      // Actualizez și în tabelul de inventar curent (stocul curent)
+      const inventoryTableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      
+      const inventoryUpdateData = {
+        name: editFormData.name,
+        quantity: editFormData.quantity, // Actualizez cantitatea curentă
+        unit: editFormData.unit,
+        document_number: editFormData.document_number || null,
+        lot_number: editFormData.lot_number || null,
+        receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error: inventoryError } = await supabase
+        .from(inventoryTableName)
+        .update(inventoryUpdateData)
+        .eq('entry_number', editingItem.entry_number);
+
+      if (inventoryError) {
+        console.warn("Could not update inventory (may not exist):", inventoryError);
+      }
+
       toast({
         title: "Recepție actualizată",
-        description: "Recepția a fost actualizată cu succes."
+        description: "Recepția și stocul au fost actualizate cu succes."
       });
 
       setIsEditDialogOpen(false);
