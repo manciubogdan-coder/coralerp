@@ -1406,13 +1406,18 @@ export type Database = {
       }
       inventory: {
         Row: {
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
           created_at: string | null
           document_number: string | null
           entry_number: number
+          gross_quantity: number | null
           id: string
           lot_number: string | null
           manufacturer_id: string | null
           name: string
+          net_quantity: number | null
           product_id: string | null
           quantity: number
           receipt_date: string | null
@@ -1423,13 +1428,18 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
           created_at?: string | null
           document_number?: string | null
           entry_number?: number
+          gross_quantity?: number | null
           id?: string
           lot_number?: string | null
           manufacturer_id?: string | null
           name: string
+          net_quantity?: number | null
           product_id?: string | null
           quantity?: number
           receipt_date?: string | null
@@ -1440,13 +1450,18 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
           created_at?: string | null
           document_number?: string | null
           entry_number?: number
+          gross_quantity?: number | null
           id?: string
           lot_number?: string | null
           manufacturer_id?: string | null
           name?: string
+          net_quantity?: number | null
           product_id?: string | null
           quantity?: number
           receipt_date?: string | null
@@ -1457,6 +1472,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "inventory_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "crate_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inventory_manufacturer_id_fkey"
             columns: ["manufacturer_id"]
