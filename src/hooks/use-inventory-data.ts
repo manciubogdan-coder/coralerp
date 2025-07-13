@@ -26,8 +26,7 @@ export const useInventoryData = () => {
             *,
             suppliers:supplier_id (name),
             products:product_id (name, cod_produs),
-            manufacturers:manufacturer_id (name),
-            crate_types:crate_type_id (name, weight)
+            manufacturers:manufacturer_id (name)
           `)
           .order("entry_number", { ascending: false });
 
@@ -41,8 +40,7 @@ export const useInventoryData = () => {
             *,
             suppliers:supplier_id (name),
             products:product_id (name, cod_produs),
-            manufacturers:manufacturer_id (name),
-            crate_types:crate_type_id (name, weight)
+            manufacturers:manufacturer_id (name)
           `)
           .order("entry_number", { ascending: false });
 
