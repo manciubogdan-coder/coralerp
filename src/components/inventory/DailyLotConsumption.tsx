@@ -69,7 +69,6 @@ export const DailyLotConsumption = () => {
           name,
           lot_number,
           quantity,
-          net_quantity,
           unit,
           receipt_date,
           products:product_id (name, cod_produs)
@@ -92,7 +91,6 @@ export const DailyLotConsumption = () => {
             name,
             lot_number,
             quantity,
-            net_quantity,
             unit,
             receipt_date,
             products:product_id (name, cod_produs)
@@ -112,7 +110,6 @@ export const DailyLotConsumption = () => {
           name,
           lot_number,
           quantity,
-          net_quantity,
           unit,
           action,
           operation_date,
@@ -136,7 +133,6 @@ export const DailyLotConsumption = () => {
             name,
             lot_number,
             quantity,
-            net_quantity,
             unit,
             receipt_date,
             products:product_id (name, cod_produs)
@@ -159,7 +155,7 @@ export const DailyLotConsumption = () => {
       // First, group all snapshot items by product + lot
       (finalInitialStock || []).forEach(item => {
         const lotKey = `${item.name}_${item.lot_number || 'Fără lot'}`;
-        const initialQuantity = item.net_quantity || item.quantity;
+        const initialQuantity = item.quantity;
         
         if (!snapshotGroupedByLot.has(lotKey)) {
           snapshotGroupedByLot.set(lotKey, {
@@ -226,7 +222,7 @@ export const DailyLotConsumption = () => {
       
       (movements || []).forEach(movement => {
         const lotKey = `${movement.name}_${movement.lot_number || 'Fără lot'}`;
-        const movementQty = movement.net_quantity || movement.quantity;
+        const movementQty = movement.quantity;
         
         console.log('=== PROCESSING MOVEMENT ===');
         console.log('Action:', movement.action);
@@ -346,7 +342,6 @@ export const DailyLotConsumption = () => {
             name,
             lot_number,
             quantity,
-            net_quantity,
             unit,
             products:product_id (name, cod_produs)
           `)
@@ -364,7 +359,7 @@ export const DailyLotConsumption = () => {
       
       (dailyReceptions || []).forEach(reception => {
         const lotKey = `${reception.name}_${reception.lot_number || 'Fără lot'}`;
-        const receiptQty = reception.net_quantity || reception.quantity;
+        const receiptQty = reception.quantity;
         newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
         
         console.log(`NEW RECEIPT from receptions table: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
@@ -378,7 +373,7 @@ export const DailyLotConsumption = () => {
         
         if (movement.action === 'add' && (!movement.notes || !movement.notes.includes('Returnat'))) {
           const lotKey = `${movement.name}_${movement.lot_number || 'Fără lot'}`;
-          const receiptQty = movement.net_quantity || movement.quantity;
+          const receiptQty = movement.quantity;
           newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
           
           console.log(`NEW RECEIPT from movements: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
@@ -429,7 +424,7 @@ export const DailyLotConsumption = () => {
         }
 
         // Note: final_stock will be calculated later using the formula
-        const currentStockForThisEntry = inventory.net_quantity || inventory.quantity;
+        const currentStockForThisEntry = inventory.quantity;
         
         console.log(`Processing current inventory for lot ${lotKey} - ${inventory.name}:`);
         console.log(`- Current stock: ${currentStockForThisEntry}`);
@@ -456,7 +451,7 @@ export const DailyLotConsumption = () => {
             // Calculez stocul curent pentru acest lot din inventar
             const currentStock = currentInventory
               .filter(inv => inv.name === product.product_name && (inv.lot_number || 'Fără lot') === lot.lot_number)
-              .reduce((sum, inv) => sum + (inv.net_quantity || inv.quantity), 0);
+              .reduce((sum, inv) => sum + inv.quantity, 0);
             
             // Stoc Inițial = Stoc Curent + Ieșiri - Recepții Noi
             lot.initial_stock = Math.max(0, currentStock + lot.outbound_quantity - lot.received_quantity);

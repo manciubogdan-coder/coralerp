@@ -41,7 +41,7 @@ export interface InventoryItem {
   manufacturers?: { name: string };
 }
 
-// Interface pentru inventory history (fără coloanele eliminate)
+// Interface pentru inventory history (simplified structure)
 export interface InventoryHistoryResponse {
   action: string;
   document_number: string | null;
@@ -132,13 +132,10 @@ export interface InventoryHistoryItem {
   product_id?: string;
   manufacturer_id?: string;
   document_number?: string;
-  crate_type_id?: string;
-  crate_count?: number;
-  crate_weight?: number;
   operation_date: Date;
   exit_timestamp?: Date;
   notes?: string;
-  lot_number?: string;  // Added lot_number property
+  lot_number?: string;
 }
 
 // Command processing result

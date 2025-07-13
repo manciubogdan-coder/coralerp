@@ -69,7 +69,7 @@ const AnalyticsPage = () => {
       
       const { data: trendsData } = await supabase
         .from(historyTable)
-        .select('operation_date, quantity, net_quantity, name')
+        .select('operation_date, quantity, name')
         .eq('action', 'remove')
         .gte('operation_date', thirtyDaysAgo.toISOString())
         .order('operation_date');
@@ -78,7 +78,7 @@ const AnalyticsPage = () => {
       const trendsMap = new Map<string, { total: number; products: Set<string> }>();
       trendsData?.forEach(item => {
         const date = item.operation_date.split('T')[0];
-        const quantity = item.net_quantity || item.quantity;
+        const quantity = item.quantity;
         
         if (!trendsMap.has(date)) {
           trendsMap.set(date, { total: 0, products: new Set() });
@@ -100,13 +100,13 @@ const AnalyticsPage = () => {
       // Fetch top consumed products (last 30 days)
       const { data: topProductsData } = await supabase
         .from(historyTable)
-        .select('name, quantity, net_quantity')
+        .select('name, quantity')
         .eq('action', 'remove')
         .gte('operation_date', thirtyDaysAgo.toISOString());
 
       const productMap = new Map<string, { total: number; count: number }>();
       topProductsData?.forEach(item => {
-        const quantity = item.net_quantity || item.quantity;
+        const quantity = item.quantity;
         
         if (!productMap.has(item.name)) {
           productMap.set(item.name, { total: 0, count: 0 });
@@ -134,13 +134,13 @@ const AnalyticsPage = () => {
       
       const { data: activityData } = await supabase
         .from(historyTable)
-        .select('operation_date, action, quantity, net_quantity')
+        .select('operation_date, action, quantity')
         .gte('operation_date', fourteenDaysAgo.toISOString());
 
       const activityMap = new Map<string, { additions: number; removals: number }>();
       activityData?.forEach(item => {
         const date = item.operation_date.split('T')[0];
-        const quantity = item.net_quantity || item.quantity;
+        const quantity = item.quantity;
         
         if (!activityMap.has(date)) {
           activityMap.set(date, { additions: 0, removals: 0 });

@@ -62,7 +62,7 @@ const Index = () => {
             products: item.products
           };
         }
-        acc[key].quantity += (item.net_quantity || item.quantity);
+        acc[key].quantity += item.quantity;
         return acc;
       }, {} as Record<string, any>);
 

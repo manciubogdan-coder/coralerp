@@ -40,9 +40,7 @@ interface InventoryHistoryResponse {
   supplier_id: string | null;
   product_id: string | null;
   manufacturer_id: string | null;
-  crate_type_id: string | null;
-  crate_count: number | null;
-  crate_weight: number | null;
+  lot_number: string | null;
 }
 
 const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryProps) => {
@@ -155,9 +153,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
         product_id: item.product_id || undefined,
         manufacturer_id: item.manufacturer_id || undefined,
         document_number: item.document_number || undefined,
-        crate_type_id: item.crate_type_id || undefined,
-        crate_count: item.crate_count !== null ? Number(item.crate_count) : undefined,
-        crate_weight: item.crate_weight !== null ? Number(item.crate_weight) : undefined,
+        lot_number: item.lot_number || undefined,
         operation_date: new Date(item.operation_date),
         exit_timestamp: item.exit_timestamp ? new Date(item.exit_timestamp) : undefined,
         notes: item.notes || undefined
@@ -270,7 +266,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
                 <TableHead>Producător</TableHead>
                 <TableHead className="text-right">Cantitate</TableHead>
                 <TableHead>Unitate</TableHead>
-                <TableHead>Tip ladită</TableHead>
+                <TableHead>Nr. Lot</TableHead>
                 <TableHead className="text-right">Cantitate anterioară</TableHead>
                 <TableHead>Ora ieșire</TableHead>
               </TableRow>
@@ -281,7 +277,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
                   const productName = item.product_id ? products[item.product_id]?.name : item.name;
                   const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
                   const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : '';
-                  const crateTypeName = item.crate_type_id ? crateTypes[item.crate_type_id]?.name : '';
+                  
                   
                   return (
                     <TableRow key={item.id}>
@@ -299,9 +295,7 @@ const InventoryHistory = ({ productName, initialDateRange }: InventoryHistoryPro
                       <TableCell>{manufacturerName || '-'}</TableCell>
                       <TableCell className="text-right">{formatQuantity(item.quantity)}</TableCell>
                       <TableCell>{item.unit}</TableCell>
-                      <TableCell>
-                        {crateTypeName ? `${crateTypeName} (${item.crate_count || 0} buc)` : '-'}
-                      </TableCell>
+                      <TableCell>{item.lot_number || '-'}</TableCell>
                       <TableCell className="text-right">
                         {formatQuantity(item.previous_quantity)}
                       </TableCell>

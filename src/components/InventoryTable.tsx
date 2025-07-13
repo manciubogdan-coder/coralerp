@@ -56,7 +56,7 @@ const InventoryTable = ({
   
   const nonEmptyInventory = showEmptyItems 
     ? inventory 
-    : inventory.filter(item => (item.net_quantity || item.quantity) > 0);
+    : inventory.filter(item => item.quantity > 0);
     
   const filteredInventory = nonEmptyInventory.filter(item => {
     const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
@@ -94,12 +94,11 @@ const InventoryTable = ({
     });
     
     displayedInventory = Array.from(productMap).flatMap(([product, items]) => {
-      const totalNetQuantity = items.reduce((sum, item) => sum + (item.net_quantity || item.quantity), 0);
+      const totalNetQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
       const headerItem: InventoryItem = {
         id: `product-${product}`,
         name: `Produs: ${product}`,
         quantity: totalNetQuantity,
-        net_quantity: totalNetQuantity,
         unit: items[0]?.unit || '',
         isHeader: true
       };
@@ -118,12 +117,11 @@ const InventoryTable = ({
     });
     
     displayedInventory = Array.from(supplierMap).flatMap(([supplier, items]) => {
-      const totalNetQuantity = items.reduce((sum, item) => sum + (item.net_quantity || item.quantity), 0);
+      const totalNetQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
       const headerItem: InventoryItem = {
         id: `supplier-${supplier}`,
         name: `Furnizor: ${supplier}`,
         quantity: totalNetQuantity,
-        net_quantity: totalNetQuantity,
         unit: items[0]?.unit || '',
         supplier: supplier,
         isHeader: true
@@ -239,7 +237,7 @@ const InventoryTable = ({
                       {productName}
                     </TableCell>
                     <TableCell>{products[item.product_id || '']?.cod_produs || '-'}</TableCell>
-                    <TableCell className="text-right">{formatQuantity(item.net_quantity || item.quantity)}</TableCell>
+                    <TableCell className="text-right">{formatQuantity(item.quantity)}</TableCell>
                     <TableCell className="text-left">{item.unit}</TableCell>
                     <TableCell>{supplierName || '-'}</TableCell>
                     <TableCell>{manufacturerName || '-'}</TableCell>
