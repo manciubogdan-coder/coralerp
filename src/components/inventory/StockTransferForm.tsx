@@ -355,7 +355,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           
         if (historyError) throw historyError;
 
-        // Update inventory quantity - scadem cantitatea NETĂ din stocul BRUT
+        // Update inventory quantity - scadem cantitatea BRUTĂ transferată din stocul BRUT
         const { data: inventoryItem, error: getError } = await supabase
           .from(inventoryTable)
           .select('quantity, gross_quantity, net_quantity')
@@ -365,20 +365,21 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         if (getError) throw getError;
         
         const currentGrossQuantity = inventoryItem?.quantity || 0;
-        const newGrossQuantity = Math.max(0, currentGrossQuantity - item.netQuantity);
+        const newGrossQuantity = Math.max(0, currentGrossQuantity - item.grossQuantity);
         
         console.log('Transfer update:', {
           itemId: item.id,
           currentGross: currentGrossQuantity,
-          removingNet: item.netQuantity,
+          removingGross: item.grossQuantity,
           newGross: newGrossQuantity
         });
         
-        // Update quantity (care este gross_quantity) - trigger-ul va recalcula net_quantity automat
+        // Update quantity (care este gross_quantity) și net_quantity manual
         const { error: updateError } = await supabase
           .from(inventoryTable)
           .update({ 
-            quantity: newGrossQuantity
+            quantity: newGrossQuantity,
+            net_quantity: Math.max(0, (inventoryItem?.net_quantity || 0) - item.netQuantity)
           })
           .eq('id', item.id);
            
