@@ -1041,6 +1041,101 @@ export type Database = {
         }
         Relationships: []
       }
+      ambalaje_reception_records: {
+        Row: {
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
+          created_at: string
+          document_number: string | null
+          entry_number: number
+          gross_quantity: number | null
+          id: string
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          net_quantity: number | null
+          original_quantity: number
+          product_id: string | null
+          receipt_date: string
+          supplier_id: string | null
+          supplier_name: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          net_quantity?: number | null
+          original_quantity?: number
+          product_id?: string | null
+          receipt_date?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          net_quantity?: number | null
+          original_quantity?: number
+          product_id?: string | null
+          receipt_date?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_reception_records_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_crate_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_reception_records_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_reception_records_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_reception_records_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ambalaje_stock_transfer_items: {
         Row: {
           created_at: string
@@ -2491,6 +2586,101 @@ export type Database = {
           rol?: string
         }
         Relationships: []
+      }
+      reception_records: {
+        Row: {
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
+          created_at: string
+          document_number: string | null
+          entry_number: number
+          gross_quantity: number | null
+          id: string
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          net_quantity: number | null
+          original_quantity: number
+          product_id: string | null
+          receipt_date: string
+          supplier_id: string | null
+          supplier_name: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          net_quantity?: number | null
+          original_quantity?: number
+          product_id?: string | null
+          receipt_date?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          net_quantity?: number | null
+          original_quantity?: number
+          product_id?: string | null
+          receipt_date?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reception_records_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "crate_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reception_records_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reception_records_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reception_records_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       receptions: {
         Row: {
