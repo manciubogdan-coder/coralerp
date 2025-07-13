@@ -56,8 +56,11 @@ export const ReceptionHistory = () => {
   const fetchReceptions = async () => {
     try {
       setLoading(true);
-      // Use the correct table based on inventory type
-      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      // Use the correct reception table based on inventory type
+      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_reception_records' : 'reception_records';
+      const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
+      const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
+      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
       
       let query = supabase
         .from(tableName)
@@ -66,7 +69,7 @@ export const ReceptionHistory = () => {
           entry_number,
           receipt_date,
           name,
-          quantity,
+          original_quantity,
           unit,
           document_number,
           lot_number,
@@ -98,7 +101,11 @@ export const ReceptionHistory = () => {
       }
 
       console.log("Reception history data:", data);
-      const receptionsData = data || [];
+      // Map original_quantity to quantity for interface compatibility
+      const receptionsData = (data || []).map(item => ({
+        ...item,
+        quantity: item.original_quantity
+      }));
       setReceptions(receptionsData);
       setFilteredReceptions(receptionsData);
     } catch (error: any) {
@@ -146,17 +153,18 @@ export const ReceptionHistory = () => {
     if (!editingItem) return;
 
     try {
-      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      // Update in reception records table (permanent record)
+      const receptionTableName = inventoryType === 'ambalaje' ? 'ambalaje_reception_records' : 'reception_records';
       
       console.log('Updating reception with data:', {
         id: editingItem.id,
-        tableName,
+        receptionTableName,
         formData: editFormData
       });
 
       const updateData = {
         name: editFormData.name,
-        quantity: editFormData.quantity,
+        original_quantity: editFormData.quantity,
         unit: editFormData.unit,
         document_number: editFormData.document_number || null,
         lot_number: editFormData.lot_number || null,
@@ -167,7 +175,7 @@ export const ReceptionHistory = () => {
       console.log('Update data to send:', updateData);
       
       const { data, error } = await supabase
-        .from(tableName)
+        .from(receptionTableName)
         .update(updateData)
         .eq('id', editingItem.id)
         .select();
@@ -175,14 +183,6 @@ export const ReceptionHistory = () => {
       console.log('Update result:', { data, error });
 
       if (error) throw error;
-
-      // Actualizez și inventarul curent prin refetch
-      const { data: currentInventory } = await supabase
-        .from(tableName)
-        .select('*')
-        .eq('id', editingItem.id);
-
-      console.log('Current inventory after update:', currentInventory);
 
       toast({
         title: "Recepție actualizată",
@@ -208,7 +208,8 @@ export const ReceptionHistory = () => {
     if (!confirm('Sigur doriți să ștergeți această recepție?')) return;
 
     try {
-      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const receptionTableName = inventoryType === 'ambalaje' ? 'ambalaje_reception_records' : 'reception_records';
+      const inventoryTableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
       const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
       
       // Adaugă intrare în istoric pentru ștergerea recepției
@@ -235,17 +236,28 @@ export const ReceptionHistory = () => {
         console.error("Error adding history entry:", historyError);
       }
       
-      // Șterge recepția din inventar
-      const { error } = await supabase
-        .from(tableName)
+      // Șterge recepția din tabelul de recepții
+      const { error: receptionError } = await supabase
+        .from(receptionTableName)
         .delete()
         .eq('id', item.id);
 
-      if (error) throw error;
+      if (receptionError) throw receptionError;
+
+      // Șterge și din inventarul curent dacă există
+      const { error: inventoryError } = await supabase
+        .from(inventoryTableName)
+        .delete()
+        .eq('id', item.id);
+
+      // Nu aruncăm eroare dacă nu există în inventar (poate a fost deja transferat complet)
+      if (inventoryError) {
+        console.warn("Could not delete from inventory (may already be transferred):", inventoryError);
+      }
 
       toast({
         title: "Recepție ștearsă",
-        description: "Recepția a fost ștearsă cu succes din stoc."
+        description: "Recepția a fost ștearsă cu succes."
       });
 
       fetchReceptions();
