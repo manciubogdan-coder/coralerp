@@ -134,8 +134,15 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     const productName = item.products?.name || item.name || 'Produs necunoscut';
     const groupKey = `${productName}-${lotKey}`;
     
-    // Verifică că groupKey nu este gol
-    if (!groupKey || groupKey.trim() === '' || groupKey === '-') {
+    // Verifică că groupKey este valid și nu conține doar caractere speciale
+    if (!groupKey || 
+        groupKey.trim() === '' || 
+        groupKey === '-' || 
+        groupKey === 'Produs necunoscut-fara-lot' ||
+        productName.trim() === '' ||
+        !productName ||
+        productName === 'Produs necunoscut') {
+      console.log('Skipping invalid item:', { productName, lotKey, groupKey, item });
       return acc;
     }
     
