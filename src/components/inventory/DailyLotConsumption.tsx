@@ -587,9 +587,16 @@ export const DailyLotConsumption = () => {
         'Stoc Final': ''
       });
     });
-    
+     
     const filename = `consum_zilnic_loturi_${selectedDate}.xlsx`;
-    exportToExcel(dataToExport, filename);
+    const filters = productFilter ? `Produs filtrat: ${productFilter}` : 'Toate produsele';
+    
+    exportToExcel(dataToExport, filename, {
+      reportTitle: 'Consum Zilnic pe Loturi',
+      date: new Date(selectedDate).toLocaleDateString('ro-RO'),
+      filters: filters,
+      additionalInfo: `${filteredData.length} produse, ${filteredData.reduce((sum, p) => sum + p.lots.length, 0)} loturi`
+    });
     
     toast({
       title: "Export realizat",
