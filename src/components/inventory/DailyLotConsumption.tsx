@@ -490,8 +490,31 @@ export const DailyLotConsumption = () => {
         product.total_final = product.lots.reduce((sum, lot) => sum + lot.final_stock, 0);
       });
 
+      // Filter out lots with zero final stock and no new receipts for the day
+      productMap.forEach(product => {
+        // Filter lots to show only those with current stock > 0 OR new receipts on selected date
+        product.lots = product.lots.filter(lot => {
+          const lotMovementKey = `${product.product_name}_${lot.lot_number}`;
+          const hasNewReceipts = newReceiptMovements.get(lotMovementKey) > 0;
+          const hasCurrentStock = lot.final_stock > 0;
+          
+          // Show lot if it has current stock OR it received new items today
+          return hasCurrentStock || hasNewReceipts;
+        });
+        
+        // Recalculate product totals based on remaining lots
+        product.total_initial = product.lots.reduce((sum, lot) => sum + lot.initial_stock, 0);
+        product.total_outbound = product.lots.reduce((sum, lot) => sum + lot.outbound_quantity, 0);
+        product.total_received = product.lots.reduce((sum, lot) => sum + lot.received_quantity, 0);
+        product.total_final = product.lots.reduce((sum, lot) => sum + lot.final_stock, 0);
+      });
+
+      // Filter out products with no remaining lots
       const results = Array.from(productMap.values())
+        .filter(product => product.lots.length > 0)
         .sort((a, b) => a.product_name.localeCompare(b.product_name)); // Sort alphabetically by product name
+      
+      console.log('Final products after filtering lots without stock:', results.length);
       setConsumptionData(results);
       setFilteredData(results);
     } catch (error: any) {
