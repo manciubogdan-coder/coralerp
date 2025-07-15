@@ -36,15 +36,15 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { targetDate, inventoryType = 'main' } = await req.json().catch(() => ({}))
-    const snapshotDate = targetDate || new Date().toISOString().split('T')[0]
+    const { inventoryType = 'main' } = await req.json().catch(() => ({}))
+    // Întotdeauna folosim data curentă - salvăm exact stocul de acum
+    const snapshotDate = new Date().toISOString().split('T')[0]
 
-    console.log(`Creating stock snapshot for ${inventoryType} inventory, date: ${snapshotDate}`)
+    console.log(`Saving CURRENT stock as snapshot for ${inventoryType} inventory, date: ${snapshotDate}`)
 
     // Determine table names based on inventory type
     const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory'
     const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots'
-    const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history'
 
     // Check if snapshot already exists for this date
     const { data: existingSnapshot } = await supabase
@@ -66,7 +66,7 @@ serve(async (req) => {
       )
     }
 
-    // Get current inventory
+    // Get current inventory - exact as it is right now
     const { data: inventory, error: inventoryError } = await supabase
       .from(inventoryTable)
       .select('*')
@@ -88,72 +88,8 @@ serve(async (req) => {
       )
     }
 
-    // Dacă nu e specificată o dată target, folosim inventarul curent direct
-    let finalInventory = inventory
-    
-    if (targetDate && targetDate !== new Date().toISOString().split('T')[0]) {
-      console.log(`Calculating historical stock for ${targetDate} (${inventoryType})`)
-      
-      // Get all movements after the target date
-      const nextDay = new Date(targetDate)
-      nextDay.setDate(nextDay.getDate() + 1)
-      const nextDayStr = nextDay.toISOString().split('T')[0]
-      
-      const { data: futureMovements, error: movementsError } = await supabase
-        .from(historyTable)
-        .select('*')
-        .gte('operation_date', `${nextDayStr}T00:00:00`)
-
-      if (movementsError) {
-        throw movementsError
-      }
-
-      // Create a map of current inventory
-      const inventoryMap = new Map<string, InventoryItem>()
-      inventory.forEach((item: InventoryItem) => {
-        const key = `${item.name}_${item.lot_number || 'no_lot'}`
-        inventoryMap.set(key, { ...item })
-      })
-
-      // Reverse future movements to get stock at end of target date
-      futureMovements?.forEach((movement: any) => {
-        const key = `${movement.name}_${movement.lot_number || 'no_lot'}`
-        const item = inventoryMap.get(key)
-        
-        if (item) {
-          // Pentru acțiuni de transfer_out sau remove, înseamnă că s-a scăzut din stoc
-          // Deci pentru a calcula stocul din trecut, trebuie să adăugăm înapoi
-          if (movement.action === 'transfer_out' || movement.action === 'remove') {
-            // Reverse remove/transfer_out by adding
-            item.quantity += movement.quantity
-            if (item.net_quantity !== null && movement.net_quantity) {
-              item.net_quantity += movement.net_quantity
-            } else if (item.net_quantity !== null) {
-              item.net_quantity += movement.quantity
-            }
-          } 
-          // Pentru acțiuni de transfer_in sau add, înseamnă că s-a adăugat în stoc
-          // Deci pentru a calcula stocul din trecut, trebuie să scădem
-          else if (movement.action === 'transfer_in' || movement.action === 'add') {
-            // Reverse add/transfer_in by subtracting
-            item.quantity -= movement.quantity
-            if (item.net_quantity !== null && movement.net_quantity) {
-              item.net_quantity -= movement.net_quantity
-            } else if (item.net_quantity !== null) {
-              item.net_quantity -= movement.quantity
-            }
-          }
-          
-          // Asigur că valorile nu devin negative
-          item.quantity = Math.max(0, item.quantity)
-          if (item.net_quantity !== null) {
-            item.net_quantity = Math.max(0, item.net_quantity)
-          }
-        }
-      })
-
-      finalInventory = Array.from(inventoryMap.values())
-    }
+    // Folosim inventarul curent exact cum este - fără calcule istorice
+    const finalInventory = inventory
 
     // Create snapshot entries
     const snapshotData = finalInventory.map((item: InventoryItem) => ({
