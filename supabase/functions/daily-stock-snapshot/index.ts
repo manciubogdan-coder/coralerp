@@ -119,21 +119,35 @@ serve(async (req) => {
       futureMovements?.forEach((movement: any) => {
         const key = `${movement.name}_${movement.lot_number || 'no_lot'}`
         const item = inventoryMap.get(key)
-        const movementQty = movement.net_quantity || movement.quantity
-
+        
         if (item) {
-          if (movement.action === 'add') {
-            // Reverse add by subtracting
-            item.quantity -= movementQty
-            if (item.net_quantity !== null) {
-              item.net_quantity -= movementQty
+          // Pentru acțiuni de transfer_out sau remove, înseamnă că s-a scăzut din stoc
+          // Deci pentru a calcula stocul din trecut, trebuie să adăugăm înapoi
+          if (movement.action === 'transfer_out' || movement.action === 'remove') {
+            // Reverse remove/transfer_out by adding
+            item.quantity += movement.quantity
+            if (item.net_quantity !== null && movement.net_quantity) {
+              item.net_quantity += movement.net_quantity
+            } else if (item.net_quantity !== null) {
+              item.net_quantity += movement.quantity
             }
-          } else if (movement.action === 'remove') {
-            // Reverse remove by adding
-            item.quantity += movementQty
-            if (item.net_quantity !== null) {
-              item.net_quantity += movementQty
+          } 
+          // Pentru acțiuni de transfer_in sau add, înseamnă că s-a adăugat în stoc
+          // Deci pentru a calcula stocul din trecut, trebuie să scădem
+          else if (movement.action === 'transfer_in' || movement.action === 'add') {
+            // Reverse add/transfer_in by subtracting
+            item.quantity -= movement.quantity
+            if (item.net_quantity !== null && movement.net_quantity) {
+              item.net_quantity -= movement.net_quantity
+            } else if (item.net_quantity !== null) {
+              item.net_quantity -= movement.quantity
             }
+          }
+          
+          // Asigur că valorile nu devin negative
+          item.quantity = Math.max(0, item.quantity)
+          if (item.net_quantity !== null) {
+            item.net_quantity = Math.max(0, item.net_quantity)
           }
         }
       })
