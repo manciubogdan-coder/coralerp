@@ -88,10 +88,10 @@ serve(async (req) => {
       )
     }
 
-    // Folosim inventarul curent exact cum este - fără calcule istorice
-    const finalInventory = inventory
+    // Folosim doar inventarul cu cantitate > 0 pentru snapshot
+    const finalInventory = inventory.filter((item: InventoryItem) => item.quantity > 0)
 
-    // Create snapshot entries
+    // Create snapshot entries only for items with stock
     const snapshotData = finalInventory.map((item: InventoryItem) => ({
       snapshot_date: snapshotDate,
       name: item.name,
