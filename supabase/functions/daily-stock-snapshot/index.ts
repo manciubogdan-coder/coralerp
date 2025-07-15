@@ -88,7 +88,7 @@ serve(async (req) => {
       )
     }
 
-    // If creating snapshot for past date, calculate stock at end of that day
+    // Dacă nu e specificată o dată target, folosim inventarul curent direct
     let finalInventory = inventory
     
     if (targetDate && targetDate !== new Date().toISOString().split('T')[0]) {
