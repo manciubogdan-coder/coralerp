@@ -152,7 +152,7 @@ serve(async (req) => {
         }
       })
 
-      finalInventory = Array.from(inventoryMap.values()).filter(item => item.quantity > 0)
+      finalInventory = Array.from(inventoryMap.values())
     }
 
     // Create snapshot entries
