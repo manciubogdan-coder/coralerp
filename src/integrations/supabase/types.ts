@@ -1846,6 +1846,7 @@ export type Database = {
           data: string
           dispozitiv: string | null
           id: string
+          nume: string | null
           ora_inregistrare: string
           tip: string
         }
@@ -1855,6 +1856,7 @@ export type Database = {
           data?: string
           dispozitiv?: string | null
           id?: string
+          nume?: string | null
           ora_inregistrare?: string
           tip: string
         }
@@ -1864,6 +1866,7 @@ export type Database = {
           data?: string
           dispozitiv?: string | null
           id?: string
+          nume?: string | null
           ora_inregistrare?: string
           tip?: string
         }
