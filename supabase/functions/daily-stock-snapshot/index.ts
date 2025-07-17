@@ -70,6 +70,7 @@ serve(async (req) => {
     const { data: inventory, error: inventoryError } = await supabase
       .from(inventoryTable)
       .select('*')
+      .gt('quantity', 0) // Doar intrările cu stoc > 0
 
     if (inventoryError) {
       throw inventoryError
@@ -88,27 +89,62 @@ serve(async (req) => {
       )
     }
 
-    // Folosim doar inventarul cu cantitate > 0 pentru snapshot
-    const finalInventory = inventory.filter((item: InventoryItem) => item.quantity > 0)
+    // Grupez după produs și lot pentru a evita duplicatele
+    const groupedInventory = new Map<string, {
+      name: string
+      quantity: number
+      unit: string
+      lot_number: string | null
+      product_id: string | null
+      supplier_id: string | null
+      manufacturer_id: string | null
+      crate_type_id: string | null
+      document_number: string | null
+      entry_number: number
+      receipt_date: string | null
+    }>()
 
-    // Create snapshot entries only for items with stock
-    const snapshotData = finalInventory.map((item: InventoryItem) => ({
+    inventory.forEach((item: InventoryItem) => {
+      const key = `${item.name}-${item.lot_number || ''}-${item.product_id || ''}-${item.supplier_id || ''}-${item.manufacturer_id || ''}-${item.crate_type_id || ''}-${item.document_number || ''}-${item.receipt_date || ''}`
+      
+      if (groupedInventory.has(key)) {
+        const existing = groupedInventory.get(key)!
+        existing.quantity += item.quantity
+      } else {
+        groupedInventory.set(key, {
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          lot_number: item.lot_number,
+          product_id: item.product_id,
+          supplier_id: item.supplier_id,
+          manufacturer_id: item.manufacturer_id,
+          crate_type_id: item.crate_type_id,
+          document_number: item.document_number,
+          entry_number: item.entry_number,
+          receipt_date: item.receipt_date
+        })
+      }
+    })
+
+    // Create snapshot entries from grouped data
+    const snapshotData = Array.from(groupedInventory.values()).map((item) => ({
       snapshot_date: snapshotDate,
       name: item.name,
       quantity: item.quantity,
-      net_quantity: item.net_quantity,
+      net_quantity: item.quantity, // Folosesc quantity pentru net_quantity pentru că net_quantity e incorectă
       unit: item.unit,
       lot_number: item.lot_number,
       product_id: item.product_id,
       supplier_id: item.supplier_id,
       manufacturer_id: item.manufacturer_id,
       crate_type_id: item.crate_type_id,
-      crate_count: item.crate_count,
-      crate_weight: item.crate_weight,
+      crate_count: null,
+      crate_weight: null,
       document_number: item.document_number,
       entry_number: item.entry_number,
       receipt_date: item.receipt_date,
-      gross_quantity: item.gross_quantity
+      gross_quantity: null
     }))
 
     // Insert snapshot data
