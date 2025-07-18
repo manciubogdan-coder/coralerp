@@ -468,21 +468,19 @@ export const DailyLotConsumption = () => {
           }
           
           // CALCULEZ STOCUL FINAL cu formula corectă:
-          // Stoc Final = Stoc Inițial (din snapshot sau calculat) + Recepții Noi - Ieșiri
+          // Stoc Final = Stoc Inițial (din snapshot) + Recepții Noi - Ieșiri
           lot.final_stock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
           
-          console.log(`Correct calculation for lot ${lot.lot_number}:`);
-          console.log(`- Initial stock (from snapshot): ${lot.initial_stock}`);
-          console.log(`- New receipts: ${lot.received_quantity}`);
-          console.log(`- Outbound: ${lot.outbound_quantity}`);
-          console.log(`- Final stock = ${lot.initial_stock} + ${lot.received_quantity} - ${lot.outbound_quantity} = ${lot.final_stock}`);
+          // Ensure final stock doesn't go negative
+          if (lot.final_stock < 0) {
+            console.warn(`⚠️ STOC FINAL NEGATIV pentru ${product.product_name} - ${lot.lot_number}: ${lot.final_stock}. Verificați mișcările.`);
+          }
           
-          console.log(`Final calculation for lot ${lot.lot_number}:`);
-          console.log(`- Initial stock: ${lot.initial_stock}`);
-          console.log(`- Outbound: ${lot.outbound_quantity}`);
-          console.log(`- Received: ${lot.received_quantity}`);
-          console.log(`- Final stock: ${lot.final_stock}`);
-          console.log(`- Verification: ${lot.initial_stock} + ${lot.received_quantity} - ${lot.outbound_quantity} = ${lot.initial_stock + lot.received_quantity - lot.outbound_quantity}`);
+          console.log(`✅ Calculul final pentru lot ${lot.lot_number}:`);
+          console.log(`- Stoc inițial (din snapshot): ${lot.initial_stock}`);
+          console.log(`- Recepții noi: ${lot.received_quantity}`);
+          console.log(`- Ieșiri: ${lot.outbound_quantity}`);
+          console.log(`- Stoc final = ${lot.initial_stock} + ${lot.received_quantity} - ${lot.outbound_quantity} = ${lot.final_stock}`);
         });
       });
 
