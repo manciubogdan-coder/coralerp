@@ -53,35 +53,50 @@ export const DailyStockHistory = () => {
         return;
       }
       
-      const { data, error } = await supabase
-        .from(tableName)
-        .select(`
-          id,
-          snapshot_date,
-          name,
-          quantity,
-          net_quantity,
-          gross_quantity,
-          unit,
-          lot_number,
-          document_number,
-          entry_number,
-          receipt_date,
-          crate_count,
-          suppliers:supplier_id (name),
-          manufacturers:manufacturer_id (name),
-          crate_types:crate_type_id (name, weight),
-          products:product_id (name, cod_produs)
-        `)
-        .eq('snapshot_date', selectedDate)
-        .order("name", { ascending: true });
+      // Fetch all data with pagination
+      const pageSize = 1000;
+      let allData: any[] = [];
+      let offset = 0;
+      let hasMore = true;
 
-      if (error) {
-        throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from(tableName)
+          .select(`
+            id,
+            snapshot_date,
+            name,
+            quantity,
+            net_quantity,
+            gross_quantity,
+            unit,
+            lot_number,
+            document_number,
+            entry_number,
+            receipt_date,
+            crate_count,
+            suppliers:supplier_id (name),
+            manufacturers:manufacturer_id (name),
+            crate_types:crate_type_id (name, weight),
+            products:product_id (name, cod_produs)
+          `)
+          .eq('snapshot_date', selectedDate)
+          .order("name", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
       }
 
-      console.log("Daily stock snapshots data:", data);
-      setStockSnapshots(data || []);
+      console.log("Daily stock snapshots data (total: " + allData.length + "):", allData);
+      setStockSnapshots(allData || []);
     } catch (error: any) {
       console.error("Error fetching daily stock snapshots:", error);
       toast({

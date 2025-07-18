@@ -19,35 +19,61 @@ export const useInventoryData = () => {
     try {
       setLoading(true);
       
+      const pageSize = 1000;
+      let allData: any[] = [];
+      let offset = 0;
+      let hasMore = true;
+
       if (inventoryType === 'ambalaje') {
-        const { data, error } = await supabase
-          .from("ambalaje_inventory")
-          .select(`
-            *,
-            suppliers:supplier_id (name),
-            products:product_id (name, cod_produs),
-            manufacturers:manufacturer_id (name)
-          `)
-          .order("entry_number", { ascending: false });
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from("ambalaje_inventory")
+            .select(`
+              *,
+              suppliers:supplier_id (name),
+              products:product_id (name, cod_produs),
+              manufacturers:manufacturer_id (name)
+            `)
+            .order("entry_number", { ascending: false })
+            .range(offset, offset + pageSize - 1);
 
-        if (error) throw error;
-        console.log("Ambalaje inventory data:", data);
-        setInventory(data || []);
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            offset += pageSize;
+            hasMore = data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
       } else {
-        const { data, error } = await supabase
-          .from("inventory")
-          .select(`
-            *,
-            suppliers:supplier_id (name),
-            products:product_id (name, cod_produs),
-            manufacturers:manufacturer_id (name)
-          `)
-          .order("entry_number", { ascending: false });
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from("inventory")
+            .select(`
+              *,
+              suppliers:supplier_id (name),
+              products:product_id (name, cod_produs),
+              manufacturers:manufacturer_id (name)
+            `)
+            .order("entry_number", { ascending: false })
+            .range(offset, offset + pageSize - 1);
 
-        if (error) throw error;
-        console.log("Materii prime inventory data:", data);
-        setInventory(data || []);
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            offset += pageSize;
+            hasMore = data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
       }
+      
+      console.log(`${inventoryType} inventory data (total: ${allData.length}):`, allData);
+      setInventory(allData || []);
     } catch (error: any) {
       toast({
         variant: "destructive",
