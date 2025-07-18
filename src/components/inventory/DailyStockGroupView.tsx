@@ -170,8 +170,7 @@ export const DailyStockGroupView = () => {
         'Data Snapshot': new Date(selectedDate).toLocaleDateString('ro-RO'),
         'Produs': product.product_name,
         'Cod Produs': product.product_code,
-        'Cantitate Netă Totală': product.total_net_quantity.toFixed(2),
-        'Cantitate Brută Totală': product.total_gross_quantity.toFixed(2),
+        'Cantitate Totală': (product.total_net_quantity || product.total_gross_quantity).toFixed(2),
         'Unitate': product.unit,
         'Numărul de loturi': product.lots.length
       }));
@@ -182,8 +181,7 @@ export const DailyStockGroupView = () => {
         'Produs': item.name,
         'Cod Produs': item.products?.cod_produs || '',
         'Nr Lot': item.lot_number || '',
-        'Cantitate Netă': item.net_quantity?.toFixed(2) || item.quantity.toFixed(2),
-        'Cantitate Brută': item.gross_quantity?.toFixed(2) || item.quantity.toFixed(2),
+        'Cantitate': item.quantity.toFixed(2),
         'Unitate': item.unit,
         'Document': item.document_number || '',
         'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '',
@@ -290,19 +288,19 @@ export const DailyStockGroupView = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Produs</TableHead>
-                  <TableHead>Cod Produs</TableHead>
-                  <TableHead className="text-right">Cantitate Netă Totală</TableHead>
-                  <TableHead>Unitate</TableHead>
+                   <TableHead>Produs</TableHead>
+                   <TableHead>Cod Produs</TableHead>
+                   <TableHead className="text-right">Cantitate Totală</TableHead>
+                   <TableHead>Unitate</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredGroupedData.map((product, index) => (
                   <TableRow key={index}>
-                    <TableCell className="font-medium">{product.product_name}</TableCell>
-                    <TableCell>{product.product_code}</TableCell>
-                    <TableCell className="text-right">{product.total_net_quantity.toFixed(2)}</TableCell>
-                    <TableCell>{product.unit}</TableCell>
+                     <TableCell className="font-medium">{product.product_name}</TableCell>
+                     <TableCell>{product.product_code}</TableCell>
+                     <TableCell className="text-right">{(product.total_net_quantity || product.total_gross_quantity).toFixed(2)}</TableCell>
+                     <TableCell>{product.unit}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -311,35 +309,31 @@ export const DailyStockGroupView = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nr. Intrare</TableHead>
-                  <TableHead>Produs</TableHead>
-                  <TableHead>Cod Produs</TableHead>
-                  <TableHead>Nr Lot</TableHead>
-                  <TableHead className="text-right">Cantitate Netă</TableHead>
-                  <TableHead className="text-right">Cantitate Brută</TableHead>
-                  <TableHead>Unitate</TableHead>
-                  <TableHead>Document</TableHead>
-                  <TableHead>Data Recepție</TableHead>
-                  <TableHead>Furnizor</TableHead>
-                  <TableHead>Producător</TableHead>
-                  <TableHead>Tip Lădiță</TableHead>
-                  <TableHead>Nr. Lădițe</TableHead>
+                   <TableHead>Nr. Intrare</TableHead>
+                   <TableHead>Produs</TableHead>
+                   <TableHead>Cod Produs</TableHead>
+                   <TableHead>Nr Lot</TableHead>
+                   <TableHead className="text-right">Cantitate</TableHead>
+                   <TableHead>Unitate</TableHead>
+                   <TableHead>Document</TableHead>
+                   <TableHead>Data Recepție</TableHead>
+                   <TableHead>Furnizor</TableHead>
+                   <TableHead>Producător</TableHead>
+                   <TableHead>Tip Lădiță</TableHead>
+                   <TableHead>Nr. Lădițe</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredStockSnapshots.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.entry_number || '-'}</TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>{item.products?.cod_produs || '-'}</TableCell>
-                    <TableCell>{item.lot_number || '-'}</TableCell>
-                    <TableCell className="text-right">
-                      {(item.net_quantity || item.quantity).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {(item.gross_quantity || item.quantity).toFixed(2)}
-                    </TableCell>
-                    <TableCell>{item.unit}</TableCell>
+                     <TableCell className="font-medium">{item.entry_number || '-'}</TableCell>
+                     <TableCell className="font-medium">{item.name}</TableCell>
+                     <TableCell>{item.products?.cod_produs || '-'}</TableCell>
+                     <TableCell>{item.lot_number || '-'}</TableCell>
+                     <TableCell className="text-right">
+                       {item.quantity.toFixed(2)}
+                     </TableCell>
+                     <TableCell>{item.unit}</TableCell>
                     <TableCell>{item.document_number || '-'}</TableCell>
                     <TableCell>
                       {item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-'}
