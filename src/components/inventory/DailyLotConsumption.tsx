@@ -476,6 +476,14 @@ export const DailyLotConsumption = () => {
             console.warn(`⚠️ STOC FINAL NEGATIV pentru ${product.product_name} - ${lot.lot_number}: ${lot.final_stock}. Verificați mișcările.`);
           }
           
+          // Afișez avertisment pentru logica lipsă de sincronizare
+          console.warn(`🚨 PROBLEMĂ FUNDAMENTALĂ IDENTIFICATĂ:`);
+          console.warn(`   Stocul final calculat pentru ${product.product_name} - ${lot.lot_number}: ${lot.final_stock}`);
+          console.warn(`   ❌ LIPSA LOGICII: Acest stoc final calculat NU se va sincroniza automat cu stocul inițial din ziua următoare!`);
+          console.warn(`   💡 SOLUȚIE NECESARĂ: Implementare actualizare automată snapshot-uri sau recalculare dinamică stoc inițial`);
+          console.warn(`   📋 IMPACT: Raportul arată stocul corect calculat, dar snapshot-urile rămân neactualizate`);
+          console.warn(`   🔧 RECOMANDARE: Verificați manual consistența între zile consecutive până la implementarea soluției automate`);
+          
           console.log(`✅ Calculul final pentru lot ${lot.lot_number}:`);
           console.log(`- Stoc inițial (din snapshot): ${lot.initial_stock}`);
           console.log(`- Recepții noi: ${lot.received_quantity}`);
