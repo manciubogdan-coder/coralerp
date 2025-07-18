@@ -63,20 +63,33 @@ const AnalyticsPage = () => {
       // Use correct history table based on inventory type
       const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
 
-      // Fetch consumption trends (last 30 days)
+      // Fetch consumption trends (last 30 days) - with pagination
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      const { data: trendsData } = await supabase
-        .from(historyTable)
-        .select('operation_date, quantity, name')
-        .eq('action', 'remove')
-        .gte('operation_date', thirtyDaysAgo.toISOString())
-        .order('operation_date');
+      // Fetch all data with pagination to avoid 1000 record limit
+      let allTrendsData: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      
+      while (true) {
+        const { data: pageData } = await supabase
+          .from(historyTable)
+          .select('operation_date, quantity, name')
+          .eq('action', 'remove')
+          .gte('operation_date', thirtyDaysAgo.toISOString())
+          .order('operation_date')
+          .range(from, from + pageSize - 1);
+        
+        if (!pageData || pageData.length === 0) break;
+        allTrendsData = [...allTrendsData, ...pageData];
+        if (pageData.length < pageSize) break;
+        from += pageSize;
+      }
 
       // Group by date for trends
       const trendsMap = new Map<string, { total: number; products: Set<string> }>();
-      trendsData?.forEach(item => {
+      allTrendsData.forEach(item => {
         const date = item.operation_date.split('T')[0];
         const quantity = item.quantity;
         
@@ -97,15 +110,26 @@ const AnalyticsPage = () => {
 
       setConsumptionTrends(trends);
 
-      // Fetch top consumed products (last 30 days)
-      const { data: topProductsData } = await supabase
-        .from(historyTable)
-        .select('name, quantity')
-        .eq('action', 'remove')
-        .gte('operation_date', thirtyDaysAgo.toISOString());
+      // Fetch top consumed products (last 30 days) - with pagination
+      let allTopProductsData: any[] = [];
+      from = 0;
+      
+      while (true) {
+        const { data: pageData } = await supabase
+          .from(historyTable)
+          .select('name, quantity')
+          .eq('action', 'remove')
+          .gte('operation_date', thirtyDaysAgo.toISOString())
+          .range(from, from + pageSize - 1);
+        
+        if (!pageData || pageData.length === 0) break;
+        allTopProductsData = [...allTopProductsData, ...pageData];
+        if (pageData.length < pageSize) break;
+        from += pageSize;
+      }
 
       const productMap = new Map<string, { total: number; count: number }>();
-      topProductsData?.forEach(item => {
+      allTopProductsData.forEach(item => {
         const quantity = item.quantity;
         
         if (!productMap.has(item.name)) {
@@ -128,17 +152,28 @@ const AnalyticsPage = () => {
 
       setTopProducts(topProductsList);
 
-      // Fetch daily activity (last 14 days)
+      // Fetch daily activity (last 14 days) - with pagination
       const fourteenDaysAgo = new Date();
       fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
       
-      const { data: activityData } = await supabase
-        .from(historyTable)
-        .select('operation_date, action, quantity')
-        .gte('operation_date', fourteenDaysAgo.toISOString());
+      let allActivityData: any[] = [];
+      from = 0;
+      
+      while (true) {
+        const { data: pageData } = await supabase
+          .from(historyTable)
+          .select('operation_date, action, quantity')
+          .gte('operation_date', fourteenDaysAgo.toISOString())
+          .range(from, from + pageSize - 1);
+        
+        if (!pageData || pageData.length === 0) break;
+        allActivityData = [...allActivityData, ...pageData];
+        if (pageData.length < pageSize) break;
+        from += pageSize;
+      }
 
       const activityMap = new Map<string, { additions: number; removals: number }>();
-      activityData?.forEach(item => {
+      allActivityData.forEach(item => {
         const date = item.operation_date.split('T')[0];
         const quantity = item.quantity;
         

@@ -159,31 +159,44 @@ export const ReportsManagement = () => {
   const generateInventoryHistoryReport = async () => {
     const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
     
-    let query = supabase
-      .from(historyTable)
-      .select(`
-        operation_date,
-        action,
-        name,
-        lot_number,
-        quantity,
-        unit,
-        notes,
-        document_number,
-        supplier
-      `)
-      .gte('operation_date', `${filters.startDate}T00:00:00`)
-      .lte('operation_date', `${filters.endDate}T23:59:59`)
-      .order('operation_date', { ascending: false });
+    // Fetch all data with pagination to avoid 1000 record limit
+    let allData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (filters.actions.length > 0) {
-      query = query.in('action', filters.actions);
+    while (true) {
+      let query = supabase
+        .from(historyTable)
+        .select(`
+          operation_date,
+          action,
+          name,
+          lot_number,
+          quantity,
+          unit,
+          notes,
+          document_number,
+          supplier
+        `)
+        .gte('operation_date', `${filters.startDate}T00:00:00`)
+        .lte('operation_date', `${filters.endDate}T23:59:59`)
+        .order('operation_date', { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (filters.actions.length > 0) {
+        query = query.in('action', filters.actions);
+      }
+
+      const { data: pageData, error } = await query;
+      if (error) throw error;
+      if (!pageData || pageData.length === 0) break;
+      
+      allData = [...allData, ...pageData];
+      if (pageData.length < pageSize) break;
+      from += pageSize;
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
-
-    return data?.map(item => ({
+    return allData.map(item => ({
       'Data Operație': new Date(item.operation_date).toLocaleString('ro-RO'),
       'Acțiune': item.action === 'add' ? 'Intrare' : 'Ieșire',
       'Produs': item.name,
@@ -198,30 +211,40 @@ export const ReportsManagement = () => {
 
   const generateCurrentInventoryReport = async () => {
     const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
-    const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
-    const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
-    const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
     
-    const { data, error } = await supabase
-      .from(inventoryTable)
-      .select(`
-        name,
-        lot_number,
-        quantity,
-        unit,
-        receipt_date,
-        document_number,
-        entry_number,
-        supplier,
-        products:product_id (name, cod_produs),
-        suppliers:supplier_id (name),
-        manufacturers:manufacturer_id (name)
-      `)
-      .order('name');
+    // Fetch all data with pagination
+    let allData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data: pageData, error } = await supabase
+        .from(inventoryTable)
+        .select(`
+          name,
+          lot_number,
+          quantity,
+          unit,
+          receipt_date,
+          document_number,
+          entry_number,
+          supplier,
+          products:product_id (name, cod_produs),
+          suppliers:supplier_id (name),
+          manufacturers:manufacturer_id (name)
+        `)
+        .order('name')
+        .range(from, from + pageSize - 1);
 
-    return data?.map(item => ({
+      if (error) throw error;
+      if (!pageData || pageData.length === 0) break;
+      
+      allData = [...allData, ...pageData];
+      if (pageData.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return allData.map(item => ({
       'Produs': item.name,
       'Cod Produs': item.products?.cod_produs || '-',
       'Lot': item.lot_number || 'Fără lot',
@@ -238,19 +261,32 @@ export const ReportsManagement = () => {
   const generateConsumptionAnalysisReport = async () => {
     const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
     
-    const { data, error } = await supabase
-      .from(historyTable)
-      .select('name, quantity, unit, operation_date')
-      .eq('action', 'remove')
-      .gte('operation_date', `${filters.startDate}T00:00:00`)
-      .lte('operation_date', `${filters.endDate}T23:59:59`);
+    // Fetch all data with pagination
+    let allData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data: pageData, error } = await supabase
+        .from(historyTable)
+        .select('name, quantity, unit, operation_date')
+        .eq('action', 'remove')
+        .gte('operation_date', `${filters.startDate}T00:00:00`)
+        .lte('operation_date', `${filters.endDate}T23:59:59`)
+        .range(from, from + pageSize - 1);
+
+      if (error) throw error;
+      if (!pageData || pageData.length === 0) break;
+      
+      allData = [...allData, ...pageData];
+      if (pageData.length < pageSize) break;
+      from += pageSize;
+    }
 
     // Group by product
     const productConsumption = new Map<string, { total: number; count: number; unit: string; dates: string[] }>();
     
-    data?.forEach(item => {
+    allData.forEach(item => {
       const quantity = item.quantity;
       const date = item.operation_date.split('T')[0];
       
@@ -284,16 +320,29 @@ export const ReportsManagement = () => {
   const generateDailySnapshotsReport = async () => {
     const snapshotsTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
     
-    const { data, error } = await supabase
-      .from(snapshotsTable)
-      .select('*')
-      .gte('snapshot_date', filters.startDate)
-      .lte('snapshot_date', filters.endDate)
-      .order('snapshot_date', { ascending: false });
+    // Fetch all data with pagination
+    let allData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data: pageData, error } = await supabase
+        .from(snapshotsTable)
+        .select('*')
+        .gte('snapshot_date', filters.startDate)
+        .lte('snapshot_date', filters.endDate)
+        .order('snapshot_date', { ascending: false })
+        .range(from, from + pageSize - 1);
 
-    return data?.map(item => ({
+      if (error) throw error;
+      if (!pageData || pageData.length === 0) break;
+      
+      allData = [...allData, ...pageData];
+      if (pageData.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return allData.map(item => ({
       'Data Snapshot': item.snapshot_date,
       'Produs': item.name,
       'Lot': item.lot_number || 'Fără lot',
@@ -307,17 +356,30 @@ export const ReportsManagement = () => {
   const generateTransfersSummaryReport = async () => {
     const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
     
-    const { data, error } = await supabase
-      .from(historyTable)
-      .select('*')
-      .like('notes', '%Transfer%')
-      .gte('operation_date', `${filters.startDate}T00:00:00`)
-      .lte('operation_date', `${filters.endDate}T23:59:59`)
-      .order('operation_date', { ascending: false });
+    // Fetch all data with pagination
+    let allData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data: pageData, error } = await supabase
+        .from(historyTable)
+        .select('*')
+        .like('notes', '%Transfer%')
+        .gte('operation_date', `${filters.startDate}T00:00:00`)
+        .lte('operation_date', `${filters.endDate}T23:59:59`)
+        .order('operation_date', { ascending: false })
+        .range(from, from + pageSize - 1);
 
-    return data?.map(item => ({
+      if (error) throw error;
+      if (!pageData || pageData.length === 0) break;
+      
+      allData = [...allData, ...pageData];
+      if (pageData.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return allData.map(item => ({
       'Data Transfer': new Date(item.operation_date).toLocaleString('ro-RO'),
       'Tip': item.action === 'add' ? 'Retur' : 'Transfer',
       'Produs': item.name,
@@ -353,18 +415,31 @@ export const ReportsManagement = () => {
   const generateDailyConsumptionData = async () => {
     const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
     
-    const { data, error } = await supabase
-      .from(historyTable)
-      .select('operation_date, quantity')
-      .eq('action', 'remove')
-      .gte('operation_date', `${filters.startDate}T00:00:00`)
-      .lte('operation_date', `${filters.endDate}T23:59:59`);
+    // Fetch all data with pagination
+    let allData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data: pageData, error } = await supabase
+        .from(historyTable)
+        .select('operation_date, quantity')
+        .eq('action', 'remove')
+        .gte('operation_date', `${filters.startDate}T00:00:00`)
+        .lte('operation_date', `${filters.endDate}T23:59:59`)
+        .range(from, from + pageSize - 1);
+
+      if (error) throw error;
+      if (!pageData || pageData.length === 0) break;
+      
+      allData = [...allData, ...pageData];
+      if (pageData.length < pageSize) break;
+      from += pageSize;
+    }
 
     const dailyData = new Map<string, { cantitate: number; operatii: number; }>();
     
-    data?.forEach(item => {
+    allData.forEach(item => {
       const date = item.operation_date.split('T')[0];
       const quantity = item.quantity;
       
@@ -390,18 +465,31 @@ export const ReportsManagement = () => {
   const generateTopProductsData = async () => {
     const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
     
-    const { data, error } = await supabase
-      .from(historyTable)
-      .select('name, quantity')
-      .eq('action', 'remove')
-      .gte('operation_date', `${filters.startDate}T00:00:00`)
-      .lte('operation_date', `${filters.endDate}T23:59:59`);
+    // Fetch all data with pagination
+    let allData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data: pageData, error } = await supabase
+        .from(historyTable)
+        .select('name, quantity')
+        .eq('action', 'remove')
+        .gte('operation_date', `${filters.startDate}T00:00:00`)
+        .lte('operation_date', `${filters.endDate}T23:59:59`)
+        .range(from, from + pageSize - 1);
+
+      if (error) throw error;
+      if (!pageData || pageData.length === 0) break;
+      
+      allData = [...allData, ...pageData];
+      if (pageData.length < pageSize) break;
+      from += pageSize;
+    }
 
     const productData = new Map<string, { cantitate: number; operatii: number; }>();
     
-    data?.forEach(item => {
+    allData.forEach(item => {
       const quantity = item.quantity;
       
       if (!productData.has(item.name)) {
@@ -426,17 +514,30 @@ export const ReportsManagement = () => {
   const generateDailyActivityData = async () => {
     const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
     
-    const { data, error } = await supabase
-      .from(historyTable)
-      .select('operation_date, action, quantity')
-      .gte('operation_date', `${filters.startDate}T00:00:00`)
-      .lte('operation_date', `${filters.endDate}T23:59:59`);
+    // Fetch all data with pagination
+    let allData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data: pageData, error } = await supabase
+        .from(historyTable)
+        .select('operation_date, action, quantity')
+        .gte('operation_date', `${filters.startDate}T00:00:00`)
+        .lte('operation_date', `${filters.endDate}T23:59:59`)
+        .range(from, from + pageSize - 1);
+
+      if (error) throw error;
+      if (!pageData || pageData.length === 0) break;
+      
+      allData = [...allData, ...pageData];
+      if (pageData.length < pageSize) break;
+      from += pageSize;
+    }
 
     const dailyData = new Map<string, { intrari: number; iesiri: number; }>();
     
-    data?.forEach(item => {
+    allData.forEach(item => {
       const date = item.operation_date.split('T')[0];
       const quantity = item.quantity;
       
@@ -465,19 +566,32 @@ export const ReportsManagement = () => {
   const generateSupplierDistributionData = async () => {
     const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
     
-    const { data, error } = await supabase
-      .from(historyTable)
-      .select('supplier, quantity')
-      .eq('action', 'remove')
-      .gte('operation_date', `${filters.startDate}T00:00:00`)
-      .lte('operation_date', `${filters.endDate}T23:59:59`);
+    // Fetch all data with pagination
+    let allData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data: pageData, error } = await supabase
+        .from(historyTable)
+        .select('supplier, quantity')
+        .eq('action', 'remove')
+        .gte('operation_date', `${filters.startDate}T00:00:00`)
+        .lte('operation_date', `${filters.endDate}T23:59:59`)
+        .range(from, from + pageSize - 1);
+
+      if (error) throw error;
+      if (!pageData || pageData.length === 0) break;
+      
+      allData = [...allData, ...pageData];
+      if (pageData.length < pageSize) break;
+      from += pageSize;
+    }
 
     const supplierData = new Map<string, number>();
     let total = 0;
     
-    data?.forEach(item => {
+    allData.forEach(item => {
       const supplier = item.supplier || 'Necunoscut';
       const quantity = item.quantity;
       
