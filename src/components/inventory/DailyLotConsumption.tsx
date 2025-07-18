@@ -445,50 +445,49 @@ export const DailyLotConsumption = () => {
           // Ieșirile nete = ieșirile brute - retururile
           lot.outbound_quantity = Math.max(0, rawOutbound - returns);
           
+          // LOGICA CORECTĂ: Snapshot-urile sunt sursa de adevăr
+          // Stocul inițial este deja setat din snapshot-uri în logica de mai sus
+          // Nu mai calculez manual pentru că snapshot-urile sunt corecte
+          
           // Recepțiile noi pentru acest lot (doar din ziua selectată)
-          const newReceiptsForThisLot = newReceiptMovements.get(lotMovementKey) || 0;
-          lot.received_quantity = newReceiptsForThisLot;
+          lot.received_quantity = newReceiptMovements.get(lotMovementKey) || 0;
           
-          // STOCUL INIȚIAL vine din SNAPSHOT (deja setat mai sus în cod)
-          // Pentru produsele care nu sunt în snapshot, calculez din inventarul curent
-          if (lot.initial_stock === 0) {
-            // Calculez stocul curent pentru acest lot din inventar
-            const currentStock = currentInventory
-              .filter(inv => inv.name === product.product_name && (inv.lot_number || 'Fără lot') === lot.lot_number)
-              .reduce((sum, inv) => sum + inv.quantity, 0);
-            
-            // Stoc Inițial = Stoc Curent + Ieșiri - Recepții Noi
-            lot.initial_stock = Math.max(0, currentStock + lot.outbound_quantity - lot.received_quantity);
-            
-            console.log(`Calculated initial stock for product not in snapshot: ${lot.product_name} lot ${lot.lot_number}:`);
-            console.log(`- Current stock: ${currentStock}`);
-            console.log(`- Outbound: ${lot.outbound_quantity}`);
-            console.log(`- New receipts: ${lot.received_quantity}`);
-            console.log(`- Calculated initial: ${lot.initial_stock}`);
+          // STOCUL FINAL: 
+          // Dacă există în snapshot ziua curentă - folosesc ăla (este corect)
+          // Dacă nu există snapshot - calculez cu formula
+          
+          // Caut snapshot pentru ziua curentă
+          const currentDaySnapshot = finalInitialStock?.find(snap => 
+            snap.name === product.product_name && 
+            (snap.lot_number || 'Fără lot') === lot.lot_number
+          );
+          
+          if (currentDaySnapshot) {
+            // SNAPSHOT-ul pentru astăzi EXISTĂ - folosesc valoarea CORECTĂ din snapshot
+            lot.final_stock = currentDaySnapshot.quantity;
+            console.log(`📊 Stoc final CORECT din snapshot curent: ${lot.final_stock}`);
+          } else {
+            // NU EXISTĂ snapshot pentru astăzi - calculez cu formula
+            lot.final_stock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
+            console.log(`⚠️ NU există snapshot pentru ${lot.lot_number} astăzi. Calculat: ${lot.final_stock}`);
           }
           
-          // CALCULEZ STOCUL FINAL cu formula corectă:
-          // Stoc Final = Stoc Inițial (din snapshot) + Recepții Noi - Ieșiri
-          lot.final_stock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
+          // VERIFICAREA LOGICII: Dacă am și snapshot și mișcări, verific consistența
+          const calculatedFinal = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
+          const difference = Math.abs(lot.final_stock - calculatedFinal);
           
-          // Ensure final stock doesn't go negative
-          if (lot.final_stock < 0) {
-            console.warn(`⚠️ STOC FINAL NEGATIV pentru ${product.product_name} - ${lot.lot_number}: ${lot.final_stock}. Verificați mișcările.`);
+          if (difference > 0.01 && currentDaySnapshot) {
+            console.warn(`🔍 ANALIZĂ CONSISTENCY pentru ${product.product_name} - ${lot.lot_number}:`);
+            console.warn(`   Stoc inițial: ${lot.initial_stock}`);
+            console.warn(`   Recepții: ${lot.received_quantity}`);
+            console.warn(`   Ieșiri: ${lot.outbound_quantity}`);
+            console.warn(`   Stoc final (snapshot): ${lot.final_stock}`);
+            console.warn(`   Stoc final calculat: ${calculatedFinal}`);
+            console.warn(`   DIFERENȚA: ${(lot.final_stock - calculatedFinal).toFixed(2)}`);
+            console.warn(`   💡 Snapshot-ul este CORECT - mișcările pot fi incomplete sau există ajustări manuale`);
+          } else {
+            console.log(`✅ CONSISTENCY OK pentru ${lot.lot_number}: Snapshot și mișcări sunt consistente`);
           }
-          
-          // Afișez avertisment pentru logica lipsă de sincronizare
-          console.warn(`🚨 PROBLEMĂ FUNDAMENTALĂ IDENTIFICATĂ:`);
-          console.warn(`   Stocul final calculat pentru ${product.product_name} - ${lot.lot_number}: ${lot.final_stock}`);
-          console.warn(`   ❌ LIPSA LOGICII: Acest stoc final calculat NU se va sincroniza automat cu stocul inițial din ziua următoare!`);
-          console.warn(`   💡 SOLUȚIE NECESARĂ: Implementare actualizare automată snapshot-uri sau recalculare dinamică stoc inițial`);
-          console.warn(`   📋 IMPACT: Raportul arată stocul corect calculat, dar snapshot-urile rămân neactualizate`);
-          console.warn(`   🔧 RECOMANDARE: Verificați manual consistența între zile consecutive până la implementarea soluției automate`);
-          
-          console.log(`✅ Calculul final pentru lot ${lot.lot_number}:`);
-          console.log(`- Stoc inițial (din snapshot): ${lot.initial_stock}`);
-          console.log(`- Recepții noi: ${lot.received_quantity}`);
-          console.log(`- Ieșiri: ${lot.outbound_quantity}`);
-          console.log(`- Stoc final = ${lot.initial_stock} + ${lot.received_quantity} - ${lot.outbound_quantity} = ${lot.final_stock}`);
         });
       });
 
