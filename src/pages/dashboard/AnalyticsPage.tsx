@@ -60,36 +60,56 @@ const AnalyticsPage = () => {
     try {
       setLoading(true);
 
-      // Use correct history table based on inventory type
+      // Use correct tables based on inventory type
       const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+      const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
 
       // Fetch consumption trends (last 30 days) - with pagination
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      // Fetch all data with pagination to avoid 1000 record limit
-      let allTrendsData: any[] = [];
+      // Fetch consumption data from history - with pagination
+      let allHistoryData: any[] = [];
       let from = 0;
       const pageSize = 1000;
       
       while (true) {
         const { data: pageData } = await supabase
           .from(historyTable)
-          .select('operation_date, quantity, name')
-          .eq('action', 'remove')
+          .select('operation_date, quantity, name, action')
           .gte('operation_date', thirtyDaysAgo.toISOString())
           .order('operation_date')
           .range(from, from + pageSize - 1);
         
         if (!pageData || pageData.length === 0) break;
-        allTrendsData = [...allTrendsData, ...pageData];
+        allHistoryData = [...allHistoryData, ...pageData];
         if (pageData.length < pageSize) break;
         from += pageSize;
       }
 
-      // Group by date for trends
+      // Also fetch snapshot data for more complete picture
+      let allSnapshotData: any[] = [];
+      from = 0;
+      
+      while (true) {
+        const { data: pageData } = await supabase
+          .from(snapshotTable)
+          .select('snapshot_date, quantity, name')
+          .gte('snapshot_date', thirtyDaysAgo.toISOString().split('T')[0])
+          .order('snapshot_date')
+          .range(from, from + pageSize - 1);
+        
+        if (!pageData || pageData.length === 0) break;
+        allSnapshotData = [...allSnapshotData, ...pageData];
+        if (pageData.length < pageSize) break;
+        from += pageSize;
+      }
+
+      // Process consumption trends from history data
       const trendsMap = new Map<string, { total: number; products: Set<string> }>();
-      allTrendsData.forEach(item => {
+      
+      // Process history data for consumption trends (only removals)
+      allHistoryData.filter(item => item.action === 'remove').forEach(item => {
         const date = item.operation_date.split('T')[0];
         const quantity = item.quantity;
         
