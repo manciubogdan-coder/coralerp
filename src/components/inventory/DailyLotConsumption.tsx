@@ -62,7 +62,11 @@ export const DailyLotConsumption = () => {
         return;
       }
       
-      // Get snapshot data for the beginning of the day - only lots received up to selected date
+      // Get snapshot data for the PREVIOUS day to calculate initial stock correctly
+      const previousDay = new Date(selectedDate);
+      previousDay.setDate(previousDay.getDate() - 1);
+      const previousDateStr = previousDay.toISOString().split('T')[0];
+      
       const { data: initialStock, error: initialError } = await supabase
         .from(snapshotTable)
         .select(`
@@ -73,19 +77,19 @@ export const DailyLotConsumption = () => {
           receipt_date,
           products:product_id (name, cod_produs)
         `)
-        .eq('snapshot_date', selectedDate)
-        .lte('receipt_date', `${selectedDate}T23:59:59`);
+        .eq('snapshot_date', previousDateStr)
+        .lte('receipt_date', `${previousDateStr}T23:59:59`);
 
       if (initialError) throw initialError;
 
-      // If no snapshot exists for the selected date, try the previous day's snapshot
+      // If no snapshot exists for the previous day, try 2 days back
       let finalInitialStock = initialStock;
       if (!initialStock || initialStock.length === 0) {
-        const previousDay = new Date(selectedDate);
-        previousDay.setDate(previousDay.getDate() - 1);
-        const previousDateStr = previousDay.toISOString().split('T')[0];
+        const twoDaysBack = new Date(selectedDate);
+        twoDaysBack.setDate(twoDaysBack.getDate() - 2);
+        const twoDaysBackStr = twoDaysBack.toISOString().split('T')[0];
         
-        const { data: previousStock, error: previousError } = await supabase
+        const { data: olderStock, error: olderError } = await supabase
           .from(snapshotTable)
           .select(`
             name,
@@ -95,11 +99,11 @@ export const DailyLotConsumption = () => {
             receipt_date,
             products:product_id (name, cod_produs)
           `)
-          .eq('snapshot_date', previousDateStr)
-          .lte('receipt_date', `${selectedDate}T23:59:59`);
+          .eq('snapshot_date', twoDaysBackStr)
+          .lte('receipt_date', `${twoDaysBackStr}T23:59:59`);
 
-        if (!previousError && previousStock) {
-          finalInitialStock = previousStock;
+        if (!olderError && olderStock) {
+          finalInitialStock = olderStock;
         }
       }
 
