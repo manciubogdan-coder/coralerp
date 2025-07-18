@@ -237,11 +237,11 @@ export const DailyLotConsumption = () => {
         console.log('Notes:', movement.notes);
         console.log('Lot Key:', lotKey);
         
-        if (movement.action === 'remove') {
+        if (movement.action === 'remove' || movement.action === 'transfer_out') {
           const currentTotal = outboundMovements.get(lotKey) || 0;
           const newTotal = currentTotal + movementQty;
           outboundMovements.set(lotKey, newTotal);
-          console.log(`REMOVE MOVEMENT: ${lotKey}`);
+          console.log(`OUTBOUND MOVEMENT (${movement.action}): ${lotKey}`);
           console.log(`- Previous total: ${currentTotal}`);
           console.log(`- Adding: ${movementQty}`);
           console.log(`- New total: ${newTotal}`);
@@ -250,13 +250,13 @@ export const DailyLotConsumption = () => {
           if (newTotal > 5000) {
             console.warn(`⚠️ SUSPICIOUS HIGH OUTBOUND: ${lotKey} = ${newTotal} kg`);
           }
-        } else if (movement.action === 'add') {
+        } else if (movement.action === 'add' || movement.action === 'transfer_in') {
           // Check if this is a return (has "Returnat" in notes)
           if (movement.notes && movement.notes.includes('Returnat')) {
             const currentReturns = returnMovements.get(lotKey) || 0;
             const newReturns = currentReturns + movementQty;
             returnMovements.set(lotKey, newReturns);
-            console.log(`RETURN MOVEMENT: ${lotKey} +${movementQty} = ${newReturns}`);
+            console.log(`RETURN MOVEMENT (${movement.action}): ${lotKey} +${movementQty} = ${newReturns}`);
           }
         }
       });
@@ -274,14 +274,14 @@ export const DailyLotConsumption = () => {
         if (quantity > 5000) {
           console.error(`🚨 SUSPICIOUS OUTBOUND: ${lotKey} = ${quantity} kg - investigating...`);
           const relatedMovements = movements?.filter(m => 
-            `${m.name}_${m.lot_number || 'Fără lot'}` === lotKey && m.action === 'remove'
+            `${m.name}_${m.lot_number || 'Fără lot'}` === lotKey && (m.action === 'remove' || m.action === 'transfer_out')
           ) || [];
           console.error('Related movements:', relatedMovements);
         }
         
         // Find the movement to get product details
         const sampleMovement = movements?.find(m => 
-          `${m.name}_${m.lot_number || 'Fără lot'}` === lotKey && m.action === 'remove'
+          `${m.name}_${m.lot_number || 'Fără lot'}` === lotKey && (m.action === 'remove' || m.action === 'transfer_out')
         );
         
         if (!sampleMovement) return;
@@ -375,12 +375,12 @@ export const DailyLotConsumption = () => {
       (movements || []).forEach(movement => {
         console.log(`Analyzing movement: action=${movement.action}, notes=${movement.notes}, product=${movement.name}, lot=${movement.lot_number}`);
         
-        if (movement.action === 'add' && (!movement.notes || !movement.notes.includes('Returnat'))) {
+        if ((movement.action === 'add' || movement.action === 'transfer_in') && (!movement.notes || !movement.notes.includes('Returnat'))) {
           const lotKey = `${movement.name}_${movement.lot_number || 'Fără lot'}`;
           const receiptQty = movement.quantity;
           newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
           
-          console.log(`NEW RECEIPT from movements: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
+          console.log(`NEW RECEIPT from movements (${movement.action}): ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
         }
       });
       
