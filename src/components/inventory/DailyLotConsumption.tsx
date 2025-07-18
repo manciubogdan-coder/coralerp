@@ -48,10 +48,6 @@ export const DailyLotConsumption = () => {
       setLoading(true);
       
       const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
-      const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
-      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
-      const receptionsTable = inventoryType === 'ambalaje' ? 'ambalaje_receptions' : 'receptions';
-      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
       
       // For ambalaje, we don't have daily snapshots yet, so skip
       if (inventoryType === 'ambalaje') {
@@ -62,11 +58,16 @@ export const DailyLotConsumption = () => {
         return;
       }
       
-      // Get snapshot data for the PREVIOUS day to calculate initial stock correctly
+      // Calculate dates
       const previousDay = new Date(selectedDate);
       previousDay.setDate(previousDay.getDate() - 1);
       const previousDateStr = previousDay.toISOString().split('T')[0];
       
+      console.log('=== DAILY CONSUMPTION REPORT ===');
+      console.log('Selected date:', selectedDate);
+      console.log('Previous day for initial stock:', previousDateStr);
+      
+      // Get initial stock from PREVIOUS day snapshot
       const { data: initialStock, error: initialError } = await supabase
         .from(snapshotTable)
         .select(`
@@ -74,476 +75,171 @@ export const DailyLotConsumption = () => {
           lot_number,
           quantity,
           unit,
-          receipt_date,
+          product_id,
           products:product_id (name, cod_produs)
         `)
-        .eq('snapshot_date', previousDateStr)
-        .lte('receipt_date', `${previousDateStr}T23:59:59`);
+        .eq('snapshot_date', previousDateStr);
 
       if (initialError) throw initialError;
 
-      // If no snapshot exists for the previous day, try 2 days back
-      let finalInitialStock = initialStock;
-      if (!initialStock || initialStock.length === 0) {
-        const twoDaysBack = new Date(selectedDate);
-        twoDaysBack.setDate(twoDaysBack.getDate() - 2);
-        const twoDaysBackStr = twoDaysBack.toISOString().split('T')[0];
-        
-        const { data: olderStock, error: olderError } = await supabase
-          .from(snapshotTable)
-          .select(`
-            name,
-            lot_number,
-            quantity,
-            unit,
-            receipt_date,
-            products:product_id (name, cod_produs)
-          `)
-          .eq('snapshot_date', twoDaysBackStr)
-          .lte('receipt_date', `${twoDaysBackStr}T23:59:59`);
-
-        if (!olderError && olderStock) {
-          finalInitialStock = olderStock;
-        }
-      }
-
-      // Get all inventory movements for the selected date
-      const { data: movements, error: movementsError } = await supabase
-        .from(historyTable)
+      // Get final stock from CURRENT day snapshot
+      const { data: finalStock, error: finalError } = await supabase
+        .from(snapshotTable)
         .select(`
           name,
           lot_number,
           quantity,
           unit,
-          action,
-          operation_date,
-          notes,
+          product_id,
           products:product_id (name, cod_produs)
         `)
-        .gte('operation_date', `${selectedDate}T00:00:00`)
-        .lte('operation_date', `${selectedDate}T23:59:59`);
+        .eq('snapshot_date', selectedDate);
 
-      if (movementsError) throw movementsError;
+      if (finalError) throw finalError;
 
+      console.log('Initial stock entries:', initialStock?.length || 0);
+      console.log('Final stock entries:', finalStock?.length || 0);
 
-      // Get current inventory for products that had movements on the selected date
-      const productsWithMovements = [...new Set((movements || []).map(m => m.name))];
-      
-      let currentInventory: any[] = [];
-      if (productsWithMovements.length > 0) {
-        const { data: inventory, error: inventoryError } = await supabase
-          .from(inventoryTable)
-          .select(`
-            name,
-            lot_number,
-            quantity,
-            unit,
-            receipt_date,
-            products:product_id (name, cod_produs)
-          `)
-          .in('name', productsWithMovements)
-          .lte('receipt_date', `${selectedDate}T23:59:59`);
+      // Create maps for easier lookup
+      const initialStockMap = new Map<string, number>();
+      const finalStockMap = new Map<string, number>();
+      const productDetailsMap = new Map<string, any>();
 
-        if (inventoryError) throw inventoryError;
-        currentInventory = inventory || [];
-      }
+      // Process initial stock
+      (initialStock || []).forEach(item => {
+        const key = `${item.name}_${item.lot_number || 'Fără lot'}`;
+        initialStockMap.set(key, (initialStockMap.get(key) || 0) + item.quantity);
+        
+        if (!productDetailsMap.has(item.name)) {
+          productDetailsMap.set(item.name, {
+            name: item.name,
+            code: item.products?.cod_produs || '',
+            unit: item.unit,
+            product_id: item.product_id
+          });
+        }
+      });
+
+      // Process final stock
+      (finalStock || []).forEach(item => {
+        const key = `${item.name}_${item.lot_number || 'Fără lot'}`;
+        finalStockMap.set(key, (finalStockMap.get(key) || 0) + item.quantity);
+        
+        if (!productDetailsMap.has(item.name)) {
+          productDetailsMap.set(item.name, {
+            name: item.name,
+            code: item.products?.cod_produs || '',
+            unit: item.unit,
+            product_id: item.product_id
+          });
+        }
+      });
+
+      // Get all unique lot keys from both snapshots
+      const allLotKeys = new Set([
+        ...Array.from(initialStockMap.keys()),
+        ...Array.from(finalStockMap.keys())
+      ]);
+
+      console.log('Total unique lots found:', allLotKeys.size);
 
       // Process data to create consumption report
       const productMap = new Map<string, ProductSummary>();
 
-      // Process data to identify all products with activity
-
-      // Process initial stock from snapshots - GROUP BY PRODUCT + LOT
-      const snapshotGroupedByLot = new Map<string, { items: any[], totalQuantity: number }>();
-      
-      // First, group all snapshot items by product + lot
-      (finalInitialStock || []).forEach(item => {
-        const lotKey = `${item.name}_${item.lot_number || 'Fără lot'}`;
-        const initialQuantity = item.quantity;
+      allLotKeys.forEach(lotKey => {
+        const [productName, lotNumber] = lotKey.split('_');
+        const productDetails = productDetailsMap.get(productName);
         
-        if (!snapshotGroupedByLot.has(lotKey)) {
-          snapshotGroupedByLot.set(lotKey, {
-            items: [],
-            totalQuantity: 0
-          });
+        if (!productDetails) {
+          console.warn(`No product details found for ${productName}`);
+          return;
         }
-        
-        const group = snapshotGroupedByLot.get(lotKey)!;
-        group.items.push(item);
-        group.totalQuantity += initialQuantity;
-      });
-      
-      // Now process grouped snapshot data
-      snapshotGroupedByLot.forEach((group, lotKey) => {
-        const firstItem = group.items[0]; // Use first item for product details
-        const productKey = firstItem.name; // Use only product name as key to avoid duplicates
-        
-        if (!productMap.has(productKey)) {
-          productMap.set(productKey, {
-            product_name: firstItem.name,
-            product_code: firstItem.products?.cod_produs || '',
-            unit: firstItem.unit,
+
+        // Get or create product summary
+        if (!productMap.has(productName)) {
+          productMap.set(productName, {
+            product_name: productName,
+            product_code: productDetails.code,
+            unit: productDetails.unit,
             total_initial: 0,
             total_outbound: 0,
             total_received: 0,
             total_final: 0,
             lots: []
           });
-        } else {
-          // If product exists, update code if this entry has one and the existing doesn't
-          const existingProduct = productMap.get(productKey)!;
-          if (!existingProduct.product_code && firstItem.products?.cod_produs) {
-            existingProduct.product_code = firstItem.products.cod_produs;
-          }
         }
 
-        const product = productMap.get(productKey)!;
+        const product = productMap.get(productName)!;
         
+        const initialQty = initialStockMap.get(lotKey) || 0;
+        const finalQty = finalStockMap.get(lotKey) || 0;
+        
+        // Calculate consumption based on snapshot differences
+        // If final > initial, there were receipts
+        // If final < initial, there was consumption
+        let receivedQty = 0;
+        let consumedQty = 0;
+        
+        if (finalQty > initialQty) {
+          receivedQty = finalQty - initialQty;
+        } else if (initialQty > finalQty) {
+          consumedQty = initialQty - finalQty;
+        }
+
         const lotItem: LotConsumptionItem = {
-          product_name: firstItem.name,
-          product_code: firstItem.products?.cod_produs || '',
-          lot_number: firstItem.lot_number || 'Fără lot',
-          unit: firstItem.unit,
-          initial_stock: group.totalQuantity,
-          outbound_quantity: 0,
-          received_quantity: 0,
-          final_stock: group.totalQuantity
+          product_name: productName,
+          product_code: productDetails.code,
+          lot_number: lotNumber,
+          unit: productDetails.unit,
+          initial_stock: initialQty,
+          outbound_quantity: consumedQty,
+          received_quantity: receivedQty,
+          final_stock: finalQty
         };
 
         product.lots.push(lotItem);
-        product.total_initial += group.totalQuantity;
-        
-        console.log(`Grouped snapshot for ${firstItem.name} lot ${firstItem.lot_number || 'Fără lot'}: ${group.totalQuantity} kg from ${group.items.length} entries`);
+        product.total_initial += initialQty;
+        product.total_outbound += consumedQty;
+        product.total_received += receivedQty;
+        product.total_final += finalQty;
+
+        console.log(`Lot ${lotKey}: ${initialQty} → ${finalQty} (consumed: ${consumedQty}, received: ${receivedQty})`);
       });
 
-      // Process all movements for the selected date - calculate net consumption
-      const outboundMovements = new Map<string, number>(); // key: productName_lotNumber, value: total outbound
-      const returnMovements = new Map<string, number>(); // key: productName_lotNumber, value: total returns
-      
-      console.log('=== DEBUGGING DAILY CONSUMPTION ===');
-      console.log('Selected date:', selectedDate);
-      console.log('Total movements found:', movements?.length || 0);
-      
-      (movements || []).forEach(movement => {
-        const lotKey = `${movement.name}_${movement.lot_number || 'Fără lot'}`;
-        const movementQty = movement.quantity;
-        
-        console.log('=== PROCESSING MOVEMENT ===');
-        console.log('Action:', movement.action);
-        console.log('Product:', movement.name);
-        console.log('Lot:', movement.lot_number);
-        console.log('Quantity:', movementQty);
-        console.log('Date:', movement.operation_date);
-        console.log('Notes:', movement.notes);
-        console.log('Lot Key:', lotKey);
-        
-        if (movement.action === 'remove' || movement.action === 'transfer_out') {
-          const currentTotal = outboundMovements.get(lotKey) || 0;
-          const newTotal = currentTotal + movementQty;
-          outboundMovements.set(lotKey, newTotal);
-          console.log(`OUTBOUND MOVEMENT (${movement.action}): ${lotKey}`);
-          console.log(`- Previous total: ${currentTotal}`);
-          console.log(`- Adding: ${movementQty}`);
-          console.log(`- New total: ${newTotal}`);
-          
-          // ALERT pentru cantități mari suspecte
-          if (newTotal > 5000) {
-            console.warn(`⚠️ SUSPICIOUS HIGH OUTBOUND: ${lotKey} = ${newTotal} kg`);
-          }
-        } else if (movement.action === 'add' || movement.action === 'transfer_in') {
-          // Check if this is a return (has "Returnat" in notes)
-          if (movement.notes && movement.notes.includes('Returnat')) {
-            const currentReturns = returnMovements.get(lotKey) || 0;
-            const newReturns = currentReturns + movementQty;
-            returnMovements.set(lotKey, newReturns);
-            console.log(`RETURN MOVEMENT (${movement.action}): ${lotKey} +${movementQty} = ${newReturns}`);
-          }
-        }
+      // Filter out products with no activity (no consumption and no receipts)
+      const dataWithActivity = Array.from(productMap.values()).filter(product => 
+        product.total_outbound > 0 || product.total_received > 0
+      );
+
+      // Sort by product name
+      dataWithActivity.sort((a, b) => a.product_name.localeCompare(b.product_name));
+
+      // Sort lots within each product
+      dataWithActivity.forEach(product => {
+        product.lots.sort((a, b) => a.lot_number.localeCompare(b.lot_number));
       });
 
-      console.log('Final outbound movements:', Object.fromEntries(outboundMovements));
-      console.log('Final return movements:', Object.fromEntries(returnMovements));
+      console.log(`Final consumption report: ${dataWithActivity.length} products with activity`);
 
-      // Process outbound movements (remove actions)
-      outboundMovements.forEach((quantity, lotKey) => {
-        if (quantity <= 0) return;
-        
-        console.log(`Processing outbound lot ${lotKey} with quantity: ${quantity}`);
-        
-        // DEBUGGING pentru probleme suspecte
-        if (quantity > 5000) {
-          console.error(`🚨 SUSPICIOUS OUTBOUND: ${lotKey} = ${quantity} kg - investigating...`);
-          const relatedMovements = movements?.filter(m => 
-            `${m.name}_${m.lot_number || 'Fără lot'}` === lotKey && (m.action === 'remove' || m.action === 'transfer_out')
-          ) || [];
-          console.error('Related movements:', relatedMovements);
-        }
-        
-        // Find the movement to get product details
-        const sampleMovement = movements?.find(m => 
-          `${m.name}_${m.lot_number || 'Fără lot'}` === lotKey && (m.action === 'remove' || m.action === 'transfer_out')
-        );
-        
-        if (!sampleMovement) return;
-        
-        const productKey = sampleMovement.name; // Use only product name as key
-        let product = productMap.get(productKey);
-        
-        // If product doesn't exist, create it
-        if (!product) {
-          product = {
-            product_name: sampleMovement.name,
-            product_code: sampleMovement.products?.cod_produs || '',
-            unit: sampleMovement.unit,
-            total_initial: 0,
-            total_outbound: 0,
-            total_received: 0,
-            total_final: 0,
-            lots: []
-          };
-          productMap.set(productKey, product);
-        } else {
-          // If product exists, update code if this entry has one and the existing doesn't
-          if (!product.product_code && sampleMovement.products?.cod_produs) {
-            product.product_code = sampleMovement.products.cod_produs;
-          }
-        }
-        
-        const lotNumber = sampleMovement.lot_number || 'Fără lot';
-        let lot = product.lots.find(l => l.lot_number === lotNumber);
-        
-        // If lot doesn't exist, create it
-        if (!lot) {
-          lot = {
-            product_name: sampleMovement.name,
-            product_code: sampleMovement.products?.cod_produs || '',
-            lot_number: lotNumber,
-            unit: sampleMovement.unit,
-            initial_stock: 0, // Will be calculated later from current inventory + outbound - received
-            outbound_quantity: 0,
-            received_quantity: 0,
-            final_stock: 0
-          };
-          product.lots.push(lot);
-        }
-        
-        // Note: outbound_quantity will be calculated later
-      });
-
-      // Note: Returns will be handled later in the final calculation
-
-      // Process new receipts from selected date - din tabela receptions și din movements cu action='add' fără 'Returnat'
-      const newReceiptMovements = new Map<string, number>(); // key: productName_lotNumber, value: total new receipts
-      
-      console.log('=== CHECKING FOR NEW RECEIPTS ===');
-      
-      // Check receipts from receptions table - conditionally based on if table exists
-      let dailyReceptions: any[] = [];
-      if (inventoryType === 'materii-prime') {
-        const { data, error: receptionsError } = await supabase
-          .from('receptions')
-          .select(`
-            name,
-            lot_number,
-            quantity,
-            unit,
-            products:product_id (name, cod_produs)
-          `)
-          .gte('receipt_date', `${selectedDate}T00:00:00`)
-          .lte('receipt_date', `${selectedDate}T23:59:59`);
-
-        if (receptionsError) {
-          console.error("Error fetching daily receptions:", receptionsError);
-        } else {
-          dailyReceptions = data || [];
-        }
-      }
-
-      console.log('Daily receptions found:', dailyReceptions?.length || 0);
-      
-      (dailyReceptions || []).forEach(reception => {
-        const lotKey = `${reception.name}_${reception.lot_number || 'Fără lot'}`;
-        const receiptQty = reception.quantity;
-        newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
-        
-        console.log(`NEW RECEIPT from receptions table: ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
-      });
-      
-      // Also check movements for any additional receipts (returns, adjustments, etc.)
-      console.log('All movements for receipts analysis:', movements?.length);
-      
-      (movements || []).forEach(movement => {
-        console.log(`Analyzing movement: action=${movement.action}, notes=${movement.notes}, product=${movement.name}, lot=${movement.lot_number}`);
-        
-        if ((movement.action === 'add' || movement.action === 'transfer_in') && (!movement.notes || !movement.notes.includes('Returnat'))) {
-          const lotKey = `${movement.name}_${movement.lot_number || 'Fără lot'}`;
-          const receiptQty = movement.quantity;
-          newReceiptMovements.set(lotKey, (newReceiptMovements.get(lotKey) || 0) + receiptQty);
-          
-          console.log(`NEW RECEIPT from movements (${movement.action}): ${lotKey} +${receiptQty} = ${newReceiptMovements.get(lotKey)}`);
-        }
-      });
-      
-      console.log('Final newReceiptMovements map:', Object.fromEntries(newReceiptMovements));
-
-      // Process current inventory for products that had activity
-      (currentInventory || []).forEach(inventory => {
-        const productKey = inventory.name; // Use only product name as key
-        let product = productMap.get(productKey);
-        
-        if (!product) {
-          product = {
-            product_name: inventory.name,
-            product_code: inventory.products?.cod_produs || '',
-            unit: inventory.unit,
-            total_initial: 0,
-            total_outbound: 0,
-            total_received: 0,
-            total_final: 0,
-            lots: []
-          };
-          productMap.set(productKey, product);
-        } else {
-          // If product exists, update code if this entry has one and the existing doesn't
-          if (!product.product_code && inventory.products?.cod_produs) {
-            product.product_code = inventory.products.cod_produs;
-          }
-        }
-
-        const lotKey = inventory.lot_number || 'Fără lot';
-        let lot = product.lots.find(l => l.lot_number === lotKey);
-        
-        if (!lot) {
-          lot = {
-            product_name: inventory.name,
-            product_code: inventory.products?.cod_produs || '',
-            lot_number: lotKey,
-            unit: inventory.unit,
-            initial_stock: 0,
-            outbound_quantity: 0,
-            received_quantity: 0,
-            final_stock: 0
-          };
-          product.lots.push(lot);
-        }
-
-        // Note: final_stock will be calculated later using the formula
-        const currentStockForThisEntry = inventory.quantity;
-        
-        console.log(`Processing current inventory for lot ${lotKey} - ${inventory.name}:`);
-        console.log(`- Current stock: ${currentStockForThisEntry}`);
-      });
-      
-      // Calculate quantities for each lot
-      productMap.forEach(product => {
-        product.lots.forEach(lot => {
-          // Ieșirile pentru acest lot (din outboundMovements)
-          const lotMovementKey = `${product.product_name}_${lot.lot_number}`;
-          const rawOutbound = outboundMovements.get(lotMovementKey) || 0;
-          const returns = returnMovements.get(lotMovementKey) || 0;
-          
-          // Ieșirile nete = ieșirile brute - retururile
-          lot.outbound_quantity = Math.max(0, rawOutbound - returns);
-          
-          // LOGICA CORECTĂ: Snapshot-urile sunt sursa de adevăr
-          // Stocul inițial este deja setat din snapshot-uri în logica de mai sus
-          // Nu mai calculez manual pentru că snapshot-urile sunt corecte
-          
-          // Recepțiile noi pentru acest lot (doar din ziua selectată)
-          lot.received_quantity = newReceiptMovements.get(lotMovementKey) || 0;
-          
-          // STOCUL FINAL: 
-          // Dacă există în snapshot ziua curentă - folosesc ăla (este corect)
-          // Dacă nu există snapshot - calculez cu formula
-          
-          // Caut snapshot pentru ziua curentă
-          const currentDaySnapshot = finalInitialStock?.find(snap => 
-            snap.name === product.product_name && 
-            (snap.lot_number || 'Fără lot') === lot.lot_number
-          );
-          
-          if (currentDaySnapshot) {
-            // SNAPSHOT-ul pentru astăzi EXISTĂ - folosesc valoarea CORECTĂ din snapshot
-            lot.final_stock = currentDaySnapshot.quantity;
-            console.log(`📊 Stoc final CORECT din snapshot curent: ${lot.final_stock}`);
-          } else {
-            // NU EXISTĂ snapshot pentru astăzi - calculez cu formula
-            lot.final_stock = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
-            console.log(`⚠️ NU există snapshot pentru ${lot.lot_number} astăzi. Calculat: ${lot.final_stock}`);
-          }
-          
-          // VERIFICAREA LOGICII: Dacă am și snapshot și mișcări, verific consistența
-          const calculatedFinal = lot.initial_stock + lot.received_quantity - lot.outbound_quantity;
-          const difference = Math.abs(lot.final_stock - calculatedFinal);
-          
-          if (difference > 0.01 && currentDaySnapshot) {
-            console.warn(`🔍 ANALIZĂ CONSISTENCY pentru ${product.product_name} - ${lot.lot_number}:`);
-            console.warn(`   Stoc inițial: ${lot.initial_stock}`);
-            console.warn(`   Recepții: ${lot.received_quantity}`);
-            console.warn(`   Ieșiri: ${lot.outbound_quantity}`);
-            console.warn(`   Stoc final (snapshot): ${lot.final_stock}`);
-            console.warn(`   Stoc final calculat: ${calculatedFinal}`);
-            console.warn(`   DIFERENȚA: ${(lot.final_stock - calculatedFinal).toFixed(2)}`);
-            console.warn(`   💡 Snapshot-ul este CORECT - mișcările pot fi incomplete sau există ajustări manuale`);
-          } else {
-            console.log(`✅ CONSISTENCY OK pentru ${lot.lot_number}: Snapshot și mișcări sunt consistente`);
-          }
-        });
-      });
-
-      // Calculate product totals
-      productMap.forEach(product => {
-        product.total_initial = product.lots.reduce((sum, lot) => sum + lot.initial_stock, 0);
-        product.total_outbound = product.lots.reduce((sum, lot) => sum + lot.outbound_quantity, 0);
-        product.total_received = product.lots.reduce((sum, lot) => sum + lot.received_quantity, 0);
-        product.total_final = product.lots.reduce((sum, lot) => sum + lot.final_stock, 0);
-      });
-
-      // Filter out lots with zero final stock and no new receipts for the day
-      productMap.forEach(product => {
-        // Filter lots to show only those with current stock > 0 OR new receipts on selected date
-        product.lots = product.lots.filter(lot => {
-          const lotMovementKey = `${product.product_name}_${lot.lot_number}`;
-          const hasNewReceipts = newReceiptMovements.get(lotMovementKey) > 0;
-          const hasCurrentStock = lot.final_stock > 0;
-          
-          // Show lot if it has current stock OR it received new items today
-          return hasCurrentStock || hasNewReceipts;
-        });
-        
-        // Recalculate product totals based on remaining lots
-        product.total_initial = product.lots.reduce((sum, lot) => sum + lot.initial_stock, 0);
-        product.total_outbound = product.lots.reduce((sum, lot) => sum + lot.outbound_quantity, 0);
-        product.total_received = product.lots.reduce((sum, lot) => sum + lot.received_quantity, 0);
-        product.total_final = product.lots.reduce((sum, lot) => sum + lot.final_stock, 0);
-      });
-
-      // Filter out products with no remaining lots
-      const results = Array.from(productMap.values())
-        .filter(product => product.lots.length > 0)
-        .sort((a, b) => a.product_name.localeCompare(b.product_name)); // Sort alphabetically by product name
-      
-      console.log('Final products after filtering lots without stock:', results.length);
-      setConsumptionData(results);
-      setFilteredData(results);
-    } catch (error: any) {
+      setConsumptionData(dataWithActivity);
+      setLoading(false);
+    } catch (error) {
       console.error("Error fetching consumption data:", error);
       toast({
+        title: "Eroare",
+        description: "Nu s-au putut încărca datele de consum",
         variant: "destructive",
-        title: "Eroare la încărcarea consumului zilnic",
-        description: error.message,
       });
-    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchConsumptionData();
-  }, [selectedDate]);
+  }, [selectedDate, inventoryType]);
 
   useEffect(() => {
-    if (productFilter.trim() === "") {
+    if (!productFilter.trim()) {
       setFilteredData(consumptionData);
     } else {
       const filtered = consumptionData.filter(product =>
@@ -552,147 +248,160 @@ export const DailyLotConsumption = () => {
       );
       setFilteredData(filtered);
     }
-  }, [productFilter, consumptionData]);
+  }, [consumptionData, productFilter]);
 
   const handleExport = () => {
-    const dataToExport: any[] = [];
-    
-    filteredData.forEach(product => {
-      // Add product summary row
-      dataToExport.push({
-        'Produs': product.product_name,
-        'Cod Produs': product.product_code,
-        'Lot': 'TOTAL PRODUS',
-        'Unitate': product.unit,
-        'Stoc Inițial': product.total_initial.toFixed(2),
-        'Ieșiri': product.total_outbound.toFixed(2),
-        'Recepții Noi': product.total_received.toFixed(2),
-        'Stoc Final': product.total_final.toFixed(2)
+    if (!filteredData.length) {
+      toast({
+        title: "Nu există date",
+        description: "Nu există date pentru export",
+        variant: "destructive",
       });
+      return;
+    }
 
-      // Add lot details
-      product.lots.forEach(lot => {
-        dataToExport.push({
-          'Produs': '',
-          'Cod Produs': '',
-          'Lot': lot.lot_number,
-          'Unitate': lot.unit,
-          'Stoc Inițial': lot.initial_stock.toFixed(2),
-          'Ieșiri': lot.outbound_quantity.toFixed(2),
-          'Recepții Noi': lot.received_quantity.toFixed(2),
-          'Stoc Final': lot.final_stock.toFixed(2)
-        });
-      });
+    const exportData = filteredData.flatMap(product =>
+      product.lots.map(lot => ({
+        "Produs": lot.product_name,
+        "Cod Produs": lot.product_code,
+        "Lot": lot.lot_number,
+        "Unitate": lot.unit,
+        "Stoc Inițial": lot.initial_stock,
+        "Cantitate Ieșită": lot.outbound_quantity,
+        "Cantitate Primită": lot.received_quantity,
+        "Stoc Final": lot.final_stock,
+        "Consum Net": lot.outbound_quantity - lot.received_quantity
+      }))
+    );
 
-      // Add empty row for separation
-      dataToExport.push({
-        'Produs': '',
-        'Cod Produs': '',
-        'Lot': '',
-        'Unitate': '',
-        'Stoc Inițial': '',
-        'Ieșiri': '',
-        'Recepții Noi': '',
-        'Stoc Final': ''
-      });
-    });
-     
-    const filename = `consum_zilnic_loturi_${selectedDate}.xlsx`;
-    const filters = productFilter ? `Produs filtrat: ${productFilter}` : 'Toate produsele';
-    
-    exportToExcel(dataToExport, filename, {
-      reportTitle: 'Consum Zilnic pe Loturi',
-      date: new Date(selectedDate).toLocaleDateString('ro-RO'),
-      filters: filters,
-      additionalInfo: `${filteredData.length} produse, ${filteredData.reduce((sum, p) => sum + p.lots.length, 0)} loturi`
-    });
-    
-    toast({
-      title: "Export realizat",
-      description: `Consumul zilnic pe loturi din ${new Date(selectedDate).toLocaleDateString('ro-RO')} a fost exportat cu succes.`
-    });
+    exportToExcel(exportData, `Consum_zilnic_loturi_${selectedDate}`);
   };
 
   if (loading) {
-    return <div className="p-4 text-center">Se încarcă consumul zilnic...</div>;
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-muted-foreground">Se încarcă raportul de consum...</div>
+      </div>
+    );
+  }
+
+  if (inventoryType === 'ambalaje') {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-muted-foreground">
+          Raportul de consum zilnic nu este disponibil pentru ambalaje
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            <span className="text-sm font-medium">Selectează data:</span>
-          </div>
-          <Input
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4" />
+          <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-auto"
-          />
-          <Input
-            type="text"
-            placeholder="Filtrează după produs..."
-            value={productFilter}
-            onChange={(e) => setProductFilter(e.target.value)}
-            className="w-auto min-w-[200px]"
+            className="px-3 py-2 border rounded-md text-sm"
           />
         </div>
         
-        <Button onClick={handleExport} disabled={filteredData.length === 0}>
+        <Input
+          placeholder="Filtrează după produs..."
+          value={productFilter}
+          onChange={(e) => setProductFilter(e.target.value)}
+          className="w-full sm:w-64"
+        />
+        
+        <Button onClick={handleExport} variant="outline" size="sm">
           <FileSpreadsheet className="h-4 w-4 mr-2" />
           Export Excel
         </Button>
       </div>
 
       {filteredData.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <p>{productFilter ? "Nu există produse care să se potrivească cu filtrul." : "Nu există date pentru data selectată."}</p>
+        <div className="text-center p-8 text-muted-foreground">
+          Nu există date de consum pentru ziua selectată
         </div>
       ) : (
-        <div className="border rounded-lg overflow-x-auto">
+        <div className="border rounded-lg overflow-auto max-h-[600px]">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 bg-background z-10">
               <TableRow>
-                <TableHead>Produs</TableHead>
-                <TableHead>Cod Produs</TableHead>
-                <TableHead>Lot</TableHead>
-                <TableHead>Unitate</TableHead>
-                <TableHead className="text-right">Stoc Inițial</TableHead>
-                <TableHead className="text-right">Ieșiri</TableHead>
-                <TableHead className="text-right">Recepții Noi</TableHead>
-                <TableHead className="text-right">Stoc Final</TableHead>
+                <TableHead className="font-semibold">Produs</TableHead>
+                <TableHead className="font-semibold">Cod</TableHead>
+                <TableHead className="font-semibold">Lot</TableHead>
+                <TableHead className="font-semibold text-right">Stoc Inițial</TableHead>
+                <TableHead className="font-semibold text-right">Cantitate Ieșită</TableHead>
+                <TableHead className="font-semibold text-right">Cantitate Primită</TableHead>
+                <TableHead className="font-semibold text-right">Stoc Final</TableHead>
+                <TableHead className="font-semibold text-right">Consum Net</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredData.map((product, productIndex) => [
-                // Product summary row
-                <TableRow key={`product-${productIndex}-${product.product_name}-${product.product_code || 'no-code'}-summary`} className="bg-muted font-semibold">
-                  <TableCell className="font-bold">{product.product_name}</TableCell>
-                  <TableCell className="font-bold">{product.product_code}</TableCell>
-                  <TableCell className="font-bold">TOTAL PRODUS</TableCell>
-                  <TableCell>{product.unit}</TableCell>
-                  <TableCell className="text-right">{product.total_initial.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">{product.total_outbound.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">{product.total_received.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">{product.total_final.toFixed(2)}</TableCell>
-                </TableRow>,
-                
-                // Lot detail rows
-                ...product.lots.map((lot, lotIndex) => (
-                  <TableRow key={`lot-${productIndex}-${lotIndex}-${product.product_name}-${lot.lot_number}`}>
-                    <TableCell></TableCell>
-                    <TableCell></TableCell>
-                    <TableCell className="pl-8">{lot.lot_number}</TableCell>
-                    <TableCell>{lot.unit}</TableCell>
-                    <TableCell className="text-right">{lot.initial_stock.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{lot.outbound_quantity.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{lot.received_quantity.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{lot.final_stock.toFixed(2)}</TableCell>
+              {filteredData.map((product, productIndex) => (
+                <React.Fragment key={`${product.product_name}-${productIndex}`}>
+                  {/* Product summary row */}
+                  <TableRow className="bg-muted/50 font-medium">
+                    <TableCell className="font-semibold">
+                      {product.product_name}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {product.product_code}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground font-medium">
+                      TOTAL
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {product.total_initial.toFixed(2)} {product.unit}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {product.total_outbound.toFixed(2)} {product.unit}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {product.total_received.toFixed(2)} {product.unit}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {product.total_final.toFixed(2)} {product.unit}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {(product.total_outbound - product.total_received).toFixed(2)} {product.unit}
+                    </TableCell>
                   </TableRow>
-                ))
-              ]).flat()}
+                  
+                  {/* Individual lot rows */}
+                  {product.lots.map((lot, lotIndex) => (
+                    <TableRow key={`${lot.product_name}-${lot.lot_number}-${lotIndex}`}>
+                      <TableCell className="pl-8 text-muted-foreground">
+                        {lot.product_name}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {lot.product_code}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {lot.lot_number}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {lot.initial_stock.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {lot.outbound_quantity.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {lot.received_quantity.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {lot.final_stock.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {(lot.outbound_quantity - lot.received_quantity).toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </React.Fragment>
+              ))}
             </TableBody>
           </Table>
         </div>
