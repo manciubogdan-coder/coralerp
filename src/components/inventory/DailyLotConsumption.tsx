@@ -418,9 +418,9 @@ export const DailyLotConsumption = () => {
                     <TableCell className="text-right font-semibold">
                       {product.total_final.toFixed(2)} {product.unit}
                     </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {(product.total_outbound - product.total_received).toFixed(2)} {product.unit}
-                    </TableCell>
+                     <TableCell className="text-right font-semibold">
+                       {product.total_outbound.toFixed(2)} {product.unit}
+                     </TableCell>
                   </TableRow>
                   
                   {/* Individual lot rows */}
@@ -447,9 +447,9 @@ export const DailyLotConsumption = () => {
                       <TableCell className="text-right">
                         {lot.final_stock.toFixed(2)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {(lot.outbound_quantity - lot.received_quantity).toFixed(2)}
-                      </TableCell>
+                       <TableCell className="text-right">
+                         {lot.outbound_quantity.toFixed(2)}
+                       </TableCell>
                     </TableRow>
                   ))}
                 </React.Fragment>
