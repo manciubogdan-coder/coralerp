@@ -97,6 +97,15 @@ export const DailyLotConsumption = () => {
 
       if (finalError) throw finalError;
 
+      // Get reception records for the selected date to identify actual receipts
+      const { data: receptionRecords, error: receptionError } = await supabase
+        .from('reception_records')
+        .select('name, lot_number, original_quantity')
+        .gte('receipt_date', selectedDate)
+        .lt('receipt_date', `${selectedDate}T23:59:59`);
+
+      if (receptionError) throw receptionError;
+
       console.log('Initial stock entries:', initialStock?.length || 0);
       console.log('Final stock entries:', finalStock?.length || 0);
 
@@ -104,6 +113,15 @@ export const DailyLotConsumption = () => {
       const initialStockMap = new Map<string, number>();
       const finalStockMap = new Map<string, number>();
       const productDetailsMap = new Map<string, any>();
+      const actualReceiptsMap = new Map<string, number>();
+
+      // Process reception records to identify actual receipts
+      (receptionRecords || []).forEach(receipt => {
+        const key = `${receipt.name}_${receipt.lot_number || 'Fără lot'}`;
+        actualReceiptsMap.set(key, (actualReceiptsMap.get(key) || 0) + receipt.original_quantity);
+      });
+
+      console.log('Reception records for date:', receptionRecords?.length || 0);
 
       // Process initial stock
       (initialStock || []).forEach(item => {
@@ -174,28 +192,30 @@ export const DailyLotConsumption = () => {
         const initialQty = initialStockMap.get(lotKey) || 0;
         const finalQty = finalStockMap.get(lotKey) || 0;
         
-        // Calculate consumption and receipts based on snapshot differences
-        // Logic: If we have more stock at the end than at the beginning, we received something
-        // If we have less stock at the end than at the beginning, we consumed something
-        // But we need to be careful about new lots that appear (initial = 0)
-        
-        let receivedQty = 0;
-        let consumedQty = 0;
-        
-        if (initialQty === 0 && finalQty > 0) {
-          // New lot appeared - this is a receipt
-          receivedQty = finalQty;
-        } else if (initialQty > 0 && finalQty === 0) {
-          // Lot disappeared - this is consumption
-          consumedQty = initialQty;
-        } else if (finalQty > initialQty) {
-          // Stock increased - this is a receipt
-          receivedQty = finalQty - initialQty;
-        } else if (initialQty > finalQty) {
-          // Stock decreased - this is consumption
-          consumedQty = initialQty - finalQty;
-        }
-        // If initialQty === finalQty, no change - both remain 0
+         // Calculate consumption and receipts using reception records
+         let receivedQty = actualReceiptsMap.get(lotKey) || 0;
+         let consumedQty = 0;
+         
+         // If we have actual receipts from reception records, use those
+         if (receivedQty > 0) {
+           // Calculate consumption: initial + received - final = consumed
+           consumedQty = Math.max(0, initialQty + receivedQty - finalQty);
+         } else {
+           // No receipts, so calculate based on snapshot differences
+           if (initialQty === 0 && finalQty > 0) {
+             // New lot appeared without reception record - treat as receipt
+             receivedQty = finalQty;
+           } else if (initialQty > 0 && finalQty === 0) {
+             // Lot disappeared - this is consumption
+             consumedQty = initialQty;
+           } else if (finalQty > initialQty) {
+             // Stock increased - this is a receipt
+             receivedQty = finalQty - initialQty;
+           } else if (initialQty > finalQty) {
+             // Stock decreased - this is consumption
+             consumedQty = initialQty - finalQty;
+           }
+         }
 
         const lotItem: LotConsumptionItem = {
           product_name: productName,
