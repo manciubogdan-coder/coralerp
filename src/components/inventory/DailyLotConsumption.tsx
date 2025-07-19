@@ -82,9 +82,9 @@ export const DailyLotConsumption = () => {
 
       if (initialError) throw initialError;
 
-      // Get final stock from CURRENT day snapshot
+      // Get final stock from CURRENT INVENTORY (real-time) instead of snapshots
       const { data: finalStock, error: finalError } = await supabase
-        .from(snapshotTable)
+        .from('inventory')
         .select(`
           name,
           lot_number,
@@ -93,7 +93,7 @@ export const DailyLotConsumption = () => {
           product_id,
           products:product_id (name, cod_produs)
         `)
-        .eq('snapshot_date', selectedDate);
+        .gt('quantity', 0); // Only get non-zero quantities
 
       if (finalError) throw finalError;
 
