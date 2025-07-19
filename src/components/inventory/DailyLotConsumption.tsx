@@ -119,9 +119,11 @@ export const DailyLotConsumption = () => {
       (receptionRecords || []).forEach(receipt => {
         const key = `${receipt.name}_${receipt.lot_number || 'Fără lot'}`;
         actualReceiptsMap.set(key, (actualReceiptsMap.get(key) || 0) + receipt.original_quantity);
+        console.log(`Receipt: ${key} = ${receipt.original_quantity}`);
       });
 
       console.log('Reception records for date:', receptionRecords?.length || 0);
+      console.log('Actual receipts map:', Array.from(actualReceiptsMap.entries()));
 
       // Process initial stock
       (initialStock || []).forEach(item => {
