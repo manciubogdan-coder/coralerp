@@ -205,8 +205,9 @@ export const DailyLotConsumption = () => {
          // If we have actual receipts from reception records, use those
          if (receivedQty > 0) {
            // Calculate consumption: initial + received - final = consumed
-           consumedQty = Math.max(0, initialQty + receivedQty - finalQty);
-           console.log(`  Using reception data: received=${receivedQty}, calculated consumed=${consumedQty}`);
+           const totalAvailable = initialQty + receivedQty;
+           consumedQty = Math.max(0, totalAvailable - finalQty);
+           console.log(`  Using reception data: initial=${initialQty}, received=${receivedQty}, total available=${totalAvailable}, final=${finalQty}, consumed=${consumedQty}`);
          } else {
            // No receipts, so calculate based on snapshot differences
            if (initialQty === 0 && finalQty > 0) {
