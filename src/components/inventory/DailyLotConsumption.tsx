@@ -238,26 +238,31 @@ export const DailyLotConsumption = () => {
               receivedQty = 0;
               console.log(`  No change: initial=${initialQty}, final=${finalQty} -> consumption=0, receipt=0`);
             }
-          }
+           }
 
-        const lotItem: LotConsumptionItem = {
-          product_name: productName,
-          product_code: productDetails.code,
-          lot_number: lotNumber,
-          unit: productDetails.unit,
-          initial_stock: initialQty, // Keep original initial stock separate
-          outbound_quantity: consumedQty,
-          received_quantity: receivedQty,
-          final_stock: finalQty
-        };
+        // Only include lots that had activity (consumption or receipts)
+        if (consumedQty > 0 || receivedQty > 0) {
+          const lotItem: LotConsumptionItem = {
+            product_name: productName,
+            product_code: productDetails.code,
+            lot_number: lotNumber,
+            unit: productDetails.unit,
+            initial_stock: initialQty,
+            outbound_quantity: consumedQty,
+            received_quantity: receivedQty,
+            final_stock: finalQty
+          };
 
-        product.lots.push(lotItem);
-        product.total_initial += initialQty; // Keep original totals
-        product.total_outbound += consumedQty;
-        product.total_received += receivedQty;
-        product.total_final += finalQty;
+          product.lots.push(lotItem);
+          product.total_initial += initialQty;
+          product.total_outbound += consumedQty;
+          product.total_received += receivedQty;
+          product.total_final += finalQty;
 
-        console.log(`Lot ${lotKey}: ${initialQty} → ${finalQty} (consumed: ${consumedQty}, received: ${receivedQty})`);
+          console.log(`✅ Lot ${lotKey}: ${initialQty} → ${finalQty} (consumed: ${consumedQty}, received: ${receivedQty})`);
+        } else {
+          console.log(`⏭️ Skipping lot ${lotKey}: no activity (initial=${initialQty}, final=${finalQty})`);
+        }
       });
 
       // Filter out products with no activity (no consumption and no receipts)
