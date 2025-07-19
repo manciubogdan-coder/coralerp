@@ -208,26 +208,30 @@ export const DailyLotConsumption = () => {
            const totalAvailable = initialQty + receivedQty;
            consumedQty = Math.max(0, totalAvailable - finalQty);
            console.log(`  Using reception data: initial=${initialQty}, received=${receivedQty}, total available=${totalAvailable}, final=${finalQty}, consumed=${consumedQty}`);
-         } else {
-           // No receipts, so calculate based on snapshot differences
-           if (initialQty === 0 && finalQty > 0) {
-             // New lot appeared without reception record - treat as receipt
-             receivedQty = finalQty;
-             console.log(`  New lot without reception: treated as receipt=${receivedQty}`);
-           } else if (initialQty > 0 && finalQty === 0) {
-             // Lot disappeared - this is consumption
-             consumedQty = initialQty;
-             console.log(`  Lot disappeared: consumption=${consumedQty}`);
-           } else if (finalQty > initialQty) {
-             // Stock increased - this is a receipt
-             receivedQty = finalQty - initialQty;
-             console.log(`  Stock increased: receipt=${receivedQty}`);
-           } else if (initialQty > finalQty) {
-             // Stock decreased - this is consumption
-             consumedQty = initialQty - finalQty;
-             console.log(`  Stock decreased: consumption=${consumedQty}`);
-           }
-         }
+          } else {
+            // No receipts, so calculate based on snapshot differences
+            if (initialQty === 0 && finalQty > 0) {
+              // New lot appeared without reception record - treat as receipt
+              receivedQty = finalQty;
+              consumedQty = 0; // No consumption if it's just a receipt
+              console.log(`  New lot without reception: treated as receipt=${receivedQty}, consumption=0`);
+            } else if (initialQty > 0 && finalQty === 0) {
+              // Lot disappeared - this is consumption
+              consumedQty = initialQty;
+              receivedQty = 0;
+              console.log(`  Lot disappeared: consumption=${consumedQty}, receipt=0`);
+            } else if (finalQty > initialQty) {
+              // Stock increased - this is a receipt
+              receivedQty = finalQty - initialQty;
+              consumedQty = 0; // No consumption if stock increased
+              console.log(`  Stock increased: receipt=${receivedQty}, consumption=0`);
+            } else if (initialQty > finalQty) {
+              // Stock decreased - this is consumption
+              consumedQty = initialQty - finalQty;
+              receivedQty = 0; // No receipt if stock decreased
+              console.log(`  Stock decreased: consumption=${consumedQty}, receipt=0`);
+            }
+          }
 
         const lotItem: LotConsumptionItem = {
           product_name: productName,
