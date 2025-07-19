@@ -174,17 +174,28 @@ export const DailyLotConsumption = () => {
         const initialQty = initialStockMap.get(lotKey) || 0;
         const finalQty = finalStockMap.get(lotKey) || 0;
         
-        // Calculate consumption based on snapshot differences
-        // If final > initial, there were receipts
-        // If final < initial, there was consumption
+        // Calculate consumption and receipts based on snapshot differences
+        // Logic: If we have more stock at the end than at the beginning, we received something
+        // If we have less stock at the end than at the beginning, we consumed something
+        // But we need to be careful about new lots that appear (initial = 0)
+        
         let receivedQty = 0;
         let consumedQty = 0;
         
-        if (finalQty > initialQty) {
+        if (initialQty === 0 && finalQty > 0) {
+          // New lot appeared - this is a receipt
+          receivedQty = finalQty;
+        } else if (initialQty > 0 && finalQty === 0) {
+          // Lot disappeared - this is consumption
+          consumedQty = initialQty;
+        } else if (finalQty > initialQty) {
+          // Stock increased - this is a receipt
           receivedQty = finalQty - initialQty;
         } else if (initialQty > finalQty) {
+          // Stock decreased - this is consumption
           consumedQty = initialQty - finalQty;
         }
+        // If initialQty === finalQty, no change - both remain 0
 
         const lotItem: LotConsumptionItem = {
           product_name: productName,
