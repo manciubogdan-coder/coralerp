@@ -162,6 +162,8 @@ export const DailyLotConsumption = () => {
       ]);
 
       console.log('Total unique lots found:', allLotKeys.size);
+      console.log('All lot keys:', Array.from(allLotKeys));
+      console.log('Bulls Blod lots:', Array.from(allLotKeys).filter(key => key.includes('Bulls Blod')));
 
       // Process data to create consumption report
       const productMap = new Map<string, ProductSummary>();
