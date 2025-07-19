@@ -197,39 +197,44 @@ export const DailyLotConsumption = () => {
          console.log(`Processing lot: ${lotKey}`);
          console.log(`  Initial qty: ${initialQty}, Final qty: ${finalQty}`);
          console.log(`  Actual receipts for this lot: ${actualReceiptsMap.get(lotKey) || 0}`);
-         
-         // Calculate consumption and receipts using reception records
-         let receivedQty = actualReceiptsMap.get(lotKey) || 0;
-         let consumedQty = 0;
-         
-         // If we have actual receipts from reception records, use those
-         if (receivedQty > 0) {
-           // Calculate consumption: initial + received - final = consumed
-           const totalAvailable = initialQty + receivedQty;
-           consumedQty = Math.max(0, totalAvailable - finalQty);
-           console.log(`  Using reception data: initial=${initialQty}, received=${receivedQty}, total available=${totalAvailable}, final=${finalQty}, consumed=${consumedQty}`);
+          
+          // Calculate consumption and receipts using reception records
+          let receivedQty = actualReceiptsMap.get(lotKey) || 0;
+          let consumedQty = 0;
+          
+          // If we have actual receipts from reception records, use those
+          if (receivedQty > 0) {
+            // Calculate consumption: initial + received - final = consumed
+            const totalAvailable = initialQty + receivedQty;
+            consumedQty = Math.max(0, totalAvailable - finalQty);
+            console.log(`  Using reception data: initial=${initialQty}, received=${receivedQty}, total available=${totalAvailable}, final=${finalQty}, consumed=${consumedQty}`);
           } else {
-            // No receipts, so calculate based on snapshot differences
+            // No receipts from records, calculate based on snapshot differences
             if (initialQty === 0 && finalQty > 0) {
-              // New lot appeared without reception record - treat as receipt
+              // New lot appeared - treat as receipt only, no consumption
               receivedQty = finalQty;
-              consumedQty = 0; // No consumption if it's just a receipt
-              console.log(`  New lot without reception: treated as receipt=${receivedQty}, consumption=0`);
+              consumedQty = 0;
+              console.log(`  New lot: initial=0, final=${finalQty} -> receipt=${receivedQty}, consumption=0`);
             } else if (initialQty > 0 && finalQty === 0) {
-              // Lot disappeared - this is consumption
+              // Lot disappeared - consumption only
               consumedQty = initialQty;
               receivedQty = 0;
-              console.log(`  Lot disappeared: consumption=${consumedQty}, receipt=0`);
+              console.log(`  Lot disappeared: initial=${initialQty}, final=0 -> consumption=${consumedQty}, receipt=0`);
             } else if (finalQty > initialQty) {
-              // Stock increased - this is a receipt
+              // Stock increased - receipt only
               receivedQty = finalQty - initialQty;
-              consumedQty = 0; // No consumption if stock increased
-              console.log(`  Stock increased: receipt=${receivedQty}, consumption=0`);
+              consumedQty = 0;
+              console.log(`  Stock increased: initial=${initialQty}, final=${finalQty} -> receipt=${receivedQty}, consumption=0`);
             } else if (initialQty > finalQty) {
-              // Stock decreased - this is consumption
+              // Stock decreased - consumption only
               consumedQty = initialQty - finalQty;
-              receivedQty = 0; // No receipt if stock decreased
-              console.log(`  Stock decreased: consumption=${consumedQty}, receipt=0`);
+              receivedQty = 0;
+              console.log(`  Stock decreased: initial=${initialQty}, final=${finalQty} -> consumption=${consumedQty}, receipt=0`);
+            } else {
+              // No change
+              consumedQty = 0;
+              receivedQty = 0;
+              console.log(`  No change: initial=${initialQty}, final=${finalQty} -> consumption=0, receipt=0`);
             }
           }
 
