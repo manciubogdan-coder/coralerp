@@ -48,6 +48,7 @@ export const DailyLotConsumption = () => {
       setLoading(true);
       
       const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
+      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
       
       // For ambalaje, we don't have daily snapshots yet, so skip
       if (inventoryType === 'ambalaje') {
@@ -84,7 +85,7 @@ export const DailyLotConsumption = () => {
 
       // Get final stock from CURRENT INVENTORY (real-time) instead of snapshots
       const { data: finalStock, error: finalError } = await supabase
-        .from('inventory')
+        .from(inventoryTable)
         .select(`
           name,
           lot_number,
