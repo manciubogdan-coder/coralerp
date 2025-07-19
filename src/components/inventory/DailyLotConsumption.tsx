@@ -234,14 +234,14 @@ export const DailyLotConsumption = () => {
           product_code: productDetails.code,
           lot_number: lotNumber,
           unit: productDetails.unit,
-          initial_stock: initialQty + receivedQty, // Include received quantity in initial stock display
+          initial_stock: initialQty, // Keep original initial stock separate
           outbound_quantity: consumedQty,
           received_quantity: receivedQty,
           final_stock: finalQty
         };
 
         product.lots.push(lotItem);
-        product.total_initial += (initialQty + receivedQty); // Include received in total initial
+        product.total_initial += initialQty; // Keep original totals
         product.total_outbound += consumedQty;
         product.total_received += receivedQty;
         product.total_final += finalQty;
