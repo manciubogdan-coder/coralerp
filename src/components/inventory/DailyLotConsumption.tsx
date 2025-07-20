@@ -102,7 +102,7 @@ export const DailyLotConsumption = () => {
       if (receptionError) throw receptionError;
 
       // Get transfers for the selected date to track official transfers out  
-      const transferItemsTable = 'stock_transfer_items'; // Only for materii-prime for now
+      const transferItemsTable = 'stock_transfer_items';
       
       const { data: transfersOut, error: transfersError } = await supabase
         .from(transferItemsTable)
@@ -112,7 +112,7 @@ export const DailyLotConsumption = () => {
             name,
             lot_number
           ),
-          stock_transfers:transfer_id (
+          stock_transfers!inner (
             transfer_date
           )
         `)
