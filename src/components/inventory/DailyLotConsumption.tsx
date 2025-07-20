@@ -68,7 +68,7 @@ export const DailyLotConsumption = () => {
       console.log('Selected date:', selectedDate);
       console.log('Previous day for initial stock:', previousDateStr);
       
-      // Get initial stock from PREVIOUS day snapshot
+      // Get initial stock from PREVIOUS day snapshot (or most recent available)
       const { data: initialStock, error: initialError } = await supabase
         .from(snapshotTable)
         .select(`
@@ -77,9 +77,11 @@ export const DailyLotConsumption = () => {
           quantity,
           unit,
           product_id,
+          snapshot_date,
           products:product_id (name, cod_produs)
         `)
-        .eq('snapshot_date', previousDateStr);
+        .lte('snapshot_date', previousDateStr)
+        .order('snapshot_date', { ascending: false });
 
       if (initialError) throw initialError;
 
