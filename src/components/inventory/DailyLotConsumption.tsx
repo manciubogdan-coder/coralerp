@@ -237,6 +237,8 @@ export const DailyLotConsumption = () => {
           // Only use official records for consumption
           consumedQty = transferredQty;
           
+          console.log(`DEBUG - Lot ${lotKey}: transferredQty=${transferredQty}, actualTransfersMap has:`, actualTransfersMap.get(lotKey));
+          
           // For receipts, check if we have official reception records
           if (receivedQty === 0 && initialQty === 0 && finalQty > 0) {
             // New lot appeared but no official reception record - might be a new reception
@@ -244,7 +246,9 @@ export const DailyLotConsumption = () => {
             console.log(`  New lot without official record: final=${finalQty} -> receipt=${receivedQty}`);
           }
           
-          console.log(`  Using official records only: initial=${initialQty}, received=${receivedQty}, transferred=${transferredQty}, final=${finalQty}`);
+          if (productName === 'Ananas') {
+            console.log(`ANANAS DEBUG - Lot ${lotNumber}: initial=${initialQty}, received=${receivedQty}, transferred=${transferredQty}, final=${finalQty}, consumedQty=${consumedQty}`);
+          }
 
         // Only include lots that had activity (consumption or receipts)
         if (consumedQty > 0 || receivedQty > 0) {
