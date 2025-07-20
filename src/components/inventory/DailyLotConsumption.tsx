@@ -182,11 +182,17 @@ export const DailyLotConsumption = () => {
       });
 
       console.log('ActualTransfersMap contents:');
+      console.log('🔥 CHECKING FOR ANANAS IN TRANSFERS:');
+      let ananasFound = false;
       actualTransfersMap.forEach((value, key) => {
         if (key.includes('Ananas')) {
-          console.log(`🔥 Transfer found: ${key} = ${value}`);
+          console.log(`🔥 ANANAS TRANSFER FOUND: ${key} = ${value}`);
+          ananasFound = true;
         }
       });
+      if (!ananasFound) {
+        console.log('✅ NO ANANAS FOUND IN TRANSFERS - consum should be 0');
+      }
       console.log('Total transfers:', actualTransfersMap.size);
 
       // Get all unique lot keys from both snapshots
@@ -252,7 +258,7 @@ export const DailyLotConsumption = () => {
             console.log(`  New lot without official record: final=${finalQty} -> receipt=${receivedQty}`);
           }
 
-        // Only include lots that had activity (consumption or receipts)
+        // Dacă nu există în actualTransfersMap, consumul trebuie să fie 0!!!
         if (consumedQty > 0 || receivedQty > 0) {
           const lotItem: LotConsumptionItem = {
             product_name: productName,
