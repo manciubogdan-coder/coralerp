@@ -107,6 +107,25 @@ export const DailyLotConsumption = () => {
 
       if (receptionError) throw receptionError;
 
+      // Get transfers for the selected date to track official transfers out  
+      const transferItemsTable = 'stock_transfer_items'; // Only for materii-prime for now
+      
+      const { data: transfersOut, error: transfersError } = await supabase
+        .from(transferItemsTable)
+        .select(`
+          quantity,
+          inventory:inventory_item_id (
+            name,
+            lot_number
+          ),
+          stock_transfers:transfer_id (
+            transfer_date
+          )
+        `)
+        .eq('stock_transfers.transfer_date', selectedDate);
+
+      if (transfersError) throw transfersError;
+
       console.log('Initial stock entries:', initialStock?.length || 0);
       console.log('Final stock entries:', finalStock?.length || 0);
 
@@ -115,6 +134,7 @@ export const DailyLotConsumption = () => {
       const finalStockMap = new Map<string, number>();
       const productDetailsMap = new Map<string, any>();
       const actualReceiptsMap = new Map<string, number>();
+      const actualTransfersMap = new Map<string, number>();
 
       // Process reception records to identify actual receipts
       (receptionRecords || []).forEach(receipt => {
@@ -123,8 +143,19 @@ export const DailyLotConsumption = () => {
         console.log(`Receipt: ${key} = ${receipt.original_quantity}`);
       });
 
+      // Process transfers out to identify official transfers
+      (transfersOut || []).forEach(transfer => {
+        if (transfer.inventory?.name && transfer.inventory?.lot_number) {
+          const key = `${transfer.inventory.name}_${transfer.inventory.lot_number}`;
+          actualTransfersMap.set(key, (actualTransfersMap.get(key) || 0) + transfer.quantity);
+          console.log(`Transfer out: ${key} = ${transfer.quantity}`);
+        }
+      });
+
       console.log('Reception records for date:', receptionRecords?.length || 0);
+      console.log('Transfer records for date:', transfersOut?.length || 0);
       console.log('Actual receipts map:', Array.from(actualReceiptsMap.entries()));
+      console.log('Actual transfers map:', Array.from(actualTransfersMap.entries()));
 
       // Process initial stock
       (initialStock || []).forEach(item => {
@@ -205,39 +236,41 @@ export const DailyLotConsumption = () => {
           let receivedQty = actualReceiptsMap.get(lotKey) || 0;
           let consumedQty = 0;
           
-          // If we have actual receipts from reception records, use those
-          if (receivedQty > 0) {
-            // Calculate consumption: initial + received - final = consumed
-            const totalAvailable = initialQty + receivedQty;
-            consumedQty = Math.max(0, totalAvailable - finalQty);
-            console.log(`  Using reception data: initial=${initialQty}, received=${receivedQty}, total available=${totalAvailable}, final=${finalQty}, consumed=${consumedQty}`);
+          // Use actual records instead of stock differences
+          // Get actual transfers for this lot
+          const transferredQty = actualTransfersMap.get(lotKey) || 0;
+          
+          if (receivedQty > 0 || transferredQty > 0) {
+            // We have actual data from records - use this
+            consumedQty = transferredQty;
+            console.log(`  Using official records: initial=${initialQty}, received=${receivedQty}, transferred=${transferredQty}, final=${finalQty}`);
           } else {
-            // No receipts from records, calculate based on snapshot differences
+            // No official records found - calculate based on stock differences as fallback
             if (initialQty === 0 && finalQty > 0) {
-              // New lot appeared - treat as receipt only, no consumption
+              // New lot appeared - treat as receipt only
               receivedQty = finalQty;
               consumedQty = 0;
-              console.log(`  New lot: initial=0, final=${finalQty} -> receipt=${receivedQty}, consumption=0`);
+              console.log(`  New lot (fallback): initial=0, final=${finalQty} -> receipt=${receivedQty}, consumption=0`);
             } else if (initialQty > 0 && finalQty === 0) {
               // Lot disappeared - consumption only
               consumedQty = initialQty;
               receivedQty = 0;
-              console.log(`  Lot disappeared: initial=${initialQty}, final=0 -> consumption=${consumedQty}, receipt=0`);
+              console.log(`  Lot disappeared (fallback): initial=${initialQty}, final=0 -> consumption=${consumedQty}, receipt=0`);
             } else if (finalQty > initialQty) {
               // Stock increased - receipt only
               receivedQty = finalQty - initialQty;
               consumedQty = 0;
-              console.log(`  Stock increased: initial=${initialQty}, final=${finalQty} -> receipt=${receivedQty}, consumption=0`);
+              console.log(`  Stock increased (fallback): initial=${initialQty}, final=${finalQty} -> receipt=${receivedQty}, consumption=0`);
             } else if (initialQty > finalQty) {
               // Stock decreased - consumption only
               consumedQty = initialQty - finalQty;
               receivedQty = 0;
-              console.log(`  Stock decreased: initial=${initialQty}, final=${finalQty} -> consumption=${consumedQty}, receipt=0`);
+              console.log(`  Stock decreased (fallback): initial=${initialQty}, final=${finalQty} -> consumption=${consumedQty}, receipt=0`);
             } else {
               // No change
               consumedQty = 0;
               receivedQty = 0;
-              console.log(`  No change: initial=${initialQty}, final=${finalQty} -> consumption=0, receipt=0`);
+              console.log(`  No change (fallback): initial=${initialQty}, final=${finalQty} -> consumption=0, receipt=0`);
             }
            }
 
