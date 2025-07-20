@@ -181,6 +181,14 @@ export const DailyLotConsumption = () => {
         }
       });
 
+      console.log('ActualTransfersMap contents:');
+      actualTransfersMap.forEach((value, key) => {
+        if (key.includes('Ananas')) {
+          console.log(`🔥 Transfer found: ${key} = ${value}`);
+        }
+      });
+      console.log('Total transfers:', actualTransfersMap.size);
+
       // Get all unique lot keys from both snapshots
       const allLotKeys = new Set([
         ...Array.from(initialStockMap.keys()),
@@ -237,17 +245,20 @@ export const DailyLotConsumption = () => {
           // Only use official records for consumption
           consumedQty = transferredQty;
           
-          console.log(`DEBUG - Lot ${lotKey}: transferredQty=${transferredQty}, actualTransfersMap has:`, actualTransfersMap.get(lotKey));
+          // Debug pentru toate loturile de Ananas
+          if (productName === 'Ananas') {
+            console.log(`🍍 ANANAS ${lotNumber}:`);
+            console.log(`  - transferredQty din actualTransfersMap: ${transferredQty}`);
+            console.log(`  - actualTransfersMap.get("${lotKey}"): ${actualTransfersMap.get(lotKey)}`);
+            console.log(`  - initial: ${initialQty}, final: ${finalQty}`);
+            console.log(`  - Va avea consumedQty: ${consumedQty}`);
+          }
           
           // For receipts, check if we have official reception records
           if (receivedQty === 0 && initialQty === 0 && finalQty > 0) {
             // New lot appeared but no official reception record - might be a new reception
             receivedQty = finalQty;
             console.log(`  New lot without official record: final=${finalQty} -> receipt=${receivedQty}`);
-          }
-          
-          if (productName === 'Ananas') {
-            console.log(`ANANAS DEBUG - Lot ${lotNumber}: initial=${initialQty}, received=${receivedQty}, transferred=${transferredQty}, final=${finalQty}, consumedQty=${consumedQty}`);
           }
 
         // Only include lots that had activity (consumption or receipts)
