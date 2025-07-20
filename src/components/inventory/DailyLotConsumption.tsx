@@ -239,20 +239,11 @@ export const DailyLotConsumption = () => {
           let consumedQty = 0;
           
           // Use ONLY official records - no fallback calculations for consumption
-          // Get actual transfers for this lot
+          // FOARTE SIMPLU: dacă nu e în actualTransfersMap, atunci consumul = 0
           const transferredQty = actualTransfersMap.get(lotKey) || 0;
-          
-          // Only use official records for consumption
           consumedQty = transferredQty;
           
-          // Debug pentru toate loturile de Ananas
-          if (productName === 'Ananas') {
-            console.log(`🍍 ANANAS ${lotNumber}:`);
-            console.log(`  - transferredQty din actualTransfersMap: ${transferredQty}`);
-            console.log(`  - actualTransfersMap.get("${lotKey}"): ${actualTransfersMap.get(lotKey)}`);
-            console.log(`  - initial: ${initialQty}, final: ${finalQty}`);
-            console.log(`  - Va avea consumedQty: ${consumedQty}`);
-          }
+          console.log(`⚡ ${productName}_${lotNumber}: transfer=${transferredQty}, consum=${consumedQty}`);
           
           // For receipts, check if we have official reception records
           if (receivedQty === 0 && initialQty === 0 && finalQty > 0) {
