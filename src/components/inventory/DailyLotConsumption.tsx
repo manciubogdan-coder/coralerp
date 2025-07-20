@@ -315,6 +315,7 @@ export const DailyLotConsumption = () => {
   };
 
   useEffect(() => {
+    console.log('🚀 Re-running fetchConsumptionData at:', new Date().toISOString());
     fetchConsumptionData();
   }, [selectedDate, inventoryType]);
 
