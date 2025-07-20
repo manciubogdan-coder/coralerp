@@ -230,43 +230,21 @@ export const DailyLotConsumption = () => {
           let receivedQty = actualReceiptsMap.get(lotKey) || 0;
           let consumedQty = 0;
           
-          // Use actual records instead of stock differences
+          // Use ONLY official records - no fallback calculations for consumption
           // Get actual transfers for this lot
           const transferredQty = actualTransfersMap.get(lotKey) || 0;
           
-          if (receivedQty > 0 || transferredQty > 0) {
-            // We have actual data from records - use this
-            consumedQty = transferredQty;
-            console.log(`  Using official records: initial=${initialQty}, received=${receivedQty}, transferred=${transferredQty}, final=${finalQty}`);
-          } else {
-            // No official records found - calculate based on stock differences as fallback
-            if (initialQty === 0 && finalQty > 0) {
-              // New lot appeared - treat as receipt only
-              receivedQty = finalQty;
-              consumedQty = 0;
-              console.log(`  New lot (fallback): initial=0, final=${finalQty} -> receipt=${receivedQty}, consumption=0`);
-            } else if (initialQty > 0 && finalQty === 0) {
-              // Lot disappeared - consumption only
-              consumedQty = initialQty;
-              receivedQty = 0;
-              console.log(`  Lot disappeared (fallback): initial=${initialQty}, final=0 -> consumption=${consumedQty}, receipt=0`);
-            } else if (finalQty > initialQty) {
-              // Stock increased - receipt only
-              receivedQty = finalQty - initialQty;
-              consumedQty = 0;
-              console.log(`  Stock increased (fallback): initial=${initialQty}, final=${finalQty} -> receipt=${receivedQty}, consumption=0`);
-            } else if (initialQty > finalQty) {
-              // Stock decreased - consumption only
-              consumedQty = initialQty - finalQty;
-              receivedQty = 0;
-              console.log(`  Stock decreased (fallback): initial=${initialQty}, final=${finalQty} -> consumption=${consumedQty}, receipt=0`);
-            } else {
-              // No change
-              consumedQty = 0;
-              receivedQty = 0;
-              console.log(`  No change (fallback): initial=${initialQty}, final=${finalQty} -> consumption=0, receipt=0`);
-            }
-           }
+          // Only use official records for consumption
+          consumedQty = transferredQty;
+          
+          // For receipts, check if we have official reception records
+          if (receivedQty === 0 && initialQty === 0 && finalQty > 0) {
+            // New lot appeared but no official reception record - might be a new reception
+            receivedQty = finalQty;
+            console.log(`  New lot without official record: final=${finalQty} -> receipt=${receivedQty}`);
+          }
+          
+          console.log(`  Using official records only: initial=${initialQty}, received=${receivedQty}, transferred=${transferredQty}, final=${finalQty}`);
 
         // Only include lots that had activity (consumption or receipts)
         if (consumedQty > 0 || receivedQty > 0) {
