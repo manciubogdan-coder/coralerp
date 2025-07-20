@@ -181,19 +181,7 @@ export const DailyLotConsumption = () => {
         }
       });
 
-      console.log('ActualTransfersMap contents:');
-      console.log('🔥 CHECKING FOR ANANAS IN TRANSFERS:');
-      let ananasFound = false;
-      actualTransfersMap.forEach((value, key) => {
-        if (key.includes('Ananas')) {
-          console.log(`🔥 ANANAS TRANSFER FOUND: ${key} = ${value}`);
-          ananasFound = true;
-        }
-      });
-      if (!ananasFound) {
-        console.log('✅ NO ANANAS FOUND IN TRANSFERS - consum should be 0');
-      }
-      console.log('Total transfers:', actualTransfersMap.size);
+      // Final logic: cantitatea ieșită = ce e în actualTransfersMap, punct!
 
       // Get all unique lot keys from both snapshots
       const allLotKeys = new Set([
@@ -236,26 +224,13 @@ export const DailyLotConsumption = () => {
         const initialQty = initialStockMap.get(lotKey) || 0;
         const finalQty = finalStockMap.get(lotKey) || 0;
         
-         console.log(`Processing lot: ${lotKey}`);
-         console.log(`  Initial qty: ${initialQty}, Final qty: ${finalQty}`);
-         console.log(`  Actual receipts for this lot: ${actualReceiptsMap.get(lotKey) || 0}`);
-          
-          // Calculate consumption and receipts using reception records
+          // Cantitatea ieșită = exact ce e în actualTransfersMap pentru ziua selectată
           let receivedQty = actualReceiptsMap.get(lotKey) || 0;
-          let consumedQty = 0;
-          
-          // Use ONLY official records - no fallback calculations for consumption
-          // FOARTE SIMPLU: dacă nu e în actualTransfersMap, atunci consumul = 0
-          const transferredQty = actualTransfersMap.get(lotKey) || 0;
-          consumedQty = transferredQty;
-          
-          console.log(`⚡ ${productName}_${lotNumber}: transfer=${transferredQty}, consum=${consumedQty}`);
+          let consumedQty = actualTransfersMap.get(lotKey) || 0; // PUNCT!
           
           // For receipts, check if we have official reception records
           if (receivedQty === 0 && initialQty === 0 && finalQty > 0) {
-            // New lot appeared but no official reception record - might be a new reception
             receivedQty = finalQty;
-            console.log(`  New lot without official record: final=${finalQty} -> receipt=${receivedQty}`);
           }
 
         // Dacă nu există în actualTransfersMap, consumul trebuie să fie 0!!!
