@@ -349,14 +349,8 @@ export const DailyLotConsumption = () => {
   }
 
   return (
-    <div className="space-y-4 print:space-y-2">
-      {/* Print Header */}
-      <div className="hidden print:block text-center mb-4">
-        <h1 className="text-xl font-bold">Consum Zilnic pe Loturi</h1>
-        <p className="text-sm text-gray-600">Data: {new Date(selectedDate).toLocaleDateString('ro-RO')}</p>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center print:hidden">
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4" />
           <input
@@ -374,23 +368,7 @@ export const DailyLotConsumption = () => {
           className="w-full sm:w-64"
         />
         
-        <Button 
-          onClick={() => {
-            console.log('Print button clicked');
-            try {
-              // Dau timp componentei să se rerender
-              setTimeout(() => {
-                console.log('Attempting to print...');
-                window.print();
-              }, 100);
-            } catch (error) {
-              console.error('Print error:', error);
-              alert('Nu s-a putut deschide fereastra de printare. Încercați Ctrl+P.');
-            }
-          }} 
-          variant="outline" 
-          size="sm"
-        >
+        <Button onClick={() => window.print()} variant="outline" size="sm">
           Printează
         </Button>
         
@@ -401,82 +379,82 @@ export const DailyLotConsumption = () => {
       </div>
 
       {filteredData.length === 0 ? (
-        <div className="text-center p-8 text-muted-foreground print:hidden">
+        <div className="text-center p-8 text-muted-foreground">
           Nu există date de consum pentru ziua selectată
         </div>
       ) : (
-        <div className="border rounded-lg overflow-auto max-h-[600px] print:max-h-none print:overflow-visible print:border-none">
-          <Table className="print:text-xs">
-            <TableHeader className="sticky top-0 bg-background z-10 print:static print:bg-transparent">
+        <div className="border rounded-lg overflow-auto max-h-[600px]">
+          <Table>
+            <TableHeader className="sticky top-0 bg-background z-10">
               <TableRow>
-                <TableHead className="font-semibold print:p-1 print:text-xs">Produs</TableHead>
-                <TableHead className="font-semibold print:p-1 print:text-xs">Cod</TableHead>
-                <TableHead className="font-semibold print:p-1 print:text-xs">Lot</TableHead>
-                <TableHead className="font-semibold text-right print:p-1 print:text-xs">Stoc Inițial</TableHead>
-                <TableHead className="font-semibold text-right print:p-1 print:text-xs">Cantitate Ieșită</TableHead>
-                <TableHead className="font-semibold text-right print:p-1 print:text-xs">Cantitate Primită</TableHead>
-                <TableHead className="font-semibold text-right print:p-1 print:text-xs">Stoc Final</TableHead>
-                <TableHead className="font-semibold text-right print:p-1 print:text-xs">Consum Net</TableHead>
+                <TableHead className="font-semibold">Produs</TableHead>
+                <TableHead className="font-semibold">Cod</TableHead>
+                <TableHead className="font-semibold">Lot</TableHead>
+                <TableHead className="font-semibold text-right">Stoc Inițial</TableHead>
+                <TableHead className="font-semibold text-right">Cantitate Ieșită</TableHead>
+                <TableHead className="font-semibold text-right">Cantitate Primită</TableHead>
+                <TableHead className="font-semibold text-right">Stoc Final</TableHead>
+                <TableHead className="font-semibold text-right">Consum Net</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredData.map((product, productIndex) => (
                 <React.Fragment key={`${product.product_name}-${productIndex}`}>
                   {/* Product summary row */}
-                  <TableRow className="bg-muted/50 font-medium print:bg-gray-100">
-                    <TableCell className="font-semibold print:p-1 print:text-xs">
+                  <TableRow className="bg-muted/50 font-medium">
+                    <TableCell className="font-semibold">
                       {product.product_name}
                     </TableCell>
-                    <TableCell className="text-muted-foreground print:p-1 print:text-xs">
+                    <TableCell className="text-muted-foreground">
                       {product.product_code}
                     </TableCell>
-                    <TableCell className="text-muted-foreground font-medium print:p-1 print:text-xs">
+                    <TableCell className="text-muted-foreground font-medium">
                       TOTAL
                     </TableCell>
-                    <TableCell className="text-right font-semibold print:p-1 print:text-xs">
+                    <TableCell className="text-right font-semibold">
                       {product.total_initial.toFixed(2)} {product.unit}
                     </TableCell>
-                    <TableCell className="text-right font-semibold print:p-1 print:text-xs">
+                    <TableCell className="text-right font-semibold">
                       {product.total_outbound.toFixed(2)} {product.unit}
                     </TableCell>
-                    <TableCell className="text-right font-semibold print:p-1 print:text-xs">
+                    <TableCell className="text-right font-semibold">
                       {product.total_received.toFixed(2)} {product.unit}
                     </TableCell>
-                    <TableCell className="text-right font-semibold print:p-1 print:text-xs">
+                    <TableCell className="text-right font-semibold">
                       {product.total_final.toFixed(2)} {product.unit}
                     </TableCell>
-                     <TableCell className="text-right font-semibold print:p-1 print:text-xs">
+                     <TableCell className="text-right font-semibold">
                        {product.total_outbound.toFixed(2)} {product.unit}
                      </TableCell>
                   </TableRow>
                   
                   {/* Individual lot rows */}
                   {product.lots.map((lot, lotIndex) => (
-                     <TableRow key={`${lot.product_name}-${lot.lot_number}-${lotIndex}`}>
-                       <TableCell className="pl-8 text-muted-foreground print:pl-2 print:p-1 print:text-xs">
-                         {lot.product_name}
-                       </TableCell>
-                       <TableCell className="text-muted-foreground print:p-1 print:text-xs">
-                         {lot.product_code}
-                       </TableCell>
-                       <TableCell className="font-mono text-sm print:p-1 print:text-xs">
-                         {lot.lot_number}
-                       </TableCell>
-                       <TableCell className="text-right print:p-1 print:text-xs">
-                         {lot.initial_stock.toFixed(2)}
-                       </TableCell>
-                       <TableCell className="text-right print:p-1 print:text-xs">
+                    <TableRow key={`${lot.product_name}-${lot.lot_number}-${lotIndex}`}>
+                      <TableCell className="pl-8 text-muted-foreground">
+                        {lot.product_name}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {lot.product_code}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {lot.lot_number}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {lot.initial_stock.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {lot.outbound_quantity.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {lot.received_quantity.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {lot.final_stock.toFixed(2)}
+                      </TableCell>
+                       <TableCell className="text-right">
                          {lot.outbound_quantity.toFixed(2)}
                        </TableCell>
-                       <TableCell className="text-right print:p-1 print:text-xs">
-                         {lot.received_quantity.toFixed(2)}
-                       </TableCell>
-                       <TableCell className="text-right print:p-1 print:text-xs">
-                         {lot.final_stock.toFixed(2)}
-                       </TableCell>
-                        <TableCell className="text-right print:p-1 print:text-xs">
-                          {lot.outbound_quantity.toFixed(2)}
-                        </TableCell>
                     </TableRow>
                   ))}
                 </React.Fragment>
