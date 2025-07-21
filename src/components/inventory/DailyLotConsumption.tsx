@@ -374,7 +374,14 @@ export const DailyLotConsumption = () => {
           className="w-full sm:w-64"
         />
         
-        <Button onClick={() => window.print()} variant="outline" size="sm">
+        <Button 
+          onClick={() => {
+            console.log('Print button clicked');
+            window.print();
+          }} 
+          variant="outline" 
+          size="sm"
+        >
           Printează
         </Button>
         
