@@ -377,7 +377,16 @@ export const DailyLotConsumption = () => {
         <Button 
           onClick={() => {
             console.log('Print button clicked');
-            window.print();
+            try {
+              // Dau timp componentei să se rerender
+              setTimeout(() => {
+                console.log('Attempting to print...');
+                window.print();
+              }, 100);
+            } catch (error) {
+              console.error('Print error:', error);
+              alert('Nu s-a putut deschide fereastra de printare. Încercați Ctrl+P.');
+            }
           }} 
           variant="outline" 
           size="sm"
