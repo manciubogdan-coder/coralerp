@@ -368,6 +368,10 @@ export const DailyLotConsumption = () => {
           className="w-full sm:w-64"
         />
         
+        <Button onClick={() => window.print()} variant="outline" size="sm">
+          Printează
+        </Button>
+        
         <Button onClick={handleExport} variant="outline" size="sm">
           <FileSpreadsheet className="h-4 w-4 mr-2" />
           Export Excel

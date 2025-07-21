@@ -264,6 +264,9 @@ export const DailyStockGroupView = () => {
           <Button onClick={triggerSnapshot} variant="outline">
             Creează Snapshot Acum
           </Button>
+          <Button onClick={() => window.print()} variant="outline">
+            Printează
+          </Button>
           <Button onClick={handleExport} disabled={groupedView ? filteredGroupedData.length === 0 : filteredStockSnapshots.length === 0}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Export Excel
