@@ -699,6 +699,44 @@ export type Database = {
         }
         Relationships: []
       }
+      ambalaje_daily_stock_quality: {
+        Row: {
+          consider_quantity: number
+          created_at: string
+          id: string
+          nonconform_percent: number
+          obs: string | null
+          snapshot_id: string
+          updated_at: string
+        }
+        Insert: {
+          consider_quantity?: number
+          created_at?: string
+          id?: string
+          nonconform_percent?: number
+          obs?: string | null
+          snapshot_id: string
+          updated_at?: string
+        }
+        Update: {
+          consider_quantity?: number
+          created_at?: string
+          id?: string
+          nonconform_percent?: number
+          obs?: string | null
+          snapshot_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_daily_stock_quality_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: true
+            referencedRelation: "ambalaje_daily_stock_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ambalaje_daily_stock_snapshots: {
         Row: {
           crate_count: number | null
@@ -1399,6 +1437,891 @@ export type Database = {
         }
         Relationships: []
       }
+      coralmanagement_departments: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          manager_id: string | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          manager_id?: string | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          manager_id?: string | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_departments_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_employees: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          department_id: string | null
+          email: string | null
+          hired_date: string | null
+          id: string
+          name: string
+          total_points: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          department_id?: string | null
+          email?: string | null
+          hired_date?: string | null
+          id?: string
+          name: string
+          total_points?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          department_id?: string | null
+          email?: string | null
+          hired_date?: string | null
+          id?: string
+          name?: string
+          total_points?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_employees_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_metrics: {
+        Row: {
+          created_at: string | null
+          department_id: string | null
+          employee_id: string | null
+          id: string
+          metadata: Json | null
+          metric_type: string
+          period_end: string
+          period_start: string
+          unit: string | null
+          value: number
+        }
+        Insert: {
+          created_at?: string | null
+          department_id?: string | null
+          employee_id?: string | null
+          id?: string
+          metadata?: Json | null
+          metric_type: string
+          period_end: string
+          period_start: string
+          unit?: string | null
+          value: number
+        }
+        Update: {
+          created_at?: string | null
+          department_id?: string | null
+          employee_id?: string | null
+          id?: string
+          metadata?: Json | null
+          metric_type?: string
+          period_end?: string
+          period_start?: string
+          unit?: string | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_metrics_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_metrics_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_missed_tasks: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          points_deducted: number
+          reason: string
+          scheduled_date: string
+          task_assignment_id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          points_deducted?: number
+          reason?: string
+          scheduled_date: string
+          task_assignment_id: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          points_deducted?: number
+          reason?: string
+          scheduled_date?: string
+          task_assignment_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_missed_tasks_assignment"
+            columns: ["task_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_task_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_missed_tasks_employee"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_missed_tasks_task"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          read: boolean | null
+          recipient_id: string | null
+          task_id: string | null
+          title: string
+          type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          read?: boolean | null
+          recipient_id?: string | null
+          task_id?: string | null
+          title: string
+          type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          read?: boolean | null
+          recipient_id?: string | null
+          task_id?: string | null
+          title?: string
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_notifications_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_points_history: {
+        Row: {
+          awarded_by: string | null
+          created_at: string | null
+          employee_id: string | null
+          id: string
+          points_change: number
+          reason: string
+          task_assignment_id: string | null
+          type: string | null
+        }
+        Insert: {
+          awarded_by?: string | null
+          created_at?: string | null
+          employee_id?: string | null
+          id?: string
+          points_change: number
+          reason: string
+          task_assignment_id?: string | null
+          type?: string | null
+        }
+        Update: {
+          awarded_by?: string | null
+          created_at?: string | null
+          employee_id?: string | null
+          id?: string
+          points_change?: number
+          reason?: string
+          task_assignment_id?: string | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_points_history_awarded_by_fkey"
+            columns: ["awarded_by"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_points_history_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_points_history_task_assignment_id_fkey"
+            columns: ["task_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_task_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_procedure_executions: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          current_step: number | null
+          executed_by: string | null
+          id: string
+          notes: string | null
+          procedure_id: string | null
+          progress_percentage: number | null
+          started_at: string | null
+          status: string | null
+          step_results: Json | null
+          total_steps: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: number | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          procedure_id?: string | null
+          progress_percentage?: number | null
+          started_at?: string | null
+          status?: string | null
+          step_results?: Json | null
+          total_steps?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: number | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          procedure_id?: string | null
+          progress_percentage?: number | null
+          started_at?: string | null
+          status?: string | null
+          step_results?: Json | null
+          total_steps?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_procedure_executions_executed_by_fkey"
+            columns: ["executed_by"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_procedure_executions_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_procedures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_procedures: {
+        Row: {
+          active: boolean | null
+          checklist: Json | null
+          created_at: string | null
+          created_by: string | null
+          department_id: string | null
+          description: string | null
+          files_urls: string[] | null
+          id: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          checklist?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          department_id?: string | null
+          description?: string | null
+          files_urls?: string[] | null
+          id?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          checklist?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          department_id?: string | null
+          description?: string | null
+          files_urls?: string[] | null
+          id?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_procedures_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_procedures_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_task_assignments: {
+        Row: {
+          actual_start: string | null
+          assigned_by: string | null
+          blockers: Json | null
+          completed_at: string | null
+          created_at: string | null
+          difficulty_rating: number | null
+          employee_id: string | null
+          estimated_completion: string | null
+          id: string
+          notes: string | null
+          points_earned: number | null
+          progress_percentage: number | null
+          quality_score: number | null
+          requires_review: boolean | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string | null
+          task_id: string | null
+          time_spent_minutes: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          actual_start?: string | null
+          assigned_by?: string | null
+          blockers?: Json | null
+          completed_at?: string | null
+          created_at?: string | null
+          difficulty_rating?: number | null
+          employee_id?: string | null
+          estimated_completion?: string | null
+          id?: string
+          notes?: string | null
+          points_earned?: number | null
+          progress_percentage?: number | null
+          quality_score?: number | null
+          requires_review?: boolean | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          task_id?: string | null
+          time_spent_minutes?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          actual_start?: string | null
+          assigned_by?: string | null
+          blockers?: Json | null
+          completed_at?: string | null
+          created_at?: string | null
+          difficulty_rating?: number | null
+          employee_id?: string | null
+          estimated_completion?: string | null
+          id?: string
+          notes?: string | null
+          points_earned?: number | null
+          progress_percentage?: number | null
+          quality_score?: number | null
+          requires_review?: boolean | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          task_id?: string | null
+          time_spent_minutes?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_task_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_task_assignments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_task_assignments_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_task_assignments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_task_comments: {
+        Row: {
+          attachments: Json | null
+          author_id: string | null
+          content: string
+          created_at: string | null
+          id: string
+          task_assignment_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          attachments?: Json | null
+          author_id?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          task_assignment_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          attachments?: Json | null
+          author_id?: string | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          task_assignment_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_task_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_task_comments_task_assignment_id_fkey"
+            columns: ["task_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_task_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_task_completion_history: {
+        Row: {
+          completed_at: string
+          created_at: string
+          employee_id: string
+          id: string
+          notes: string | null
+          points_earned: number
+          task_assignment_id: string
+          task_id: string
+          was_on_time: boolean
+        }
+        Insert: {
+          completed_at?: string
+          created_at?: string
+          employee_id: string
+          id?: string
+          notes?: string | null
+          points_earned?: number
+          task_assignment_id: string
+          task_id: string
+          was_on_time?: boolean
+        }
+        Update: {
+          completed_at?: string
+          created_at?: string
+          employee_id?: string
+          id?: string
+          notes?: string | null
+          points_earned?: number
+          task_assignment_id?: string
+          task_id?: string
+          was_on_time?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_task_completion_history_assignment"
+            columns: ["task_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_task_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_task_completion_history_employee"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_task_completion_history_task"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_task_templates: {
+        Row: {
+          active: boolean | null
+          checklist: Json | null
+          created_at: string | null
+          created_by: string | null
+          department_id: string | null
+          description: string | null
+          difficulty_level: string | null
+          estimated_duration_minutes: number | null
+          id: string
+          name: string
+          tags: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          checklist?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          department_id?: string | null
+          description?: string | null
+          difficulty_level?: string | null
+          estimated_duration_minutes?: number | null
+          id?: string
+          name: string
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          checklist?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          department_id?: string | null
+          description?: string | null
+          difficulty_level?: string | null
+          estimated_duration_minutes?: number | null
+          id?: string
+          name?: string
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_task_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_task_templates_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_tasks: {
+        Row: {
+          actual_duration_minutes: number | null
+          attachments: Json | null
+          auto_assign: boolean | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          department_id: string | null
+          description: string | null
+          difficulty_level: string | null
+          due_date: string | null
+          estimated_duration_minutes: number | null
+          id: string
+          is_recurring: boolean | null
+          next_occurrence: string | null
+          parent_task_id: string | null
+          points_reward: number | null
+          priority: string | null
+          procedure_id: string | null
+          progress_percentage: number | null
+          recurring_pattern: Json | null
+          requires_approval: boolean | null
+          started_at: string | null
+          status: string | null
+          tags: string[] | null
+          template_id: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          actual_duration_minutes?: number | null
+          attachments?: Json | null
+          auto_assign?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          department_id?: string | null
+          description?: string | null
+          difficulty_level?: string | null
+          due_date?: string | null
+          estimated_duration_minutes?: number | null
+          id?: string
+          is_recurring?: boolean | null
+          next_occurrence?: string | null
+          parent_task_id?: string | null
+          points_reward?: number | null
+          priority?: string | null
+          procedure_id?: string | null
+          progress_percentage?: number | null
+          recurring_pattern?: Json | null
+          requires_approval?: boolean | null
+          started_at?: string | null
+          status?: string | null
+          tags?: string[] | null
+          template_id?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          actual_duration_minutes?: number | null
+          attachments?: Json | null
+          auto_assign?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          department_id?: string | null
+          description?: string | null
+          difficulty_level?: string | null
+          due_date?: string | null
+          estimated_duration_minutes?: number | null
+          id?: string
+          is_recurring?: boolean | null
+          next_occurrence?: string | null
+          parent_task_id?: string | null
+          points_reward?: number | null
+          priority?: string | null
+          procedure_id?: string | null
+          progress_percentage?: number | null
+          recurring_pattern?: Json | null
+          requires_approval?: boolean | null
+          started_at?: string | null
+          status?: string | null
+          tags?: string[] | null
+          template_id?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_tasks_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_tasks_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_procedures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_tasks_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coralmanagement_users: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          email: string
+          id: string
+          name: string
+          password_hash: string
+          role: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          email: string
+          id?: string
+          name: string
+          password_hash: string
+          role: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string
+          password_hash?: string
+          role?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      coralmanagement_work_sessions: {
+        Row: {
+          break_duration_minutes: number | null
+          created_at: string | null
+          duration_minutes: number | null
+          employee_id: string | null
+          ended_at: string | null
+          id: string
+          notes: string | null
+          productivity_score: number | null
+          started_at: string | null
+          task_assignment_id: string | null
+        }
+        Insert: {
+          break_duration_minutes?: number | null
+          created_at?: string | null
+          duration_minutes?: number | null
+          employee_id?: string | null
+          ended_at?: string | null
+          id?: string
+          notes?: string | null
+          productivity_score?: number | null
+          started_at?: string | null
+          task_assignment_id?: string | null
+        }
+        Update: {
+          break_duration_minutes?: number | null
+          created_at?: string | null
+          duration_minutes?: number | null
+          employee_id?: string | null
+          ended_at?: string | null
+          id?: string
+          notes?: string | null
+          productivity_score?: number | null
+          started_at?: string | null
+          task_assignment_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coralmanagement_work_sessions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coralmanagement_work_sessions_task_assignment_id_fkey"
+            columns: ["task_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "coralmanagement_task_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crate_types: {
         Row: {
           created_at: string
@@ -1425,6 +2348,44 @@ export type Database = {
           weight?: number
         }
         Relationships: []
+      }
+      daily_stock_quality: {
+        Row: {
+          consider_quantity: number
+          created_at: string
+          id: string
+          nonconform_percent: number
+          obs: string | null
+          snapshot_id: string
+          updated_at: string
+        }
+        Insert: {
+          consider_quantity?: number
+          created_at?: string
+          id?: string
+          nonconform_percent?: number
+          obs?: string | null
+          snapshot_id: string
+          updated_at?: string
+        }
+        Update: {
+          consider_quantity?: number
+          created_at?: string
+          id?: string
+          nonconform_percent?: number
+          obs?: string | null
+          snapshot_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_stock_quality_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: true
+            referencedRelation: "daily_stock_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       daily_stock_snapshots: {
         Row: {
@@ -3717,6 +4678,910 @@ export type Database = {
         }
         Relationships: []
       }
+      wiremind_calendar_events: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          data_inceput: string
+          data_sfarsit: string
+          descriere: string | null
+          id: string
+          notificare_minutes: number | null
+          project_id: string | null
+          status: string
+          tip_eveniment: string
+          titlu: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          data_inceput: string
+          data_sfarsit: string
+          descriere?: string | null
+          id?: string
+          notificare_minutes?: number | null
+          project_id?: string | null
+          status?: string
+          tip_eveniment?: string
+          titlu: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          data_inceput?: string
+          data_sfarsit?: string
+          descriere?: string | null
+          id?: string
+          notificare_minutes?: number | null
+          project_id?: string | null
+          status?: string
+          tip_eveniment?: string
+          titlu?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiremind_calendar_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiremind_calendar_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiremind_clienti: {
+        Row: {
+          adresa: string | null
+          cod_postal: string | null
+          created_at: string
+          cui: string | null
+          email: string | null
+          id: string
+          judet: string | null
+          nr_reg_com: string | null
+          nume_firma: string
+          observatii: string | null
+          oras: string | null
+          persoana_contact: string | null
+          telefon: string | null
+          tip_client: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          adresa?: string | null
+          cod_postal?: string | null
+          created_at?: string
+          cui?: string | null
+          email?: string | null
+          id?: string
+          judet?: string | null
+          nr_reg_com?: string | null
+          nume_firma: string
+          observatii?: string | null
+          oras?: string | null
+          persoana_contact?: string | null
+          telefon?: string | null
+          tip_client?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          adresa?: string | null
+          cod_postal?: string | null
+          created_at?: string
+          cui?: string | null
+          email?: string | null
+          id?: string
+          judet?: string | null
+          nr_reg_com?: string | null
+          nume_firma?: string
+          observatii?: string | null
+          oras?: string | null
+          persoana_contact?: string | null
+          telefon?: string | null
+          tip_client?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wiremind_clients: {
+        Row: {
+          adresa_completa: string | null
+          created_at: string
+          cui: string | null
+          email: string | null
+          id: string
+          nume: string
+          observatii: string | null
+          poze_urls: string[] | null
+          telefon: string | null
+          tip_client: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          adresa_completa?: string | null
+          created_at?: string
+          cui?: string | null
+          email?: string | null
+          id?: string
+          nume: string
+          observatii?: string | null
+          poze_urls?: string[] | null
+          telefon?: string | null
+          tip_client?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          adresa_completa?: string | null
+          created_at?: string
+          cui?: string | null
+          email?: string | null
+          id?: string
+          nume?: string
+          observatii?: string | null
+          poze_urls?: string[] | null
+          telefon?: string | null
+          tip_client?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      wiremind_deviz_pozitii: {
+        Row: {
+          cantitate: number
+          created_at: string
+          descriere: string
+          deviz_id: string
+          id: string
+          pozitie_nr: number
+          pret_unitar: number
+          tip_pozitie: string | null
+          unitate_masura: string | null
+          valoare_totala: number
+        }
+        Insert: {
+          cantitate: number
+          created_at?: string
+          descriere: string
+          deviz_id: string
+          id?: string
+          pozitie_nr: number
+          pret_unitar: number
+          tip_pozitie?: string | null
+          unitate_masura?: string | null
+          valoare_totala: number
+        }
+        Update: {
+          cantitate?: number
+          created_at?: string
+          descriere?: string
+          deviz_id?: string
+          id?: string
+          pozitie_nr?: number
+          pret_unitar?: number
+          tip_pozitie?: string | null
+          unitate_masura?: string | null
+          valoare_totala?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiremind_deviz_pozitii_deviz_id_fkey"
+            columns: ["deviz_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_devize"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiremind_devize: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          data_creare: string | null
+          data_expirare: string | null
+          denumire: string
+          descriere: string | null
+          id: string
+          numar_deviz: string
+          observatii: string | null
+          proiect_id: string | null
+          status: string | null
+          tva_procent: number | null
+          updated_at: string
+          user_id: string
+          valoare_finala: number | null
+          valoare_manopera: number | null
+          valoare_materiale: number | null
+          valoare_totala: number | null
+          valoare_transport: number | null
+          valoare_tva: number | null
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          data_creare?: string | null
+          data_expirare?: string | null
+          denumire: string
+          descriere?: string | null
+          id?: string
+          numar_deviz: string
+          observatii?: string | null
+          proiect_id?: string | null
+          status?: string | null
+          tva_procent?: number | null
+          updated_at?: string
+          user_id: string
+          valoare_finala?: number | null
+          valoare_manopera?: number | null
+          valoare_materiale?: number | null
+          valoare_totala?: number | null
+          valoare_transport?: number | null
+          valoare_tva?: number | null
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          data_creare?: string | null
+          data_expirare?: string | null
+          denumire?: string
+          descriere?: string | null
+          id?: string
+          numar_deviz?: string
+          observatii?: string | null
+          proiect_id?: string | null
+          status?: string | null
+          tva_procent?: number | null
+          updated_at?: string
+          user_id?: string
+          valoare_finala?: number | null
+          valoare_manopera?: number | null
+          valoare_materiale?: number | null
+          valoare_totala?: number | null
+          valoare_transport?: number | null
+          valoare_tva?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiremind_devize_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_clienti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiremind_devize_proiect_id_fkey"
+            columns: ["proiect_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_proiecte"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiremind_invoices: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          data_emitere: string
+          data_scadenta: string | null
+          id: string
+          numar_factura: string
+          observatii: string | null
+          pdf_url: string | null
+          project_id: string | null
+          quote_id: string | null
+          seria: string | null
+          status_plata: string
+          updated_at: string
+          user_id: string | null
+          valoare_neta: number
+          valoare_totala: number
+          valoare_tva: number
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          data_emitere?: string
+          data_scadenta?: string | null
+          id?: string
+          numar_factura: string
+          observatii?: string | null
+          pdf_url?: string | null
+          project_id?: string | null
+          quote_id?: string | null
+          seria?: string | null
+          status_plata?: string
+          updated_at?: string
+          user_id?: string | null
+          valoare_neta: number
+          valoare_totala: number
+          valoare_tva?: number
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          data_emitere?: string
+          data_scadenta?: string | null
+          id?: string
+          numar_factura?: string
+          observatii?: string | null
+          pdf_url?: string | null
+          project_id?: string | null
+          quote_id?: string | null
+          seria?: string | null
+          status_plata?: string
+          updated_at?: string
+          user_id?: string | null
+          valoare_neta?: number
+          valoare_totala?: number
+          valoare_tva?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiremind_invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiremind_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiremind_invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiremind_material_order_items: {
+        Row: {
+          cantitate: number
+          created_at: string
+          id: string
+          material_id: string | null
+          order_id: string | null
+          pret_total: number
+          pret_unitar: number
+        }
+        Insert: {
+          cantitate: number
+          created_at?: string
+          id?: string
+          material_id?: string | null
+          order_id?: string | null
+          pret_total: number
+          pret_unitar: number
+        }
+        Update: {
+          cantitate?: number
+          created_at?: string
+          id?: string
+          material_id?: string | null
+          order_id?: string | null
+          pret_total?: number
+          pret_unitar?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiremind_material_order_items_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiremind_material_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_material_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiremind_material_orders: {
+        Row: {
+          created_at: string
+          data_comanda: string
+          data_livrare_estimata: string | null
+          id: string
+          numar_comanda: string
+          observatii: string | null
+          status: string
+          supplier_id: string | null
+          updated_at: string
+          user_id: string | null
+          valoare_totala: number | null
+        }
+        Insert: {
+          created_at?: string
+          data_comanda?: string
+          data_livrare_estimata?: string | null
+          id?: string
+          numar_comanda: string
+          observatii?: string | null
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+          valoare_totala?: number | null
+        }
+        Update: {
+          created_at?: string
+          data_comanda?: string
+          data_livrare_estimata?: string | null
+          id?: string
+          numar_comanda?: string
+          observatii?: string | null
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+          valoare_totala?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiremind_material_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiremind_materiale: {
+        Row: {
+          activ: boolean | null
+          categoria: string | null
+          cod_material: string | null
+          created_at: string
+          denumire: string
+          furnizor: string | null
+          id: string
+          observatii: string | null
+          pret_unitar: number
+          unitate_masura: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          activ?: boolean | null
+          categoria?: string | null
+          cod_material?: string | null
+          created_at?: string
+          denumire: string
+          furnizor?: string | null
+          id?: string
+          observatii?: string | null
+          pret_unitar: number
+          unitate_masura?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          activ?: boolean | null
+          categoria?: string | null
+          cod_material?: string | null
+          created_at?: string
+          denumire?: string
+          furnizor?: string | null
+          id?: string
+          observatii?: string | null
+          pret_unitar?: number
+          unitate_masura?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wiremind_materials: {
+        Row: {
+          activ: boolean | null
+          categorie: string | null
+          cod_produs: string | null
+          created_at: string
+          id: string
+          nume_material: string
+          observatii: string | null
+          poza_url: string | null
+          pret_achizitie: number | null
+          pret_vanzare: number | null
+          stoc_curent: number | null
+          stoc_minim: number | null
+          supplier_id: string | null
+          unitate_masura: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          activ?: boolean | null
+          categorie?: string | null
+          cod_produs?: string | null
+          created_at?: string
+          id?: string
+          nume_material: string
+          observatii?: string | null
+          poza_url?: string | null
+          pret_achizitie?: number | null
+          pret_vanzare?: number | null
+          stoc_curent?: number | null
+          stoc_minim?: number | null
+          supplier_id?: string | null
+          unitate_masura?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          activ?: boolean | null
+          categorie?: string | null
+          cod_produs?: string | null
+          created_at?: string
+          id?: string
+          nume_material?: string
+          observatii?: string | null
+          poza_url?: string | null
+          pret_achizitie?: number | null
+          pret_vanzare?: number | null
+          stoc_curent?: number | null
+          stoc_minim?: number | null
+          supplier_id?: string | null
+          unitate_masura?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiremind_materials_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiremind_proiecte: {
+        Row: {
+          adresa_lucrare: string | null
+          client_id: string
+          created_at: string
+          data_finalizare_estimata: string | null
+          data_finalizare_reala: string | null
+          data_inceput: string | null
+          descriere: string | null
+          id: string
+          nume_proiect: string
+          observatii: string | null
+          status: string | null
+          tip_lucrare: string | null
+          updated_at: string
+          user_id: string
+          valoare_estimata: number | null
+          valoare_finala: number | null
+        }
+        Insert: {
+          adresa_lucrare?: string | null
+          client_id: string
+          created_at?: string
+          data_finalizare_estimata?: string | null
+          data_finalizare_reala?: string | null
+          data_inceput?: string | null
+          descriere?: string | null
+          id?: string
+          nume_proiect: string
+          observatii?: string | null
+          status?: string | null
+          tip_lucrare?: string | null
+          updated_at?: string
+          user_id: string
+          valoare_estimata?: number | null
+          valoare_finala?: number | null
+        }
+        Update: {
+          adresa_lucrare?: string | null
+          client_id?: string
+          created_at?: string
+          data_finalizare_estimata?: string | null
+          data_finalizare_reala?: string | null
+          data_inceput?: string | null
+          descriere?: string | null
+          id?: string
+          nume_proiect?: string
+          observatii?: string | null
+          status?: string | null
+          tip_lucrare?: string | null
+          updated_at?: string
+          user_id?: string
+          valoare_estimata?: number | null
+          valoare_finala?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiremind_proiecte_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_clienti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiremind_projects: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          data_finalizare_estimata: string | null
+          data_finalizare_reala: string | null
+          data_inceput: string | null
+          descriere: string | null
+          id: string
+          locatie: string | null
+          nume_proiect: string
+          observatii: string | null
+          poze_urls: string[] | null
+          pret_total: number | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          data_finalizare_estimata?: string | null
+          data_finalizare_reala?: string | null
+          data_inceput?: string | null
+          descriere?: string | null
+          id?: string
+          locatie?: string | null
+          nume_proiect: string
+          observatii?: string | null
+          poze_urls?: string[] | null
+          pret_total?: number | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          data_finalizare_estimata?: string | null
+          data_finalizare_reala?: string | null
+          data_inceput?: string | null
+          descriere?: string | null
+          id?: string
+          locatie?: string | null
+          nume_proiect?: string
+          observatii?: string | null
+          poze_urls?: string[] | null
+          pret_total?: number | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiremind_projects_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiremind_quote_items: {
+        Row: {
+          cantitate: number
+          created_at: string
+          descriere: string
+          id: string
+          pret_total: number
+          pret_unitar: number
+          quote_id: string | null
+          unitate_masura: string
+        }
+        Insert: {
+          cantitate: number
+          created_at?: string
+          descriere: string
+          id?: string
+          pret_total: number
+          pret_unitar: number
+          quote_id?: string | null
+          unitate_masura?: string
+        }
+        Update: {
+          cantitate?: number
+          created_at?: string
+          descriere?: string
+          id?: string
+          pret_total?: number
+          pret_unitar?: number
+          quote_id?: string | null
+          unitate_masura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiremind_quote_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiremind_quotes: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          descriere: string | null
+          id: string
+          numar_deviz: string
+          observatii: string | null
+          pdf_url: string | null
+          project_id: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+          valabilitate_zile: number | null
+          valoare_totala: number
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          numar_deviz: string
+          observatii?: string | null
+          pdf_url?: string | null
+          project_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          valabilitate_zile?: number | null
+          valoare_totala?: number
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          descriere?: string | null
+          id?: string
+          numar_deviz?: string
+          observatii?: string | null
+          pdf_url?: string | null
+          project_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          valabilitate_zile?: number | null
+          valoare_totala?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiremind_quotes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiremind_quotes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "wiremind_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiremind_suppliers: {
+        Row: {
+          activ: boolean | null
+          adresa: string | null
+          created_at: string
+          email: string | null
+          id: string
+          nume_firma: string
+          observatii: string | null
+          persoana_contact: string | null
+          telefon: string | null
+          updated_at: string
+          user_id: string | null
+          website: string | null
+        }
+        Insert: {
+          activ?: boolean | null
+          adresa?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nume_firma: string
+          observatii?: string | null
+          persoana_contact?: string | null
+          telefon?: string | null
+          updated_at?: string
+          user_id?: string | null
+          website?: string | null
+        }
+        Update: {
+          activ?: boolean | null
+          adresa?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nume_firma?: string
+          observatii?: string | null
+          persoana_contact?: string | null
+          telefon?: string | null
+          updated_at?: string
+          user_id?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
+      wiremind_users: {
+        Row: {
+          adresa: string | null
+          cod_fiscal: string | null
+          created_at: string
+          email: string | null
+          id: string
+          logo_url: string | null
+          numar_registru_comert: string | null
+          nume_complet: string
+          specializare: string
+          telefon: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          adresa?: string | null
+          cod_fiscal?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          numar_registru_comert?: string | null
+          nume_complet: string
+          specializare: string
+          telefon?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          adresa?: string | null
+          cod_fiscal?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          numar_registru_comert?: string | null
+          nume_complet?: string
+          specializare?: string
+          telefon?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       pending_user_approvals: {
@@ -3810,6 +5675,19 @@ export type Database = {
           experienta: number
         }[]
       }
+      authenticate_coral_user: {
+        Args: { email_input: string; password_input: string }
+        Returns: {
+          user_id: string
+          name: string
+          role: string
+          active: boolean
+        }[]
+      }
+      calculate_next_occurrence: {
+        Args: { pattern: Json; base_date?: string }
+        Returns: string
+      }
       calculate_streak: {
         Args: { child_uuid: string }
         Returns: number
@@ -3825,6 +5703,15 @@ export type Database = {
         }
         Returns: string
       }
+      create_coral_user: {
+        Args: {
+          email_input: string
+          password_input: string
+          name_input: string
+          role_input: string
+        }
+        Returns: string
+      }
       create_portar_account: {
         Args: {
           username_input: string
@@ -3832,6 +5719,14 @@ export type Database = {
           nume_input: string
         }
         Returns: string
+      }
+      create_task_notification: {
+        Args: {
+          task_assignment_id: string
+          notification_type: string
+          custom_message?: string
+        }
+        Returns: undefined
       }
       creeaza_cont: {
         Args: {

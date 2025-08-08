@@ -9,11 +9,12 @@ import { TransferHistory } from "@/components/inventory/TransferHistory";
 import { ReceptionHistory } from "@/components/inventory/ReceptionHistory";
 import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView";
 import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
+import DailyStockQuality from "@/components/inventory/DailyStockQuality";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const InventoryManagement = () => {
   const [activeTab, setActiveTab] = useState("all");
-  const [viewMode, setViewMode] = useState<"inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption">("inventory");
+  const [viewMode, setViewMode] = useState<"inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption" | "daily-quality">("inventory");
   const [refreshKey, setRefreshKey] = useState(0);
   
   const { 
@@ -77,7 +78,7 @@ const InventoryManagement = () => {
 
       <Tabs 
         value={viewMode} 
-        onValueChange={(value) => setViewMode(value as "inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption")}
+        onValueChange={(value) => setViewMode(value as "inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption" | "daily-quality")}
         className="mb-4"
       >
         <TabsList>
@@ -85,6 +86,7 @@ const InventoryManagement = () => {
           <TabsTrigger value="transfers">Istoric Transferuri</TabsTrigger>
           <TabsTrigger value="receptions">Istoric Recepții</TabsTrigger>
           <TabsTrigger value="daily-stock">Stoc Început Zi</TabsTrigger>
+          <TabsTrigger value="daily-quality">Stoc Zilnic Calitate</TabsTrigger>
           <TabsTrigger value="daily-consumption">Consum Zilnic pe Loturi</TabsTrigger>
         </TabsList>
         
@@ -125,6 +127,13 @@ const InventoryManagement = () => {
           <div className="bg-white rounded-lg shadow-md p-4">
             <h3 className="text-lg font-medium mb-4">Stoc Început Zi</h3>
             <DailyStockGroupView key={refreshKey} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="daily-quality">
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <h3 className="text-lg font-medium mb-4">Stoc Zilnic Calitate</h3>
+            <DailyStockQuality key={refreshKey} />
           </div>
         </TabsContent>
         
