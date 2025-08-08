@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,9 +39,11 @@ export const DailyStockQuality = () => {
   const { inventoryType } = useInventoryType();
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [productFilter, setProductFilter] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [snapshots, setSnapshots] = useState<DailyStockItem[]>([]);
-  const [qualityMap, setQualityMap] = useState<Record<string, QualityRow>>({});
+const [loading, setLoading] = useState(true);
+const [snapshots, setSnapshots] = useState<DailyStockItem[]>([]);
+const [qualityMap, setQualityMap] = useState<Record<string, QualityRow>>({});
+const [obsDraft, setObsDraft] = useState<Record<string, string>>({});
+const [percentDraft, setPercentDraft] = useState<Record<string, number>>({});
 
   const tableName = inventoryType === "ambalaje" ? "ambalaje_daily_stock_snapshots" : "daily_stock_snapshots";
   const qualityTable = inventoryType === "ambalaje" ? "ambalaje_daily_stock_quality" : "daily_stock_quality";
@@ -221,8 +224,6 @@ export const DailyStockQuality = () => {
                 <TableHead>Data Recepție</TableHead>
                 <TableHead>Furnizor</TableHead>
                 <TableHead>Producător</TableHead>
-                <TableHead>Tip Lădiță</TableHead>
-                <TableHead>Nr. Lădițe</TableHead>
                 <TableHead>Obs</TableHead>
                 <TableHead>% marfă neconformă</TableHead>
                 <TableHead className="text-right">Cant de luat în considerare</TableHead>
@@ -231,8 +232,8 @@ export const DailyStockQuality = () => {
             <TableBody>
               {filteredSnapshots.map((item) => {
                 const q = qualityMap[item.id];
-                const percent = q?.nonconform_percent ?? 0;
-                const computed = q?.consider_quantity ?? baseQty(item) * (1 - (percent || 0) / 100);
+                const currentPercent = percentDraft[item.id] ?? (q?.nonconform_percent ?? 0);
+                const computed = q?.consider_quantity ?? baseQty(item) * (1 - (currentPercent || 0) / 100);
                 return (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.entry_number ?? '-'}</TableCell>
@@ -245,14 +246,14 @@ export const DailyStockQuality = () => {
                     <TableCell>{item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-'}</TableCell>
                     <TableCell>{item.suppliers?.name || '-'}</TableCell>
                     <TableCell>{item.manufacturers?.name || '-'}</TableCell>
-                    <TableCell>{item.crate_types?.name || '-'}</TableCell>
-                    <TableCell>{item.crate_count ?? '-'}</TableCell>
                     <TableCell>
-                      <Input
-                        type="text"
-                        defaultValue={q?.obs ?? ''}
+                      <Textarea
+                        rows={2}
                         placeholder="Observații..."
+                        value={obsDraft[item.id] ?? (q?.obs ?? '')}
+                        onChange={(e) => setObsDraft((prev) => ({ ...prev, [item.id]: e.currentTarget.value }))}
                         onBlur={(e) => handleUpsert(item.id, { obs: e.currentTarget.value })}
+                        className="min-w-[280px]"
                       />
                     </TableCell>
                     <TableCell>
@@ -261,8 +262,16 @@ export const DailyStockQuality = () => {
                         min={0}
                         max={100}
                         step={0.1}
-                        defaultValue={percent}
-                        onBlur={(e) => handleUpsert(item.id, { nonconform_percent: Number(e.currentTarget.value) })}
+                        value={String(percentDraft[item.id] ?? (q?.nonconform_percent ?? 0))}
+                        onChange={(e) => {
+                          const v = Number(e.currentTarget.value);
+                          setPercentDraft((prev) => ({ ...prev, [item.id]: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) }));
+                        }}
+                        onBlur={(e) => {
+                          const v = Number(e.currentTarget.value);
+                          handleUpsert(item.id, { nonconform_percent: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) });
+                        }}
+                        className="w-24"
                       />
                     </TableCell>
                     <TableCell className="text-right">{computed.toFixed(2)}</TableCell>
