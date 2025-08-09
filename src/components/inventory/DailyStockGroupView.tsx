@@ -186,9 +186,7 @@ export const DailyStockGroupView = () => {
         'Document': item.document_number || '',
         'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '',
         'Furnizor': item.suppliers?.name || '',
-        'Producător': item.manufacturers?.name || '',
-        'Tip Lădiță': item.crate_types?.name || '',
-        'Nr. Lădițe': item.crate_count || ''
+        'Producător': item.manufacturers?.name || ''
       }));
     }
     
@@ -322,8 +320,6 @@ export const DailyStockGroupView = () => {
                    <TableHead>Data Recepție</TableHead>
                    <TableHead>Furnizor</TableHead>
                    <TableHead>Producător</TableHead>
-                   <TableHead>Tip Lădiță</TableHead>
-                   <TableHead>Nr. Lădițe</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -343,8 +339,6 @@ export const DailyStockGroupView = () => {
                     </TableCell>
                     <TableCell>{item.suppliers?.name || '-'}</TableCell>
                     <TableCell>{item.manufacturers?.name || '-'}</TableCell>
-                    <TableCell>{item.crate_types?.name || '-'}</TableCell>
-                    <TableCell>{item.crate_count || '-'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
