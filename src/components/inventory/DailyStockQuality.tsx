@@ -248,12 +248,15 @@ const [percentDraft, setPercentDraft] = useState<Record<string, number>>({});
                     <TableCell>{item.manufacturers?.name || '-'}</TableCell>
                     <TableCell>
                       <Textarea
-                        rows={2}
+                        rows={3}
                         placeholder="Observații..."
                         value={obsDraft[item.id] ?? (q?.obs ?? '')}
-                        onChange={(e) => setObsDraft((prev) => ({ ...prev, [item.id]: e.currentTarget.value }))}
-                        onBlur={(e) => handleUpsert(item.id, { obs: e.currentTarget.value })}
-                        className="min-w-[280px]"
+                        onChange={(e) => setObsDraft((prev) => ({ ...prev, [item.id]: (e.target as HTMLTextAreaElement).value }))}
+                        onBlur={(e) => {
+                          const val = (e.target as HTMLTextAreaElement)?.value ?? '';
+                          handleUpsert(item.id, { obs: val });
+                        }}
+                        className="min-w-[360px] whitespace-pre-wrap break-words"
                       />
                     </TableCell>
                     <TableCell>
@@ -264,11 +267,12 @@ const [percentDraft, setPercentDraft] = useState<Record<string, number>>({});
                         step={0.1}
                         value={String(percentDraft[item.id] ?? (q?.nonconform_percent ?? 0))}
                         onChange={(e) => {
-                          const v = Number(e.currentTarget.value);
+                          const v = Number((e.target as HTMLInputElement).value);
                           setPercentDraft((prev) => ({ ...prev, [item.id]: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) }));
                         }}
                         onBlur={(e) => {
-                          const v = Number(e.currentTarget.value);
+                          const raw = (e.target as HTMLInputElement).value;
+                          const v = Number(raw);
                           handleUpsert(item.id, { nonconform_percent: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) });
                         }}
                         className="w-24"
