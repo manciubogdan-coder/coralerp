@@ -318,8 +318,8 @@ export const DailyStockQuality = () => {
                 <TableHead>Furnizor</TableHead>
                 <TableHead>Producător</TableHead>
                 <TableHead>Obs</TableHead>
-                <TableHead>% marfă neconformă</TableHead>
-                <TableHead className="text-right">Cant de luat în considerare</TableHead>
+                <TableHead>% neconform</TableHead>
+                <TableHead className="text-right">De luat în considerare</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -338,7 +338,7 @@ export const DailyStockQuality = () => {
                             placeholder="Obs pentru produs"
                             value={groupObsDraft[group.name] ?? ''}
                             onChange={(e) => setGroupObsDraft((prev) => ({ ...prev, [group.name]: (e.target as HTMLTextAreaElement).value }))}
-                            className="min-w-[360px] whitespace-pre-wrap break-words"
+                            className="min-w-[160px] whitespace-pre-wrap break-words"
                           />
                           <Input
                             type="number"
@@ -387,7 +387,7 @@ export const DailyStockQuality = () => {
                             const val = (e.target as HTMLTextAreaElement)?.value ?? '';
                             handleUpsert(item.id, { obs: val });
                           }}
-                          className="min-w-[140px] whitespace-pre-wrap break-words"
+                          className="min-w-[120px] whitespace-pre-wrap break-words"
                         />
                       </TableCell>
                       <TableCell>
@@ -406,7 +406,7 @@ export const DailyStockQuality = () => {
                             const v = Number(raw);
                             handleUpsert(item.id, { nonconform_percent: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) });
                           }}
-                          className="w-15"
+                          className="w-24"
                         />
                       </TableCell>
                       <TableCell className="text-right">{computed.toFixed(2)}</TableCell>
