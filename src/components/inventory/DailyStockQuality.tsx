@@ -325,94 +325,40 @@ export const DailyStockQuality = () => {
             <TableBody>
               {groupMode === 'product' ? (
                 groupedByProduct.map((group) => (
-                  <React.Fragment key={group.name}>
-                    <TableRow className="bg-muted/50">
-                      <TableCell colSpan={13} className="font-semibold">
-                        <div className="flex flex-col gap-2">
-                          <div>
-                            {group.name}
-                            {group.code ? ` — ${group.code}` : ''} • {group.items.length} loturi • Total: {group.totalQty.toFixed(2)} {group.unit} • Considerat: {group.totalComputed.toFixed(2)} {group.unit}
-                          </div>
-                          <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                            <Textarea
-                              rows={2}
-                              placeholder="Obs pentru produs"
-                              value={groupObsDraft[group.name] ?? ''}
-                              onChange={(e) => setGroupObsDraft((prev) => ({ ...prev, [group.name]: (e.target as HTMLTextAreaElement).value }))}
-                              className="min-w-[360px] whitespace-pre-wrap break-words"
-                            />
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step={0.1}
-                              placeholder="% neconform"
-                              value={groupPercentDraft[group.name] !== undefined && Number.isFinite(groupPercentDraft[group.name]) ? String(groupPercentDraft[group.name]) : ''}
-                              onChange={(e) => {
-                                const raw = (e.target as HTMLInputElement).value;
-                                const num = Number(raw);
-                                setGroupPercentDraft((prev) => ({ ...prev, [group.name]: isNaN(num) ? NaN : Math.max(0, Math.min(100, num)) }));
-                              }}
-                              className="w-28"
-                            />
-                            <Button onClick={() => handleApplyToGroup(group.name, group.items)}>Aplică la toate loturile</Button>
-                          </div>
+                  <TableRow key={group.name} className="bg-muted/50">
+                    <TableCell colSpan={13} className="font-semibold">
+                      <div className="flex flex-col gap-2">
+                        <div>
+                          {group.name}
+                          {group.code ? ` — ${group.code}` : ''} • {group.items.length} loturi • Total: {group.totalQty.toFixed(2)} {group.unit} • Considerat: {group.totalComputed.toFixed(2)} {group.unit}
                         </div>
-                      </TableCell>
-                    </TableRow>
-                    {group.items.map((item) => {
-                      const q = qualityMap[item.id];
-                      const currentPercent = percentDraft[item.id] ?? (q?.nonconform_percent ?? 0);
-                      const computed = q?.consider_quantity ?? baseQty(item) * (1 - (currentPercent || 0) / 100);
-                      return (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.entry_number ?? '-'}</TableCell>
-                          <TableCell className="font-medium">{item.name}</TableCell>
-                          <TableCell>{item.products?.cod_produs || '-'}</TableCell>
-                          <TableCell>{item.lot_number || '-'}</TableCell>
-                          <TableCell className="text-right">{item.quantity.toFixed(2)}</TableCell>
-                          <TableCell>{item.unit}</TableCell>
-                          <TableCell>{item.document_number || '-'}</TableCell>
-                          <TableCell>{item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-'}</TableCell>
-                          <TableCell>{item.suppliers?.name || '-'}</TableCell>
-                          <TableCell>{item.manufacturers?.name || '-'}</TableCell>
-                          <TableCell>
-                            <Textarea
-                              rows={3}
-                              placeholder="Observații..."
-                              value={obsDraft[item.id] ?? (q?.obs ?? '')}
-                              onChange={(e) => setObsDraft((prev) => ({ ...prev, [item.id]: (e.target as HTMLTextAreaElement).value }))}
-                              onBlur={(e) => {
-                                const val = (e.target as HTMLTextAreaElement)?.value ?? '';
-                                handleUpsert(item.id, { obs: val });
-                              }}
-                              className="min-w-[360px] whitespace-pre-wrap break-words"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step={0.1}
-                              value={String(percentDraft[item.id] ?? (q?.nonconform_percent ?? 0))}
-                              onChange={(e) => {
-                                const v = Number((e.target as HTMLInputElement).value);
-                                setPercentDraft((prev) => ({ ...prev, [item.id]: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) }));
-                              }}
-                              onBlur={(e) => {
-                                const raw = (e.target as HTMLInputElement).value;
-                                const v = Number(raw);
-                                handleUpsert(item.id, { nonconform_percent: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) });
-                              }}
-                              className="w-24"
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">{computed.toFixed(2)}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </React.Fragment>
+                        <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                          <Textarea
+                            rows={2}
+                            placeholder="Obs pentru produs"
+                            value={groupObsDraft[group.name] ?? ''}
+                            onChange={(e) => setGroupObsDraft((prev) => ({ ...prev, [group.name]: (e.target as HTMLTextAreaElement).value }))}
+                            className="min-w-[360px] whitespace-pre-wrap break-words"
+                          />
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.1}
+                            placeholder="% neconform"
+                            value={groupPercentDraft[group.name] !== undefined && Number.isFinite(groupPercentDraft[group.name]) ? String(groupPercentDraft[group.name]) : ''}
+                            onChange={(e) => {
+                              const raw = (e.target as HTMLInputElement).value;
+                              const num = Number(raw);
+                              setGroupPercentDraft((prev) => ({ ...prev, [group.name]: isNaN(num) ? NaN : Math.max(0, Math.min(100, num)) }));
+                            }}
+                            className="w-28"
+                          />
+                          <Button onClick={() => handleApplyToGroup(group.name, group.items)}>Aplică la toate loturile</Button>
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ))
               ) : (
                 filteredSnapshots.map((item) => {
