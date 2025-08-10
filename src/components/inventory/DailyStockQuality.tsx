@@ -387,7 +387,7 @@ export const DailyStockQuality = () => {
                             const val = (e.target as HTMLTextAreaElement)?.value ?? '';
                             handleUpsert(item.id, { obs: val });
                           }}
-                          className="min-w-[160px] whitespace-pre-wrap break-words"
+                          className="min-w-[140px] whitespace-pre-wrap break-words"
                         />
                       </TableCell>
                       <TableCell>
@@ -406,7 +406,7 @@ export const DailyStockQuality = () => {
                             const v = Number(raw);
                             handleUpsert(item.id, { nonconform_percent: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) });
                           }}
-                          className="w-24"
+                          className="w-15"
                         />
                       </TableCell>
                       <TableCell className="text-right">{computed.toFixed(2)}</TableCell>
