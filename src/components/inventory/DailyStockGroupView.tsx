@@ -49,6 +49,7 @@ export const DailyStockGroupView = () => {
     const today = new Date();
     return today.toISOString().split('T')[0];
   });
+  const [qualityMap, setQualityMap] = useState<Record<string, { obs: string | null; nonconform_percent: number | null; consider_quantity: number | null }>>({});
 
   const fetchDailyStock = async () => {
     try {
@@ -99,6 +100,28 @@ export const DailyStockGroupView = () => {
 
       const snapshots = data || [];
       setStockSnapshots(snapshots);
+
+      // Fetch quality data for these snapshots (read-only display)
+      const qualityTable = 'daily_stock_quality';
+      if (snapshots.length > 0) {
+        const ids = snapshots.map(s => s.id);
+        const { data: qData, error: qErr } = await supabase
+          .from(qualityTable)
+          .select('snapshot_id, obs, nonconform_percent, consider_quantity')
+          .in('snapshot_id', ids);
+        if (qErr) throw qErr;
+        const map: Record<string, { obs: string | null; nonconform_percent: number | null; consider_quantity: number | null }> = {};
+        (qData ?? []).forEach((r: any) => {
+          map[r.snapshot_id] = {
+            obs: r.obs ?? null,
+            nonconform_percent: r.nonconform_percent ?? null,
+            consider_quantity: r.consider_quantity ?? null,
+          };
+        });
+        setQualityMap(map);
+      } else {
+        setQualityMap({});
+      }
       
       // Group data by product
       const grouped = new Map<string, GroupedProduct>();
@@ -320,27 +343,36 @@ export const DailyStockGroupView = () => {
                    <TableHead>Data Recepție</TableHead>
                    <TableHead>Furnizor</TableHead>
                    <TableHead>Producător</TableHead>
+                   <TableHead>Obs</TableHead>
+                   <TableHead>% marfă neconformă</TableHead>
+                   <TableHead className="text-right">Cant de luat în considerare</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredStockSnapshots.map((item) => (
-                  <TableRow key={item.id}>
-                     <TableCell className="font-medium">{item.entry_number || '-'}</TableCell>
-                     <TableCell className="font-medium">{item.name}</TableCell>
-                     <TableCell>{item.products?.cod_produs || '-'}</TableCell>
-                     <TableCell>{item.lot_number || '-'}</TableCell>
-                     <TableCell className="text-right">
-                       {item.quantity.toFixed(2)}
-                     </TableCell>
-                     <TableCell>{item.unit}</TableCell>
-                    <TableCell>{item.document_number || '-'}</TableCell>
-                    <TableCell>
-                      {item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-'}
-                    </TableCell>
-                    <TableCell>{item.suppliers?.name || '-'}</TableCell>
-                    <TableCell>{item.manufacturers?.name || '-'}</TableCell>
-                  </TableRow>
-                ))}
+                {filteredStockSnapshots.map((item) => {
+                  const q = qualityMap[item.id];
+                  return (
+                    <TableRow key={item.id}>
+                       <TableCell className="font-medium">{item.entry_number || '-'}</TableCell>
+                       <TableCell className="font-medium">{item.name}</TableCell>
+                       <TableCell>{item.products?.cod_produs || '-'}</TableCell>
+                       <TableCell>{item.lot_number || '-'}</TableCell>
+                       <TableCell className="text-right">
+                         {item.quantity.toFixed(2)}
+                       </TableCell>
+                       <TableCell>{item.unit}</TableCell>
+                      <TableCell>{item.document_number || '-'}</TableCell>
+                      <TableCell>
+                        {item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-'}
+                      </TableCell>
+                      <TableCell>{item.suppliers?.name || '-'}</TableCell>
+                      <TableCell>{item.manufacturers?.name || '-'}</TableCell>
+                      <TableCell className="whitespace-pre-wrap break-words max-w-[360px]">{q?.obs ?? '-'}</TableCell>
+                      <TableCell>{q?.nonconform_percent != null ? `${q.nonconform_percent}%` : '-'}</TableCell>
+                      <TableCell className="text-right">{q?.consider_quantity != null ? Number(q.consider_quantity).toFixed(2) : '-'}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
