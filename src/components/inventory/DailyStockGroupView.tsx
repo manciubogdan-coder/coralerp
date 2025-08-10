@@ -316,17 +316,45 @@ export const DailyStockGroupView = () => {
                    <TableHead>Cod Produs</TableHead>
                    <TableHead className="text-right">Cantitate Totală</TableHead>
                    <TableHead>Unitate</TableHead>
+                   <TableHead>Obs</TableHead>
+                   <TableHead>% marfă neconformă</TableHead>
+                   <TableHead className="text-right">Cant de luat în considerare</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredGroupedData.map((product, index) => (
-                  <TableRow key={index}>
-                     <TableCell className="font-medium">{product.product_name}</TableCell>
-                     <TableCell>{product.product_code}</TableCell>
-                     <TableCell className="text-right">{(product.total_net_quantity || product.total_gross_quantity).toFixed(2)}</TableCell>
-                     <TableCell>{product.unit}</TableCell>
-                  </TableRow>
-                ))}
+                {filteredGroupedData.map((product, index) => {
+                  const qItems = product.lots
+                    .map((it) => qualityMap[it.id])
+                    .filter((q): q is { obs: string | null; nonconform_percent: number | null; consider_quantity: number | null } => Boolean(q));
+                  const uniqueObs = Array.from(
+                    new Set(
+                      qItems
+                        .map((q) => (q.obs ?? '').trim())
+                        .filter((v) => v.length > 0)
+                    )
+                  );
+                  const obsText = uniqueObs.length === 1 ? uniqueObs[0] : uniqueObs.length > 1 ? 'Variate' : '-';
+                  const sumConsider = qItems.reduce((acc, q) => acc + (Number(q.consider_quantity) || 0), 0);
+                  const sumBaseWithQuality = product.lots.reduce((acc, it) => {
+                    const hasQ = Boolean(qualityMap[it.id]);
+                    if (!hasQ) return acc;
+                    const base = (it.net_quantity || it.quantity);
+                    return acc + (Number(base) || 0);
+                  }, 0);
+                  const percentText = sumBaseWithQuality > 0 ? `${((1 - sumConsider / sumBaseWithQuality) * 100).toFixed(2)}%` : '-';
+                  const considerText = qItems.length > 0 ? sumConsider.toFixed(2) : '-';
+                  return (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{product.product_name}</TableCell>
+                      <TableCell>{product.product_code}</TableCell>
+                      <TableCell className="text-right">{(product.total_net_quantity || product.total_gross_quantity).toFixed(2)}</TableCell>
+                      <TableCell>{product.unit}</TableCell>
+                      <TableCell className="whitespace-pre-wrap break-words max-w-[360px]">{obsText}</TableCell>
+                      <TableCell>{percentText}</TableCell>
+                      <TableCell className="text-right">{considerText}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           ) : (
