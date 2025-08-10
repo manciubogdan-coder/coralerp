@@ -387,7 +387,7 @@ export const DailyStockQuality = () => {
                             const val = (e.target as HTMLTextAreaElement)?.value ?? '';
                             handleUpsert(item.id, { obs: val });
                           }}
-                          className="min-w-[360px] whitespace-pre-wrap break-words"
+                          className="min-w-[160px] whitespace-pre-wrap break-words"
                         />
                       </TableCell>
                       <TableCell>
