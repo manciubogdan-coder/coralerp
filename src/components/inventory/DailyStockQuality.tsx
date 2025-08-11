@@ -272,39 +272,39 @@ export const DailyStockQuality = () => {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+    <div className="space-y-3 text-xs md:text-sm">
+      <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
         <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             <span className="text-sm font-medium">Selectează data:</span>
           </div>
-          <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-auto" />
+          <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-auto h-8 text-xs" />
           <Input
             type="text"
             placeholder="Filtrează după produs..."
             value={productFilter}
             onChange={(e) => setProductFilter(e.target.value)}
-            className="w-auto min-w-[200px]"
+            className="w-auto min-w-[160px] h-8 text-xs"
           />
         </div>
         <div className="flex gap-2 items-center">
           <span className="text-sm font-medium">Grupare:</span>
-          <Button variant={groupMode === 'product' ? 'default' : 'outline'} onClick={() => setGroupMode('product')}>Produs</Button>
-          <Button variant={groupMode === 'lot' ? 'default' : 'outline'} onClick={() => setGroupMode('lot')}>Lot</Button>
-          <Button onClick={() => window.print()} variant="outline">
+          <Button size="sm" variant={groupMode === 'product' ? 'default' : 'outline'} onClick={() => setGroupMode('product')}>Produs</Button>
+          <Button size="sm" variant={groupMode === 'lot' ? 'default' : 'outline'} onClick={() => setGroupMode('lot')}>Lot</Button>
+          <Button onClick={() => window.print()} variant="outline" size="sm">
             Printează
           </Button>
         </div>
       </div>
 
       {filteredSnapshots.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-6 text-gray-500">
           {productFilter ? <p>Nu există produse care să se potrivească cu filtrul.</p> : <p>Nu există snapshot pentru data selectată.</p>}
         </div>
       ) : (
         <div className="border rounded-lg overflow-x-auto">
-          <Table>
+          <Table className="text-xs [&_th]:py-1 [&_th]:px-2 [&_th]:whitespace-nowrap [&_td]:py-1 [&_td]:px-2 [&_td]:align-middle">
             <TableHeader>
               <TableRow>
                 <TableHead>Nr. Intrare</TableHead>
@@ -338,7 +338,7 @@ export const DailyStockQuality = () => {
                             placeholder="Obs pentru produs"
                             value={groupObsDraft[group.name] ?? ''}
                             onChange={(e) => setGroupObsDraft((prev) => ({ ...prev, [group.name]: (e.target as HTMLTextAreaElement).value }))}
-                            className="min-w-[160px] whitespace-pre-wrap break-words"
+                            className="min-w-[140px] whitespace-pre-wrap break-words text-xs"
                           />
                           <Input
                             type="number"
@@ -352,9 +352,9 @@ export const DailyStockQuality = () => {
                               const num = Number(raw);
                               setGroupPercentDraft((prev) => ({ ...prev, [group.name]: isNaN(num) ? NaN : Math.max(0, Math.min(100, num)) }));
                             }}
-                            className="w-28"
+                            className="w-20 h-8 text-xs"
                           />
-                          <Button onClick={() => handleApplyToGroup(group.name, group.items)}>Aplică la toate loturile</Button>
+                          <Button size="sm" onClick={() => handleApplyToGroup(group.name, group.items)}>Aplică la toate loturile</Button>
                         </div>
                       </div>
                     </TableCell>
@@ -387,7 +387,7 @@ export const DailyStockQuality = () => {
                             const val = (e.target as HTMLTextAreaElement)?.value ?? '';
                             handleUpsert(item.id, { obs: val });
                           }}
-                          className="min-w-[120px] whitespace-pre-wrap break-words"
+                          className="min-w-[120px] whitespace-pre-wrap break-words text-xs"
                         />
                       </TableCell>
                       <TableCell>
@@ -406,7 +406,7 @@ export const DailyStockQuality = () => {
                             const v = Number(raw);
                             handleUpsert(item.id, { nonconform_percent: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) });
                           }}
-                          className="w-24"
+                          className="w-20 h-8 text-xs"
                         />
                       </TableCell>
                       <TableCell className="text-right">{computed.toFixed(2)}</TableCell>
