@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -27,6 +28,12 @@ interface ReceptionItem {
   suppliers?: { name: string };
   manufacturers?: { name: string };
   products?: { name: string; cod_produs: string };
+  // New optional fields for post-reception quality notes
+  obs?: string | null;
+  nonconform_percent?: number | null;
+  consider_quantity?: number | null;
+  net_quantity?: number | null;
+  gross_quantity?: number | null;
 }
 
 type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';
@@ -48,7 +55,9 @@ export const ReceptionHistory = () => {
     unit: '',
     document_number: '',
     lot_number: '',
-    receipt_date: ''
+    receipt_date: '',
+    obs: '',
+    nonconform_percent: 0,
   });
 
   const groupedData = useGroupedReceptions(filteredReceptions, groupBy);
@@ -62,7 +71,7 @@ export const ReceptionHistory = () => {
       const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
       const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
       
-      let query = supabase
+      let query = (supabase as any)
         .from(tableName)
         .select(`
           id,
@@ -70,9 +79,14 @@ export const ReceptionHistory = () => {
           receipt_date,
           name,
           original_quantity,
+          gross_quantity,
+          net_quantity,
           unit,
           document_number,
           lot_number,
+          obs,
+          nonconform_percent,
+          consider_quantity,
           suppliers:supplier_id (name),
           manufacturers:manufacturer_id (name),
           products:product_id (name, cod_produs)
@@ -94,7 +108,7 @@ export const ReceptionHistory = () => {
         }
       }
 
-      const { data, error } = await query;
+      const { data, error } = await (query as any);
 
       if (error) {
         throw error;
@@ -102,7 +116,7 @@ export const ReceptionHistory = () => {
 
       console.log("Reception history data:", data);
       // Map original_quantity to quantity for interface compatibility
-      const receptionsData = (data || []).map(item => ({
+      const receptionsData = ((data as any[]) || []).map((item: any) => ({
         ...item,
         quantity: item.original_quantity
       }));
@@ -144,7 +158,9 @@ export const ReceptionHistory = () => {
       unit: item.unit,
       document_number: item.document_number || '',
       lot_number: item.lot_number || '',
-      receipt_date: item.receipt_date ? item.receipt_date.split('T')[0] : ''
+      receipt_date: item.receipt_date ? item.receipt_date.split('T')[0] : '',
+      obs: item.obs ?? '',
+      nonconform_percent: item.nonconform_percent ?? 0,
     });
     setIsEditDialogOpen(true);
   };
@@ -169,6 +185,8 @@ export const ReceptionHistory = () => {
         document_number: editFormData.document_number || null,
         lot_number: editFormData.lot_number || null,
         receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
+        obs: editFormData.obs || null,
+        nonconform_percent: editFormData.nonconform_percent ?? 0,
         updated_at: new Date().toISOString()
       };
 
@@ -401,6 +419,9 @@ export const ReceptionHistory = () => {
               <TableHead>Document</TableHead>
               <TableHead>Furnizor</TableHead>
               <TableHead>Producător</TableHead>
+              <TableHead>Obs</TableHead>
+              <TableHead className="text-right">% Pierdere</TableHead>
+              <TableHead className="text-right">Cant. de luat în considerare</TableHead>
               <TableHead className="text-center">Acțiuni</TableHead>
             </TableRow>
           </TableHeader>
@@ -408,6 +429,11 @@ export const ReceptionHistory = () => {
             {groupedData.length > 0 ? (
               groupedData.map((item) => {
                 const isGroupHeader = 'isGroupHeader' in item && item.isGroupHeader;
+                const considerQty = isGroupHeader
+                  ? null
+                  : (typeof (item as any).consider_quantity === 'number'
+                    ? (item as any).consider_quantity
+                    : (((item as any).net_quantity ?? (item as any).quantity) * (1 - (((item as any).nonconform_percent ?? 0) / 100))));
                 return (
                   <TableRow key={item.id} className={isGroupHeader ? "bg-muted font-semibold" : ""}>
                     <TableCell className="font-medium">
@@ -426,6 +452,9 @@ export const ReceptionHistory = () => {
                     <TableCell>{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
                     <TableCell>{isGroupHeader ? '' : (item.suppliers?.name || '-')}</TableCell>
                     <TableCell>{isGroupHeader ? '' : (item.manufacturers?.name || '-')}</TableCell>
+                    <TableCell>{isGroupHeader ? '' : ((item as any).obs ?? '-')}</TableCell>
+                    <TableCell className="text-right">{isGroupHeader ? '' : `${((item as any).nonconform_percent ?? 0).toFixed(1)}%`}</TableCell>
+                    <TableCell className="text-right">{isGroupHeader ? '' : (considerQty as number).toFixed(2)}</TableCell>
                     <TableCell className="text-center">
                       {!isGroupHeader && (
                         <div className="flex gap-2 justify-center">
