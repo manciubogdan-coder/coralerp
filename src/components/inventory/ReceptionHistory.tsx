@@ -482,7 +482,7 @@ export const ReceptionHistory = () => {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
                   Nu s-au găsit recepții în intervalul selectat.
                 </TableCell>
               </TableRow>
@@ -548,6 +548,39 @@ export const ReceptionHistory = () => {
                 onChange={(e) => setEditFormData({...editFormData, lot_number: e.target.value})}
               />
             </div>
+          <div className="grid gap-2">
+            <Label htmlFor="obs">Observații</Label>
+            <Textarea
+              id="obs"
+              value={editFormData.obs}
+              onChange={(e) => setEditFormData({ ...editFormData, obs: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="nonconform_percent">% marfă neconformă (pierdere)</Label>
+            <Input
+              id="nonconform_percent"
+              type="number"
+              step="0.1"
+              min={0}
+              max={100}
+              value={editFormData.nonconform_percent}
+              onChange={(e) =>
+                setEditFormData({
+                  ...editFormData,
+                  nonconform_percent: parseFloat(e.target.value) || 0,
+                })
+              }
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Cant. de luat în considerare (previzualizare)</Label>
+            <Input
+              readOnly
+              value={`${Math.max(0, ((editingItem?.net_quantity ?? editingItem?.gross_quantity ?? editFormData.quantity) * (1 - ((editFormData.nonconform_percent ?? 0) / 100)))).toFixed(2)}`}
+            />
+            <p className="text-xs text-muted-foreground">Se recalculează automat la salvare.</p>
+          </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
