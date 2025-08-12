@@ -353,14 +353,14 @@ export const ReceptionHistory = () => {
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               placeholder="De la"
-              className="w-auto"
+              className="w-auto h-9 text-sm"
             />
             <Input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               placeholder="Până la"
-              className="w-auto"
+              className="w-auto h-9 text-sm"
             />
           </div>
           <Input
@@ -368,7 +368,7 @@ export const ReceptionHistory = () => {
             placeholder="Filtrează după produs..."
             value={productFilter}
             onChange={(e) => setProductFilter(e.target.value)}
-            className="w-auto min-w-[200px]"
+            className="w-auto min-w-[200px] h-9 text-sm"
           />
         </div>
         
@@ -405,7 +405,7 @@ export const ReceptionHistory = () => {
         </Button>
       </div>
 
-      <div className="border rounded-lg overflow-x-auto">
+      <div className="border rounded-lg overflow-x-auto text-xs md:text-sm [&_th]:px-2 [&_th]:py-1 [&_td]:px-2 [&_td]:py-1 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
         <Table>
           <TableHeader>
             <TableRow>
@@ -492,17 +492,18 @@ export const ReceptionHistory = () => {
       </div>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md sm:max-w-lg sm:max-h-[85vh] overflow-y-auto p-4">
           <DialogHeader>
             <DialogTitle>Editare Recepție</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 py-3">
             <div className="grid gap-2">
               <Label htmlFor="name">Nume Produs</Label>
               <Input
                 id="name"
                 value={editFormData.name}
                 onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                className="h-9 text-sm"
               />
             </div>
             <div className="grid gap-2">
@@ -513,6 +514,7 @@ export const ReceptionHistory = () => {
                 step="0.01"
                 value={editFormData.quantity}
                 onChange={(e) => setEditFormData({...editFormData, quantity: parseFloat(e.target.value) || 0})}
+                className="h-9 text-sm"
               />
             </div>
             <div className="grid gap-2">
@@ -521,6 +523,7 @@ export const ReceptionHistory = () => {
                 id="unit"
                 value={editFormData.unit}
                 onChange={(e) => setEditFormData({...editFormData, unit: e.target.value})}
+                className="h-9 text-sm"
               />
             </div>
             <div className="grid gap-2">
@@ -530,6 +533,7 @@ export const ReceptionHistory = () => {
                 type="date"
                 value={editFormData.receipt_date}
                 onChange={(e) => setEditFormData({...editFormData, receipt_date: e.target.value})}
+                className="h-9 text-sm"
               />
             </div>
             <div className="grid gap-2">
@@ -538,6 +542,7 @@ export const ReceptionHistory = () => {
                 id="document_number"
                 value={editFormData.document_number}
                 onChange={(e) => setEditFormData({...editFormData, document_number: e.target.value})}
+                className="h-9 text-sm"
               />
             </div>
             <div className="grid gap-2">
@@ -546,6 +551,7 @@ export const ReceptionHistory = () => {
                 id="lot_number"
                 value={editFormData.lot_number}
                 onChange={(e) => setEditFormData({...editFormData, lot_number: e.target.value})}
+                className="h-9 text-sm"
               />
             </div>
           <div className="grid gap-2">
@@ -554,6 +560,7 @@ export const ReceptionHistory = () => {
               id="obs"
               value={editFormData.obs}
               onChange={(e) => setEditFormData({ ...editFormData, obs: e.target.value })}
+              className="text-sm min-h-[60px]"
             />
           </div>
           <div className="grid gap-2">
@@ -571,6 +578,7 @@ export const ReceptionHistory = () => {
                   nonconform_percent: parseFloat(e.target.value) || 0,
                 })
               }
+              className="h-9 text-sm"
             />
           </div>
           <div className="grid gap-2">
@@ -578,6 +586,7 @@ export const ReceptionHistory = () => {
             <Input
               readOnly
               value={`${Math.max(0, ((editingItem?.net_quantity ?? editingItem?.gross_quantity ?? editFormData.quantity) * (1 - ((editFormData.nonconform_percent ?? 0) / 100)))).toFixed(2)}`}
+              className="h-9 text-sm"
             />
             <p className="text-xs text-muted-foreground">Se recalculează automat la salvare.</p>
           </div>
