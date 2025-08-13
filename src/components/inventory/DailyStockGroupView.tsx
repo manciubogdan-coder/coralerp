@@ -335,15 +335,26 @@ export const DailyStockGroupView = () => {
                     )
                   );
                   const obsText = uniqueObs.length === 1 ? uniqueObs[0] : uniqueObs.length > 1 ? 'Variate' : '-';
-                  const sumConsider = qItems.reduce((acc, q) => acc + (Number(q.consider_quantity) || 0), 0);
-                  const sumBaseWithQuality = product.lots.reduce((acc, it) => {
-                    const hasQ = Boolean(qualityMap[it.id]);
-                    if (!hasQ) return acc;
-                    const base = (it.net_quantity || it.quantity);
-                    return acc + (Number(base) || 0);
+
+                  const baseSum = product.lots.reduce((acc, it) => acc + (Number(it.net_quantity || it.quantity) || 0), 0);
+                  const sumConsider = product.lots.reduce((acc, it) => {
+                    const base = (it.net_quantity || it.quantity) || 0;
+                    const pt = it.products?.pt_percent ?? 0;
+                    const q = qualityMap[it.id];
+                    let val = 0;
+                    if (q) {
+                      const nonconf = q.nonconform_percent ?? 0;
+                      val = (q.consider_quantity != null)
+                        ? Number(q.consider_quantity)
+                        : base * (1 - nonconf / 100) * (1 - pt / 100);
+                    } else {
+                      val = base * (1 - pt / 100);
+                    }
+                    return acc + (Number(val) || 0);
                   }, 0);
-                  const percentText = sumBaseWithQuality > 0 ? `${((1 - sumConsider / sumBaseWithQuality) * 100).toFixed(2)}%` : '-';
-                  const considerText = qItems.length > 0 ? sumConsider.toFixed(2) : '-';
+
+                  const percentText = baseSum > 0 ? `${((1 - sumConsider / baseSum) * 100).toFixed(2)}%` : '-';
+                  const considerText = baseSum > 0 ? sumConsider.toFixed(2) : '-';
                   const ptVal = product.lots[0]?.products?.pt_percent ?? 0;
                   return (
                     <TableRow key={index}>
@@ -383,6 +394,12 @@ export const DailyStockGroupView = () => {
               <TableBody>
                 {filteredStockSnapshots.map((item) => {
                   const q = qualityMap[item.id];
+                  const base = (item.net_quantity || item.quantity) as number;
+                  const pt = item.products?.pt_percent ?? 0;
+                  const nonconf = q?.nonconform_percent ?? 0;
+                  const consider = q?.consider_quantity != null
+                    ? Number(q.consider_quantity)
+                    : base * (1 - nonconf / 100) * (1 - pt / 100);
                   return (
                     <TableRow key={item.id}>
                        <TableCell className="font-medium">{item.entry_number || '-'}</TableCell>
@@ -402,7 +419,7 @@ export const DailyStockGroupView = () => {
                       <TableCell>{item.products?.pt_percent != null ? `${item.products.pt_percent}%` : '-'}</TableCell>
                       <TableCell className="whitespace-pre-wrap break-words max-w-[360px]">{q?.obs ?? '-'}</TableCell>
                       <TableCell>{q?.nonconform_percent != null ? `${q.nonconform_percent}%` : '-'}</TableCell>
-                      <TableCell className="text-right">{q?.consider_quantity != null ? Number(q.consider_quantity).toFixed(2) : '-'}</TableCell>
+                      <TableCell className="text-right">{Number(consider).toFixed(2)}</TableCell>
                     </TableRow>
                   );
                 })}
