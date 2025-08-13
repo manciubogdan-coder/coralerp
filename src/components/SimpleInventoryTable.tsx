@@ -1,11 +1,13 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, FileSpreadsheet } from "lucide-react";
 import { InventoryItem } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";
+import { supabase } from "@/integrations/supabase/client";
+import { useInventoryType } from "@/App";
 
 interface SimpleInventoryTableProps {
   inventory: InventoryItem[];
@@ -13,6 +15,78 @@ interface SimpleInventoryTableProps {
 
 const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const { inventoryType } = useInventoryType();
+  const [todayAgg, setTodayAgg] = useState<Record<string, { pt: number | null; percent: number | null; consider: number | null }>>({});
+
+  useEffect(() => {
+    const fetchToday = async () => {
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const tableName = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
+        const qualityTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_quality' : 'daily_stock_quality';
+        const { data, error } = await supabase
+          .from(tableName)
+          .select(`
+            id,
+            name,
+            quantity,
+            net_quantity,
+            unit,
+            products:product_id (pt_percent, cod_produs)
+          `)
+          .eq('snapshot_date', todayStr);
+        if (error) throw error;
+        const snapshots = data || [];
+        const ids = snapshots.map((s: any) => s.id);
+        let qMap: Record<string, { nonconform_percent: number | null; consider_quantity: number | null }> = {};
+        if (ids.length > 0) {
+          const { data: qData, error: qErr } = await supabase
+            .from(qualityTable)
+            .select('snapshot_id, nonconform_percent, consider_quantity')
+            .in('snapshot_id', ids);
+          if (qErr) throw qErr;
+          (qData ?? []).forEach((r: any) => {
+            qMap[r.snapshot_id] = {
+              nonconform_percent: r.nonconform_percent ?? null,
+              consider_quantity: r.consider_quantity ?? null,
+            };
+          });
+        }
+        const grouped: Record<string, { base: number; consider: number; pt: number | null }> = {};
+        snapshots.forEach((it: any) => {
+          const key = it.name;
+          const base = Number(it.net_quantity ?? it.quantity) || 0;
+          const pt = it.products?.pt_percent ?? 0;
+          const q = qMap[it.id];
+          let consider = 0;
+          if (q) {
+            const nonconf = q.nonconform_percent ?? 0;
+            consider = q.consider_quantity != null
+              ? Number(q.consider_quantity)
+              : base * (1 - nonconf / 100) * (1 - pt / 100);
+          } else {
+            consider = base * (1 - pt / 100);
+          }
+          if (!grouped[key]) {
+            grouped[key] = { base: 0, consider: 0, pt: pt ?? null };
+          }
+          grouped[key].base += base;
+          grouped[key].consider += consider;
+          if (grouped[key].pt == null && pt != null) grouped[key].pt = pt;
+        });
+        const result: Record<string, { pt: number | null; percent: number | null; consider: number | null }> = {};
+        Object.entries(grouped).forEach(([k, v]) => {
+          const percent = v.base > 0 ? (1 - v.consider / v.base) * 100 : null;
+          result[k] = { pt: v.pt ?? null, percent, consider: v.base > 0 ? Number(v.consider) : null };
+        });
+        setTodayAgg(result);
+      } catch (e) {
+        console.error('Error fetching today quality for live stock:', e);
+        setTodayAgg({});
+      }
+    };
+    fetchToday();
+  }, [inventoryType]);
 
   // Group and sum quantities by product name
   const groupedInventory = inventory.reduce((acc, item) => {
@@ -38,12 +112,18 @@ const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleExport = () => {
-    const dataToExport = displayData.map(item => ({
-      'Cod Produs': item.cod_produs || '-',
-      Produs: item.name,
-      'Cantitate Netă': item.quantity.toFixed(2),
-      Unitate: item.unit
-    }));
+    const dataToExport = displayData.map(item => {
+      const agg = todayAgg[item.name];
+      return {
+        'Cod Produs': item.cod_produs || '-',
+        'Produs': item.name,
+        'Cantitate Netă': item.quantity.toFixed(2),
+        'Unitate': item.unit,
+        '% PT': agg?.pt != null ? `${agg.pt}%` : '-',
+        '% marfă neconformă': agg?.percent != null ? `${agg.percent.toFixed(2)}%` : '-',
+        'Cant de luat în considerare': agg?.consider != null ? agg.consider.toFixed(2) : '-',
+      };
+    });
     
     exportToExcel(dataToExport);
   };
@@ -80,21 +160,30 @@ const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
                 <TableHead>Produs</TableHead>
                 <TableHead className="text-right">Cantitate Netă</TableHead>
                 <TableHead>Unitate</TableHead>
+                <TableHead>% PT</TableHead>
+                <TableHead>% marfă neconformă</TableHead>
+                <TableHead className="text-right">Cant de luat în considerare</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {displayData.length > 0 ? (
-                displayData.map((item) => (
-                  <TableRow key={item.name}>
-                    <TableCell className="font-medium">{item.cod_produs || "-"}</TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-right">{item.quantity.toFixed(2)}</TableCell>
-                    <TableCell>{item.unit}</TableCell>
-                  </TableRow>
-                ))
-              ) : (
+                {displayData.length > 0 ? (
+                  displayData.map((item) => {
+                    const agg = todayAgg[item.name];
+                    return (
+                      <TableRow key={item.name}>
+                        <TableCell className="font-medium">{item.cod_produs || "-"}</TableCell>
+                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell className="text-right">{item.quantity.toFixed(2)}</TableCell>
+                        <TableCell>{item.unit}</TableCell>
+                        <TableCell>{agg?.pt != null ? `${agg.pt}%` : '-'}</TableCell>
+                        <TableCell>{agg?.percent != null ? `${agg.percent.toFixed(2)}%` : '-'}</TableCell>
+                        <TableCell className="text-right">{agg?.consider != null ? agg.consider.toFixed(2) : '-'}</TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-6 text-gray-500">
+                  <TableCell colSpan={7} className="text-center py-6 text-gray-500">
                     {searchTerm
                       ? `Nu s-au găsit produse pentru "${searchTerm}"`
                       : "Nu există produse în stoc."}
