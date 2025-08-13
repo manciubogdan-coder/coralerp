@@ -22,7 +22,7 @@ const ProductsTable = () => {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
-  const [newItem, setNewItem] = useState<Partial<Product>>({ name: "", default_unit: "kg", description: "", cod_produs: "" });
+  const [newItem, setNewItem] = useState<Partial<Product>>({ name: "", default_unit: "kg", description: "", cod_produs: "", pt_percent: 0 });
   const [editItem, setEditItem] = useState<Product | null>(null);
 
   // Get the correct table name based on inventory type
@@ -60,7 +60,7 @@ const ProductsTable = () => {
 
   const handleAddNew = () => {
     setIsAddingNew(true);
-    setNewItem({ name: "", default_unit: "kg", description: "", cod_produs: "" });
+    setNewItem({ name: "", default_unit: "kg", description: "", cod_produs: "", pt_percent: 0 });
   };
 
   const handleCancelAdd = () => {
@@ -97,6 +97,7 @@ const ProductsTable = () => {
             default_unit: newItem.default_unit || "kg",
             description: newItem.description || null,
             cod_produs: newItem.cod_produs || null,
+            pt_percent: newItem.pt_percent ?? 0,
           },
         ])
         .select();
@@ -143,6 +144,7 @@ const ProductsTable = () => {
           default_unit: editItem.default_unit,
           description: editItem.description,
           cod_produs: editItem.cod_produs,
+          pt_percent: editItem.pt_percent,
         })
         .eq("id", editItem.id);
 
@@ -211,6 +213,7 @@ const ProductsTable = () => {
             <TableHead>Nume</TableHead>
             <TableHead>Unitate de măsură</TableHead>
             <TableHead>Descriere</TableHead>
+            <TableHead>% PT</TableHead>
             <TableHead className="w-[150px]">Acțiuni</TableHead>
           </TableRow>
         </TableHeader>
@@ -243,6 +246,19 @@ const ProductsTable = () => {
                   value={newItem.description || ""}
                   onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
                   placeholder="Descriere (opțional)"
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={newItem.pt_percent ?? 0}
+                  onChange={(e) =>
+                    setNewItem({ ...newItem, pt_percent: parseFloat(e.target.value) || 0 })
+                  }
+                  placeholder="% PT"
                 />
               </TableCell>
               <TableCell>
@@ -302,6 +318,20 @@ const ProductsTable = () => {
               </TableCell>
               <TableCell>
                 {editingId === product.id ? (
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={editItem?.pt_percent ?? 0}
+                    onChange={(e) => setEditItem({ ...editItem!, pt_percent: parseFloat(e.target.value) || 0 })}
+                  />
+                ) : (
+                  (product.pt_percent ?? 0).toString()
+                )}
+              </TableCell>
+              <TableCell>
+                {editingId === product.id ? (
                   <div className="flex space-x-2">
                     <Button size="sm" onClick={handleSaveEdit}>
                       <Save className="h-4 w-4 mr-1" /> Salvează
@@ -331,7 +361,7 @@ const ProductsTable = () => {
 
           {products.length === 0 && !isAddingNew && !loading && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                 Nu există produse. Adăugați unul nou folosind butonul de mai sus.
               </TableCell>
             </TableRow>
@@ -339,7 +369,7 @@ const ProductsTable = () => {
 
           {loading && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                 Se încarcă produsele...
               </TableCell>
             </TableRow>

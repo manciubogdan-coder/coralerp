@@ -80,6 +80,7 @@ export interface Product {
   category?: string;
   default_unit: string;
   cod_produs?: string;
+  pt_percent?: number; // Procent PT (pierdere tehnologică / TVA etc.)
   created_at?: string;
   updated_at?: string;
 }

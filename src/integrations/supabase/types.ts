@@ -1055,6 +1055,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          pt_percent: number
           updated_at: string
         }
         Insert: {
@@ -1065,6 +1066,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          pt_percent?: number
           updated_at?: string
         }
         Update: {
@@ -1075,12 +1077,14 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          pt_percent?: number
           updated_at?: string
         }
         Relationships: []
       }
       ambalaje_reception_records: {
         Row: {
+          consider_quantity: number | null
           crate_count: number | null
           crate_type_id: string | null
           crate_weight: number | null
@@ -1093,6 +1097,8 @@ export type Database = {
           manufacturer_id: string | null
           name: string
           net_quantity: number | null
+          nonconform_percent: number | null
+          obs: string | null
           original_quantity: number
           product_id: string | null
           receipt_date: string
@@ -1102,6 +1108,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          consider_quantity?: number | null
           crate_count?: number | null
           crate_type_id?: string | null
           crate_weight?: number | null
@@ -1114,6 +1121,8 @@ export type Database = {
           manufacturer_id?: string | null
           name: string
           net_quantity?: number | null
+          nonconform_percent?: number | null
+          obs?: string | null
           original_quantity?: number
           product_id?: string | null
           receipt_date?: string
@@ -1123,6 +1132,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          consider_quantity?: number | null
           crate_count?: number | null
           crate_type_id?: string | null
           crate_weight?: number | null
@@ -1135,6 +1145,8 @@ export type Database = {
           manufacturer_id?: string | null
           name?: string
           net_quantity?: number | null
+          nonconform_percent?: number | null
+          obs?: string | null
           original_quantity?: number
           product_id?: string | null
           receipt_date?: string
@@ -3508,6 +3520,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          pt_percent: number
           updated_at: string
         }
         Insert: {
@@ -3517,6 +3530,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          pt_percent?: number
           updated_at?: string
         }
         Update: {
@@ -3526,6 +3540,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          pt_percent?: number
           updated_at?: string
         }
         Relationships: []
@@ -3553,6 +3568,7 @@ export type Database = {
       }
       reception_records: {
         Row: {
+          consider_quantity: number | null
           crate_count: number | null
           crate_type_id: string | null
           crate_weight: number | null
@@ -3565,6 +3581,8 @@ export type Database = {
           manufacturer_id: string | null
           name: string
           net_quantity: number | null
+          nonconform_percent: number | null
+          obs: string | null
           original_quantity: number
           product_id: string | null
           receipt_date: string
@@ -3574,6 +3592,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          consider_quantity?: number | null
           crate_count?: number | null
           crate_type_id?: string | null
           crate_weight?: number | null
@@ -3586,6 +3605,8 @@ export type Database = {
           manufacturer_id?: string | null
           name: string
           net_quantity?: number | null
+          nonconform_percent?: number | null
+          obs?: string | null
           original_quantity?: number
           product_id?: string | null
           receipt_date?: string
@@ -3595,6 +3616,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          consider_quantity?: number | null
           crate_count?: number | null
           crate_type_id?: string | null
           crate_weight?: number | null
@@ -3607,6 +3629,8 @@ export type Database = {
           manufacturer_id?: string | null
           name?: string
           net_quantity?: number | null
+          nonconform_percent?: number | null
+          obs?: string | null
           original_quantity?: number
           product_id?: string | null
           receipt_date?: string
