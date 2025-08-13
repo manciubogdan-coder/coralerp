@@ -23,7 +23,7 @@ interface DailyStockItem {
   suppliers?: { name: string };
   manufacturers?: { name: string };
   crate_types?: { name: string; weight: number };
-  products?: { name: string; cod_produs: string };
+  products?: { name: string; cod_produs: string; pt_percent?: number };
   crate_count: number;
 }
 
@@ -89,7 +89,7 @@ export const DailyStockGroupView = () => {
           suppliers:supplier_id (name),
           manufacturers:manufacturer_id (name),
           crate_types:crate_type_id (name, weight),
-          products:product_id (name, cod_produs)
+          products:product_id (name, cod_produs, pt_percent)
         `)
         .eq('snapshot_date', selectedDate)
         .order("name", { ascending: true });
@@ -316,6 +316,7 @@ export const DailyStockGroupView = () => {
                    <TableHead>Cod Produs</TableHead>
                    <TableHead className="text-right">Cantitate Totală</TableHead>
                    <TableHead>Unitate</TableHead>
+                   <TableHead>% PT</TableHead>
                    <TableHead>Obs</TableHead>
                    <TableHead>% marfă neconformă</TableHead>
                    <TableHead className="text-right">Cant de luat în considerare</TableHead>
@@ -343,12 +344,14 @@ export const DailyStockGroupView = () => {
                   }, 0);
                   const percentText = sumBaseWithQuality > 0 ? `${((1 - sumConsider / sumBaseWithQuality) * 100).toFixed(2)}%` : '-';
                   const considerText = qItems.length > 0 ? sumConsider.toFixed(2) : '-';
+                  const ptVal = product.lots[0]?.products?.pt_percent ?? 0;
                   return (
                     <TableRow key={index}>
                       <TableCell className="font-medium">{product.product_name}</TableCell>
                       <TableCell>{product.product_code}</TableCell>
                       <TableCell className="text-right">{(product.total_net_quantity || product.total_gross_quantity).toFixed(2)}</TableCell>
                       <TableCell>{product.unit}</TableCell>
+                      <TableCell>{ptVal ? `${ptVal}%` : '-'}</TableCell>
                       <TableCell className="whitespace-pre-wrap break-words max-w-[360px]">{obsText}</TableCell>
                       <TableCell>{percentText}</TableCell>
                       <TableCell className="text-right">{considerText}</TableCell>
@@ -371,6 +374,7 @@ export const DailyStockGroupView = () => {
                    <TableHead>Data Recepție</TableHead>
                    <TableHead>Furnizor</TableHead>
                    <TableHead>Producător</TableHead>
+                   <TableHead>% PT</TableHead>
                    <TableHead>Obs</TableHead>
                    <TableHead>% marfă neconformă</TableHead>
                    <TableHead className="text-right">Cant de luat în considerare</TableHead>
@@ -395,6 +399,7 @@ export const DailyStockGroupView = () => {
                       </TableCell>
                       <TableCell>{item.suppliers?.name || '-'}</TableCell>
                       <TableCell>{item.manufacturers?.name || '-'}</TableCell>
+                      <TableCell>{item.products?.pt_percent != null ? `${item.products.pt_percent}%` : '-'}</TableCell>
                       <TableCell className="whitespace-pre-wrap break-words max-w-[360px]">{q?.obs ?? '-'}</TableCell>
                       <TableCell>{q?.nonconform_percent != null ? `${q.nonconform_percent}%` : '-'}</TableCell>
                       <TableCell className="text-right">{q?.consider_quantity != null ? Number(q.consider_quantity).toFixed(2) : '-'}</TableCell>

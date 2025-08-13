@@ -24,7 +24,7 @@ interface DailyStockItem {
   suppliers?: { name: string } | null;
   manufacturers?: { name: string } | null;
   crate_types?: { name: string; weight: number } | null;
-  products?: { name: string; cod_produs: string } | null;
+  products?: { name: string; cod_produs: string; pt_percent?: number } | null;
 }
 
 interface QualityRow {
@@ -80,7 +80,7 @@ export const DailyStockQuality = () => {
           suppliers:supplier_id (name),
           manufacturers:manufacturer_id (name),
           crate_types:crate_type_id (name, weight),
-          products:product_id (name, cod_produs)
+          products:product_id (name, cod_produs, pt_percent)
         `)
         .eq("snapshot_date", selectedDate)
         .order("name", { ascending: true });
@@ -147,7 +147,8 @@ export const DailyStockQuality = () => {
       const code = item.products?.cod_produs || '';
       const q = qualityMap[item.id];
       const currentPercent = percentDraft[item.id] ?? (q?.nonconform_percent ?? 0);
-      const computed = q?.consider_quantity ?? baseQty(item) * (1 - (currentPercent || 0) / 100);
+      const pt = item.products?.pt_percent ?? 0;
+      const computed = q?.consider_quantity ?? baseQty(item) * (1 - (currentPercent || 0) / 100) * (1 - (pt || 0) / 100);
 
       if (!groups.has(key)) {
         groups.set(key, {
@@ -364,7 +365,8 @@ export const DailyStockQuality = () => {
                 filteredSnapshots.map((item) => {
                   const q = qualityMap[item.id];
                   const currentPercent = percentDraft[item.id] ?? (q?.nonconform_percent ?? 0);
-                  const computed = q?.consider_quantity ?? baseQty(item) * (1 - (currentPercent || 0) / 100);
+                  const pt = item.products?.pt_percent ?? 0;
+                  const computed = q?.consider_quantity ?? baseQty(item) * (1 - (currentPercent || 0) / 100) * (1 - (pt || 0) / 100);
                   return (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.entry_number ?? '-'}</TableCell>
