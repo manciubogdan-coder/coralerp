@@ -325,7 +325,12 @@ export const ReceptionHistory = () => {
       'Unitate': item.unit,
       'Document': item.document_number || '',
       'Furnizor': item.suppliers?.name || '',
-      'Producător': item.manufacturers?.name || ''
+      'Producător': item.manufacturers?.name || '',
+      'Observații': (item as any).obs || '',
+      '% Pierdere': `${((item as any).nonconform_percent ?? 0).toFixed(1)}%`,
+      'Cant. de luat în considerare': (typeof (item as any).consider_quantity === 'number'
+        ? (item as any).consider_quantity
+        : (((item as any).net_quantity ?? (item as any).quantity) * (1 - (((item as any).nonconform_percent ?? 0) / 100)))).toFixed(2)
     }));
     
     const filename = `istoric_receptii_${dateFrom || 'toate'}_${dateTo || 'toate'}.xlsx`;
@@ -423,23 +428,23 @@ export const ReceptionHistory = () => {
         </Button>
       </div>
 
-      <div className="border rounded-lg overflow-x-auto print:overflow-visible">
-        <Table className="text-xs print:text-[10px] table-fixed w-full min-w-fit">
+      <div className="border rounded-lg overflow-x-auto print:overflow-visible print:border-0">
+        <Table className="text-xs print:text-[8px] table-fixed w-full min-w-fit print:min-w-full">
           <TableHeader>
-            <TableRow>
-              <TableHead className="w-12 px-1 py-1">Nr.</TableHead>
-              <TableHead className="w-16 px-1 py-1">Data</TableHead>
-              <TableHead className="w-24 px-1 py-1 max-w-24">Produs</TableHead>
-              <TableHead className="w-12 px-1 py-1 hidden md:table-cell">Cod</TableHead>
-              <TableHead className="w-12 px-1 py-1 hidden lg:table-cell">Lot</TableHead>
-              <TableHead className="w-12 px-1 py-1 text-right">Cant.</TableHead>
-              <TableHead className="w-8 px-1 py-1 hidden md:table-cell">U.M.</TableHead>
-              <TableHead className="w-12 px-1 py-1 hidden lg:table-cell">Doc.</TableHead>
-              <TableHead className="w-16 px-1 py-1 hidden xl:table-cell">Furnizor</TableHead>
-              <TableHead className="w-16 px-1 py-1 hidden xl:table-cell">Producător</TableHead>
-              <TableHead className="w-16 px-1 py-1 hidden lg:table-cell">Obs</TableHead>
-              <TableHead className="w-10 px-1 py-1 text-right hidden md:table-cell">%P</TableHead>
-              <TableHead className="w-12 px-1 py-1 text-right">C.Cons.</TableHead>
+            <TableRow className="print:break-inside-avoid">
+              <TableHead className="w-12 px-1 py-1 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Nr.</TableHead>
+              <TableHead className="w-16 px-1 py-1 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Data</TableHead>
+              <TableHead className="w-24 px-1 py-1 max-w-24 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Produs</TableHead>
+              <TableHead className="w-12 px-1 py-1 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Cod</TableHead>
+              <TableHead className="w-12 px-1 py-1 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Lot</TableHead>
+              <TableHead className="w-12 px-1 py-1 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Cant.</TableHead>
+              <TableHead className="w-8 px-1 py-1 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">U.M.</TableHead>
+              <TableHead className="w-12 px-1 py-1 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Doc.</TableHead>
+              <TableHead className="w-16 px-1 py-1 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Furnizor</TableHead>
+              <TableHead className="w-16 px-1 py-1 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Producător</TableHead>
+              <TableHead className="w-16 px-1 py-1 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Obs</TableHead>
+              <TableHead className="w-10 px-1 py-1 text-right hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">%P</TableHead>
+              <TableHead className="w-12 px-1 py-1 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">C.Cons.</TableHead>
               <TableHead className="w-12 px-1 py-1 text-center print:hidden">Act.</TableHead>
             </TableRow>
           </TableHeader>
@@ -453,26 +458,26 @@ export const ReceptionHistory = () => {
                     ? (item as any).consider_quantity
                     : (((item as any).net_quantity ?? (item as any).quantity) * (1 - (((item as any).nonconform_percent ?? 0) / 100))));
                 return (
-                  <TableRow key={item.id} className={isGroupHeader ? "bg-muted font-semibold" : ""}>
-                    <TableCell className="px-1 py-1 font-medium text-xs truncate">
+                  <TableRow key={item.id} className={isGroupHeader ? "bg-muted font-semibold print:bg-gray-100" : "print:break-inside-avoid"}>
+                    <TableCell className="px-1 py-1 font-medium text-xs truncate print:table-cell print:text-[8px] print:border print:border-gray-300">
                       {isGroupHeader ? '' : item.entry_number}
                     </TableCell>
-                    <TableCell className="px-1 py-1 text-xs">
+                    <TableCell className="px-1 py-1 text-xs print:table-cell print:text-[8px] print:border print:border-gray-300">
                       {isGroupHeader ? '' : (item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit' }) : '-')}
                     </TableCell>
-                    <TableCell className="px-1 py-1 font-medium text-xs truncate max-w-24 overflow-hidden" title={item.name}>{item.name}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden md:table-cell">{isGroupHeader ? '' : (item.products?.cod_produs || '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell">{isGroupHeader ? '' : (item.lot_number || '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-right text-xs">
+                    <TableCell className="px-1 py-1 font-medium text-xs truncate max-w-24 overflow-hidden print:table-cell print:text-[8px] print:border print:border-gray-300 print:overflow-visible print:max-w-none" title={item.name}>{item.name}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (item.products?.cod_produs || '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (item.lot_number || '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-right text-xs print:table-cell print:text-[8px] print:border print:border-gray-300">
                       {isGroupHeader ? '' : item.quantity.toFixed(2)}
                     </TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden md:table-cell">{isGroupHeader ? '' : item.unit}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell">{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden xl:table-cell">{isGroupHeader ? '' : (item.suppliers?.name || '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden xl:table-cell">{isGroupHeader ? '' : (item.manufacturers?.name || '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell">{isGroupHeader ? '' : ((item as any).obs ?? '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-right text-xs hidden md:table-cell">{isGroupHeader ? '' : `${((item as any).nonconform_percent ?? 0).toFixed(1)}%`}</TableCell>
-                    <TableCell className="px-1 py-1 text-right text-xs">{isGroupHeader ? '' : (considerQty as number).toFixed(2)}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : item.unit}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (item.suppliers?.name || '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (item.manufacturers?.name || '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : ((item as any).obs ?? '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-right text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : `${((item as any).nonconform_percent ?? 0).toFixed(1)}%`}</TableCell>
+                    <TableCell className="px-1 py-1 text-right text-xs print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (considerQty as number).toFixed(2)}</TableCell>
                     <TableCell className="px-1 py-1 text-center print:hidden">
                       {!isGroupHeader && (
                         <div className="flex gap-1 justify-center">
