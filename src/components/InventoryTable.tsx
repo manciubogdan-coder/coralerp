@@ -135,9 +135,13 @@ const InventoryTable = ({
     return quantity.toFixed(2);
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <div className="w-full overflow-x-auto">
-      <div className="p-2 md:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+      <div className="p-2 md:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2 print:hidden">
         <div className="relative w-full md:flex-1 md:mr-4">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -156,6 +160,14 @@ const InventoryTable = ({
           >
             {showEmptyItems ? <EyeOff className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" /> : <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />}
             {showEmptyItems ? "Ascunde fără stoc" : "Arată fără stoc"}
+          </Button>
+          <Button 
+            variant="outline" 
+            size={isMobile ? "sm" : "default"} 
+            onClick={handlePrint}
+            className="text-xs md:text-sm w-full md:w-auto"
+          >
+            Print
           </Button>
           {showExportButton && (
             <Button 
@@ -202,20 +214,20 @@ const InventoryTable = ({
         </div>
       </div>
       
-      <div className="max-h-[70vh] overflow-auto">
-        <Table className="w-full">
-          <TableHeader className="sticky top-0 bg-white z-10">
-            <TableRow>
-              <TableHead className="text-left">Nr. Intrare</TableHead>
-              <TableHead className="text-left">Data</TableHead>
-                  <TableHead className="text-left">Produs</TableHead>
-                  <TableHead className="text-left">Cod Produs</TableHead>
-              <TableHead className="text-right">Cantitate</TableHead>
-              <TableHead className="text-left">Unitate</TableHead>
-              <TableHead className="text-left">Furnizor</TableHead>
-              <TableHead className="text-left">Producător</TableHead>
-              <TableHead className="text-left">Nr. Lot</TableHead>
-              <TableHead className="text-left">Nr. Document</TableHead>
+      <div className="max-h-[70vh] overflow-auto print:max-h-none print:overflow-visible">
+        <Table className="w-full print:text-xs table-fixed print:table-auto">
+          <TableHeader className="sticky top-0 bg-white z-10 print:static">
+            <TableRow className="print:break-inside-avoid">
+              <TableHead className="w-12 px-1 text-left print:w-auto print:px-1 print:py-1 print:border print:border-gray-300">Nr.</TableHead>
+              <TableHead className="w-16 px-1 text-left print:w-auto print:px-1 print:py-1 print:border print:border-gray-300">Data</TableHead>
+              <TableHead className="w-32 px-1 text-left print:w-auto print:px-1 print:py-1 print:border print:border-gray-300">Produs</TableHead>
+              <TableHead className="w-16 px-1 text-left print:w-auto print:px-1 print:py-1 print:border print:border-gray-300">Cod</TableHead>
+              <TableHead className="w-16 px-1 text-right print:w-auto print:px-1 print:py-1 print:border print:border-gray-300">Cant.</TableHead>
+              <TableHead className="w-12 px-1 text-left print:w-auto print:px-1 print:py-1 print:border print:border-gray-300">U.M.</TableHead>
+              <TableHead className="w-24 px-1 text-left print:w-auto print:px-1 print:py-1 print:border print:border-gray-300">Furnizor</TableHead>
+              <TableHead className="w-24 px-1 text-left print:w-auto print:px-1 print:py-1 print:border print:border-gray-300">Producător</TableHead>
+              <TableHead className="w-16 px-1 text-left print:w-auto print:px-1 print:py-1 print:border print:border-gray-300">Lot</TableHead>
+              <TableHead className="w-20 px-1 text-left print:w-auto print:px-1 print:py-1 print:border print:border-gray-300">Doc.</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -226,29 +238,29 @@ const InventoryTable = ({
                 const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : item.manufacturer;
                 
                 return (
-                  <TableRow key={item.id} className={item.isHeader ? "bg-gray-100 font-medium" : ""}>
-                    <TableCell>{item.entry_number || '-'}</TableCell>
-                    <TableCell>
+                  <TableRow key={item.id} className={`print:break-inside-avoid ${item.isHeader ? "bg-gray-100 font-medium print:bg-gray-200" : ""}`}>
+                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{item.entry_number || '-'}</TableCell>
+                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">
                       {item.receipt_date 
                         ? format(new Date(item.receipt_date), 'dd.MM.yyyy')
                         : '-'}
                     </TableCell>
-                    <TableCell className={`${item.isHeader ? "font-bold" : "font-medium"} whitespace-nowrap`}>
+                    <TableCell className={`px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs ${item.isHeader ? "font-bold" : "font-medium"} truncate`}>
                       {productName}
                     </TableCell>
-                    <TableCell>{products[item.product_id || '']?.cod_produs || '-'}</TableCell>
-                    <TableCell className="text-right">{formatQuantity(item.quantity)}</TableCell>
-                    <TableCell className="text-left">{item.unit}</TableCell>
-                    <TableCell>{supplierName || '-'}</TableCell>
-                    <TableCell>{manufacturerName || '-'}</TableCell>
-                    <TableCell>{item.lot_number || '-'}</TableCell>
-                    <TableCell>{item.document_number || '-'}</TableCell>
+                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{products[item.product_id || '']?.cod_produs || '-'}</TableCell>
+                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs text-right truncate">{formatQuantity(item.quantity)}</TableCell>
+                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{item.unit}</TableCell>
+                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{supplierName || '-'}</TableCell>
+                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{manufacturerName || '-'}</TableCell>
+                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{item.lot_number || '-'}</TableCell>
+                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{item.document_number || '-'}</TableCell>
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={10} className="text-center py-6 text-gray-500 print:py-2">
                   {searchTerm
                     ? `Nu s-au găsit produse pentru "${searchTerm}"`
                     : "Nu există produse în stoc."}

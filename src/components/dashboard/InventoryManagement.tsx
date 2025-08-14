@@ -124,8 +124,8 @@ const InventoryManagement = () => {
         </TabsContent>
         
         <TabsContent value="daily-stock">
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <h3 className="text-lg font-medium mb-4">Stoc Început Zi</h3>
+          <div className="bg-white rounded-lg shadow-md p-4 print:p-0 print:shadow-none">
+            <h3 className="text-lg font-medium mb-4 print:text-sm print:mb-2">Stoc Început Zi</h3>
             <DailyStockGroupView key={refreshKey} />
           </div>
         </TabsContent>
