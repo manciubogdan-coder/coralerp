@@ -432,20 +432,20 @@ export const ReceptionHistory = () => {
         <Table className="text-xs print:text-[8px] table-fixed w-full min-w-fit print:min-w-full">
           <TableHeader>
             <TableRow className="print:break-inside-avoid">
-              <TableHead className="w-12 px-1 py-1 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Nr.</TableHead>
-              <TableHead className="w-16 px-1 py-1 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Data</TableHead>
-              <TableHead className="w-24 px-1 py-1 max-w-24 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Produs</TableHead>
-              <TableHead className="w-12 px-1 py-1 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Cod</TableHead>
-              <TableHead className="w-12 px-1 py-1 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Lot</TableHead>
-              <TableHead className="w-12 px-1 py-1 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Cant.</TableHead>
-              <TableHead className="w-8 px-1 py-1 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">U.M.</TableHead>
-              <TableHead className="w-12 px-1 py-1 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Doc.</TableHead>
-              <TableHead className="w-16 px-1 py-1 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Furnizor</TableHead>
-              <TableHead className="w-16 px-1 py-1 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Producător</TableHead>
-              <TableHead className="w-16 px-1 py-1 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Obs</TableHead>
-              <TableHead className="w-10 px-1 py-1 text-right hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">%P</TableHead>
-              <TableHead className="w-12 px-1 py-1 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">C.Cons.</TableHead>
-              <TableHead className="w-12 px-1 py-1 text-center print:hidden">Act.</TableHead>
+              <TableHead className="w-12 px-2 py-3 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Nr.</TableHead>
+              <TableHead className="w-16 px-2 py-3 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Data</TableHead>
+              <TableHead className="w-24 px-2 py-3 max-w-24 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Produs</TableHead>
+              <TableHead className="w-12 px-2 py-3 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Cod</TableHead>
+              <TableHead className="w-12 px-2 py-3 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Lot</TableHead>
+              <TableHead className="w-12 px-2 py-3 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Cant.</TableHead>
+              <TableHead className="w-8 px-2 py-3 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">U.M.</TableHead>
+              <TableHead className="w-12 px-2 py-3 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Doc.</TableHead>
+              <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Furnizor</TableHead>
+              <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Producător</TableHead>
+              <TableHead className="w-16 px-2 py-3 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Obs</TableHead>
+              <TableHead className="w-10 px-2 py-3 text-right hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">%P</TableHead>
+              <TableHead className="w-12 px-2 py-3 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">C.Cons.</TableHead>
+              <TableHead className="w-12 px-2 py-3 text-center print:hidden">Act.</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -459,26 +459,28 @@ export const ReceptionHistory = () => {
                     : (((item as any).net_quantity ?? (item as any).quantity) * (1 - (((item as any).nonconform_percent ?? 0) / 100))));
                 return (
                   <TableRow key={item.id} className={isGroupHeader ? "bg-muted font-semibold print:bg-gray-100" : "print:break-inside-avoid"}>
-                    <TableCell className="px-1 py-1 font-medium text-xs truncate print:table-cell print:text-[8px] print:border print:border-gray-300">
+                    <TableCell className="px-2 py-3 font-medium text-xs print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">
                       {isGroupHeader ? '' : item.entry_number}
                     </TableCell>
-                    <TableCell className="px-1 py-1 text-xs print:table-cell print:text-[8px] print:border print:border-gray-300">
+                    <TableCell className="px-2 py-3 text-xs print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">
                       {isGroupHeader ? '' : (item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit' }) : '-')}
                     </TableCell>
-                    <TableCell className="px-1 py-1 font-medium text-xs truncate max-w-24 overflow-hidden print:table-cell print:text-[8px] print:border print:border-gray-300 print:overflow-visible print:max-w-none" title={item.name}>{item.name}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (item.products?.cod_produs || '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (item.lot_number || '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-right text-xs print:table-cell print:text-[8px] print:border print:border-gray-300">
+                    <TableCell className="px-2 py-3 font-medium text-xs print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1" title={item.name}>{item.name}</TableCell>
+                    <TableCell className="px-2 py-3 text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (item.products?.cod_produs || '-')}</TableCell>
+                    <TableCell className="px-2 py-3 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (item.lot_number || '-')}</TableCell>
+                    <TableCell className="px-2 py-3 text-right text-xs print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">
                       {isGroupHeader ? '' : item.quantity.toFixed(2)}
                     </TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : item.unit}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (item.suppliers?.name || '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (item.manufacturers?.name || '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : ((item as any).obs ?? '-')}</TableCell>
-                    <TableCell className="px-1 py-1 text-right text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : `${((item as any).nonconform_percent ?? 0).toFixed(1)}%`}</TableCell>
-                    <TableCell className="px-1 py-1 text-right text-xs print:table-cell print:text-[8px] print:border print:border-gray-300">{isGroupHeader ? '' : (considerQty as number).toFixed(2)}</TableCell>
-                    <TableCell className="px-1 py-1 text-center print:hidden">
+                    <TableCell className="px-2 py-3 text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : item.unit}</TableCell>
+                    <TableCell className="px-2 py-3 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
+                    <TableCell className="px-2 py-3 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (item.suppliers?.name || '-')}</TableCell>
+                    <TableCell className="px-2 py-3 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (item.manufacturers?.name || '-')}</TableCell>
+                    <TableCell className="px-2 py-3 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1 whitespace-normal break-words min-h-[2.5rem]" title={(item as any).obs ?? '-'}>
+                      <div className="max-w-[150px] whitespace-normal break-words">{(item as any).obs ?? '-'}</div>
+                    </TableCell>
+                    <TableCell className="px-2 py-3 text-right text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : `${((item as any).nonconform_percent ?? 0).toFixed(1)}%`}</TableCell>
+                    <TableCell className="px-2 py-3 text-right text-xs print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (considerQty as number).toFixed(2)}</TableCell>
+                    <TableCell className="px-2 py-3 text-center print:hidden">
                       {!isGroupHeader && (
                         <div className="flex gap-1 justify-center">
                           <Button

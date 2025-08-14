@@ -305,7 +305,7 @@ export const DailyStockQuality = () => {
         </div>
       ) : (
         <div className="border rounded-lg overflow-x-auto print:overflow-visible print:border-0">
-          <Table className="text-xs print:text-[8px] table-fixed w-full min-w-fit print:min-w-full [&_th]:py-1 [&_th]:px-1 [&_th]:whitespace-nowrap [&_td]:py-1 [&_td]:px-1 [&_td]:align-middle">
+          <Table className="text-xs print:text-[8px] table-fixed w-full min-w-fit print:min-w-full [&_th]:py-3 [&_th]:px-2 [&_th]:whitespace-nowrap [&_td]:py-3 [&_td]:px-2 [&_td]:align-middle print:[&_th]:py-1 print:[&_td]:py-1">
             <TableHeader>
               <TableRow className="print:break-inside-avoid">
                 <TableHead className="w-12 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Nr.</TableHead>
@@ -318,8 +318,8 @@ export const DailyStockQuality = () => {
                 <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Data Rec.</TableHead>
                 <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Furnizor</TableHead>
                 <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Producător</TableHead>
-                <TableHead className="w-20 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:hidden">Obs</TableHead>
-                <TableHead className="w-16 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:hidden">% neconf.</TableHead>
+                <TableHead className="w-20 hidden lg:table-cell print:hidden">Obs</TableHead>
+                <TableHead className="w-16 hidden md:table-cell print:hidden">% neconf.</TableHead>
                 <TableHead className="w-16 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">C. Cons.</TableHead>
               </TableRow>
             </TableHeader>
