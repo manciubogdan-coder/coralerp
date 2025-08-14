@@ -405,24 +405,24 @@ export const ReceptionHistory = () => {
         </Button>
       </div>
 
-      <div className="border rounded-lg overflow-x-auto text-xs md:text-sm [&_th]:px-2 [&_th]:py-1 [&_td]:px-2 [&_td]:py-1 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
-        <Table>
+      <div className="border rounded-lg overflow-x-auto print:overflow-visible">
+        <Table className="text-xs print:text-[10px] table-fixed w-full min-w-fit">
           <TableHeader>
             <TableRow>
-              <TableHead>Nr. Intrare</TableHead>
-              <TableHead>Data Recepție</TableHead>
-              <TableHead>Produs</TableHead>
-              <TableHead>Cod Produs</TableHead>
-              <TableHead>Nr Lot</TableHead>
-              <TableHead className="text-right">Cantitate</TableHead>
-              <TableHead>Unitate</TableHead>
-              <TableHead>Document</TableHead>
-              <TableHead>Furnizor</TableHead>
-              <TableHead>Producător</TableHead>
-              <TableHead>Obs</TableHead>
-              <TableHead className="text-right">% Pierdere</TableHead>
-              <TableHead className="text-right">Cant. de luat în considerare</TableHead>
-              <TableHead className="text-center">Acțiuni</TableHead>
+              <TableHead className="w-12 px-1 py-1">Nr.</TableHead>
+              <TableHead className="w-16 px-1 py-1">Data</TableHead>
+              <TableHead className="w-24 px-1 py-1 max-w-24">Produs</TableHead>
+              <TableHead className="w-12 px-1 py-1 hidden md:table-cell">Cod</TableHead>
+              <TableHead className="w-12 px-1 py-1 hidden lg:table-cell">Lot</TableHead>
+              <TableHead className="w-12 px-1 py-1 text-right">Cant.</TableHead>
+              <TableHead className="w-8 px-1 py-1 hidden md:table-cell">U.M.</TableHead>
+              <TableHead className="w-12 px-1 py-1 hidden lg:table-cell">Doc.</TableHead>
+              <TableHead className="w-16 px-1 py-1 hidden xl:table-cell">Furnizor</TableHead>
+              <TableHead className="w-16 px-1 py-1 hidden xl:table-cell">Producător</TableHead>
+              <TableHead className="w-16 px-1 py-1 hidden lg:table-cell">Obs</TableHead>
+              <TableHead className="w-10 px-1 py-1 text-right hidden md:table-cell">%P</TableHead>
+              <TableHead className="w-12 px-1 py-1 text-right">C.Cons.</TableHead>
+              <TableHead className="w-12 px-1 py-1 text-center print:hidden">Act.</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -436,43 +436,43 @@ export const ReceptionHistory = () => {
                     : (((item as any).net_quantity ?? (item as any).quantity) * (1 - (((item as any).nonconform_percent ?? 0) / 100))));
                 return (
                   <TableRow key={item.id} className={isGroupHeader ? "bg-muted font-semibold" : ""}>
-                    <TableCell className="font-medium">
+                    <TableCell className="px-1 py-1 font-medium text-xs truncate">
                       {isGroupHeader ? '' : item.entry_number}
                     </TableCell>
-                    <TableCell>
-                      {isGroupHeader ? '' : (item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-')}
+                    <TableCell className="px-1 py-1 text-xs">
+                      {isGroupHeader ? '' : (item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit' }) : '-')}
                     </TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>{isGroupHeader ? '' : (item.products?.cod_produs || '-')}</TableCell>
-                    <TableCell>{isGroupHeader ? '' : (item.lot_number || '-')}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="px-1 py-1 font-medium text-xs truncate max-w-24 overflow-hidden" title={item.name}>{item.name}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden md:table-cell">{isGroupHeader ? '' : (item.products?.cod_produs || '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell">{isGroupHeader ? '' : (item.lot_number || '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-right text-xs">
                       {isGroupHeader ? '' : item.quantity.toFixed(2)}
                     </TableCell>
-                    <TableCell>{isGroupHeader ? '' : item.unit}</TableCell>
-                    <TableCell>{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
-                    <TableCell>{isGroupHeader ? '' : (item.suppliers?.name || '-')}</TableCell>
-                    <TableCell>{isGroupHeader ? '' : (item.manufacturers?.name || '-')}</TableCell>
-                    <TableCell>{isGroupHeader ? '' : ((item as any).obs ?? '-')}</TableCell>
-                    <TableCell className="text-right">{isGroupHeader ? '' : `${((item as any).nonconform_percent ?? 0).toFixed(1)}%`}</TableCell>
-                    <TableCell className="text-right">{isGroupHeader ? '' : (considerQty as number).toFixed(2)}</TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="px-1 py-1 text-xs hidden md:table-cell">{isGroupHeader ? '' : item.unit}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell">{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden xl:table-cell">{isGroupHeader ? '' : (item.suppliers?.name || '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden xl:table-cell">{isGroupHeader ? '' : (item.manufacturers?.name || '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-xs hidden lg:table-cell">{isGroupHeader ? '' : ((item as any).obs ?? '-')}</TableCell>
+                    <TableCell className="px-1 py-1 text-right text-xs hidden md:table-cell">{isGroupHeader ? '' : `${((item as any).nonconform_percent ?? 0).toFixed(1)}%`}</TableCell>
+                    <TableCell className="px-1 py-1 text-right text-xs">{isGroupHeader ? '' : (considerQty as number).toFixed(2)}</TableCell>
+                    <TableCell className="px-1 py-1 text-center print:hidden">
                       {!isGroupHeader && (
-                        <div className="flex gap-2 justify-center">
+                        <div className="flex gap-1 justify-center">
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleEdit(item)}
-                            className="h-8 w-8 p-0"
+                            className="h-6 w-6 p-0"
                           >
-                            <Edit className="h-4 w-4" />
+                            <Edit className="h-3 w-3" />
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleDelete(item)}
-                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
                       )}
