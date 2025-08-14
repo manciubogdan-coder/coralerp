@@ -389,7 +389,6 @@ export const DailyStockGroupView = () => {
                    <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[12%]">Producător</TableHead>
                    <TableHead className="w-10 px-2 py-3 hidden md:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[6%]">% PT</TableHead>
                    <TableHead className="w-16 px-2 py-3 hidden lg:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[8%]">Obs</TableHead>
-                   <TableHead className="w-16 px-2 py-3 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Obs</TableHead>
                    <TableHead className="w-12 px-2 py-3 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">% marf. nec.</TableHead>
                    <TableHead className="w-12 px-2 py-3 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">C. Cons.</TableHead>
                 </TableRow>
