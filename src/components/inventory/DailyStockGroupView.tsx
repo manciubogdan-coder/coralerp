@@ -377,11 +377,11 @@ export const DailyStockGroupView = () => {
             <Table className="text-xs print:text-[8px] table-fixed w-full min-w-fit print:min-w-full">
               <TableHeader>
                 <TableRow className="print:break-inside-avoid">
-                   <TableHead className="w-12 px-2 py-3 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Nr.</TableHead>
-                   <TableHead className="w-24 px-2 py-3 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Produs</TableHead>
-                   <TableHead className="w-16 px-2 py-3 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Cod</TableHead>
-                   <TableHead className="w-12 px-2 py-3 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Lot</TableHead>
-                   <TableHead className="w-12 px-2 py-3 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Cant.</TableHead>
+                   <TableHead className="w-8 px-1 py-3 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Nr.</TableHead>
+                   <TableHead className="w-20 px-1 py-3 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Produs</TableHead>
+                   <TableHead className="w-12 px-1 py-3 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Cod</TableHead>
+                   <TableHead className="w-10 px-1 py-3 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Lot</TableHead>
+                   <TableHead className="w-10 px-1 py-3 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Cant.</TableHead>
                    <TableHead className="w-8 px-2 py-3 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">U.M.</TableHead>
                    <TableHead className="w-12 px-2 py-3 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Doc.</TableHead>
                    <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Data Rec.</TableHead>
