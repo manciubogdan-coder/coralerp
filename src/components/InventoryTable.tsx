@@ -218,16 +218,16 @@ const InventoryTable = ({
         <Table className="w-full print:text-xs table-fixed print:table-auto">
           <TableHeader className="sticky top-0 bg-white z-10 print:static">
             <TableRow className="print:break-inside-avoid">
-              <TableHead className="w-8 px-1 text-left print:w-[8%] print:px-1 print:py-1 print:border print:border-gray-300">Nr.</TableHead>
-              <TableHead className="w-12 px-1 text-left print:w-[10%] print:px-1 print:py-1 print:border print:border-gray-300">Data</TableHead>
-              <TableHead className="w-24 px-1 text-left print:w-[20%] print:px-1 print:py-1 print:border print:border-gray-300">Produs</TableHead>
-              <TableHead className="w-12 px-1 text-left print:w-[8%] print:px-1 print:py-1 print:border print:border-gray-300">Cod</TableHead>
-              <TableHead className="w-12 px-1 text-right print:w-[8%] print:px-1 print:py-1 print:border print:border-gray-300">Cant.</TableHead>
-              <TableHead className="w-8 px-1 text-left print:w-[6%] print:px-1 print:py-1 print:border print:border-gray-300">U.M.</TableHead>
-              <TableHead className="w-20 px-1 text-left print:w-[15%] print:px-1 print:py-1 print:border print:border-gray-300">Furnizor</TableHead>
-              <TableHead className="w-20 px-1 text-left print:w-[15%] print:px-1 print:py-1 print:border print:border-gray-300">Producător</TableHead>
-              <TableHead className="w-12 px-1 text-left print:w-[8%] print:px-1 print:py-1 print:border print:border-gray-300">Lot</TableHead>
-              <TableHead className="w-16 px-1 text-left print:w-[10%] print:px-1 print:py-1 print:border print:border-gray-300">Doc.</TableHead>
+              <TableHead className="w-8 px-1 text-left print:w-[6%] print:px-1 print:py-1 print:border print:border-gray-300">Nr.</TableHead>
+              <TableHead className="w-12 px-1 text-left print:w-[8%] print:px-1 print:py-1 print:border print:border-gray-300">Data</TableHead>
+              <TableHead className="w-24 px-1 text-left print:w-[18%] print:px-1 print:py-1 print:border print:border-gray-300">Produs</TableHead>
+              <TableHead className="w-12 px-1 text-left print:w-[7%] print:px-1 print:py-1 print:border print:border-gray-300">Cod</TableHead>
+              <TableHead className="w-12 px-1 text-right print:w-[7%] print:px-1 print:py-1 print:border print:border-gray-300">Cant.</TableHead>
+              <TableHead className="w-8 px-1 text-left print:w-[5%] print:px-1 print:py-1 print:border print:border-gray-300">U.M.</TableHead>
+              <TableHead className="w-20 px-1 text-left print:w-[13%] print:px-1 print:py-1 print:border print:border-gray-300">Furnizor</TableHead>
+              <TableHead className="w-20 px-1 text-left print:w-[13%] print:px-1 print:py-1 print:border print:border-gray-300">Producător</TableHead>
+              <TableHead className="w-12 px-1 text-left print:w-[7%] print:px-1 print:py-1 print:border print:border-gray-300">Lot</TableHead>
+              <TableHead className="w-16 px-1 text-left print:w-[8%] print:px-1 print:py-1 print:border print:border-gray-300">Doc.</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
