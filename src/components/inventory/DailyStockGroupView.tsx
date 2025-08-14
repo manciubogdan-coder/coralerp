@@ -374,20 +374,21 @@ export const DailyStockGroupView = () => {
               </TableBody>
             </Table>
           ) : (
-            <Table className="text-xs print:text-[8px] table-fixed w-full min-w-fit print:min-w-full">
+            <Table className="text-xs table-fixed w-full min-w-fit print:table-auto print:w-full print:text-[10px]">
               <TableHeader>
                 <TableRow className="print:break-inside-avoid">
-                   <TableHead className="w-8 px-1 py-3 print:table-cell print:w-[6%] print:text-[8px] print:border print:border-gray-300 print:py-1">Nr.</TableHead>
-                   <TableHead className="w-20 px-1 py-3 print:table-cell print:w-[16%] print:text-[8px] print:border print:border-gray-300 print:py-1">Produs</TableHead>
-                   <TableHead className="w-12 px-1 py-3 hidden md:table-cell print:table-cell print:w-[7%] print:text-[8px] print:border print:border-gray-300 print:py-1">Cod</TableHead>
-                   <TableHead className="w-10 px-1 py-3 hidden lg:table-cell print:table-cell print:w-[7%] print:text-[8px] print:border print:border-gray-300 print:py-1">Lot</TableHead>
-                   <TableHead className="w-10 px-1 py-3 text-right print:table-cell print:w-[7%] print:text-[8px] print:border print:border-gray-300 print:py-1">Cant.</TableHead>
-                   <TableHead className="w-8 px-2 py-3 hidden md:table-cell print:table-cell print:w-[5%] print:text-[8px] print:border print:border-gray-300 print:py-1">U.M.</TableHead>
-                   <TableHead className="w-12 px-2 py-3 hidden lg:table-cell print:table-cell print:w-[8%] print:text-[8px] print:border print:border-gray-300 print:py-1">Doc.</TableHead>
-                   <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:w-[10%] print:text-[8px] print:border print:border-gray-300 print:py-1">Data Rec.</TableHead>
-                   <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:w-[12%] print:text-[8px] print:border print:border-gray-300 print:py-1">Furnizor</TableHead>
-                   <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:w-[12%] print:text-[8px] print:border print:border-gray-300 print:py-1">Producător</TableHead>
-                   <TableHead className="w-10 px-2 py-3 hidden md:table-cell print:table-cell print:w-[6%] print:text-[8px] print:border print:border-gray-300 print:py-1">% PT</TableHead>
+                   <TableHead className="w-8 px-1 py-3 print:px-1 print:py-1 print:border print:border-gray-300 print:w-[6%]">Nr.</TableHead>
+                   <TableHead className="w-20 px-1 py-3 print:px-1 print:py-1 print:border print:border-gray-300 print:w-[20%]">Produs</TableHead>
+                   <TableHead className="w-12 px-1 py-3 hidden md:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[8%]">Cod</TableHead>
+                   <TableHead className="w-10 px-1 py-3 hidden lg:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[8%]">Lot</TableHead>
+                   <TableHead className="w-10 px-1 py-3 text-right print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[8%]">Cant.</TableHead>
+                   <TableHead className="w-8 px-2 py-3 hidden md:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[6%]">U.M.</TableHead>
+                   <TableHead className="w-12 px-2 py-3 hidden lg:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[8%]">Doc.</TableHead>
+                   <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[10%]">Data Rec.</TableHead>
+                   <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[12%]">Furnizor</TableHead>
+                   <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[12%]">Producător</TableHead>
+                   <TableHead className="w-10 px-2 py-3 hidden md:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[6%]">% PT</TableHead>
+                   <TableHead className="w-16 px-2 py-3 hidden lg:table-cell print:table-cell print:px-1 print:py-1 print:border print:border-gray-300 print:w-[8%]">Obs</TableHead>
                    <TableHead className="w-16 px-2 py-3 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">Obs</TableHead>
                    <TableHead className="w-12 px-2 py-3 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">% marf. nec.</TableHead>
                    <TableHead className="w-12 px-2 py-3 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:py-1">C. Cons.</TableHead>
