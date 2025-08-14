@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Calendar, FileSpreadsheet, Edit, Trash2 } from "lucide-react";
+import { Calendar, FileSpreadsheet, Edit, Trash2, Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
@@ -49,6 +49,8 @@ export const ReceptionHistory = () => {
   const [groupBy, setGroupBy] = useState<GroupingMode>('none');
   const [editingItem, setEditingItem] = useState<ReceptionItem | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
   const [editFormData, setEditFormData] = useState({
     name: '',
     quantity: 0,
@@ -335,6 +337,16 @@ export const ReceptionHistory = () => {
     });
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // Calculate pagination
+  const totalPages = Math.ceil(groupedData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedData = groupedData.slice(startIndex, endIndex);
+
   if (loading) {
     return <div className="p-4 text-center">Se încarcă istoricul recepțiilor...</div>;
   }
@@ -372,10 +384,16 @@ export const ReceptionHistory = () => {
           />
         </div>
         
-        <Button onClick={handleExport} disabled={filteredReceptions.length === 0}>
-          <FileSpreadsheet className="h-4 w-4 mr-2" />
-          Export Excel
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handlePrint} variant="outline">
+            <Printer className="h-4 w-4 mr-2" />
+            Print
+          </Button>
+          <Button onClick={handleExport} disabled={filteredReceptions.length === 0}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export Excel
+          </Button>
+        </div>
       </div>
 
       <div className="mb-4 flex gap-2 flex-wrap">
@@ -426,8 +444,8 @@ export const ReceptionHistory = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {groupedData.length > 0 ? (
-              groupedData.map((item) => {
+            {paginatedData.length > 0 ? (
+              paginatedData.map((item) => {
                 const isGroupHeader = 'isGroupHeader' in item && item.isGroupHeader;
                 const considerQty = isGroupHeader
                   ? null
@@ -490,6 +508,64 @@ export const ReceptionHistory = () => {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between print:hidden">
+          <div className="text-sm text-muted-foreground">
+            Pagina {currentPage} din {totalPages} ({groupedData.length} înregistrări)
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+            >
+              ← Anterior
+            </Button>
+            
+            {/* Page numbers */}
+            <div className="flex space-x-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else {
+                  if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(pageNum)}
+                    className="w-8 h-8 p-0"
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Următor →
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-md sm:max-w-lg sm:max-h-[85vh] overflow-y-auto p-4">
