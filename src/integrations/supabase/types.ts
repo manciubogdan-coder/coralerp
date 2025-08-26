@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
@@ -2680,6 +2680,604 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      lre_categorii_cheltuieli: {
+        Row: {
+          activa: boolean | null
+          created_at: string
+          culoare: string | null
+          descriere: string | null
+          id: string
+          nume: string
+          updated_at: string
+        }
+        Insert: {
+          activa?: boolean | null
+          created_at?: string
+          culoare?: string | null
+          descriere?: string | null
+          id?: string
+          nume: string
+          updated_at?: string
+        }
+        Update: {
+          activa?: boolean | null
+          created_at?: string
+          culoare?: string | null
+          descriere?: string | null
+          id?: string
+          nume?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lre_cheltuieli: {
+        Row: {
+          categoria: string
+          created_at: string
+          data_cheltuiala: string | null
+          furnizor: string | null
+          id: string
+          nr_factura: string | null
+          nume: string
+          observatii: string | null
+          suma: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          categoria: string
+          created_at?: string
+          data_cheltuiala?: string | null
+          furnizor?: string | null
+          id?: string
+          nr_factura?: string | null
+          nume: string
+          observatii?: string | null
+          suma: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          data_cheltuiala?: string | null
+          furnizor?: string | null
+          id?: string
+          nr_factura?: string | null
+          nume?: string
+          observatii?: string | null
+          suma?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      lre_clienti: {
+        Row: {
+          adresa: string | null
+          created_at: string
+          data_nasterii: string | null
+          email: string | null
+          id: string
+          nume_complet: string
+          observatii: string | null
+          programari_anulate: number | null
+          telefon: string | null
+          total_programari: number | null
+          updated_at: string
+        }
+        Insert: {
+          adresa?: string | null
+          created_at?: string
+          data_nasterii?: string | null
+          email?: string | null
+          id?: string
+          nume_complet: string
+          observatii?: string | null
+          programari_anulate?: number | null
+          telefon?: string | null
+          total_programari?: number | null
+          updated_at?: string
+        }
+        Update: {
+          adresa?: string | null
+          created_at?: string
+          data_nasterii?: string | null
+          email?: string | null
+          id?: string
+          nume_complet?: string
+          observatii?: string | null
+          programari_anulate?: number | null
+          telefon?: string | null
+          total_programari?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lre_factura_items: {
+        Row: {
+          cantitate: number | null
+          created_at: string
+          factura_id: string | null
+          id: string
+          nume_serviciu: string
+          pret_unitar: number
+          serviciu_id: string | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          tva_procent: number | null
+        }
+        Insert: {
+          cantitate?: number | null
+          created_at?: string
+          factura_id?: string | null
+          id?: string
+          nume_serviciu: string
+          pret_unitar: number
+          serviciu_id?: string | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          tva_procent?: number | null
+        }
+        Update: {
+          cantitate?: number | null
+          created_at?: string
+          factura_id?: string | null
+          id?: string
+          nume_serviciu?: string
+          pret_unitar?: number
+          serviciu_id?: string | null
+          total_cu_tva?: number
+          total_fara_tva?: number
+          total_tva?: number
+          tva_procent?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lre_factura_items_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "lre_facturi"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lre_factura_items_serviciu_id_fkey"
+            columns: ["serviciu_id"]
+            isOneToOne: false
+            referencedRelation: "lre_servicii"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lre_facturi: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          data_emitere: string | null
+          data_scadenta: string | null
+          id: string
+          numar_factura: string
+          observatii: string | null
+          programare_id: string | null
+          status_plata: string | null
+          suma_achitata: number | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          tva_procent: number | null
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          data_emitere?: string | null
+          data_scadenta?: string | null
+          id?: string
+          numar_factura: string
+          observatii?: string | null
+          programare_id?: string | null
+          status_plata?: string | null
+          suma_achitata?: number | null
+          total_cu_tva?: number
+          total_fara_tva?: number
+          total_tva?: number
+          tva_procent?: number | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          data_emitere?: string | null
+          data_scadenta?: string | null
+          id?: string
+          numar_factura?: string
+          observatii?: string | null
+          programare_id?: string | null
+          status_plata?: string | null
+          suma_achitata?: number | null
+          total_cu_tva?: number
+          total_fara_tva?: number
+          total_tva?: number
+          tva_procent?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lre_facturi_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "lre_clienti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lre_facturi_programare_id_fkey"
+            columns: ["programare_id"]
+            isOneToOne: false
+            referencedRelation: "lre_programari"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lre_lucrari: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          data_finalizare_efectiva: string | null
+          data_finalizare_planificata: string | null
+          data_inceput: string | null
+          descriere: string | null
+          id: string
+          nume_lucrare: string
+          observatii: string | null
+          procent_finalizare: number | null
+          status: string | null
+          updated_at: string
+          valoare_estimata: number | null
+          valoare_finala: number | null
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          data_finalizare_efectiva?: string | null
+          data_finalizare_planificata?: string | null
+          data_inceput?: string | null
+          descriere?: string | null
+          id?: string
+          nume_lucrare: string
+          observatii?: string | null
+          procent_finalizare?: number | null
+          status?: string | null
+          updated_at?: string
+          valoare_estimata?: number | null
+          valoare_finala?: number | null
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          data_finalizare_efectiva?: string | null
+          data_finalizare_planificata?: string | null
+          data_inceput?: string | null
+          descriere?: string | null
+          id?: string
+          nume_lucrare?: string
+          observatii?: string | null
+          procent_finalizare?: number | null
+          status?: string | null
+          updated_at?: string
+          valoare_estimata?: number | null
+          valoare_finala?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lre_lucrari_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "lre_clienti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lre_oferta_items: {
+        Row: {
+          cantitate: number | null
+          created_at: string
+          id: string
+          nume_serviciu: string
+          oferta_id: string | null
+          pret_unitar: number
+          serviciu_id: string | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          tva_procent: number | null
+        }
+        Insert: {
+          cantitate?: number | null
+          created_at?: string
+          id?: string
+          nume_serviciu: string
+          oferta_id?: string | null
+          pret_unitar: number
+          serviciu_id?: string | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          tva_procent?: number | null
+        }
+        Update: {
+          cantitate?: number | null
+          created_at?: string
+          id?: string
+          nume_serviciu?: string
+          oferta_id?: string | null
+          pret_unitar?: number
+          serviciu_id?: string | null
+          total_cu_tva?: number
+          total_fara_tva?: number
+          total_tva?: number
+          tva_procent?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lre_oferta_items_oferta_id_fkey"
+            columns: ["oferta_id"]
+            isOneToOne: false
+            referencedRelation: "lre_oferte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lre_oferta_items_serviciu_id_fkey"
+            columns: ["serviciu_id"]
+            isOneToOne: false
+            referencedRelation: "lre_servicii"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lre_oferte: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          data_emitere: string | null
+          data_expirare: string | null
+          id: string
+          include_tva: boolean | null
+          numar_oferta: string
+          observatii: string | null
+          status: string | null
+          status_oferta: string | null
+          total_cu_tva: number
+          total_fara_tva: number
+          total_tva: number
+          tva_procent: number | null
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          data_emitere?: string | null
+          data_expirare?: string | null
+          id?: string
+          include_tva?: boolean | null
+          numar_oferta: string
+          observatii?: string | null
+          status?: string | null
+          status_oferta?: string | null
+          total_cu_tva?: number
+          total_fara_tva?: number
+          total_tva?: number
+          tva_procent?: number | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          data_emitere?: string | null
+          data_expirare?: string | null
+          id?: string
+          include_tva?: boolean | null
+          numar_oferta?: string
+          observatii?: string | null
+          status?: string | null
+          status_oferta?: string | null
+          total_cu_tva?: number
+          total_fara_tva?: number
+          total_tva?: number
+          tva_procent?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lre_oferte_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "lre_clienti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lre_plati: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          data_plata: string | null
+          factura_id: string | null
+          id: string
+          mod_plata: string | null
+          numar_tranzactie: string | null
+          observatii: string | null
+          suma: number
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          data_plata?: string | null
+          factura_id?: string | null
+          id?: string
+          mod_plata?: string | null
+          numar_tranzactie?: string | null
+          observatii?: string | null
+          suma: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          data_plata?: string | null
+          factura_id?: string | null
+          id?: string
+          mod_plata?: string | null
+          numar_tranzactie?: string | null
+          observatii?: string | null
+          suma?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lre_plati_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "lre_clienti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lre_plati_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "lre_facturi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lre_programari: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          data_programare: string
+          durata_minute: number | null
+          id: string
+          note_tehnice: string | null
+          observatii: string | null
+          pret_final: number | null
+          serviciu_id: string | null
+          status: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          data_programare: string
+          durata_minute?: number | null
+          id?: string
+          note_tehnice?: string | null
+          observatii?: string | null
+          pret_final?: number | null
+          serviciu_id?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          data_programare?: string
+          durata_minute?: number | null
+          id?: string
+          note_tehnice?: string | null
+          observatii?: string | null
+          pret_final?: number | null
+          serviciu_id?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lre_programari_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "lre_clienti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lre_programari_serviciu_id_fkey"
+            columns: ["serviciu_id"]
+            isOneToOne: false
+            referencedRelation: "lre_servicii"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lre_servicii: {
+        Row: {
+          activ: boolean | null
+          created_at: string
+          descriere: string | null
+          durata_estimata: number | null
+          id: string
+          nume: string
+          pret_standard: number
+          updated_at: string
+        }
+        Insert: {
+          activ?: boolean | null
+          created_at?: string
+          descriere?: string | null
+          durata_estimata?: number | null
+          id?: string
+          nume: string
+          pret_standard?: number
+          updated_at?: string
+        }
+        Update: {
+          activ?: boolean | null
+          created_at?: string
+          descriere?: string | null
+          durata_estimata?: number | null
+          id?: string
+          nume?: string
+          pret_standard?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lre_venituri: {
+        Row: {
+          categorie: string
+          created_at: string | null
+          data_tranzactie: string
+          descriere: string | null
+          id: string
+          suma: number
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          categorie: string
+          created_at?: string | null
+          data_tranzactie?: string
+          descriere?: string | null
+          id?: string
+          suma: number
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          categorie?: string
+          created_at?: string | null
+          data_tranzactie?: string
+          descriere?: string | null
+          id?: string
+          suma?: number
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       manufacturers: {
         Row: {
@@ -5681,35 +6279,35 @@ export type Database = {
     }
     Functions: {
       approve_user: {
-        Args: { user_id_to_approve: string; approver_notes?: string }
+        Args: { approver_notes?: string; user_id_to_approve: string }
         Returns: boolean
       }
       authenticate_child: {
         Args: { email_input: string; password_input: string }
         Returns: {
+          bani_total: number
           child_id: string
+          culoare_favorita: string
+          experienta: number
+          nivel: number
           nume_copil: string
+          puncte_totale: number
+          streak_zilnic: number
           user_id: string
           varsta: number
-          culoare_favorita: string
-          puncte_totale: number
-          bani_total: number
-          nivel: number
-          streak_zilnic: number
-          experienta: number
         }[]
       }
       authenticate_coral_user: {
         Args: { email_input: string; password_input: string }
         Returns: {
-          user_id: string
+          active: boolean
           name: string
           role: string
-          active: boolean
+          user_id: string
         }[]
       }
       calculate_next_occurrence: {
-        Args: { pattern: Json; base_date?: string }
+        Args: { base_date?: string; pattern: Json }
         Returns: string
       }
       calculate_streak: {
@@ -5718,45 +6316,45 @@ export type Database = {
       }
       create_child_account: {
         Args: {
-          parent_user_id: string
-          nume_copil_input: string
-          varsta_input: number
           culoare_favorita_input: string
           email_input: string
+          nume_copil_input: string
+          parent_user_id: string
           password_input: string
+          varsta_input: number
         }
         Returns: string
       }
       create_coral_user: {
         Args: {
           email_input: string
-          password_input: string
           name_input: string
+          password_input: string
           role_input: string
         }
         Returns: string
       }
       create_portar_account: {
         Args: {
-          username_input: string
-          password_input: string
           nume_input: string
+          password_input: string
+          username_input: string
         }
         Returns: string
       }
       create_task_notification: {
         Args: {
-          task_assignment_id: string
-          notification_type: string
           custom_message?: string
+          notification_type: string
+          task_assignment_id: string
         }
         Returns: undefined
       }
       creeaza_cont: {
         Args: {
           email_input: string
-          parola_input: string
           nume_input: string
+          parola_input: string
           rol_input?: string
         }
         Returns: string
@@ -5765,15 +6363,19 @@ export type Database = {
         Args: { employee_id: string }
         Returns: string
       }
+      generate_invoice_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       generate_lot_number: {
         Args: Record<PropertyKey, never>
         Returns: string
       }
       generate_missing_snapshots: {
-        Args: { start_date?: string; end_date?: string }
+        Args: { end_date?: string; start_date?: string }
         Returns: {
-          snapshot_date: string
           items_count: number
+          snapshot_date: string
           status: string
         }[]
       }
@@ -5781,17 +6383,21 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      generate_quote_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_all_users_for_admin: {
         Args: Record<PropertyKey, never>
         Returns: {
-          id: string
-          nume: string
-          rol: string
           aprobat: boolean
+          aprobat_de: string
           created_at: string
           data_aprobare: string
-          aprobat_de: string
+          id: string
+          nume: string
           observatii_aprobare: string
+          rol: string
           updated_at: string
         }[]
       }
@@ -5816,7 +6422,7 @@ export type Database = {
         Returns: boolean
       }
       reject_user: {
-        Args: { user_id_to_reject: string; rejection_reason?: string }
+        Args: { rejection_reason?: string; user_id_to_reject: string }
         Returns: boolean
       }
       update_child_password: {
@@ -5826,19 +6432,19 @@ export type Database = {
       verifica_parola: {
         Args: { email_input: string; parola_input: string }
         Returns: {
-          user_id: string
+          activ: boolean
           nume: string
           rol: string
-          activ: boolean
+          user_id: string
         }[]
       }
       verify_portar_password: {
-        Args: { username_input: string; password_input: string }
+        Args: { password_input: string; username_input: string }
         Returns: {
+          activ: boolean
+          nume_complet: string
           user_id: string
           username: string
-          nume_complet: string
-          activ: boolean
         }[]
       }
     }
