@@ -40,43 +40,41 @@ const InventoryTable = ({
   
   const handleExportExcel = () => {
     console.log('Export started - displayedInventory length:', displayedInventory.length);
-    
-    const dataForExport = displayedInventory
-      .filter(item => !item.isHeader) // Exclude grouping headers
-      .map(item => {
-        const productName = item.product_id ? products[item.product_id]?.name : item.name;
-        const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
-        const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : item.manufacturer;
-        
-        return {
-          'Nr.': item.entry_number || '-',
-          'Data': item.receipt_date ? format(new Date(item.receipt_date), 'dd.MM.yyyy') : '-',
-          'Produs': productName || '-',
-          'Cod': products[item.product_id || '']?.cod_produs || '-',
-          'Cantitate': item.quantity.toFixed(2),
-          'U.M.': item.unit || '-',
-          'Furnizor': supplierName || '-',
-          'Producător': manufacturerName || '-',
-          'Lot': item.lot_number || '-',
-          'Document': item.document_number || '-'
-        };
-      });
-    
+
+    const dataForExport = displayedInventory.map(item => {
+      const productName = item.product_id ? products[item.product_id]?.name : item.name;
+      const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
+      const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : item.manufacturer;
+
+      return {
+        'Nr.': item.entry_number ?? '-',
+        'Data': item.receipt_date ? format(new Date(item.receipt_date), 'dd.MM.yyyy') : '-',
+        'Produs': productName || '-',
+        'Cod': products[item.product_id || '']?.cod_produs || '-',
+        'Cantitate': (item.quantity ?? 0).toFixed(2),
+        'U.M.': item.unit || '-',
+        'Furnizor': supplierName || '-',
+        'Producător': manufacturerName || '-',
+        'Lot': item.lot_number || '-',
+        'Document': item.document_number || '-'
+      };
+    });
+
     console.log('Data prepared for export:', dataForExport.length, dataForExport.slice(0, 3));
-    
+
     if (dataForExport.length === 0) {
       toast({
-        title: "Nu există date pentru export",
-        description: "Nu sunt produse disponibile pentru export.",
-        variant: "destructive"
+        title: 'Nu există date pentru export',
+        description: 'Nu sunt produse disponibile pentru export.',
+        variant: 'destructive'
       });
       return;
     }
-    
+
     exportToExcel(dataForExport);
     toast({
-      title: "Export realizat",
-      description: "Fișierul Excel a fost generat și descărcat."
+      title: 'Export realizat',
+      description: 'Fișierul Excel a fost generat și descărcat.'
     });
   };
   
