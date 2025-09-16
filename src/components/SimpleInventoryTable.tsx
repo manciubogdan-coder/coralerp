@@ -184,6 +184,12 @@ useEffect(() => {
         }
       });
 
+      // Debug pentru produsul "test" específic
+      console.log('=== DEBUGGING PRODUCT "test" ===');
+      console.log('baseByName entries for test:', Array.from(baseByName.entries()).filter(([k]) => k.toLowerCase().includes('test')));
+      console.log('receiptsByName entries for test:', Array.from(receiptsByName.entries()).filter(([k]) => k.toLowerCase().includes('test')));
+      console.log('deltaByName entries for test:', Array.from(deltaByName.entries()).filter(([k]) => k.toLowerCase().includes('test')));
+      
       const out: Record<string, { quantity: number; unit: string; cod_produs?: string }> = {};
       baseByName.forEach((v, k) => {
         const baseQty = v.qty;
