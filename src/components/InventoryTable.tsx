@@ -39,10 +39,26 @@ const InventoryTable = ({
   const isMobile = useIsMobile();
   
   const handleExportExcel = () => {
-    const dataForExport = inventory.map(item => ({
-      ...item,
-      receipt_date: item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : ''
-    }));
+    const dataForExport = displayedInventory
+      .filter(item => !item.isHeader) // Exclude grouping headers
+      .map(item => {
+        const productName = item.product_id ? products[item.product_id]?.name : item.name;
+        const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
+        const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : item.manufacturer;
+        
+        return {
+          'Nr.': item.entry_number || '-',
+          'Data': item.receipt_date ? format(new Date(item.receipt_date), 'dd.MM.yyyy') : '-',
+          'Produs': productName || '-',
+          'Cod': products[item.product_id || '']?.cod_produs || '-',
+          'Cantitate': item.quantity.toFixed(2),
+          'U.M.': item.unit || '-',
+          'Furnizor': supplierName || '-',
+          'Producător': manufacturerName || '-',
+          'Lot': item.lot_number || '-',
+          'Document': item.document_number || '-'
+        };
+      });
     
     exportToExcel(dataForExport);
     toast({

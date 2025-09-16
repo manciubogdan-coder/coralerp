@@ -13,36 +13,25 @@ export const exportToExcel = (
   filename: string = "raport.xlsx", 
   options?: ExcelExportOptions
 ) => {
-  // Funcție pentru a converti valori în numere dacă este posibil
-  const processValue = (value: any): any => {
-    if (value === null || value === undefined || value === '') {
-      return '';
-    }
-    
-    // Verifică dacă este un număr sau string care poate fi convertit în număr
-    if (typeof value === 'number') {
-      return value;
-    }
-    
-    if (typeof value === 'string') {
-      // Înlocuiește virgula cu punct pentru parsing
-      const normalizedValue = value.replace(',', '.');
-      const numericValue = parseFloat(normalizedValue);
-      
-      // Dacă poate fi convertit în număr și nu este NaN
-      if (!isNaN(numericValue) && isFinite(numericValue)) {
-        return numericValue;
-      }
-    }
-    
-    return value;
-  };
-
-  // Procesează datele pentru a converti numerele
+  // Procesează datele - păstrează doar formatarea necesară pentru afișare
   const processedData = data.map(row => {
     const processedRow: any = {};
     Object.keys(row).forEach(key => {
-      processedRow[key] = processValue(row[key]);
+      const value = row[key];
+      
+      // Păstrează valorile exact cum sunt afișate în aplicație
+      if (value === null || value === undefined) {
+        processedRow[key] = '';
+      } else if (typeof value === 'number') {
+        // Pentru numerele care reprezintă cantități, păstrează 2 decimale
+        if (key.toLowerCase().includes('cantitate') || key.toLowerCase().includes('cant')) {
+          processedRow[key] = value.toFixed(2);
+        } else {
+          processedRow[key] = value;
+        }
+      } else {
+        processedRow[key] = value;
+      }
     });
     return processedRow;
   });
