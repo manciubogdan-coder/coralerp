@@ -141,17 +141,22 @@ useEffect(() => {
         baseByName.set(key, { ...exist, unit: exist.unit || r.unit, cod: exist.cod || r.products?.cod_produs });
       });
 
-      const removesByName = new Map<string, number>();
+      const deltaByName = new Map<string, number>();
       history.forEach((h: any) => {
-        if (h.action === 'remove') {
-          const key = h.name;
-          removesByName.set(key, (removesByName.get(key) || 0) + (Number(h.quantity) || 0));
+        const key = h.name;
+        const qty = Number(h.quantity) || 0;
+        if (h.action === 'remove' || h.action === 'transfer_out') {
+          // Scădem consumul și transferurile ieșite
+          deltaByName.set(key, (deltaByName.get(key) || 0) - qty);
+        } else if (h.action === 'transfer_in') {
+          // Adăugăm retururile din producție (nu apar în recepții)
+          deltaByName.set(key, (deltaByName.get(key) || 0) + qty);
         }
       });
 
       const out: Record<string, { quantity: number; unit: string; cod_produs?: string }> = {};
       baseByName.forEach((v, k) => {
-        const qty = v.qty + (receiptsByName.get(k) || 0) - (removesByName.get(k) || 0);
+        const qty = v.qty + (receiptsByName.get(k) || 0) + (deltaByName.get(k) || 0);
         out[k] = { quantity: qty, unit: v.unit || '', cod_produs: v.cod };
       });
       setLiveStock(out);
