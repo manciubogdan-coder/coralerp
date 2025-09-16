@@ -47,7 +47,7 @@ export const exportToExcel = (
     return processedRow;
   });
 
-  // Creează headerul cu informații despre raport
+  // Creează headerul cu informații despre raport (fără timestamp automat)
   const headerData: any[] = [];
   
   if (options?.reportTitle) {
@@ -65,8 +65,6 @@ export const exportToExcel = (
   if (options?.additionalInfo) {
     headerData.push({ '': `INFO: ${options.additionalInfo}` });
   }
-  
-  headerData.push({ '': `GENERAT LA: ${new Date().toLocaleString('ro-RO')}` });
 
   // Combină headerul cu datele
   const allData = [...headerData, ...processedData];
