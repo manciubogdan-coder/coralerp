@@ -14,18 +14,33 @@ interface SimpleInventoryTableProps {
 const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Filtrează și sortează datele din inventar
-  const displayData = inventory
+  // Grupează produsele după nume și sumează cantitățile
+  const groupedInventory = inventory.reduce((acc, item) => {
+    const key = item.name;
+    if (!acc[key]) {
+      acc[key] = {
+        name: item.name,
+        cod_produs: item.products?.cod_produs || '',
+        quantity: 0,
+        unit: item.unit,
+      };
+    }
+    acc[key].quantity += Number(item.quantity) || 0;
+    
+    // Păstrează codul produsului dacă nu există sau dacă este mai complet
+    if (!acc[key].cod_produs && item.products?.cod_produs) {
+      acc[key].cod_produs = item.products.cod_produs;
+    }
+    
+    return acc;
+  }, {} as Record<string, { name: string; cod_produs: string; quantity: number; unit: string }>);
+
+  // Filtrează și sortează datele grupate
+  const displayData = Object.values(groupedInventory)
     .filter(item => 
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.products?.cod_produs && item.products.cod_produs.toLowerCase().includes(searchTerm.toLowerCase()))
+      item.cod_produs.toLowerCase().includes(searchTerm.toLowerCase())
     )
-    .map(item => ({
-      name: item.name,
-      cod_produs: item.products?.cod_produs || '',
-      quantity: Number(item.quantity) || 0,
-      unit: item.unit,
-    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleExport = () => {
