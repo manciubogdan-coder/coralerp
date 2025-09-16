@@ -44,6 +44,21 @@ export const useAggregatedStock = (inventory: InventoryItem[]) => {
       // Use quantity (net quantity is now the only quantity stored)
       const itemQuantity = item.quantity || 0;
       
+      // Debug pentru cantități mari
+      if (item.name && (item.name.toLowerCase().includes('rucola') || Math.abs(itemQuantity) > 1000)) {
+        console.log(`AGREGARE DEBUG - ${item.name}:`, {
+          currentItem: {
+            id: item.id,
+            quantity: itemQuantity,
+            receipt_date: item.receipt_date,
+            lot_number: item.lot_number,
+            entry_number: item.entry_number
+          },
+          currentGroupQuantity: group.quantity,
+          newTotal: (group.quantity || 0) + itemQuantity
+        });
+      }
+      
       // Aggregate quantities correctly
       group.quantity = (group.quantity || 0) + itemQuantity;
       group.total_pallets = (group.total_pallets || 0) + 1;
