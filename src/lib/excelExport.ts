@@ -67,7 +67,6 @@ export const exportToExcel = (
   }
   
   headerData.push({ '': `GENERAT LA: ${new Date().toLocaleString('ro-RO')}` });
-  headerData.push({ '': '' }); // Linie goală
 
   // Combină headerul cu datele
   const allData = [...headerData, ...processedData];
@@ -84,8 +83,8 @@ export const exportToExcel = (
       const cell = worksheet[cellAddress];
       
       if (cell && typeof cell.v === 'number') {
-        // Setează formatul pentru numere cu virgulă ca separator zecimal (format românesc)
-        cell.z = '#,##0.00_-';
+        // Setează formatul pentru numere cu punct ca separator zecimal (ca în aplicație)
+        cell.z = '0.00';
         cell.t = 'n'; // Specifică că este număr
       }
     }
