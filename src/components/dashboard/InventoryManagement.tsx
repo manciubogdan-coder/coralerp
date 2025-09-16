@@ -50,6 +50,15 @@ const InventoryManagement = () => {
   });
 
   const { aggregatedData, groupBy, setGroupBy } = useAggregatedStock(filteredInventory);
+  
+  // Debug pentru produsul "test"
+  useEffect(() => {
+    const testProducts = filteredInventory.filter(item => item.name && item.name.toLowerCase().includes('test'));
+    console.log(`InventoryManagement - Found ${testProducts.length} test products in filteredInventory:`, testProducts);
+    
+    const testAggregated = aggregatedData.filter(item => item.name && item.name.toLowerCase().includes('test'));
+    console.log(`InventoryManagement - Found ${testAggregated.length} test products in aggregatedData:`, testAggregated);
+  }, [filteredInventory, aggregatedData]);
 
   const handleTransferReturned = () => {
     console.log("Transfer returned, refreshing all data");
