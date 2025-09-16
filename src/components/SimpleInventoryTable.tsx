@@ -152,11 +152,30 @@ useEffect(() => {
           // Adăugăm retururile din producție (nu apar în recepții)
           deltaByName.set(key, (deltaByName.get(key) || 0) + qty);
         }
+        
+        // Debug pentru acțiuni neașteptate
+        if (!['remove', 'transfer_out', 'transfer_in', 'add', 'set'].includes(h.action)) {
+          console.log(`ACȚIUNE NECUNOSCUTĂ în istoric:`, h.action, `pentru ${key}`);
+        }
       });
 
       const out: Record<string, { quantity: number; unit: string; cod_produs?: string }> = {};
       baseByName.forEach((v, k) => {
-        const qty = v.qty + (receiptsByName.get(k) || 0) + (deltaByName.get(k) || 0);
+        const baseQty = v.qty;
+        const receiptsQty = receiptsByName.get(k) || 0;
+        const deltaQty = deltaByName.get(k) || 0;
+        const qty = baseQty + receiptsQty + deltaQty;
+        
+        // Debug log pentru produsele cu probleme
+        if (qty < 0 || k.toLowerCase().includes('rucola') || Math.abs(qty) > 5000) {
+          console.log(`STOC DEBUG - ${k}:`, {
+            base: baseQty,
+            receipts: receiptsQty,
+            delta: deltaQty,
+            final: qty
+          });
+        }
+        
         out[k] = { quantity: qty, unit: v.unit || '', cod_produs: v.cod };
       });
       setLiveStock(out);
