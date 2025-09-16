@@ -334,7 +334,18 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
       // Pentru fiecare lot selectat, scade cantitatea din intrările disponibile
       for (const item of selectedItems) {
-        let remainingQuantity = item.quantity;
+        // Determin cantitățile exact așa cum ai specificat:
+        // - dacă s-a introdus brut + lăzi/palet -> net = brut - greutatea lăzilor - paletului
+        // - dacă se introduce direct cantitatea netă (fără ladă) -> brut = net
+        const grossRequested = item.grossQuantity && item.grossQuantity > 0
+          ? item.grossQuantity
+          : item.quantity; // direct net => îl tratăm ca brut = net
+        const netRequested = item.grossQuantity && item.grossQuantity > 0
+          ? (item.netQuantity ?? item.quantity)
+          : item.quantity;
+        const ratioNetPerGross = grossRequested > 0 ? (netRequested / grossRequested) : 1; // < 1 dacă avem lăzi
+
+        let remainingNet = netRequested;
         
         // Sortează intrările după data recepției (FIFO)
         const sortedItems = [...item.items].sort((a, b) => 
@@ -342,12 +353,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         );
 
         for (const inventoryItem of sortedItems) {
-          if (remainingQuantity <= 0) break;
+          if (remainingNet <= 0) break;
 
-          const quantityToDeduct = Math.min(remainingQuantity, inventoryItem.quantity);
-          const newQuantity = inventoryItem.quantity - quantityToDeduct;
+          const availableNet = inventoryItem.quantity || 0; // quantity = stoc net curent
+          const netToDeduct = Math.min(remainingNet, availableNet);
+          const newQuantity = availableNet - netToDeduct;
 
-          // Actualizează cantitatea în inventar
+          // Actualizează cantitatea (NET) în inventar
           const { error: updateError } = await supabase
             .from(inventoryTable)
             .update({ quantity: newQuantity })
@@ -355,14 +367,14 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
           if (updateError) throw updateError;
 
-          // Adaugă în istoric
+          // Adaugă în istoric (cantitate NET scoasă din stoc)
           const { error: historyError } = await supabase
             .from(historyTable)
             .insert({
               inventory_item_id: inventoryItem.id,
               name: inventoryItem.name,
               action: 'transfer_out',
-              quantity: quantityToDeduct,
+              quantity: netToDeduct,
               previous_quantity: inventoryItem.quantity,
               unit: inventoryItem.unit,
               supplier: inventoryItem.supplier || inventoryItem.suppliers?.name,
@@ -377,19 +389,23 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
           if (historyError) throw historyError;
 
-          // Creează item-ul de transfer
+          // Calculează partea BRUTĂ corespunzătoare acestei linii (proporțional)
+          const grossForThisItem = ratioNetPerGross > 0 ? Number((netToDeduct / ratioNetPerGross).toFixed(3)) : netToDeduct;
+
+          // Creează item-ul de transfer (quantity = BRUT, net_quantity = NET)
           const { error: transferItemError } = await supabase
             .from(transferItemsTable)
             .insert({
               transfer_id: transfer.id,
               inventory_item_id: inventoryItem.id,
-              quantity: quantityToDeduct,
+              quantity: grossForThisItem,
+              net_quantity: netToDeduct,
               unit: inventoryItem.unit
             });
 
           if (transferItemError) throw transferItemError;
 
-          remainingQuantity -= quantityToDeduct;
+          remainingNet -= netToDeduct;
         }
       }
 
