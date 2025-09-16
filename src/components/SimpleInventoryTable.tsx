@@ -17,6 +17,7 @@ const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const { inventoryType } = useInventoryType();
   const [todayAgg, setTodayAgg] = useState<Record<string, { pt: number | null; percent: number | null; consider: number | null }>>({});
+  const [liveStock, setLiveStock] = useState<Record<string, { quantity: number; unit: string; cod_produs?: string }>>({});
 
   useEffect(() => {
     const fetchToday = async () => {
@@ -88,28 +89,93 @@ const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
     fetchToday();
   }, [inventoryType]);
 
-  // Group and sum quantities by product name
-  const groupedInventory = inventory.reduce((acc, item) => {
-    const key = item.name;
-    if (!acc[key]) {
-      acc[key] = {
-        name: key,
-        cod_produs: item.products?.cod_produs || '',
-        quantity: 0,
-        unit: item.unit
-      };
-    }
-    acc[key].quantity += item.quantity;
-    return acc;
-  }, {} as Record<string, { name: string; cod_produs: string; quantity: number; unit: string }>);
+// Calculează stocul live: snapshot dimineață + recepții azi − consum azi
+useEffect(() => {
+  const run = async () => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
+      const receiptsTable = inventoryType === 'ambalaje' ? 'ambalaje_reception_records' : 'reception_records';
+      const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
 
-  // Convert to array and filter by search
-  const displayData = Object.values(groupedInventory)
-    .filter(item => 
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.cod_produs.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
+      const [snapRes, recRes, histRes] = await Promise.all([
+        supabase
+          .from(snapshotTable)
+          .select('name, quantity, net_quantity, unit, products:product_id (cod_produs)')
+          .eq('snapshot_date', todayStr),
+        supabase
+          .from(receiptsTable)
+          .select('name, original_quantity, gross_quantity, net_quantity, unit, products:product_id (cod_produs)')
+          .gte('receipt_date', `${todayStr}T00:00:00`)
+          .lt('receipt_date', `${todayStr}T23:59:59`),
+        supabase
+          .from(historyTable)
+          .select('name, action, quantity, unit')
+          .gte('operation_date', `${todayStr}T00:00:00`)
+          .lt('operation_date', `${todayStr}T23:59:59`)
+      ]);
+
+      const snaps = (snapRes.data as any[]) ?? [];
+      const receipts = (recRes.data as any[]) ?? [];
+      const history = (histRes.data as any[]) ?? [];
+
+      const baseByName = new Map<string, { qty: number; unit?: string; cod?: string }>();
+      snaps.forEach((it: any) => {
+        const key = it.name;
+        const base = Number(it.net_quantity ?? it.quantity) || 0;
+        const cod = it.products?.cod_produs || undefined;
+        const unit = it.unit;
+        const prev = baseByName.get(key) || { qty: 0, unit, cod };
+        prev.qty += base;
+        prev.unit = unit || prev.unit;
+        prev.cod = cod || prev.cod;
+        baseByName.set(key, prev);
+      });
+
+      const receiptsByName = new Map<string, number>();
+      receipts.forEach((r: any) => {
+        const key = r.name;
+        const val = Number(r.net_quantity ?? r.gross_quantity ?? r.original_quantity) || 0;
+        receiptsByName.set(key, (receiptsByName.get(key) || 0) + val);
+        const exist = baseByName.get(key) || { qty: 0, unit: r.unit, cod: r.products?.cod_produs };
+        baseByName.set(key, { ...exist, unit: exist.unit || r.unit, cod: exist.cod || r.products?.cod_produs });
+      });
+
+      const removesByName = new Map<string, number>();
+      history.forEach((h: any) => {
+        if (h.action === 'remove') {
+          const key = h.name;
+          removesByName.set(key, (removesByName.get(key) || 0) + (Number(h.quantity) || 0));
+        }
+      });
+
+      const out: Record<string, { quantity: number; unit: string; cod_produs?: string }> = {};
+      baseByName.forEach((v, k) => {
+        const qty = v.qty + (receiptsByName.get(k) || 0) - (removesByName.get(k) || 0);
+        out[k] = { quantity: qty, unit: v.unit || '', cod_produs: v.cod };
+      });
+      setLiveStock(out);
+    } catch (e) {
+      console.error('Error computing live stock:', e);
+      setLiveStock({});
+    }
+  };
+  run();
+}, [inventoryType]);
+
+// Convert to array din stocul live și filtrează după căutare
+const displayData = Object.entries(liveStock)
+  .map(([name, info]) => ({
+    name,
+    cod_produs: info.cod_produs || '',
+    quantity: Number(info.quantity) || 0,
+    unit: info.unit,
+  }))
+  .filter(item => 
+    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.cod_produs.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+  .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleExport = () => {
     const dataToExport = displayData.map(item => {
