@@ -191,13 +191,14 @@ useEffect(() => {
         const deltaQty = deltaByName.get(k) || 0;
         const qty = baseQty + receiptsQty + deltaQty;
         
-        // Debug log pentru produsele cu probleme
-        if (qty < 0 || k.toLowerCase().includes('rucola') || Math.abs(qty) > 5000) {
+        // Debug log pentru produsul "test" și probleme
+        if (k.toLowerCase().includes('test') || qty < 0 || k.toLowerCase().includes('rucola') || Math.abs(qty) > 5000) {
           console.log(`STOC DEBUG - ${k}:`, {
             base: baseQty,
             receipts: receiptsQty,
             delta: deltaQty,
-            final: qty
+            final: qty,
+            productCod: v.cod
           });
         }
         
