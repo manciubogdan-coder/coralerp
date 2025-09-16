@@ -111,11 +111,13 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
       return;
     }
 
-    if (netQuantity > transfer.quantity) {
+    // Validez pe NET: nu poți returna mai mult decât net-ul transferat
+    const originalNetQuantity = transfer.net_quantity ?? transfer.quantity;
+    if (netQuantity > originalNetQuantity) {
       toast({
         variant: "destructive",
         title: "Eroare",
-        description: "Nu poți returna mai mult decât cantitatea transferată inițial"
+        description: "Nu poți returna mai mult decât cantitatea netă transferată inițial"
       });
       return;
     }
@@ -129,46 +131,34 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
       const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
       const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
       
-      // 1. Actualizează cantitatea din transfer items
-      const newTransferQuantity = transfer.quantity - netQuantity;
+      // 1. Actualizează cantitățile din transfer item (scad atât BRUT cât și NET)
+      const newGrossQuantity = transfer.quantity - grossQuantity; // quantity = BRUT
+      const newNetQuantity = originalNetQuantity - netQuantity;   // net_quantity = NET
       
-      console.log('=== DEBUGGING TRANSFER UPDATE ===');
-      console.log('Inventory type:', inventoryType);
-      console.log('Original quantity:', transfer.quantity);
-      console.log('Returned net quantity:', netQuantity);
-      console.log('New transfer quantity:', newTransferQuantity);
+      console.log('=== DEBUGGING TRANSFER UPDATE (RETURN) ===');
+      console.log({ originalGross: transfer.quantity, originalNet: originalNetQuantity, returnedGross: grossQuantity, returnedNet: netQuantity, newGrossQuantity, newNetQuantity });
       
-      if (newTransferQuantity <= 0) {
-        // Dacă s-a returnat tot, șterge item-ul din transfer
+      if (newGrossQuantity <= 0 || newNetQuantity <= 0) {
+        // Dacă s-a returnat tot, șterg item-ul din transfer
         const { error: deleteError } = await supabase
           .from(transferItemsTable)
           .delete()
           .eq('transfer_id', transfer.transfer_id)
           .eq('inventory_item_id', transfer.inventory_item_id);
-          
         if (deleteError) throw deleteError;
-        
         console.log("Transfer item complet returnat și șters din istoric");
       } else {
-        // Calculează noua cantitate netă proporțional
-        const originalNetQuantity = transfer.net_quantity || transfer.quantity;
-        const reductionRatio = netQuantity / originalNetQuantity;
-        const newNetQuantity = originalNetQuantity - netQuantity;
-        
-        // Actualizează ambele cantități în transfer items
+        // Actualizez ambele cantități
         const { error: updateError } = await supabase
           .from(transferItemsTable)
           .update({ 
-            quantity: newNetQuantity
+            quantity: newGrossQuantity,
+            net_quantity: newNetQuantity
           })
           .eq('transfer_id', transfer.transfer_id)
           .eq('inventory_item_id', transfer.inventory_item_id);
-          
         if (updateError) throw updateError;
-        
-        console.log("Transfer item actualizat cu cantitatea rămasă:", {
-          quantity: newNetQuantity
-        });
+        console.log("Transfer item actualizat cu cantitățile rămase:", { quantity: newGrossQuantity, net_quantity: newNetQuantity });
       }
       
       // 2. Actualizează notele în transfers
@@ -178,39 +168,27 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
           notes: `${transfer.notes || ''} [Actualizat după returnare parțială]`.trim()
         })
         .eq('id', transfer.transfer_id);
-        
       if (notesError) throw notesError;
       
-      // 3. Adaugă cantitatea returnată în stoc
+      // 3. Adaugă cantitatea NET returnată în stocul inventarului
       const { data: originalItem, error: fetchError } = await supabase
         .from(inventoryTable)
         .select('*')
         .eq('id', transfer.inventory_item_id)
-        .single();
-      
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
-      }
+        .maybeSingle();
+      if (fetchError) throw fetchError;
 
       let updatedId;
       
       if (originalItem) {
-        const newQuantity = originalItem.quantity + netQuantity;
-        
+        const newQuantityInInventory = (originalItem.quantity || 0) + netQuantity; // quantity = NET în inventar
         const { error: updateError } = await supabase
           .from(inventoryTable)
-          .update({ 
-            quantity: newQuantity
-          })
+          .update({ quantity: newQuantityInInventory })
           .eq('id', transfer.inventory_item_id);
-          
         if (updateError) throw updateError;
         updatedId = transfer.inventory_item_id;
-        
-        console.log("Actualizat item existent în inventar:", {
-          id: transfer.inventory_item_id,
-          newQuantity
-        });
+        console.log("Actualizat item existent în inventar:", { id: transfer.inventory_item_id, newQuantityInInventory });
       } else {
         // Creează un nou item în inventar dacă nu există
         const { data: inventoryData, error: insertError } = await supabase
@@ -223,63 +201,37 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
             manufacturer_id: transfer.manufacturer_id || null,
             document_number: transfer.document_number || null,
             entry_number: transfer.entry_number || null,
-            quantity: netQuantity,
+            quantity: netQuantity, // NET în inventar
             unit: transfer.unit,
             lot_number: transfer.lot_number
           })
           .select()
           .single();
-          
         if (insertError) throw insertError;
         updatedId = inventoryData.id;
-        
         console.log("Creat nou item în inventar:", inventoryData);
       }
       
-       // 4. Înregistrează în istoric
-       console.log('=== DEBUGGING RETURN HISTORY ===');
-       const historyDate = new Date().toISOString();
-       
-       // Get the actual lot_number from the original inventory item if not available on transfer
-       const actualLotNumber = transfer.lot_number || (originalItem && originalItem.lot_number) || 
-         (await supabase
-           .from(inventoryTable)
-           .select('lot_number')
-           .eq('id', transfer.inventory_item_id)
-           .single()).data?.lot_number;
-       
-       console.log('Inserting into history table:', historyTable, {
-         inventory_item_id: updatedId,
-         action: 'transfer_in',
-         name: transfer.product_name,
-         quantity: netQuantity,
-         unit: transfer.unit,
-         operation_date: historyDate,
-         document_number: transfer.document_number,
-         lot_number: actualLotNumber,
-         notes: `Returnat din ${transfer.destination}. ${notes}`.trim()
-       });
-       
-       const { error: historyError } = await supabase
-         .from(historyTable)
-         .insert({
-           inventory_item_id: updatedId,
-           action: 'transfer_in',
-           name: transfer.product_name,
-           quantity: netQuantity,
-           unit: transfer.unit,
-           operation_date: historyDate,
-           document_number: transfer.document_number,
-           lot_number: actualLotNumber,
-           notes: `Returnat din ${transfer.destination}. ${notes}`.trim()
-         });
-        
-      if (historyError) {
-        console.error('History error:', historyError);
-        throw historyError;
-      }
+      // 4. Înregistrează în istoric (NET)
+      console.log('=== DEBUGGING RETURN HISTORY ===');
+      const historyDate = new Date().toISOString();
       
-      console.log('Successfully inserted into history table:', historyTable);
+      const actualLotNumber = transfer.lot_number || (originalItem && originalItem.lot_number) || null;
+      
+      const { error: historyError } = await supabase
+        .from(historyTable)
+        .insert({
+          inventory_item_id: updatedId,
+          action: 'transfer_in',
+          name: transfer.product_name,
+          quantity: netQuantity, // NET
+          unit: transfer.unit,
+          operation_date: historyDate,
+          document_number: transfer.document_number,
+          lot_number: actualLotNumber,
+          notes: `Returnat din ${transfer.destination}. ${notes}`.trim()
+        });
+      if (historyError) throw historyError;
       
       toast({
         title: "Succes",
