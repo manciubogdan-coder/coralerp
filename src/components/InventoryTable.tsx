@@ -39,6 +39,8 @@ const InventoryTable = ({
   const isMobile = useIsMobile();
   
   const handleExportExcel = () => {
+    console.log('Export started - displayedInventory length:', displayedInventory.length);
+    
     const dataForExport = displayedInventory
       .filter(item => !item.isHeader) // Exclude grouping headers
       .map(item => {
@@ -59,6 +61,17 @@ const InventoryTable = ({
           'Document': item.document_number || '-'
         };
       });
+    
+    console.log('Data prepared for export:', dataForExport.length, dataForExport.slice(0, 3));
+    
+    if (dataForExport.length === 0) {
+      toast({
+        title: "Nu există date pentru export",
+        description: "Nu sunt produse disponibile pentru export.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     exportToExcel(dataForExport);
     toast({

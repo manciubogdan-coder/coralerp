@@ -13,6 +13,14 @@ export const exportToExcel = (
   filename: string = "raport.xlsx", 
   options?: ExcelExportOptions
 ) => {
+  console.log('exportToExcel called with data length:', data.length);
+  console.log('Sample data:', data.slice(0, 2));
+  
+  if (!data || data.length === 0) {
+    console.error('No data provided to exportToExcel');
+    return;
+  }
+  
   // Procesează datele - păstrează doar formatarea necesară pentru afișare
   const processedData = data.map(row => {
     const processedRow: any = {};
@@ -35,6 +43,8 @@ export const exportToExcel = (
     });
     return processedRow;
   });
+
+  console.log('Processed data length:', processedData.length);
 
   // Creează headerul cu informații despre raport (fără timestamp automat)
   const headerData: any[] = [];
