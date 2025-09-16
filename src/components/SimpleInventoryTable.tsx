@@ -110,7 +110,7 @@ useEffect(() => {
           .lt('receipt_date', `${todayStr}T23:59:59`),
         supabase
           .from(historyTable)
-          .select('name, action, quantity, unit')
+          .select('name, action, quantity, unit, previous_quantity, product_id')
           .gte('operation_date', `${todayStr}T00:00:00`)
           .lt('operation_date', `${todayStr}T23:59:59`)
       ]);
@@ -141,21 +141,46 @@ useEffect(() => {
         baseByName.set(key, { ...exist, unit: exist.unit || r.unit, cod: exist.cod || r.products?.cod_produs });
       });
 
-      const deltaByName = new Map<string, number>();
+      // Calculăm delta din istoric pentru fiecare produs, grupat după product_id
+      const deltaByProductId = new Map<string, number>();
       history.forEach((h: any) => {
-        const key = h.name;
+        const productId = h.product_id;
+        if (!productId) return; // Skip if no product_id
+        
         const qty = Number(h.quantity) || 0;
+        const previousQty = Number(h.previous_quantity) || 0;
+
         if (h.action === 'remove' || h.action === 'transfer_out') {
-          // Scădem consumul și transferurile ieșite
-          deltaByName.set(key, (deltaByName.get(key) || 0) - qty);
+          // Scădem cantitatea pentru acțiunile de ieșire
+          deltaByProductId.set(productId, (deltaByProductId.get(productId) || 0) - qty);
         } else if (h.action === 'transfer_in') {
           // Adăugăm retururile din producție (nu apar în recepții)
-          deltaByName.set(key, (deltaByName.get(key) || 0) + qty);
+          deltaByProductId.set(productId, (deltaByProductId.get(productId) || 0) + qty);
+        } else if (h.action === 'add') {
+          // Pentru 'add', adăugăm diferența față de cantitatea anterioară
+          const addedQty = qty - previousQty;
+          deltaByProductId.set(productId, (deltaByProductId.get(productId) || 0) + addedQty);
+        } else if (h.action === 'set') {
+          // Pentru 'set', calculăm diferența față de cantitatea anterioară
+          const setDelta = qty - previousQty;
+          deltaByProductId.set(productId, (deltaByProductId.get(productId) || 0) + setDelta);
         }
         
         // Debug pentru acțiuni neașteptate
         if (!['remove', 'transfer_out', 'transfer_in', 'add', 'set'].includes(h.action)) {
-          console.log(`ACȚIUNE NECUNOSCUTĂ în istoric:`, h.action, `pentru ${key}`);
+          console.log(`ACȚIUNE NECUNOSCUTĂ în istoric:`, h.action, `pentru produsul ${productId}`);
+        }
+      });
+
+      // Convertim delta-urile de la product_id la nume produs
+      const deltaByName = new Map<string, number>();
+      deltaByProductId.forEach((delta, productId) => {
+        // Găsim numele produsului cu acest product_id
+        for (const [productName, productData] of baseByName.entries()) {
+          if (productData.cod === productId) {
+            deltaByName.set(productName, (deltaByName.get(productName) || 0) + delta);
+            break;
+          }
         }
       });
 
