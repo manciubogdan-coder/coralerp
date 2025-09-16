@@ -26,6 +26,7 @@ export const useInventoryData = () => {
 
       if (inventoryType === 'ambalaje') {
         while (hasMore) {
+          console.log(`Fetching ambalaje inventory data - offset ${offset}, inventoryType: ${inventoryType}`);
           const { data, error } = await supabase
             .from("ambalaje_inventory")
             .select(`
@@ -73,6 +74,8 @@ export const useInventoryData = () => {
       }
       
       console.log(`${inventoryType} inventory data (total: ${allData.length}):`, allData);
+      const testProducts = allData.filter(item => item.name && item.name.toLowerCase().includes('test'));
+      console.log(`Found ${testProducts.length} test products in inventory:`, testProducts);
       setInventory(allData || []);
     } catch (error: any) {
       toast({
