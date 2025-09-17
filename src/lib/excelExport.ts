@@ -71,6 +71,34 @@ export const exportToExcel = (
   // Convertește datele în worksheet
   const worksheet = XLSX.utils.json_to_sheet(allData);
   
+  // Coerciție numerică pentru coloana "Cantitate"
+  const range2 = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+  const numericHeaderRegex2 = /^(cantitate|cant\.?|cant)$/i;
+  const numericCols2: number[] = [];
+  for (let C = range2.s.c; C <= range2.e.c; ++C) {
+    const headerAddr2 = XLSX.utils.encode_cell({ c: C, r: 0 });
+    const headerCell2 = worksheet[headerAddr2];
+    const headerText2 = headerCell2?.v?.toString().trim() || '';
+    if (numericHeaderRegex2.test(headerText2)) {
+      numericCols2.push(C);
+    }
+  }
+  const startRow2 = 1 + headerData.length;
+  for (let R = startRow2; R <= range2.e.r; ++R) {
+    for (const C of numericCols2) {
+      const addr2 = XLSX.utils.encode_cell({ c: C, r: R });
+      const cell2 = worksheet[addr2];
+      if (!cell2 || cell2.v === undefined || cell2.v === null || cell2.v === '') continue;
+      let num2 = typeof cell2.v === 'number' ? cell2.v : parseFloat(String(cell2.v).replace(',', '.'));
+      if (!isNaN(num2)) {
+        num2 = Math.round(num2 * 100) / 100;
+        cell2.v = num2;
+        cell2.t = 'n';
+        cell2.z = '0.00';
+      }
+    }
+  }
+  
   // Găsește celulele cu numere și setează formatul pentru regiunea România
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
   
