@@ -71,27 +71,44 @@ export const exportToExcel = (
   // Convertește datele în worksheet
   const worksheet = XLSX.utils.json_to_sheet(allData);
   
-  // Coerciție numerică pentru coloana "Cantitate"
+  // Coerciție numerică pentru coloanele de tip Cantitate (ex: "Cantitate", "Cantitate Netă", "Cant.")
   const range2 = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-  const numericHeaderRegex2 = /^(cantitate|cant\.?|cant)$/i;
   const numericCols2: number[] = [];
+
+  const normalize = (s: any) =>
+    String(s ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+
   for (let C = range2.s.c; C <= range2.e.c; ++C) {
     const headerAddr2 = XLSX.utils.encode_cell({ c: C, r: 0 });
     const headerCell2 = worksheet[headerAddr2];
-    const headerText2 = headerCell2?.v?.toString().trim() || '';
-    if (numericHeaderRegex2.test(headerText2)) {
+    const headerText2 = normalize(headerCell2?.v);
+    if (headerText2.includes('cant')) {
       numericCols2.push(C);
     }
   }
-  const startRow2 = 1 + headerData.length;
+
+  const startRow2 = 1 + headerData.length; // sari peste rândul de antet + rândurile de headerData
   for (let R = startRow2; R <= range2.e.r; ++R) {
     for (const C of numericCols2) {
       const addr2 = XLSX.utils.encode_cell({ c: C, r: R });
       const cell2 = worksheet[addr2];
       if (!cell2 || cell2.v === undefined || cell2.v === null || cell2.v === '') continue;
-      let num2 = typeof cell2.v === 'number' ? cell2.v : parseFloat(String(cell2.v).replace(',', '.'));
-      if (!isNaN(num2)) {
-        num2 = Math.round(num2 * 100) / 100;
+
+      let raw = String(cell2.v).replace(/\s/g, '');
+      // Dacă format RO: 1.234,56 -> 1234.56
+      if (/^-?\d{1,3}(\.\d{3})+,\d+$/.test(raw)) {
+        raw = raw.replace(/\./g, '').replace(',', '.');
+      } else {
+        raw = raw.replace(',', '.');
+      }
+
+      const parsed = typeof cell2.v === 'number' ? cell2.v : parseFloat(raw);
+      if (!isNaN(parsed)) {
+        const num2 = Math.round(parsed * 100) / 100;
         cell2.v = num2;
         cell2.t = 'n';
         cell2.z = '0.00';
