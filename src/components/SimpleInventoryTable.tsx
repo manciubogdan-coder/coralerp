@@ -47,13 +47,12 @@ const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
     const dataToExport = displayData.map(item => ({
       'Cod Produs': item.cod_produs || '-',
       'Produs': item.name,
-      'Cantitate Netă': item.quantity.toFixed(2),
+      'Cantitate': Math.round(item.quantity * 100) / 100,
       'Unitate': item.unit,
     }));
     
     exportToExcel(dataToExport);
   };
-
   return (
     <div className="w-full">
       <div className="p-2 sm:p-4">
