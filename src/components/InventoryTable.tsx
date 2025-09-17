@@ -51,7 +51,7 @@ const InventoryTable = ({
         'Data': item.receipt_date ? format(new Date(item.receipt_date), 'dd.MM.yyyy') : '-',
         'Produs': productName || '-',
         'Cod': products[item.product_id || '']?.cod_produs || '-',
-        'Cantitate': (item.quantity ?? 0).toFixed(2),
+        'Cantitate': Number(item.quantity ?? 0),
         'U.M.': item.unit || '-',
         'Furnizor': supplierName || '-',
         'Producător': manufacturerName || '-',

@@ -33,7 +33,7 @@ export const exportToExcel = (
       } else if (typeof value === 'number') {
         // Pentru numerele care reprezintă cantități, păstrează 2 decimale
         if (key.toLowerCase().includes('cantitate') || key.toLowerCase().includes('cant')) {
-          processedRow[key] = value.toFixed(2);
+          processedRow[key] = Math.round(value * 100) / 100;
         } else {
           processedRow[key] = value;
         }
@@ -79,11 +79,12 @@ export const exportToExcel = (
       const cellAddress = XLSX.utils.encode_cell({ c: C, r: R });
       const cell = worksheet[cellAddress];
       
-      if (cell && typeof cell.v === 'number') {
-        // Setează formatul pentru numere cu punct ca separator zecimal (ca în aplicație)
-        cell.z = '0.00';
-        cell.t = 'n'; // Specifică că este număr
-      }
+        if (cell && typeof cell.v === 'number') {
+          // Formatează numerele cu 2 zecimale (rămân numere, nu text)
+          cell.z = '0.00';
+          cell.t = 'n';
+        }
+
     }
   }
   
