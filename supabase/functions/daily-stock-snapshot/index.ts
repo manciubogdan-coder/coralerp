@@ -66,11 +66,11 @@ serve(async (req) => {
       )
     }
 
-    // Get current inventory - exact as it is right now
+    // Get current inventory - exact as it is right now (including 0 quantities)
     const { data: inventory, error: inventoryError } = await supabase
       .from(inventoryTable)
       .select('*')
-      .gt('quantity', 0) // Doar intrările cu stoc > 0
+      .gte('quantity', 0) // Include și produsele cu stoc 0
 
     if (inventoryError) {
       throw inventoryError
