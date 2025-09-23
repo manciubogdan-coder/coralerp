@@ -89,7 +89,7 @@ serve(async (req) => {
       )
     }
 
-    // Grupez după produs și lot pentru a evita duplicatele
+    // Grupez după produs (fără lot) pentru a evita intrări multiple pentru același produs
     const groupedInventory = new Map<string, {
       name: string
       quantity: number
@@ -102,14 +102,25 @@ serve(async (req) => {
       document_number: string | null
       entry_number: number
       receipt_date: string | null
+      latest_entry: boolean
     }>()
 
     inventory.forEach((item: InventoryItem) => {
-      const key = `${item.name}-${item.lot_number || ''}-${item.product_id || ''}-${item.supplier_id || ''}-${item.manufacturer_id || ''}-${item.crate_type_id || ''}-${item.document_number || ''}-${item.receipt_date || ''}`
+      // Grupez doar după produs, nu după lot
+      const key = `${item.name}-${item.product_id || ''}-${item.supplier_id || ''}-${item.manufacturer_id || ''}`
       
       if (groupedInventory.has(key)) {
         const existing = groupedInventory.get(key)!
         existing.quantity += item.quantity
+        
+        // Păstrez ultimul lot (cel cu entry_number mai mare)
+        if (item.entry_number > existing.entry_number) {
+          existing.lot_number = item.lot_number
+          existing.document_number = item.document_number
+          existing.entry_number = item.entry_number
+          existing.receipt_date = item.receipt_date
+          existing.crate_type_id = item.crate_type_id
+        }
       } else {
         groupedInventory.set(key, {
           name: item.name,
@@ -122,7 +133,8 @@ serve(async (req) => {
           crate_type_id: item.crate_type_id,
           document_number: item.document_number,
           entry_number: item.entry_number,
-          receipt_date: item.receipt_date
+          receipt_date: item.receipt_date,
+          latest_entry: true
         })
       }
     })
