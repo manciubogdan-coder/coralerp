@@ -36,7 +36,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { inventoryType = 'main' } = await req.json().catch(() => ({}))
+    const { inventoryType = 'main', force = false } = await req.json().catch(() => ({}))
     // Întotdeauna folosim data curentă - salvăm exact stocul de acum
     const snapshotDate = new Date().toISOString().split('T')[0]
 
@@ -54,16 +54,14 @@ serve(async (req) => {
       .limit(1)
 
     if (existingSnapshot && existingSnapshot.length > 0) {
-      console.log(`Snapshot already exists for ${snapshotDate} (${inventoryType})`)
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: `Snapshot already exists for ${snapshotDate}`,
-          existing: true,
-          inventoryType 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      console.log(`Snapshot already exists for ${snapshotDate} (${inventoryType}) - will overwrite`)
+      const { error: deleteError } = await supabase
+        .from(snapshotTable)
+        .delete()
+        .eq('snapshot_date', snapshotDate)
+      if (deleteError) {
+        throw deleteError
+      }
     }
 
     // Get current inventory - exact as it is right now (including 0 quantities)
@@ -106,20 +104,22 @@ serve(async (req) => {
     }>()
 
     inventory.forEach((item: InventoryItem) => {
-      // Grupez doar după produs, nu după lot
-      const key = `${item.name}-${item.product_id || ''}-${item.supplier_id || ''}-${item.manufacturer_id || ''}`
+      // Grupare STRICT pe produs (ignor furnizor/producător/lot)
+      const key = item.product_id ? `product:${item.product_id}` : `name:${item.name}`
       
       if (groupedInventory.has(key)) {
         const existing = groupedInventory.get(key)!
         existing.quantity += item.quantity
         
-        // Păstrez ultimul lot (cel cu entry_number mai mare)
+        // Păstrez ultimul lot (cu entry_number mai mare) și sursele aferente
         if (item.entry_number > existing.entry_number) {
           existing.lot_number = item.lot_number
           existing.document_number = item.document_number
           existing.entry_number = item.entry_number
           existing.receipt_date = item.receipt_date
           existing.crate_type_id = item.crate_type_id
+          existing.supplier_id = item.supplier_id
+          existing.manufacturer_id = item.manufacturer_id
         }
       } else {
         groupedInventory.set(key, {
