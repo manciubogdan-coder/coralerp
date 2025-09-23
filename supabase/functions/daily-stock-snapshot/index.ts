@@ -96,7 +96,7 @@ serve(async (req) => {
       )
     }
 
-    // Group by product + lot to preserve lot breakdown and sum normalized quantities
+    // Group strictly by product (ignore supplier/manufacturer/lot) and sum only positive quantities
     const groupedInventory = new Map<string, {
       name: string
       quantity: number
@@ -111,30 +111,17 @@ serve(async (req) => {
       receipt_date: string | null
     }>()
 
-    const normalizeQty = (val: any) => {
-      const num = typeof val === 'number' ? val : parseFloat((val ?? '0').toString())
-      return Number.isFinite(num) ? num : 0
+    const toNum = (val: any) => {
+      const n = typeof val === 'number' ? val : parseFloat((val ?? '0').toString())
+      return Number.isFinite(n) ? n : 0
     }
 
     inventory.forEach((item: InventoryItem) => {
-      const qty = normalizeQty(item.net_quantity ?? item.quantity)
-      const key = `${item.product_id ? `product:${item.product_id}` : `name:${item.name}`}|${item.lot_number || 'NoLot'}`
+      const qtyRaw = toNum(item.net_quantity ?? item.quantity)
+      const qty = qtyRaw > 0 ? qtyRaw : 0 // consider only positive remaining stock
+      const key = item.product_id ? `product:${item.product_id}` : `name:${item.name}`
 
-      if (groupedInventory.has(key)) {
-        const existing = groupedInventory.get(key)!
-        existing.quantity = normalizeQty(existing.quantity) + qty
-
-        // Keep the latest metadata (by highest entry_number)
-        if (item.entry_number > existing.entry_number) {
-          existing.lot_number = item.lot_number
-          existing.document_number = item.document_number
-          existing.entry_number = item.entry_number
-          existing.receipt_date = item.receipt_date
-          existing.crate_type_id = item.crate_type_id
-          existing.supplier_id = item.supplier_id
-          existing.manufacturer_id = item.manufacturer_id
-        }
-      } else {
+      if (!groupedInventory.has(key)) {
         groupedInventory.set(key, {
           name: item.name,
           quantity: qty,
@@ -148,6 +135,19 @@ serve(async (req) => {
           entry_number: item.entry_number,
           receipt_date: item.receipt_date,
         })
+      } else {
+        const existing = groupedInventory.get(key)!
+        existing.quantity = toNum(existing.quantity) + qty
+        // Keep latest metadata by highest entry_number
+        if (item.entry_number > existing.entry_number) {
+          existing.lot_number = item.lot_number
+          existing.document_number = item.document_number
+          existing.entry_number = item.entry_number
+          existing.receipt_date = item.receipt_date
+          existing.crate_type_id = item.crate_type_id
+          existing.supplier_id = item.supplier_id
+          existing.manufacturer_id = item.manufacturer_id
+        }
       }
     })
 
