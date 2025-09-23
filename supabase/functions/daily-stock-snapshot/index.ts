@@ -36,7 +36,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { inventoryType = 'main', force = false } = await req.json().catch(() => ({}))
+    const { inventoryType = 'main', force = false, targetDate } = await req.json().catch(() => ({}))
     // Întotdeauna folosim data curentă - salvăm exact stocul de acum
     const snapshotDate = (typeof targetDate === 'string' && targetDate.length > 0) ? targetDate : new Date().toISOString().split('T')[0]
 
@@ -120,7 +120,7 @@ serve(async (req) => {
       
       if (groupedInventory.has(key)) {
         const existing = groupedInventory.get(key)!
-        existing.quantity += item.quantity
+        existing.quantity = Number(existing.quantity) + Number(item.quantity)
         
         // Păstrez ultimul lot (cu entry_number mai mare) și sursele aferente
         if (item.entry_number > existing.entry_number) {
@@ -135,7 +135,7 @@ serve(async (req) => {
       } else {
         groupedInventory.set(key, {
           name: item.name,
-          quantity: item.quantity,
+          quantity: Number(item.quantity),
           unit: item.unit,
           lot_number: item.lot_number,
           product_id: item.product_id,
@@ -154,8 +154,8 @@ serve(async (req) => {
     const snapshotData = Array.from(groupedInventory.values()).map((item) => ({
       snapshot_date: snapshotDate,
       name: item.name,
-      quantity: item.quantity,
-      net_quantity: item.quantity, // Folosesc quantity pentru net_quantity pentru că net_quantity e incorectă
+      quantity: Number(item.quantity),
+      net_quantity: Number(item.quantity),
       unit: item.unit,
       lot_number: item.lot_number,
       product_id: item.product_id,

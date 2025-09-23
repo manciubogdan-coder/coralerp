@@ -225,7 +225,7 @@ export const DailyStockGroupView = () => {
   const triggerSnapshot = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('daily-stock-snapshot', {
-        body: { inventoryType, targetDate: selectedDate }
+        body: { inventoryType, targetDate: selectedDate, force: true }
       });
       if (error) throw error;
       console.log('Snapshot create response:', data);
