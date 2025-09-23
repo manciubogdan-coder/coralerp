@@ -151,30 +151,28 @@ serve(async (req) => {
       }
     })
 
-    // Create snapshot entries from grouped data and keep only positive quantities
-    const snapshotData = Array.from(groupedInventory.values())
-      .map((item) => {
-        const q = Number(item.quantity) || 0
-        return {
-          snapshot_date: snapshotDate,
-          name: item.name,
-          quantity: q,
-          net_quantity: q,
-          unit: item.unit,
-          lot_number: item.lot_number,
-          product_id: item.product_id,
-          supplier_id: item.supplier_id,
-          manufacturer_id: item.manufacturer_id,
-          crate_type_id: item.crate_type_id,
-          crate_count: null,
-          crate_weight: null,
-          document_number: item.document_number,
-          entry_number: item.entry_number,
-          receipt_date: item.receipt_date,
-          gross_quantity: null
-        }
-      })
-      .filter((row) => (Number(row.quantity) || 0) > 0)
+    // Create snapshot entries from grouped data
+    const snapshotData = Array.from(groupedInventory.values()).map((item) => {
+      const q = Number(item.quantity) || 0
+      return {
+        snapshot_date: snapshotDate,
+        name: item.name,
+        quantity: q,
+        net_quantity: q,
+        unit: item.unit,
+        lot_number: item.lot_number,
+        product_id: item.product_id,
+        supplier_id: item.supplier_id,
+        manufacturer_id: item.manufacturer_id,
+        crate_type_id: item.crate_type_id,
+        crate_count: null,
+        crate_weight: null,
+        document_number: item.document_number,
+        entry_number: item.entry_number,
+        receipt_date: item.receipt_date,
+        gross_quantity: null
+      }
+    })
 
     // Insert snapshot data
     const { error: insertError } = await supabase
