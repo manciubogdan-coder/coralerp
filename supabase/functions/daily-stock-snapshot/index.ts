@@ -117,7 +117,9 @@ serve(async (req) => {
     }
 
     inventory.forEach((item: InventoryItem) => {
-      const qtyRaw = toNum(item.net_quantity ?? item.quantity)
+      const qtyPrefer = toNum(item.quantity);
+      const qtyAlt = toNum(item.net_quantity);
+      const qtyRaw = qtyPrefer > 0 ? qtyPrefer : (qtyAlt > 0 ? qtyAlt : 0);
       const qty = qtyRaw > 0 ? qtyRaw : 0 // consider only positive remaining stock
       const key = item.product_id ? `product:${item.product_id}` : `name:${item.name}`
 
