@@ -37,7 +37,7 @@ serve(async (req) => {
     )
 
     const { inventoryType = 'main', force = false, targetDate } = await req.json().catch(() => ({}))
-    // Întotdeauna folosim data curentă - salvăm exact stocul de acum
+    // Întotdeauna folosim data curentă - salvăm exact stocul de acum (pentru data selectată)
     const snapshotDate = (typeof targetDate === 'string' && targetDate.length > 0) ? targetDate : new Date().toISOString().split('T')[0]
 
     console.log(`Saving CURRENT stock as snapshot for ${inventoryType} inventory, date: ${snapshotDate}`)
@@ -75,12 +75,10 @@ serve(async (req) => {
       }
     }
 
-    // Get current inventory - exact as it is right now (including 0 quantities)
+    // Get current inventory exactly as it is right now (we'll filter/normalize in code)
     const { data: inventory, error: inventoryError } = await supabase
       .from(inventoryTable)
       .select('*')
-      .gte('quantity', 0) // Include și produsele cu stoc 0
-
     if (inventoryError) {
       throw inventoryError
     }
@@ -98,7 +96,7 @@ serve(async (req) => {
       )
     }
 
-    // Grupez după produs (fără lot) pentru a evita intrări multiple pentru același produs
+    // Group by product + lot to preserve lot breakdown and sum normalized quantities
     const groupedInventory = new Map<string, {
       name: string
       quantity: number
@@ -111,18 +109,22 @@ serve(async (req) => {
       document_number: string | null
       entry_number: number
       receipt_date: string | null
-      latest_entry: boolean
     }>()
 
+    const normalizeQty = (val: any) => {
+      const num = typeof val === 'number' ? val : parseFloat((val ?? '0').toString())
+      return Number.isFinite(num) ? num : 0
+    }
+
     inventory.forEach((item: InventoryItem) => {
-      // Grupare STRICT pe produs (ignor furnizor/producător/lot)
-      const key = item.product_id ? `product:${item.product_id}` : `name:${item.name}`
-      
+      const qty = normalizeQty(item.net_quantity ?? item.quantity)
+      const key = `${item.product_id ? `product:${item.product_id}` : `name:${item.name}`}|${item.lot_number || 'NoLot'}`
+
       if (groupedInventory.has(key)) {
         const existing = groupedInventory.get(key)!
-        existing.quantity = Number(existing.quantity) + Number(item.quantity)
-        
-        // Păstrez ultimul lot (cu entry_number mai mare) și sursele aferente
+        existing.quantity = normalizeQty(existing.quantity) + qty
+
+        // Keep the latest metadata (by highest entry_number)
         if (item.entry_number > existing.entry_number) {
           existing.lot_number = item.lot_number
           existing.document_number = item.document_number
@@ -135,7 +137,7 @@ serve(async (req) => {
       } else {
         groupedInventory.set(key, {
           name: item.name,
-          quantity: Number(item.quantity),
+          quantity: qty,
           unit: item.unit,
           lot_number: item.lot_number,
           product_id: item.product_id,
@@ -145,30 +147,34 @@ serve(async (req) => {
           document_number: item.document_number,
           entry_number: item.entry_number,
           receipt_date: item.receipt_date,
-          latest_entry: true
         })
       }
     })
 
-    // Create snapshot entries from grouped data
-    const snapshotData = Array.from(groupedInventory.values()).map((item) => ({
-      snapshot_date: snapshotDate,
-      name: item.name,
-      quantity: Number(item.quantity),
-      net_quantity: Number(item.quantity),
-      unit: item.unit,
-      lot_number: item.lot_number,
-      product_id: item.product_id,
-      supplier_id: item.supplier_id,
-      manufacturer_id: item.manufacturer_id,
-      crate_type_id: item.crate_type_id,
-      crate_count: null,
-      crate_weight: null,
-      document_number: item.document_number,
-      entry_number: item.entry_number,
-      receipt_date: item.receipt_date,
-      gross_quantity: null
-    }))
+    // Create snapshot entries from grouped data and keep only positive quantities
+    const snapshotData = Array.from(groupedInventory.values())
+      .map((item) => {
+        const q = Number(item.quantity) || 0
+        return {
+          snapshot_date: snapshotDate,
+          name: item.name,
+          quantity: q,
+          net_quantity: q,
+          unit: item.unit,
+          lot_number: item.lot_number,
+          product_id: item.product_id,
+          supplier_id: item.supplier_id,
+          manufacturer_id: item.manufacturer_id,
+          crate_type_id: item.crate_type_id,
+          crate_count: null,
+          crate_weight: null,
+          document_number: item.document_number,
+          entry_number: item.entry_number,
+          receipt_date: item.receipt_date,
+          gross_quantity: null
+        }
+      })
+      .filter((row) => (Number(row.quantity) || 0) > 0)
 
     // Insert snapshot data
     const { error: insertError } = await supabase
@@ -179,7 +185,8 @@ serve(async (req) => {
       throw insertError
     }
 
-    console.log(`Successfully created ${inventoryType} snapshot for ${snapshotDate} with ${snapshotData.length} items`)
+    const totalQty = snapshotData.reduce((acc, r) => acc + (Number(r.quantity) || 0), 0)
+    console.log(`Successfully created ${inventoryType} snapshot for ${snapshotDate} with ${snapshotData.length} items, total qty: ${totalQty}`)
 
     return new Response(
       JSON.stringify({ 
