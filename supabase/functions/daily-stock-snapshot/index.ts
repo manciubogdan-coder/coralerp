@@ -116,11 +116,30 @@ serve(async (req) => {
       return Number.isFinite(n) ? n : 0
     }
 
+    // Diagnostics
+    const stats = (inventory as any[]).reduce((acc, it: any) => {
+      const qQty = toNum(it.quantity)
+      const qNet = toNum(it.net_quantity)
+      const qGross = toNum(it.gross_quantity)
+      if (qQty > 0) acc.posQty++
+      if (qNet > 0) acc.posNet++
+      if (qGross > 0) acc.posGross++
+      return acc
+    }, { posQty: 0, posNet: 0, posGross: 0, total: (inventory as any[]).length })
+    console.log(`Diagnostics: total=${stats.total}, posQty=${stats.posQty}, posNet=${stats.posNet}, posGross=${stats.posGross}`)
+    console.log('Sample inventory:', (inventory as any[]).slice(0, 5).map((it:any) => ({ name: it.name, q: it.quantity, net: it.net_quantity, gross: it.gross_quantity, unit: it.unit })))
+
     inventory.forEach((item: InventoryItem) => {
-      const qtyPrefer = toNum(item.quantity);
-      const qtyAlt = toNum(item.net_quantity);
-      const qtyRaw = qtyPrefer > 0 ? qtyPrefer : (qtyAlt > 0 ? qtyAlt : 0);
-      const qty = qtyRaw > 0 ? qtyRaw : 0 // consider only positive remaining stock
+      // Preferăm cantitatea curentă (quantity), apoi netă (net_quantity), apoi brută (gross_quantity)
+      const qQty = toNum((item as any).quantity)
+      const qNet = toNum((item as any).net_quantity)
+      const qGross = toNum((item as any).gross_quantity)
+
+      let qty = 0
+      if (qQty > 0) qty = qQty
+      else if (qNet > 0) qty = qNet
+      else if (qGross > 0) qty = qGross
+
       const key = item.product_id ? `product:${item.product_id}` : `name:${item.name}`
 
       if (!groupedInventory.has(key)) {
@@ -155,7 +174,7 @@ serve(async (req) => {
 
     // Create snapshot entries from grouped data
     const snapshotData = Array.from(groupedInventory.values()).map((item) => {
-      const q = Number(item.quantity) || 0
+      const q = toNum(item.quantity)
       return {
         snapshot_date: snapshotDate,
         name: item.name,
@@ -175,6 +194,10 @@ serve(async (req) => {
         gross_quantity: null
       }
     })
+
+    // Debug preview in logs
+    const positives = snapshotData.filter(r => (toNum(r.quantity) > 0)).length
+    console.log(`Snapshot ${inventoryType} preview for ${snapshotDate}: groups=${snapshotData.length}, positives=${positives}`, snapshotData.slice(0, 5).map(s => ({ name: s.name, q: s.quantity, unit: s.unit })))
 
     // Insert snapshot data
     const { error: insertError } = await supabase
