@@ -38,7 +38,7 @@ serve(async (req) => {
 
     const { inventoryType = 'main', force = false } = await req.json().catch(() => ({}))
     // Întotdeauna folosim data curentă - salvăm exact stocul de acum
-    const snapshotDate = new Date().toISOString().split('T')[0]
+    const snapshotDate = (typeof targetDate === 'string' && targetDate.length > 0) ? targetDate : new Date().toISOString().split('T')[0]
 
     console.log(`Saving CURRENT stock as snapshot for ${inventoryType} inventory, date: ${snapshotDate}`)
 
@@ -54,13 +54,24 @@ serve(async (req) => {
       .limit(1)
 
     if (existingSnapshot && existingSnapshot.length > 0) {
-      console.log(`Snapshot already exists for ${snapshotDate} (${inventoryType}) - will overwrite`)
-      const { error: deleteError } = await supabase
-        .from(snapshotTable)
-        .delete()
-        .eq('snapshot_date', snapshotDate)
-      if (deleteError) {
-        throw deleteError
+      if (!force) {
+        console.log(`Snapshot already exists for ${snapshotDate} (${inventoryType}) - keeping existing (no force)`)
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: `Snapshot already exists for ${snapshotDate}`,
+            existing: true,
+            inventoryType 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      } else {
+        console.log(`Snapshot exists for ${snapshotDate} (${inventoryType}) - overwriting due to force=true`)
+        const { error: deleteError } = await supabase
+          .from(snapshotTable)
+          .delete()
+          .eq('snapshot_date', snapshotDate)
+        if (deleteError) throw deleteError
       }
     }
 
