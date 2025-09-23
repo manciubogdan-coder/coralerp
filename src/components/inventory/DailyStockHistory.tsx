@@ -141,16 +141,26 @@ export const DailyStockHistory = () => {
 
   const triggerSnapshot = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('daily-stock-snapshot', {
-        body: { inventoryType, targetDate: selectedDate, force: true }
+      const { error } = await supabase.functions.invoke('daily-stock-snapshot');
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast({
+        title: "Snapshot creat",
+        description: "Snapshot-ul stocului curent a fost salvat cu succes."
       });
-      if (error) throw error;
-      console.log('Snapshot create response:', data);
-      toast({ title: 'Snapshot creat', description: 'Snapshot-ul stocului curent a fost salvat cu succes.' });
-      setTimeout(() => fetchDailyStock(), 300);
+      
+      // Refresh data
+      fetchDailyStock();
     } catch (error: any) {
-      console.error('Error creating snapshot:', error);
-      toast({ variant: 'destructive', title: 'Eroare la crearea snapshot-ului', description: error.message });
+      console.error("Error creating snapshot:", error);
+      toast({
+        variant: "destructive",
+        title: "Eroare la crearea snapshot-ului",
+        description: error.message,
+      });
     }
   };
 
