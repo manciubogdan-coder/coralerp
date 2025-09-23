@@ -102,24 +102,34 @@ export const DailyStockGroupView = () => {
       setStockSnapshots(snapshots);
 
       // Fetch quality data for these snapshots (read-only display)
-      const qualityTable = 'daily_stock_quality';
-      if (snapshots.length > 0) {
-        const ids = snapshots.map(s => s.id);
-        const { data: qData, error: qErr } = await supabase
-          .from(qualityTable)
-          .select('snapshot_id, obs, nonconform_percent, consider_quantity')
-          .in('snapshot_id', ids);
-        if (qErr) throw qErr;
-        const map: Record<string, { obs: string | null; nonconform_percent: number | null; consider_quantity: number | null }> = {};
-        (qData ?? []).forEach((r: any) => {
-          map[r.snapshot_id] = {
-            obs: r.obs ?? null,
-            nonconform_percent: r.nonconform_percent ?? null,
-            consider_quantity: r.consider_quantity ?? null,
-          };
-        });
-        setQualityMap(map);
-      } else {
+      try {
+        const isAmbalaje = String(inventoryType) === 'ambalaje';
+        const qualityTable = isAmbalaje ? 'ambalaje_daily_stock_quality' : 'daily_stock_quality';
+        if (snapshots.length > 0) {
+          const ids = snapshots.map(s => s.id).filter(Boolean);
+          if (ids.length > 0) {
+            const { data: qData, error: qErr } = await supabase
+              .from(qualityTable)
+              .select('snapshot_id, obs, nonconform_percent, consider_quantity')
+              .in('snapshot_id', ids);
+            if (qErr) throw qErr;
+            const map: Record<string, { obs: string | null; nonconform_percent: number | null; consider_quantity: number | null }> = {};
+            (qData ?? []).forEach((r: any) => {
+              map[r.snapshot_id] = {
+                obs: r.obs ?? null,
+                nonconform_percent: r.nonconform_percent ?? null,
+                consider_quantity: r.consider_quantity ?? null,
+              };
+            });
+            setQualityMap(map);
+          } else {
+            setQualityMap({});
+          }
+        } else {
+          setQualityMap({});
+        }
+      } catch (qError) {
+        console.warn('Quality data not available, continuing without it:', qError);
         setQualityMap({});
       }
       
