@@ -4376,95 +4376,6 @@ export type Database = {
           },
         ]
       }
-      picking_produse: {
-        Row: {
-          cantitate_comandata: number
-          cantitate_lipsa: number | null
-          cantitate_numarata: number | null
-          created_at: string
-          id: string
-          nume_produs: string
-          observatii: string | null
-          produs_id: string
-          sesiune_id: string
-          sesiune_lucru_id: string
-          status: string
-          unitate_masura: string
-          updated_at: string
-        }
-        Insert: {
-          cantitate_comandata: number
-          cantitate_lipsa?: number | null
-          cantitate_numarata?: number | null
-          created_at?: string
-          id?: string
-          nume_produs: string
-          observatii?: string | null
-          produs_id: string
-          sesiune_id: string
-          sesiune_lucru_id: string
-          status?: string
-          unitate_masura: string
-          updated_at?: string
-        }
-        Update: {
-          cantitate_comandata?: number
-          cantitate_lipsa?: number | null
-          cantitate_numarata?: number | null
-          created_at?: string
-          id?: string
-          nume_produs?: string
-          observatii?: string | null
-          produs_id?: string
-          sesiune_id?: string
-          sesiune_lucru_id?: string
-          status?: string
-          unitate_masura?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "picking_produse_sesiune_id_fkey"
-            columns: ["sesiune_id"]
-            isOneToOne: false
-            referencedRelation: "picking_sesiuni"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      picking_sesiuni: {
-        Row: {
-          created_at: string
-          data_sesiune: string
-          id: string
-          magazin: string
-          operator_nume: string
-          punct_livrare: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          data_sesiune?: string
-          id?: string
-          magazin: string
-          operator_nume: string
-          punct_livrare: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          data_sesiune?: string
-          id?: string
-          magazin?: string
-          operator_nume?: string
-          punct_livrare?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       pontaj_leave_conflicts: {
         Row: {
           actiune_luata: string
@@ -4642,7 +4553,6 @@ export type Database = {
           produs_id: string | null
           punct_livrare: string
           status: string
-          tip_comanda: string | null
           updated_at: string
         }
         Insert: {
@@ -4658,7 +4568,6 @@ export type Database = {
           produs_id?: string | null
           punct_livrare: string
           status?: string
-          tip_comanda?: string | null
           updated_at?: string
         }
         Update: {
@@ -4674,7 +4583,6 @@ export type Database = {
           produs_id?: string | null
           punct_livrare?: string
           status?: string
-          tip_comanda?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -4794,248 +4702,6 @@ export type Database = {
           created_at?: string
           id?: string
           nume?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      productie_picking_alocari: {
-        Row: {
-          cantitate_alocata: number
-          comanda_id: string
-          created_at: string
-          id: string
-          numar_paleti: number | null
-          observatii: string | null
-          operator_nume: string
-          sesiune_lucru_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          cantitate_alocata: number
-          comanda_id: string
-          created_at?: string
-          id?: string
-          numar_paleti?: number | null
-          observatii?: string | null
-          operator_nume: string
-          sesiune_lucru_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          cantitate_alocata?: number
-          comanda_id?: string
-          created_at?: string
-          id?: string
-          numar_paleti?: number | null
-          observatii?: string | null
-          operator_nume?: string
-          sesiune_lucru_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "productie_picking_alocari_comanda_id_fkey"
-            columns: ["comanda_id"]
-            isOneToOne: false
-            referencedRelation: "productie_comenzi"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "productie_picking_alocari_sesiune_lucru_id_fkey"
-            columns: ["sesiune_lucru_id"]
-            isOneToOne: false
-            referencedRelation: "productie_sesiuni_lucru"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      productie_picking_daily_records: {
-        Row: {
-          created_at: string
-          data_record: string
-          id: string
-          observatii: string | null
-          operator_nume: string
-          ora_inceput: string | null
-          ora_sfarsit: string | null
-          total_cantitate_ambalata: number
-          total_cantitate_preluata: number
-          total_cantitate_restocata: number
-          total_comenzi_procesate: number
-          total_paleti_creati: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          data_record?: string
-          id?: string
-          observatii?: string | null
-          operator_nume: string
-          ora_inceput?: string | null
-          ora_sfarsit?: string | null
-          total_cantitate_ambalata?: number
-          total_cantitate_preluata?: number
-          total_cantitate_restocata?: number
-          total_comenzi_procesate?: number
-          total_paleti_creati?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          data_record?: string
-          id?: string
-          observatii?: string | null
-          operator_nume?: string
-          ora_inceput?: string | null
-          ora_sfarsit?: string | null
-          total_cantitate_ambalata?: number
-          total_cantitate_preluata?: number
-          total_cantitate_restocata?: number
-          total_comenzi_procesate?: number
-          total_paleti_creati?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      productie_picking_orders: {
-        Row: {
-          cantitate_ambalata: number
-          cantitate_preluata: number
-          cantitate_restocata: number
-          comanda_id: string
-          created_at: string
-          id: string
-          numar_paleti: number
-          observatii: string | null
-          picking_session_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          cantitate_ambalata?: number
-          cantitate_preluata?: number
-          cantitate_restocata?: number
-          comanda_id: string
-          created_at?: string
-          id?: string
-          numar_paleti?: number
-          observatii?: string | null
-          picking_session_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          cantitate_ambalata?: number
-          cantitate_preluata?: number
-          cantitate_restocata?: number
-          comanda_id?: string
-          created_at?: string
-          id?: string
-          numar_paleti?: number
-          observatii?: string | null
-          picking_session_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "productie_picking_orders_comanda_id_fkey"
-            columns: ["comanda_id"]
-            isOneToOne: false
-            referencedRelation: "productie_comenzi"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "productie_picking_orders_picking_session_id_fkey"
-            columns: ["picking_session_id"]
-            isOneToOne: false
-            referencedRelation: "productie_picking_sessions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      productie_picking_pallets: {
-        Row: {
-          cantitate_pe_palet: number
-          created_at: string
-          destinatie: string | null
-          id: string
-          numar_palet: string
-          observatii: string | null
-          picking_order_id: string
-          status: string
-          tip_ambalare: string | null
-          updated_at: string
-        }
-        Insert: {
-          cantitate_pe_palet?: number
-          created_at?: string
-          destinatie?: string | null
-          id?: string
-          numar_palet: string
-          observatii?: string | null
-          picking_order_id: string
-          status?: string
-          tip_ambalare?: string | null
-          updated_at?: string
-        }
-        Update: {
-          cantitate_pe_palet?: number
-          created_at?: string
-          destinatie?: string | null
-          id?: string
-          numar_palet?: string
-          observatii?: string | null
-          picking_order_id?: string
-          status?: string
-          tip_ambalare?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "productie_picking_pallets_picking_order_id_fkey"
-            columns: ["picking_order_id"]
-            isOneToOne: false
-            referencedRelation: "productie_picking_orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      productie_picking_sessions: {
-        Row: {
-          created_at: string
-          data_picking: string
-          id: string
-          observatii: string | null
-          operator_nume: string
-          ora_inceput: string
-          ora_sfarsit: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          data_picking?: string
-          id?: string
-          observatii?: string | null
-          operator_nume: string
-          ora_inceput?: string
-          ora_sfarsit?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          data_picking?: string
-          id?: string
-          observatii?: string | null
-          operator_nume?: string
-          ora_inceput?: string
-          ora_sfarsit?: string | null
           status?: string
           updated_at?: string
         }
@@ -5251,73 +4917,6 @@ export type Database = {
           },
           {
             foreignKeyName: "productie_restocari_produs_id_fkey"
-            columns: ["produs_id"]
-            isOneToOne: false
-            referencedRelation: "productie_produse"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      productie_restocking: {
-        Row: {
-          cantitate_restocata: number
-          comanda_noua_id: string | null
-          comanda_originala_id: string
-          created_at: string
-          data_restocking: string
-          id: string
-          motiv: string
-          observatii: string | null
-          operator_nume: string
-          produs_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          cantitate_restocata?: number
-          comanda_noua_id?: string | null
-          comanda_originala_id: string
-          created_at?: string
-          data_restocking?: string
-          id?: string
-          motiv: string
-          observatii?: string | null
-          operator_nume: string
-          produs_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          cantitate_restocata?: number
-          comanda_noua_id?: string | null
-          comanda_originala_id?: string
-          created_at?: string
-          data_restocking?: string
-          id?: string
-          motiv?: string
-          observatii?: string | null
-          operator_nume?: string
-          produs_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "productie_restocking_comanda_noua_id_fkey"
-            columns: ["comanda_noua_id"]
-            isOneToOne: false
-            referencedRelation: "productie_comenzi"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "productie_restocking_comanda_originala_id_fkey"
-            columns: ["comanda_originala_id"]
-            isOneToOne: false
-            referencedRelation: "productie_comenzi"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "productie_restocking_produs_id_fkey"
             columns: ["produs_id"]
             isOneToOne: false
             referencedRelation: "productie_produse"
@@ -8055,7 +7654,10 @@ export type Database = {
         Args: { base_date?: string; pattern: Json }
         Returns: string
       }
-      calculate_streak: { Args: { child_uuid: string }; Returns: number }
+      calculate_streak: {
+        Args: { child_uuid: string }
+        Returns: number
+      }
       create_child_account: {
         Args: {
           culoare_favorita_input: string
@@ -8105,9 +7707,18 @@ export type Database = {
         Args: { employee_id: string }
         Returns: string
       }
-      generate_deviz_number: { Args: never; Returns: string }
-      generate_invoice_number: { Args: never; Returns: string }
-      generate_lot_number: { Args: never; Returns: string }
+      generate_deviz_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_invoice_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_lot_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       generate_missing_snapshots: {
         Args: { end_date?: string; start_date?: string }
         Returns: {
@@ -8116,10 +7727,16 @@ export type Database = {
           status: string
         }[]
       }
-      generate_order_number: { Args: never; Returns: string }
-      generate_quote_number: { Args: never; Returns: string }
+      generate_order_number: {
+        Args: Record<PropertyKey, never> | { prefix?: string }
+        Returns: string
+      }
+      generate_quote_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_all_users_for_admin: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           aprobat: boolean
           aprobat_de: string
@@ -8132,11 +7749,26 @@ export type Database = {
           updated_at: string
         }[]
       }
-      get_current_production_user_role: { Args: never; Returns: string }
-      get_current_user_approval_status: { Args: never; Returns: boolean }
-      get_current_user_role: { Args: never; Returns: string }
-      get_next_inventory_entry: { Args: never; Returns: number }
-      is_admin_user: { Args: never; Returns: boolean }
+      get_current_production_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_current_user_approval_status: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_next_inventory_entry: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      is_admin_user: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       reject_user: {
         Args: { rejection_reason?: string; user_id_to_reject: string }
         Returns: boolean

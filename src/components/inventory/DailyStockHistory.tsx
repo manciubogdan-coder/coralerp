@@ -45,6 +45,13 @@ export const DailyStockHistory = () => {
       const crateTypesTable = inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
       const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
       
+      // For ambalaje, we don't have the daily snapshots table yet
+      if (inventoryType === 'ambalaje') {
+        console.log(`Skipping daily snapshots for ${inventoryType} - table doesn't exist yet`);
+        setStockSnapshots([]);
+        setLoading(false);
+        return;
+      }
       
       // Fetch all data with pagination
       const pageSize = 1000;
@@ -104,7 +111,7 @@ export const DailyStockHistory = () => {
 
   useEffect(() => {
     fetchDailyStock();
-  }, [selectedDate, inventoryType]);
+  }, [selectedDate]);
 
   const handleExport = () => {
     const dataToExport = stockSnapshots.map(item => ({
@@ -134,9 +141,7 @@ export const DailyStockHistory = () => {
 
   const triggerSnapshot = async () => {
     try {
-      const { error } = await supabase.functions.invoke('daily-stock-snapshot', {
-        body: { inventoryType },
-      });
+      const { error } = await supabase.functions.invoke('daily-stock-snapshot');
       
       if (error) {
         throw error;
