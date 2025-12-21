@@ -55,12 +55,6 @@ export const DailyStockQuality = () => {
     try {
       setLoading(true);
 
-      if (inventoryType === "ambalaje") {
-        console.log(`Skipping quality view for ${inventoryType} - snapshots not available`);
-        setSnapshots([]);
-        setQualityMap({});
-        return;
-      }
 
       const { data: snapData, error: snapErr } = await supabase
         .from(tableName)
@@ -124,7 +118,7 @@ export const DailyStockQuality = () => {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
+  }, [selectedDate, inventoryType]);
 
   const filteredSnapshots = useMemo(() => {
     if (!productFilter.trim()) return snapshots;
