@@ -50,14 +50,6 @@ export const DailyLotConsumption = () => {
       const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
       const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
       
-      // For ambalaje, we don't have daily snapshots yet, so skip
-      if (inventoryType === 'ambalaje') {
-        console.log(`Skipping daily lot consumption for ${inventoryType} - daily snapshots don't exist yet`);
-        setConsumptionData([]);
-        setFilteredData([]);
-        setLoading(false);
-        return;
-      }
       
       console.log('=== DAILY CONSUMPTION REPORT ===');
       console.log('Selected date:', selectedDate);
@@ -93,16 +85,18 @@ export const DailyLotConsumption = () => {
       if (finalError) throw finalError;
 
       // Get reception records for the selected date to identify actual receipts
+      const receptionTable = inventoryType === 'ambalaje' ? 'ambalaje_reception_records' : 'reception_records';
       const { data: receptionRecords, error: receptionError } = await supabase
-        .from('reception_records')
+        .from(receptionTable)
         .select('name, lot_number, original_quantity')
-        .gte('receipt_date', selectedDate)
-        .lt('receipt_date', `${selectedDate}T23:59:59`);
+        .eq('receipt_date', selectedDate);
+
 
       if (receptionError) throw receptionError;
 
-      // Get transfers for the selected date to track official transfers out  
-      const transferItemsTable = 'stock_transfer_items';
+      // Get transfers for the selected date to track official transfers out
+      const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
+      const transfersTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
       
       const { data: transfersOut, error: transfersError } = await supabase
         .from(transferItemsTable)
@@ -112,11 +106,11 @@ export const DailyLotConsumption = () => {
             name,
             lot_number
           ),
-          stock_transfers!inner (
+          ${transfersTable}!inner (
             transfer_date
           )
         `)
-        .eq('stock_transfers.transfer_date', selectedDate);
+        .eq(`${transfersTable}.transfer_date`, selectedDate);
 
       if (transfersError) throw transfersError;
 
@@ -338,15 +332,6 @@ export const DailyLotConsumption = () => {
     );
   }
 
-  if (inventoryType === 'ambalaje') {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-muted-foreground">
-          Raportul de consum zilnic nu este disponibil pentru ambalaje
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
