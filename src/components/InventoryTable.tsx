@@ -48,15 +48,21 @@ const InventoryTable = ({
     console.log('Export started - displayedInventory length:', displayedInventory.length);
 
     const dataForExport = displayedInventory.map(item => {
-      const productName = item.product_id ? products[item.product_id]?.name : item.name;
+      // IMPORTANT: use item.name (the name stored in inventory table) to keep consistency
+      // between "Stoc Live" and "Stoc Curent" (products table name can differ).
+      const productName = item.name;
       const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
       const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : item.manufacturer;
+      const productCode =
+        item.products?.cod_produs ||
+        (item.product_id ? products[item.product_id]?.cod_produs : undefined) ||
+        "-";
 
       return {
         'Nr.': item.entry_number ?? '-',
         'Data': item.receipt_date ? format(new Date(item.receipt_date), 'dd.MM.yyyy') : '-',
         'Produs': productName || '-',
-        'Cod': products[item.product_id || '']?.cod_produs || '-',
+        'Cod': productCode,
         'Cantitate': Number(item.quantity ?? 0),
         'U.M.': item.unit || '-',
         'Furnizor': supplierName || '-',
@@ -93,7 +99,8 @@ const InventoryTable = ({
     
   const filteredInventory = nonEmptyInventory.filter(item => {
     const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
-    const productName = item.product_id ? products[item.product_id]?.name : item.name;
+    // IMPORTANT: use item.name (inventory table) - products table name can be different/missing.
+    const productName = item.name;
     const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : item.manufacturer;
 
     return (
@@ -119,7 +126,8 @@ const InventoryTable = ({
     const productMap = new Map<string, InventoryItem[]>();
     
     filteredInventory.forEach(item => {
-      const productName = item.product_id ? products[item.product_id]?.name : item.name;
+      // IMPORTANT: group by inventory name so search/grouping matches the "Stoc Live" view.
+      const productName = item.name;
       if (!productMap.has(productName)) {
         productMap.set(productName, []);
       }
@@ -266,9 +274,14 @@ const InventoryTable = ({
           <TableBody>
             {displayedInventory.length > 0 ? (
               displayedInventory.map((item) => {
-                const productName = item.product_id ? products[item.product_id]?.name : item.name;
+                // IMPORTANT: use item.name from inventory (canonical).
+                const productName = item.name;
                 const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
                 const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : item.manufacturer;
+                const productCode =
+                  item.products?.cod_produs ||
+                  (item.product_id ? products[item.product_id]?.cod_produs : undefined) ||
+                  "-";
                 
                 return (
                   <TableRow key={item.id} className={`print:break-inside-avoid ${item.isHeader ? "bg-gray-100 font-medium print:bg-gray-200" : ""}`}>
@@ -281,7 +294,7 @@ const InventoryTable = ({
                     <TableCell className={`px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs ${item.isHeader ? "font-bold" : "font-medium"} truncate`}>
                       {productName}
                     </TableCell>
-                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{products[item.product_id || '']?.cod_produs || '-'}</TableCell>
+                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{productCode}</TableCell>
                     <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs text-right truncate">{formatQuantity(item.quantity)}</TableCell>
                     <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{item.unit}</TableCell>
                     <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{supplierName || '-'}</TableCell>
