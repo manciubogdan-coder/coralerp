@@ -14,63 +14,69 @@ export const useAggregatedStock = (inventory: InventoryItem[]) => {
   const aggregatedData = useMemo(() => {
     const grouped = new Map<string, AggregatedStock>();
 
-    inventory.forEach(item => {
+    const normalizeKey = (value: string) => value.trim().toLowerCase();
+    const getProductName = (item: InventoryItem) => item.products?.name ?? item.name;
+    const getSupplierName = (item: InventoryItem) => item.suppliers?.name ?? item.supplier ?? 'Unknown';
+    const getManufacturerName = (item: InventoryItem) => item.manufacturers?.name ?? item.manufacturer ?? 'Unknown';
+
+    inventory.forEach((item) => {
       let key: string;
-      
+      let displayName: string;
+
       if (groupBy === 'product') {
-        key = `${item.product_id || item.name}`;
+        displayName = getProductName(item);
+        // IMPORTANT: group by product NAME (not product_id) so Ambalaje stays in sync with the “Stoc Produse” view
+        key = `product:${normalizeKey(displayName)}`;
       } else if (groupBy === 'supplier') {
-        key = `${item.supplier_id || item.supplier || 'Unknown'}`;
+        displayName = getSupplierName(item);
+        key = `supplier:${normalizeKey(displayName)}`;
       } else if (groupBy === 'manufacturer') {
-        key = `${item.manufacturer_id || item.manufacturer || 'Unknown'}`;
+        displayName = getManufacturerName(item);
+        key = `manufacturer:${normalizeKey(displayName)}`;
       } else {
         // Group by lot: product + lot number
-        key = `${item.product_id || item.name}-${item.lot_number || 'No_Lot'}`;
+        const productName = getProductName(item);
+        const lot = item.lot_number ?? 'No_Lot';
+        displayName = `${productName} (Lot: ${lot || 'N/A'})`;
+        key = `lot:${normalizeKey(productName)}-${normalizeKey(lot)}`;
       }
 
       if (!grouped.has(key)) {
         // Create base group with first item's data but reset quantities
         grouped.set(key, {
           ...item,
+          name: displayName,
           quantity: 0,
           total_pallets: 0,
           total_crates: 0,
           items: [],
-          isHeader: true
+          isHeader: true,
         });
       }
 
       const group = grouped.get(key)!;
-      // Use quantity (net quantity is now the only quantity stored)
       const itemQuantity = item.quantity || 0;
-      
-      // Debug pentru cantități mari
-      if (item.name && (item.name.toLowerCase().includes('rucola') || Math.abs(itemQuantity) > 1000)) {
-        console.log(`AGREGARE DEBUG - ${item.name}:`, {
-          currentItem: {
-            id: item.id,
-            quantity: itemQuantity,
-            receipt_date: item.receipt_date,
-            lot_number: item.lot_number,
-            entry_number: item.entry_number
-          },
-          currentGroupQuantity: group.quantity,
-          newTotal: (group.quantity || 0) + itemQuantity
-        });
+
+      // If the group was created from an item without product_id/supplier_id/etc,
+      // but we later find one with the IDs filled, keep them for code lookups in UI.
+      if (groupBy === 'product') {
+        if (!group.product_id && item.product_id) group.product_id = item.product_id;
+        if (!group.products && item.products) group.products = item.products;
       }
-      
-      // Aggregate quantities correctly
+      if (groupBy === 'supplier') {
+        if (!group.supplier_id && item.supplier_id) group.supplier_id = item.supplier_id;
+        if (!group.suppliers && item.suppliers) group.suppliers = item.suppliers;
+      }
+      if (groupBy === 'manufacturer') {
+        if (!group.manufacturer_id && item.manufacturer_id) group.manufacturer_id = item.manufacturer_id;
+        if (!group.manufacturers && item.manufacturers) group.manufacturers = item.manufacturers;
+      }
+
+      // Aggregate quantities
       group.quantity = (group.quantity || 0) + itemQuantity;
       group.total_pallets = (group.total_pallets || 0) + 1;
       group.total_crates = (group.total_crates || 0) + 0; // No crate_count anymore
       group.items?.push(item);
-      
-      // Update the group name to use the product name from relations if available
-      if (groupBy === 'product' && item.products?.name) {
-        group.name = item.products.name;
-      } else if (groupBy === 'lot' && item.products?.name) {
-        group.name = `${item.products.name} (Lot: ${item.lot_number || 'N/A'})`;
-      }
     });
 
     return Array.from(grouped.values());
