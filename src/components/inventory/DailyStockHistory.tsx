@@ -135,7 +135,7 @@ export const DailyStockHistory = () => {
   const triggerSnapshot = async () => {
     try {
       const { error } = await supabase.functions.invoke('daily-stock-snapshot', {
-        body: { inventoryType },
+        body: { inventoryType, force: true },
       });
       
       if (error) {
