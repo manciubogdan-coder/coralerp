@@ -113,8 +113,9 @@ const InventoryManagement = () => {
           />
           <div className="bg-white rounded-lg shadow-md">
             <InventoryTable 
-              inventory={aggregatedData} 
+              inventory={aggregatedData}
               showExportButton={true}
+              defaultShowEmptyItems={true}
               suppliers={suppliers.reduce((acc, supplier) => ({ ...acc, [supplier.id]: supplier }), {})}
               products={products.reduce((acc, product) => ({ ...acc, [product.id]: product }), {})}
               manufacturers={manufacturers.reduce((acc, manufacturer) => ({ ...acc, [manufacturer.id]: manufacturer }), {})}

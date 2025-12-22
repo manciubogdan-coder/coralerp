@@ -14,6 +14,11 @@ import { toast } from "@/hooks/use-custom-toast";
 interface InventoryTableProps {
   inventory: InventoryItem[];
   showExportButton?: boolean;
+  /**
+   * Whether to show items with quantity = 0 by default.
+   * Useful to keep "Stoc Curent" consistent with other stock views.
+   */
+  defaultShowEmptyItems?: boolean;
   suppliers?: Record<string, Supplier>;
   products?: Record<string, Product>;
   manufacturers?: Record<string, Manufacturer>;
@@ -23,6 +28,7 @@ interface InventoryTableProps {
 const InventoryTable = ({ 
   inventory, 
   showExportButton = false,
+  defaultShowEmptyItems = false,
   suppliers: propsSuppliers = {},
   products: propsProducts = {},
   manufacturers: propsManufacturers = {},
@@ -31,7 +37,7 @@ const InventoryTable = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [groupBySupplier, setGroupBySupplier] = useState(false);
   const [groupByProduct, setGroupByProduct] = useState(false);
-  const [showEmptyItems, setShowEmptyItems] = useState(false);
+  const [showEmptyItems, setShowEmptyItems] = useState(defaultShowEmptyItems);
   const suppliers = propsSuppliers;
   const products = propsProducts;
   const manufacturers = propsManufacturers;
