@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 
 interface CrateType {
   id: string;

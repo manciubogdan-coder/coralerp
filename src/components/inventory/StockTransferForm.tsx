@@ -25,7 +25,7 @@ import {
 import { FileText } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;

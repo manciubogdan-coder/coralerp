@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar, Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 
 interface DailyStockItem {
   id: string;

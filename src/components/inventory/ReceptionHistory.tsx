@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useGroupedReceptions } from "@/hooks/use-grouped-receptions";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 
 interface ReceptionItem {
   id: string;

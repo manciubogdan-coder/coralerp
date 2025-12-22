@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { CornerDownLeft } from "lucide-react";
 import { CrateType } from "@/types";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 
 interface TransferItem {
   transfer_id: string;

@@ -9,7 +9,7 @@ import { CalendarIcon, FileSpreadsheet, Download, BarChart3, TrendingUp, Users, 
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 import { 
   LineChart, 
   Line, 
