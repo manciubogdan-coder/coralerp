@@ -36,34 +36,47 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { inventoryType = 'main' } = await req.json().catch(() => ({}))
+    const body = await req.json().catch(() => ({} as any))
+    const inventoryType = body?.inventoryType ?? 'main'
+    const force = Boolean(body?.force)
     // Întotdeauna folosim data curentă - salvăm exact stocul de acum
     const snapshotDate = new Date().toISOString().split('T')[0]
 
-    console.log(`Saving CURRENT stock as snapshot for ${inventoryType} inventory, date: ${snapshotDate}`)
+    console.log(`Saving CURRENT stock as snapshot for ${inventoryType} inventory, date: ${snapshotDate}, force: ${force}`)
 
     // Determine table names based on inventory type
     const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory'
     const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots'
 
-    // Check if snapshot already exists for this date
-    const { data: existingSnapshot } = await supabase
-      .from(snapshotTable)
-      .select('id')
-      .eq('snapshot_date', snapshotDate)
-      .limit(1)
+    // If force = true, we replace today's snapshot so the manual button matches "stoc curent"
+    if (force) {
+      console.log(`Force enabled: deleting existing snapshot rows for ${snapshotDate} in ${snapshotTable}`)
+      const { error: deleteError } = await supabase
+        .from(snapshotTable)
+        .delete()
+        .eq('snapshot_date', snapshotDate)
 
-    if (existingSnapshot && existingSnapshot.length > 0) {
-      console.log(`Snapshot already exists for ${snapshotDate} (${inventoryType})`)
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: `Snapshot already exists for ${snapshotDate}`,
-          existing: true,
-          inventoryType 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      if (deleteError) throw deleteError
+    } else {
+      // Check if snapshot already exists for this date
+      const { data: existingSnapshot } = await supabase
+        .from(snapshotTable)
+        .select('id')
+        .eq('snapshot_date', snapshotDate)
+        .limit(1)
+
+      if (existingSnapshot && existingSnapshot.length > 0) {
+        console.log(`Snapshot already exists for ${snapshotDate} (${inventoryType})`)
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: `Snapshot already exists for ${snapshotDate}`,
+            existing: true,
+            inventoryType 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // Get current inventory - exact as it is right now
