@@ -79,15 +79,33 @@ serve(async (req) => {
       }
     }
 
-    // Get current inventory - exact as it is right now
-    const { data: inventory, error: inventoryError } = await supabase
-      .from(inventoryTable)
-      .select('*')
-      .gt('quantity', 0) // Doar intrările cu stoc > 0
+    // Get current inventory - exact as it is right now (with pagination, Supabase default limit is 1000)
+    const pageSize = 1000
+    let offset = 0
+    let allInventory: InventoryItem[] = []
+    let hasMore = true
 
-    if (inventoryError) {
-      throw inventoryError
+    while (hasMore) {
+      const { data: page, error: pageError } = await supabase
+        .from(inventoryTable)
+        .select('*')
+        .gt('quantity', 0) // Doar intrările cu stoc > 0
+        .order('entry_number', { ascending: false })
+        .range(offset, offset + pageSize - 1)
+
+      if (pageError) throw pageError
+
+      const rows = (page ?? []) as InventoryItem[]
+      allInventory = allInventory.concat(rows)
+      offset += pageSize
+      hasMore = rows.length === pageSize
+
+      console.log(`Fetched ${rows.length} rows from ${inventoryTable} (offset ${offset - pageSize})`)
     }
+
+    const inventory = allInventory
+
+    console.log(`Total rows fetched for snapshot (${inventoryType}): ${inventory.length}`)
 
     if (!inventory || inventory.length === 0) {
       console.log(`No ${inventoryType} inventory data found`)
