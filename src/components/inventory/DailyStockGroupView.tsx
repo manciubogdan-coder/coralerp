@@ -60,16 +60,6 @@ export const DailyStockGroupView = () => {
       const crateTypesTable = inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
       const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
       
-      // For ambalaje, we don't have daily snapshots yet
-      if (inventoryType === 'ambalaje') {
-        console.log(`Skipping daily snapshots for ${inventoryType} - table doesn't exist yet`);
-        setStockSnapshots([]);
-        setGroupedData([]);
-        setFilteredGroupedData([]);
-        setFilteredStockSnapshots([]);
-        setLoading(false);
-        return;
-      }
       
       const { data, error } = await supabase
         .from(tableName)
@@ -102,7 +92,7 @@ export const DailyStockGroupView = () => {
       setStockSnapshots(snapshots);
 
       // Fetch quality data for these snapshots (read-only display)
-      const qualityTable = 'daily_stock_quality';
+      const qualityTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_quality' : 'daily_stock_quality';
       if (snapshots.length > 0) {
         const ids = snapshots.map(s => s.id);
         const { data: qData, error: qErr } = await supabase
@@ -164,7 +154,7 @@ export const DailyStockGroupView = () => {
 
   useEffect(() => {
     fetchDailyStock();
-  }, [selectedDate]);
+  }, [selectedDate, inventoryType]);
 
   useEffect(() => {
     if (productFilter.trim() === "") {
@@ -224,7 +214,9 @@ export const DailyStockGroupView = () => {
 
   const triggerSnapshot = async () => {
     try {
-      const { error } = await supabase.functions.invoke('daily-stock-snapshot');
+      const { error } = await supabase.functions.invoke('daily-stock-snapshot', {
+        body: { inventoryType },
+      });
       
       if (error) {
         throw error;
