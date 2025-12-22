@@ -6,7 +6,7 @@ import { Calendar, FileSpreadsheet, ToggleLeft, ToggleRight, Printer } from "luc
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 
 interface DailyStockItem {
   id: string;

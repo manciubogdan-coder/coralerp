@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { supabase } from "@/integrations/supabase/client";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 import { 
   LineChart, 
   Line, 

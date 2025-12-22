@@ -24,7 +24,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { exportToExcel } from "@/lib/excelExport";
 import { TransferReturnForm } from "./TransferReturnForm";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 
 interface TransferHistoryProps {
   onTransferReturned?: () => void;

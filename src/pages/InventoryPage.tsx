@@ -7,7 +7,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import SimpleInventoryTable from "@/components/SimpleInventoryTable";
 import { useInventoryData } from "@/hooks/use-inventory-data";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 
 const InventoryPage = () => {
   const navigate = useNavigate();

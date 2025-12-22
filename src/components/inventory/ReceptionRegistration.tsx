@@ -7,7 +7,7 @@ import { toast } from "@/hooks/use-custom-toast";
 import { Plus, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Product, Supplier, Manufacturer } from "@/types";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 
 interface ReceptionRegistrationProps {
   products: Product[];

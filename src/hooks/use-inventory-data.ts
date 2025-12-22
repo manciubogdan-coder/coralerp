@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { InventoryItem, Supplier, Product, Manufacturer, CrateType } from "@/types";
 import { toast } from "@/hooks/use-custom-toast";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 
 export const useInventoryData = () => {
   const { inventoryType } = useInventoryType();

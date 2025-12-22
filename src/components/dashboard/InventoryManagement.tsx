@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { useInventoryType } from "@/App";
+import { useInventoryType } from "@/context/inventory-type";
 import { useInventoryData } from "@/hooks/use-inventory-data";
 import { useAggregatedStock } from "@/hooks/use-aggregated-stock";
 import { InventoryToolbar } from "@/components/inventory/InventoryToolbar";
