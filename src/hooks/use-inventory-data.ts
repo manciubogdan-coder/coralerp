@@ -18,7 +18,10 @@ export const useInventoryData = () => {
   const fetchInventory = async () => {
     try {
       setLoading(true);
-      
+      // Prevent showing stale data when switching between Materii Prime / Ambalaje
+      setInventory([]);
+      console.log('[useInventoryData] fetchInventory inventoryType:', inventoryType);
+
       const pageSize = 1000;
       let allData: any[] = [];
       let offset = 0;
@@ -78,6 +81,8 @@ export const useInventoryData = () => {
       console.log(`Found ${testProducts.length} test products in inventory:`, testProducts);
       setInventory(allData || []);
     } catch (error: any) {
+      // Clear inventory so we don't keep showing previous inventory type's data
+      setInventory([]);
       toast({
         variant: "destructive",
         title: `Eroare la încărcarea inventarului ${inventoryType}`,

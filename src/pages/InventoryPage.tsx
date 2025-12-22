@@ -7,9 +7,11 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import SimpleInventoryTable from "@/components/SimpleInventoryTable";
 import { useInventoryData } from "@/hooks/use-inventory-data";
+import { useInventoryType } from "@/App";
 
 const InventoryPage = () => {
   const navigate = useNavigate();
+  const { inventoryType } = useInventoryType();
   const { inventory, loading } = useInventoryData();
 
   const handlePrint = () => {
@@ -32,7 +34,9 @@ const InventoryPage = () => {
               <ArrowLeft className="h-4 w-4" />
               Înapoi la Panou
             </Button>
-            <h1 className="text-xl sm:text-2xl font-bold">Stoc Produse</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">
+              Stoc Produse <span className="text-sm font-normal text-muted-foreground">({inventoryType === 'ambalaje' ? 'Ambalaje' : 'Materii Prime'})</span>
+            </h1>
           </div>
           <Button
             variant="outline"

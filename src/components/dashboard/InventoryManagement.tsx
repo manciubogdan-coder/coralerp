@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from "react";
+import { useInventoryType } from "@/App";
 import { useInventoryData } from "@/hooks/use-inventory-data";
 import { useAggregatedStock } from "@/hooks/use-aggregated-stock";
 import { InventoryToolbar } from "@/components/inventory/InventoryToolbar";
@@ -13,6 +14,7 @@ import DailyStockQuality from "@/components/inventory/DailyStockQuality";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const InventoryManagement = () => {
+  const { inventoryType } = useInventoryType();
   const [activeTab, setActiveTab] = useState("all");
   const [viewMode, setViewMode] = useState<"inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption" | "daily-quality">("inventory");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -75,7 +77,10 @@ const InventoryManagement = () => {
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Stoc Depozit</h2>
+        <h2 className="text-xl font-semibold">
+          Stoc Depozit 
+          <span className="text-sm font-normal text-muted-foreground">({inventoryType === 'ambalaje' ? 'Ambalaje' : 'Materii Prime'})</span>
+        </h2>
         <InventoryToolbar
           onTransferComplete={handleAnyDataChange}
           products={products}
