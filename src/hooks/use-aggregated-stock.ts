@@ -15,7 +15,9 @@ export const useAggregatedStock = (inventory: InventoryItem[]) => {
     const grouped = new Map<string, AggregatedStock>();
 
     const normalizeKey = (value: string) => value.trim().toLowerCase();
-    const getProductName = (item: InventoryItem) => item.products?.name ?? item.name;
+    // IMPORTANT: use item.name (the name stored in inventory table) NOT products.name
+    // because sometimes product_id points to a different product name than item.name
+    const getProductName = (item: InventoryItem) => item.name;
     const getSupplierName = (item: InventoryItem) => item.suppliers?.name ?? item.supplier ?? 'Unknown';
     const getManufacturerName = (item: InventoryItem) => item.manufacturers?.name ?? item.manufacturer ?? 'Unknown';
 
