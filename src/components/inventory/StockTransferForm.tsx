@@ -489,6 +489,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         <SelectContent className="bg-white">
                           <SelectItem value="Producție" className="py-3 text-base">Producție</SelectItem>
                           <SelectItem value="Distrugere" className="py-3 text-base">Distrugere</SelectItem>
+                          <SelectItem value="Extern" className="py-3 text-base">Extern</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormControl>
