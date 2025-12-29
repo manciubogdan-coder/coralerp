@@ -1348,6 +1348,54 @@ export type Database = {
         }
         Relationships: []
       }
+      app_profiles: {
+        Row: {
+          approved: boolean | null
+          created_at: string | null
+          email: string
+          id: string
+          name: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          approved?: boolean | null
+          created_at?: string | null
+          email: string
+          id?: string
+          name?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          approved?: boolean | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      app_user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_user_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_user_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_user_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       cash_flow_categories: {
         Row: {
           color: string
@@ -8136,7 +8184,15 @@ export type Database = {
       get_current_user_approval_status: { Args: never; Returns: boolean }
       get_current_user_role: { Args: never; Returns: string }
       get_next_inventory_entry: { Args: never; Returns: number }
+      has_app_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_user_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       is_admin_user: { Args: never; Returns: boolean }
+      is_user_approved: { Args: { _user_id: string }; Returns: boolean }
       reject_user: {
         Args: { rejection_reason?: string; user_id_to_reject: string }
         Returns: boolean
@@ -8165,7 +8221,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      app_user_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -8292,6 +8348,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_user_role: ["admin", "user"],
+    },
   },
 } as const
