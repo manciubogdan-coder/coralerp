@@ -1,11 +1,27 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Clock, LogOut } from 'lucide-react';
+import { Clock, LogOut, Loader2 } from 'lucide-react';
 
 const PendingApprovalPage: React.FC = () => {
-  const { signOut, profile } = useAuth();
+  const { signOut, profile, isApproved, user, isLoading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoading && user && isApproved) {
+      navigate('/', { replace: true });
+    }
+  }, [isApproved, user, isLoading, navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
@@ -17,9 +33,7 @@ const PendingApprovalPage: React.FC = () => {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">În așteptarea aprobării</CardTitle>
-          <CardDescription>
-            Contul tău este în curs de aprobare
-          </CardDescription>
+          <CardDescription>Contul tău este în curs de aprobare</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="bg-muted p-4 rounded-lg space-y-2">
@@ -33,14 +47,9 @@ const PendingApprovalPage: React.FC = () => {
             )}
           </div>
           <p className="text-sm text-center text-muted-foreground">
-            Un administrator va aproba contul tău în curând. 
-            Vei putea accesa aplicația după aprobare.
+            Un administrator va aproba contul tău în curând. Vei putea accesa aplicația după aprobare.
           </p>
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={signOut}
-          >
+          <Button variant="outline" className="w-full" onClick={signOut}>
             <LogOut className="mr-2 h-4 w-4" />
             Deconectare
           </Button>
