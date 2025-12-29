@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Package, Boxes } from "lucide-react";
+import { Package, Boxes, Users, LogOut } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import ProductsPage from "./pages/dashboard/ProductsPage";
 import SuppliersPage from "./pages/dashboard/SuppliersPage";
@@ -17,12 +17,18 @@ import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
 import InventoryOverviewPage from "./pages/InventoryPage";
+import AuthPage from "./pages/AuthPage";
+import PendingApprovalPage from "./pages/PendingApprovalPage";
+import UserManagementPage from "./pages/UserManagementPage";
+import ProtectedRoute from "./components/ProtectedRoute";
 import { InventoryTypeProvider, useInventoryType } from "@/context/inventory-type";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
 const AppShell = () => {
   const { inventoryType, setInventoryType } = useInventoryType();
+  const { isAdmin, signOut } = useAuth();
 
   return (
     <SidebarProvider>
@@ -32,7 +38,7 @@ const AppShell = () => {
           <div className="flex flex-col min-h-screen w-full">
             <div className="flex items-center justify-between p-2 sm:p-4 border-b">
               <SidebarTrigger className="mr-2 sm:mr-4" />
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <Button
                   variant={inventoryType === "materii-prime" ? "default" : "outline"}
                   size="sm"
@@ -50,6 +56,25 @@ const AppShell = () => {
                 >
                   <Boxes size={16} />
                   Ambalaje
+                </Button>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => window.location.href = '/users'}
+                    className="flex items-center gap-2"
+                  >
+                    <Users size={16} />
+                    Utilizatori
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={signOut}
+                  title="Deconectare"
+                >
+                  <LogOut size={16} />
                 </Button>
               </div>
             </div>
@@ -82,9 +107,24 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <InventoryTypeProvider>
-              <AppShell />
-            </InventoryTypeProvider>
+            <AuthProvider>
+              <Routes>
+                <Route path="/auth" element={<AuthPage />} />
+                <Route path="/pending-approval" element={<PendingApprovalPage />} />
+                <Route path="/users" element={
+                  <ProtectedRoute requireAdmin>
+                    <UserManagementPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/*" element={
+                  <ProtectedRoute>
+                    <InventoryTypeProvider>
+                      <AppShell />
+                    </InventoryTypeProvider>
+                  </ProtectedRoute>
+                } />
+              </Routes>
+            </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
