@@ -19,7 +19,8 @@ import {
   Truck, 
   Box, 
   Database,
-  Home
+  Home,
+  Warehouse
 } from 'lucide-react';
 
 const AppSidebar = () => {
@@ -60,9 +61,15 @@ const AppSidebar = () => {
     },
     {
       id: "inventory",
-      name: "Inventar",
+      name: "Inventar Depozit",
       icon: Database,
       path: "/dashboard/inventory",
+    },
+    {
+      id: "production-stock",
+      name: "Stoc Producție",
+      icon: Warehouse,
+      path: "/dashboard/production-stock",
     }
   ];
 

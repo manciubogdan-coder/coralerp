@@ -1046,6 +1046,131 @@ export type Database = {
         }
         Relationships: []
       }
+      ambalaje_production_stock: {
+        Row: {
+          created_at: string
+          document_number: string | null
+          id: string
+          inventory_item_id: string | null
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          product_id: string | null
+          quantity: number
+          supplier_id: string | null
+          transfer_date: string
+          transfer_id: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_number?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          product_id?: string | null
+          quantity?: number
+          supplier_id?: string | null
+          transfer_date?: string
+          transfer_id?: string | null
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_number?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          product_id?: string | null
+          quantity?: number
+          supplier_id?: string | null
+          transfer_date?: string
+          transfer_id?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_production_stock_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_production_stock_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_production_stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_production_stock_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_production_stock_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_stock_transfers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ambalaje_production_stock_history: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          notes: string | null
+          previous_quantity: number | null
+          production_stock_id: string | null
+          quantity: number
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          previous_quantity?: number | null
+          production_stock_id?: string | null
+          quantity: number
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          previous_quantity?: number | null
+          production_stock_id?: string | null
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_production_stock_history_production_stock_id_fkey"
+            columns: ["production_stock_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_production_stock"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ambalaje_products: {
         Row: {
           category: string | null
@@ -5572,6 +5697,138 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      production_stock: {
+        Row: {
+          created_at: string
+          document_number: string | null
+          id: string
+          inventory_item_id: string | null
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          product_id: string | null
+          quantity: number
+          supplier_id: string | null
+          transfer_date: string
+          transfer_id: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_number?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          product_id?: string | null
+          quantity?: number
+          supplier_id?: string | null
+          transfer_date?: string
+          transfer_id?: string | null
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_number?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          product_id?: string | null
+          quantity?: number
+          supplier_id?: string | null
+          transfer_date?: string
+          transfer_id?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_stock_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_stock_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_stock_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_stock_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfer_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_stock_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_stock_history: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          notes: string | null
+          previous_quantity: number | null
+          production_stock_id: string | null
+          quantity: number
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          previous_quantity?: number | null
+          production_stock_id?: string | null
+          quantity: number
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          previous_quantity?: number | null
+          production_stock_id?: string | null
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_stock_history_production_stock_id_fkey"
+            columns: ["production_stock_id"]
+            isOneToOne: false
+            referencedRelation: "production_stock"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       products: {
         Row: {

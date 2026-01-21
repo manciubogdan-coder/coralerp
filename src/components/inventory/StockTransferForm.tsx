@@ -318,6 +318,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
       const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
       const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+      const productionStockTable = inventoryType === 'ambalaje' ? 'ambalaje_production_stock' : 'production_stock';
 
       // Creează transferul principal
       const { data: transfer, error: transferError } = await supabase
@@ -404,6 +405,27 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             });
 
           if (transferItemError) throw transferItemError;
+
+          // Dacă destinația este "Producție", adaugă în stocul producție
+          if (formData.destination === "Producție") {
+            const { error: productionError } = await supabase
+              .from(productionStockTable)
+              .insert({
+                inventory_item_id: inventoryItem.id,
+                transfer_id: transfer.id,
+                product_id: inventoryItem.product_id,
+                supplier_id: inventoryItem.supplier_id,
+                manufacturer_id: inventoryItem.manufacturer_id,
+                name: inventoryItem.name,
+                quantity: netToDeduct,
+                unit: inventoryItem.unit,
+                lot_number: inventoryItem.lot_number,
+                document_number: inventoryItem.document_number,
+                transfer_date: formData.transferDate
+              });
+
+            if (productionError) throw productionError;
+          }
 
           remainingNet -= netToDeduct;
         }
