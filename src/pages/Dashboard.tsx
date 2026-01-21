@@ -1,7 +1,7 @@
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, ShoppingCart, Users, Boxes, BarChart4, BarChart3, FileText } from "lucide-react";
+import { Package, ShoppingCart, Users, Boxes, BarChart4, BarChart3, FileText, Factory } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,6 +21,13 @@ const Dashboard = () => {
       icon: Package,
       route: "/dashboard/inventory",
       description: "Gestionați stocul curent de produse."
+    },
+    {
+      id: "production-stock",
+      name: "Stoc Producție",
+      icon: Factory,
+      route: "/dashboard/production-stock",
+      description: "Gestionați stocul din producție."
     },
     {
       id: "analytics",
