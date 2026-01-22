@@ -8,6 +8,7 @@ import ProductionStockTable from "./ProductionStockTable";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { exportToExcel } from "@/lib/excelExport";
+import { syncProductionStockFromTransfers } from "@/lib/productionStockBackfill";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ro } from "date-fns/locale";
 import { CalendarIcon, Download } from "lucide-react";
@@ -38,6 +39,7 @@ const ProductionStockManagement = () => {
   const [stock, setStock] = useState<ProductionStockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -135,6 +137,34 @@ const ProductionStockManagement = () => {
     });
   };
 
+  const handleSyncFromTransfers = async () => {
+    try {
+      setIsSyncing(true);
+      const result = await syncProductionStockFromTransfers({
+        inventoryType,
+        dateRange,
+      });
+
+      toast({
+        title: "Sincronizare finalizată",
+        description:
+          result.inserted > 0
+            ? `Am adăugat ${result.inserted} poziții lipsă în stocul de producție.`
+            : "Nu au fost găsite poziții lipsă pentru perioada selectată.",
+      });
+
+      setRefreshKey((prev) => prev + 1);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Eroare la sincronizare",
+        description: error.message,
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const formatDateRange = () => {
     if (dateRange.from && dateRange.to) {
       return `${format(dateRange.from, 'dd MMM yyyy', { locale: ro })} - ${format(dateRange.to, 'dd MMM yyyy', { locale: ro })}`;
@@ -200,6 +230,15 @@ const ProductionStockManagement = () => {
             <Button onClick={handleExportStock} variant="outline" className="w-full sm:w-auto">
               <Download className="mr-2 h-4 w-4" />
               Export Excel
+            </Button>
+
+            <Button
+              onClick={handleSyncFromTransfers}
+              variant="outline"
+              className="w-full sm:w-auto"
+              disabled={isSyncing}
+            >
+              {isSyncing ? "Se sincronizează..." : "Sincronizează din transferuri"}
             </Button>
           </div>
 
