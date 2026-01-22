@@ -70,6 +70,17 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [crateTypes, setCrateTypes] = useState<any[]>([]);
   const isMobile = useIsMobile();
 
+  const normalizeDestination = (destination: string) =>
+    (destination ?? "")
+      .trim()
+      .toLowerCase()
+      // remove diacritics (works for RO chars and other accents)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const isProductionDestination = (destination: string) =>
+    normalizeDestination(destination) === "productie";
+
   const form = useForm<TransferFormValues>({
     defaultValues: {
       transferDate: new Date().toISOString().split('T')[0],
@@ -314,6 +325,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSubmitting(true);
 
     try {
+      const toProduction = isProductionDestination(formData.destination);
+
       const transfersTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
       const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
       const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
@@ -407,7 +420,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           if (transferItemError) throw transferItemError;
 
           // Dacă destinația este "Producție", adaugă în stocul producție
-          if (formData.destination === "Producție") {
+          if (toProduction) {
             const { error: productionError } = await supabase
               .from(productionStockTable)
               .insert({
