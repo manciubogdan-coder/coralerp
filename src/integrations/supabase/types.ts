@@ -8449,6 +8449,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin_user: { Args: never; Returns: boolean }
+      is_production_destination: {
+        Args: { p_destination: string }
+        Returns: boolean
+      }
       is_user_approved: { Args: { _user_id: string }; Returns: boolean }
       reject_user: {
         Args: { rejection_reason?: string; user_id_to_reject: string }

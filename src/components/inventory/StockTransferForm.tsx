@@ -70,17 +70,6 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [crateTypes, setCrateTypes] = useState<any[]>([]);
   const isMobile = useIsMobile();
 
-  const normalizeDestination = (destination: string) =>
-    (destination ?? "")
-      .trim()
-      .toLowerCase()
-      // remove diacritics (works for RO chars and other accents)
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-
-  const isProductionDestination = (destination: string) =>
-    normalizeDestination(destination) === "productie";
-
   const form = useForm<TransferFormValues>({
     defaultValues: {
       transferDate: new Date().toISOString().split('T')[0],
@@ -325,13 +314,10 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSubmitting(true);
 
     try {
-      const toProduction = isProductionDestination(formData.destination);
-
       const transfersTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
       const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
       const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
       const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
-      const productionStockTable = inventoryType === 'ambalaje' ? 'ambalaje_production_stock' : 'production_stock';
 
       // Creează transferul principal
       const { data: transfer, error: transferError } = await supabase
@@ -418,27 +404,6 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             });
 
           if (transferItemError) throw transferItemError;
-
-          // Dacă destinația este "Producție", adaugă în stocul producție
-          if (toProduction) {
-            const { error: productionError } = await supabase
-              .from(productionStockTable)
-              .insert({
-                inventory_item_id: inventoryItem.id,
-                transfer_id: transfer.id,
-                product_id: inventoryItem.product_id,
-                supplier_id: inventoryItem.supplier_id,
-                manufacturer_id: inventoryItem.manufacturer_id,
-                name: inventoryItem.name,
-                quantity: netToDeduct,
-                unit: inventoryItem.unit,
-                lot_number: inventoryItem.lot_number,
-                document_number: inventoryItem.document_number,
-                transfer_date: formData.transferDate
-              });
-
-            if (productionError) throw productionError;
-          }
 
           remainingNet -= netToDeduct;
         }
