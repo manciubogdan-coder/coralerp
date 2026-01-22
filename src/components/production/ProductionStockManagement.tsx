@@ -66,10 +66,10 @@ const ProductionStockManagement = () => {
         .order('transfer_date', { ascending: false });
 
       if (dateRange.from) {
-        query = query.gte('transfer_date', format(dateRange.from, 'yyyy-MM-dd'));
+        query = query.gte('transfer_date', format(dateRange.from, 'yyyy-MM-dd') + 'T00:00:00');
       }
       if (dateRange.to) {
-        query = query.lte('transfer_date', format(dateRange.to, 'yyyy-MM-dd'));
+        query = query.lte('transfer_date', format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59');
       }
 
       const { data, error } = await query;
@@ -244,12 +244,10 @@ const ProductionStockHistory = ({ dateRange, setDateRange }: ProductionStockHist
           .order('created_at', { ascending: false });
 
         if (dateRange.from) {
-          query = query.gte('created_at', format(dateRange.from, 'yyyy-MM-dd'));
+          query = query.gte('created_at', format(dateRange.from, 'yyyy-MM-dd') + 'T00:00:00');
         }
         if (dateRange.to) {
-          const nextDay = new Date(dateRange.to);
-          nextDay.setDate(nextDay.getDate() + 1);
-          query = query.lt('created_at', format(nextDay, 'yyyy-MM-dd'));
+          query = query.lte('created_at', format(dateRange.to, 'yyyy-MM-dd') + 'T23:59:59');
         }
 
         const { data, error } = await query;
