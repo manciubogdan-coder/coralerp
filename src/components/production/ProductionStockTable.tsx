@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -17,13 +17,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-custom-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useInventoryType } from "@/context/inventory-type";
 import { ProductionStockItem } from "./ProductionStockManagement";
-import { Minus, RotateCcw, Pencil, Trash2, Search } from "lucide-react";
+import { Minus, RotateCcw, Pencil, Trash2, Search, ChevronDown, ChevronRight } from "lucide-react";
 
 interface ProductionStockTableProps {
   stock: ProductionStockItem[];
@@ -33,9 +38,20 @@ interface ProductionStockTableProps {
 
 type OperationType = 'consumption' | 'return' | 'modify' | 'delete';
 
+// Grup pe produs
+interface AggregatedProduct {
+  productKey: string; // product_id sau name
+  productName: string;
+  codProdus: string | null;
+  unit: string;
+  totalQuantity: number;
+  items: ProductionStockItem[];
+}
+
 const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockTableProps) => {
   const { inventoryType } = useInventoryType();
   const [searchTerm, setSearchTerm] = useState("");
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   const [selectedItem, setSelectedItem] = useState<ProductionStockItem | null>(null);
   const [operationType, setOperationType] = useState<OperationType | null>(null);
   const [quantity, setQuantity] = useState<number>(0);
@@ -55,16 +71,63 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
     ? 'ambalaje_inventory_history'
     : 'inventory_history';
 
-  const filteredStock = stock.filter(item => {
-    const name = item.products?.name || item.name || '';
-    const lotNumber = item.lot_number || '';
-    const supplier = item.suppliers?.name || '';
-    const searchLower = searchTerm.toLowerCase();
+  // Agregare pe produs
+  const aggregatedProducts = useMemo((): AggregatedProduct[] => {
+    const grouped = new Map<string, AggregatedProduct>();
     
-    return name.toLowerCase().includes(searchLower) ||
-           lotNumber.toLowerCase().includes(searchLower) ||
-           supplier.toLowerCase().includes(searchLower);
-  });
+    for (const item of stock) {
+      const productName = item.products?.name || item.name;
+      const productKey = item.product_id || productName;
+      
+      if (!grouped.has(productKey)) {
+        grouped.set(productKey, {
+          productKey,
+          productName,
+          codProdus: item.products?.cod_produs || null,
+          unit: item.unit,
+          totalQuantity: 0,
+          items: [],
+        });
+      }
+      
+      const group = grouped.get(productKey)!;
+      group.totalQuantity += item.quantity;
+      group.items.push(item);
+    }
+    
+    return Array.from(grouped.values()).sort((a, b) => 
+      a.productName.localeCompare(b.productName)
+    );
+  }, [stock]);
+
+  // Filtrare pe baza căutării
+  const filteredProducts = useMemo(() => {
+    if (!searchTerm.trim()) return aggregatedProducts;
+    const searchLower = searchTerm.toLowerCase();
+    return aggregatedProducts.filter(p => {
+      // Caută în numele produsului
+      if (p.productName.toLowerCase().includes(searchLower)) return true;
+      // Caută în codul produsului
+      if (p.codProdus?.toLowerCase().includes(searchLower)) return true;
+      // Caută în loturi/furnizori din items
+      return p.items.some(item => 
+        item.lot_number?.toLowerCase().includes(searchLower) ||
+        item.suppliers?.name?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [aggregatedProducts, searchTerm]);
+
+  const toggleExpand = (productKey: string) => {
+    setExpandedProducts(prev => {
+      const next = new Set(prev);
+      if (next.has(productKey)) {
+        next.delete(productKey);
+      } else {
+        next.add(productKey);
+      }
+      return next;
+    });
+  };
 
   const openOperation = (item: ProductionStockItem, type: OperationType) => {
     setSelectedItem(item);
@@ -95,7 +158,6 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
     try {
       const newQuantity = selectedItem.quantity - quantity;
 
-      // Actualizează stocul
       const { error: updateError } = await supabase
         .from(productionStockTable)
         .update({ quantity: newQuantity })
@@ -103,7 +165,6 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
 
       if (updateError) throw updateError;
 
-      // Adaugă în istoric
       const { error: historyError } = await supabase
         .from(historyTable)
         .insert({
@@ -147,7 +208,6 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
 
     setIsSubmitting(true);
     try {
-      // Scade din stocul producție
       const newProductionQty = selectedItem.quantity - quantity;
       
       const { error: updateError } = await supabase
@@ -157,7 +217,6 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
 
       if (updateError) throw updateError;
 
-      // Adaugă înapoi în inventar dacă avem inventory_item_id
       if (selectedItem.inventory_item_id) {
         const { data: inventoryItem, error: fetchError } = await supabase
           .from(inventoryTable)
@@ -173,7 +232,6 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
             .update({ quantity: newInventoryQty })
             .eq('id', selectedItem.inventory_item_id);
 
-          // Adaugă în istoricul inventarului
           await supabase
             .from(inventoryHistoryTable)
             .insert({
@@ -189,7 +247,6 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
         }
       }
 
-      // Adaugă în istoricul producției
       await supabase
         .from(historyTable)
         .insert({
@@ -263,7 +320,6 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
 
     setIsSubmitting(true);
     try {
-      // Ștergem înregistrarea (sau setăm cantitatea la 0)
       const { error: updateError } = await supabase
         .from(productionStockTable)
         .update({ quantity: 0 })
@@ -329,15 +385,16 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
   const getDialogDescription = () => {
     if (!selectedItem) return '';
     const productName = selectedItem.products?.name || selectedItem.name;
+    const lotInfo = selectedItem.lot_number ? ` (Lot: ${selectedItem.lot_number})` : '';
     switch (operationType) {
       case 'consumption': 
-        return `Introduceți cantitatea de dat în consum pentru "${productName}" (Stoc: ${selectedItem.quantity} ${selectedItem.unit})`;
+        return `Introduceți cantitatea de dat în consum pentru "${productName}"${lotInfo} (Stoc: ${selectedItem.quantity} ${selectedItem.unit})`;
       case 'return': 
-        return `Introduceți cantitatea de returnat în depozit pentru "${productName}" (Stoc: ${selectedItem.quantity} ${selectedItem.unit})`;
+        return `Introduceți cantitatea de returnat în depozit pentru "${productName}"${lotInfo} (Stoc: ${selectedItem.quantity} ${selectedItem.unit})`;
       case 'modify': 
-        return `Modificați cantitatea pentru "${productName}" (Stoc curent: ${selectedItem.quantity} ${selectedItem.unit})`;
+        return `Modificați cantitatea pentru "${productName}"${lotInfo} (Stoc curent: ${selectedItem.quantity} ${selectedItem.unit})`;
       case 'delete': 
-        return `Sigur doriți să ștergeți "${productName}" din stocul producție?`;
+        return `Sigur doriți să ștergeți "${productName}"${lotInfo} din stocul producție?`;
       default: return '';
     }
   };
@@ -352,7 +409,7 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Caută după produs, lot, furnizor..."
+            placeholder="Caută după produs, cod, lot, furnizor..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -360,9 +417,9 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
         </div>
       </div>
 
-      {filteredStock.length === 0 ? (
+      {filteredProducts.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
-          {stock.length === 0 
+          {aggregatedProducts.length === 0 
             ? "Nu există articole în stocul producție."
             : "Nu s-au găsit articole care să corespundă căutării."
           }
@@ -372,74 +429,116 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Produs</TableHead>
-                <TableHead>Lot</TableHead>
-                <TableHead>Furnizor</TableHead>
-                <TableHead className="text-right">Cantitate</TableHead>
+                <TableHead className="text-right">Cantitate Totală</TableHead>
                 <TableHead>Unitate</TableHead>
-                <TableHead>Data Transfer</TableHead>
-                <TableHead className="text-right">Acțiuni</TableHead>
+                <TableHead className="text-right">Nr. Loturi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredStock.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium">
-                    {item.products?.name || item.name}
-                    {item.products?.cod_produs && (
-                      <span className="text-xs text-muted-foreground ml-2">
-                        ({item.products.cod_produs})
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>{item.lot_number || '-'}</TableCell>
-                  <TableCell>{item.suppliers?.name || '-'}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    {item.quantity.toFixed(2)}
-                  </TableCell>
-                  <TableCell>{item.unit}</TableCell>
-                  <TableCell>
-                    {new Date(item.transfer_date).toLocaleDateString('ro-RO')}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex gap-1 justify-end">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => openOperation(item, 'consumption')}
-                        title="Dare în consum"
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => openOperation(item, 'return')}
-                        title="Returnare în depozit"
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => openOperation(item, 'modify')}
-                        title="Modificare"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => openOperation(item, 'delete')}
-                        title="Ștergere"
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filteredProducts.map((product) => {
+                const isExpanded = expandedProducts.has(product.productKey);
+                return (
+                  <React.Fragment key={product.productKey}>
+                    {/* Rând sumar produs */}
+                    <TableRow 
+                      className="cursor-pointer hover:bg-muted/70"
+                      onClick={() => toggleExpand(product.productKey)}
+                    >
+                      <TableCell className="w-8 p-2">
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {product.productName}
+                        {product.codProdus && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            ({product.codProdus})
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-lg">
+                        {product.totalQuantity.toFixed(2)}
+                      </TableCell>
+                      <TableCell>{product.unit}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {product.items.length} lot{product.items.length !== 1 ? 'uri' : ''}
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Detalii pe loturi când expandat */}
+                    {isExpanded && product.items.map((item) => (
+                      <TableRow key={item.id} className="bg-muted/30">
+                        <TableCell></TableCell>
+                        <TableCell colSpan={4}>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-1">
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                              <span>
+                                <span className="text-muted-foreground">Lot:</span>{' '}
+                                <span className="font-medium">{item.lot_number || '-'}</span>
+                              </span>
+                              <span>
+                                <span className="text-muted-foreground">Furnizor:</span>{' '}
+                                {item.suppliers?.name || '-'}
+                              </span>
+                              <span>
+                                <span className="text-muted-foreground">Cantitate:</span>{' '}
+                                <span className="font-medium">{item.quantity.toFixed(2)} {item.unit}</span>
+                              </span>
+                              <span>
+                                <span className="text-muted-foreground">Data:</span>{' '}
+                                {new Date(item.transfer_date).toLocaleDateString('ro-RO')}
+                              </span>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => { e.stopPropagation(); openOperation(item, 'consumption'); }}
+                                title="Dare în consum"
+                              >
+                                <Minus className="h-3 w-3 mr-1" />
+                                Consum
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => { e.stopPropagation(); openOperation(item, 'return'); }}
+                                title="Returnare în depozit"
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                Retur
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => { e.stopPropagation(); openOperation(item, 'modify'); }}
+                                title="Modificare"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={(e) => { e.stopPropagation(); openOperation(item, 'delete'); }}
+                                title="Ștergere"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
