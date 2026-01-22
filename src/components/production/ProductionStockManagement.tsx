@@ -107,16 +107,40 @@ const ProductionStockManagement = () => {
       return;
     }
 
-    const exportData = stock.map(item => ({
-      'Produs': item.products?.name || item.name,
-      'Cod Produs': item.products?.cod_produs || '-',
-      'Lot': item.lot_number || '-',
-      'Furnizor': item.suppliers?.name || '-',
-      'Producător': item.manufacturers?.name || '-',
-      'Cantitate': item.quantity,
+    // Agregare pe produs - la fel ca în tabel
+    const aggregatedMap = new Map<string, {
+      name: string;
+      codProdus: string;
+      unit: string;
+      totalQuantity: number;
+      lotCount: number;
+    }>();
+
+    stock.forEach(item => {
+      const productName = item.products?.name || item.name;
+      const key = `${productName}_${item.unit}`;
+      
+      if (aggregatedMap.has(key)) {
+        const existing = aggregatedMap.get(key)!;
+        existing.totalQuantity += item.quantity;
+        existing.lotCount += 1;
+      } else {
+        aggregatedMap.set(key, {
+          name: productName,
+          codProdus: item.products?.cod_produs || '-',
+          unit: item.unit,
+          totalQuantity: item.quantity,
+          lotCount: 1,
+        });
+      }
+    });
+
+    const exportData = Array.from(aggregatedMap.values()).map(item => ({
+      'Produs': item.name,
+      'Cod Produs': item.codProdus,
+      'Cantitate Totală': item.totalQuantity,
       'Unitate': item.unit,
-      'Data Transfer': format(new Date(item.transfer_date), 'dd.MM.yyyy'),
-      'Nr. Document': item.document_number || '-',
+      'Nr. Loturi': item.lotCount,
     }));
 
     const dateStr = dateRange.from && dateRange.to
@@ -125,7 +149,6 @@ const ProductionStockManagement = () => {
 
     exportToExcel(exportData, `stoc_productie_${inventoryType}_${dateStr}.xlsx`, {
       reportTitle: `Stoc Producție ${inventoryType === 'ambalaje' ? 'Ambalaje' : 'Materii Prime'}`,
-      date: new Date().toISOString(),
       filters: dateRange.from && dateRange.to
         ? `Perioada: ${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')}`
         : undefined,
