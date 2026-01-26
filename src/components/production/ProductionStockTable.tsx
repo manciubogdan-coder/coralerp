@@ -430,7 +430,7 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
       <BulkConsumptionDialog
         open={isBulkDialogOpen}
         onOpenChange={setIsBulkDialogOpen}
-        stock={stock}
+        stock={stock.filter(item => item.quantity > 0)}
         onSuccess={onDataChange}
       />
 
