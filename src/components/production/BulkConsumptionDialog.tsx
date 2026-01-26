@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-custom-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useInventoryType } from "@/context/inventory-type";
@@ -247,7 +246,7 @@ const BulkConsumptionDialog = ({
           </div>
 
           {/* Lista produse cu scroll */}
-          <ScrollArea className="flex-1 h-[400px] border rounded-md">
+          <div className="flex-1 h-[400px] border rounded-md overflow-y-auto">
             <div className="p-2">
               {filteredProducts.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
@@ -361,7 +360,7 @@ const BulkConsumptionDialog = ({
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Note */}
           <div className="space-y-2">
