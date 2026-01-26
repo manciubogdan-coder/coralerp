@@ -296,13 +296,24 @@ const ProductionStockHistory = ({ dateRange, setDateRange }: ProductionStockHist
     const fetchHistory = async () => {
       try {
         setLoading(true);
-        const tableName = inventoryType === 'ambalaje'
+        const historyTable = inventoryType === 'ambalaje'
           ? 'ambalaje_production_stock_history'
           : 'production_stock_history';
+        const stockTable = inventoryType === 'ambalaje'
+          ? 'ambalaje_production_stock'
+          : 'production_stock';
 
         let query = supabase
-          .from(tableName)
-          .select('*')
+          .from(historyTable)
+          .select(`
+            *,
+            production_stock:production_stock_id (
+              name,
+              lot_number,
+              products:product_id (name, cod_produs),
+              suppliers:supplier_id (name)
+            )
+          `)
           .order('created_at', { ascending: false });
 
         if (dateRange.from) {
@@ -358,6 +369,10 @@ const ProductionStockHistory = ({ dateRange, setDateRange }: ProductionStockHist
 
     const exportData = history.map(item => ({
       'Data': format(new Date(item.created_at), 'dd.MM.yyyy HH:mm'),
+      'Produs': item.production_stock?.products?.name || item.production_stock?.name || '-',
+      'Cod Produs': item.production_stock?.products?.cod_produs || '-',
+      'Lot': item.production_stock?.lot_number || '-',
+      'Furnizor': item.production_stock?.suppliers?.name || '-',
       'Acțiune': getActionLabel(item.action),
       'Cantitate': item.quantity,
       'Cantitate Anterioară': item.previous_quantity || '-',
@@ -444,6 +459,9 @@ const ProductionStockHistory = ({ dateRange, setDateRange }: ProductionStockHist
             <thead>
               <tr className="border-b">
                 <th className="text-left p-2">Data</th>
+                <th className="text-left p-2">Produs</th>
+                <th className="text-left p-2">Lot</th>
+                <th className="text-left p-2">Furnizor</th>
                 <th className="text-left p-2">Acțiune</th>
                 <th className="text-right p-2">Cantitate</th>
                 <th className="text-right p-2">Cant. Anterioară</th>
@@ -453,9 +471,17 @@ const ProductionStockHistory = ({ dateRange, setDateRange }: ProductionStockHist
             <tbody>
               {history.map((item) => (
                 <tr key={item.id} className="border-b hover:bg-muted/50">
-                  <td className="p-2">
+                  <td className="p-2 whitespace-nowrap">
                     {new Date(item.created_at).toLocaleString('ro-RO')}
                   </td>
+                  <td className="p-2">
+                    <div className="font-medium">{item.production_stock?.products?.name || item.production_stock?.name || '-'}</div>
+                    {item.production_stock?.products?.cod_produs && (
+                      <div className="text-xs text-muted-foreground">{item.production_stock.products.cod_produs}</div>
+                    )}
+                  </td>
+                  <td className="p-2">{item.production_stock?.lot_number || '-'}</td>
+                  <td className="p-2">{item.production_stock?.suppliers?.name || '-'}</td>
                   <td className={`p-2 font-medium ${getActionColor(item.action)}`}>
                     {getActionLabel(item.action)}
                   </td>
