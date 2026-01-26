@@ -28,7 +28,8 @@ import { toast } from "@/hooks/use-custom-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useInventoryType } from "@/context/inventory-type";
 import { ProductionStockItem } from "./ProductionStockManagement";
-import { Minus, RotateCcw, Pencil, Trash2, Search, ChevronDown, ChevronRight } from "lucide-react";
+import { Minus, RotateCcw, Pencil, Trash2, Search, ChevronDown, ChevronRight, ClipboardList } from "lucide-react";
+import BulkConsumptionDialog from "./BulkConsumptionDialog";
 
 interface ProductionStockTableProps {
   stock: ProductionStockItem[];
@@ -57,6 +58,7 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
   const [quantity, setQuantity] = useState<number>(0);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
 
   const productionStockTable = inventoryType === 'ambalaje' 
     ? 'ambalaje_production_stock' 
@@ -405,8 +407,8 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
 
   return (
     <>
-      <div className="mb-4">
-        <div className="relative">
+      <div className="mb-4 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Caută după produs, cod, lot, furnizor..."
@@ -415,7 +417,22 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
             className="pl-10"
           />
         </div>
+        <Button 
+          onClick={() => setIsBulkDialogOpen(true)}
+          className="w-full sm:w-auto"
+          disabled={stock.length === 0}
+        >
+          <ClipboardList className="mr-2 h-4 w-4" />
+          Bon Consum Bulk
+        </Button>
       </div>
+
+      <BulkConsumptionDialog
+        open={isBulkDialogOpen}
+        onOpenChange={setIsBulkDialogOpen}
+        stock={stock}
+        onSuccess={onDataChange}
+      />
 
       {filteredProducts.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
