@@ -12,20 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-custom-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useInventoryType } from "@/context/inventory-type";
 import { ProductionStockItem } from "./ProductionStockManagement";
-import { Search, Minus, Loader2 } from "lucide-react";
+import { Search, Minus, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 
 interface BulkConsumptionDialogProps {
   open: boolean;
@@ -39,6 +31,15 @@ interface ConsumptionItem {
   quantity: number;
 }
 
+interface AggregatedProduct {
+  productKey: string;
+  productName: string;
+  codProdus: string | null;
+  unit: string;
+  totalQuantity: number;
+  items: ProductionStockItem[];
+}
+
 const BulkConsumptionDialog = ({
   open,
   onOpenChange,
@@ -47,6 +48,7 @@ const BulkConsumptionDialog = ({
 }: BulkConsumptionDialogProps) => {
   const { inventoryType } = useInventoryType();
   const [searchTerm, setSearchTerm] = useState("");
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = useState<Map<string, ConsumptionItem>>(new Map());
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,20 +60,60 @@ const BulkConsumptionDialog = ({
     ? 'ambalaje_production_stock_history'
     : 'production_stock_history';
 
-  // Filtrare stoc
-  const filteredStock = useMemo(() => {
-    if (!searchTerm.trim()) return stock;
-    const searchLower = searchTerm.toLowerCase();
-    return stock.filter(item => {
+  // Agregare pe produs
+  const aggregatedProducts = useMemo((): AggregatedProduct[] => {
+    const grouped = new Map<string, AggregatedProduct>();
+    
+    for (const item of stock) {
       const productName = item.products?.name || item.name;
-      return (
-        productName.toLowerCase().includes(searchLower) ||
-        item.products?.cod_produs?.toLowerCase().includes(searchLower) ||
+      const productKey = item.product_id || productName;
+      
+      if (!grouped.has(productKey)) {
+        grouped.set(productKey, {
+          productKey,
+          productName,
+          codProdus: item.products?.cod_produs || null,
+          unit: item.unit,
+          totalQuantity: 0,
+          items: [],
+        });
+      }
+      
+      const group = grouped.get(productKey)!;
+      group.totalQuantity += item.quantity;
+      group.items.push(item);
+    }
+    
+    return Array.from(grouped.values()).sort((a, b) => 
+      a.productName.localeCompare(b.productName)
+    );
+  }, [stock]);
+
+  // Filtrare pe baza căutării
+  const filteredProducts = useMemo(() => {
+    if (!searchTerm.trim()) return aggregatedProducts;
+    const searchLower = searchTerm.toLowerCase();
+    return aggregatedProducts.filter(p => {
+      if (p.productName.toLowerCase().includes(searchLower)) return true;
+      if (p.codProdus?.toLowerCase().includes(searchLower)) return true;
+      return p.items.some(item => 
         item.lot_number?.toLowerCase().includes(searchLower) ||
         item.suppliers?.name?.toLowerCase().includes(searchLower)
       );
     });
-  }, [stock, searchTerm]);
+  }, [aggregatedProducts, searchTerm]);
+
+  const toggleExpand = (productKey: string) => {
+    setExpandedProducts(prev => {
+      const next = new Set(prev);
+      if (next.has(productKey)) {
+        next.delete(productKey);
+      } else {
+        next.add(productKey);
+      }
+      return next;
+    });
+  };
 
   const toggleItem = (item: ProductionStockItem) => {
     setSelectedItems(prev => {
@@ -98,32 +140,31 @@ const BulkConsumptionDialog = ({
 
   const handleClose = () => {
     setSelectedItems(new Map());
+    setExpandedProducts(new Set());
     setSearchTerm("");
     setNotes("");
     onOpenChange(false);
   };
 
   const handleSubmit = async () => {
-    // Validare
     const items = Array.from(selectedItems.values()).filter(i => i.quantity > 0);
     
     if (items.length === 0) {
       toast({
         variant: "destructive",
         title: "Eroare",
-        description: "Selectați cel puțin un produs și introduceți cantitatea.",
+        description: "Selectați cel puțin un lot și introduceți cantitatea.",
       });
       return;
     }
 
-    // Verifică cantități
     for (const item of items) {
       if (item.quantity > item.stockItem.quantity) {
         const productName = item.stockItem.products?.name || item.stockItem.name;
         toast({
           variant: "destructive",
           title: "Eroare",
-          description: `Cantitatea pentru "${productName}" (${item.quantity}) depășește stocul disponibil (${item.stockItem.quantity}).`,
+          description: `Cantitatea pentru "${productName}" (Lot: ${item.stockItem.lot_number}) - ${item.quantity} depășește stocul disponibil (${item.stockItem.quantity}).`,
         });
         return;
       }
@@ -132,11 +173,9 @@ const BulkConsumptionDialog = ({
     setIsSubmitting(true);
     
     try {
-      // Procesează fiecare item
       for (const item of items) {
         const newQuantity = item.stockItem.quantity - item.quantity;
 
-        // Update stoc producție
         const { error: updateError } = await supabase
           .from(productionStockTable)
           .update({ quantity: newQuantity })
@@ -144,7 +183,6 @@ const BulkConsumptionDialog = ({
 
         if (updateError) throw updateError;
 
-        // Adaugă în istoric
         const { error: historyError } = await supabase
           .from(historyTable)
           .insert({
@@ -160,7 +198,7 @@ const BulkConsumptionDialog = ({
 
       toast({
         title: "Succes",
-        description: `${items.length} articol${items.length > 1 ? 'e' : ''} ${items.length > 1 ? 'au fost date' : 'a fost dat'} în consum.`,
+        description: `${items.length} lot${items.length > 1 ? 'uri' : ''} ${items.length > 1 ? 'au fost date' : 'a fost dat'} în consum.`,
       });
 
       handleClose();
@@ -176,8 +214,12 @@ const BulkConsumptionDialog = ({
     }
   };
 
-  const totalItems = selectedItems.size;
   const itemsWithQuantity = Array.from(selectedItems.values()).filter(i => i.quantity > 0).length;
+
+  // Calculează câte loturi sunt selectate per produs
+  const getSelectedLotsCount = (product: AggregatedProduct) => {
+    return product.items.filter(item => selectedItems.has(item.id)).length;
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -188,7 +230,7 @@ const BulkConsumptionDialog = ({
             Bon Consum Bulk
           </DialogTitle>
           <DialogDescription>
-            Selectați produsele și cantitățile pentru consum rapid. Bifați produsele dorite și introduceți cantitățile.
+            Selectați produsele și loturile pentru consum rapid. Expandați produsele pentru a vedea loturile.
           </DialogDescription>
         </DialogHeader>
 
@@ -204,80 +246,121 @@ const BulkConsumptionDialog = ({
             />
           </div>
 
-          {/* Tabel produse */}
-          <ScrollArea className="flex-1 border rounded-md">
-            <Table>
-              <TableHeader className="sticky top-0 bg-background z-10">
-                <TableRow>
-                  <TableHead className="w-10"></TableHead>
-                  <TableHead>Produs</TableHead>
-                  <TableHead>Lot</TableHead>
-                  <TableHead>Furnizor</TableHead>
-                  <TableHead className="text-right">Stoc</TableHead>
-                  <TableHead className="text-right w-32">Cantitate Consum</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStock.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      Nu s-au găsit produse.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredStock.map((item) => {
-                    const isSelected = selectedItems.has(item.id);
-                    const selectedItem = selectedItems.get(item.id);
-                    const productName = item.products?.name || item.name;
+          {/* Lista produse cu scroll */}
+          <ScrollArea className="flex-1 h-[400px] border rounded-md">
+            <div className="p-2">
+              {filteredProducts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nu s-au găsit produse.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {filteredProducts.map((product) => {
+                    const isExpanded = expandedProducts.has(product.productKey);
+                    const selectedLotsCount = getSelectedLotsCount(product);
                     
                     return (
-                      <TableRow 
-                        key={item.id}
-                        className={isSelected ? "bg-primary/5" : ""}
-                      >
-                        <TableCell>
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleItem(item)}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{productName}</div>
-                          {item.products?.cod_produs && (
-                            <div className="text-xs text-muted-foreground">
-                              {item.products.cod_produs}
+                      <div key={product.productKey} className="border rounded-md overflow-hidden">
+                        {/* Header produs */}
+                        <div 
+                          className="flex items-center gap-3 p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => toggleExpand(product.productKey)}
+                        >
+                          <div className="flex-shrink-0">
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">
+                              {product.productName}
+                              {product.codProdus && (
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  ({product.codProdus})
+                                </span>
+                              )}
                             </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {item.lot_number || '-'}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {item.suppliers?.name || '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {item.quantity.toFixed(2)} {item.unit}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {isSelected && (
-                            <Input
-                              type="number"
-                              min={0}
-                              max={item.quantity}
-                              step={0.01}
-                              value={selectedItem?.quantity || 0}
-                              onChange={(e) => updateQuantity(item.id, parseFloat(e.target.value) || 0)}
-                              className="w-28 text-right"
-                              placeholder="0"
-                            />
-                          )}
-                        </TableCell>
-                      </TableRow>
+                            <div className="text-xs text-muted-foreground">
+                              {product.items.length} lot{product.items.length !== 1 ? 'uri' : ''} disponibil{product.items.length !== 1 ? 'e' : ''}
+                              {selectedLotsCount > 0 && (
+                                <span className="text-primary ml-2">
+                                  • {selectedLotsCount} selectat{selectedLotsCount !== 1 ? 'e' : ''}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="text-right flex-shrink-0">
+                            <div className="font-bold">
+                              {product.totalQuantity.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {product.unit}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Loturi expandate */}
+                        {isExpanded && (
+                          <div className="border-t bg-background">
+                            {product.items.map((item) => {
+                              const isSelected = selectedItems.has(item.id);
+                              const selectedItem = selectedItems.get(item.id);
+                              
+                              return (
+                                <div 
+                                  key={item.id}
+                                  className={`flex items-center gap-3 p-3 border-b last:border-b-0 ${isSelected ? 'bg-primary/5' : ''}`}
+                                >
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleItem(item)}
+                                  />
+                                  
+                                  <div className="flex-1 grid grid-cols-3 gap-2 text-sm">
+                                    <div>
+                                      <span className="text-muted-foreground">Lot:</span>{' '}
+                                      <span className="font-medium">{item.lot_number || '-'}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">Furnizor:</span>{' '}
+                                      {item.suppliers?.name || '-'}
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-muted-foreground">Stoc:</span>{' '}
+                                      <span className="font-medium">{item.quantity.toFixed(2)} {item.unit}</span>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="w-28 flex-shrink-0">
+                                    {isSelected && (
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        max={item.quantity}
+                                        step={0.01}
+                                        value={selectedItem?.quantity || 0}
+                                        onChange={(e) => updateQuantity(item.id, parseFloat(e.target.value) || 0)}
+                                        className="text-right h-8"
+                                        placeholder="0"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                  })}
+                </div>
+              )}
+            </div>
           </ScrollArea>
 
           {/* Note */}
@@ -295,9 +378,9 @@ const BulkConsumptionDialog = ({
 
         <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
           <div className="text-sm text-muted-foreground mr-auto">
-            {totalItems > 0 && (
+            {selectedItems.size > 0 && (
               <span>
-                {itemsWithQuantity} din {totalItems} produse selectate cu cantitate
+                {itemsWithQuantity} lot{itemsWithQuantity !== 1 ? 'uri' : ''} cu cantitate specificată
               </span>
             )}
           </div>
@@ -314,7 +397,7 @@ const BulkConsumptionDialog = ({
                 Se procesează...
               </>
             ) : (
-              `Confirmă Consum (${itemsWithQuantity} articole)`
+              `Confirmă Consum (${itemsWithQuantity} loturi)`
             )}
           </Button>
         </DialogFooter>
