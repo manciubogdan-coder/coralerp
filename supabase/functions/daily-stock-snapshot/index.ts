@@ -45,8 +45,16 @@ serve(async (req) => {
     console.log(`Saving CURRENT stock as snapshot for ${inventoryType} inventory, date: ${snapshotDate}, force: ${force}`)
 
     // Determine table names based on inventory type
-    const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory'
-    const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots'
+    const inventoryTable = inventoryType === 'ambalaje'
+      ? 'ambalaje_inventory'
+      : inventoryType === 'etichete'
+        ? 'etichete_inventory'
+        : 'inventory'
+    const snapshotTable = inventoryType === 'ambalaje'
+      ? 'ambalaje_daily_stock_snapshots'
+      : inventoryType === 'etichete'
+        ? 'etichete_daily_stock_snapshots'
+        : 'daily_stock_snapshots'
 
     // If force = true, we replace today's snapshot so the manual button matches "stoc curent"
     if (force) {
