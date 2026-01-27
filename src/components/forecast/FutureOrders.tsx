@@ -29,6 +29,12 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
   const [orders, setOrders] = useState<FutureOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const chunk = <T,>(arr: T[], size: number) => {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  };
+
   const getTableNames = () => {
     switch (inventoryType) {
       case "ambalaje":
@@ -76,11 +82,6 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
       const { data: settingsData } = await supabase
         .from(tables.settings)
         .select("*");
-
-      // Fetch ALL inventory for product mapping
-      const { data: allInventoryData } = await supabase
-        .from(tables.inventory)
-        .select("id, product_id, quantity");
 
       const { data: inventoryData } = await supabase
         .from(tables.inventory)
@@ -130,45 +131,54 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
         })
         .map(t => t.id);
 
-      let productConsumption = new Map<string, number>();
-      
-      // Build inventory to product map from ALL inventory items
-      const inventoryProductMap = new Map<string, string>();
-      (allInventoryData || []).forEach((item: any) => {
-        if (item.product_id) inventoryProductMap.set(item.id, item.product_id);
-      });
-      
+      // Fetch transfer items in batches (avoid URL length limits)
+      const batchSize = 50;
+      let allTransferItems: Array<{ quantity: number; inventory_item_id: string }> = [];
       if (productionTransferIds.length > 0) {
-        // Fetch transfer items with pagination
-        let allTransferItems: any[] = [];
-        let itemPage = 0;
-        let itemHasMore = true;
-        
-        while (itemHasMore) {
-          const { data: pageData, error: pageError } = await supabase
-            .from(tables.transfers)
-            .select("quantity, inventory_item_id")
-            .in("transfer_id", productionTransferIds)
-            .range(itemPage * pageSize, (itemPage + 1) * pageSize - 1);
-          
-          if (pageError) throw pageError;
-          
-          if (pageData && pageData.length > 0) {
-            allTransferItems = [...allTransferItems, ...pageData];
-            itemHasMore = pageData.length === pageSize;
-            itemPage++;
-          } else {
-            itemHasMore = false;
+        for (const batch of chunk(productionTransferIds, batchSize)) {
+          let offset = 0;
+          let hasMoreItems = true;
+          while (hasMoreItems) {
+            const { data: pageData, error: pageError } = await supabase
+              .from(tables.transfers)
+              .select("quantity, inventory_item_id")
+              .in("transfer_id", batch)
+              .order("created_at", { ascending: true })
+              .range(offset, offset + pageSize - 1);
+
+            if (pageError) throw pageError;
+            if (pageData && pageData.length > 0) {
+              allTransferItems = [...allTransferItems, ...(pageData as any[])];
+              hasMoreItems = pageData.length === pageSize;
+              offset += pageSize;
+            } else {
+              hasMoreItems = false;
+            }
           }
         }
+      }
 
-        allTransferItems.forEach(t => {
-          const productId = inventoryProductMap.get(t.inventory_item_id);
-          if (productId) {
-            productConsumption.set(productId, (productConsumption.get(productId) || 0) + t.quantity);
-          }
+      // Map inventory_item_id -> product_id in batches
+      const inventoryItemIds = [...new Set(allTransferItems.map(t => t.inventory_item_id))];
+      const inventoryProductMap = new Map<string, string>();
+      for (const batch of chunk(inventoryItemIds, batchSize)) {
+        const { data: invData, error: invError } = await supabase
+          .from(tables.inventory)
+          .select("id, product_id")
+          .in("id", batch);
+        if (invError) throw invError;
+        (invData || []).forEach((row: any) => {
+          if (row?.product_id) inventoryProductMap.set(row.id, row.product_id);
         });
       }
+
+      // Aggregate consumption per product
+      const productConsumption = new Map<string, number>();
+      allTransferItems.forEach(t => {
+        const productId = inventoryProductMap.get(t.inventory_item_id);
+        if (!productId) return;
+        productConsumption.set(productId, (productConsumption.get(productId) || 0) + t.quantity);
+      });
 
       const stockByProduct = new Map<string, number>();
       (inventoryData || []).forEach((item: any) => {
