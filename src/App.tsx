@@ -15,6 +15,7 @@ import CrateTypesPage from "./pages/dashboard/CrateTypesPage";
 import InventoryPage from "./pages/dashboard/InventoryPage";
 import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import ProductionStockPage from "./pages/dashboard/ProductionStockPage";
+import ForecastPage from "./pages/dashboard/ForecastPage";
 import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
 import InventoryOverviewPage from "./pages/InventoryPage";
@@ -100,6 +101,7 @@ const AppShell = () => {
                 <Route path="/dashboard/inventory" element={<InventoryPage />} />
                 <Route path="/dashboard/analytics" element={<AnalyticsPage />} />
                 <Route path="/dashboard/production-stock" element={<ProductionStockPage />} />
+                <Route path="/dashboard/forecast" element={<ForecastPage />} />
                 <Route path="/inventory" element={<InventoryOverviewPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
