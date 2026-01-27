@@ -631,94 +631,117 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                       </div>
                       
                       <div className="space-y-3">
-                        {/* Cantitate brută pentru calcul */}
-                        <div>
-                          <label className="text-sm">Cantitate brută {item.unit} (pentru calcul)</label>
-                          <Input
-                            type="number"
-                            value={item.grossQuantity || ''}
-                            onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)}
-                            min={0}
-                            step="0.01"
-                            placeholder="Introduceți cantitatea brută"
-                            className={isMobile ? 'h-12' : ''}
-                          />
-                        </div>
-
-                        {/* Selector tip lădiță */}
-                        <div>
-                          <label className="text-sm">Tip lădiță</label>
-                          <Select
-                            value={item.crateTypeId || "no-crate"}
-                            onValueChange={(value) => handleCrateTypeChange(index, value)}
-                          >
-                            <SelectTrigger className={isMobile ? 'h-12' : ''}>
-                              <SelectValue placeholder="Selectează tipul de lădiță" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white">
-                              <SelectItem value="no-crate">Fără lăzi</SelectItem>
-                              {crateTypes.map(crateType => (
-                                <SelectItem key={crateType.id} value={crateType.id}>
-                                  {crateType.name} ({crateType.weight} kg)
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Număr lăzi */}
-                        <div>
-                          <label className="text-sm">Numărul de lăzi</label>
-                          <Input
-                            type="number"
-                            value={item.crateCount || ''}
-                            onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
-                            placeholder="Numărul de lăzi"
-                            disabled={!item.crateTypeId}
-                            className={isMobile ? 'h-12' : ''}
-                          />
-                        </div>
-
-                        {/* Greutatea paletului */}
-                        <div>
-                          <label className="text-sm">Greutatea paletului (kg)</label>
-                          <Input
-                            type="number"
-                            value={item.crateWeight || ''}
-                            onChange={(e) => handleCrateWeightChange(index, parseFloat(e.target.value) || 0)}
-                            placeholder="Greutatea paletului"
-                            step="0.01"
-                            className={isMobile ? 'h-12' : ''}
-                          />
-                        </div>
-
-                        {/* Afișare cantitate netă calculată */}
-                        {item.netQuantity !== undefined && (
-                          <div className="p-2 bg-blue-50 rounded border">
-                            <label className="text-sm font-medium text-blue-700">
-                              Cantitate netă calculată: {item.netQuantity.toFixed(2)} {item.unit}
-                            </label>
+                        {/* Pentru Etichete - doar cantitate simplă */}
+                        {inventoryType === 'etichete' ? (
+                          <div>
+                            <label className="text-sm">Cantitate de transferat ({item.unit})</label>
+                            <Input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
+                              min={0}
+                              max={item.maxQuantity}
+                              step="1"
+                              className={isMobile ? 'h-12' : ''}
+                            />
+                            {!isQuantityValid(item) && (
+                              <p className="text-xs text-red-600 mt-1">
+                                Cantitatea trebuie să fie între 1 și {item.maxQuantity} {item.unit}
+                              </p>
+                            )}
                           </div>
-                        )}
+                        ) : (
+                          <>
+                            {/* Cantitate brută pentru calcul - doar pentru Materii Prime și Ambalaje */}
+                            <div>
+                              <label className="text-sm">Cantitate brută {item.unit} (pentru calcul)</label>
+                              <Input
+                                type="number"
+                                value={item.grossQuantity || ''}
+                                onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)}
+                                min={0}
+                                step="0.01"
+                                placeholder="Introduceți cantitatea brută"
+                                className={isMobile ? 'h-12' : ''}
+                              />
+                            </div>
 
-                        {/* Cantitate finală de transfer */}
-                        <div>
-                          <label className="text-sm">Cantitate finală de transferat {item.unit}</label>
-                          <Input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
-                            min={0}
-                            max={item.maxQuantity}
-                            step="0.01"
-                            className={isMobile ? 'h-12' : ''}
-                          />
-                          {!isQuantityValid(item) && (
-                            <p className="text-xs text-red-600 mt-1">
-                              Cantitatea trebuie să fie între 0.01 și {item.maxQuantity.toFixed(2)} {item.unit}
-                            </p>
-                          )}
-                        </div>
+                            {/* Selector tip lădiță */}
+                            <div>
+                              <label className="text-sm">Tip lădiță</label>
+                              <Select
+                                value={item.crateTypeId || "no-crate"}
+                                onValueChange={(value) => handleCrateTypeChange(index, value)}
+                              >
+                                <SelectTrigger className={isMobile ? 'h-12' : ''}>
+                                  <SelectValue placeholder="Selectează tipul de lădiță" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white">
+                                  <SelectItem value="no-crate">Fără lăzi</SelectItem>
+                                  {crateTypes.map(crateType => (
+                                    <SelectItem key={crateType.id} value={crateType.id}>
+                                      {crateType.name} ({crateType.weight} kg)
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Număr lăzi */}
+                            <div>
+                              <label className="text-sm">Numărul de lăzi</label>
+                              <Input
+                                type="number"
+                                value={item.crateCount || ''}
+                                onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
+                                placeholder="Numărul de lăzi"
+                                disabled={!item.crateTypeId}
+                                className={isMobile ? 'h-12' : ''}
+                              />
+                            </div>
+
+                            {/* Greutatea paletului */}
+                            <div>
+                              <label className="text-sm">Greutatea paletului (kg)</label>
+                              <Input
+                                type="number"
+                                value={item.crateWeight || ''}
+                                onChange={(e) => handleCrateWeightChange(index, parseFloat(e.target.value) || 0)}
+                                placeholder="Greutatea paletului"
+                                step="0.01"
+                                className={isMobile ? 'h-12' : ''}
+                              />
+                            </div>
+
+                            {/* Afișare cantitate netă calculată */}
+                            {item.netQuantity !== undefined && (
+                              <div className="p-2 bg-blue-50 rounded border">
+                                <label className="text-sm font-medium text-blue-700">
+                                  Cantitate netă calculată: {item.netQuantity.toFixed(2)} {item.unit}
+                                </label>
+                              </div>
+                            )}
+
+                            {/* Cantitate finală de transfer */}
+                            <div>
+                              <label className="text-sm">Cantitate finală de transferat {item.unit}</label>
+                              <Input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
+                                min={0}
+                                max={item.maxQuantity}
+                                step="0.01"
+                                className={isMobile ? 'h-12' : ''}
+                              />
+                              {!isQuantityValid(item) && (
+                                <p className="text-xs text-red-600 mt-1">
+                                  Cantitatea trebuie să fie între 0.01 și {item.maxQuantity.toFixed(2)} {item.unit}
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
