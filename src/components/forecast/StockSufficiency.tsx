@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, FileDown, TrendingDown, TrendingUp, Minus } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { format, addDays, startOfDay, endOfDay } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import * as XLSX from "xlsx";
 
 interface StockSufficiencyProps {
@@ -75,52 +76,99 @@ const StockSufficiency: React.FC<StockSufficiencyProps> = ({ inventoryType }) =>
     try {
       const tables = getTableNames();
       const periodDays = getPeriodDays(period);
-      const startDate = format(addDays(new Date(), -periodDays), "yyyy-MM-dd");
+      const isTimestampRange = inventoryType === "etichete";
+      const tz = "Europe/Bucharest";
+      
+      const fromDate = addDays(new Date(), -periodDays);
+      const toDate = new Date();
+      
+      const startDateStr = isTimestampRange
+        ? formatInTimeZone(startOfDay(fromDate), tz, "yyyy-MM-dd'T'HH:mm:ssXXX")
+        : format(fromDate, "yyyy-MM-dd");
+      const endDateStr = isTimestampRange
+        ? formatInTimeZone(endOfDay(toDate), tz, "yyyy-MM-dd'T'HH:mm:ssXXX")
+        : format(toDate, "yyyy-MM-dd");
 
       const { data: productsData } = await supabase
         .from(tables.products)
         .select("id, name, cod_produs, default_unit");
 
+      // Fetch ALL inventory items for product mapping
+      const { data: allInventoryData } = await supabase
+        .from(tables.inventory)
+        .select("id, product_id, quantity");
+
+      // Current stock
       const { data: inventoryData } = await supabase
         .from(tables.inventory)
         .select("product_id, quantity")
         .gt("quantity", 0);
 
-      const { data: transfersMainData } = await supabase
-        .from(tables.transfersMain)
-        .select("id, destination")
-        .gte("transfer_date", startDate);
+      // Fetch ALL transfers with pagination
+      let allTransfersMain: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data: pageData, error: pageError } = await supabase
+          .from(tables.transfersMain)
+          .select("id, destination, transfer_date")
+          .gte("transfer_date", startDateStr)
+          .lte("transfer_date", endDateStr)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (pageError) throw pageError;
+        
+        if (pageData && pageData.length > 0) {
+          allTransfersMain = [...allTransfersMain, ...pageData];
+          hasMore = pageData.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
 
-      const productionTransferIds = (transfersMainData || [])
+      const productionTransferIds = allTransfersMain
         .filter(t => {
           const dest = (t.destination || "").toLowerCase();
-          return dest.includes("produc");
+          return dest.includes("produc") || dest.includes("producție") || dest.includes("productie");
         })
         .map(t => t.id);
 
       let productConsumption = new Map<string, number>();
-      let inventoryProductMap = new Map<string, string>();
+      
+      // Build inventory to product map from ALL inventory items
+      const inventoryProductMap = new Map<string, string>();
+      (allInventoryData || []).forEach((item: any) => {
+        if (item.product_id) inventoryProductMap.set(item.id, item.product_id);
+      });
       
       if (productionTransferIds.length > 0) {
-        const { data: transferItemsData } = await supabase
-          .from(tables.transfers)
-          .select("quantity, inventory_item_id")
-          .in("transfer_id", productionTransferIds);
-
-        const inventoryItemIds = [...new Set((transferItemsData || []).map(t => t.inventory_item_id))];
+        // Fetch transfer items with pagination
+        let allTransferItems: any[] = [];
+        let itemPage = 0;
+        let itemHasMore = true;
         
-        if (inventoryItemIds.length > 0) {
-          const { data: invData } = await supabase
-            .from(tables.inventory)
-            .select("id, product_id")
-            .in("id", inventoryItemIds);
+        while (itemHasMore) {
+          const { data: pageData, error: pageError } = await supabase
+            .from(tables.transfers)
+            .select("quantity, inventory_item_id")
+            .in("transfer_id", productionTransferIds)
+            .range(itemPage * pageSize, (itemPage + 1) * pageSize - 1);
           
-          (invData || []).forEach((item: any) => {
-            if (item.product_id) inventoryProductMap.set(item.id, item.product_id);
-          });
+          if (pageError) throw pageError;
+          
+          if (pageData && pageData.length > 0) {
+            allTransferItems = [...allTransferItems, ...pageData];
+            itemHasMore = pageData.length === pageSize;
+            itemPage++;
+          } else {
+            itemHasMore = false;
+          }
         }
 
-        (transferItemsData || []).forEach(t => {
+        allTransferItems.forEach(t => {
           const productId = inventoryProductMap.get(t.inventory_item_id);
           if (productId) {
             productConsumption.set(productId, (productConsumption.get(productId) || 0) + t.quantity);

@@ -4,7 +4,8 @@ import { toast } from "@/hooks/use-custom-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertTriangle, ShoppingCart } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { format, addDays, startOfDay, endOfDay } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 
 interface OrderTodayProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -65,6 +66,8 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
     setLoading(true);
     try {
       const tables = getTableNames();
+      const isTimestampRange = inventoryType === "etichete";
+      const tz = "Europe/Bucharest";
 
       // Fetch products with settings
       const { data: productsData } = await supabase
@@ -75,6 +78,11 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
         .from(tables.settings)
         .select("*");
 
+      // Fetch ALL inventory for product mapping
+      const { data: allInventoryData } = await supabase
+        .from(tables.inventory)
+        .select("id, product_id, quantity");
+
       // Fetch current stock
       const { data: inventoryData } = await supabase
         .from(tables.inventory)
@@ -82,45 +90,81 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
         .gt("quantity", 0);
 
       // Calculate average consumption from last 30 days
-      const thirtyDaysAgo = format(addDays(new Date(), -30), "yyyy-MM-dd");
+      const fromDate = addDays(new Date(), -30);
+      const toDate = new Date();
       
-      // First get production transfers
-      const { data: transfersMainData } = await supabase
-        .from(tables.transfersMain)
-        .select("id, destination")
-        .gte("transfer_date", thirtyDaysAgo);
+      const fromStr = isTimestampRange
+        ? formatInTimeZone(startOfDay(fromDate), tz, "yyyy-MM-dd'T'HH:mm:ssXXX")
+        : format(fromDate, "yyyy-MM-dd");
+      const toStr = isTimestampRange
+        ? formatInTimeZone(endOfDay(toDate), tz, "yyyy-MM-dd'T'HH:mm:ssXXX")
+        : format(toDate, "yyyy-MM-dd");
+      
+      // Fetch ALL transfers with pagination
+      let allTransfersMain: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data: pageData, error: pageError } = await supabase
+          .from(tables.transfersMain)
+          .select("id, destination, transfer_date")
+          .gte("transfer_date", fromStr)
+          .lte("transfer_date", toStr)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (pageError) throw pageError;
+        
+        if (pageData && pageData.length > 0) {
+          allTransfersMain = [...allTransfersMain, ...pageData];
+          hasMore = pageData.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
 
-      const productionTransferIds = (transfersMainData || [])
+      const productionTransferIds = allTransfersMain
         .filter(t => {
           const dest = (t.destination || "").toLowerCase();
-          return dest.includes("produc");
+          return dest.includes("produc") || dest.includes("producție") || dest.includes("productie");
         })
         .map(t => t.id);
 
       let productConsumption = new Map<string, number>();
       
+      // Build inventory to product map from ALL inventory items
+      const inventoryProductMap = new Map<string, string>();
+      (allInventoryData || []).forEach((item: any) => {
+        if (item.product_id) inventoryProductMap.set(item.id, item.product_id);
+      });
+      
       if (productionTransferIds.length > 0) {
-        const { data: transferItemsData } = await supabase
-          .from(tables.transfers)
-          .select("quantity, inventory_item_id")
-          .in("transfer_id", productionTransferIds);
-
-        // Get inventory items mapping
-        const inventoryItemIds = [...new Set((transferItemsData || []).map(t => t.inventory_item_id))];
-        let inventoryProductMap = new Map<string, string>();
+        // Fetch transfer items with pagination
+        let allTransferItems: any[] = [];
+        let itemPage = 0;
+        let itemHasMore = true;
         
-        if (inventoryItemIds.length > 0) {
-          const { data: invData } = await supabase
-            .from(tables.inventory)
-            .select("id, product_id")
-            .in("id", inventoryItemIds);
+        while (itemHasMore) {
+          const { data: pageData, error: pageError } = await supabase
+            .from(tables.transfers)
+            .select("quantity, inventory_item_id")
+            .in("transfer_id", productionTransferIds)
+            .range(itemPage * pageSize, (itemPage + 1) * pageSize - 1);
           
-          (invData || []).forEach((item: any) => {
-            if (item.product_id) inventoryProductMap.set(item.id, item.product_id);
-          });
+          if (pageError) throw pageError;
+          
+          if (pageData && pageData.length > 0) {
+            allTransferItems = [...allTransferItems, ...pageData];
+            itemHasMore = pageData.length === pageSize;
+            itemPage++;
+          } else {
+            itemHasMore = false;
+          }
         }
 
-        (transferItemsData || []).forEach(t => {
+        allTransferItems.forEach(t => {
           const productId = inventoryProductMap.get(t.inventory_item_id);
           if (productId) {
             productConsumption.set(productId, (productConsumption.get(productId) || 0) + t.quantity);

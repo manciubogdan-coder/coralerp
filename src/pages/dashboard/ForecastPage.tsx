@@ -43,17 +43,13 @@ const ForecastPage = () => {
         </div>
         
         <div className="bg-white rounded-lg shadow-md p-4">
-          <Tabs defaultValue="settings" className="w-full">
+        <Tabs defaultValue="consumption" className="w-full">
             <TabsList className="grid w-full grid-cols-4 mb-4">
-              <TabsTrigger value="settings">Setări Produse</TabsTrigger>
               <TabsTrigger value="consumption">Raport Consum</TabsTrigger>
               <TabsTrigger value="forecast">Forecast</TabsTrigger>
               <TabsTrigger value="sufficiency">Zile Stoc</TabsTrigger>
+              <TabsTrigger value="settings">Setări Produse</TabsTrigger>
             </TabsList>
-            
-            <TabsContent value="settings">
-              <ProductOrderSettings inventoryType={inventoryType} />
-            </TabsContent>
             
             <TabsContent value="consumption">
               <ConsumptionReport inventoryType={inventoryType} />
@@ -65,6 +61,10 @@ const ForecastPage = () => {
             
             <TabsContent value="sufficiency">
               <StockSufficiency inventoryType={inventoryType} />
+            </TabsContent>
+            
+            <TabsContent value="settings">
+              <ProductOrderSettings inventoryType={inventoryType} />
             </TabsContent>
           </Tabs>
         </div>
