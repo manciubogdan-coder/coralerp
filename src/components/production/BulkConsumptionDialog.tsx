@@ -52,12 +52,16 @@ const BulkConsumptionDialog = ({
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const productionStockTable = inventoryType === 'ambalaje' 
-    ? 'ambalaje_production_stock' 
-    : 'production_stock';
+  const productionStockTable = inventoryType === 'ambalaje'
+    ? 'ambalaje_production_stock'
+    : inventoryType === 'etichete'
+      ? 'etichete_production_stock'
+      : 'production_stock';
   const historyTable = inventoryType === 'ambalaje'
     ? 'ambalaje_production_stock_history'
-    : 'production_stock_history';
+    : inventoryType === 'etichete'
+      ? 'etichete_production_stock_history'
+      : 'production_stock_history';
 
   // Agregare pe produs
   const aggregatedProducts = useMemo((): AggregatedProduct[] => {
