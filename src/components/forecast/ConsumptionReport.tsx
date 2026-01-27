@@ -88,19 +88,40 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
         ? formatInTimeZone(to, tz, "yyyy-MM-dd'T'HH:mm:ssXXX")
         : format(to, "yyyy-MM-dd");
 
-      const { data: transfersMainData, error: transfersMainError } = await supabase
-        .from(tables.transfersMain)
-        .select("id, transfer_date, destination")
-        .gte("transfer_date", fromStr)
-        .lte("transfer_date", toStr);
-
-      if (transfersMainError) throw transfersMainError;
+      // Fetch ALL transfers in date range using pagination (Supabase default limit is 1000)
+      let allTransfersMain: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data: pageData, error: pageError } = await supabase
+          .from(tables.transfersMain)
+          .select("id, transfer_date, destination")
+          .gte("transfer_date", fromStr)
+          .lte("transfer_date", toStr)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (pageError) throw pageError;
+        
+        if (pageData && pageData.length > 0) {
+          allTransfersMain = [...allTransfersMain, ...pageData];
+          hasMore = pageData.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      console.log(`[ConsumptionReport] Fetched ${allTransfersMain.length} total transfers`);
 
       // Filter production transfers
-      const productionTransfers = (transfersMainData || []).filter(t => {
+      const productionTransfers = allTransfersMain.filter(t => {
         const dest = t.destination?.toLowerCase() || "";
         return dest.includes("produc") || dest.includes("producție") || dest.includes("productie");
       });
+      
+      console.log(`[ConsumptionReport] Found ${productionTransfers.length} production transfers`);
 
       if (productionTransfers.length === 0) {
         setData([]);
