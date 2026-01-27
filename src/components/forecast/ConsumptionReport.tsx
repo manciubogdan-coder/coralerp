@@ -72,8 +72,8 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
       if (productsError) throw productsError;
 
       // Fetch transfers in date range
-      const fromStr = format(startOfDay(fromDate), "yyyy-MM-dd'T'HH:mm:ss");
-      const toStr = format(endOfDay(toDate), "yyyy-MM-dd'T'23:59:59");
+      const fromStr = format(startOfDay(fromDate), "yyyy-MM-dd");
+      const toStr = format(endOfDay(toDate), "yyyy-MM-dd");
 
       const { data: transfersMainData, error: transfersMainError } = await supabase
         .from(tables.transfersMain)
@@ -84,54 +84,64 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
       if (transfersMainError) throw transfersMainError;
 
       // Filter production transfers
-      const productionTransferIds = (transfersMainData || [])
-        .filter(t => {
-          const dest = t.destination?.toLowerCase() || "";
-          return dest.includes("produc") || dest.includes("producție") || dest.includes("productie");
-        })
-        .map(t => t.id);
+      const productionTransfers = (transfersMainData || []).filter(t => {
+        const dest = t.destination?.toLowerCase() || "";
+        return dest.includes("produc") || dest.includes("producție") || dest.includes("productie");
+      });
 
-      if (productionTransferIds.length === 0) {
+      if (productionTransfers.length === 0) {
         setData([]);
         setLoading(false);
         return;
       }
 
-      // Fetch transfer items
-      const { data: transferItemsData, error: transferItemsError } = await supabase
-        .from(tables.transfers)
-        .select("quantity, inventory_item_id, transfer_id")
-        .in("transfer_id", productionTransferIds);
+      const productionTransferIds = productionTransfers.map(t => t.id);
 
-      if (transferItemsError) throw transferItemsError;
+      // Fetch transfer items in batches to avoid URL length limits
+      const batchSize = 50;
+      let allTransferItems: any[] = [];
+      
+      for (let i = 0; i < productionTransferIds.length; i += batchSize) {
+        const batch = productionTransferIds.slice(i, i + batchSize);
+        const { data: batchData, error: batchError } = await supabase
+          .from(tables.transfers)
+          .select("quantity, inventory_item_id, transfer_id")
+          .in("transfer_id", batch);
+        
+        if (batchError) throw batchError;
+        if (batchData) allTransferItems = [...allTransferItems, ...batchData];
+      }
 
-      // Get inventory items to map to products
-      const inventoryItemIds = [...new Set((transferItemsData || []).map(t => t.inventory_item_id))];
+      // Get inventory items to map to products - also in batches
+      const inventoryItemIds = [...new Set(allTransferItems.map(t => t.inventory_item_id))];
       
       let inventoryMap = new Map<string, string>();
       if (inventoryItemIds.length > 0) {
-        const { data: invData } = await supabase
-          .from(tables.inventory)
-          .select("id, product_id")
-          .in("id", inventoryItemIds);
-        
-        (invData || []).forEach((item: any) => {
-          if (item.product_id) {
-            inventoryMap.set(item.id, item.product_id);
-          }
-        });
+        for (let i = 0; i < inventoryItemIds.length; i += batchSize) {
+          const batch = inventoryItemIds.slice(i, i + batchSize);
+          const { data: invData } = await supabase
+            .from(tables.inventory)
+            .select("id, product_id")
+            .in("id", batch);
+          
+          (invData || []).forEach((item: any) => {
+            if (item.product_id) {
+              inventoryMap.set(item.id, item.product_id);
+            }
+          });
+        }
       }
 
       // Create a map of transfer dates
       const transferDateMap = new Map<string, string>();
-      (transfersMainData || []).forEach(t => {
+      productionTransfers.forEach(t => {
         transferDateMap.set(t.id, t.transfer_date);
       });
 
       // Group transfers by product and date
       const productDailyConsumption = new Map<string, Map<string, number>>();
       
-      (transferItemsData || []).forEach(transfer => {
+      allTransferItems.forEach(transfer => {
         const productId = inventoryMap.get(transfer.inventory_item_id);
         if (!productId) return;
 
