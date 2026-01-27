@@ -1,7 +1,7 @@
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, ShoppingCart, Users, Boxes, BarChart4, Factory } from "lucide-react";
+import { Package, ShoppingCart, Users, Boxes, BarChart4, Factory, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -24,6 +24,13 @@ const Dashboard = () => {
       icon: Factory,
       route: "/dashboard/production-stock",
       description: "Gestionați stocul din producție."
+    },
+    {
+      id: "forecast",
+      name: "Planificare & Forecast",
+      icon: TrendingUp,
+      route: "/dashboard/forecast",
+      description: "Comenzi, consum, forecast și zile stoc."
     },
     {
       id: "inventory-overview",
