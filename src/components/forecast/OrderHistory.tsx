@@ -7,7 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Loader2, Search, CalendarIcon, Download, FileSpreadsheet, Package, Truck, Check, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Loader2, Search, CalendarIcon, FileSpreadsheet, Package, Truck, Check, X, ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -32,6 +34,14 @@ interface HistoryOrder {
   notes: string | null;
 }
 
+interface SupplierOrderGroup {
+  supplier_id: string | null;
+  supplier_name: string;
+  orders: HistoryOrder[];
+  total_products: number;
+  total_quantity: number;
+}
+
 const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
   const [orders, setOrders] = useState<HistoryOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +49,9 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
   const [fromDate, setFromDate] = useState<Date>(startOfMonth(subMonths(new Date(), 3)));
   const [toDate, setToDate] = useState<Date>(endOfMonth(new Date()));
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [supplierFilter, setSupplierFilter] = useState<string>("all");
+  const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set());
+  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
 
   const getTableNames = () => {
     switch (inventoryType) {
@@ -91,13 +104,13 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
 
       const productMap = new Map((productsData || []).map((p: any) => [p.id, p]));
 
-      // Fetch suppliers
-      const supplierIds = [...new Set((ordersData || []).filter(o => o.supplier_id).map(o => o.supplier_id))];
+      // Fetch all suppliers for filter
       const { data: suppliersData } = await supabase
         .from(tables.suppliers)
         .select("id, name")
-        .in("id", supplierIds.length > 0 ? supplierIds : ["no-id"]);
+        .order("name");
 
+      setSuppliers((suppliersData || []) as Array<{ id: string; name: string }>);
       const supplierMap = new Map((suppliersData || []).map((s: any) => [s.id, s.name]));
 
       const historyOrders: HistoryOrder[] = (ordersData || []).map((order: any) => {
@@ -143,20 +156,105 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
       result = result.filter(order => order.status === statusFilter);
     }
 
-    return result;
-  }, [orders, searchTerm, statusFilter]);
+    if (supplierFilter !== "all") {
+      result = result.filter(order => order.supplier_id === supplierFilter);
+    }
 
-  const handleExport = () => {
+    return result;
+  }, [orders, searchTerm, statusFilter, supplierFilter]);
+
+  // Group orders by supplier
+  const supplierGroups = useMemo(() => {
+    const groups = new Map<string, SupplierOrderGroup>();
+
+    filteredOrders.forEach(order => {
+      const key = order.supplier_id || "no-supplier";
+      if (!groups.has(key)) {
+        groups.set(key, {
+          supplier_id: order.supplier_id,
+          supplier_name: order.supplier_name || "Fără furnizor",
+          orders: [],
+          total_products: 0,
+          total_quantity: 0
+        });
+      }
+      const group = groups.get(key)!;
+      group.orders.push(order);
+      group.total_products++;
+      group.total_quantity += order.quantity_ordered;
+    });
+
+    return Array.from(groups.values()).sort((a, b) => a.supplier_name.localeCompare(b.supplier_name));
+  }, [filteredOrders]);
+
+  const toggleSupplier = (supplierId: string) => {
+    setExpandedSuppliers(prev => {
+      const next = new Set(prev);
+      if (next.has(supplierId)) {
+        next.delete(supplierId);
+      } else {
+        next.add(supplierId);
+      }
+      return next;
+    });
+  };
+
+  const handleExportSupplier = (group: SupplierOrderGroup) => {
+    const exportData = group.orders.map(order => ({
+      "Data Comandă": format(order.order_date, "dd.MM.yyyy"),
+      "Cod Produs": order.product_code || "-",
+      "Produs": order.product_name,
+      "Cantitate": order.quantity_ordered,
+      "UM": order.unit,
+      "Status": getStatusLabel(order.status),
+      "Data Livrare Est.": order.expected_delivery_date ? format(order.expected_delivery_date, "dd.MM.yyyy") : "-",
+      "Note": order.notes || "-"
+    }));
+
+    const inventoryLabel = inventoryType === "materii-prime" ? "MP" 
+      : inventoryType === "ambalaje" ? "AMB" : "ETI";
+
+    exportToExcel(exportData, `Comenzi_${group.supplier_name.replace(/\s/g, "_")}_${inventoryLabel}_${format(new Date(), "yyyyMMdd")}.xlsx`, {
+      reportTitle: `Comenzi - ${group.supplier_name}`,
+      date: `${format(fromDate, "dd.MM.yyyy")} - ${format(toDate, "dd.MM.yyyy")}`,
+      filters: statusFilter !== "all" ? `Status: ${getStatusLabel(statusFilter)}` : undefined
+    });
+
+    toast({ title: `Export realizat pentru ${group.supplier_name}` });
+  };
+
+  const handleWhatsAppSupplier = (group: SupplierOrderGroup) => {
+    // Build message text
+    const lines = [
+      `📦 *Comandă - ${group.supplier_name}*`,
+      `📅 ${format(new Date(), "dd.MM.yyyy")}`,
+      "",
+      "*Produse:*"
+    ];
+
+    group.orders.forEach(order => {
+      const code = order.product_code ? `[${order.product_code}] ` : "";
+      lines.push(`• ${code}${order.product_name}: ${order.quantity_ordered.toLocaleString("ro-RO")} ${order.unit}`);
+    });
+
+    lines.push("");
+    lines.push(`*Total: ${group.total_products} produse*`);
+
+    const message = encodeURIComponent(lines.join("\n"));
+    window.open(`https://wa.me/?text=${message}`, "_blank");
+  };
+
+  const handleExportAll = () => {
     if (filteredOrders.length === 0) {
       toast({ title: "Nu există date de exportat", variant: "destructive" });
       return;
     }
 
     const exportData = filteredOrders.map(order => ({
+      "Furnizor": order.supplier_name || "-",
       "Data Comandă": format(order.order_date, "dd.MM.yyyy"),
       "Cod Produs": order.product_code || "-",
       "Produs": order.product_name,
-      "Furnizor": order.supplier_name || "-",
       "Cantitate": order.quantity_ordered,
       "UM": order.unit,
       "Status": getStatusLabel(order.status),
@@ -207,8 +305,8 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
     ordered: filteredOrders.filter(o => o.status === "ordered").length,
     delivered: filteredOrders.filter(o => o.status === "delivered").length,
     cancelled: filteredOrders.filter(o => o.status === "cancelled").length,
-    totalQty: filteredOrders.reduce((acc, o) => acc + o.quantity_ordered, 0)
-  }), [filteredOrders]);
+    suppliers: supplierGroups.length
+  }), [filteredOrders, supplierGroups]);
 
   if (loading) {
     return (
@@ -268,6 +366,18 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
           </Popover>
         </div>
 
+        <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Toți furnizorii" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toți furnizorii</SelectItem>
+            {suppliers.map(s => (
+              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -280,14 +390,18 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
           <option value="cancelled">Anulate</option>
         </select>
 
-        <Button onClick={handleExport} variant="outline">
+        <Button onClick={handleExportAll} variant="outline">
           <FileSpreadsheet className="h-4 w-4 mr-2" />
-          Export Excel
+          Export Tot
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div className="bg-muted/50 border rounded-lg p-3 text-center">
+          <div className="text-xl font-bold">{stats.suppliers}</div>
+          <div className="text-xs text-muted-foreground">Furnizori</div>
+        </div>
         <div className="bg-muted/50 border rounded-lg p-3 text-center">
           <div className="text-xl font-bold">{stats.total}</div>
           <div className="text-xs text-muted-foreground">Total comenzi</div>
@@ -310,53 +424,98 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
         </div>
       </div>
 
-      {/* Orders Table */}
-      <div className="border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data Comandă</TableHead>
-              <TableHead>Cod</TableHead>
-              <TableHead>Produs</TableHead>
-              <TableHead>Furnizor</TableHead>
-              <TableHead className="text-right">Cantitate</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Data Livrare Est.</TableHead>
-              <TableHead>Note</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredOrders.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                  Nu există comenzi în perioada selectată.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredOrders.map(order => (
-                <TableRow key={order.id}>
-                  <TableCell>{format(order.order_date, "dd.MM.yyyy")}</TableCell>
-                  <TableCell className="font-mono text-sm">{order.product_code || "-"}</TableCell>
-                  <TableCell className="font-medium">{order.product_name}</TableCell>
-                  <TableCell>{order.supplier_name || "-"}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    {order.quantity_ordered.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
-                  </TableCell>
-                  <TableCell>{getStatusBadge(order.status)}</TableCell>
-                  <TableCell>
-                    {order.expected_delivery_date 
-                      ? format(order.expected_delivery_date, "dd.MM.yyyy")
-                      : "-"
-                    }
-                  </TableCell>
-                  <TableCell className="max-w-[150px] truncate" title={order.notes || ""}>
-                    {order.notes || "-"}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+      {/* Orders grouped by supplier */}
+      <div className="space-y-3">
+        {supplierGroups.length === 0 ? (
+          <div className="border rounded-lg p-8 text-center text-muted-foreground">
+            Nu există comenzi în perioada selectată.
+          </div>
+        ) : (
+          supplierGroups.map(group => {
+            const key = group.supplier_id || "no-supplier";
+            const isExpanded = expandedSuppliers.has(key);
+
+            return (
+              <Collapsible key={key} open={isExpanded} onOpenChange={() => toggleSupplier(key)}>
+                <div className="border rounded-lg overflow-hidden">
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        {isExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <div>
+                          <div className="font-semibold">{group.supplier_name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {group.total_products} produse comandate
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => { e.stopPropagation(); handleWhatsAppSupplier(group); }}
+                        >
+                          <MessageCircle className="h-4 w-4 mr-1" />
+                          WhatsApp
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => { e.stopPropagation(); handleExportSupplier(group); }}
+                        >
+                          <FileSpreadsheet className="h-4 w-4 mr-1" />
+                          Export
+                        </Button>
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
+
+                  <CollapsibleContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data Comandă</TableHead>
+                          <TableHead>Cod</TableHead>
+                          <TableHead>Produs</TableHead>
+                          <TableHead className="text-right">Cantitate</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Data Livrare Est.</TableHead>
+                          <TableHead>Note</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.orders.map(order => (
+                          <TableRow key={order.id}>
+                            <TableCell>{format(order.order_date, "dd.MM.yyyy")}</TableCell>
+                            <TableCell className="font-mono text-sm">{order.product_code || "-"}</TableCell>
+                            <TableCell className="font-medium">{order.product_name}</TableCell>
+                            <TableCell className="text-right font-medium">
+                              {order.quantity_ordered.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
+                            </TableCell>
+                            <TableCell>{getStatusBadge(order.status)}</TableCell>
+                            <TableCell>
+                              {order.expected_delivery_date 
+                                ? format(order.expected_delivery_date, "dd.MM.yyyy")
+                                : "-"
+                              }
+                            </TableCell>
+                            <TableCell className="max-w-[150px] truncate" title={order.notes || ""}>
+                              {order.notes || "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+            );
+          })
+        )}
       </div>
     </div>
   );
