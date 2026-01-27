@@ -79,7 +79,9 @@ const InventoryManagement = () => {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">
           Stoc Depozit 
-          <span className="text-sm font-normal text-muted-foreground">({inventoryType === 'ambalaje' ? 'Ambalaje' : 'Materii Prime'})</span>
+          <span className="text-sm font-normal text-muted-foreground">
+            ({inventoryType === 'ambalaje' ? 'Ambalaje' : inventoryType === 'etichete' ? 'Etichete' : 'Materii Prime'})
+          </span>
         </h2>
         <InventoryToolbar
           onTransferComplete={handleAnyDataChange}

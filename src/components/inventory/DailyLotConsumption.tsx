@@ -113,27 +113,53 @@ export const DailyLotConsumption = () => {
 
       if (receptionError) throw receptionError;
 
-      // Get transfers for the selected date to track official transfers out  
+      // Get transfers for the selected date to track official transfers out
+      // NOTE: for etichete we must not join to stock_transfers (different table), so we fetch transfer IDs first.
       // Note: ambalaje is already returned above.
       const transferItemsTable = inventoryType === 'etichete'
         ? 'etichete_stock_transfer_items'
         : 'stock_transfer_items';
-      
-      const { data: transfersOut, error: transfersError } = await supabase
-        .from(transferItemsTable)
-        .select(`
-          quantity,
-          inventory:inventory_item_id (
-            name,
-            lot_number
-          ),
-          stock_transfers!inner (
-            transfer_date
-          )
-        `)
-        .eq('stock_transfers.transfer_date', selectedDate);
+      const transfersTable = inventoryType === 'etichete'
+        ? 'etichete_stock_transfers'
+        : 'stock_transfers';
 
-      if (transfersError) throw transfersError;
+      const { data: transfersForDate, error: transfersForDateError } = await supabase
+        .from(transfersTable)
+        .select('id')
+        .eq('transfer_date', selectedDate);
+      if (transfersForDateError) throw transfersForDateError;
+
+      const transferIds = (transfersForDate ?? []).map((t: any) => t.id).filter(Boolean);
+
+      let transfersOut: any[] = [];
+      if (transferIds.length > 0) {
+        const { data: items, error: itemsErr } = await supabase
+          .from(transferItemsTable)
+          .select('quantity, inventory_item_id, transfer_id')
+          .in('transfer_id', transferIds);
+        if (itemsErr) throw itemsErr;
+
+        const invIds = Array.from(
+          new Set(((items ?? []) as any[]).map((i: any) => i.inventory_item_id).filter(Boolean))
+        );
+
+        const inventoryById = new Map<string, { name: string; lot_number: string | null }>();
+        if (invIds.length > 0) {
+          const { data: invRows, error: invErr } = await supabase
+            .from(inventoryTable)
+            .select('id, name, lot_number')
+            .in('id', invIds);
+          if (invErr) throw invErr;
+          (invRows ?? []).forEach((r: any) => {
+            inventoryById.set(r.id, { name: r.name, lot_number: r.lot_number ?? null });
+          });
+        }
+
+        transfersOut = ((items ?? []) as any[]).map((it: any) => ({
+          ...it,
+          inventory: inventoryById.get(it.inventory_item_id) ?? null,
+        }));
+      }
 
       console.log('Initial stock entries:', initialStock?.length || 0);
       console.log('Final stock entries:', finalStock?.length || 0);
