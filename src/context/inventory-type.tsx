@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-export type InventoryType = "materii-prime" | "ambalaje";
+export type InventoryType = "materii-prime" | "ambalaje" | "etichete";
 
 type InventoryTypeContextValue = {
   inventoryType: InventoryType;
@@ -29,7 +29,7 @@ export const InventoryTypeProvider = ({
   const [inventoryType, setInventoryTypeState] = useState<InventoryType>(() => {
     try {
       const raw = localStorage.getItem(storageKey);
-      if (raw === "ambalaje" || raw === "materii-prime") return raw;
+      if (raw === "ambalaje" || raw === "materii-prime" || raw === "etichete") return raw;
     } catch {
       // ignore
     }
@@ -51,7 +51,7 @@ export const InventoryTypeProvider = ({
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key !== storageKey) return;
-      if (e.newValue === "ambalaje" || e.newValue === "materii-prime") {
+      if (e.newValue === "ambalaje" || e.newValue === "materii-prime" || e.newValue === "etichete") {
         setInventoryTypeState(e.newValue);
       }
     };

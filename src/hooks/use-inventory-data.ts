@@ -27,52 +27,34 @@ export const useInventoryData = () => {
       let offset = 0;
       let hasMore = true;
 
-      if (inventoryType === 'ambalaje') {
-        while (hasMore) {
-          console.log(`Fetching ambalaje inventory data - offset ${offset}, inventoryType: ${inventoryType}`);
-          const { data, error } = await supabase
-            .from("ambalaje_inventory")
-            .select(`
-              *,
-              suppliers:supplier_id (name),
-              products:product_id (name, cod_produs),
-              manufacturers:manufacturer_id (name)
-            `)
-            .order("entry_number", { ascending: false })
-            .range(offset, offset + pageSize - 1);
+      // Determine which table to query based on inventory type
+      const tableName = inventoryType === 'ambalaje' 
+        ? 'ambalaje_inventory' 
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory'
+          : 'inventory';
 
-          if (error) throw error;
+      while (hasMore) {
+        console.log(`Fetching ${inventoryType} inventory data - offset ${offset}`);
+        const { data, error } = await supabase
+          .from(tableName)
+          .select(`
+            *,
+            suppliers:supplier_id (name),
+            products:product_id (name, cod_produs),
+            manufacturers:manufacturer_id (name)
+          `)
+          .order("entry_number", { ascending: false })
+          .range(offset, offset + pageSize - 1);
 
-          if (data && data.length > 0) {
-            allData = [...allData, ...data];
-            offset += pageSize;
-            hasMore = data.length === pageSize;
-          } else {
-            hasMore = false;
-          }
-        }
-      } else {
-        while (hasMore) {
-          const { data, error } = await supabase
-            .from("inventory")
-            .select(`
-              *,
-              suppliers:supplier_id (name),
-              products:product_id (name, cod_produs),
-              manufacturers:manufacturer_id (name)
-            `)
-            .order("entry_number", { ascending: false })
-            .range(offset, offset + pageSize - 1);
+        if (error) throw error;
 
-          if (error) throw error;
-
-          if (data && data.length > 0) {
-            allData = [...allData, ...data];
-            offset += pageSize;
-            hasMore = data.length === pageSize;
-          } else {
-            hasMore = false;
-          }
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
         }
       }
       
@@ -95,41 +77,29 @@ export const useInventoryData = () => {
 
   const fetchReferenceData = async () => {
     try {
-      if (inventoryType === 'ambalaje') {
-        const [
-          { data: suppliersData }, 
-          { data: productsData },
-          { data: manufacturersData },
-          { data: crateTypesData }
-        ] = await Promise.all([
-          supabase.from('ambalaje_suppliers').select('*').order('name'),
-          supabase.from('ambalaje_products').select('*').order('name'),
-          supabase.from('ambalaje_manufacturers').select('*').order('name'),
-          supabase.from('ambalaje_crate_types').select('*').order('name')
-        ]);
+      // Determine table prefixes based on inventory type
+      const prefix = inventoryType === 'ambalaje' 
+        ? 'ambalaje_' 
+        : inventoryType === 'etichete'
+          ? 'etichete_'
+          : '';
 
-        if (suppliersData) setSuppliers(suppliersData as Supplier[]);
-        if (productsData) setProducts(productsData as Product[]);
-        if (manufacturersData) setManufacturers(manufacturersData as Manufacturer[]);
-        if (crateTypesData) setCrateTypes(crateTypesData as CrateType[]);
-      } else {
-        const [
-          { data: suppliersData }, 
-          { data: productsData },
-          { data: manufacturersData },
-          { data: crateTypesData }
-        ] = await Promise.all([
-          supabase.from('suppliers').select('*').order('name'),
-          supabase.from('products').select('*').order('name'),
-          supabase.from('manufacturers').select('*').order('name'),
-          supabase.from('crate_types').select('*').order('name')
-        ]);
+      const [
+        { data: suppliersData }, 
+        { data: productsData },
+        { data: manufacturersData },
+        { data: crateTypesData }
+      ] = await Promise.all([
+        supabase.from(`${prefix}suppliers`).select('*').order('name'),
+        supabase.from(`${prefix}products`).select('*').order('name'),
+        supabase.from(`${prefix}manufacturers`).select('*').order('name'),
+        supabase.from(`${prefix}crate_types`).select('*').order('name')
+      ]);
 
-        if (suppliersData) setSuppliers(suppliersData as Supplier[]);
-        if (productsData) setProducts(productsData as Product[]);
-        if (manufacturersData) setManufacturers(manufacturersData as Manufacturer[]);
-        if (crateTypesData) setCrateTypes(crateTypesData as CrateType[]);
-      }
+      if (suppliersData) setSuppliers(suppliersData as Supplier[]);
+      if (productsData) setProducts(productsData as Product[]);
+      if (manufacturersData) setManufacturers(manufacturersData as Manufacturer[]);
+      if (crateTypesData) setCrateTypes(crateTypesData as CrateType[]);
     } catch (error: any) {
       console.error(`Error fetching ${inventoryType} reference data:`, error);
     }

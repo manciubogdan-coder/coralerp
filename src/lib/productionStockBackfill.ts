@@ -2,7 +2,7 @@ import { format } from "date-fns";
 
 import { supabase } from "@/integrations/supabase/client";
 
-type InventoryType = "materii-prime" | "ambalaje";
+type InventoryType = "materii-prime" | "ambalaje" | "etichete";
 
 type DateRange = { from?: Date; to?: Date };
 
@@ -32,9 +32,21 @@ export async function syncProductionStockFromTransfers({
   dateRange,
 }: SyncArgs): Promise<{ inserted: number; scannedTransfers: number }>
 {
-  const transfersTable = inventoryType === "ambalaje" ? "ambalaje_stock_transfers" : "stock_transfers";
-  const transferItemsTable = inventoryType === "ambalaje" ? "ambalaje_stock_transfer_items" : "stock_transfer_items";
-  const productionStockTable = inventoryType === "ambalaje" ? "ambalaje_production_stock" : "production_stock";
+  const transfersTable = inventoryType === "ambalaje" 
+    ? "ambalaje_stock_transfers" 
+    : inventoryType === "etichete"
+      ? "etichete_stock_transfers"
+      : "stock_transfers";
+  const transferItemsTable = inventoryType === "ambalaje" 
+    ? "ambalaje_stock_transfer_items" 
+    : inventoryType === "etichete"
+      ? "etichete_stock_transfer_items"
+      : "stock_transfer_items";
+  const productionStockTable = inventoryType === "ambalaje" 
+    ? "ambalaje_production_stock" 
+    : inventoryType === "etichete"
+      ? "etichete_production_stock"
+      : "production_stock";
 
   // 1) Identify transfers in the selected range that went to Production
   let transfersQuery = supabase

@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Package, Boxes, Users, LogOut } from "lucide-react";
+import { Package, Boxes, Users, LogOut, Tag } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import ProductsPage from "./pages/dashboard/ProductsPage";
 import SuppliersPage from "./pages/dashboard/SuppliersPage";
@@ -58,6 +58,15 @@ const AppShell = () => {
                 >
                   <Boxes size={16} />
                   Ambalaje
+                </Button>
+                <Button
+                  variant={inventoryType === "etichete" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setInventoryType("etichete")}
+                  className="flex items-center gap-2"
+                >
+                  <Tag size={16} />
+                  Etichete
                 </Button>
                 {isAdmin && (
                   <Button

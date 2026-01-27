@@ -2771,6 +2771,753 @@ export type Database = {
           },
         ]
       }
+      etichete_crate_types: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          weight?: number
+        }
+        Relationships: []
+      }
+      etichete_daily_stock_quality: {
+        Row: {
+          consider_quantity: number
+          created_at: string
+          id: string
+          nonconform_percent: number
+          obs: string | null
+          snapshot_id: string
+          updated_at: string
+        }
+        Insert: {
+          consider_quantity?: number
+          created_at?: string
+          id?: string
+          nonconform_percent?: number
+          obs?: string | null
+          snapshot_id: string
+          updated_at?: string
+        }
+        Update: {
+          consider_quantity?: number
+          created_at?: string
+          id?: string
+          nonconform_percent?: number
+          obs?: string | null
+          snapshot_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etichete_daily_stock_quality_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: true
+            referencedRelation: "etichete_daily_stock_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etichete_daily_stock_snapshots: {
+        Row: {
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
+          created_at: string
+          document_number: string | null
+          entry_number: number | null
+          gross_quantity: number | null
+          id: string
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          net_quantity: number | null
+          product_id: string | null
+          quantity: number
+          receipt_date: string | null
+          snapshot_date: string
+          supplier_id: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number?: number | null
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          net_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          receipt_date?: string | null
+          snapshot_date: string
+          supplier_id?: string | null
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number?: number | null
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          net_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          receipt_date?: string | null
+          snapshot_date?: string
+          supplier_id?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etichete_daily_stock_snapshots_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_crate_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_daily_stock_snapshots_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_daily_stock_snapshots_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_daily_stock_snapshots_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etichete_inventory: {
+        Row: {
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
+          created_at: string | null
+          document_number: string | null
+          entry_number: number
+          gross_quantity: number | null
+          id: string
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          net_quantity: number | null
+          product_id: string | null
+          quantity: number
+          receipt_date: string | null
+          supplier: string | null
+          supplier_id: string | null
+          supplier_name: string | null
+          unit: string
+          updated_at: string | null
+        }
+        Insert: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string | null
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          net_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          receipt_date?: string | null
+          supplier?: string | null
+          supplier_id?: string | null
+          supplier_name?: string | null
+          unit: string
+          updated_at?: string | null
+        }
+        Update: {
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string | null
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          net_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          receipt_date?: string | null
+          supplier?: string | null
+          supplier_id?: string | null
+          supplier_name?: string | null
+          unit?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etichete_inventory_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_crate_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_inventory_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_inventory_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etichete_inventory_history: {
+        Row: {
+          action: string
+          document_number: string | null
+          exit_timestamp: string | null
+          id: string
+          inventory_item_id: string | null
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          notes: string | null
+          operation_date: string
+          pallets: number | null
+          previous_quantity: number | null
+          product_id: string | null
+          quantity: number
+          supplier: string | null
+          supplier_id: string | null
+          unit: string
+        }
+        Insert: {
+          action: string
+          document_number?: string | null
+          exit_timestamp?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          notes?: string | null
+          operation_date?: string
+          pallets?: number | null
+          previous_quantity?: number | null
+          product_id?: string | null
+          quantity: number
+          supplier?: string | null
+          supplier_id?: string | null
+          unit: string
+        }
+        Update: {
+          action?: string
+          document_number?: string | null
+          exit_timestamp?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          notes?: string | null
+          operation_date?: string
+          pallets?: number | null
+          previous_quantity?: number | null
+          product_id?: string | null
+          quantity?: number
+          supplier?: string | null
+          supplier_id?: string | null
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etichete_inventory_history_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_inventory_history_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_inventory_history_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_inventory_history_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etichete_manufacturers: {
+        Row: {
+          country: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      etichete_production_stock: {
+        Row: {
+          created_at: string
+          document_number: string | null
+          id: string
+          inventory_item_id: string | null
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          product_id: string | null
+          quantity: number
+          supplier_id: string | null
+          transfer_date: string
+          transfer_id: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_number?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          product_id?: string | null
+          quantity?: number
+          supplier_id?: string | null
+          transfer_date?: string
+          transfer_id?: string | null
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_number?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          product_id?: string | null
+          quantity?: number
+          supplier_id?: string | null
+          transfer_date?: string
+          transfer_id?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etichete_production_stock_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_production_stock_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_production_stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_production_stock_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_production_stock_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_stock_transfers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etichete_production_stock_history: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          notes: string | null
+          previous_quantity: number | null
+          production_stock_id: string | null
+          quantity: number
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          previous_quantity?: number | null
+          production_stock_id?: string | null
+          quantity: number
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          previous_quantity?: number | null
+          production_stock_id?: string | null
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etichete_production_stock_history_production_stock_id_fkey"
+            columns: ["production_stock_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_production_stock"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etichete_products: {
+        Row: {
+          category: string | null
+          cod_produs: string | null
+          created_at: string
+          default_unit: string
+          description: string | null
+          id: string
+          name: string
+          pt_percent: number | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          cod_produs?: string | null
+          created_at?: string
+          default_unit: string
+          description?: string | null
+          id?: string
+          name: string
+          pt_percent?: number | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          cod_produs?: string | null
+          created_at?: string
+          default_unit?: string
+          description?: string | null
+          id?: string
+          name?: string
+          pt_percent?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      etichete_reception_records: {
+        Row: {
+          consider_quantity: number | null
+          crate_count: number | null
+          crate_type_id: string | null
+          crate_weight: number | null
+          created_at: string
+          document_number: string | null
+          entry_number: number
+          gross_quantity: number | null
+          id: string
+          lot_number: string | null
+          manufacturer_id: string | null
+          name: string
+          net_quantity: number | null
+          nonconform_percent: number | null
+          obs: string | null
+          original_quantity: number
+          product_id: string | null
+          receipt_date: string
+          supplier_id: string | null
+          supplier_name: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          consider_quantity?: number | null
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name: string
+          net_quantity?: number | null
+          nonconform_percent?: number | null
+          obs?: string | null
+          original_quantity?: number
+          product_id?: string | null
+          receipt_date?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          consider_quantity?: number | null
+          crate_count?: number | null
+          crate_type_id?: string | null
+          crate_weight?: number | null
+          created_at?: string
+          document_number?: string | null
+          entry_number?: number
+          gross_quantity?: number | null
+          id?: string
+          lot_number?: string | null
+          manufacturer_id?: string | null
+          name?: string
+          net_quantity?: number | null
+          nonconform_percent?: number | null
+          obs?: string | null
+          original_quantity?: number
+          product_id?: string | null
+          receipt_date?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etichete_reception_records_crate_type_id_fkey"
+            columns: ["crate_type_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_crate_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_reception_records_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_reception_records_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_reception_records_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etichete_stock_transfer_items: {
+        Row: {
+          created_at: string
+          id: string
+          inventory_item_id: string
+          net_quantity: number | null
+          quantity: number
+          transfer_id: string
+          unit: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inventory_item_id: string
+          net_quantity?: number | null
+          quantity: number
+          transfer_id: string
+          unit: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inventory_item_id?: string
+          net_quantity?: number | null
+          quantity?: number
+          transfer_id?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etichete_stock_transfer_items_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_stock_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_stock_transfers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etichete_stock_transfers: {
+        Row: {
+          created_at: string
+          destination: string
+          id: string
+          notes: string | null
+          transfer_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          destination: string
+          id?: string
+          notes?: string | null
+          transfer_date?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          destination?: string
+          id?: string
+          notes?: string | null
+          transfer_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      etichete_suppliers: {
+        Row: {
+          address: string | null
+          contact: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          supplier_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          contact?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          supplier_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          contact?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          supplier_code?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inventory: {
         Row: {
           crate_count: number | null
