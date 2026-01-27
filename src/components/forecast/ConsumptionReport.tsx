@@ -8,6 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, Loader2, FileDown } from "lucide-react";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { ro } from "date-fns/locale";
+import { formatInTimeZone } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
@@ -72,8 +73,20 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
       if (productsError) throw productsError;
 
       // Fetch transfers in date range
-      const fromStr = format(startOfDay(fromDate), "yyyy-MM-dd");
-      const toStr = format(endOfDay(toDate), "yyyy-MM-dd");
+      // NOTE: tables are not consistent: etichete_stock_transfers.transfer_date is timestamptz,
+      // while stock_transfers/ambalaje_stock_transfers.transfer_date are date.
+      // If we send only YYYY-MM-DD for timestamptz, Postgres interprets it as midnight and
+      // we lose the rest of the end day.
+      const tz = "Europe/Bucharest";
+      const from = startOfDay(fromDate);
+      const to = endOfDay(toDate);
+      const isTimestampRange = inventoryType === "etichete";
+      const fromStr = isTimestampRange
+        ? formatInTimeZone(from, tz, "yyyy-MM-dd'T'HH:mm:ssXXX")
+        : format(from, "yyyy-MM-dd");
+      const toStr = isTimestampRange
+        ? formatInTimeZone(to, tz, "yyyy-MM-dd'T'HH:mm:ssXXX")
+        : format(to, "yyyy-MM-dd");
 
       const { data: transfersMainData, error: transfersMainError } = await supabase
         .from(tables.transfersMain)
