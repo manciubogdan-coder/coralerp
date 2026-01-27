@@ -54,13 +54,18 @@ export function ReceptionRegistration({
     calculateNetQuantity();
   }, [grossQuantity, crateTypeId, crateCount, palletWeight]);
 
+  // Pentru etichete, cantitatea netă = cantitatea introdusă direct (fără calcul lăzi/paleți)
+  const isEtichete = inventoryType === 'etichete';
+  
   const handleSubmit = async () => {
     try {
       const isManufacturerRequired = inventoryType === 'materii-prime';
-      if (!productId || !supplierId || (isManufacturerRequired && !manufacturerId) || !documentNumber || netQuantity <= 0) {
+      const quantityToSave = isEtichete ? grossQuantity : netQuantity;
+      
+      if (!productId || !supplierId || (isManufacturerRequired && !manufacturerId) || !documentNumber || quantityToSave <= 0) {
         toast({
           title: "Date incomplete",
-          description: "Vă rugăm să completați toate câmpurile și asigurați-vă că cantitatea netă este pozitivă.",
+          description: "Vă rugăm să completați toate câmpurile și asigurați-vă că cantitatea este pozitivă.",
           variant: "destructive"
         });
         return;
@@ -69,26 +74,31 @@ export function ReceptionRegistration({
       const selectedProduct = products.find(p => p.id === productId);
       if (!selectedProduct) return;
 
-      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const inventoryTable = inventoryType === 'ambalaje' 
+        ? 'ambalaje_inventory' 
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory'
+          : 'inventory';
       
-      console.log('Salvez recepție cu cantitate netă:', {
+      console.log('Salvez recepție:', {
         productName: selectedProduct.name,
         grossQuantity,
-        netQuantity,
-        calculationDetails: { crateTypeId, crateCount, palletWeight }
+        quantityToSave,
+        isEtichete,
+        calculationDetails: isEtichete ? 'N/A' : { crateTypeId, crateCount, palletWeight }
       });
 
-      // Salvez DOAR cantitatea netă - informațiile despre lăzi sunt doar pentru calcul
+      // Pentru etichete salvăm direct cantitatea, pentru altele salvăm cantitatea netă
       const { error } = await supabase
         .from(inventoryTable)
         .insert({
           product_id: productId,
           name: selectedProduct.name,
           supplier_id: supplierId,
-          manufacturer_id: manufacturerId,
+          manufacturer_id: isManufacturerRequired ? manufacturerId : null,
           document_number: documentNumber,
-          quantity: netQuantity, // DOAR cantitatea netă
-          unit: selectedProduct.default_unit || 'kg',
+          quantity: quantityToSave,
+          unit: selectedProduct.default_unit || (isEtichete ? 'buc' : 'kg'),
           receipt_date: new Date().toISOString()
         });
 
@@ -96,7 +106,7 @@ export function ReceptionRegistration({
 
       toast({
         title: "Recepție înregistrată",
-        description: `Cantitate netă stocată: ${netQuantity.toFixed(2)} ${selectedProduct.default_unit || 'kg'}`
+        description: `Cantitate stocată: ${quantityToSave.toFixed(isEtichete ? 0 : 2)} ${selectedProduct.default_unit || (isEtichete ? 'buc' : 'kg')}`
       });
 
       setIsOpen(false);
@@ -131,7 +141,9 @@ export function ReceptionRegistration({
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Înregistrare recepție nouă (cantitate netă)</DialogTitle>
+          <DialogTitle>
+            {isEtichete ? 'Înregistrare recepție etichete' : 'Înregistrare recepție nouă (cantitate netă)'}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -194,82 +206,112 @@ export function ReceptionRegistration({
             />
           </div>
 
-          {/* Secțiune calcul cantitate netă */}
-          <div className="p-4 border rounded-lg bg-gray-50 space-y-4">
-            <h3 className="font-semibold text-lg">Calcul cantitate netă</h3>
-            <p className="text-sm text-gray-600">
-              Introduceți cantitatea brută și detaliile pentru lăzi/paleți. Sistemul va calcula și stoca doar cantitatea netă.
-            </p>
-            
-            <div className="grid grid-cols-2 gap-4">
+          {/* Secțiune simplificată pentru Etichete - doar cantitate în bucăți */}
+          {isEtichete ? (
+            <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
+              <h3 className="font-semibold text-lg">Cantitate etichete</h3>
+              <p className="text-sm text-muted-foreground">
+                Introduceți cantitatea de etichete în bucăți.
+              </p>
+              
               <div className="space-y-2">
-                <label className="text-sm font-medium">Cantitate brută (kg)</label>
+                <label className="text-sm font-medium">Cantitate (buc)</label>
                 <Input
                   type="number"
-                  step="0.01"
+                  step="1"
                   value={grossQuantity || ''}
-                  onChange={(e) => setGrossQuantity(parseFloat(e.target.value) || 0)}
-                  placeholder="Cantitatea totală brută"
+                  onChange={(e) => setGrossQuantity(parseInt(e.target.value) || 0)}
+                  placeholder="Numărul de etichete"
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Greutate palet (kg)</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={palletWeight || ''}
-                  onChange={(e) => setPalletWeight(parseFloat(e.target.value) || 0)}
-                  placeholder="Greutatea paletului"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tip lădiță</label>
-                <Select value={crateTypeId || ''} onValueChange={setCrateTypeId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selectează tipul de lădiță" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="no-crate">Fără lăzi</SelectItem>
-                    {crateTypes.map(crateType => (
-                      <SelectItem key={crateType.id} value={crateType.id}>
-                        {crateType.name} ({crateType.weight} kg)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Număr lădițe</label>
-                <Input
-                  type="number"
-                  value={crateCount || ''}
-                  onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
-                  placeholder="Numărul de lăzi"
-                  disabled={!crateTypeId || crateTypeId === "no-crate"}
-                />
+              <div className="mt-4 p-4 bg-background rounded-md border-2 border-primary/30">
+                <div className="text-lg font-bold text-primary">
+                  Cantitate: {grossQuantity} buc
+                </div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  Aceasta este cantitatea care va fi stocată în sistem
+                </div>
               </div>
             </div>
+          ) : (
+            /* Secțiune calcul cantitate netă pentru Materii Prime și Ambalaje */
+            <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
+              <h3 className="font-semibold text-lg">Calcul cantitate netă</h3>
+              <p className="text-sm text-muted-foreground">
+                Introduceți cantitatea brută și detaliile pentru lăzi/paleți. Sistemul va calcula și stoca doar cantitatea netă.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Cantitate brută (kg)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={grossQuantity || ''}
+                    onChange={(e) => setGrossQuantity(parseFloat(e.target.value) || 0)}
+                    placeholder="Cantitatea totală brută"
+                  />
+                </div>
 
-            <div className="mt-4 p-4 bg-white rounded-md border-2 border-green-200">
-              <div className="text-lg font-bold text-green-700">
-                Cantitate netă: {netQuantity.toFixed(2)} {selectedProduct?.default_unit || 'kg'}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Greutate palet (kg)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={palletWeight || ''}
+                    onChange={(e) => setPalletWeight(parseFloat(e.target.value) || 0)}
+                    placeholder="Greutatea paletului"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tip lădiță</label>
+                  <Select value={crateTypeId || ''} onValueChange={setCrateTypeId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selectează tipul de lădiță" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="no-crate">Fără lăzi</SelectItem>
+                      {crateTypes.map(crateType => (
+                        <SelectItem key={crateType.id} value={crateType.id}>
+                          {crateType.name} ({crateType.weight} kg)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Număr lădițe</label>
+                  <Input
+                    type="number"
+                    value={crateCount || ''}
+                    onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
+                    placeholder="Numărul de lăzi"
+                    disabled={!crateTypeId || crateTypeId === "no-crate"}
+                  />
+                </div>
               </div>
-              <div className="text-sm text-gray-600 mt-1">
-                Aceasta este cantitatea care va fi stocată în sistem
+
+              <div className="mt-4 p-4 bg-background rounded-md border-2 border-primary/30">
+                <div className="text-lg font-bold text-primary">
+                  Cantitate netă: {netQuantity.toFixed(2)} {selectedProduct?.default_unit || 'kg'}
+                </div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  Aceasta este cantitatea care va fi stocată în sistem
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="flex justify-end pt-4">
             <Button 
               onClick={handleSubmit} 
-              disabled={!productId || !supplierId || (inventoryType === 'materii-prime' && !manufacturerId) || !documentNumber || netQuantity <= 0}
+              disabled={!productId || !supplierId || (inventoryType === 'materii-prime' && !manufacturerId) || !documentNumber || (isEtichete ? grossQuantity <= 0 : netQuantity <= 0)}
             >
               <Save className="h-4 w-4 mr-2" />
-              Salvează recepția (cantitate netă)
+              {isEtichete ? 'Salvează recepția' : 'Salvează recepția (cantitate netă)'}
             </Button>
           </div>
         </div>
