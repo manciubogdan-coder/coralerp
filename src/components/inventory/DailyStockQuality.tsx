@@ -48,8 +48,16 @@ export const DailyStockQuality = () => {
   const [groupObsDraft, setGroupObsDraft] = useState<Record<string, string>>({});
   const [groupPercentDraft, setGroupPercentDraft] = useState<Record<string, number>>({});
 
-  const tableName = inventoryType === "ambalaje" ? "ambalaje_daily_stock_snapshots" : "daily_stock_snapshots";
-  const qualityTable = inventoryType === "ambalaje" ? "ambalaje_daily_stock_quality" : "daily_stock_quality";
+  const tableName = inventoryType === "ambalaje"
+    ? "ambalaje_daily_stock_snapshots"
+    : inventoryType === "etichete"
+      ? "etichete_daily_stock_snapshots"
+      : "daily_stock_snapshots";
+  const qualityTable = inventoryType === "ambalaje"
+    ? "ambalaje_daily_stock_quality"
+    : inventoryType === "etichete"
+      ? "etichete_daily_stock_quality"
+      : "daily_stock_quality";
 
   const fetchData = async () => {
     try {
@@ -124,7 +132,7 @@ export const DailyStockQuality = () => {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
+  }, [selectedDate, inventoryType]);
 
   const filteredSnapshots = useMemo(() => {
     if (!productFilter.trim()) return snapshots;

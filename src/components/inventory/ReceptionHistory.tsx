@@ -68,10 +68,11 @@ export const ReceptionHistory = () => {
     try {
       setLoading(true);
       // Use the correct reception table based on inventory type
-      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_reception_records' : 'reception_records';
-      const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
-      const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
-      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
+      const tableName = inventoryType === 'ambalaje'
+        ? 'ambalaje_reception_records'
+        : inventoryType === 'etichete'
+          ? 'etichete_reception_records'
+          : 'reception_records';
       
       let query = (supabase as any)
         .from(tableName)
@@ -138,7 +139,7 @@ export const ReceptionHistory = () => {
 
   useEffect(() => {
     fetchReceptions();
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, inventoryType]);
 
   useEffect(() => {
     if (productFilter.trim() === "") {
@@ -172,7 +173,11 @@ export const ReceptionHistory = () => {
 
     try {
       // Update in reception records table (permanent record)
-      const receptionTableName = inventoryType === 'ambalaje' ? 'ambalaje_reception_records' : 'reception_records';
+      const receptionTableName = inventoryType === 'ambalaje'
+        ? 'ambalaje_reception_records'
+        : inventoryType === 'etichete'
+          ? 'etichete_reception_records'
+          : 'reception_records';
       
       console.log('Updating reception with data:', {
         id: editingItem.id,
@@ -205,7 +210,11 @@ export const ReceptionHistory = () => {
       if (error) throw error;
 
       // Actualizez și în tabelul de inventar curent (stocul curent)
-      const inventoryTableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const inventoryTableName = inventoryType === 'ambalaje'
+        ? 'ambalaje_inventory'
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory'
+          : 'inventory';
       
       const inventoryUpdateData = {
         name: editFormData.name,
@@ -250,9 +259,21 @@ export const ReceptionHistory = () => {
     if (!confirm('Sigur doriți să ștergeți această recepție?')) return;
 
     try {
-      const receptionTableName = inventoryType === 'ambalaje' ? 'ambalaje_reception_records' : 'reception_records';
-      const inventoryTableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
-      const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+      const receptionTableName = inventoryType === 'ambalaje'
+        ? 'ambalaje_reception_records'
+        : inventoryType === 'etichete'
+          ? 'etichete_reception_records'
+          : 'reception_records';
+      const inventoryTableName = inventoryType === 'ambalaje'
+        ? 'ambalaje_inventory'
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory'
+          : 'inventory';
+      const historyTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_inventory_history'
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory_history'
+          : 'inventory_history';
       
       // Găsește înregistrarea din stocul curent bazată pe entry_number
       const { data: currentStockItem, error: stockFindError } = await supabase

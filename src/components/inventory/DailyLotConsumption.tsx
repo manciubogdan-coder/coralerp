@@ -47,8 +47,16 @@ export const DailyLotConsumption = () => {
     try {
       setLoading(true);
       
-      const snapshotTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
-      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const snapshotTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_daily_stock_snapshots'
+        : inventoryType === 'etichete'
+          ? 'etichete_daily_stock_snapshots'
+          : 'daily_stock_snapshots';
+      const inventoryTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_inventory'
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory'
+          : 'inventory';
       
       // For ambalaje, we don't have daily snapshots yet, so skip
       if (inventoryType === 'ambalaje') {
@@ -93,8 +101,12 @@ export const DailyLotConsumption = () => {
       if (finalError) throw finalError;
 
       // Get reception records for the selected date to identify actual receipts
+      // Note: ambalaje is already returned above.
+      const receptionTable = inventoryType === 'etichete'
+        ? 'etichete_reception_records'
+        : 'reception_records';
       const { data: receptionRecords, error: receptionError } = await supabase
-        .from('reception_records')
+        .from(receptionTable)
         .select('name, lot_number, original_quantity')
         .gte('receipt_date', selectedDate)
         .lt('receipt_date', `${selectedDate}T23:59:59`);
@@ -102,7 +114,10 @@ export const DailyLotConsumption = () => {
       if (receptionError) throw receptionError;
 
       // Get transfers for the selected date to track official transfers out  
-      const transferItemsTable = 'stock_transfer_items';
+      // Note: ambalaje is already returned above.
+      const transferItemsTable = inventoryType === 'etichete'
+        ? 'etichete_stock_transfer_items'
+        : 'stock_transfer_items';
       
       const { data: transfersOut, error: transfersError } = await supabase
         .from(transferItemsTable)
