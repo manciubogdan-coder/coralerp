@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,6 +10,7 @@ import { ro } from "date-fns/locale";
 
 interface FutureOrdersProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
+  searchTerm?: string;
 }
 
 interface FutureOrderItem {
@@ -27,7 +28,7 @@ interface FutureOrderItem {
   is_this_week: boolean;
 }
 
-const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
+const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType, searchTerm = "" }) => {
   const [orders, setOrders] = useState<FutureOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -246,6 +247,15 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
     }
   };
 
+  const filteredOrders = useMemo(() => {
+    if (!searchTerm) return orders;
+    const lower = searchTerm.toLowerCase();
+    return orders.filter(order => 
+      order.product_name.toLowerCase().includes(lower) ||
+      (order.product_code?.toLowerCase().includes(lower))
+    );
+  }, [orders, searchTerm]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -254,18 +264,22 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
     );
   }
 
-  if (orders.length === 0) {
+  if (filteredOrders.length === 0) {
     return (
       <div className="text-center py-12">
         <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-        <h3 className="text-lg font-medium">Nu există comenzi programate</h3>
-        <p className="text-muted-foreground">Toate produsele au stoc suficient pentru următoarele 30 de zile.</p>
+        <h3 className="text-lg font-medium">
+          {searchTerm ? "Nu s-au găsit produse pentru căutare" : "Nu există comenzi programate"}
+        </h3>
+        <p className="text-muted-foreground">
+          {searchTerm ? "Încercați alt termen de căutare." : "Toate produsele au stoc suficient pentru următoarele 30 de zile."}
+        </p>
       </div>
     );
   }
 
-  const thisWeekOrders = orders.filter(o => o.is_this_week);
-  const laterOrders = orders.filter(o => !o.is_this_week);
+  const thisWeekOrders = filteredOrders.filter(o => o.is_this_week);
+  const laterOrders = filteredOrders.filter(o => !o.is_this_week);
 
   return (
     <div className="space-y-6">

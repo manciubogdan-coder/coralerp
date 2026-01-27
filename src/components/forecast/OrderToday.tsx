@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,6 +9,7 @@ import { formatInTimeZone } from "date-fns-tz";
 
 interface OrderTodayProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
+  searchTerm?: string;
 }
 
 interface OrderItem {
@@ -26,7 +27,7 @@ interface OrderItem {
   urgency: "critical" | "high" | "medium" | "low";
 }
 
-const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
+const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType, searchTerm = "" }) => {
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -267,6 +268,15 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
     }
   };
 
+  const filteredOrders = useMemo(() => {
+    if (!searchTerm) return orders;
+    const lower = searchTerm.toLowerCase();
+    return orders.filter(order => 
+      order.product_name.toLowerCase().includes(lower) ||
+      (order.product_code?.toLowerCase().includes(lower))
+    );
+  }, [orders, searchTerm]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -275,12 +285,16 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
     );
   }
 
-  if (orders.length === 0) {
+  if (filteredOrders.length === 0) {
     return (
       <div className="text-center py-12">
         <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-        <h3 className="text-lg font-medium">Nu există comenzi necesare azi</h3>
-        <p className="text-muted-foreground">Toate produsele au stoc suficient pentru perioada de livrare.</p>
+        <h3 className="text-lg font-medium">
+          {searchTerm ? "Nu s-au găsit produse pentru căutare" : "Nu există comenzi necesare azi"}
+        </h3>
+        <p className="text-muted-foreground">
+          {searchTerm ? "Încercați alt termen de căutare." : "Toate produsele au stoc suficient pentru perioada de livrare."}
+        </p>
       </div>
     );
   }
@@ -290,7 +304,7 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
       <div className="flex items-center gap-2 p-4 bg-amber-50 rounded-lg border border-amber-200">
         <AlertTriangle className="h-5 w-5 text-amber-600" />
         <span className="text-amber-800 font-medium">
-          {orders.length} produse necesită comandă astăzi pentru a evita întreruperea stocului.
+          {filteredOrders.length} produse necesită comandă astăzi pentru a evita întreruperea stocului.
         </span>
       </div>
 
@@ -310,7 +324,7 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.map(order => (
+            {filteredOrders.map(order => (
               <TableRow key={order.product_id} className={order.urgency === "critical" ? "bg-red-50" : ""}>
                 <TableCell>{getUrgencyBadge(order.urgency)}</TableCell>
                 <TableCell className="font-mono text-sm">{order.product_code || "-"}</TableCell>

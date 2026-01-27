@@ -10,6 +10,7 @@ import ProductOrderSettings from "@/components/forecast/ProductOrderSettings";
 import ConsumptionReport from "@/components/forecast/ConsumptionReport";
 import ForecastView from "@/components/forecast/ForecastView";
 import StockSufficiency from "@/components/forecast/StockSufficiency";
+import OrderManagement from "@/components/forecast/OrderManagement";
 
 const ForecastPage = () => {
   const navigate = useNavigate();
@@ -43,13 +44,18 @@ const ForecastPage = () => {
         </div>
         
         <div className="bg-white rounded-lg shadow-md p-4">
-        <Tabs defaultValue="consumption" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-4">
+        <Tabs defaultValue="orders" className="w-full">
+            <TabsList className="grid w-full grid-cols-5 mb-4">
+              <TabsTrigger value="orders">Gestionare Comenzi</TabsTrigger>
               <TabsTrigger value="consumption">Raport Consum</TabsTrigger>
               <TabsTrigger value="forecast">Forecast</TabsTrigger>
               <TabsTrigger value="sufficiency">Zile Stoc</TabsTrigger>
               <TabsTrigger value="settings">Setări Produse</TabsTrigger>
             </TabsList>
+            
+            <TabsContent value="orders">
+              <OrderManagement inventoryType={inventoryType} />
+            </TabsContent>
             
             <TabsContent value="consumption">
               <ConsumptionReport inventoryType={inventoryType} />

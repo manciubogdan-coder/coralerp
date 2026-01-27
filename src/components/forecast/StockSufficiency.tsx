@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileDown, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { Loader2, FileDown, TrendingDown, TrendingUp, Minus, Search } from "lucide-react";
 import { format, addDays, startOfDay, endOfDay } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import * as XLSX from "xlsx";
@@ -31,6 +32,7 @@ const StockSufficiency: React.FC<StockSufficiencyProps> = ({ inventoryType }) =>
   const [period, setPeriod] = useState<PeriodType>("month");
   const [data, setData] = useState<SufficiencyItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const chunk = <T,>(arr: T[], size: number) => {
     const out: T[][] = [];
@@ -258,8 +260,17 @@ const StockSufficiency: React.FC<StockSufficiencyProps> = ({ inventoryType }) =>
     }
   };
 
+  const filteredData = useMemo(() => {
+    if (!searchTerm) return data;
+    const lower = searchTerm.toLowerCase();
+    return data.filter(item => 
+      item.product_name.toLowerCase().includes(lower) ||
+      (item.product_code?.toLowerCase().includes(lower))
+    );
+  }, [data, searchTerm]);
+
   const exportToExcel = () => {
-    const exportData = data.map(d => ({
+    const exportData = filteredData.map(d => ({
       "Cod Produs": d.product_code || "-",
       "Nume Produs": d.product_name,
       "Unitate": d.unit,
@@ -289,7 +300,16 @@ const StockSufficiency: React.FC<StockSufficiencyProps> = ({ inventoryType }) =>
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4 items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative min-w-[200px] max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Caută produs..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
           <span className="text-sm font-medium">Perioada de calcul medie:</span>
           <Select value={period} onValueChange={(v) => setPeriod(v as PeriodType)}>
             <SelectTrigger className="w-[200px]">
@@ -313,31 +333,31 @@ const StockSufficiency: React.FC<StockSufficiencyProps> = ({ inventoryType }) =>
       <div className="grid grid-cols-5 gap-4 mb-4">
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-destructive">
-            {data.filter(d => d.status === "critical").length}
+            {filteredData.filter(d => d.status === "critical").length}
           </div>
           <div className="text-sm text-destructive">Critice (&lt;3 zile)</div>
         </div>
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-orange-600">
-            {data.filter(d => d.status === "low").length}
+            {filteredData.filter(d => d.status === "low").length}
           </div>
           <div className="text-sm text-orange-700">Scăzute (3-7 zile)</div>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-amber-600">
-            {data.filter(d => d.status === "medium").length}
+            {filteredData.filter(d => d.status === "medium").length}
           </div>
           <div className="text-sm text-amber-700">Medii (7-14 zile)</div>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-green-600">
-            {data.filter(d => d.status === "good").length}
+            {filteredData.filter(d => d.status === "good").length}
           </div>
           <div className="text-sm text-green-700">Bune (14-30 zile)</div>
         </div>
         <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-primary">
-            {data.filter(d => d.status === "excellent").length}
+            {filteredData.filter(d => d.status === "excellent").length}
           </div>
           <div className="text-sm text-primary">Excelente (&gt;30 zile)</div>
         </div>
@@ -356,7 +376,7 @@ const StockSufficiency: React.FC<StockSufficiencyProps> = ({ inventoryType }) =>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.map(item => (
+            {filteredData.map(item => (
               <TableRow 
                 key={item.product_id} 
                 className={

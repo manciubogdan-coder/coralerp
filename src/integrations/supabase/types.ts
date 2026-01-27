@@ -1081,6 +1081,60 @@ export type Database = {
           },
         ]
       }
+      ambalaje_product_orders: {
+        Row: {
+          created_at: string
+          expected_delivery_date: string | null
+          id: string
+          notes: string | null
+          order_date: string
+          product_id: string
+          quantity_ordered: number
+          status: string
+          supplier_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expected_delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          product_id: string
+          quantity_ordered: number
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expected_delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          product_id?: string
+          quantity_ordered?: number
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_product_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambalaje_product_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ambalaje_production_stock: {
         Row: {
           created_at: string
@@ -1211,6 +1265,7 @@ export type Database = {
           category: string | null
           cod_produs: string | null
           created_at: string
+          default_supplier_id: string | null
           default_unit: string
           description: string | null
           id: string
@@ -1222,6 +1277,7 @@ export type Database = {
           category?: string | null
           cod_produs?: string | null
           created_at?: string
+          default_supplier_id?: string | null
           default_unit: string
           description?: string | null
           id?: string
@@ -1233,6 +1289,7 @@ export type Database = {
           category?: string | null
           cod_produs?: string | null
           created_at?: string
+          default_supplier_id?: string | null
           default_unit?: string
           description?: string | null
           id?: string
@@ -1240,7 +1297,15 @@ export type Database = {
           pt_percent?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_products_default_supplier_id_fkey"
+            columns: ["default_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "ambalaje_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ambalaje_reception_records: {
         Row: {
@@ -3215,6 +3280,60 @@ export type Database = {
           },
         ]
       }
+      etichete_product_orders: {
+        Row: {
+          created_at: string
+          expected_delivery_date: string | null
+          id: string
+          notes: string | null
+          order_date: string
+          product_id: string
+          quantity_ordered: number
+          status: string
+          supplier_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expected_delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          product_id: string
+          quantity_ordered: number
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expected_delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          product_id?: string
+          quantity_ordered?: number
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etichete_product_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etichete_product_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       etichete_production_stock: {
         Row: {
           created_at: string
@@ -3345,6 +3464,7 @@ export type Database = {
           category: string | null
           cod_produs: string | null
           created_at: string
+          default_supplier_id: string | null
           default_unit: string
           description: string | null
           id: string
@@ -3356,6 +3476,7 @@ export type Database = {
           category?: string | null
           cod_produs?: string | null
           created_at?: string
+          default_supplier_id?: string | null
           default_unit: string
           description?: string | null
           id?: string
@@ -3367,6 +3488,7 @@ export type Database = {
           category?: string | null
           cod_produs?: string | null
           created_at?: string
+          default_supplier_id?: string | null
           default_unit?: string
           description?: string | null
           id?: string
@@ -3374,7 +3496,15 @@ export type Database = {
           pt_percent?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "etichete_products_default_supplier_id_fkey"
+            columns: ["default_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "etichete_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       etichete_reception_records: {
         Row: {
@@ -5609,6 +5739,60 @@ export type Database = {
           },
         ]
       }
+      product_orders: {
+        Row: {
+          created_at: string
+          expected_delivery_date: string | null
+          id: string
+          notes: string | null
+          order_date: string
+          product_id: string
+          quantity_ordered: number
+          status: string
+          supplier_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expected_delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          product_id: string
+          quantity_ordered: number
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expected_delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          product_id?: string
+          quantity_ordered?: number
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       productie_clienti: {
         Row: {
           adresa: string | null
@@ -6686,6 +6870,7 @@ export type Database = {
         Row: {
           cod_produs: string | null
           created_at: string
+          default_supplier_id: string | null
           default_unit: string
           description: string | null
           id: string
@@ -6696,6 +6881,7 @@ export type Database = {
         Insert: {
           cod_produs?: string | null
           created_at?: string
+          default_supplier_id?: string | null
           default_unit?: string
           description?: string | null
           id?: string
@@ -6706,6 +6892,7 @@ export type Database = {
         Update: {
           cod_produs?: string | null
           created_at?: string
+          default_supplier_id?: string | null
           default_unit?: string
           description?: string | null
           id?: string
@@ -6713,7 +6900,15 @@ export type Database = {
           pt_percent?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "products_default_supplier_id_fkey"
+            columns: ["default_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
