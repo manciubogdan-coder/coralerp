@@ -21,7 +21,9 @@ interface FutureOrderItem {
   expected_stockout_date: Date;
   current_stock: number;
   avg_daily_consumption: number;
+  lead_time_days: number;
   suggested_order_quantity: number;
+  suggested_7_days: number;
   is_this_week: boolean;
 }
 
@@ -210,9 +212,12 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
         // Show orders needed within next 30 days (including today - same logic as OrderToday)
         // If orderByDate <= today, it means we should already be ordering
         if (orderByDate <= addDays(today, 30)) {
-          // Keep consistent with OrderToday: order for (lead time + 7 days buffer) minus current stock
-          const neededQty = (settings.lead_time_days + 7) * avgDaily - currentStock;
-          const suggestedQty = Math.max(Math.max(0, neededQty), settings.min_order_quantity);
+          // Suggested quantity = enough to cover lead time (until order arrives)
+          const neededForLeadTime = settings.lead_time_days * avgDaily - currentStock;
+          const suggestedQty = Math.max(Math.max(0, neededForLeadTime), settings.min_order_quantity);
+          
+          // Suggested quantity for 7 days of stock
+          const suggested7Days = Math.max(0, 7 * avgDaily);
 
           futureItems.push({
             product_id: product.id,
@@ -223,7 +228,9 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
             expected_stockout_date: stockoutDate,
             current_stock: currentStock,
             avg_daily_consumption: avgDaily,
+            lead_time_days: settings.lead_time_days,
             suggested_order_quantity: suggestedQty,
+            suggested_7_days: suggested7Days,
             is_this_week: isWithinInterval(orderByDate, { start: weekStart, end: weekEnd })
           });
         }
@@ -278,7 +285,9 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
                   <TableHead className="text-right">Stoc Curent</TableHead>
                   <TableHead className="text-right">Consum/Zi</TableHead>
                   <TableHead className="text-right">Dată Epuizare</TableHead>
-                  <TableHead className="text-right">Cantitate Sugerată</TableHead>
+                  <TableHead className="text-right">Lead Time</TableHead>
+                  <TableHead className="text-right">Cant. Sugerată (Lead Time)</TableHead>
+                  <TableHead className="text-right">Cant. Sugerată (7 zile)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -298,8 +307,14 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
                     <TableCell className="text-right text-orange-600">
                       {format(order.expected_stockout_date, "d MMM", { locale: ro })}
                     </TableCell>
+                    <TableCell className="text-right">
+                      {order.lead_time_days} zile
+                    </TableCell>
                     <TableCell className="text-right font-bold text-primary">
                       {order.suggested_order_quantity.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-muted-foreground">
+                      {order.suggested_7_days.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -325,7 +340,9 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
                   <TableHead className="text-right">Stoc Curent</TableHead>
                   <TableHead className="text-right">Consum/Zi</TableHead>
                   <TableHead className="text-right">Dată Epuizare</TableHead>
-                  <TableHead className="text-right">Cantitate Sugerată</TableHead>
+                  <TableHead className="text-right">Lead Time</TableHead>
+                  <TableHead className="text-right">Cant. Sugerată (Lead Time)</TableHead>
+                  <TableHead className="text-right">Cant. Sugerată (7 zile)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -345,8 +362,14 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
                     <TableCell className="text-right">
                       {format(order.expected_stockout_date, "d MMM", { locale: ro })}
                     </TableCell>
+                    <TableCell className="text-right">
+                      {order.lead_time_days} zile
+                    </TableCell>
                     <TableCell className="text-right font-bold text-primary">
                       {order.suggested_order_quantity.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-muted-foreground">
+                      {order.suggested_7_days.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
                     </TableCell>
                   </TableRow>
                 ))}
