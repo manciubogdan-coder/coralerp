@@ -54,11 +54,11 @@ export const DailyStockGroupView = () => {
   const fetchDailyStock = async () => {
     try {
       setLoading(true);
-      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_snapshots' : 'daily_stock_snapshots';
-      const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers' : 'suppliers';
-      const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers' : 'manufacturers';
-      const crateTypesTable = inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
-      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
+      const tableName = inventoryType === 'ambalaje'
+        ? 'ambalaje_daily_stock_snapshots'
+        : inventoryType === 'etichete'
+          ? 'etichete_daily_stock_snapshots'
+          : 'daily_stock_snapshots';
       
       
       const { data, error } = await supabase
@@ -92,7 +92,11 @@ export const DailyStockGroupView = () => {
       setStockSnapshots(snapshots);
 
       // Fetch quality data for these snapshots (read-only display)
-      const qualityTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_quality' : 'daily_stock_quality';
+      const qualityTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_daily_stock_quality'
+        : inventoryType === 'etichete'
+          ? 'etichete_daily_stock_quality'
+          : 'daily_stock_quality';
       if (snapshots.length > 0) {
         const ids = snapshots.map(s => s.id);
         const { data: qData, error: qErr } = await supabase

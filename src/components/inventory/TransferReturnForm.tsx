@@ -61,7 +61,11 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
   
   useEffect(() => {
     const fetchCrateTypes = async () => {
-      const crateTypesTable = inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
+      const crateTypesTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_crate_types'
+        : inventoryType === 'etichete'
+          ? 'etichete_crate_types'
+          : 'crate_types';
       const { data, error } = await supabase
         .from(crateTypesTable)
         .select('*')
@@ -81,7 +85,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
     };
     
     fetchCrateTypes();
-  }, []);
+  }, [inventoryType]);
   
   useEffect(() => {
     if (selectedCrateTypeId) {
@@ -126,10 +130,26 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
       setIsSubmitting(true);
       
       // Determină tabelele în funcție de tipul de inventar
-      const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
-      const transfersTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
-      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
-      const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+      const transferItemsTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_stock_transfer_items'
+        : inventoryType === 'etichete'
+          ? 'etichete_stock_transfer_items'
+          : 'stock_transfer_items';
+      const transfersTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_stock_transfers'
+        : inventoryType === 'etichete'
+          ? 'etichete_stock_transfers'
+          : 'stock_transfers';
+      const inventoryTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_inventory'
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory'
+          : 'inventory';
+      const historyTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_inventory_history'
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory_history'
+          : 'inventory_history';
       
       // 1. Actualizează cantitățile din transfer item (scad atât BRUT cât și NET)
       const newGrossQuantity = transfer.quantity - grossQuantity; // quantity = BRUT

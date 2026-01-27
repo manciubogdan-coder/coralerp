@@ -73,9 +73,11 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       setLoading(true);
       
       // Use the correct tables to build a query instead of views
-      const transfersTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
-      const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
-      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const transferItemsTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_stock_transfer_items'
+        : inventoryType === 'etichete'
+          ? 'etichete_stock_transfer_items'
+          : 'stock_transfer_items';
       
       const { data, error } = await supabase
         .from(transferItemsTable)
