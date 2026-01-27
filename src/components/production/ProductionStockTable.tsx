@@ -60,18 +60,26 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
 
-  const productionStockTable = inventoryType === 'ambalaje' 
-    ? 'ambalaje_production_stock' 
-    : 'production_stock';
+  const productionStockTable = inventoryType === 'ambalaje'
+    ? 'ambalaje_production_stock'
+    : inventoryType === 'etichete'
+      ? 'etichete_production_stock'
+      : 'production_stock';
   const historyTable = inventoryType === 'ambalaje'
     ? 'ambalaje_production_stock_history'
-    : 'production_stock_history';
+    : inventoryType === 'etichete'
+      ? 'etichete_production_stock_history'
+      : 'production_stock_history';
   const inventoryTable = inventoryType === 'ambalaje'
     ? 'ambalaje_inventory'
-    : 'inventory';
+    : inventoryType === 'etichete'
+      ? 'etichete_inventory'
+      : 'inventory';
   const inventoryHistoryTable = inventoryType === 'ambalaje'
     ? 'ambalaje_inventory_history'
-    : 'inventory_history';
+    : inventoryType === 'etichete'
+      ? 'etichete_inventory_history'
+      : 'inventory_history';
 
   // Agregare pe produs
   const aggregatedProducts = useMemo((): AggregatedProduct[] => {
@@ -454,41 +462,44 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredProducts.map((product) => {
+              {filteredProducts.flatMap((product) => {
                 const isExpanded = expandedProducts.has(product.productKey);
-                return (
-                  <React.Fragment key={product.productKey}>
-                    {/* Rând sumar produs */}
-                    <TableRow 
-                      className="cursor-pointer hover:bg-muted/70"
-                      onClick={() => toggleExpand(product.productKey)}
-                    >
-                      <TableCell className="w-8 p-2">
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {product.productName}
-                        {product.codProdus && (
-                          <span className="text-xs text-muted-foreground ml-2">
-                            ({product.codProdus})
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-lg">
-                        {product.totalQuantity.toFixed(2)}
-                      </TableCell>
-                      <TableCell>{product.unit}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {product.items.length} lot{product.items.length !== 1 ? 'uri' : ''}
-                      </TableCell>
-                    </TableRow>
+                const rows: React.ReactNode[] = [];
 
-                    {/* Detalii pe loturi când expandat */}
-                    {isExpanded && product.items.map((item) => (
+                rows.push(
+                  <TableRow
+                    key={`${product.productKey}__summary`}
+                    className="cursor-pointer hover:bg-muted/70"
+                    onClick={() => toggleExpand(product.productKey)}
+                  >
+                    <TableCell className="w-8 p-2">
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {product.productName}
+                      {product.codProdus && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          ({product.codProdus})
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-lg">
+                      {product.totalQuantity.toFixed(2)}
+                    </TableCell>
+                    <TableCell>{product.unit}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {product.items.length} lot{product.items.length !== 1 ? 'uri' : ''}
+                    </TableCell>
+                  </TableRow>
+                );
+
+                if (isExpanded) {
+                  rows.push(
+                    ...product.items.map((item) => (
                       <TableRow key={item.id} className="bg-muted/30">
                         <TableCell></TableCell>
                         <TableCell colSpan={4}>
@@ -552,9 +563,11 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </React.Fragment>
-                );
+                    ))
+                  );
+                }
+
+                return rows;
               })}
             </TableBody>
           </Table>

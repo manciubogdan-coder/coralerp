@@ -52,9 +52,11 @@ const ProductionStockManagement = () => {
   const fetchStock = async () => {
     try {
       setLoading(true);
-      const tableName = inventoryType === 'ambalaje' 
-        ? 'ambalaje_production_stock' 
-        : 'production_stock';
+      const tableName = inventoryType === 'ambalaje'
+        ? 'ambalaje_production_stock'
+        : inventoryType === 'etichete'
+          ? 'etichete_production_stock'
+          : 'production_stock';
 
       let query = supabase
         .from(tableName)
@@ -148,7 +150,7 @@ const ProductionStockManagement = () => {
       : format(new Date(), 'dd.MM.yyyy');
 
     exportToExcel(exportData, `stoc_productie_${inventoryType}_${dateStr}.xlsx`, {
-      reportTitle: `Stoc Producție ${inventoryType === 'ambalaje' ? 'Ambalaje' : 'Materii Prime'}`,
+      reportTitle: `Stoc Producție ${inventoryType === 'ambalaje' ? 'Ambalaje' : inventoryType === 'etichete' ? 'Etichete' : 'Materii Prime'}`,
       filters: dateRange.from && dateRange.to
         ? `Perioada: ${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')}`
         : undefined,
@@ -198,9 +200,11 @@ const ProductionStockManagement = () => {
     return 'Selectați perioada';
   };
 
-  const title = inventoryType === 'ambalaje' 
-    ? 'Stoc Producție Ambalaje' 
-    : 'Stoc Producție Materii Prime';
+  const title = inventoryType === 'ambalaje'
+    ? 'Stoc Producție Ambalaje'
+    : inventoryType === 'etichete'
+      ? 'Stoc Producție Etichete'
+      : 'Stoc Producție Materii Prime';
 
   return (
     <div className="p-4 md:p-6">
@@ -296,12 +300,16 @@ const ProductionStockHistory = ({ dateRange, setDateRange }: ProductionStockHist
     const fetchHistory = async () => {
       try {
         setLoading(true);
-        const historyTable = inventoryType === 'ambalaje'
-          ? 'ambalaje_production_stock_history'
-          : 'production_stock_history';
-        const stockTable = inventoryType === 'ambalaje'
-          ? 'ambalaje_production_stock'
-          : 'production_stock';
+          const historyTable = inventoryType === 'ambalaje'
+            ? 'ambalaje_production_stock_history'
+            : inventoryType === 'etichete'
+              ? 'etichete_production_stock_history'
+              : 'production_stock_history';
+          const stockTable = inventoryType === 'ambalaje'
+            ? 'ambalaje_production_stock'
+            : inventoryType === 'etichete'
+              ? 'etichete_production_stock'
+              : 'production_stock';
 
         let query = supabase
           .from(historyTable)
@@ -384,7 +392,7 @@ const ProductionStockHistory = ({ dateRange, setDateRange }: ProductionStockHist
       : format(new Date(), 'dd.MM.yyyy');
 
     exportToExcel(exportData, `istoric_productie_${inventoryType}_${dateStr}.xlsx`, {
-      reportTitle: `Istoric Operații Producție ${inventoryType === 'ambalaje' ? 'Ambalaje' : 'Materii Prime'}`,
+      reportTitle: `Istoric Operații Producție ${inventoryType === 'ambalaje' ? 'Ambalaje' : inventoryType === 'etichete' ? 'Etichete' : 'Materii Prime'}`,
       date: new Date().toISOString(),
       filters: dateRange.from && dateRange.to
         ? `Perioada: ${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')}`
