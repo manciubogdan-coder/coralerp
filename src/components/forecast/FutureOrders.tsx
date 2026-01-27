@@ -209,8 +209,9 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
 
         // Only show orders needed within next 30 days, excluding today
         if (orderByDate > today && orderByDate <= addDays(today, 30)) {
-          const neededQty = (settings.lead_time_days + 7) * avgDaily;
-          const suggestedQty = Math.max(neededQty, settings.min_order_quantity);
+          // Keep consistent with OrderToday: order for (lead time + 7 days buffer) minus current stock
+          const neededQty = (settings.lead_time_days + 7) * avgDaily - currentStock;
+          const suggestedQty = Math.max(Math.max(0, neededQty), settings.min_order_quantity);
 
           futureItems.push({
             product_id: product.id,
