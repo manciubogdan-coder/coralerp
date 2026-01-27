@@ -26,7 +26,11 @@ const ProductsTable = () => {
   const [editItem, setEditItem] = useState<Product | null>(null);
 
   // Get the correct table name based on inventory type
-  const getTableName = () => inventoryType === 'ambalaje' ? 'ambalaje_products' : 'products';
+  const getTableName = () => {
+    if (inventoryType === 'ambalaje') return 'ambalaje_products';
+    if (inventoryType === 'etichete') return 'etichete_products';
+    return 'products';
+  };
 
   useEffect(() => {
     fetchProducts();
