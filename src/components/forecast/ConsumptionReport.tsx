@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Loader2, FileDown } from "lucide-react";
+import { CalendarIcon, Loader2, FileDown, Search } from "lucide-react";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { ro } from "date-fns/locale";
 import { formatInTimeZone } from "date-fns-tz";
@@ -33,6 +34,7 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
   const [toDate, setToDate] = useState<Date>(new Date());
   const [data, setData] = useState<ConsumptionData[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const getTableNames = () => {
     switch (inventoryType) {
@@ -244,8 +246,17 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
     fetchReport();
   }, [inventoryType]);
 
+  const filteredData = useMemo(() => {
+    if (!searchTerm) return data;
+    const lower = searchTerm.toLowerCase();
+    return data.filter(item => 
+      item.product_name.toLowerCase().includes(lower) ||
+      (item.product_code?.toLowerCase().includes(lower))
+    );
+  }, [data, searchTerm]);
+
   const exportToExcel = () => {
-    const exportData = data.map(d => ({
+    const exportData = filteredData.map(d => ({
       "Cod Produs": d.product_code || "-",
       "Nume Produs": d.product_name,
       "Unitate": d.unit,
@@ -268,6 +279,15 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4 items-end">
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Caută produs..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">De la</label>
           <Popover>
@@ -325,9 +345,9 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
         <div className="flex items-center justify-center p-8">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : data.length === 0 ? (
+      ) : filteredData.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
-          Nu există date de consum pentru perioada selectată.
+          {searchTerm ? "Nu s-au găsit produse pentru căutarea efectuată." : "Nu există date de consum pentru perioada selectată."}
         </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
@@ -345,7 +365,7 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map(item => (
+              {filteredData.map(item => (
                 <TableRow key={item.product_id}>
                   <TableCell className="font-mono text-sm">{item.product_code || "-"}</TableCell>
                   <TableCell className="font-medium">{item.product_name}</TableCell>
