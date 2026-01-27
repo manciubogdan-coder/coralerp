@@ -8,11 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Loader2, Search, ShoppingCart, Check, AlertTriangle, CalendarIcon, Package, Truck } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Search, ShoppingCart, Check, AlertTriangle, CalendarIcon, Package, Truck, Plus, Trash2, FileSpreadsheet } from "lucide-react";
 import { format, addDays, startOfDay, endOfDay } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { exportToExcel } from "@/lib/excelExport";
 
 interface OrderManagementProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -44,6 +46,22 @@ interface SupplierGroup {
   total_products: number;
 }
 
+interface EditableOrderItem {
+  product_id: string;
+  product_name: string;
+  product_code: string | null;
+  unit: string;
+  quantity: number;
+  suggested_quantity: number;
+}
+
+interface AllProduct {
+  id: string;
+  name: string;
+  cod_produs: string | null;
+  default_unit: string;
+}
+
 const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
   const [items, setItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +71,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
   const [orderDate, setOrderDate] = useState<Date>(new Date());
   const [expectedDelivery, setExpectedDelivery] = useState<Date>(addDays(new Date(), 7));
   const [submitting, setSubmitting] = useState(false);
+  const [editableItems, setEditableItems] = useState<EditableOrderItem[]>([]);
+  const [allProducts, setAllProducts] = useState<AllProduct[]>([]);
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [selectedProductToAdd, setSelectedProductToAdd] = useState<string>("");
+  const [orderNotes, setOrderNotes] = useState("");
 
   const chunk = <T,>(arr: T[], size: number) => {
     const out: T[][] = [];
@@ -97,6 +120,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
 
   useEffect(() => {
     fetchData();
+    fetchAllProducts();
   }, [inventoryType]);
 
   const fetchData = async () => {
@@ -342,24 +366,117 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
     setSelectedSupplier(supplierGroup);
     const maxLeadTime = Math.max(...supplierGroup.products.map(p => p.lead_time_days));
     setExpectedDelivery(addDays(new Date(), maxLeadTime));
+    
+    // Initialize editable items with suggested quantities
+    const editItems: EditableOrderItem[] = supplierGroup.products.map(p => ({
+      product_id: p.product_id,
+      product_name: p.product_name,
+      product_code: p.product_code,
+      unit: p.unit,
+      quantity: Math.round(p.suggested_quantity),
+      suggested_quantity: p.suggested_quantity
+    }));
+    setEditableItems(editItems);
+    setOrderNotes("");
+    setShowAddProduct(false);
+    setSelectedProductToAdd("");
     setShowOrderDialog(true);
   };
 
+  const fetchAllProducts = async () => {
+    try {
+      const tables = getTableNames();
+      const { data } = await supabase
+        .from(tables.products)
+        .select("id, name, cod_produs, default_unit")
+        .order("name");
+      
+      setAllProducts((data || []) as AllProduct[]);
+    } catch (error) {
+      console.error("Error fetching all products:", error);
+    }
+  };
+
+  const handleQuantityChange = (productId: string, newQty: number) => {
+    setEditableItems(prev => prev.map(item => 
+      item.product_id === productId ? { ...item, quantity: newQty } : item
+    ));
+  };
+
+  const handleRemoveItem = (productId: string) => {
+    setEditableItems(prev => prev.filter(item => item.product_id !== productId));
+  };
+
+  const handleAddProduct = () => {
+    if (!selectedProductToAdd) return;
+    
+    const product = allProducts.find(p => p.id === selectedProductToAdd);
+    if (!product) return;
+    
+    // Check if already in list
+    if (editableItems.some(item => item.product_id === product.id)) {
+      toast({ title: "Produsul este deja în listă", variant: "destructive" });
+      return;
+    }
+
+    setEditableItems(prev => [...prev, {
+      product_id: product.id,
+      product_name: product.name,
+      product_code: product.cod_produs,
+      unit: product.default_unit,
+      quantity: 100,
+      suggested_quantity: 0
+    }]);
+    
+    setSelectedProductToAdd("");
+    setShowAddProduct(false);
+  };
+
+  const handleExportOrder = () => {
+    if (editableItems.length === 0) {
+      toast({ title: "Nu există produse de exportat", variant: "destructive" });
+      return;
+    }
+
+    const exportData = editableItems.map(item => ({
+      "Cod Produs": item.product_code || "-",
+      "Produs": item.product_name,
+      "Cantitate": item.quantity,
+      "UM": item.unit,
+      "Cantitate Sugerată": item.suggested_quantity
+    }));
+
+    const supplierName = selectedSupplier?.supplier_name || "Furnizor";
+    const inventoryLabel = inventoryType === "materii-prime" ? "MP" 
+      : inventoryType === "ambalaje" ? "AMB" : "ETI";
+
+    exportToExcel(exportData, `Comanda_${supplierName.replace(/\s/g, "_")}_${inventoryLabel}_${format(new Date(), "yyyyMMdd")}.xlsx`, {
+      reportTitle: `Comandă - ${supplierName}`,
+      date: format(orderDate, "dd.MM.yyyy"),
+      additionalInfo: `Livrare estimată: ${format(expectedDelivery, "dd.MM.yyyy")}`
+    });
+
+    toast({ title: "Export realizat cu succes" });
+  };
+
   const submitOrder = async () => {
-    if (!selectedSupplier) return;
+    if (!selectedSupplier || editableItems.length === 0) return;
     
     setSubmitting(true);
     try {
       const tables = getTableNames();
       
-      const ordersToInsert = selectedSupplier.products.map(product => ({
-        product_id: product.product_id,
-        supplier_id: product.supplier_id,
-        quantity_ordered: product.suggested_quantity,
-        order_date: orderDate.toISOString(),
-        expected_delivery_date: format(expectedDelivery, "yyyy-MM-dd"),
-        status: "ordered" as const
-      }));
+      const ordersToInsert = editableItems
+        .filter(item => item.quantity > 0)
+        .map(item => ({
+          product_id: item.product_id,
+          supplier_id: selectedSupplier.supplier_id,
+          quantity_ordered: item.quantity,
+          order_date: orderDate.toISOString(),
+          expected_delivery_date: format(expectedDelivery, "yyyy-MM-dd"),
+          status: "ordered" as const,
+          notes: orderNotes || null
+        }));
 
       const { error } = await supabase
         .from(tables.orders)
@@ -584,14 +701,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
 
       {/* Order Dialog */}
       <Dialog open={showOrderDialog} onOpenChange={setShowOrderDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>
               Creare Comandă - {selectedSupplier?.supplier_name}
             </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Data Comenzii</label>
@@ -634,38 +751,126 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
               </div>
             </div>
 
-            <div className="border rounded-lg max-h-60 overflow-y-auto">
+            {/* Add product section */}
+            <div className="flex gap-2 items-end">
+              {showAddProduct ? (
+                <>
+                  <div className="flex-1">
+                    <label className="text-sm font-medium">Adaugă produs</label>
+                    <Select value={selectedProductToAdd} onValueChange={setSelectedProductToAdd}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selectează produs..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[200px]">
+                        {allProducts
+                          .filter(p => !editableItems.some(e => e.product_id === p.id))
+                          .map(product => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.cod_produs ? `[${product.cod_produs}] ` : ""}{product.name}
+                            </SelectItem>
+                          ))
+                        }
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button size="sm" onClick={handleAddProduct} disabled={!selectedProductToAdd}>
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowAddProduct(false)}>
+                    Anulează
+                  </Button>
+                </>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setShowAddProduct(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Adaugă produs
+                </Button>
+              )}
+            </div>
+
+            {/* Editable products table */}
+            <div className="border rounded-lg flex-1 overflow-auto max-h-[300px]">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12"></TableHead>
                     <TableHead>Produs</TableHead>
-                    <TableHead className="text-right">Cantitate</TableHead>
+                    <TableHead className="text-right w-32">Cant. Sugerată</TableHead>
+                    <TableHead className="text-right w-40">Cantitate</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {selectedSupplier?.products.map(product => (
-                    <TableRow key={product.product_id}>
-                      <TableCell>
-                        <span className="font-mono text-sm">{product.product_code || ""}</span>
-                        {" "}{product.product_name}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {product.suggested_quantity.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {product.unit}
+                  {editableItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
+                        Nu există produse în comandă.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    editableItems.map(item => (
+                      <TableRow key={item.product_id}>
+                        <TableCell>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleRemoveItem(item.product_id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-mono text-sm text-muted-foreground">{item.product_code || ""}</span>
+                          {item.product_code && " "}{item.product_name}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {item.suggested_quantity > 0 
+                            ? item.suggested_quantity.toLocaleString("ro-RO", { maximumFractionDigits: 0 })
+                            : "-"
+                          }
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => handleQuantityChange(item.product_id, Number(e.target.value))}
+                              className="w-24 text-right"
+                              min={0}
+                            />
+                            <span className="text-sm text-muted-foreground w-10">{item.unit}</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Note comandă</label>
+              <Input
+                placeholder="Observații, instrucțiuni speciale..."
+                value={orderNotes}
+                onChange={(e) => setOrderNotes(e.target.value)}
+              />
+            </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-shrink-0 gap-2">
+            <Button variant="outline" onClick={handleExportOrder}>
+              <FileSpreadsheet className="h-4 w-4 mr-1" />
+              Export
+            </Button>
+            <div className="flex-1" />
             <Button variant="outline" onClick={() => setShowOrderDialog(false)}>
               Anulează
             </Button>
-            <Button onClick={submitOrder} disabled={submitting}>
+            <Button onClick={submitOrder} disabled={submitting || editableItems.filter(i => i.quantity > 0).length === 0}>
               {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Confirmă Comanda
+              Confirmă Comanda ({editableItems.filter(i => i.quantity > 0).length} produse)
             </Button>
           </DialogFooter>
         </DialogContent>
