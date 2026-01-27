@@ -128,7 +128,8 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
       // Get inventory items to map to products - also in batches
       const inventoryItemIds = [...new Set(allTransferItems.map(t => t.inventory_item_id))];
       
-      let inventoryMap = new Map<string, string>();
+      // Map inventory_item_id -> product_id
+      let inventoryToProductMap = new Map<string, string>();
       if (inventoryItemIds.length > 0) {
         for (let i = 0; i < inventoryItemIds.length; i += batchSize) {
           const batch = inventoryItemIds.slice(i, i + batchSize);
@@ -139,11 +140,14 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
           
           (invData || []).forEach((item: any) => {
             if (item.product_id) {
-              inventoryMap.set(item.id, item.product_id);
+              inventoryToProductMap.set(item.id, item.product_id);
             }
           });
         }
       }
+      
+      // Build a set of valid product IDs for quick lookup
+      const validProductIds = new Set((productsData || []).map((p: any) => p.id));
 
       // Create a map of transfer dates
       const transferDateMap = new Map<string, string>();
@@ -155,8 +159,9 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
       const productDailyConsumption = new Map<string, Map<string, number>>();
       
       allTransferItems.forEach(transfer => {
-        const productId = inventoryMap.get(transfer.inventory_item_id);
-        if (!productId) return;
+        const productId = inventoryToProductMap.get(transfer.inventory_item_id);
+        // Skip if no product mapping or product not in our valid products list
+        if (!productId || !validProductIds.has(productId)) return;
 
         const transferDate = transferDateMap.get(transfer.transfer_id);
         if (!transferDate) return;
