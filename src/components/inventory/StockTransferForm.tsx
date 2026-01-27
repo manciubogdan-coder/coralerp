@@ -83,11 +83,15 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       fetchInventory();
       fetchCrateTypes();
     }
-  }, [isOpen]);
+  }, [isOpen, inventoryType]);
 
   const fetchCrateTypes = async () => {
     try {
-      const crateTypesTable = inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
+      const crateTypesTable = inventoryType === 'ambalaje' 
+        ? 'ambalaje_crate_types' 
+        : inventoryType === 'etichete'
+          ? 'etichete_crate_types'
+          : 'crate_types';
       const { data, error } = await supabase
         .from(crateTypesTable)
         .select("*")
@@ -102,7 +106,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
   const fetchInventory = async () => {
     try {
-      const tableName = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
+      const tableName = inventoryType === 'ambalaje' 
+        ? 'ambalaje_inventory' 
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory'
+          : 'inventory';
       
       const { data, error } = await supabase
         .from(tableName)
@@ -314,10 +322,26 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setIsSubmitting(true);
 
     try {
-      const transfersTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfers' : 'stock_transfers';
-      const transferItemsTable = inventoryType === 'ambalaje' ? 'ambalaje_stock_transfer_items' : 'stock_transfer_items';
-      const inventoryTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : 'inventory';
-      const historyTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory_history' : 'inventory_history';
+      const transfersTable = inventoryType === 'ambalaje' 
+        ? 'ambalaje_stock_transfers' 
+        : inventoryType === 'etichete'
+          ? 'etichete_stock_transfers'
+          : 'stock_transfers';
+      const transferItemsTable = inventoryType === 'ambalaje' 
+        ? 'ambalaje_stock_transfer_items' 
+        : inventoryType === 'etichete'
+          ? 'etichete_stock_transfer_items'
+          : 'stock_transfer_items';
+      const inventoryTable = inventoryType === 'ambalaje' 
+        ? 'ambalaje_inventory' 
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory'
+          : 'inventory';
+      const historyTable = inventoryType === 'ambalaje' 
+        ? 'ambalaje_inventory_history' 
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory_history'
+          : 'inventory_history';
 
       // Creează transferul principal
       const { data: transfer, error: transferError } = await supabase
