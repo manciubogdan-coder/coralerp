@@ -201,14 +201,15 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
         const totalConsumption = productConsumption.get(product.id) || 0;
         const avgDaily = totalConsumption / 30;
 
-        if (avgDaily === 0 || currentStock === 0) return;
+        if (avgDaily === 0) return; // Skip products with no consumption
 
-        const daysUntilStockout = currentStock / avgDaily;
+        const daysUntilStockout = avgDaily > 0 ? currentStock / avgDaily : Infinity;
         const stockoutDate = addDays(today, daysUntilStockout);
         const orderByDate = addDays(stockoutDate, -settings.lead_time_days);
 
-        // Only show orders needed within next 30 days, excluding today
-        if (orderByDate > today && orderByDate <= addDays(today, 30)) {
+        // Show orders needed within next 30 days (including today - same logic as OrderToday)
+        // If orderByDate <= today, it means we should already be ordering
+        if (orderByDate <= addDays(today, 30)) {
           // Keep consistent with OrderToday: order for (lead time + 7 days buffer) minus current stock
           const neededQty = (settings.lead_time_days + 7) * avgDaily - currentStock;
           const suggestedQty = Math.max(Math.max(0, neededQty), settings.min_order_quantity);
