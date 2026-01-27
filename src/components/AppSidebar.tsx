@@ -20,7 +20,8 @@ import {
   Box, 
   Database,
   Home,
-  Warehouse
+  Warehouse,
+  TrendingUp
 } from 'lucide-react';
 
 const AppSidebar = () => {
@@ -70,6 +71,12 @@ const AppSidebar = () => {
       name: "Stoc Producție",
       icon: Warehouse,
       path: "/dashboard/production-stock",
+    },
+    {
+      id: "forecast",
+      name: "Planificare & Forecast",
+      icon: TrendingUp,
+      path: "/dashboard/forecast",
     }
   ];
 

@@ -1046,6 +1046,41 @@ export type Database = {
         }
         Relationships: []
       }
+      ambalaje_product_order_settings: {
+        Row: {
+          created_at: string
+          id: string
+          lead_time_days: number
+          min_order_quantity: number
+          product_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_time_days?: number
+          min_order_quantity?: number
+          product_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_time_days?: number
+          min_order_quantity?: number
+          product_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambalaje_product_order_settings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "ambalaje_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ambalaje_production_stock: {
         Row: {
           created_at: string
@@ -3144,6 +3179,41 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      etichete_product_order_settings: {
+        Row: {
+          created_at: string
+          id: string
+          lead_time_days: number
+          min_order_quantity: number
+          product_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_time_days?: number
+          min_order_quantity?: number
+          product_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_time_days?: number
+          min_order_quantity?: number
+          product_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etichete_product_order_settings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "etichete_products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       etichete_production_stock: {
         Row: {
@@ -5503,6 +5573,41 @@ export type Database = {
           username?: string
         }
         Relationships: []
+      }
+      product_order_settings: {
+        Row: {
+          created_at: string
+          id: string
+          lead_time_days: number
+          min_order_quantity: number
+          product_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_time_days?: number
+          min_order_quantity?: number
+          product_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_time_days?: number
+          min_order_quantity?: number
+          product_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_order_settings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       productie_clienti: {
         Row: {

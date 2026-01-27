@@ -1,0 +1,332 @@
+import React, { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-custom-toast";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, FileDown, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { format, addDays } from "date-fns";
+import * as XLSX from "xlsx";
+
+interface StockSufficiencyProps {
+  inventoryType: "materii-prime" | "ambalaje" | "etichete";
+}
+
+interface SufficiencyItem {
+  product_id: string;
+  product_name: string;
+  product_code: string | null;
+  unit: string;
+  current_stock: number;
+  avg_daily_consumption: number;
+  days_remaining: number;
+  status: "critical" | "low" | "medium" | "good" | "excellent";
+}
+
+type PeriodType = "week" | "month" | "quarter" | "year";
+
+const StockSufficiency: React.FC<StockSufficiencyProps> = ({ inventoryType }) => {
+  const [period, setPeriod] = useState<PeriodType>("month");
+  const [data, setData] = useState<SufficiencyItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const getPeriodDays = (p: PeriodType) => {
+    switch (p) {
+      case "week": return 7;
+      case "month": return 30;
+      case "quarter": return 90;
+      case "year": return 365;
+    }
+  };
+
+  const getTableNames = () => {
+    switch (inventoryType) {
+      case "ambalaje":
+        return { 
+          products: "ambalaje_products" as const, 
+          inventory: "ambalaje_inventory" as const,
+          transfers: "ambalaje_stock_transfer_items" as const,
+          transfersMain: "ambalaje_stock_transfers" as const
+        };
+      case "etichete":
+        return { 
+          products: "etichete_products" as const, 
+          inventory: "etichete_inventory" as const,
+          transfers: "etichete_stock_transfer_items" as const,
+          transfersMain: "etichete_stock_transfers" as const
+        };
+      default:
+        return { 
+          products: "products" as const, 
+          inventory: "inventory" as const,
+          transfers: "stock_transfer_items" as const,
+          transfersMain: "stock_transfers" as const
+        };
+    }
+  };
+
+  useEffect(() => {
+    fetchSufficiency();
+  }, [inventoryType, period]);
+
+  const fetchSufficiency = async () => {
+    setLoading(true);
+    try {
+      const tables = getTableNames();
+      const periodDays = getPeriodDays(period);
+      const startDate = format(addDays(new Date(), -periodDays), "yyyy-MM-dd");
+
+      const { data: productsData } = await supabase
+        .from(tables.products)
+        .select("id, name, cod_produs, default_unit");
+
+      const { data: inventoryData } = await supabase
+        .from(tables.inventory)
+        .select("product_id, quantity")
+        .gt("quantity", 0);
+
+      const { data: transfersMainData } = await supabase
+        .from(tables.transfersMain)
+        .select("id, destination")
+        .gte("transfer_date", startDate);
+
+      const productionTransferIds = (transfersMainData || [])
+        .filter(t => {
+          const dest = (t.destination || "").toLowerCase();
+          return dest.includes("produc");
+        })
+        .map(t => t.id);
+
+      let productConsumption = new Map<string, number>();
+      let inventoryProductMap = new Map<string, string>();
+      
+      if (productionTransferIds.length > 0) {
+        const { data: transferItemsData } = await supabase
+          .from(tables.transfers)
+          .select("quantity, inventory_item_id")
+          .in("transfer_id", productionTransferIds);
+
+        const inventoryItemIds = [...new Set((transferItemsData || []).map(t => t.inventory_item_id))];
+        
+        if (inventoryItemIds.length > 0) {
+          const { data: invData } = await supabase
+            .from(tables.inventory)
+            .select("id, product_id")
+            .in("id", inventoryItemIds);
+          
+          (invData || []).forEach((item: any) => {
+            if (item.product_id) inventoryProductMap.set(item.id, item.product_id);
+          });
+        }
+
+        (transferItemsData || []).forEach(t => {
+          const productId = inventoryProductMap.get(t.inventory_item_id);
+          if (productId) {
+            productConsumption.set(productId, (productConsumption.get(productId) || 0) + t.quantity);
+          }
+        });
+      }
+
+      const stockByProduct = new Map<string, number>();
+      (inventoryData || []).forEach((item: any) => {
+        if (item.product_id) {
+          stockByProduct.set(item.product_id, (stockByProduct.get(item.product_id) || 0) + item.quantity);
+        }
+      });
+
+      const sufficiencyItems: SufficiencyItem[] = (productsData || []).map((product: any) => {
+        const currentStock = stockByProduct.get(product.id) || 0;
+        const totalConsumption = productConsumption.get(product.id) || 0;
+        const avgDaily = totalConsumption / periodDays;
+        const daysRemaining = avgDaily > 0 ? currentStock / avgDaily : currentStock > 0 ? Infinity : 0;
+
+        let status: "critical" | "low" | "medium" | "good" | "excellent";
+        if (daysRemaining <= 3) status = "critical";
+        else if (daysRemaining <= 7) status = "low";
+        else if (daysRemaining <= 14) status = "medium";
+        else if (daysRemaining <= 30) status = "good";
+        else status = "excellent";
+
+        return {
+          product_id: product.id,
+          product_name: product.name,
+          product_code: product.cod_produs,
+          unit: product.default_unit,
+          current_stock: currentStock,
+          avg_daily_consumption: avgDaily,
+          days_remaining: daysRemaining === Infinity ? 999 : daysRemaining,
+          status
+        };
+      });
+
+      // Sort by days remaining (ascending)
+      sufficiencyItems.sort((a, b) => a.days_remaining - b.days_remaining);
+      setData(sufficiencyItems);
+    } catch (error) {
+      console.error("Error fetching stock sufficiency:", error);
+      toast({ title: "Eroare la calculul zilelor de stoc", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status: string, days: number) => {
+    const displayDays = days >= 999 ? "∞" : Math.round(days);
+    switch (status) {
+      case "critical":
+        return <Badge variant="destructive" className="w-20 justify-center">{displayDays} zile</Badge>;
+      case "low":
+        return <Badge className="bg-orange-500 hover:bg-orange-600 w-20 justify-center">{displayDays} zile</Badge>;
+      case "medium":
+        return <Badge className="bg-amber-500 hover:bg-amber-600 w-20 justify-center">{displayDays} zile</Badge>;
+      case "good":
+        return <Badge className="bg-green-500 hover:bg-green-600 w-20 justify-center">{displayDays} zile</Badge>;
+      default:
+        return <Badge className="bg-primary hover:bg-primary/90 w-20 justify-center">{displayDays} zile</Badge>;
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "critical":
+      case "low":
+        return <TrendingDown className="h-4 w-4 text-destructive" />;
+      case "medium":
+        return <Minus className="h-4 w-4 text-amber-500" />;
+      default:
+        return <TrendingUp className="h-4 w-4 text-green-500" />;
+    }
+  };
+
+  const exportToExcel = () => {
+    const exportData = data.map(d => ({
+      "Cod Produs": d.product_code || "-",
+      "Nume Produs": d.product_name,
+      "Unitate": d.unit,
+      "Stoc Curent": d.current_stock,
+      "Consum Mediu/Zi": Math.round(d.avg_daily_consumption * 100) / 100,
+      "Zile Rămase": d.days_remaining >= 999 ? "Infinit" : Math.round(d.days_remaining),
+      "Status": d.status === "critical" ? "CRITIC" : d.status === "low" ? "SCĂZUT" : d.status === "medium" ? "MEDIU" : d.status === "good" ? "BUN" : "EXCELENT"
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Zile Stoc");
+    
+    const typeLabel = inventoryType === "materii-prime" ? "MateriPrime" 
+      : inventoryType === "ambalaje" ? "Ambalaje" : "Etichete";
+    XLSX.writeFile(wb, `ZileStoc_${typeLabel}_${format(new Date(), "yyyyMMdd")}.xlsx`);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-4 items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium">Perioada de calcul medie:</span>
+          <Select value={period} onValueChange={(v) => setPeriod(v as PeriodType)}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="week">Ultima Săptămână</SelectItem>
+              <SelectItem value="month">Ultima Lună</SelectItem>
+              <SelectItem value="quarter">Ultimul Trimestru</SelectItem>
+              <SelectItem value="year">Ultimul An</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <Button variant="outline" onClick={exportToExcel}>
+          <FileDown className="h-4 w-4 mr-2" />
+          Export Excel
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-5 gap-4 mb-4">
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-destructive">
+            {data.filter(d => d.status === "critical").length}
+          </div>
+          <div className="text-sm text-destructive">Critice (&lt;3 zile)</div>
+        </div>
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-orange-600">
+            {data.filter(d => d.status === "low").length}
+          </div>
+          <div className="text-sm text-orange-700">Scăzute (3-7 zile)</div>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-amber-600">
+            {data.filter(d => d.status === "medium").length}
+          </div>
+          <div className="text-sm text-amber-700">Medii (7-14 zile)</div>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-green-600">
+            {data.filter(d => d.status === "good").length}
+          </div>
+          <div className="text-sm text-green-700">Bune (14-30 zile)</div>
+        </div>
+        <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-primary">
+            {data.filter(d => d.status === "excellent").length}
+          </div>
+          <div className="text-sm text-primary">Excelente (&gt;30 zile)</div>
+        </div>
+      </div>
+
+      <div className="border rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10"></TableHead>
+              <TableHead>Cod Produs</TableHead>
+              <TableHead>Nume Produs</TableHead>
+              <TableHead className="text-right">Stoc Curent</TableHead>
+              <TableHead className="text-right">Consum Mediu/Zi</TableHead>
+              <TableHead className="text-center">Zile Rămase</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.map(item => (
+              <TableRow 
+                key={item.product_id} 
+                className={
+                  item.status === "critical" ? "bg-destructive/5" : 
+                  item.status === "low" ? "bg-orange-50" : ""
+                }
+              >
+                <TableCell>{getStatusIcon(item.status)}</TableCell>
+                <TableCell className="font-mono text-sm">{item.product_code || "-"}</TableCell>
+                <TableCell className="font-medium">{item.product_name}</TableCell>
+                <TableCell className="text-right">
+                  {item.current_stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} {item.unit}
+                </TableCell>
+                <TableCell className="text-right">
+                  {item.avg_daily_consumption > 0 
+                    ? item.avg_daily_consumption.toLocaleString("ro-RO", { maximumFractionDigits: 2 })
+                    : "-"
+                  } {item.avg_daily_consumption > 0 ? item.unit : ""}
+                </TableCell>
+                <TableCell className="text-center">
+                  {getStatusBadge(item.status, item.days_remaining)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+};
+
+export default StockSufficiency;
