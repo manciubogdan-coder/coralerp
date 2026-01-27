@@ -314,7 +314,7 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
                       {order.suggested_order_quantity.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
                     </TableCell>
                     <TableCell className="text-right font-medium text-muted-foreground">
-                      {order.suggested_7_days.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
+                      {(order.suggested_7_days ?? 0).toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -369,7 +369,7 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType }) => {
                       {order.suggested_order_quantity.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
                     </TableCell>
                     <TableCell className="text-right font-medium text-muted-foreground">
-                      {order.suggested_7_days.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
+                      {(order.suggested_7_days ?? 0).toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
                     </TableCell>
                   </TableRow>
                 ))}
