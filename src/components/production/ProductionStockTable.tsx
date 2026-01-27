@@ -154,6 +154,7 @@ const ProductionStockTable = ({ stock, loading, onDataChange }: ProductionStockT
   };
 
   const handleConsumption = async () => {
+    console.log('[ProductionStockTable] handleConsumption - inventoryType:', inventoryType, 'historyTable:', historyTable, 'productionStockTable:', productionStockTable);
     if (!selectedItem || quantity <= 0) return;
     if (quantity > selectedItem.quantity) {
       toast({
