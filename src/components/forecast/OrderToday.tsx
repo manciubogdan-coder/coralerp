@@ -22,6 +22,7 @@ interface OrderItem {
   min_order_quantity: number;
   days_until_stockout: number;
   suggested_order_quantity: number;
+  suggested_7_days: number;
   urgency: "critical" | "high" | "medium" | "low";
 }
 
@@ -209,8 +210,12 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
 
         // Need to order if stockout happens before delivery arrives
         if (daysUntilStockout <= leadTime) {
-          const neededQty = (leadTime + 7) * avgDaily - currentStock; // Order for lead time + 1 week buffer
-          const suggestedQty = Math.max(neededQty, settings.min_order_quantity);
+          // Suggested quantity = enough to cover lead time (until order arrives)
+          const neededForLeadTime = leadTime * avgDaily - currentStock;
+          const suggestedQty = Math.max(Math.max(0, neededForLeadTime), settings.min_order_quantity);
+          
+          // Suggested quantity for 7 days of stock
+          const suggested7Days = Math.max(0, 7 * avgDaily);
 
           let urgency: "critical" | "high" | "medium" | "low" = "low";
           if (daysUntilStockout <= 1) urgency = "critical";
@@ -228,6 +233,7 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
             min_order_quantity: settings.min_order_quantity,
             days_until_stockout: daysUntilStockout,
             suggested_order_quantity: suggestedQty,
+            suggested_7_days: suggested7Days,
             urgency
           });
         }
@@ -298,7 +304,9 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
               <TableHead className="text-right">Stoc Curent</TableHead>
               <TableHead className="text-right">Consum/Zi</TableHead>
               <TableHead className="text-right">Zile Rămase</TableHead>
-              <TableHead className="text-right">Cantitate Sugerată</TableHead>
+              <TableHead className="text-right">Lead Time (zile)</TableHead>
+              <TableHead className="text-right">Cant. Sugerată (Lead Time)</TableHead>
+              <TableHead className="text-right">Cant. Sugerată (7 zile)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -318,8 +326,14 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType }) => {
                     {order.days_until_stockout.toFixed(1)} zile
                   </span>
                 </TableCell>
+                <TableCell className="text-right">
+                  {order.lead_time_days} zile
+                </TableCell>
                 <TableCell className="text-right font-bold text-primary">
                   {order.suggested_order_quantity.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
+                </TableCell>
+                <TableCell className="text-right font-medium text-muted-foreground">
+                  {order.suggested_7_days.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
                 </TableCell>
               </TableRow>
             ))}
