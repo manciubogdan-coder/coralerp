@@ -32,7 +32,11 @@ const CrateTypesTable = () => {
   const [editItem, setEditItem] = useState<CrateType | null>(null);
 
   // Get the correct table name based on inventory type
-  const getTableName = () => inventoryType === 'ambalaje' ? 'ambalaje_crate_types' : 'crate_types';
+  const getTableName = () => {
+    if (inventoryType === 'ambalaje') return 'ambalaje_crate_types';
+    if (inventoryType === 'etichete') return 'etichete_crate_types';
+    return 'crate_types';
+  };
 
   useEffect(() => {
     fetchCrateTypes();
