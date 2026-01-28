@@ -15,6 +15,7 @@ import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { exportToExcel } from "@/lib/excelExport";
 import { exportPurchaseOrder } from "@/lib/purchaseOrderExport";
+import SupplierSelectDialog from "./SupplierSelectDialog";
 
 interface OrderHistoryProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -53,6 +54,8 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set());
   const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
+  const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
+  const [pendingExportGroup, setPendingExportGroup] = useState<SupplierOrderGroup | null>(null);
 
   const getTableNames = () => {
     switch (inventoryType) {
@@ -201,7 +204,25 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
   };
 
   const handleExportSupplier = (group: SupplierOrderGroup) => {
-    const items = group.orders.map(order => ({
+    // If no supplier, open dialog to select one
+    if (!group.supplier_id) {
+      setPendingExportGroup(group);
+      setSupplierDialogOpen(true);
+      return;
+    }
+
+    executeExport(group.supplier_name, group.orders);
+  };
+
+  const handleSupplierSelected = (supplierId: string, supplierName: string) => {
+    if (pendingExportGroup) {
+      executeExport(supplierName, pendingExportGroup.orders);
+      setPendingExportGroup(null);
+    }
+  };
+
+  const executeExport = (supplierName: string, ordersList: HistoryOrder[]) => {
+    const items = ordersList.map(order => ({
       product_code: order.product_code,
       product_name: order.product_name,
       quantity: order.quantity_ordered,
@@ -210,12 +231,12 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
     }));
 
     const orderNumber = exportPurchaseOrder({
-      supplier_name: group.supplier_name,
+      supplier_name: supplierName,
       items,
       order_date: new Date()
     }, inventoryType);
 
-    toast({ title: `Comandă ${orderNumber} exportată pentru ${group.supplier_name}` });
+    toast({ title: `Comandă ${orderNumber} exportată pentru ${supplierName}` });
   };
 
   const handleExportAll = () => {
@@ -483,6 +504,15 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
           })
         )}
       </div>
+
+      {/* Dialog for selecting supplier when exporting orders without supplier */}
+      <SupplierSelectDialog
+        open={supplierDialogOpen}
+        onOpenChange={setSupplierDialogOpen}
+        suppliers={suppliers}
+        onConfirm={handleSupplierSelected}
+        productCount={pendingExportGroup?.orders.length || 0}
+      />
     </div>
   );
 };
