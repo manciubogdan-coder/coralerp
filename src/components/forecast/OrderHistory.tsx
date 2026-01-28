@@ -9,7 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Search, CalendarIcon, FileSpreadsheet, Package, Truck, Check, X, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Loader2, Search, CalendarIcon, FileSpreadsheet, Package, Truck, Check, X, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -237,6 +238,24 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
     }, inventoryType);
 
     toast({ title: `Comandă ${orderNumber} exportată pentru ${supplierName}` });
+  };
+
+  const handleDeleteOrder = async (orderId: string) => {
+    try {
+      const tables = getTableNames();
+      const { error } = await supabase
+        .from(tables.orders)
+        .delete()
+        .eq("id", orderId);
+
+      if (error) throw error;
+
+      toast({ title: "Comanda a fost ștearsă" });
+      fetchOrders();
+    } catch (error) {
+      console.error("Error deleting order:", error);
+      toast({ title: "Eroare la ștergerea comenzii", variant: "destructive" });
+    }
   };
 
   const handleExportAll = () => {
@@ -472,6 +491,7 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                           <TableHead>Status</TableHead>
                           <TableHead>Data Livrare Est.</TableHead>
                           <TableHead>Note</TableHead>
+                          <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -492,6 +512,33 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                             </TableCell>
                             <TableCell className="max-w-[150px] truncate" title={order.notes || ""}>
                               {order.notes || "-"}
+                            </TableCell>
+                            <TableCell>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Șterge comanda?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Ești sigur că vrei să ștergi comanda pentru "{order.product_name}"? 
+                                      Această acțiune nu poate fi anulată.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Anulează</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleDeleteOrder(order.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Șterge
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </TableCell>
                           </TableRow>
                         ))}
