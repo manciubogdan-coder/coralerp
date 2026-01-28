@@ -9,11 +9,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Search, CalendarIcon, FileSpreadsheet, Package, Truck, Check, X, ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
+import { Loader2, Search, CalendarIcon, FileSpreadsheet, Package, Truck, Check, X, ChevronDown, ChevronRight } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { exportToExcel } from "@/lib/excelExport";
+import { exportPurchaseOrder } from "@/lib/purchaseOrderExport";
 
 interface OrderHistoryProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -200,48 +201,21 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
   };
 
   const handleExportSupplier = (group: SupplierOrderGroup) => {
-    const exportData = group.orders.map(order => ({
-      "Data Comandă": format(order.order_date, "dd.MM.yyyy"),
-      "Cod Produs": order.product_code || "-",
-      "Produs": order.product_name,
-      "Cantitate": order.quantity_ordered,
-      "UM": order.unit,
-      "Status": getStatusLabel(order.status),
-      "Data Livrare Est.": order.expected_delivery_date ? format(order.expected_delivery_date, "dd.MM.yyyy") : "-",
-      "Note": order.notes || "-"
+    const items = group.orders.map(order => ({
+      product_code: order.product_code,
+      product_name: order.product_name,
+      quantity: order.quantity_ordered,
+      unit: order.unit,
+      expected_delivery_date: order.expected_delivery_date
     }));
 
-    const inventoryLabel = inventoryType === "materii-prime" ? "MP" 
-      : inventoryType === "ambalaje" ? "AMB" : "ETI";
+    const orderNumber = exportPurchaseOrder({
+      supplier_name: group.supplier_name,
+      items,
+      order_date: new Date()
+    }, inventoryType);
 
-    exportToExcel(exportData, `Comenzi_${group.supplier_name.replace(/\s/g, "_")}_${inventoryLabel}_${format(new Date(), "yyyyMMdd")}.xlsx`, {
-      reportTitle: `Comenzi - ${group.supplier_name}`,
-      date: `${format(fromDate, "dd.MM.yyyy")} - ${format(toDate, "dd.MM.yyyy")}`,
-      filters: statusFilter !== "all" ? `Status: ${getStatusLabel(statusFilter)}` : undefined
-    });
-
-    toast({ title: `Export realizat pentru ${group.supplier_name}` });
-  };
-
-  const handleWhatsAppSupplier = (group: SupplierOrderGroup) => {
-    // Build message text
-    const lines = [
-      `📦 *Comandă - ${group.supplier_name}*`,
-      `📅 ${format(new Date(), "dd.MM.yyyy")}`,
-      "",
-      "*Produse:*"
-    ];
-
-    group.orders.forEach(order => {
-      const code = order.product_code ? `[${order.product_code}] ` : "";
-      lines.push(`• ${code}${order.product_name}: ${order.quantity_ordered.toLocaleString("ro-RO")} ${order.unit}`);
-    });
-
-    lines.push("");
-    lines.push(`*Total: ${group.total_products} produse*`);
-
-    const message = encodeURIComponent(lines.join("\n"));
-    window.open(`https://wa.me/?text=${message}`, "_blank");
+    toast({ title: `Comandă ${orderNumber} exportată pentru ${group.supplier_name}` });
   };
 
   const handleExportAll = () => {
@@ -457,18 +431,10 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={(e) => { e.stopPropagation(); handleWhatsAppSupplier(group); }}
-                        >
-                          <MessageCircle className="h-4 w-4 mr-1" />
-                          WhatsApp
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
                           onClick={(e) => { e.stopPropagation(); handleExportSupplier(group); }}
                         >
                           <FileSpreadsheet className="h-4 w-4 mr-1" />
-                          Export
+                          Export Comandă
                         </Button>
                       </div>
                     </div>
