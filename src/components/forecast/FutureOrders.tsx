@@ -25,6 +25,7 @@ interface FutureOrderItem {
   lead_time_days: number;
   suggested_order_quantity: number;
   suggested_7_days: number;
+  is_past_due: boolean;
   is_this_week: boolean;
 }
 
@@ -192,7 +193,7 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType, searchTerm =
 
       const settingsMap = new Map((settingsData || []).map((s: any) => [s.product_id, s]));
 
-      const today = new Date();
+      const today = startOfDay(new Date());
       const weekStart = startOfWeek(today, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
 
@@ -220,6 +221,12 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType, searchTerm =
           // Suggested quantity for 7 days of stock
           const suggested7Days = Math.max(0, 7 * avgDaily);
 
+          // Check if order date is past due (before today)
+          const isPastDue = orderByDate < today;
+          
+          // Check if order date is within current week (but not past due)
+          const isThisWeek = !isPastDue && isWithinInterval(orderByDate, { start: weekStart, end: weekEnd });
+
           futureItems.push({
             product_id: product.id,
             product_name: product.name,
@@ -232,7 +239,8 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType, searchTerm =
             lead_time_days: settings.lead_time_days,
             suggested_order_quantity: suggestedQty,
             suggested_7_days: suggested7Days,
-            is_this_week: isWithinInterval(orderByDate, { start: weekStart, end: weekEnd })
+            is_past_due: isPastDue,
+            is_this_week: isThisWeek
           });
         }
       });
@@ -278,11 +286,69 @@ const FutureOrders: React.FC<FutureOrdersProps> = ({ inventoryType, searchTerm =
     );
   }
 
+  // Split into 3 categories: past due (urgent), this week, and later
+  const pastDueOrders = filteredOrders.filter(o => o.is_past_due);
   const thisWeekOrders = filteredOrders.filter(o => o.is_this_week);
-  const laterOrders = filteredOrders.filter(o => !o.is_this_week);
+  const laterOrders = filteredOrders.filter(o => !o.is_past_due && !o.is_this_week);
 
   return (
     <div className="space-y-6">
+      {pastDueOrders.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <Badge className="bg-destructive hover:bg-destructive/90">De Comandat Azi (Întârziate)</Badge>
+            {pastDueOrders.length} produse
+          </h3>
+          <div className="border border-destructive/30 rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-destructive/10">
+                  <TableHead>Dată Comandă</TableHead>
+                  <TableHead>Cod</TableHead>
+                  <TableHead>Produs</TableHead>
+                  <TableHead className="text-right">Stoc Curent</TableHead>
+                  <TableHead className="text-right">Consum/Zi</TableHead>
+                  <TableHead className="text-right">Dată Epuizare</TableHead>
+                  <TableHead className="text-right">Lead Time</TableHead>
+                  <TableHead className="text-right">Cant. Sugerată (Lead Time)</TableHead>
+                  <TableHead className="text-right">Cant. Sugerată (7 zile)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pastDueOrders.map(order => (
+                  <TableRow key={order.product_id} className="bg-destructive/5">
+                    <TableCell className="font-medium text-destructive">
+                      {format(order.order_by_date, "EEEE, d MMM", { locale: ro })}
+                      <span className="ml-2 text-xs">(întârziat)</span>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">{order.product_code || "-"}</TableCell>
+                    <TableCell className="font-medium">{order.product_name}</TableCell>
+                    <TableCell className="text-right">
+                      {order.current_stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} {order.unit}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {order.avg_daily_consumption.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} {order.unit}
+                    </TableCell>
+                    <TableCell className="text-right text-destructive font-medium">
+                      {format(order.expected_stockout_date, "d MMM", { locale: ro })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {order.lead_time_days} zile
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-destructive">
+                      {order.suggested_order_quantity.toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-muted-foreground">
+                      {(order.suggested_7_days ?? 0).toLocaleString("ro-RO", { maximumFractionDigits: 0 })} {order.unit}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
       {thisWeekOrders.length > 0 && (
         <div>
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
