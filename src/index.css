@@ -146,3 +146,41 @@
     }
   }
 }
+
+/* Print styles for daily consumption report */
+@media print {
+  .print\:overflow-visible {
+    overflow: visible !important;
+  }
+  
+  .print\:max-h-none {
+    max-height: none !important;
+  }
+  
+  /* Hide toolbar elements when printing */
+  button, input[type="date"], input[placeholder*="Filtrează"] {
+    display: none !important;
+  }
+  
+  /* Ensure table headers repeat on each page */
+  thead {
+    display: table-header-group;
+  }
+  
+  /* Prevent rows from breaking across pages */
+  tr {
+    page-break-inside: avoid;
+  }
+  
+  /* Hide sidebar and header when printing */
+  aside, header, nav, footer {
+    display: none !important;
+  }
+  
+  /* Full width for content */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+}

@@ -368,7 +368,7 @@ export const DailyLotConsumption = () => {
       }))
     );
 
-    exportToExcel(exportData, `Consum_zilnic_loturi_${selectedDate}`);
+    exportToExcel(exportData, `Consum_zilnic_loturi_${selectedDate}.xlsx`);
   };
 
   if (loading) {
@@ -424,7 +424,7 @@ export const DailyLotConsumption = () => {
           Nu există date de consum pentru ziua selectată
         </div>
       ) : (
-        <div className="border rounded-lg overflow-auto max-h-[600px]">
+        <div className="border rounded-lg overflow-auto print:overflow-visible print:max-h-none">
           <Table>
             <TableHeader className="sticky top-0 bg-background z-10">
               <TableRow>
