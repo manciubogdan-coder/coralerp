@@ -62,6 +62,11 @@ interface AllProduct {
   default_unit: string;
 }
 
+interface SupplierOption {
+  id: string;
+  name: string;
+}
+
 const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
   const [items, setItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +81,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [selectedProductToAdd, setSelectedProductToAdd] = useState<string>("");
   const [orderNotes, setOrderNotes] = useState("");
+  const [allSuppliers, setAllSuppliers] = useState<SupplierOption[]>([]);
+  const [editableSupplierId, setEditableSupplierId] = useState<string>("");
 
   const chunk = <T,>(arr: T[], size: number) => {
     const out: T[][] = [];
@@ -121,6 +128,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
   useEffect(() => {
     fetchData();
     fetchAllProducts();
+    fetchAllSuppliers();
   }, [inventoryType]);
 
   const fetchData = async () => {
@@ -364,6 +372,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
 
   const handleCreateOrder = async (supplierGroup: SupplierGroup) => {
     setSelectedSupplier(supplierGroup);
+    setEditableSupplierId(supplierGroup.supplier_id || "");
     const maxLeadTime = Math.max(...supplierGroup.products.map(p => p.lead_time_days));
     setExpectedDelivery(addDays(new Date(), maxLeadTime));
     
@@ -394,6 +403,20 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
       setAllProducts((data || []) as AllProduct[]);
     } catch (error) {
       console.error("Error fetching all products:", error);
+    }
+  };
+
+  const fetchAllSuppliers = async () => {
+    try {
+      const tables = getTableNames();
+      const { data } = await supabase
+        .from(tables.suppliers)
+        .select("id, name")
+        .order("name");
+      
+      setAllSuppliers((data || []) as SupplierOption[]);
+    } catch (error) {
+      console.error("Error fetching suppliers:", error);
     }
   };
 
@@ -460,7 +483,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
   };
 
   const submitOrder = async () => {
-    if (!selectedSupplier || editableItems.length === 0) return;
+    if (editableItems.length === 0) return;
+    
+    // Use editable supplier if set, otherwise original supplier
+    const finalSupplierId = editableSupplierId || selectedSupplier?.supplier_id || null;
+    const finalSupplierName = editableSupplierId 
+      ? allSuppliers.find(s => s.id === editableSupplierId)?.name || "Furnizor"
+      : selectedSupplier?.supplier_name || "Furnizor";
     
     setSubmitting(true);
     try {
@@ -470,7 +499,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
         .filter(item => item.quantity > 0)
         .map(item => ({
           product_id: item.product_id,
-          supplier_id: selectedSupplier.supplier_id,
+          supplier_id: finalSupplierId,
           quantity_ordered: item.quantity,
           order_date: orderDate.toISOString(),
           expected_delivery_date: format(expectedDelivery, "yyyy-MM-dd"),
@@ -484,7 +513,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
 
       if (error) throw error;
 
-      toast({ title: `Comandă creată pentru ${selectedSupplier.supplier_name}`, description: `${ordersToInsert.length} produse adăugate` });
+      toast({ title: `Comandă creată pentru ${finalSupplierName}`, description: `${ordersToInsert.length} produse adăugate` });
       setShowOrderDialog(false);
       fetchData();
     } catch (error) {
@@ -709,6 +738,29 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
           </DialogHeader>
           
           <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+            {/* Supplier selection */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Truck className="h-4 w-4" />
+                Furnizor
+              </label>
+              <Select value={editableSupplierId} onValueChange={setEditableSupplierId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selectează furnizor..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allSuppliers.map(supplier => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      {supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!editableSupplierId && (
+                <p className="text-xs text-amber-600">⚠ Selectează un furnizor pentru a putea salva comanda</p>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Data Comenzii</label>
@@ -868,7 +920,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
             <Button variant="outline" onClick={() => setShowOrderDialog(false)}>
               Anulează
             </Button>
-            <Button onClick={submitOrder} disabled={submitting || editableItems.filter(i => i.quantity > 0).length === 0}>
+            <Button onClick={submitOrder} disabled={submitting || editableItems.filter(i => i.quantity > 0).length === 0 || !editableSupplierId}>
               {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirmă Comanda ({editableItems.filter(i => i.quantity > 0).length} produse)
             </Button>
