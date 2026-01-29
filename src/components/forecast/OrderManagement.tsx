@@ -83,6 +83,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
   const [orderNotes, setOrderNotes] = useState("");
   const [allSuppliers, setAllSuppliers] = useState<SupplierOption[]>([]);
   const [editableSupplierId, setEditableSupplierId] = useState<string>("");
+  const [isManualOrder, setIsManualOrder] = useState(false);
 
   const chunk = <T,>(arr: T[], size: number) => {
     const out: T[][] = [];
@@ -373,6 +374,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
   const handleCreateOrder = async (supplierGroup: SupplierGroup) => {
     setSelectedSupplier(supplierGroup);
     setEditableSupplierId(supplierGroup.supplier_id || "");
+    setIsManualOrder(false);
     const maxLeadTime = Math.max(...supplierGroup.products.map(p => p.lead_time_days));
     setExpectedDelivery(addDays(new Date(), maxLeadTime));
     
@@ -388,6 +390,18 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
     setEditableItems(editItems);
     setOrderNotes("");
     setShowAddProduct(false);
+    setSelectedProductToAdd("");
+    setShowOrderDialog(true);
+  };
+
+  const handleCreateManualOrder = () => {
+    setSelectedSupplier(null);
+    setEditableSupplierId("");
+    setIsManualOrder(true);
+    setExpectedDelivery(addDays(new Date(), 7));
+    setEditableItems([]);
+    setOrderNotes("");
+    setShowAddProduct(true);
     setSelectedProductToAdd("");
     setShowOrderDialog(true);
   };
@@ -598,24 +612,30 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
         />
       </div>
 
+      {/* Order Actions */}
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-lg">Comenzi Rapide pe Furnizor</h3>
+        <Button onClick={handleCreateManualOrder} variant="outline">
+          <Plus className="h-4 w-4 mr-2" />
+          Comandă Nouă
+        </Button>
+      </div>
+
       {/* Supplier Groups for Quick Order */}
       {supplierGroups.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="font-semibold text-lg">Comenzi Rapide pe Furnizor</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {supplierGroups.map(group => (
-              <div key={group.supplier_id || "no-supplier"} className="border rounded-lg p-4 flex items-center justify-between">
-                <div>
-                  <div className="font-medium">{group.supplier_name}</div>
-                  <div className="text-sm text-muted-foreground">{group.total_products} produse de comandat</div>
-                </div>
-                <Button size="sm" onClick={() => handleCreateOrder(group)}>
-                  <ShoppingCart className="h-4 w-4 mr-1" />
-                  Comandă
-                </Button>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {supplierGroups.map(group => (
+            <div key={group.supplier_id || "no-supplier"} className="border rounded-lg p-4 flex items-center justify-between">
+              <div>
+                <div className="font-medium">{group.supplier_name}</div>
+                <div className="text-sm text-muted-foreground">{group.total_products} produse de comandat</div>
               </div>
-            ))}
-          </div>
+              <Button size="sm" onClick={() => handleCreateOrder(group)}>
+                <ShoppingCart className="h-4 w-4 mr-1" />
+                Comandă
+              </Button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -733,7 +753,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>
-              Creare Comandă - {selectedSupplier?.supplier_name}
+              {isManualOrder ? "Comandă Nouă" : `Creare Comandă - ${selectedSupplier?.supplier_name}`}
             </DialogTitle>
           </DialogHeader>
           
