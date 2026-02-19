@@ -6008,6 +6008,185 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_ocr_comenzi: {
+        Row: {
+          cantitate: number
+          client_id: string | null
+          client_nume: string | null
+          created_at: string
+          data_comanda: string
+          fisier_sursa: string | null
+          gramaj: string | null
+          id: string
+          produs_id: string | null
+          produs_nume: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cantitate?: number
+          client_id?: string | null
+          client_nume?: string | null
+          created_at?: string
+          data_comanda: string
+          fisier_sursa?: string | null
+          gramaj?: string | null
+          id?: string
+          produs_id?: string | null
+          produs_nume: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cantitate?: number
+          client_id?: string | null
+          client_nume?: string | null
+          created_at?: string
+          data_comanda?: string
+          fisier_sursa?: string | null
+          gramaj?: string | null
+          id?: string
+          produs_id?: string | null
+          produs_nume?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productie_ocr_comenzi_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "productie_clienti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productie_ocr_comenzi_produs_id_fkey"
+            columns: ["produs_id"]
+            isOneToOne: false
+            referencedRelation: "productie_produse"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productie_ocr_template_mappings: {
+        Row: {
+          created_at: string | null
+          gramaj: string | null
+          id: string
+          nume_in_fisier: string
+          produs_id: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          gramaj?: string | null
+          id?: string
+          nume_in_fisier: string
+          produs_id: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string | null
+          gramaj?: string | null
+          id?: string
+          nume_in_fisier?: string
+          produs_id?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productie_ocr_template_mappings_produs_id_fkey"
+            columns: ["produs_id"]
+            isOneToOne: false
+            referencedRelation: "productie_produse"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productie_ocr_template_mappings_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "productie_ocr_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productie_ocr_templates: {
+        Row: {
+          activ: boolean | null
+          client_id: string | null
+          col_index_cantitate: number | null
+          col_index_produs: number | null
+          coloana_cantitate: string
+          coloana_gramaj: string | null
+          coloana_magazin: string | null
+          coloana_produs: string
+          created_at: string | null
+          id: string
+          nume_magazin: string
+          pattern_header: string | null
+          randuri_skip: number | null
+          sheet_name: string | null
+          store_columns: Json | null
+          text_identificare: string | null
+          tip_document: string | null
+          tip_split: string | null
+          updated_at: string | null
+          visual_separators: Json | null
+        }
+        Insert: {
+          activ?: boolean | null
+          client_id?: string | null
+          col_index_cantitate?: number | null
+          col_index_produs?: number | null
+          coloana_cantitate?: string
+          coloana_gramaj?: string | null
+          coloana_magazin?: string | null
+          coloana_produs?: string
+          created_at?: string | null
+          id?: string
+          nume_magazin: string
+          pattern_header?: string | null
+          randuri_skip?: number | null
+          sheet_name?: string | null
+          store_columns?: Json | null
+          text_identificare?: string | null
+          tip_document?: string | null
+          tip_split?: string | null
+          updated_at?: string | null
+          visual_separators?: Json | null
+        }
+        Update: {
+          activ?: boolean | null
+          client_id?: string | null
+          col_index_cantitate?: number | null
+          col_index_produs?: number | null
+          coloana_cantitate?: string
+          coloana_gramaj?: string | null
+          coloana_magazin?: string | null
+          coloana_produs?: string
+          created_at?: string | null
+          id?: string
+          nume_magazin?: string
+          pattern_header?: string | null
+          randuri_skip?: number | null
+          sheet_name?: string | null
+          store_columns?: Json | null
+          text_identificare?: string | null
+          tip_document?: string | null
+          tip_split?: string | null
+          updated_at?: string | null
+          visual_separators?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productie_ocr_templates_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "productie_clienti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       productie_picking_alocari: {
         Row: {
           cantitate_alocata: number
@@ -8364,6 +8543,7 @@ export type Database = {
           observatii: string | null
           ora_iesirii: string | null
           ora_intrarii: string
+          sofer_iesire: string | null
           tip_masina: string
           updated_at: string
         }
@@ -8378,6 +8558,7 @@ export type Database = {
           observatii?: string | null
           ora_iesirii?: string | null
           ora_intrarii: string
+          sofer_iesire?: string | null
           tip_masina: string
           updated_at?: string
         }
@@ -8392,6 +8573,7 @@ export type Database = {
           observatii?: string | null
           ora_iesirii?: string | null
           ora_intrarii?: string
+          sofer_iesire?: string | null
           tip_masina?: string
           updated_at?: string
         }
