@@ -23,7 +23,7 @@ interface DailyStockItem {
   suppliers?: { name: string };
   manufacturers?: { name: string };
   crate_types?: { name: string; weight: number };
-  products?: { name: string; cod_produs: string };
+  products?: { name: string; cod_produs: string; pt_percent?: number };
   crate_count: number;
 }
 
@@ -79,7 +79,7 @@ export const DailyStockHistory = () => {
             suppliers:supplier_id (name),
             manufacturers:manufacturer_id (name),
             crate_types:crate_type_id (name, weight),
-            products:product_id (name, cod_produs)
+            products:product_id (name, cod_produs, pt_percent)
           `)
           .eq('snapshot_date', selectedDate)
           .order("name", { ascending: true })
@@ -137,23 +137,25 @@ export const DailyStockHistory = () => {
   const handleExport = () => {
     const dataToExport = stockSnapshots.map(item => {
       const q = qualityMap[item.id];
+      const pt = item.products?.pt_percent ?? 0;
+      const baseQty = item.net_quantity ?? item.quantity;
+      const currentPercent = q?.nonconform_percent ?? 0;
+      const computed = q?.consider_quantity ?? baseQty * (1 - currentPercent / 100) * (1 - pt / 100);
       return {
-        'Data Snapshot': new Date(item.snapshot_date).toLocaleDateString('ro-RO'),
-        'Nr. Intrare': item.entry_number || '',
+        'Nr.': item.entry_number || '',
         'Produs': item.name,
-        'Cod Produs': item.products?.cod_produs || '',
-        'Nr Lot': item.lot_number || '',
-        'Cantitate': item.quantity.toFixed(2),
-        'Unitate': item.unit,
-        'Document': item.document_number || '',
-        'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '',
+        'Cod': item.products?.cod_produs || '',
+        'Lot': item.lot_number || '',
+        'Cant.': item.quantity.toFixed(2),
+        'U.M.': item.unit,
+        'Doc.': item.document_number || '',
+        'Data Rec.': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '',
         'Furnizor': item.suppliers?.name || '',
         'Producător': item.manufacturers?.name || '',
-        'Tip Lădiță': item.crate_types?.name || '',
-        'Nr. Lădițe': item.crate_count || '',
+        '% PT': pt || '',
         'Obs': q?.obs || '',
-        'Marc. Nec. (%)': q?.nonconform_percent ?? '',
-        'C. Cons.': q?.consider_quantity != null ? q.consider_quantity.toFixed(2) : ''
+        '% Marf. Nec.': q?.nonconform_percent ?? '',
+        'C. Cons.': computed != null ? Number(computed.toFixed(2)) : ''
       };
     });
     
