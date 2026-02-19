@@ -27,9 +27,17 @@ interface DailyStockItem {
   crate_count: number;
 }
 
+interface QualityRow {
+  snapshot_id: string;
+  obs: string | null;
+  nonconform_percent: number;
+  consider_quantity: number;
+}
+
 export const DailyStockHistory = () => {
   const { inventoryType } = useInventoryType();
   const [stockSnapshots, setStockSnapshots] = useState<DailyStockItem[]>([]);
+  const [qualityMap, setQualityMap] = useState<Record<string, QualityRow>>({});
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
@@ -90,6 +98,26 @@ export const DailyStockHistory = () => {
 
       console.log("Daily stock snapshots data (total: " + allData.length + "):", allData);
       setStockSnapshots(allData || []);
+
+      // Fetch quality data
+      if (allData.length > 0) {
+        const qualityTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_quality' : 'daily_stock_quality';
+        const ids = allData.map((s: any) => s.id);
+        const { data: qData, error: qErr } = await supabase
+          .from(qualityTable)
+          .select("snapshot_id, obs, nonconform_percent, consider_quantity")
+          .in("snapshot_id", ids);
+
+        if (!qErr && qData) {
+          const map: Record<string, QualityRow> = {};
+          qData.forEach((row: any) => { map[row.snapshot_id] = row as QualityRow; });
+          setQualityMap(map);
+        } else {
+          setQualityMap({});
+        }
+      } else {
+        setQualityMap({});
+      }
     } catch (error: any) {
       console.error("Error fetching daily stock snapshots:", error);
       toast({
@@ -107,21 +135,27 @@ export const DailyStockHistory = () => {
   }, [selectedDate, inventoryType]);
 
   const handleExport = () => {
-    const dataToExport = stockSnapshots.map(item => ({
-      'Data Snapshot': new Date(item.snapshot_date).toLocaleDateString('ro-RO'),
-      'Nr. Intrare': item.entry_number || '',
-      'Produs': item.name,
-      'Cod Produs': item.products?.cod_produs || '',
-      'Nr Lot': item.lot_number || '',
-      'Cantitate': item.quantity.toFixed(2),
-      'Unitate': item.unit,
-      'Document': item.document_number || '',
-      'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '',
-      'Furnizor': item.suppliers?.name || '',
-      'Producător': item.manufacturers?.name || '',
-      'Tip Lădiță': item.crate_types?.name || '',
-      'Nr. Lădițe': item.crate_count || ''
-    }));
+    const dataToExport = stockSnapshots.map(item => {
+      const q = qualityMap[item.id];
+      return {
+        'Data Snapshot': new Date(item.snapshot_date).toLocaleDateString('ro-RO'),
+        'Nr. Intrare': item.entry_number || '',
+        'Produs': item.name,
+        'Cod Produs': item.products?.cod_produs || '',
+        'Nr Lot': item.lot_number || '',
+        'Cantitate': item.quantity.toFixed(2),
+        'Unitate': item.unit,
+        'Document': item.document_number || '',
+        'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '',
+        'Furnizor': item.suppliers?.name || '',
+        'Producător': item.manufacturers?.name || '',
+        'Tip Lădiță': item.crate_types?.name || '',
+        'Nr. Lădițe': item.crate_count || '',
+        'Obs': q?.obs || '',
+        'Marc. Nec. (%)': q?.nonconform_percent ?? '',
+        'C. Cons.': q?.consider_quantity != null ? q.consider_quantity.toFixed(2) : ''
+      };
+    });
     
     const filename = `stoc_inceput_zi_${selectedDate}.xlsx`;
     exportToExcel(dataToExport, filename);
