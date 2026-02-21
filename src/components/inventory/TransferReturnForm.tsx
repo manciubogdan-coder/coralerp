@@ -232,7 +232,58 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         console.log("Creat nou item în inventar:", inventoryData);
       }
       
-      // 4. Înregistrează în istoric (NET)
+      // 4. Dacă destinația era Producție, decrementează și stocul de producție
+      const normalizedDest = transfer.destination
+        ?.toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+      
+      if (normalizedDest === 'productie' || normalizedDest === 'producție' || normalizedDest === 'productia' || normalizedDest === 'producția') {
+        const prodStockTable = inventoryType === 'ambalaje'
+          ? 'ambalaje_production_stock'
+          : inventoryType === 'etichete'
+            ? 'etichete_production_stock'
+            : 'production_stock';
+        const prodHistoryTable = inventoryType === 'ambalaje'
+          ? 'ambalaje_production_stock_history'
+          : inventoryType === 'etichete'
+            ? 'etichete_production_stock_history'
+            : 'production_stock_history';
+        
+        // Caut item-ul în production_stock după inventory_item_id
+        const { data: prodStockItems, error: psError } = await supabase
+          .from(prodStockTable)
+          .select('id, quantity')
+          .eq('inventory_item_id', transfer.inventory_item_id);
+        
+        if (psError) {
+          console.error("Error fetching production stock:", psError);
+        } else if (prodStockItems && prodStockItems.length > 0) {
+          const psItem = prodStockItems[0];
+          const newPsQty = Math.max(0, (psItem.quantity || 0) - netQuantity);
+          
+          if (newPsQty <= 0) {
+            // Șterg item-ul din production stock
+            await supabase.from(prodStockTable).delete().eq('id', psItem.id);
+          } else {
+            await supabase.from(prodStockTable).update({ quantity: newPsQty }).eq('id', psItem.id);
+          }
+          
+          // Înregistrează în istoricul de producție
+          await supabase.from(prodHistoryTable).insert({
+            production_stock_id: psItem.id,
+            action: 'return',
+            quantity: netQuantity,
+            previous_quantity: psItem.quantity,
+            notes: `Returnat din istoric transferuri. ${notes}`.trim()
+          });
+          
+          console.log("Production stock actualizat:", { psItemId: psItem.id, oldQty: psItem.quantity, newQty: newPsQty, returned: netQuantity });
+        }
+      }
+      
+      // 5. Înregistrează în istoric (NET)
       console.log('=== DEBUGGING RETURN HISTORY ===');
       const historyDate = new Date().toISOString();
       
@@ -244,7 +295,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
           inventory_item_id: updatedId,
           action: 'transfer_in',
           name: transfer.product_name,
-          quantity: netQuantity, // NET
+          quantity: netQuantity,
           unit: transfer.unit,
           operation_date: historyDate,
           document_number: transfer.document_number,
