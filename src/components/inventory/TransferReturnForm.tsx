@@ -292,16 +292,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         if (prodStockItem) {
           const newPsQty = Math.max(0, (prodStockItem.quantity || 0) - netQuantity);
           
-          if (newPsQty <= 0) {
-            const { error: delErr } = await supabase.from(prodStockTable).delete().eq('id', prodStockItem.id);
-            if (delErr) console.error("Eroare ștergere production stock:", delErr);
-            else console.log("Production stock item șters:", prodStockItem.id);
-          } else {
-            const { error: updErr } = await supabase.from(prodStockTable).update({ quantity: newPsQty }).eq('id', prodStockItem.id);
-            if (updErr) console.error("Eroare actualizare production stock:", updErr);
-            else console.log("Production stock actualizat:", { id: prodStockItem.id, old: prodStockItem.quantity, new: newPsQty });
-          }
-          
+          // IMPORTANT: Mai întâi inserăm în history (FK constraint!)
           await supabase.from(prodHistoryTable).insert({
             production_stock_id: prodStockItem.id,
             action: 'return',
@@ -309,6 +300,17 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
             previous_quantity: prodStockItem.quantity,
             notes: `Returnat din istoric transferuri. ${notes}`.trim()
           });
+          
+          if (newPsQty <= 0) {
+            // Nu ștergem dacă are referințe FK - punem quantity = 0
+            const { error: updErr } = await supabase.from(prodStockTable).update({ quantity: 0 }).eq('id', prodStockItem.id);
+            if (updErr) console.error("Eroare actualizare production stock la 0:", updErr);
+            else console.log("Production stock setat la 0:", prodStockItem.id);
+          } else {
+            const { error: updErr } = await supabase.from(prodStockTable).update({ quantity: newPsQty }).eq('id', prodStockItem.id);
+            if (updErr) console.error("Eroare actualizare production stock:", updErr);
+            else console.log("Production stock actualizat:", { id: prodStockItem.id, old: prodStockItem.quantity, new: newPsQty });
+          }
         } else {
           console.warn("NU s-a găsit item-ul în production stock! Verifică datele.");
         }
