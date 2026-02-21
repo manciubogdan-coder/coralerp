@@ -233,13 +233,18 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
       }
       
       // 4. Dacă destinația era Producție, decrementează și stocul de producție
-      const normalizedDest = transfer.destination
-        ?.toLowerCase()
+      const normalizedDest = (transfer.destination || '')
+        .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .trim();
       
-      if (normalizedDest === 'productie' || normalizedDest === 'producție' || normalizedDest === 'productia' || normalizedDest === 'producția') {
+      console.log('=== PRODUCTION STOCK CHECK ===');
+      console.log('Destination:', transfer.destination, '→ normalized:', normalizedDest);
+      
+      const isProduction = normalizedDest.includes('productie') || normalizedDest.includes('producti');
+      
+      if (isProduction) {
         const prodStockTable = inventoryType === 'ambalaje'
           ? 'ambalaje_production_stock'
           : inventoryType === 'etichete'
@@ -251,36 +256,64 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
             ? 'etichete_production_stock_history'
             : 'production_stock_history';
         
-        // Caut item-ul în production_stock după inventory_item_id
-        const { data: prodStockItems, error: psError } = await supabase
+        let prodStockItem: any = null;
+        
+        // Caut după inventory_item_id
+        const { data: byInventoryId } = await supabase
           .from(prodStockTable)
           .select('id, quantity')
           .eq('inventory_item_id', transfer.inventory_item_id);
         
-        if (psError) {
-          console.error("Error fetching production stock:", psError);
-        } else if (prodStockItems && prodStockItems.length > 0) {
-          const psItem = prodStockItems[0];
-          const newPsQty = Math.max(0, (psItem.quantity || 0) - netQuantity);
+        console.log('Search by inventory_item_id:', transfer.inventory_item_id, '→', byInventoryId);
+        
+        if (byInventoryId && byInventoryId.length > 0) {
+          prodStockItem = byInventoryId[0];
+        } else {
+          // Caut după transfer_id
+          const { data: byTransferId } = await supabase
+            .from(prodStockTable)
+            .select('id, quantity')
+            .eq('transfer_id', transfer.transfer_id);
+          
+          console.log('Search by transfer_id:', transfer.transfer_id, '→', byTransferId);
+          
+          if (byTransferId && byTransferId.length > 0) {
+            prodStockItem = byTransferId[0];
+          } else {
+            // Caut după name + lot_number
+            let query = supabase.from(prodStockTable).select('id, quantity').eq('name', transfer.product_name);
+            if (transfer.lot_number) query = query.eq('lot_number', transfer.lot_number);
+            const { data: byNameLot } = await query;
+            console.log('Search by name+lot:', transfer.product_name, transfer.lot_number, '→', byNameLot);
+            if (byNameLot && byNameLot.length > 0) prodStockItem = byNameLot[0];
+          }
+        }
+        
+        if (prodStockItem) {
+          const newPsQty = Math.max(0, (prodStockItem.quantity || 0) - netQuantity);
           
           if (newPsQty <= 0) {
-            // Șterg item-ul din production stock
-            await supabase.from(prodStockTable).delete().eq('id', psItem.id);
+            const { error: delErr } = await supabase.from(prodStockTable).delete().eq('id', prodStockItem.id);
+            if (delErr) console.error("Eroare ștergere production stock:", delErr);
+            else console.log("Production stock item șters:", prodStockItem.id);
           } else {
-            await supabase.from(prodStockTable).update({ quantity: newPsQty }).eq('id', psItem.id);
+            const { error: updErr } = await supabase.from(prodStockTable).update({ quantity: newPsQty }).eq('id', prodStockItem.id);
+            if (updErr) console.error("Eroare actualizare production stock:", updErr);
+            else console.log("Production stock actualizat:", { id: prodStockItem.id, old: prodStockItem.quantity, new: newPsQty });
           }
           
-          // Înregistrează în istoricul de producție
           await supabase.from(prodHistoryTable).insert({
-            production_stock_id: psItem.id,
+            production_stock_id: prodStockItem.id,
             action: 'return',
             quantity: netQuantity,
-            previous_quantity: psItem.quantity,
+            previous_quantity: prodStockItem.quantity,
             notes: `Returnat din istoric transferuri. ${notes}`.trim()
           });
-          
-          console.log("Production stock actualizat:", { psItemId: psItem.id, oldQty: psItem.quantity, newQty: newPsQty, returned: netQuantity });
+        } else {
+          console.warn("NU s-a găsit item-ul în production stock! Verifică datele.");
         }
+      } else {
+        console.log("Destinația nu este Producție, skip production stock update");
       }
       
       // 5. Înregistrează în istoric (NET)
