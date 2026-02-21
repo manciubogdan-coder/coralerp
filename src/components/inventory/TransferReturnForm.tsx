@@ -258,34 +258,34 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         
         let prodStockItem: any = null;
         
-        // Caut după inventory_item_id
-        const { data: byInventoryId } = await supabase
+        // Caut PRIMA DATĂ după transfer_id (cel mai specific!)
+        const { data: byTransferId } = await supabase
           .from(prodStockTable)
           .select('id, quantity')
-          .eq('inventory_item_id', transfer.inventory_item_id);
+          .eq('transfer_id', transfer.transfer_id);
         
-        console.log('Search by inventory_item_id:', transfer.inventory_item_id, '→', byInventoryId);
+        console.log('Search by transfer_id:', transfer.transfer_id, '→', byTransferId);
         
-        if (byInventoryId && byInventoryId.length > 0) {
-          prodStockItem = byInventoryId[0];
+        if (byTransferId && byTransferId.length > 0) {
+          prodStockItem = byTransferId[0];
         } else {
-          // Caut după transfer_id
-          const { data: byTransferId } = await supabase
-            .from(prodStockTable)
-            .select('id, quantity')
-            .eq('transfer_id', transfer.transfer_id);
+          // Fallback: caut după inventory_item_id + lot_number (pentru unicitate)
+          let query = supabase.from(prodStockTable).select('id, quantity').eq('inventory_item_id', transfer.inventory_item_id);
+          if (transfer.lot_number) query = query.eq('lot_number', transfer.lot_number);
+          const { data: byInvLot } = await query;
           
-          console.log('Search by transfer_id:', transfer.transfer_id, '→', byTransferId);
+          console.log('Search by inventory_item_id+lot:', transfer.inventory_item_id, transfer.lot_number, '→', byInvLot);
           
-          if (byTransferId && byTransferId.length > 0) {
-            prodStockItem = byTransferId[0];
+          if (byInvLot && byInvLot.length > 0) {
+            prodStockItem = byInvLot[0];
           } else {
-            // Caut după name + lot_number
-            let query = supabase.from(prodStockTable).select('id, quantity').eq('name', transfer.product_name);
-            if (transfer.lot_number) query = query.eq('lot_number', transfer.lot_number);
-            const { data: byNameLot } = await query;
-            console.log('Search by name+lot:', transfer.product_name, transfer.lot_number, '→', byNameLot);
-            if (byNameLot && byNameLot.length > 0) prodStockItem = byNameLot[0];
+            // Fallback final: doar inventory_item_id
+            const { data: byInventoryId } = await supabase
+              .from(prodStockTable)
+              .select('id, quantity')
+              .eq('inventory_item_id', transfer.inventory_item_id);
+            console.log('Search by inventory_item_id:', transfer.inventory_item_id, '→', byInventoryId);
+            if (byInventoryId && byInventoryId.length > 0) prodStockItem = byInventoryId[0];
           }
         }
         
