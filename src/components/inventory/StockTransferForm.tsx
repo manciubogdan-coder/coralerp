@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,6 +69,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [crateTypes, setCrateTypes] = useState<any[]>([]);
   const isMobile = useIsMobile();
+  const touchStartYRef = useRef<number | null>(null);
+  const isTouchScrollingRef = useRef(false);
+  const touchResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const form = useForm<TransferFormValues>({
     defaultValues: {
@@ -84,6 +87,51 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       fetchCrateTypes();
     }
   }, [isOpen, inventoryType]);
+
+  useEffect(() => {
+    return () => {
+      if (touchResetTimeoutRef.current) {
+        clearTimeout(touchResetTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleProductListTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (touchResetTimeoutRef.current) {
+      clearTimeout(touchResetTimeoutRef.current);
+      touchResetTimeoutRef.current = null;
+    }
+
+    touchStartYRef.current = event.touches[0]?.clientY ?? null;
+    isTouchScrollingRef.current = false;
+  };
+
+  const handleProductListTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (touchStartYRef.current === null) return;
+
+    const currentY = event.touches[0]?.clientY ?? touchStartYRef.current;
+    if (Math.abs(currentY - touchStartYRef.current) > 8) {
+      isTouchScrollingRef.current = true;
+    }
+  };
+
+  const handleProductListTouchEnd = () => {
+    touchStartYRef.current = null;
+
+    touchResetTimeoutRef.current = setTimeout(() => {
+      isTouchScrollingRef.current = false;
+      touchResetTimeoutRef.current = null;
+    }, 100);
+  };
+
+  const preventTouchSelectWhileScrolling = (
+    event: React.PointerEvent<HTMLElement> | React.MouseEvent<HTMLElement>
+  ) => {
+    if (!isTouchScrollingRef.current) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   const fetchCrateTypes = async () => {
     try {
@@ -571,6 +619,10 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                     <div
                       className="overflow-y-scroll overscroll-contain dropdown-scrollbar touch-pan-y pr-1 max-h-[55vh] sm:max-h-[45vh] lg:max-h-[18rem]"
                       style={{ WebkitOverflowScrolling: 'touch' }}
+                      onTouchStart={handleProductListTouchStart}
+                      onTouchMove={handleProductListTouchMove}
+                      onTouchEnd={handleProductListTouchEnd}
+                      onTouchCancel={handleProductListTouchEnd}
                     >
                       {Object.keys(groupedByLot).length === 0 ? (
                         <div className="p-3 text-center text-muted-foreground">
@@ -582,7 +634,14 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           .map(([groupKey, group]) => (
                             <SelectItem 
                               key={groupKey} 
-                              value={groupKey} 
+                              value={groupKey}
+                              onPointerUpCapture={preventTouchSelectWhileScrolling}
+                              onClickCapture={preventTouchSelectWhileScrolling}
+                              onSelect={(event) => {
+                                if (isTouchScrollingRef.current) {
+                                  event.preventDefault();
+                                }
+                              }}
                               className={`py-4 ${isMobile ? 'text-base' : ''}`}
                             >
                               <div className="flex flex-col">
