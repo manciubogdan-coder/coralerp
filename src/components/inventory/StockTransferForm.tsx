@@ -575,7 +575,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
                     <div
                       className="overflow-y-auto overscroll-contain dropdown-scrollbar touch-pan-y pr-1 max-h-[55vh] sm:max-h-[45vh] lg:max-h-[18rem]"
-                      style={{ WebkitOverflowScrolling: "touch" }}
+                      style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
                     >
                       {Object.keys(groupedByLot).length === 0 ? (
                         <div className="p-3 text-center text-muted-foreground">Nu există produse disponibile</div>
