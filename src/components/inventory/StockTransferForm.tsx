@@ -555,7 +555,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                     <SelectValue placeholder="Adăugați un produs" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-[70]">
-                    <div className="px-3 py-2 sticky top-0 bg-popover z-10 border-b">
+                    <div className="px-3 py-2 border-b bg-popover">
                       <Input
                         placeholder="Caută produse..."
                         value={searchTerm}
@@ -563,38 +563,41 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         onKeyDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
                         onPointerDown={(e) => e.stopPropagation()}
-                        className={`mb-2 ${isMobile ? 'h-12' : ''}`}
+                        className={isMobile ? 'h-12' : ''}
                         autoFocus
                       />
                     </div>
-                    {Object.keys(groupedByLot).length === 0 ? (
-                      <div className="p-3 text-center text-gray-500">
-                        Nu există produse disponibile
-                      </div>
-                    ) : (
-                      Object.entries(groupedByLot)
-                        .sort(([, a], [, b]) => a.productName.localeCompare(b.productName))
-                        .map(([groupKey, group]) => (
-                          <SelectItem 
-                            key={groupKey} 
-                            value={groupKey} 
-                            className={`py-4 ${isMobile ? 'text-base' : ''}`}
-                          >
-                            <div className="flex flex-col">
-                              <span className="font-medium">
-                                {group.productName} - Lot: {group.lotNumber || 'N/A'}
-                              </span>
-                              <span className="text-sm text-blue-600 font-medium">
-                                Total disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {group.supplier ? `Furnizor: ${group.supplier}` : ''}
-                                {group.manufacturer ? ` | Producător: ${group.manufacturer}` : ''}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))
-                    )}
+
+                    <div className="max-h-[18rem] overflow-y-scroll overscroll-contain dropdown-scrollbar pr-1">
+                      {Object.keys(groupedByLot).length === 0 ? (
+                        <div className="p-3 text-center text-muted-foreground">
+                          Nu există produse disponibile
+                        </div>
+                      ) : (
+                        Object.entries(groupedByLot)
+                          .sort(([, a], [, b]) => a.productName.localeCompare(b.productName))
+                          .map(([groupKey, group]) => (
+                            <SelectItem 
+                              key={groupKey} 
+                              value={groupKey} 
+                              className={`py-4 ${isMobile ? 'text-base' : ''}`}
+                            >
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {group.productName} - Lot: {group.lotNumber || 'N/A'}
+                                </span>
+                                <span className="text-sm text-blue-600 font-medium">
+                                  Total disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {group.supplier ? `Furnizor: ${group.supplier}` : ''}
+                                  {group.manufacturer ? ` | Producător: ${group.manufacturer}` : ''}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))
+                      )}
+                    </div>
                   </SelectContent>
                 </Select>
               </div>
