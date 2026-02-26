@@ -573,32 +573,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                       />
                     </div>
 
-
-const touchStartY = useRef(0);
-
-const handleTouchStart = (e) => {
-  touchStartY.current = e.touches[0].clientY;
-};
-
-const handleTouchMove = (e) => {
-  const deltaY = Math.abs(e.touches[0].clientY - touchStartY.current);
-  if (deltaY > 10) {
-    e.stopPropagation();
-  }
-};
-
-
-
-
-                    
                     <div
-
-onTouchStart={handleTouchStart}
-  onTouchMove={handleTouchMove}
-
-
-
-                      
                       className="overflow-y-auto overscroll-contain dropdown-scrollbar touch-pan-y pr-1 max-h-[55vh] sm:max-h-[45vh] lg:max-h-[18rem]"
                       style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
                     >
