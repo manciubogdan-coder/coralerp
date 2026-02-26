@@ -157,6 +157,18 @@
     background-color: hsl(var(--ring));
   }
 
+  @media (pointer: coarse) {
+    .dropdown-scrollbar::-webkit-scrollbar {
+      width: 20px;
+      height: 20px;
+    }
+
+    .dropdown-scrollbar::-webkit-scrollbar-thumb {
+      min-height: 48px;
+      border-width: 4px;
+    }
+  }
+
   @keyframes pulse {
     0% {
       transform: scale(1);
