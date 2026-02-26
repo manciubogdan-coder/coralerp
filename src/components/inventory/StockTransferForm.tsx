@@ -554,16 +554,17 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                   <SelectTrigger className={`w-full sm:w-[400px] ${isMobile ? 'h-12' : ''}`}>
                     <SelectValue placeholder="Adăugați un produs" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white">
-                    <div className="px-3 py-2 sticky top-0 bg-white z-10 border-b">
+                  <SelectContent className="bg-popover z-[70]">
+                    <div className="px-3 py-2 sticky top-0 bg-popover z-10 border-b">
                       <Input
                         placeholder="Caută produse..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
                         className={`mb-2 ${isMobile ? 'h-12' : ''}`}
-                        onFocus={() => setIsSearchFocused(true)}
-                        onBlur={() => setIsSearchFocused(false)}
-                        autoFocus={isMobile} // Auto focus for mobile
+                        autoFocus
                       />
                     </div>
                     {Object.keys(groupedByLot).length === 0 ? (
