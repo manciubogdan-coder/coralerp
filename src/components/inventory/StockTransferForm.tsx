@@ -569,7 +569,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                     </div>
 
                     <div
-                      className={`overflow-y-scroll overscroll-contain dropdown-scrollbar touch-pan-y pr-1 ${isMobile ? 'max-h-[55vh]' : 'max-h-[18rem]'}`}
+                      className="overflow-y-scroll overscroll-contain dropdown-scrollbar touch-pan-y pr-1 max-h-[55vh] sm:max-h-[45vh] lg:max-h-[18rem]"
                       style={{ WebkitOverflowScrolling: 'touch' }}
                     >
                       {Object.keys(groupedByLot).length === 0 ? (
