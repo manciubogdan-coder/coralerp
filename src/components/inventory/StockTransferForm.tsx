@@ -14,8 +14,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { FileText, Search, Trash2, ChevronDown } from "lucide-react";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { FileText } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useInventoryType } from "@/context/inventory-type";
 
 interface StockTransferFormProps {
@@ -23,18 +25,25 @@ interface StockTransferFormProps {
 }
 
 interface TransferItem {
-  lotKey: string;
+  lotKey: string; // Cheie unică pentru combinația produs-lot
   productName: string;
   lot_number: string;
   quantity: number;
   unit: string;
   maxQuantity: number;
-  items: InventoryItem[];
+  items: InventoryItem[]; // Toate intrările pentru acest lot
+  // Informații pentru afișare
+  supplier?: string;
+  manufacturer?: string;
   product_id?: string;
+  supplier_id?: string;
+  manufacturer_id?: string;
+  // Pentru calcul net (doar pentru afișare, nu se stochează)
   grossQuantity?: number;
   crateTypeId?: string | null;
   crateCount?: number;
   crateWeight?: number;
+  netQuantity?: number;
 }
 
 interface TransferFormValues {
@@ -50,8 +59,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [selectedItems, setSelectedItems] = useState<TransferItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [crateTypes, setCrateTypes] = useState<any[]>([]);
+  const isMobile = useIsMobile();
 
   const form = useForm<TransferFormValues>({
     defaultValues: {
@@ -70,352 +80,516 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
   const fetchCrateTypes = async () => {
     try {
-      const table =
+      const crateTypesTable =
         inventoryType === "ambalaje"
           ? "ambalaje_crate_types"
           : inventoryType === "etichete"
             ? "etichete_crate_types"
             : "crate_types";
-      const { data } = await supabase.from(table).select("*").order("name", { ascending: true });
+      const { data, error } = await supabase.from(crateTypesTable).select("*").order("name", { ascending: true });
+
+      if (error) throw error;
       setCrateTypes(data || []);
-    } catch (error) {
-      console.error("Error crate types:", error);
+    } catch (error: any) {
+      console.error("Error fetching crate types:", error);
     }
   };
 
   const fetchInventory = async () => {
     try {
-      const table =
+      const tableName =
         inventoryType === "ambalaje"
           ? "ambalaje_inventory"
           : inventoryType === "etichete"
             ? "etichete_inventory"
             : "inventory";
+
       const { data, error } = await supabase
-        .from(table)
-        .select(`*, suppliers:supplier_id (name), products:product_id (name)`)
+        .from(tableName)
+        .select(
+          `
+          *,
+          suppliers:supplier_id (name),
+          products:product_id (name),
+          manufacturers:manufacturer_id (name)
+        `,
+        )
         .gt("quantity", 0)
         .order("lot_number", { ascending: true });
-      if (error) throw error;
+
+      if (error) {
+        throw error;
+      }
+
       setInventory(data || []);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Eroare stoc", description: error.message });
+      toast({
+        variant: "destructive",
+        title: "Eroare la încărcarea stocului",
+        description: error.message,
+      });
     }
   };
 
-  const groupedByLot = inventory
-    .filter((item) => {
-      const s = searchTerm.toLowerCase();
-      const name = (item.products?.name || item.name || "").toLowerCase();
-      const lot = (item.lot_number || "").toLowerCase();
-      return name.includes(s) || lot.includes(s);
-    })
-    .reduce((acc, item) => {
-      const productName = item.products?.name || item.name || "Produs";
-      const lotKey = `${productName}-${item.lot_number || "fara-lot"}`;
-      if (!acc[lotKey]) {
-        acc[lotKey] = {
+  const availableItems = inventory.filter(
+    (item) =>
+      !selectedItems.some((selected) => {
+        const productName = item.products?.name || item.name || "Produs necunoscut";
+        const lotKey = item.lot_number || "fara-lot";
+        const itemLotKey = `${productName}-${lotKey}`;
+        return selected.lotKey === itemLotKey;
+      }),
+  );
+
+  const filteredItems = availableItems.filter((item) => {
+    const productName = item.products?.name || item.name || "";
+    const supplierName = item.supplier || item.suppliers?.name || "";
+    const manufacturerName = item.manufacturer || item.manufacturers?.name || "";
+    const lotNumber = item.lot_number || "";
+    const searchLower = searchTerm.toLowerCase();
+
+    return (
+      productName.toLowerCase().includes(searchLower) ||
+      supplierName.toLowerCase().includes(searchLower) ||
+      manufacturerName.toLowerCase().includes(searchLower) ||
+      lotNumber.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const groupedByLot = filteredItems.reduce(
+    (acc, item) => {
+      const lotKey = item.lot_number || "fara-lot";
+      const productName = item.products?.name || item.name || "Produs necunoscut";
+      const groupKey = `${productName}-${lotKey}`;
+
+      if (
+        !groupKey ||
+        groupKey.trim() === "" ||
+        groupKey === "-" ||
+        groupKey === "Produs necunoscut-fara-lot" ||
+        productName.trim() === "" ||
+        !productName ||
+        productName === "Produs necunoscut"
+      ) {
+        return acc;
+      }
+
+      if (!acc[groupKey]) {
+        acc[groupKey] = {
           productName,
           lotNumber: item.lot_number,
-          total: 0,
-          unit: item.unit,
           items: [],
-          product_id: item.product_id,
+          totalQuantity: 0,
+          unit: item.unit,
+          supplier: item.supplier || item.suppliers?.name,
+          manufacturer: item.manufacturer || item.manufacturers?.name,
         };
       }
-      acc[lotKey].total += item.quantity;
-      acc[lotKey].items.push(item);
+
+      acc[groupKey].items.push(item);
+      acc[groupKey].totalQuantity += item.quantity;
+
       return acc;
-    }, {} as any);
+    },
+    {} as Record<
+      string,
+      {
+        productName: string;
+        lotNumber: string | null;
+        items: InventoryItem[];
+        totalQuantity: number;
+        unit: string;
+        supplier?: string;
+        manufacturer?: string;
+      }
+    >,
+  );
 
   const handleAddItem = (lotKey: string) => {
     const group = groupedByLot[lotKey];
     if (!group) return;
-    const newItem: TransferItem = {
+
+    const transferItem: TransferItem = {
       lotKey,
       productName: group.productName,
       lot_number: group.lotNumber || "",
-      quantity: 0,
+      quantity: group.totalQuantity,
       unit: group.unit,
-      maxQuantity: group.total,
+      maxQuantity: group.totalQuantity,
       items: group.items,
-      product_id: group.product_id,
-      grossQuantity: 0,
-      crateTypeId: null,
-      crateCount: 0,
-      crateWeight: 0,
+      supplier: group.supplier,
+      manufacturer: group.manufacturer,
+      product_id: group.items[0]?.product_id,
+      supplier_id: group.items[0]?.supplier_id,
+      manufacturer_id: group.items[0]?.manufacturer_id,
     };
-    setSelectedItems([...selectedItems, newItem]);
-    setSearchTerm("");
-    setShowDropdown(false);
+
+    setSelectedItems([...selectedItems, transferItem]);
   };
 
-  const updateItem = (index: number, updates: Partial<TransferItem>) => {
-    const newItems = [...selectedItems];
-    const item = { ...newItems[index], ...updates };
+  const handleQuantityChange = (index: number, value: number) => {
+    const updatedItems = [...selectedItems];
+    const item = updatedItems[index];
+    const newQuantity = Math.max(0, Math.min(value, item.maxQuantity));
+    updatedItems[index] = { ...item, quantity: newQuantity };
+    setSelectedItems(updatedItems);
+  };
 
-    if (inventoryType !== "etichete") {
-      const selectedCrate = crateTypes.find((c) => c.id === item.crateTypeId);
-      const crateTare = selectedCrate ? selectedCrate.weight * (item.crateCount || 0) : 0;
-      const net = (item.grossQuantity || 0) - crateTare - (item.crateWeight || 0);
-      item.quantity = Math.max(0, parseFloat(net.toFixed(2)));
+  const handleGrossQuantityChange = (index: number, value: number) => {
+    const updatedItems = [...selectedItems];
+    updatedItems[index] = { ...updatedItems[index], grossQuantity: value };
+    calculateNetQuantity(index, updatedItems);
+    setSelectedItems(updatedItems);
+  };
+
+  const handleCrateTypeChange = (index: number, crateTypeId: string) => {
+    const updatedItems = [...selectedItems];
+    updatedItems[index] = { ...updatedItems[index], crateTypeId: crateTypeId === "no-crate" ? null : crateTypeId };
+    calculateNetQuantity(index, updatedItems);
+    setSelectedItems(updatedItems);
+  };
+
+  const handleCrateCountChange = (index: number, count: number) => {
+    const updatedItems = [...selectedItems];
+    updatedItems[index] = { ...updatedItems[index], crateCount: count };
+    calculateNetQuantity(index, updatedItems);
+    setSelectedItems(updatedItems);
+  };
+
+  const handleCrateWeightChange = (index: number, weight: number) => {
+    const updatedItems = [...selectedItems];
+    updatedItems[index] = { ...updatedItems[index], crateWeight: weight };
+    calculateNetQuantity(index, updatedItems);
+    setSelectedItems(updatedItems);
+  };
+
+  const calculateNetQuantity = (index: number, items: TransferItem[]) => {
+    const item = items[index];
+    if (!item.grossQuantity) return;
+    const selectedCrateType = crateTypes.find((ct) => ct.id === item.crateTypeId);
+    const crateWeight = selectedCrateType && item.crateTypeId ? selectedCrateType.weight * (item.crateCount || 0) : 0;
+    const palletWeight = item.crateWeight || 0;
+    const calculatedNet = Math.max(0, item.grossQuantity - crateWeight - palletWeight);
+    items[index] = { ...item, netQuantity: calculatedNet, quantity: calculatedNet };
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setSelectedItems(selectedItems.filter((_, i) => i !== index));
+  };
+
+  const onSubmit = async (formData: TransferFormValues) => {
+    if (selectedItems.length === 0) {
+      toast({ variant: "destructive", title: "Eroare", description: "Vă rugăm să selectați cel puțin un produs." });
+      return;
     }
 
-    newItems[index] = item;
-    setSelectedItems(newItems);
-  };
-
-  const onSubmit = async (values: TransferFormValues) => {
-    if (selectedItems.length === 0) return;
     setIsSubmitting(true);
-    console.log("Starting transfer for type:", inventoryType);
-
     try {
-      const ticketTable =
+      const transfersTable =
         inventoryType === "ambalaje"
-          ? "ambalaje_transfer_tickets"
+          ? "ambalaje_stock_transfers"
           : inventoryType === "etichete"
-            ? "etichete_transfer_tickets"
-            : "transfer_tickets";
-      const itemTable =
+            ? "etichete_stock_transfers"
+            : "stock_transfers";
+      const transferItemsTable =
         inventoryType === "ambalaje"
-          ? "ambalaje_transfer_items"
+          ? "ambalaje_stock_transfer_items"
           : inventoryType === "etichete"
-            ? "etichete_transfer_items"
-            : "transfer_items";
-      const invTable =
+            ? "etichete_stock_transfer_items"
+            : "stock_transfer_items";
+      const inventoryTable =
         inventoryType === "ambalaje"
           ? "ambalaje_inventory"
           : inventoryType === "etichete"
             ? "etichete_inventory"
             : "inventory";
+      const historyTable =
+        inventoryType === "ambalaje"
+          ? "ambalaje_inventory_history"
+          : inventoryType === "etichete"
+            ? "etichete_inventory_history"
+            : "inventory_history";
 
-      // 1. Creează Bonul
-      const { data: ticket, error: ticketError } = await supabase
-        .from(ticketTable)
-        .insert([
-          {
-            transfer_date: values.transferDate,
-            destination: values.destination,
-            notes: values.notes,
-            status: "completed",
-          },
-        ])
+      const { data: transfer, error: transferError } = await supabase
+        .from(transfersTable)
+        .insert({ transfer_date: formData.transferDate, destination: formData.destination, notes: formData.notes })
         .select()
         .single();
 
-      if (ticketError) throw ticketError;
+      if (transferError) throw transferError;
 
-      // 2. Procesează produsele
       for (const item of selectedItems) {
-        // Salvează în istoricul de transfer
-        const { error: itemError } = await supabase.from(itemTable).insert([
-          {
-            ticket_id: ticket.id,
-            product_id: item.product_id,
-            lot_number: item.lot_number,
-            quantity: item.quantity,
-            unit: item.unit,
-          },
-        ]);
-        if (itemError) throw itemError;
+        const grossRequested = item.grossQuantity && item.grossQuantity > 0 ? item.grossQuantity : item.quantity;
+        const netRequested =
+          item.grossQuantity && item.grossQuantity > 0 ? (item.netQuantity ?? item.quantity) : item.quantity;
+        const ratioNetPerGross = grossRequested > 0 ? netRequested / grossRequested : 1;
 
-        // Scade din inventar exact pentru lotul selectat
-        let remaining = item.quantity;
-        for (const inventoryRow of item.items) {
-          if (remaining <= 0) break;
-          const toDeduct = Math.min(inventoryRow.quantity, remaining);
+        let remainingNet = netRequested;
+        const sortedItems = [...item.items].sort(
+          (a, b) => new Date(a.receipt_date || "").getTime() - new Date(b.receipt_date || "").getTime(),
+        );
 
-          const { error: updateError } = await supabase
-            .from(invTable)
-            .update({ quantity: inventoryRow.quantity - toDeduct })
-            .eq("id", inventoryRow.id);
+        for (const inventoryItem of sortedItems) {
+          if (remainingNet <= 0) break;
+          const availableNet = inventoryItem.quantity || 0;
+          const netToDeduct = Math.min(remainingNet, availableNet);
+          const newQuantity = availableNet - netToDeduct;
 
-          if (updateError) throw updateError;
-          remaining -= toDeduct;
+          await supabase.from(inventoryTable).update({ quantity: newQuantity }).eq("id", inventoryItem.id);
+          await supabase.from(historyTable).insert({
+            inventory_item_id: inventoryItem.id,
+            name: inventoryItem.name,
+            action: "transfer_out",
+            quantity: netToDeduct,
+            previous_quantity: inventoryItem.quantity,
+            unit: inventoryItem.unit,
+            supplier: inventoryItem.supplier || inventoryItem.suppliers?.name,
+            supplier_id: inventoryItem.supplier_id,
+            manufacturer_id: inventoryItem.manufacturer_id,
+            product_id: inventoryItem.product_id,
+            lot_number: inventoryItem.lot_number,
+            document_number: inventoryItem.document_number,
+            notes: `Transfer către ${formData.destination}`,
+            operation_date: formData.transferDate,
+          });
+
+          const grossForThisItem =
+            ratioNetPerGross > 0 ? Number((netToDeduct / ratioNetPerGross).toFixed(3)) : netToDeduct;
+          await supabase.from(transferItemsTable).insert({
+            transfer_id: transfer.id,
+            inventory_item_id: inventoryItem.id,
+            quantity: grossForThisItem,
+            net_quantity: netToDeduct,
+            unit: inventoryItem.unit,
+          });
+          remainingNet -= netToDeduct;
         }
       }
 
-      toast({ title: "Succes", description: "Bonul a fost înregistrat cu succes." });
+      toast({ title: "Succes", description: "Transfer creat." });
       setIsOpen(false);
       setSelectedItems([]);
+      form.reset();
       if (onTransferComplete) onTransferComplete();
     } catch (error: any) {
-      console.error("Transfer Error Details:", error);
-      toast({
-        variant: "destructive",
-        title: "Eroare la înregistrare",
-        description: error.message || "Verifică conexiunea la baza de date.",
-      });
+      toast({ variant: "destructive", title: "Eroare", description: error.message });
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const isQuantityValid = (item: TransferItem) => {
+    return item.quantity <= item.maxQuantity && item.quantity > 0;
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <FileText className="h-4 w-4" /> Bon de Transfer
+        <Button variant="outline" size={isMobile ? "default" : "sm"}>
+          <FileText className="h-4 w-4 mr-2" /> Bon de Transfer
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-5xl w-[98vw] max-h-[95vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle>Creare Bon de Transfer</DialogTitle>
-          <DialogDescription>Selectați loturile și introduceți greutățile.</DialogDescription>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border">
-            <div>
-              <label className="text-[11px] font-bold uppercase text-slate-500">Data</label>
-              <Input type="date" {...form.register("transferDate")} className="bg-white" />
-            </div>
-            <div>
-              <label className="text-[11px] font-bold uppercase text-slate-500">Destinație</label>
-              <Select onValueChange={(v) => form.setValue("destination", v)} defaultValue="Producție">
-                <SelectTrigger className="bg-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Producție">Producție</SelectItem>
-                  <SelectItem value="Extern">Extern</SelectItem>
-                  <SelectItem value="Distrugere">Distrugere</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-[11px] font-bold uppercase text-slate-500">Note</label>
-              <Input placeholder="Note..." {...form.register("notes")} className="bg-white" />
-            </div>
+      <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] overflow-hidden">
+        <div className="flex flex-col h-full max-h-[90vh]">
+          <div className="p-6 border-b shrink-0">
+            <DialogHeader>
+              <DialogTitle>Creare Bon de Transfer Gestiune</DialogTitle>
+              <DialogDescription>Transferați produse din stocul depozit către producție.</DialogDescription>
+            </DialogHeader>
           </div>
 
-          <div className="relative">
-            <div
-              className="flex h-10 w-full items-center justify-between rounded-md border bg-white px-3 py-2 text-sm cursor-pointer"
-              onClick={() => setShowDropdown(!showDropdown)}
-            >
-              <div className="flex items-center gap-2 flex-1 text-slate-400">
-                <Search className="h-4 w-4" />
-                <span>{searchTerm || "Caută produs sau lot în stoc..."}</span>
-              </div>
-              <ChevronDown className={`h-4 w-4 transition-transform ${showDropdown ? "rotate-180" : ""}`} />
-            </div>
-
-            {showDropdown && (
-              <div className="absolute w-full mt-1 bg-white border rounded-md shadow-2xl z-[100] max-h-[250px] overflow-y-auto">
-                <div className="p-2 border-b">
-                  <Input
-                    autoFocus
-                    placeholder="Tastați pentru a filtra..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+          <div className="flex-1 min-h-0 overflow-y-auto p-6">
+            <Form {...form}>
+              <form id="transfer-form" className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="transferDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Data transferului</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
-                {Object.entries(groupedByLot).map(([key, group]: any) => (
-                  <div
-                    key={key}
-                    className="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between"
-                    onClick={() => handleAddItem(key)}
-                  >
-                    <div>
-                      <div className="font-bold text-sm">{group.productName}</div>
-                      <div className="text-[10px] text-slate-500">LOT: {group.lotNumber}</div>
-                    </div>
-                    <div className="text-blue-600 font-bold text-sm">
-                      {group.total.toFixed(2)} {group.unit}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            {selectedItems.map((item, index) => (
-              <div key={index} className="bg-white p-4 rounded-lg border shadow-sm space-y-4 relative">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-2 right-2 text-slate-300 hover:text-red-500"
-                  onClick={() => setSelectedItems(selectedItems.filter((_, i) => i !== index))}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-                <div className="font-bold">
-                  {item.productName} - Lot: {item.lot_number}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  {inventoryType !== "etichete" && (
-                    <>
-                      <div>
-                        <label className="text-[10px] font-bold uppercase">Brut</label>
-                        <Input
-                          type="number"
-                          value={item.grossQuantity || ""}
-                          onChange={(e) => updateItem(index, { grossQuantity: parseFloat(e.target.value) || 0 })}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold uppercase">Lădiță</label>
-                        <Select
-                          value={item.crateTypeId || "no"}
-                          onValueChange={(v) => updateItem(index, { crateTypeId: v === "no" ? null : v })}
-                        >
-                          <SelectTrigger className="h-10 text-xs">
-                            <SelectValue placeholder="Tip..." />
-                          </SelectTrigger>
+                  <FormField
+                    control={form.control}
+                    name="destination"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Destinație</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
                           <SelectContent>
-                            <SelectItem value="no">Fără</SelectItem>
-                            {crateTypes.map((ct) => (
-                              <SelectItem key={ct.id} value={ct.id}>
-                                {ct.name} ({ct.weight}kg)
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="Producție">Producție</SelectItem>
+                            <SelectItem value="Distrugere">Distrugere</SelectItem>
+                            <SelectItem value="Extern">Extern</SelectItem>
                           </SelectContent>
                         </Select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold uppercase">Nr Lăzi</label>
-                        <Input
-                          type="number"
-                          value={item.crateCount || ""}
-                          onChange={(e) => updateItem(index, { crateCount: parseInt(e.target.value) || 0 })}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold uppercase">Tări kg</label>
-                        <Input
-                          type="number"
-                          value={item.crateWeight || ""}
-                          onChange={(e) => updateItem(index, { crateWeight: parseFloat(e.target.value) || 0 })}
-                        />
-                      </div>
-                    </>
-                  )}
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-blue-600">Net</label>
-                    <Input
-                      className="bg-blue-50 font-bold"
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) => updateItem(index, { quantity: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-              </div>
-            ))}
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Note</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Note..." {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <div className="border rounded-md p-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-md font-medium">Produse de transferat</h3>
+                    <Select
+                      onValueChange={handleAddItem}
+                      onOpenChange={(open) => {
+                        if (open) setSearchTerm("");
+                        setIsSearchFocused(open);
+                      }}
+                    >
+                      <SelectTrigger className="w-full sm:w-[400px]">
+                        <SelectValue placeholder="Adăugați un produs" />
+                      </SelectTrigger>
+                      {/* MODIFICARE AICI: Folosim portal false și clase de scroll pentru a menține lista în interiorul Dialogului */}
+                      <SelectContent
+                        position="popper"
+                        className="w-[var(--radix-select-trigger-width)] max-h-[300px] overflow-y-auto z-[100] bg-white border shadow-md"
+                      >
+                        <div className="px-2 py-2 sticky top-0 bg-white z-10 border-b">
+                          <Input
+                            placeholder="Caută produse..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            autoFocus
+                          />
+                        </div>
+                        {Object.keys(groupedByLot).length === 0 ? (
+                          <div className="p-3 text-center text-muted-foreground">Fără rezultate</div>
+                        ) : (
+                          Object.entries(groupedByLot)
+                            .sort(([, a], [, b]) => a.productName.localeCompare(b.productName))
+                            .map(([groupKey, group]) => (
+                              <SelectItem key={groupKey} value={groupKey} className="py-3">
+                                <div className="flex flex-col">
+                                  <span className="font-medium">
+                                    {group.productName} - Lot: {group.lotNumber || "N/A"}
+                                  </span>
+                                  <span className="text-sm text-blue-600">
+                                    Disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedItems.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">Niciun produs selectat</div>
+                  ) : (
+                    <div className="space-y-4">
+                      {selectedItems.map((item, index) => (
+                        <div key={index} className="flex flex-col gap-3 p-3 border rounded-md bg-muted/30 relative">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 h-8 w-8 text-red-500"
+                            onClick={() => handleRemoveItem(index)}
+                          >
+                            &times;
+                          </Button>
+                          <div>
+                            <h4 className="font-medium">{item.productName}</h4>
+                            <p className="text-xs text-muted-foreground">
+                              Lot: {item.lot_number || "-"} | Disponibil: {item.maxQuantity} {item.unit}
+                            </p>
+                          </div>
+                          <div className="space-y-3">
+                            {inventoryType === "etichete" ? (
+                              <Input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
+                              />
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <Input
+                                  placeholder="Brut"
+                                  type="number"
+                                  value={item.grossQuantity || ""}
+                                  onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)}
+                                />
+                                <Select
+                                  value={item.crateTypeId || "no-crate"}
+                                  onValueChange={(v) => handleCrateTypeChange(index, v)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Tip lădiță" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="no-crate">Fără lăzi</SelectItem>
+                                    {crateTypes.map((ct) => (
+                                      <SelectItem key={ct.id} value={ct.id}>
+                                        {ct.name} ({ct.weight}kg)
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  placeholder="Nr. lăzi"
+                                  type="number"
+                                  value={item.crateCount || ""}
+                                  onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
+                                  disabled={!item.crateTypeId}
+                                />
+                                <Input
+                                  placeholder="Tări palet"
+                                  type="number"
+                                  value={item.crateWeight || ""}
+                                  onChange={(e) => handleCrateWeightChange(index, parseFloat(e.target.value) || 0)}
+                                />
+                                <div className="col-span-full font-bold text-blue-600 bg-blue-50 p-2 rounded border">
+                                  Net: {item.quantity.toFixed(2)} {item.unit}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </form>
+            </Form>
+          </div>
+
+          <div className="p-6 border-t shrink-0">
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+                Anulează
+              </Button>
+              <Button type="submit" form="transfer-form" disabled={selectedItems.length === 0 || isSubmitting}>
+                {isSubmitting ? "Se procesează..." : "Creare bon de transfer"}
+              </Button>
+            </DialogFooter>
           </div>
         </div>
-
-        <DialogFooter className="p-6 border-t bg-slate-50">
-          <Button variant="outline" onClick={() => setIsOpen(false)}>
-            Anulează
-          </Button>
-          <Button onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting || selectedItems.length === 0}>
-            {isSubmitting ? "Se salvează..." : "Confirmă Transfer"}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
