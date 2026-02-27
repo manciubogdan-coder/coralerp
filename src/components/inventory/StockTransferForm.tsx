@@ -559,51 +559,51 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                   <SelectTrigger className={`w-full sm:w-[400px] ${isMobile ? "h-12" : ""}`}>
                     <SelectValue placeholder="Adăugați un produs" />
                   </SelectTrigger>
-                  <SelectContent className="bg-popover z-[70]">
-                    <div className="px-3 py-2 border-b bg-popover">
+                  <SelectContent
+                    className="bg-popover z-[70] max-h-[70vh] overflow-y-auto dropdown-scrollbar"
+                    position="popper"
+                    sideOffset={5}
+                    align="start"
+                    collisionPadding={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+                  >
+                    <div className="px-3 py-2 border-b bg-popover sticky top-0 z-10">
                       <Input
                         placeholder="Caută produse..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         onKeyDown={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onPointerDown={(e) => e.stopPropagation()}
                         className={isMobile ? "h-12" : ""}
                         autoFocus
                       />
                     </div>
 
-                    <div
-                      className="overflow-y-auto overscroll-contain dropdown-scrollbar touch-pan-y pr-1 max-h-[55vh] sm:max-h-[45vh] lg:max-h-[18rem]"
-                      style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
-                    >
-                      {Object.keys(groupedByLot).length === 0 ? (
-                        <div className="p-3 text-center text-muted-foreground">Nu există produse disponibile</div>
-                      ) : (
-                        Object.entries(groupedByLot)
-                          .sort(([, a], [, b]) => a.productName.localeCompare(b.productName))
-                          .map(([groupKey, group]) => (
-                            <SelectItem
-                              key={groupKey}
-                              value={groupKey}
-                              className={`py-4 ${isMobile ? "text-base" : ""}`}
-                            >
-                              <div className="flex flex-col">
-                                <span className="font-medium">
-                                  {group.productName} - Lot: {group.lotNumber || "N/A"}
-                                </span>
-                                <span className="text-sm text-blue-600 font-medium">
-                                  Total disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  {group.supplier ? `Furnizor: ${group.supplier}` : ""}
-                                  {group.manufacturer ? ` | Producător: ${group.manufacturer}` : ""}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))
-                      )}
-                    </div>
+                    {Object.keys(groupedByLot).length === 0 ? (
+                      <div className="p-3 text-center text-muted-foreground">Nu există produse disponibile</div>
+                    ) : (
+                      Object.entries(groupedByLot)
+                        .sort(([, a], [, b]) => a.productName.localeCompare(b.productName))
+                        .map(([groupKey, group]) => (
+                          <SelectItem
+                            key={groupKey}
+                            value={groupKey}
+                            className={`py-4 ${isMobile ? "text-base" : ""}`}
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {group.productName} - Lot: {group.lotNumber || "N/A"}
+                              </span>
+                              <span className="text-sm text-blue-600 font-medium">
+                                Total disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {group.supplier ? `Furnizor: ${group.supplier}` : ""}
+                                {group.manufacturer ? ` | Producător: ${group.manufacturer}` : ""}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
