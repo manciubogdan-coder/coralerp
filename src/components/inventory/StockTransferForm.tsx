@@ -473,302 +473,301 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           Bon de Transfer
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Creare Bon de Transfer Gestiune</DialogTitle>
-          <DialogDescription>
-            Transferați produse din stocul depozit către producție sau alte departamente.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] overflow-hidden">
+        <div className="flex flex-col h-full max-h-[90vh]">
+          <div className="p-6 border-b shrink-0">
+            <DialogHeader>
+              <DialogTitle>Creare Bon de Transfer Gestiune</DialogTitle>
+              <DialogDescription>
+                Transferați produse din stocul depozit către producție sau alte departamente.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-        <Form {...form}>
-          <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="transferDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Data transferului</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="destination"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Destinație</FormLabel>
-                    <FormControl>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selectați destinația" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white">
-                          <SelectItem value="Producție" className="py-3 text-base">
-                            Producție
-                          </SelectItem>
-                          <SelectItem value="Distrugere" className="py-3 text-base">
-                            Distrugere
-                          </SelectItem>
-                          <SelectItem value="Extern" className="py-3 text-base">
-                            Extern
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Note</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Notițe opționale despre transfer" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="border rounded-md p-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-md font-medium">Produse de transferat</h3>
-                <Select
-                  onValueChange={handleAddItem}
-                  onOpenChange={(open) => {
-                    if (open) {
-                      setSearchTerm("");
-                      setIsSearchFocused(true);
-                    } else {
-                      setIsSearchFocused(false);
-                    }
-                  }}
-                >
-                  <SelectTrigger className={`w-full sm:w-[400px] ${isMobile ? "h-12" : ""}`}>
-                    <SelectValue placeholder="Adăugați un produs" />
-                  </SelectTrigger>
-                  <SelectContent
-                    className="bg-popover z-[70] max-h-[70vh] overflow-y-auto dropdown-scrollbar"
-                    position="popper"
-                    sideOffset={5}
-                    align="start"
-                    collisionPadding={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
-                  >
-                    <div className="px-3 py-2 border-b bg-popover sticky top-0 z-10">
-                      <Input
-                        placeholder="Caută produse..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onKeyDown={(e) => e.stopPropagation()}
-                        className={isMobile ? "h-12" : ""}
-                        autoFocus
-                      />
-                    </div>
-
-                    {Object.keys(groupedByLot).length === 0 ? (
-                      <div className="p-3 text-center text-muted-foreground">Nu există produse disponibile</div>
-                    ) : (
-                      Object.entries(groupedByLot)
-                        .sort(([, a], [, b]) => a.productName.localeCompare(b.productName))
-                        .map(([groupKey, group]) => (
-                          <SelectItem
-                            key={groupKey}
-                            value={groupKey}
-                            className={`py-4 ${isMobile ? "text-base" : ""}`}
-                          >
-                            <div className="flex flex-col">
-                              <span className="font-medium">
-                                {group.productName} - Lot: {group.lotNumber || "N/A"}
-                              </span>
-                              <span className="text-sm text-blue-600 font-medium">
-                                Total disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {group.supplier ? `Furnizor: ${group.supplier}` : ""}
-                                {group.manufacturer ? ` | Producător: ${group.manufacturer}` : ""}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))
+          <div className="flex-1 min-h-0 overflow-y-auto p-6">
+            <Form {...form}>
+              <form id="transfer-form" className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="transferDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Data transferului</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </SelectContent>
-                </Select>
-              </div>
+                  />
 
-              {selectedItems.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>Niciun produs selectat</p>
-                  <p className="text-sm mt-2">Folosiți meniul pentru a adăuga produse pentru transfer</p>
+                  <FormField
+                    control={form.control}
+                    name="destination"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Destinație</FormLabel>
+                        <FormControl>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selectați destinația" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover">
+                              <SelectItem value="Producție" className="py-3 text-base">
+                                Producție
+                              </SelectItem>
+                              <SelectItem value="Distrugere" className="py-3 text-base">
+                                Distrugere
+                              </SelectItem>
+                              <SelectItem value="Extern" className="py-3 text-base">
+                                Extern
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-              ) : (
-                <div className="space-y-4 max-h-[300px] overflow-y-auto">
-                  {selectedItems.map((item, index) => (
-                    <div key={index} className="flex flex-col gap-3 p-3 border rounded-md bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium">{item.productName}</h4>
-                          <p className="text-xs text-gray-500">Lot: {item.lot_number || "-"}</p>
-                          <p className="text-xs text-gray-500">Furnizor: {item.supplier || "-"}</p>
-                          <p className="text-sm text-blue-600">
-                            Disponibil: {item.maxQuantity} {item.unit}
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className={`${isMobile ? "h-10 w-10" : "h-8 w-8"} p-0`}
-                          onClick={() => handleRemoveItem(index)}
-                        >
-                          &times;
-                        </Button>
-                      </div>
 
-                      <div className="space-y-3">
-                        {/* Pentru Etichete - doar cantitate simplă */}
-                        {inventoryType === "etichete" ? (
-                          <div>
-                            <label className="text-sm">Cantitate de transferat ({item.unit})</label>
-                            <Input
-                              type="number"
-                              value={item.quantity}
-                              onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
-                              min={0}
-                              max={item.maxQuantity}
-                              step="1"
-                              className={isMobile ? "h-12" : ""}
-                            />
-                            {!isQuantityValid(item) && (
-                              <p className="text-xs text-red-600 mt-1">
-                                Cantitatea trebuie să fie între 1 și {item.maxQuantity} {item.unit}
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Note</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Notițe opționale despre transfer" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="border rounded-md p-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-md font-medium">Produse de transferat</h3>
+                    <Select
+                      onValueChange={handleAddItem}
+                      onOpenChange={(open) => {
+                        if (open) {
+                          setSearchTerm("");
+                          setIsSearchFocused(true);
+                        } else {
+                          setIsSearchFocused(false);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className={`w-full sm:w-[400px] ${isMobile ? "h-12" : ""}`}>
+                        <SelectValue placeholder="Adăugați un produs" />
+                      </SelectTrigger>
+                      <SelectContent
+                        className="bg-popover z-[70] dropdown-scrollbar"
+                        position="popper"
+                        sideOffset={5}
+                      >
+                        <div className="px-3 py-2 border-b bg-popover sticky top-0 z-10">
+                          <Input
+                            placeholder="Caută produse..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            className={isMobile ? "h-12" : ""}
+                            autoFocus
+                          />
+                        </div>
+
+                        {Object.keys(groupedByLot).length === 0 ? (
+                          <div className="p-3 text-center text-muted-foreground">Nu există produse disponibile</div>
+                        ) : (
+                          Object.entries(groupedByLot)
+                            .sort(([, a], [, b]) => a.productName.localeCompare(b.productName))
+                            .map(([groupKey, group]) => (
+                              <SelectItem
+                                key={groupKey}
+                                value={groupKey}
+                                className={`py-4 ${isMobile ? "text-base" : ""}`}
+                              >
+                                <div className="flex flex-col">
+                                  <span className="font-medium">
+                                    {group.productName} - Lot: {group.lotNumber || "N/A"}
+                                  </span>
+                                  <span className="text-sm text-blue-600 font-medium">
+                                    Total disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {group.supplier ? `Furnizor: ${group.supplier}` : ""}
+                                    {group.manufacturer ? ` | Producător: ${group.manufacturer}` : ""}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedItems.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p>Niciun produs selectat</p>
+                      <p className="text-sm mt-2">Folosiți meniul pentru a adăuga produse pentru transfer</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {selectedItems.map((item, index) => (
+                        <div key={index} className="flex flex-col gap-3 p-3 border rounded-md bg-muted/30">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-medium">{item.productName}</h4>
+                              <p className="text-xs text-muted-foreground">Lot: {item.lot_number || "-"}</p>
+                              <p className="text-xs text-muted-foreground">Furnizor: {item.supplier || "-"}</p>
+                              <p className="text-sm text-blue-600">
+                                Disponibil: {item.maxQuantity} {item.unit}
                               </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className={`${isMobile ? "h-10 w-10" : "h-8 w-8"} p-0`}
+                              onClick={() => handleRemoveItem(index)}
+                            >
+                              &times;
+                            </Button>
+                          </div>
+
+                          <div className="space-y-3">
+                            {inventoryType === "etichete" ? (
+                              <div>
+                                <label className="text-sm">Cantitate de transferat ({item.unit})</label>
+                                <Input
+                                  type="number"
+                                  value={item.quantity}
+                                  onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
+                                  min={0}
+                                  max={item.maxQuantity}
+                                  step="1"
+                                  className={isMobile ? "h-12" : ""}
+                                />
+                                {!isQuantityValid(item) && (
+                                  <p className="text-xs text-destructive mt-1">
+                                    Cantitatea trebuie să fie între 1 și {item.maxQuantity} {item.unit}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <>
+                                <div>
+                                  <label className="text-sm">Cantitate brută {item.unit} (pentru calcul)</label>
+                                  <Input
+                                    type="number"
+                                    value={item.grossQuantity || ""}
+                                    onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)}
+                                    min={0}
+                                    step="0.01"
+                                    placeholder="Introduceți cantitatea brută"
+                                    className={isMobile ? "h-12" : ""}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-sm">Tip lădiță</label>
+                                  <Select
+                                    value={item.crateTypeId || "no-crate"}
+                                    onValueChange={(value) => handleCrateTypeChange(index, value)}
+                                  >
+                                    <SelectTrigger className={isMobile ? "h-12" : ""}>
+                                      <SelectValue placeholder="Selectează tipul de lădiță" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-popover">
+                                      <SelectItem value="no-crate">Fără lăzi</SelectItem>
+                                      {crateTypes.map((crateType) => (
+                                        <SelectItem key={crateType.id} value={crateType.id}>
+                                          {crateType.name} ({crateType.weight} kg)
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div>
+                                  <label className="text-sm">Numărul de lăzi</label>
+                                  <Input
+                                    type="number"
+                                    value={item.crateCount || ""}
+                                    onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
+                                    placeholder="Numărul de lăzi"
+                                    disabled={!item.crateTypeId}
+                                    className={isMobile ? "h-12" : ""}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-sm">Greutatea paletului (kg)</label>
+                                  <Input
+                                    type="number"
+                                    value={item.crateWeight || ""}
+                                    onChange={(e) => handleCrateWeightChange(index, parseFloat(e.target.value) || 0)}
+                                    placeholder="Greutatea paletului"
+                                    step="0.01"
+                                    className={isMobile ? "h-12" : ""}
+                                  />
+                                </div>
+
+                                {item.netQuantity !== undefined && (
+                                  <div className="p-2 bg-blue-50 rounded border">
+                                    <label className="text-sm font-medium text-blue-700">
+                                      Cantitate netă calculată: {item.netQuantity.toFixed(2)} {item.unit}
+                                    </label>
+                                  </div>
+                                )}
+
+                                <div>
+                                  <label className="text-sm">Cantitate finală de transferat {item.unit}</label>
+                                  <Input
+                                    type="number"
+                                    value={item.quantity}
+                                    onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
+                                    min={0}
+                                    max={item.maxQuantity}
+                                    step="0.01"
+                                    className={isMobile ? "h-12" : ""}
+                                  />
+                                  {!isQuantityValid(item) && (
+                                    <p className="text-xs text-destructive mt-1">
+                                      Cantitatea trebuie să fie între 0.01 și {item.maxQuantity.toFixed(2)} {item.unit}
+                                    </p>
+                                  )}
+                                </div>
+                              </>
                             )}
                           </div>
-                        ) : (
-                          <>
-                            {/* Cantitate brută pentru calcul - doar pentru Materii Prime și Ambalaje */}
-                            <div>
-                              <label className="text-sm">Cantitate brută {item.unit} (pentru calcul)</label>
-                              <Input
-                                type="number"
-                                value={item.grossQuantity || ""}
-                                onChange={(e) => handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)}
-                                min={0}
-                                step="0.01"
-                                placeholder="Introduceți cantitatea brută"
-                                className={isMobile ? "h-12" : ""}
-                              />
-                            </div>
-
-                            {/* Selector tip lădiță */}
-                            <div>
-                              <label className="text-sm">Tip lădiță</label>
-                              <Select
-                                value={item.crateTypeId || "no-crate"}
-                                onValueChange={(value) => handleCrateTypeChange(index, value)}
-                              >
-                                <SelectTrigger className={isMobile ? "h-12" : ""}>
-                                  <SelectValue placeholder="Selectează tipul de lădiță" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-white">
-                                  <SelectItem value="no-crate">Fără lăzi</SelectItem>
-                                  {crateTypes.map((crateType) => (
-                                    <SelectItem key={crateType.id} value={crateType.id}>
-                                      {crateType.name} ({crateType.weight} kg)
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            {/* Număr lăzi */}
-                            <div>
-                              <label className="text-sm">Numărul de lăzi</label>
-                              <Input
-                                type="number"
-                                value={item.crateCount || ""}
-                                onChange={(e) => handleCrateCountChange(index, parseInt(e.target.value) || 0)}
-                                placeholder="Numărul de lăzi"
-                                disabled={!item.crateTypeId}
-                                className={isMobile ? "h-12" : ""}
-                              />
-                            </div>
-
-                            {/* Greutatea paletului */}
-                            <div>
-                              <label className="text-sm">Greutatea paletului (kg)</label>
-                              <Input
-                                type="number"
-                                value={item.crateWeight || ""}
-                                onChange={(e) => handleCrateWeightChange(index, parseFloat(e.target.value) || 0)}
-                                placeholder="Greutatea paletului"
-                                step="0.01"
-                                className={isMobile ? "h-12" : ""}
-                              />
-                            </div>
-
-                            {/* Afișare cantitate netă calculată */}
-                            {item.netQuantity !== undefined && (
-                              <div className="p-2 bg-blue-50 rounded border">
-                                <label className="text-sm font-medium text-blue-700">
-                                  Cantitate netă calculată: {item.netQuantity.toFixed(2)} {item.unit}
-                                </label>
-                              </div>
-                            )}
-
-                            {/* Cantitate finală de transfer */}
-                            <div>
-                              <label className="text-sm">Cantitate finală de transferat {item.unit}</label>
-                              <Input
-                                type="number"
-                                value={item.quantity}
-                                onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
-                                min={0}
-                                max={item.maxQuantity}
-                                step="0.01"
-                                className={isMobile ? "h-12" : ""}
-                              />
-                              {!isQuantityValid(item) && (
-                                <p className="text-xs text-red-600 mt-1">
-                                  Cantitatea trebuie să fie între 0.01 și {item.maxQuantity.toFixed(2)} {item.unit}
-                                </p>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-            </div>
+              </form>
+            </Form>
+          </div>
 
+          <div className="p-6 border-t shrink-0">
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
                 Anulează
               </Button>
               <Button
                 type="submit"
+                form="transfer-form"
                 disabled={selectedItems.length === 0 || isSubmitting}
                 className={isMobile ? "h-12" : ""}
               >
                 {isSubmitting ? "Se procesează..." : "Creare bon de transfer"}
               </Button>
             </DialogFooter>
-          </form>
-        </Form>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
