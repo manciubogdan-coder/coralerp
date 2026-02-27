@@ -14,7 +14,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { FileText, Search, Trash2, ChevronDown } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useInventoryType } from "@/context/inventory-type";
@@ -31,11 +30,7 @@ interface TransferItem {
   unit: string;
   maxQuantity: number;
   items: InventoryItem[];
-  supplier?: string;
-  manufacturer?: string;
   product_id?: string;
-  supplier_id?: string;
-  manufacturer_id?: string;
   grossQuantity?: number;
   crateTypeId?: string | null;
   crateCount?: number;
@@ -84,7 +79,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       const { data } = await supabase.from(table).select("*").order("name", { ascending: true });
       setCrateTypes(data || []);
     } catch (error) {
-      console.error("Error fetching crate types:", error);
+      console.error("Error crate types:", error);
     }
   };
 
@@ -98,7 +93,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             : "inventory";
       const { data, error } = await supabase
         .from(table)
-        .select(`*, suppliers:supplier_id (name), products:product_id (name), manufacturers:manufacturer_id (name)`)
+        .select(`*, suppliers:supplier_id (name), products:product_id (name)`)
         .gt("quantity", 0)
         .order("lot_number", { ascending: true });
       if (error) throw error;
@@ -125,7 +120,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           total: 0,
           unit: item.unit,
           items: [],
-          supplier: item.suppliers?.name,
+          product_id: item.product_id,
         };
       }
       acc[lotKey].total += item.quantity;
@@ -144,10 +139,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       unit: group.unit,
       maxQuantity: group.total,
       items: group.items,
-      supplier: group.supplier,
-      product_id: group.items[0]?.product_id,
-      supplier_id: group.items[0]?.supplier_id,
-      manufacturer_id: group.items[0]?.manufacturer_id,
+      product_id: group.product_id,
       grossQuantity: 0,
       crateTypeId: null,
       crateCount: 0,
@@ -158,27 +150,25 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setShowDropdown(false);
   };
 
-  const calculateNetQuantity = (item: TransferItem) => {
-    if (inventoryType === "etichete") return item.quantity;
-    const selectedCrate = crateTypes.find((c) => c.id === item.crateTypeId);
-    const crateTare = selectedCrate ? selectedCrate.weight * (item.crateCount || 0) : 0;
-    const net = (item.grossQuantity || 0) - crateTare - (item.crateWeight || 0);
-    return Math.max(0, parseFloat(net.toFixed(2)));
-  };
-
   const updateItem = (index: number, updates: Partial<TransferItem>) => {
     const newItems = [...selectedItems];
-    const updated = { ...newItems[index], ...updates };
+    const item = { ...newItems[index], ...updates };
+
     if (inventoryType !== "etichete") {
-      updated.quantity = calculateNetQuantity(updated);
+      const selectedCrate = crateTypes.find((c) => c.id === item.crateTypeId);
+      const crateTare = selectedCrate ? selectedCrate.weight * (item.crateCount || 0) : 0;
+      const net = (item.grossQuantity || 0) - crateTare - (item.crateWeight || 0);
+      item.quantity = Math.max(0, parseFloat(net.toFixed(2)));
     }
-    newItems[index] = updated;
+
+    newItems[index] = item;
     setSelectedItems(newItems);
   };
 
   const onSubmit = async (values: TransferFormValues) => {
     if (selectedItems.length === 0) return;
     setIsSubmitting(true);
+    console.log("Starting transfer for type:", inventoryType);
 
     try {
       const ticketTable =
@@ -200,6 +190,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             ? "etichete_inventory"
             : "inventory";
 
+      // 1. Creează Bonul
       const { data: ticket, error: ticketError } = await supabase
         .from(ticketTable)
         .insert([
@@ -215,8 +206,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
       if (ticketError) throw ticketError;
 
+      // 2. Procesează produsele
       for (const item of selectedItems) {
-        // Inserare item transfer
+        // Salvează în istoricul de transfer
         const { error: itemError } = await supabase.from(itemTable).insert([
           {
             ticket_id: ticket.id,
@@ -224,34 +216,37 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             lot_number: item.lot_number,
             quantity: item.quantity,
             unit: item.unit,
-            gross_quantity: item.grossQuantity,
-            crate_type_id: item.crateTypeId,
-            crate_count: item.crateCount,
-            crate_weight: item.crateWeight,
           },
         ]);
         if (itemError) throw itemError;
 
-        // Scadere din lotul specific selectat
+        // Scade din inventar exact pentru lotul selectat
         let remaining = item.quantity;
-        for (const subInv of item.items) {
+        for (const inventoryRow of item.items) {
           if (remaining <= 0) break;
-          const toSubtract = Math.min(subInv.quantity, remaining);
-          const { error: invError } = await supabase
+          const toDeduct = Math.min(inventoryRow.quantity, remaining);
+
+          const { error: updateError } = await supabase
             .from(invTable)
-            .update({ quantity: subInv.quantity - toSubtract })
-            .eq("id", subInv.id);
-          if (invError) throw invError;
-          remaining -= toSubtract;
+            .update({ quantity: inventoryRow.quantity - toDeduct })
+            .eq("id", inventoryRow.id);
+
+          if (updateError) throw updateError;
+          remaining -= toDeduct;
         }
       }
 
-      toast({ title: "Succes", description: "Transfer înregistrat și stoc actualizat." });
+      toast({ title: "Succes", description: "Bonul a fost înregistrat cu succes." });
       setIsOpen(false);
       setSelectedItems([]);
       if (onTransferComplete) onTransferComplete();
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Eroare", description: error.message });
+      console.error("Transfer Error Details:", error);
+      toast({
+        variant: "destructive",
+        title: "Eroare la înregistrare",
+        description: error.message || "Verifică conexiunea la baza de date.",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -264,36 +259,33 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           <FileText className="h-4 w-4" /> Bon de Transfer
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-5xl w-[98vw] max-h-[95vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="max-w-5xl w-[98vw] max-h-[95vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle>Creare Bon de Transfer</DialogTitle>
-          <DialogDescription>Alegeți destinația și detaliile de cântărire pentru lotul selectat.</DialogDescription>
+          <DialogDescription>Selectați loturile și introduceți greutățile.</DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border">
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 uppercase">Data</label>
+            <div>
+              <label className="text-[11px] font-bold uppercase text-slate-500">Data</label>
               <Input type="date" {...form.register("transferDate")} className="bg-white" />
             </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 uppercase">Destinație</label>
-              <Select
-                onValueChange={(v) => form.setValue("destination", v)}
-                defaultValue={form.getValues("destination")}
-              >
+            <div>
+              <label className="text-[11px] font-bold uppercase text-slate-500">Destinație</label>
+              <Select onValueChange={(v) => form.setValue("destination", v)} defaultValue="Producție">
                 <SelectTrigger className="bg-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Producție">Producție</SelectItem>
-                  <SelectItem value="Distrugere">Distrugere</SelectItem>
                   <SelectItem value="Extern">Extern</SelectItem>
+                  <SelectItem value="Distrugere">Distrugere</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 uppercase">Note</label>
+            <div>
+              <label className="text-[11px] font-bold uppercase text-slate-500">Note</label>
               <Input placeholder="Note..." {...form.register("notes")} className="bg-white" />
             </div>
           </div>
@@ -303,33 +295,32 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
               className="flex h-10 w-full items-center justify-between rounded-md border bg-white px-3 py-2 text-sm cursor-pointer"
               onClick={() => setShowDropdown(!showDropdown)}
             >
-              <div className="flex items-center gap-2 flex-1">
-                <Search className="h-4 w-4 text-slate-400" />
-                <input
-                  className="flex-1 outline-none"
-                  placeholder="Caută produs sau lot în stoc..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setShowDropdown(true);
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                />
+              <div className="flex items-center gap-2 flex-1 text-slate-400">
+                <Search className="h-4 w-4" />
+                <span>{searchTerm || "Caută produs sau lot în stoc..."}</span>
               </div>
-              <ChevronDown className="h-4 w-4 opacity-50 transition-transform" />
+              <ChevronDown className={`h-4 w-4 transition-transform ${showDropdown ? "rotate-180" : ""}`} />
             </div>
 
             {showDropdown && (
               <div className="absolute w-full mt-1 bg-white border rounded-md shadow-2xl z-[100] max-h-[250px] overflow-y-auto">
+                <div className="p-2 border-b">
+                  <Input
+                    autoFocus
+                    placeholder="Tastați pentru a filtra..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
                 {Object.entries(groupedByLot).map(([key, group]: any) => (
                   <div
                     key={key}
-                    className="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between items-center"
+                    className="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between"
                     onClick={() => handleAddItem(key)}
                   >
                     <div>
                       <div className="font-bold text-sm">{group.productName}</div>
-                      <div className="text-[10px] text-slate-500 font-medium">LOT: {group.lotNumber}</div>
+                      <div className="text-[10px] text-slate-500">LOT: {group.lotNumber}</div>
                     </div>
                     <div className="text-blue-600 font-bold text-sm">
                       {group.total.toFixed(2)} {group.unit}
@@ -351,49 +342,49 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
-                <div className="font-bold border-b pb-2">
+                <div className="font-bold">
                   {item.productName} - Lot: {item.lot_number}
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   {inventoryType !== "etichete" && (
                     <>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-slate-400">Brut</label>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase">Brut</label>
                         <Input
                           type="number"
                           value={item.grossQuantity || ""}
                           onChange={(e) => updateItem(index, { grossQuantity: parseFloat(e.target.value) || 0 })}
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-slate-400">Lădiță</label>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase">Lădiță</label>
                         <Select
                           value={item.crateTypeId || "no"}
                           onValueChange={(v) => updateItem(index, { crateTypeId: v === "no" ? null : v })}
                         >
-                          <SelectTrigger className="text-xs h-10">
+                          <SelectTrigger className="h-10 text-xs">
                             <SelectValue placeholder="Tip..." />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="no">Fără</SelectItem>
                             {crateTypes.map((ct) => (
                               <SelectItem key={ct.id} value={ct.id}>
-                                {ct.name}
+                                {ct.name} ({ct.weight}kg)
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-slate-400">Nr Lăzi</label>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase">Nr Lăzi</label>
                         <Input
                           type="number"
                           value={item.crateCount || ""}
                           onChange={(e) => updateItem(index, { crateCount: parseInt(e.target.value) || 0 })}
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-slate-400">Tări kg</label>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase">Tări kg</label>
                         <Input
                           type="number"
                           value={item.crateWeight || ""}
@@ -402,8 +393,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                       </div>
                     </>
                   )}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-blue-600">Cantitate Netă</label>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase text-blue-600">Net</label>
                     <Input
                       className="bg-blue-50 font-bold"
                       type="number"
@@ -422,7 +413,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             Anulează
           </Button>
           <Button onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting || selectedItems.length === 0}>
-            {isSubmitting ? "Se procesează..." : "Confirmă Transfer"}
+            {isSubmitting ? "Se salvează..." : "Confirmă Transfer"}
           </Button>
         </DialogFooter>
       </DialogContent>
