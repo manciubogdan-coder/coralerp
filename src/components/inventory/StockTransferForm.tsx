@@ -566,7 +566,6 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                       <SelectContent
                         disablePortal
                         className="bg-popover max-h-[60vh] overflow-y-auto z-50 dropdown-scrollbar"
-                        position="popper"
                         side="bottom"
                         align="start"
                         sideOffset={4}
