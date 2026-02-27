@@ -564,11 +564,14 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         <SelectValue placeholder="Adăugați un produs" />
                       </SelectTrigger>
                       <SelectContent
-                        className="bg-popover max-h-[60vh] overflow-y-auto z-50 dropdown-scrollbar mt-1"
+                        disablePortal
+                        className="bg-popover max-h-[60vh] overflow-y-auto z-50 dropdown-scrollbar"
+                        position="popper"
                         side="bottom"
                         align="start"
                         sideOffset={4}
                         avoidCollisions={true}
+                        style={{ touchAction: "pan-y" }}
                       >
                         <div className="px-3 py-2 border-b bg-popover sticky top-0 z-10">
                           <Input
