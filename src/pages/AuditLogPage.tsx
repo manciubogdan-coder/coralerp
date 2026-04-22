@@ -126,6 +126,12 @@ const getQuantityChange = (log: AuditLog) => {
 const AuditLogPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [search, setSearch] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [userFilter, setUserFilter] = useState('');
+  const [zoneFilter, setZoneFilter] = useState('');
+  const [itemFilter, setItemFilter] = useState('');
+  const [operationFilter, setOperationFilter] = useState('');
+  const [inventoryTypeFilter, setInventoryTypeFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const { isAdmin } = useAuth();
   const { toast } = useToast();
@@ -136,7 +142,7 @@ const AuditLogPage: React.FC = () => {
       setIsLoading(true);
       const { data, error } = await supabase
         .from('audit_logs' as any)
-        .select('id, occurred_at, user_email, user_name, action, table_name, record_label, changed_fields')
+        .select('id, occurred_at, user_email, user_name, action, table_name, record_label, changed_fields, old_data, new_data')
         .order('occurred_at', { ascending: false })
         .limit(300);
 
@@ -153,13 +159,44 @@ const AuditLogPage: React.FC = () => {
 
   const filteredLogs = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return logs;
-    return logs.filter((log) =>
-      [log.user_email, log.user_name, log.table_name, log.record_label, actionLabel[log.action], log.action]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
-    );
-  }, [logs, search]);
+    return logs.filter((log) => {
+      const logDate = log.occurred_at.slice(0, 10);
+      const userText = normalizeText(`${log.user_name ?? ''} ${log.user_email ?? ''}`);
+      const zoneText = normalizeText(`${log.table_name} ${tableLabels[log.table_name] ?? ''}`);
+      const itemText = normalizeText(log.record_label);
+      const operationText = normalizeText(`${getOperationType(log)} ${actionLabel[log.action] ?? log.action}`);
+      const inventoryTypeText = normalizeText(getInventoryType(log.table_name));
+      const allText = normalizeText([
+        log.user_email,
+        log.user_name,
+        log.table_name,
+        tableLabels[log.table_name],
+        log.record_label,
+        actionLabel[log.action],
+        log.action,
+        getOperationType(log),
+        getInventoryType(log.table_name),
+      ].filter(Boolean).join(' '));
+
+      return (!query || allText.includes(query))
+        && (!dateFilter || logDate === dateFilter)
+        && (!userFilter || userText.includes(normalizeText(userFilter)))
+        && (!zoneFilter || zoneText.includes(normalizeText(zoneFilter)))
+        && (!itemFilter || itemText.includes(normalizeText(itemFilter)))
+        && (!operationFilter || operationText.includes(normalizeText(operationFilter)))
+        && (!inventoryTypeFilter || inventoryTypeText.includes(normalizeText(inventoryTypeFilter)));
+    });
+  }, [dateFilter, inventoryTypeFilter, itemFilter, logs, operationFilter, search, userFilter, zoneFilter]);
+
+  const resetFilters = () => {
+    setSearch('');
+    setDateFilter('');
+    setUserFilter('');
+    setZoneFilter('');
+    setItemFilter('');
+    setOperationFilter('');
+    setInventoryTypeFilter('');
+  };
 
   if (!isAdmin) {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Nu aveți permisiuni pentru această pagină</div>;
