@@ -19,15 +19,18 @@ import {
   Truck, 
   Box, 
   Database,
+  FileClock,
   Home,
   Warehouse,
   TrendingUp
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const AppSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
+  const { isAdmin } = useAuth();
 
   const menuItems = [
     {
@@ -80,6 +83,10 @@ const AppSidebar = () => {
     }
   ];
 
+  const visibleMenuItems = isAdmin
+    ? [...menuItems, { id: "audit", name: "Audit Operații", icon: FileClock, path: "/audit" }]
+    : menuItems;
+
   const handleNavigation = (path: string) => {
     navigate(path);
     // Pe mobil, închide sidebar-ul după navigare
@@ -99,7 +106,7 @@ const AppSidebar = () => {
           <SidebarGroupLabel className={`${isMobile ? "text-black font-medium" : ""}`}>Navigare</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {visibleMenuItems.map((item) => (
                 <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton 
                     isActive={location.pathname === item.path}

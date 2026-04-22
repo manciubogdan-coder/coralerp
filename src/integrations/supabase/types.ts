@@ -1621,6 +1621,54 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          action: string
+          changed_fields: Json | null
+          id: string
+          new_data: Json | null
+          occurred_at: string
+          old_data: Json | null
+          record_id: string | null
+          record_label: string | null
+          source: string
+          table_name: string
+          user_email: string | null
+          user_id: string | null
+          user_name: string | null
+        }
+        Insert: {
+          action: string
+          changed_fields?: Json | null
+          id?: string
+          new_data?: Json | null
+          occurred_at?: string
+          old_data?: Json | null
+          record_id?: string | null
+          record_label?: string | null
+          source?: string
+          table_name: string
+          user_email?: string | null
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Update: {
+          action?: string
+          changed_fields?: Json | null
+          id?: string
+          new_data?: Json | null
+          occurred_at?: string
+          old_data?: Json | null
+          record_id?: string | null
+          record_label?: string | null
+          source?: string
+          table_name?: string
+          user_email?: string | null
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Relationships: []
+      }
       cash_flow_categories: {
         Row: {
           color: string
@@ -9666,6 +9714,8 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_audit_user_email: { Args: never; Returns: string }
+      get_audit_user_name: { Args: never; Returns: string }
       get_current_production_user_role: { Args: never; Returns: string }
       get_current_user_approval_status: { Args: never; Returns: boolean }
       get_current_user_role: { Args: never; Returns: string }

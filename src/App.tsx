@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Package, Boxes, Users, LogOut, Tag } from "lucide-react";
+import { FileClock, Package, Boxes, Users, LogOut, Tag } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import ProductsPage from "./pages/dashboard/ProductsPage";
 import SuppliersPage from "./pages/dashboard/SuppliersPage";
@@ -22,6 +22,7 @@ import InventoryOverviewPage from "./pages/InventoryPage";
 import AuthPage from "./pages/AuthPage";
 import PendingApprovalPage from "./pages/PendingApprovalPage";
 import UserManagementPage from "./pages/UserManagementPage";
+import AuditLogPage from "./pages/AuditLogPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { InventoryTypeProvider, useInventoryType } from "@/context/inventory-type";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -70,15 +71,26 @@ const AppShell = () => {
                   Etichete
                 </Button>
                 {isAdmin && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate('/users')}
-                    className="flex items-center gap-2"
-                  >
-                    <Users size={16} />
-                    Utilizatori
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate('/audit')}
+                      className="flex items-center gap-2"
+                    >
+                      <FileClock size={16} />
+                      Audit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate('/users')}
+                      className="flex items-center gap-2"
+                    >
+                      <Users size={16} />
+                      Utilizatori
+                    </Button>
+                  </>
                 )}
                 <Button
                   variant="ghost"
@@ -128,6 +140,11 @@ const App = () => {
                 <Route path="/users" element={
                   <ProtectedRoute requireAdmin>
                     <UserManagementPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/audit" element={
+                  <ProtectedRoute requireAdmin>
+                    <AuditLogPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/*" element={
