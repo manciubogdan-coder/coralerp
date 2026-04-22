@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileClock, Loader2, Search } from 'lucide-react';
+import { ArrowLeft, FileClock, Loader2, Search, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,39 @@ interface AuditLog {
   table_name: string;
   record_label: string | null;
   changed_fields: Record<string, { old: unknown; new: unknown }> | null;
+  old_data: Record<string, unknown> | null;
+  new_data: Record<string, unknown> | null;
 }
+
+const tableLabels: Record<string, string> = {
+  inventory: 'Stoc materii prime',
+  reception_records: 'Recepție materii prime',
+  inventory_history: 'Istoric materii prime',
+  stock_transfers: 'Bon de transfer materii prime',
+  stock_transfer_items: 'Articole bon transfer materii prime',
+  production_stock: 'Stoc producție materii prime',
+  products: 'Produse materii prime',
+  suppliers: 'Furnizori materii prime',
+  manufacturers: 'Producători materii prime',
+  ambalaje_inventory: 'Stoc ambalaje',
+  ambalaje_reception_records: 'Recepție ambalaje',
+  ambalaje_inventory_history: 'Istoric ambalaje',
+  ambalaje_stock_transfers: 'Bon de transfer ambalaje',
+  ambalaje_stock_transfer_items: 'Articole bon transfer ambalaje',
+  ambalaje_production_stock: 'Stoc producție ambalaje',
+  ambalaje_products: 'Produse ambalaje',
+  ambalaje_suppliers: 'Furnizori ambalaje',
+  ambalaje_manufacturers: 'Producători ambalaje',
+  etichete_inventory: 'Stoc etichete',
+  etichete_reception_records: 'Recepție etichete',
+  etichete_inventory_history: 'Istoric etichete',
+  etichete_stock_transfers: 'Bon de transfer etichete',
+  etichete_stock_transfer_items: 'Articole bon transfer etichete',
+  etichete_production_stock: 'Stoc producție etichete',
+  etichete_products: 'Produse etichete',
+  etichete_suppliers: 'Furnizori etichete',
+  etichete_manufacturers: 'Producători etichete',
+};
 
 const actionLabel: Record<string, string> = {
   INSERT: 'Creat',
@@ -31,6 +63,64 @@ const formatValue = (value: unknown) => {
   if (value === null || value === undefined) return 'gol';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+};
+
+const normalizeText = (value: unknown) => String(value ?? '').toLowerCase();
+
+const getInventoryType = (tableName: string) => {
+  if (tableName.startsWith('etichete_')) return 'Etichete';
+  if (tableName.startsWith('ambalaje_')) return 'Ambalaje';
+  return 'Materii prime';
+};
+
+const getOperationType = (log: AuditLog) => {
+  const tableName = log.table_name;
+  const data = log.new_data ?? log.old_data ?? {};
+  const historyAction = normalizeText(data.action);
+
+  if (tableName.includes('stock_transfer')) return 'Bon de transfer';
+  if (tableName.includes('reception_records')) return 'Recepție';
+  if (tableName.includes('inventory_history')) {
+    if (historyAction.includes('transfer')) return 'Bon de transfer';
+    if (historyAction.includes('consum')) return 'Consum';
+    if (historyAction.includes('recept')) return 'Recepție';
+    return 'Mișcare stoc';
+  }
+  if (tableName.includes('production_stock')) return 'Stoc producție';
+  if (tableName.includes('daily_stock')) return 'Snapshot dimineață';
+  if (tableName.includes('products')) return 'Articol';
+  if (tableName.includes('suppliers')) return 'Furnizor';
+  if (tableName.includes('manufacturers')) return 'Producător';
+  if (tableName.includes('inventory')) return log.action === 'INSERT' ? 'Recepție / adăugare stoc' : 'Modificare stoc';
+  return tableLabels[tableName] ?? tableName;
+};
+
+const getNumericValue = (value: unknown) => {
+  const numberValue = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+};
+
+const getQuantityChange = (log: AuditLog) => {
+  const quantityFields = ['quantity', 'net_quantity', 'original_quantity', 'quantity_ordered', 'consider_quantity'];
+
+  for (const field of quantityFields) {
+    const change = log.changed_fields?.[field];
+    const oldValue = getNumericValue(change?.old);
+    const newValue = getNumericValue(change?.new);
+    if (oldValue !== null && newValue !== null && oldValue !== newValue) {
+      return { field, oldValue, newValue, delta: newValue - oldValue };
+    }
+  }
+
+  const sourceData = log.action === 'DELETE' ? log.old_data : log.new_data;
+  for (const field of quantityFields) {
+    const value = getNumericValue(sourceData?.[field]);
+    if (value !== null) {
+      return { field, oldValue: log.action === 'INSERT' ? 0 : value, newValue: log.action === 'DELETE' ? 0 : value, delta: log.action === 'DELETE' ? -value : value };
+    }
+  }
+
+  return null;
 };
 
 const AuditLogPage: React.FC = () => {
