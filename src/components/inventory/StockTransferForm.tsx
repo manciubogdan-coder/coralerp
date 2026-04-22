@@ -52,6 +52,11 @@ interface TransferFormValues {
   notes: string;
 }
 
+const MIN_TRANSFER_QUANTITY = 0.000001;
+
+const normalizeStockQuantity = (quantity: number) =>
+  Math.abs(quantity) < MIN_TRANSFER_QUANTITY ? 0 : Number(quantity.toFixed(6));
+
 export function StockTransferForm({ onTransferComplete }: StockTransferFormProps) {
   const { inventoryType } = useInventoryType();
   const [isOpen, setIsOpen] = useState(false);
@@ -114,7 +119,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           manufacturers:manufacturer_id (name)
         `,
         )
-        .gt("quantity", 0)
+        .gt("quantity", MIN_TRANSFER_QUANTITY)
         .order("lot_number", { ascending: true });
 
       if (error) {
@@ -188,7 +193,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       }
 
       acc[groupKey].items.push(item);
-      acc[groupKey].totalQuantity += item.quantity;
+      acc[groupKey].totalQuantity = normalizeStockQuantity(acc[groupKey].totalQuantity + item.quantity);
 
       return acc;
     },
@@ -377,9 +382,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         for (const inventoryItem of sortedItems) {
           if (remainingNet <= 0) break;
 
-          const availableNet = inventoryItem.quantity || 0;
+          const availableNet = normalizeStockQuantity(inventoryItem.quantity || 0);
+          if (availableNet <= 0) continue;
+
           const netToDeduct = Math.min(remainingNet, availableNet);
-          const newQuantity = availableNet - netToDeduct;
+          const newQuantity = normalizeStockQuantity(availableNet - netToDeduct);
 
           const { error: updateError } = await supabase
             .from(inventoryTable)
@@ -420,7 +427,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
           if (transferItemError) throw transferItemError;
 
-          remainingNet -= netToDeduct;
+          remainingNet = normalizeStockQuantity(remainingNet - netToDeduct);
         }
       }
 
