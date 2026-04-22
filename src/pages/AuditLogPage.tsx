@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileClock, Loader2, Search } from 'lucide-react';
+import { ArrowLeft, FileClock, Loader2, Search, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,39 @@ interface AuditLog {
   table_name: string;
   record_label: string | null;
   changed_fields: Record<string, { old: unknown; new: unknown }> | null;
+  old_data: Record<string, unknown> | null;
+  new_data: Record<string, unknown> | null;
 }
+
+const tableLabels: Record<string, string> = {
+  inventory: 'Stoc materii prime',
+  reception_records: 'Recepție materii prime',
+  inventory_history: 'Istoric materii prime',
+  stock_transfers: 'Bon de transfer materii prime',
+  stock_transfer_items: 'Articole bon transfer materii prime',
+  production_stock: 'Stoc producție materii prime',
+  products: 'Produse materii prime',
+  suppliers: 'Furnizori materii prime',
+  manufacturers: 'Producători materii prime',
+  ambalaje_inventory: 'Stoc ambalaje',
+  ambalaje_reception_records: 'Recepție ambalaje',
+  ambalaje_inventory_history: 'Istoric ambalaje',
+  ambalaje_stock_transfers: 'Bon de transfer ambalaje',
+  ambalaje_stock_transfer_items: 'Articole bon transfer ambalaje',
+  ambalaje_production_stock: 'Stoc producție ambalaje',
+  ambalaje_products: 'Produse ambalaje',
+  ambalaje_suppliers: 'Furnizori ambalaje',
+  ambalaje_manufacturers: 'Producători ambalaje',
+  etichete_inventory: 'Stoc etichete',
+  etichete_reception_records: 'Recepție etichete',
+  etichete_inventory_history: 'Istoric etichete',
+  etichete_stock_transfers: 'Bon de transfer etichete',
+  etichete_stock_transfer_items: 'Articole bon transfer etichete',
+  etichete_production_stock: 'Stoc producție etichete',
+  etichete_products: 'Produse etichete',
+  etichete_suppliers: 'Furnizori etichete',
+  etichete_manufacturers: 'Producători etichete',
+};
 
 const actionLabel: Record<string, string> = {
   INSERT: 'Creat',
@@ -33,9 +65,73 @@ const formatValue = (value: unknown) => {
   return String(value);
 };
 
+const normalizeText = (value: unknown) => String(value ?? '').toLowerCase();
+
+const getInventoryType = (tableName: string) => {
+  if (tableName.startsWith('etichete_')) return 'Etichete';
+  if (tableName.startsWith('ambalaje_')) return 'Ambalaje';
+  return 'Materii prime';
+};
+
+const getOperationType = (log: AuditLog) => {
+  const tableName = log.table_name;
+  const data = log.new_data ?? log.old_data ?? {};
+  const historyAction = normalizeText(data.action);
+
+  if (tableName.includes('stock_transfer')) return 'Bon de transfer';
+  if (tableName.includes('reception_records')) return 'Recepție';
+  if (tableName.includes('inventory_history')) {
+    if (historyAction.includes('transfer')) return 'Bon de transfer';
+    if (historyAction.includes('consum')) return 'Consum';
+    if (historyAction.includes('recept')) return 'Recepție';
+    return 'Mișcare stoc';
+  }
+  if (tableName.includes('production_stock')) return 'Stoc producție';
+  if (tableName.includes('daily_stock')) return 'Snapshot dimineață';
+  if (tableName.includes('products')) return 'Articol';
+  if (tableName.includes('suppliers')) return 'Furnizor';
+  if (tableName.includes('manufacturers')) return 'Producător';
+  if (tableName.includes('inventory')) return log.action === 'INSERT' ? 'Recepție / adăugare stoc' : 'Modificare stoc';
+  return tableLabels[tableName] ?? tableName;
+};
+
+const getNumericValue = (value: unknown) => {
+  const numberValue = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+};
+
+const getQuantityChange = (log: AuditLog) => {
+  const quantityFields = ['quantity', 'net_quantity', 'original_quantity', 'quantity_ordered', 'consider_quantity'];
+
+  for (const field of quantityFields) {
+    const change = log.changed_fields?.[field];
+    const oldValue = getNumericValue(change?.old);
+    const newValue = getNumericValue(change?.new);
+    if (oldValue !== null && newValue !== null && oldValue !== newValue) {
+      return { field, oldValue, newValue, delta: newValue - oldValue };
+    }
+  }
+
+  const sourceData = log.action === 'DELETE' ? log.old_data : log.new_data;
+  for (const field of quantityFields) {
+    const value = getNumericValue(sourceData?.[field]);
+    if (value !== null) {
+      return { field, oldValue: log.action === 'INSERT' ? 0 : value, newValue: log.action === 'DELETE' ? 0 : value, delta: log.action === 'DELETE' ? -value : value };
+    }
+  }
+
+  return null;
+};
+
 const AuditLogPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [search, setSearch] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [userFilter, setUserFilter] = useState('');
+  const [zoneFilter, setZoneFilter] = useState('');
+  const [itemFilter, setItemFilter] = useState('');
+  const [operationFilter, setOperationFilter] = useState('');
+  const [inventoryTypeFilter, setInventoryTypeFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const { isAdmin } = useAuth();
   const { toast } = useToast();
@@ -46,7 +142,7 @@ const AuditLogPage: React.FC = () => {
       setIsLoading(true);
       const { data, error } = await supabase
         .from('audit_logs' as any)
-        .select('id, occurred_at, user_email, user_name, action, table_name, record_label, changed_fields')
+        .select('id, occurred_at, user_email, user_name, action, table_name, record_label, changed_fields, old_data, new_data')
         .order('occurred_at', { ascending: false })
         .limit(300);
 
@@ -63,13 +159,44 @@ const AuditLogPage: React.FC = () => {
 
   const filteredLogs = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return logs;
-    return logs.filter((log) =>
-      [log.user_email, log.user_name, log.table_name, log.record_label, actionLabel[log.action], log.action]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
-    );
-  }, [logs, search]);
+    return logs.filter((log) => {
+      const logDate = log.occurred_at.slice(0, 10);
+      const userText = normalizeText(`${log.user_name ?? ''} ${log.user_email ?? ''}`);
+      const zoneText = normalizeText(`${log.table_name} ${tableLabels[log.table_name] ?? ''}`);
+      const itemText = normalizeText(log.record_label);
+      const operationText = normalizeText(`${getOperationType(log)} ${actionLabel[log.action] ?? log.action}`);
+      const inventoryTypeText = normalizeText(getInventoryType(log.table_name));
+      const allText = normalizeText([
+        log.user_email,
+        log.user_name,
+        log.table_name,
+        tableLabels[log.table_name],
+        log.record_label,
+        actionLabel[log.action],
+        log.action,
+        getOperationType(log),
+        getInventoryType(log.table_name),
+      ].filter(Boolean).join(' '));
+
+      return (!query || allText.includes(query))
+        && (!dateFilter || logDate === dateFilter)
+        && (!userFilter || userText.includes(normalizeText(userFilter)))
+        && (!zoneFilter || zoneText.includes(normalizeText(zoneFilter)))
+        && (!itemFilter || itemText.includes(normalizeText(itemFilter)))
+        && (!operationFilter || operationText.includes(normalizeText(operationFilter)))
+        && (!inventoryTypeFilter || inventoryTypeText.includes(normalizeText(inventoryTypeFilter)));
+    });
+  }, [dateFilter, inventoryTypeFilter, itemFilter, logs, operationFilter, search, userFilter, zoneFilter]);
+
+  const resetFilters = () => {
+    setSearch('');
+    setDateFilter('');
+    setUserFilter('');
+    setZoneFilter('');
+    setItemFilter('');
+    setOperationFilter('');
+    setInventoryTypeFilter('');
+  };
 
   if (!isAdmin) {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Nu aveți permisiuni pentru această pagină</div>;
@@ -92,13 +219,25 @@ const AuditLogPage: React.FC = () => {
 
       <Card>
         <CardHeader className="gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>Ultimele operații</CardTitle>
+          <CardTitle>Ultimele operații ({filteredLogs.length})</CardTitle>
           <div className="relative w-full sm:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Caută user, produs, tabel..." className="pl-9" />
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} aria-label="Filtru dată" />
+            <Input value={userFilter} onChange={(event) => setUserFilter(event.target.value)} placeholder="Filtru user" />
+            <Input value={zoneFilter} onChange={(event) => setZoneFilter(event.target.value)} placeholder="Filtru zonă" />
+            <Input value={itemFilter} onChange={(event) => setItemFilter(event.target.value)} placeholder="Filtru articol" />
+            <Input value={operationFilter} onChange={(event) => setOperationFilter(event.target.value)} placeholder="Filtru operație" />
+            <Input value={inventoryTypeFilter} onChange={(event) => setInventoryTypeFilter(event.target.value)} placeholder="Filtru: materii prime / ambalaje / etichete" className="lg:col-span-2" />
+            <Button type="button" variant="outline" onClick={resetFilters} className="gap-2">
+              <X className="h-4 w-4" />
+              Resetează filtre
+            </Button>
+          </div>
           {isLoading ? (
             <div className="flex justify-center py-10">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -111,37 +250,54 @@ const AuditLogPage: React.FC = () => {
                     <TableHead>Data și ora</TableHead>
                     <TableHead>User</TableHead>
                     <TableHead>Operație</TableHead>
+                    <TableHead>Tip</TableHead>
                     <TableHead>Zonă</TableHead>
                     <TableHead>Articol</TableHead>
+                    <TableHead>Cantitate operată</TableHead>
                     <TableHead>Modificări</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="whitespace-nowrap">{new Date(log.occurred_at).toLocaleString('ro-RO')}</TableCell>
-                      <TableCell>
-                        <div className="font-medium">{log.user_name || 'Utilizator necunoscut'}</div>
-                        <div className="text-xs text-muted-foreground">{log.user_email || 'fără email'}</div>
-                      </TableCell>
-                      <TableCell><Badge variant="outline">{actionLabel[log.action] || log.action}</Badge></TableCell>
-                      <TableCell>{log.table_name}</TableCell>
-                      <TableCell>{log.record_label || '-'}</TableCell>
-                      <TableCell className="min-w-80 max-w-xl">
-                        {log.action === 'UPDATE' && log.changed_fields ? (
-                          <div className="space-y-1 text-sm">
-                            {Object.entries(log.changed_fields).slice(0, 8).map(([field, change]) => (
-                              <div key={field} className="break-words">
-                                <span className="font-medium">{field}</span>: {formatValue(change.old)} → {formatValue(change.new)}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">{log.action === 'INSERT' ? 'Înregistrare creată' : 'Înregistrare ștearsă'}</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredLogs.map((log) => {
+                    const quantityChange = getQuantityChange(log);
+                    return (
+                      <TableRow key={log.id}>
+                        <TableCell className="whitespace-nowrap">{new Date(log.occurred_at).toLocaleString('ro-RO')}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{log.user_name || 'Utilizator necunoscut'}</div>
+                          <div className="text-xs text-muted-foreground">{log.user_email || 'fără email'}</div>
+                        </TableCell>
+                        <TableCell><Badge variant="outline">{actionLabel[log.action] || log.action}</Badge></TableCell>
+                        <TableCell>
+                          <div className="font-medium">{getOperationType(log)}</div>
+                          <div className="text-xs text-muted-foreground">{getInventoryType(log.table_name)}</div>
+                        </TableCell>
+                        <TableCell>{tableLabels[log.table_name] || log.table_name}</TableCell>
+                        <TableCell>{log.record_label || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {quantityChange ? (
+                            <div>
+                              <div className="font-medium">{quantityChange.delta > 0 ? '+' : ''}{quantityChange.delta.toLocaleString('ro-RO')}</div>
+                              <div className="text-xs text-muted-foreground">{quantityChange.oldValue.toLocaleString('ro-RO')} → {quantityChange.newValue.toLocaleString('ro-RO')}</div>
+                            </div>
+                          ) : <span className="text-muted-foreground">-</span>}
+                        </TableCell>
+                        <TableCell className="min-w-80 max-w-xl">
+                          {log.action === 'UPDATE' && log.changed_fields ? (
+                            <div className="space-y-1 text-sm">
+                              {Object.entries(log.changed_fields).slice(0, 8).map(([field, change]) => (
+                                <div key={field} className="break-words">
+                                  <span className="font-medium">{field}</span>: {formatValue(change.old)} → {formatValue(change.new)}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">{log.action === 'INSERT' ? 'Înregistrare creată' : 'Înregistrare ștearsă'}</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
