@@ -219,13 +219,25 @@ const AuditLogPage: React.FC = () => {
 
       <Card>
         <CardHeader className="gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>Ultimele operații</CardTitle>
+          <CardTitle>Ultimele operații ({filteredLogs.length})</CardTitle>
           <div className="relative w-full sm:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Caută user, produs, tabel..." className="pl-9" />
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} aria-label="Filtru dată" />
+            <Input value={userFilter} onChange={(event) => setUserFilter(event.target.value)} placeholder="Filtru user" />
+            <Input value={zoneFilter} onChange={(event) => setZoneFilter(event.target.value)} placeholder="Filtru zonă" />
+            <Input value={itemFilter} onChange={(event) => setItemFilter(event.target.value)} placeholder="Filtru articol" />
+            <Input value={operationFilter} onChange={(event) => setOperationFilter(event.target.value)} placeholder="Filtru operație" />
+            <Input value={inventoryTypeFilter} onChange={(event) => setInventoryTypeFilter(event.target.value)} placeholder="Filtru: materii prime / ambalaje / etichete" className="lg:col-span-2" />
+            <Button type="button" variant="outline" onClick={resetFilters} className="gap-2">
+              <X className="h-4 w-4" />
+              Resetează filtre
+            </Button>
+          </div>
           {isLoading ? (
             <div className="flex justify-center py-10">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -238,37 +250,54 @@ const AuditLogPage: React.FC = () => {
                     <TableHead>Data și ora</TableHead>
                     <TableHead>User</TableHead>
                     <TableHead>Operație</TableHead>
+                    <TableHead>Tip</TableHead>
                     <TableHead>Zonă</TableHead>
                     <TableHead>Articol</TableHead>
+                    <TableHead>Cantitate operată</TableHead>
                     <TableHead>Modificări</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="whitespace-nowrap">{new Date(log.occurred_at).toLocaleString('ro-RO')}</TableCell>
-                      <TableCell>
-                        <div className="font-medium">{log.user_name || 'Utilizator necunoscut'}</div>
-                        <div className="text-xs text-muted-foreground">{log.user_email || 'fără email'}</div>
-                      </TableCell>
-                      <TableCell><Badge variant="outline">{actionLabel[log.action] || log.action}</Badge></TableCell>
-                      <TableCell>{log.table_name}</TableCell>
-                      <TableCell>{log.record_label || '-'}</TableCell>
-                      <TableCell className="min-w-80 max-w-xl">
-                        {log.action === 'UPDATE' && log.changed_fields ? (
-                          <div className="space-y-1 text-sm">
-                            {Object.entries(log.changed_fields).slice(0, 8).map(([field, change]) => (
-                              <div key={field} className="break-words">
-                                <span className="font-medium">{field}</span>: {formatValue(change.old)} → {formatValue(change.new)}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">{log.action === 'INSERT' ? 'Înregistrare creată' : 'Înregistrare ștearsă'}</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredLogs.map((log) => {
+                    const quantityChange = getQuantityChange(log);
+                    return (
+                      <TableRow key={log.id}>
+                        <TableCell className="whitespace-nowrap">{new Date(log.occurred_at).toLocaleString('ro-RO')}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{log.user_name || 'Utilizator necunoscut'}</div>
+                          <div className="text-xs text-muted-foreground">{log.user_email || 'fără email'}</div>
+                        </TableCell>
+                        <TableCell><Badge variant="outline">{actionLabel[log.action] || log.action}</Badge></TableCell>
+                        <TableCell>
+                          <div className="font-medium">{getOperationType(log)}</div>
+                          <div className="text-xs text-muted-foreground">{getInventoryType(log.table_name)}</div>
+                        </TableCell>
+                        <TableCell>{tableLabels[log.table_name] || log.table_name}</TableCell>
+                        <TableCell>{log.record_label || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {quantityChange ? (
+                            <div>
+                              <div className="font-medium">{quantityChange.delta > 0 ? '+' : ''}{quantityChange.delta.toLocaleString('ro-RO')}</div>
+                              <div className="text-xs text-muted-foreground">{quantityChange.oldValue.toLocaleString('ro-RO')} → {quantityChange.newValue.toLocaleString('ro-RO')}</div>
+                            </div>
+                          ) : <span className="text-muted-foreground">-</span>}
+                        </TableCell>
+                        <TableCell className="min-w-80 max-w-xl">
+                          {log.action === 'UPDATE' && log.changed_fields ? (
+                            <div className="space-y-1 text-sm">
+                              {Object.entries(log.changed_fields).slice(0, 8).map(([field, change]) => (
+                                <div key={field} className="break-words">
+                                  <span className="font-medium">{field}</span>: {formatValue(change.old)} → {formatValue(change.new)}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">{log.action === 'INSERT' ? 'Înregistrare creată' : 'Înregistrare ștearsă'}</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
