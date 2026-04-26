@@ -334,6 +334,55 @@ export function ReceptionRegistration({
           </div>
         </div>
       </DialogContent>
+
+      <ConfirmationDialog
+        open={showConfirm}
+        onOpenChange={setShowConfirm}
+        onConfirm={executeSave}
+        isSubmitting={isSubmitting}
+        title="CONFIRMĂ RECEPȚIA"
+        description="Verifică cu atenție datele de mai jos. Această recepție va modifica stocul scriptic."
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-muted/40 border p-5 space-y-4">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">Produs</div>
+              <div className="text-2xl font-bold mt-1">{selectedProduct?.name || '—'}</div>
+            </div>
+
+            <div className="border-t pt-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">Cantitate de adăugat în stoc</div>
+              <div className="text-4xl font-extrabold text-primary mt-1">
+                {quantityToSave.toFixed(isEtichete ? 0 : 2)}{' '}
+                <span className="text-2xl font-bold">{unitToSave}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">Furnizor</div>
+                <div className="text-base font-semibold mt-1">{selectedSupplier?.name || '—'}</div>
+              </div>
+              {isManufacturerRequired && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">Producător</div>
+                  <div className="text-base font-semibold mt-1">{selectedManufacturer?.name || '—'}</div>
+                </div>
+              )}
+              <div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">Document</div>
+                <div className="text-base font-semibold mt-1">{documentNumber || '—'}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">Zonă</div>
+                <div className="mt-1">
+                  <Badge variant="secondary" className="text-sm">{zoneLabel}</Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ConfirmationDialog>
     </Dialog>
   );
 }
