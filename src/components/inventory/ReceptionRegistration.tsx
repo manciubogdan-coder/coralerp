@@ -8,6 +8,8 @@ import { Plus, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Product, Supplier, Manufacturer } from "@/types";
 import { useInventoryType } from "@/context/inventory-type";
+import { ConfirmationDialog } from "./ConfirmationDialog";
+import { Badge } from "@/components/ui/badge";
 
 interface ReceptionRegistrationProps {
   products: Product[];
