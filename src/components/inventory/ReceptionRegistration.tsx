@@ -63,27 +63,41 @@ export function ReceptionRegistration({
   
   const handleSubmit = async () => {
     try {
-      const isManufacturerRequired = inventoryType === 'materii-prime';
-      const quantityToSave = isEtichete ? grossQuantity : netQuantity;
-      
-      if (!productId || !supplierId || (isManufacturerRequired && !manufacturerId) || !documentNumber || quantityToSave <= 0) {
-        toast({
-          title: "Date incomplete",
-          description: "Vă rugăm să completați toate câmpurile și asigurați-vă că cantitatea este pozitivă.",
-          variant: "destructive"
-        });
-        return;
-      }
+  const isManufacturerRequired = inventoryType === 'materii-prime';
+  const quantityToSave = isEtichete ? grossQuantity : netQuantity;
+  const unitToSave = selectedProduct?.default_unit || (isEtichete ? 'buc' : 'kg');
+  const selectedSupplier = suppliers.find(s => s.id === supplierId);
+  const selectedManufacturer = manufacturers.find(m => m.id === manufacturerId);
 
-      const selectedProduct = products.find(p => p.id === productId);
-      if (!selectedProduct) return;
+  const zoneLabel = inventoryType === 'ambalaje'
+    ? 'Ambalaje'
+    : inventoryType === 'etichete'
+      ? 'Etichete'
+      : 'Materii Prime';
 
-      const inventoryTable = inventoryType === 'ambalaje' 
-        ? 'ambalaje_inventory' 
+  const handleSubmit = () => {
+    if (!productId || !supplierId || (isManufacturerRequired && !manufacturerId) || !documentNumber || quantityToSave <= 0) {
+      toast({
+        title: "Date incomplete",
+        description: "Vă rugăm să completați toate câmpurile și asigurați-vă că cantitatea este pozitivă.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setShowConfirm(true);
+  };
+
+  const executeSave = async () => {
+    try {
+      setIsSubmitting(true);
+      if (!productId || !selectedProduct) return;
+
+      const inventoryTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_inventory'
         : inventoryType === 'etichete'
           ? 'etichete_inventory'
           : 'inventory';
-      
+
       console.log('Salvez recepție:', {
         productName: selectedProduct.name,
         grossQuantity,
@@ -92,7 +106,6 @@ export function ReceptionRegistration({
         calculationDetails: isEtichete ? 'N/A' : { crateTypeId, crateCount, palletWeight }
       });
 
-      // Pentru etichete salvăm direct cantitatea, pentru altele salvăm cantitatea netă
       const { error } = await supabase
         .from(inventoryTable)
         .insert({
@@ -102,7 +115,7 @@ export function ReceptionRegistration({
           manufacturer_id: isManufacturerRequired ? manufacturerId : null,
           document_number: documentNumber,
           quantity: quantityToSave,
-          unit: selectedProduct.default_unit || (isEtichete ? 'buc' : 'kg'),
+          unit: unitToSave,
           receipt_date: new Date().toISOString()
         });
 
@@ -110,12 +123,13 @@ export function ReceptionRegistration({
 
       toast({
         title: "Recepție înregistrată",
-        description: `Cantitate stocată: ${quantityToSave.toFixed(isEtichete ? 0 : 2)} ${selectedProduct.default_unit || (isEtichete ? 'buc' : 'kg')}`
+        description: `Cantitate stocată: ${quantityToSave.toFixed(isEtichete ? 0 : 2)} ${unitToSave}`
       });
 
+      setShowConfirm(false);
       setIsOpen(false);
       onRegistrationComplete();
-      
+
       // Reset form
       setProductId(null);
       setSupplierId(null);
@@ -132,6 +146,8 @@ export function ReceptionRegistration({
         description: error.message,
         variant: "destructive"
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
