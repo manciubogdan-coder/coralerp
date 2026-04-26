@@ -61,8 +61,6 @@ export function ReceptionRegistration({
   // Pentru etichete, cantitatea netă = cantitatea introdusă direct (fără calcul lăzi/paleți)
   const isEtichete = inventoryType === 'etichete';
   
-  const handleSubmit = async () => {
-    try {
   const isManufacturerRequired = inventoryType === 'materii-prime';
   const quantityToSave = isEtichete ? grossQuantity : netQuantity;
   const unitToSave = selectedProduct?.default_unit || (isEtichete ? 'buc' : 'kg');
