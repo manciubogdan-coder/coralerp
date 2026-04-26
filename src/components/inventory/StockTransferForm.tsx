@@ -320,7 +320,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setSelectedItems(selectedItems.filter((_, i) => i !== index));
   };
 
-  const onSubmit = async (formData: TransferFormValues) => {
+  const onSubmit = (formData: TransferFormValues) => {
     if (selectedItems.length === 0) {
       toast({
         variant: "destructive",
@@ -329,7 +329,21 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       });
       return;
     }
+    // Verifică validitatea cantităților înainte să deschidă confirmarea
+    const invalid = selectedItems.find((it) => !(it.quantity > 0 && it.quantity <= it.maxQuantity));
+    if (invalid) {
+      toast({
+        variant: "destructive",
+        title: "Cantitate invalidă",
+        description: `Verifică cantitatea pentru ${invalid.productName}.`,
+      });
+      return;
+    }
+    setShowConfirm(true);
+  };
 
+  const executeTransfer = async () => {
+    const formData = form.getValues();
     setIsSubmitting(true);
 
     try {
