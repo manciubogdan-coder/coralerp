@@ -19,6 +19,8 @@ import { FileText } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useInventoryType } from "@/context/inventory-type";
+import { ConfirmationDialog } from "./ConfirmationDialog";
+import { Badge } from "@/components/ui/badge";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;
@@ -66,6 +68,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [crateTypes, setCrateTypes] = useState<any[]>([]);
+  const [showConfirm, setShowConfirm] = useState(false);
   const isMobile = useIsMobile();
 
   const form = useForm<TransferFormValues>({
@@ -317,7 +320,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     setSelectedItems(selectedItems.filter((_, i) => i !== index));
   };
 
-  const onSubmit = async (formData: TransferFormValues) => {
+  const onSubmit = (formData: TransferFormValues) => {
     if (selectedItems.length === 0) {
       toast({
         variant: "destructive",
@@ -326,7 +329,21 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       });
       return;
     }
+    // Verifică validitatea cantităților înainte să deschidă confirmarea
+    const invalid = selectedItems.find((it) => !(it.quantity > 0 && it.quantity <= it.maxQuantity));
+    if (invalid) {
+      toast({
+        variant: "destructive",
+        title: "Cantitate invalidă",
+        description: `Verifică cantitatea pentru ${invalid.productName}.`,
+      });
+      return;
+    }
+    setShowConfirm(true);
+  };
 
+  const executeTransfer = async () => {
+    const formData = form.getValues();
     setIsSubmitting(true);
 
     try {
@@ -436,6 +453,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         description: `Bonul de transfer pentru ${formData.destination} a fost generat.`,
       });
 
+      setShowConfirm(false);
       setIsOpen(false);
       setSelectedItems([]);
       form.reset();
@@ -692,6 +710,58 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           </div>
         </div>
       </DialogContent>
+
+      <ConfirmationDialog
+        open={showConfirm}
+        onOpenChange={setShowConfirm}
+        onConfirm={executeTransfer}
+        isSubmitting={isSubmitting}
+        title="CONFIRMĂ BONUL DE TRANSFER"
+        description="Verifică cu atenție produsele și cantitățile. Aceste cantități vor fi scăzute din stoc."
+        confirmLabel="CONFIRM transferul"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-muted/40 border p-5 space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">Destinație</div>
+                <div className="text-2xl font-bold mt-1">{form.getValues("destination")}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">Data transfer</div>
+                <div className="text-base font-semibold mt-1">{form.getValues("transferDate")}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border overflow-hidden">
+            <div className="bg-muted/60 px-4 py-2 text-xs uppercase tracking-wide font-semibold flex justify-between">
+              <span>Produse de transferat</span>
+              <Badge variant="secondary">
+                {selectedItems.length} {selectedItems.length === 1 ? "linie" : "linii"}
+              </Badge>
+            </div>
+            <div className="divide-y">
+              {selectedItems.map((it, i) => (
+                <div key={i} className="px-4 py-3 flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-base font-bold truncate">{it.productName}</div>
+                    {it.lot_number && (
+                      <div className="text-xs text-muted-foreground mt-0.5">Lot: {it.lot_number}</div>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-2xl font-extrabold text-primary leading-none">
+                      {it.quantity.toFixed(it.unit === "buc" ? 0 : 2)}
+                    </div>
+                    <div className="text-xs font-semibold text-muted-foreground mt-0.5">{it.unit}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </ConfirmationDialog>
     </Dialog>
   );
 }

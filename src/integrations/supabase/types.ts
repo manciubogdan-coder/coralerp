@@ -9733,6 +9733,10 @@ export type Database = {
         Returns: boolean
       }
       is_user_approved: { Args: { _user_id: string }; Returns: boolean }
+      recompute_productie_comanda_status: {
+        Args: { p_comanda_id: string }
+        Returns: undefined
+      }
       reject_user: {
         Args: { rejection_reason?: string; user_id_to_reject: string }
         Returns: boolean
