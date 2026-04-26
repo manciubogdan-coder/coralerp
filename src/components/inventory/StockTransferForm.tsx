@@ -68,6 +68,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [crateTypes, setCrateTypes] = useState<any[]>([]);
+  const [showConfirm, setShowConfirm] = useState(false);
   const isMobile = useIsMobile();
 
   const form = useForm<TransferFormValues>({
