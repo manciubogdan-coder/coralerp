@@ -453,6 +453,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         description: `Bonul de transfer pentru ${formData.destination} a fost generat.`,
       });
 
+      setShowConfirm(false);
       setIsOpen(false);
       setSelectedItems([]);
       form.reset();
