@@ -223,7 +223,7 @@ const ReceptionReport: React.FC = () => {
           // AUTO
           denumire_produs: row.name,
           producator: row.manufacturer_id ? manufacturerMap.get(row.manufacturer_id) || "" : "",
-          cantitate_receptionata: Number(row.net_quantity ?? row.original_quantity ?? 0),
+          cantitate_receptionata: Number(row.original_quantity ?? row.net_quantity ?? 0),
           unit: row.unit || "",
           tip_lada_culoare: row.crate_type_id ? crateTypeMap.get(row.crate_type_id) || "" : "",
           nr_lazi: row.crate_count ?? null,
