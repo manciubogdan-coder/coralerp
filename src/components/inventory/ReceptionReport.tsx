@@ -288,6 +288,11 @@ const ReceptionReport: React.FC = () => {
     if (isNaN(proc)) return null;
     return (r.cantitate_receptionata * proc) / 100;
   };
+  const calcKgConsiderate = (r: ReportRow) => {
+    const pkg = calcPierdereKg(r);
+    if (pkg == null) return r.cantitate_receptionata;
+    return r.cantitate_receptionata - pkg;
+  };
 
   const handleSaveAll = async () => {
     setSaving(true);
@@ -369,6 +374,7 @@ const ReceptionReport: React.FC = () => {
       "Pierdere calitativa (%)",
       "Transmis la furnizor DA/NU",
       "Pierdere calitativa (kg)",
+      "Kg luate in considerare",
     ]);
 
     group.rows.forEach((r, idx) => {
@@ -390,6 +396,7 @@ const ReceptionReport: React.FC = () => {
           : null,
         r.transmis_la_furnizor ? "DA" : "NU",
         pkg,
+        calcKgConsiderate(r),
       ]);
     });
 
@@ -412,7 +419,7 @@ const ReceptionReport: React.FC = () => {
     ws["!cols"] = [
       { wch: 6 }, { wch: 22 }, { wch: 22 }, { wch: 18 }, { wch: 16 },
       { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 }, { wch: 12 },
-      { wch: 16 }, { wch: 18 }, { wch: 18 },
+      { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 20 },
     ];
 
     const wb = XLSX.utils.book_new();
@@ -533,6 +540,7 @@ const ReceptionReport: React.FC = () => {
                   <TableHead>Pierdere %</TableHead>
                   <TableHead>Transmis</TableHead>
                   <TableHead>Pierdere (kg)</TableHead>
+                  <TableHead>Kg luate în considerare</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -618,6 +626,9 @@ const ReceptionReport: React.FC = () => {
                       </TableCell>
                       <TableCell className="font-semibold">
                         {pkg != null ? pkg.toFixed(2) : "—"}
+                      </TableCell>
+                      <TableCell className="font-semibold text-green-700 dark:text-green-500">
+                        {calcKgConsiderate(r).toFixed(2)} {r.unit}
                       </TableCell>
                     </TableRow>
                   );
