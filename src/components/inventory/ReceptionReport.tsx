@@ -430,10 +430,7 @@ const ReceptionReport: React.FC = () => {
     );
   };
 
-  const totalRows = useMemo(
-    () => groups.reduce((s, g) => s + g.rows.length, 0),
-    [groups]
-  );
+  // (totalRows removed — saving is per-group)
 
   return (
     <div className="space-y-4">
