@@ -519,26 +519,26 @@ const ReceptionReport: React.FC = () => {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <Table>
+          <CardContent className="overflow-x-auto px-2">
+            <Table className="text-xs [&_th]:px-1 [&_th]:h-9 [&_td]:px-1 [&_td]:py-1.5 [&_th]:text-[11px] [&_th]:font-medium [&_th]:whitespace-normal [&_th]:leading-tight">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-10">Nr</TableHead>
-                  <TableHead>Denumire produs</TableHead>
-                  <TableHead>Producator</TableHead>
-                  <TableHead>Paleti/lazi document</TableHead>
-                  <TableHead className="bg-amber-50 dark:bg-amber-950/30">
-                    Cantitate document <span className="text-xs">(manual)</span>
+                  <TableHead className="w-8">Nr</TableHead>
+                  <TableHead className="min-w-[110px]">Denumire produs</TableHead>
+                  <TableHead className="min-w-[90px]">Producator</TableHead>
+                  <TableHead className="w-[90px]">Paleti/lazi doc</TableHead>
+                  <TableHead className="bg-amber-50 dark:bg-amber-950/30 w-[80px]">
+                    Cant. doc <span className="block text-[10px] text-muted-foreground">(manual)</span>
                   </TableHead>
-                  <TableHead>Cantitate recepționată</TableHead>
-                  <TableHead>Tip lada/culoare</TableHead>
-                  <TableHead>Tip palet</TableHead>
-                  <TableHead>Nr Lazi</TableHead>
-                  <TableHead>Diferență</TableHead>
-                  <TableHead>Pierdere %</TableHead>
-                  <TableHead>Transmis</TableHead>
-                  <TableHead>Pierdere (kg)</TableHead>
-                  <TableHead>Kg luate în considerare</TableHead>
+                  <TableHead className="w-[80px]">Cant. recep.</TableHead>
+                  <TableHead className="w-[90px]">Tip lada/culoare</TableHead>
+                  <TableHead className="w-[80px]">Tip palet</TableHead>
+                  <TableHead className="w-[50px]">Nr Lazi</TableHead>
+                  <TableHead className="w-[60px]">Diferență</TableHead>
+                  <TableHead className="w-[60px]">Pierdere %</TableHead>
+                  <TableHead className="w-[55px] text-center">Transmis</TableHead>
+                  <TableHead className="w-[70px]">Pierdere (kg)</TableHead>
+                  <TableHead className="w-[80px]">Kg luate în considerare</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -555,23 +555,23 @@ const ReceptionReport: React.FC = () => {
                       <TableCell>
                         <Input
                           value={r.paleti_lazi_document}
-                          placeholder="Ex: 2P / ALBASTRE"
+                          placeholder="2P/ALB"
                           onChange={(e) =>
                             updateRow(gIdx, rIdx, "paleti_lazi_document", e.target.value)
                           }
-                          className="min-w-[140px]"
+                          className="h-7 text-xs px-1 w-full"
                         />
                       </TableCell>
                       <TableCell className="bg-amber-50/50 dark:bg-amber-950/10">
                         <Input
                           type="number"
                           step="0.01"
-                          placeholder="manual"
+                          placeholder="kg"
                           value={r.cantitate_document}
                           onChange={(e) =>
                             updateRow(gIdx, rIdx, "cantitate_document", e.target.value)
                           }
-                          className="min-w-[110px]"
+                          className="h-7 text-xs px-1 w-full"
                         />
                       </TableCell>
                       <TableCell className="font-semibold">
@@ -581,11 +581,11 @@ const ReceptionReport: React.FC = () => {
                       <TableCell>
                         <Input
                           value={r.tip_palet}
-                          placeholder="lemn / plastic"
+                          placeholder="lemn"
                           onChange={(e) =>
                             updateRow(gIdx, rIdx, "tip_palet", e.target.value)
                           }
-                          className="min-w-[120px]"
+                          className="h-7 text-xs px-1 w-full"
                         />
                       </TableCell>
                       <TableCell className="font-semibold">
@@ -608,7 +608,7 @@ const ReceptionReport: React.FC = () => {
                           onChange={(e) =>
                             updateRow(gIdx, rIdx, "pierdere_calitativa_procent", e.target.value)
                           }
-                          className="min-w-[80px]"
+                          className="h-7 text-xs px-1 w-full"
                         />
                       </TableCell>
                       <TableCell className="text-center">
