@@ -374,6 +374,7 @@ const ReceptionReport: React.FC = () => {
       "Pierdere calitativa (%)",
       "Transmis la furnizor DA/NU",
       "Pierdere calitativa (kg)",
+      "Kg luate in considerare",
     ]);
 
     group.rows.forEach((r, idx) => {
