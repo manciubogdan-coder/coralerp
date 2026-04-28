@@ -294,17 +294,16 @@ const ReceptionReport: React.FC = () => {
     return r.cantitate_receptionata - pkg;
   };
 
-  const handleSaveAll = async () => {
-    setSaving(true);
+  const handleSaveGroup = async (group: SupplierGroup) => {
+    const key = `${group.supplierName}__${group.documentNumber}`;
+    setSavingKey(key);
     try {
-      const allRows = groups.flatMap((g) => g.rows);
-      const payload = allRows.map((r) => ({
+      const payload = group.rows.map((r) => ({
         inventory_id: r.inventory_id,
         inventory_type: inventoryType,
         paleti_lazi_document: r.paleti_lazi_document || null,
         cantitate_document:
           r.cantitate_document !== "" ? parseFloat(r.cantitate_document) : null,
-        // Persistăm și auto fields ca snapshot (pentru istoric corect)
         cantitate_receptionata: r.cantitate_receptionata,
         tip_lada_culoare: r.tip_lada_culoare || null,
         tip_palet: r.tip_palet || null,
@@ -326,7 +325,7 @@ const ReceptionReport: React.FC = () => {
 
       toast({
         title: "Salvat",
-        description: `${payload.length} rânduri actualizate.`,
+        description: `${group.supplierName}: ${payload.length} rânduri actualizate.`,
       });
     } catch (e: unknown) {
       console.error(e);
@@ -336,7 +335,7 @@ const ReceptionReport: React.FC = () => {
         variant: "destructive",
       });
     } finally {
-      setSaving(false);
+      setSavingKey(null);
     }
   };
 
