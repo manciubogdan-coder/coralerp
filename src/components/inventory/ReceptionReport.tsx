@@ -419,7 +419,7 @@ const ReceptionReport: React.FC = () => {
     ws["!cols"] = [
       { wch: 6 }, { wch: 22 }, { wch: 22 }, { wch: 18 }, { wch: 16 },
       { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 }, { wch: 12 },
-      { wch: 16 }, { wch: 18 }, { wch: 18 },
+      { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 20 },
     ];
 
     const wb = XLSX.utils.book_new();
