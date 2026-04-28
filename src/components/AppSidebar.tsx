@@ -22,7 +22,8 @@ import {
   FileClock,
   Home,
   Warehouse,
-  TrendingUp
+  TrendingUp,
+  ClipboardCheck
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -80,6 +81,12 @@ const AppSidebar = () => {
       name: "Planificare & Forecast",
       icon: TrendingUp,
       path: "/dashboard/forecast",
+    },
+    {
+      id: "reception-report",
+      name: "Raport de Recepție",
+      icon: ClipboardCheck,
+      path: "/dashboard/reception-report",
     }
   ];
 

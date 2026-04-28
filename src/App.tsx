@@ -19,6 +19,7 @@ import ForecastPage from "./pages/dashboard/ForecastPage";
 import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
 import InventoryOverviewPage from "./pages/InventoryPage";
+import ReceptionReportPage from "./pages/ReceptionReportPage";
 import AuthPage from "./pages/AuthPage";
 import PendingApprovalPage from "./pages/PendingApprovalPage";
 import UserManagementPage from "./pages/UserManagementPage";
@@ -115,6 +116,7 @@ const AppShell = () => {
                 <Route path="/dashboard/production-stock" element={<ProductionStockPage />} />
                 <Route path="/dashboard/forecast" element={<ForecastPage />} />
                 <Route path="/inventory" element={<InventoryOverviewPage />} />
+                <Route path="/dashboard/reception-report" element={<ReceptionReportPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </main>

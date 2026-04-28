@@ -7313,6 +7313,54 @@ export type Database = {
           },
         ]
       }
+      reception_report_data: {
+        Row: {
+          cantitate_receptionata: number | null
+          created_at: string
+          id: string
+          inventory_id: string
+          inventory_type: string
+          nr_lazi: number | null
+          observatii: string | null
+          paleti_lazi_document: string | null
+          pierdere_calitativa_procent: number | null
+          tip_lada_culoare: string | null
+          tip_palet: string | null
+          transmis_la_furnizor: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          cantitate_receptionata?: number | null
+          created_at?: string
+          id?: string
+          inventory_id: string
+          inventory_type?: string
+          nr_lazi?: number | null
+          observatii?: string | null
+          paleti_lazi_document?: string | null
+          pierdere_calitativa_procent?: number | null
+          tip_lada_culoare?: string | null
+          tip_palet?: string | null
+          transmis_la_furnizor?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          cantitate_receptionata?: number | null
+          created_at?: string
+          id?: string
+          inventory_id?: string
+          inventory_type?: string
+          nr_lazi?: number | null
+          observatii?: string | null
+          paleti_lazi_document?: string | null
+          pierdere_calitativa_procent?: number | null
+          tip_lada_culoare?: string | null
+          tip_palet?: string | null
+          transmis_la_furnizor?: boolean | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       receptions: {
         Row: {
           crate_count: number | null
