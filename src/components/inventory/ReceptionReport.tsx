@@ -288,6 +288,11 @@ const ReceptionReport: React.FC = () => {
     if (isNaN(proc)) return null;
     return (r.cantitate_receptionata * proc) / 100;
   };
+  const calcKgConsiderate = (r: ReportRow) => {
+    const pkg = calcPierdereKg(r);
+    if (pkg == null) return r.cantitate_receptionata;
+    return r.cantitate_receptionata - pkg;
+  };
 
   const handleSaveAll = async () => {
     setSaving(true);
