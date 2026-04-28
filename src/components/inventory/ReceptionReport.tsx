@@ -65,6 +65,29 @@ type SupplierGroup = {
   rows: ReportRow[];
 };
 
+type ReportDataRow = {
+  inventory_id: string;
+  paleti_lazi_document: string | null;
+  cantitate_document: number | null;
+  tip_palet: string | null;
+  pierdere_calitativa_procent: number | null;
+  transmis_la_furnizor: boolean | null;
+};
+
+type LookupRow = { id: string; name: string };
+type QueryError = { message: string };
+type LookupQuery = {
+  select: (columns: string) => {
+    in: (column: string, values: string[]) => Promise<{ data: LookupRow[] | null; error: QueryError | null }>;
+  };
+};
+type DynamicSupabaseClient = {
+  from: (table: string) => LookupQuery;
+};
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "A apărut o eroare neașteptată.";
+
 const getInventoryTable = (type: string) => {
   if (type === "ambalaje") return "ambalaje_reception_records" as const;
   if (type === "etichete") return "etichete_reception_records" as const;
