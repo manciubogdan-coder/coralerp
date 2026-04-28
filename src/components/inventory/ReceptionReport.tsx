@@ -477,18 +477,6 @@ const ReceptionReport: React.FC = () => {
               )}
             </Button>
 
-            <Button
-              onClick={handleSaveAll}
-              disabled={saving || totalRows === 0}
-              className="ml-auto"
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              Salvează toate modificările
-            </Button>
           </div>
 
           {!loading && groups.length === 0 && (
