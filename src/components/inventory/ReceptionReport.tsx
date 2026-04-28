@@ -176,9 +176,9 @@ const ReceptionReport: React.FC = () => {
       if (suppliersRes.error) throw suppliersRes.error;
       if (manufacturersRes.error) throw manufacturersRes.error;
 
-      const crateTypeMap = new Map((crateTypesRes.data || []).map((r: any) => [r.id, r.name]));
-      const supplierMap = new Map((suppliersRes.data || []).map((r: any) => [r.id, r.name]));
-      const manufacturerMap = new Map((manufacturersRes.data || []).map((r: any) => [r.id, r.name]));
+      const crateTypeMap = new Map<string, string>((crateTypesRes.data || []).map((r: any) => [String(r.id), String(r.name)]));
+      const supplierMap = new Map<string, string>((suppliersRes.data || []).map((r: any) => [String(r.id), String(r.name)]));
+      const manufacturerMap = new Map<string, string>((manufacturersRes.data || []).map((r: any) => [String(r.id), String(r.name)]));
 
       // Group by supplier + document_number
       const grouped = new Map<string, SupplierGroup>();
