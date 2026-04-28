@@ -96,6 +96,10 @@ export function ReceptionRegistration({
           ? 'etichete_inventory'
           : 'inventory';
 
+      const validCrateTypeId = !isEtichete && crateTypeId && crateTypeId !== "no-crate" ? crateTypeId : null;
+      const selectedCrateType = crateTypes.find(ct => ct.id === validCrateTypeId);
+      const totalCrateWeight = selectedCrateType ? selectedCrateType.weight * crateCount : 0;
+
       console.log('Salvez recepție:', {
         productName: selectedProduct.name,
         grossQuantity,
@@ -113,6 +117,11 @@ export function ReceptionRegistration({
           manufacturer_id: isManufacturerRequired ? manufacturerId : null,
           document_number: documentNumber,
           quantity: quantityToSave,
+          gross_quantity: isEtichete ? grossQuantity : grossQuantity,
+          net_quantity: isEtichete ? grossQuantity : netQuantity,
+          crate_type_id: validCrateTypeId,
+          crate_count: validCrateTypeId ? crateCount : 0,
+          crate_weight: totalCrateWeight + (!isEtichete ? palletWeight : 0),
           unit: unitToSave,
           receipt_date: new Date().toISOString()
         });
