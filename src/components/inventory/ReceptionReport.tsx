@@ -627,6 +627,9 @@ const ReceptionReport: React.FC = () => {
                       <TableCell className="font-semibold">
                         {pkg != null ? pkg.toFixed(2) : "—"}
                       </TableCell>
+                      <TableCell className="font-semibold text-green-700 dark:text-green-500">
+                        {calcKgConsiderate(r).toFixed(2)} {r.unit}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
