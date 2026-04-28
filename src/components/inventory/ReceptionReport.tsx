@@ -30,16 +30,16 @@ import { useInventoryType } from "@/context/inventory-type";
 type InventoryRow = {
   id: string;
   name: string;
-  quantity: number;
+  original_quantity: number;
+  net_quantity: number | null;
   unit: string;
   receipt_date: string;
   document_number: string | null;
   crate_count: number | null;
+  crate_type_id: string | null;
   supplier_id: string | null;
   supplier_name: string | null;
   manufacturer_id: string | null;
-  manufacturers: { name: string } | null;
-  crate_types: { name: string } | null;
 };
 
 type ReportRow = {
@@ -65,10 +65,51 @@ type SupplierGroup = {
   rows: ReportRow[];
 };
 
+type ReportDataRow = {
+  inventory_id: string;
+  paleti_lazi_document: string | null;
+  cantitate_document: number | null;
+  tip_palet: string | null;
+  pierdere_calitativa_procent: number | null;
+  transmis_la_furnizor: boolean | null;
+};
+
+type LookupRow = { id: string; name: string };
+type QueryError = { message: string };
+type LookupQuery = {
+  select: (columns: string) => {
+    in: (column: string, values: string[]) => Promise<{ data: LookupRow[] | null; error: QueryError | null }>;
+  };
+};
+type DynamicSupabaseClient = {
+  from: (table: string) => LookupQuery;
+};
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "A apărut o eroare neașteptată.";
+
 const getInventoryTable = (type: string) => {
-  if (type === "ambalaje") return "ambalaje_inventory" as const;
-  if (type === "etichete") return "etichete_inventory" as const;
-  return "inventory" as const;
+  if (type === "ambalaje") return "ambalaje_reception_records" as const;
+  if (type === "etichete") return "etichete_reception_records" as const;
+  return "reception_records" as const;
+};
+
+const getCrateTypeTable = (type: string) => {
+  if (type === "ambalaje") return "ambalaje_crate_types" as const;
+  if (type === "etichete") return "etichete_crate_types" as const;
+  return "crate_types" as const;
+};
+
+const getSupplierTable = (type: string) => {
+  if (type === "ambalaje") return "ambalaje_suppliers" as const;
+  if (type === "etichete") return "etichete_suppliers" as const;
+  return "suppliers" as const;
+};
+
+const getManufacturerTable = (type: string) => {
+  if (type === "ambalaje") return "ambalaje_manufacturers" as const;
+  if (type === "etichete") return "etichete_manufacturers" as const;
+  return "manufacturers" as const;
 };
 
 // Convert a calendar date (interpreted in Europe/Bucharest TZ) into the
@@ -110,10 +151,8 @@ const ReceptionReport: React.FC = () => {
       const { data: invData, error: invErr } = await supabase
         .from(tableName)
         .select(
-          `id, name, quantity, unit, receipt_date, document_number, crate_count,
-           supplier_id, supplier_name, manufacturer_id,
-           manufacturers ( name ),
-           crate_types ( name )`
+          `id, name, original_quantity, net_quantity, unit, receipt_date, document_number,
+           crate_count, crate_type_id, supplier_id, supplier_name, manufacturer_id`
         )
         .gte("receipt_date", start)
         .lte("receipt_date", end)
@@ -129,7 +168,7 @@ const ReceptionReport: React.FC = () => {
 
       // Fetch existing report data (batch 50)
       const invIds = inv.map((r) => r.id);
-      const reportMap = new Map<string, any>();
+      const reportMap = new Map<string, ReportDataRow>();
       for (let i = 0; i < invIds.length; i += 50) {
         const slice = invIds.slice(i, i + 50);
         const { data: repData, error: repErr } = await supabase
@@ -137,13 +176,38 @@ const ReceptionReport: React.FC = () => {
           .select("*")
           .in("inventory_id", slice);
         if (repErr) throw repErr;
-        (repData || []).forEach((r: any) => reportMap.set(r.inventory_id, r));
+        ((repData || []) as ReportDataRow[]).forEach((r) => reportMap.set(r.inventory_id, r));
       }
+
+      const crateTypeIds = Array.from(new Set(inv.map((r) => r.crate_type_id).filter(Boolean))) as string[];
+      const supplierIds = Array.from(new Set(inv.map((r) => r.supplier_id).filter(Boolean))) as string[];
+      const manufacturerIds = Array.from(new Set(inv.map((r) => r.manufacturer_id).filter(Boolean))) as string[];
+
+      const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+      const [crateTypesRes, suppliersRes, manufacturersRes] = await Promise.all([
+        crateTypeIds.length
+          ? dynamicSupabase.from(getCrateTypeTable(inventoryType)).select("id, name").in("id", crateTypeIds)
+          : Promise.resolve({ data: [], error: null }),
+        supplierIds.length
+          ? dynamicSupabase.from(getSupplierTable(inventoryType)).select("id, name").in("id", supplierIds)
+          : Promise.resolve({ data: [], error: null }),
+        manufacturerIds.length
+          ? dynamicSupabase.from(getManufacturerTable(inventoryType)).select("id, name").in("id", manufacturerIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (crateTypesRes.error) throw crateTypesRes.error;
+      if (suppliersRes.error) throw suppliersRes.error;
+      if (manufacturersRes.error) throw manufacturersRes.error;
+
+      const crateTypeMap = new Map<string, string>((crateTypesRes.data || []).map((r) => [String(r.id), String(r.name)]));
+      const supplierMap = new Map<string, string>((suppliersRes.data || []).map((r) => [String(r.id), String(r.name)]));
+      const manufacturerMap = new Map<string, string>((manufacturersRes.data || []).map((r) => [String(r.id), String(r.name)]));
 
       // Group by supplier + document_number
       const grouped = new Map<string, SupplierGroup>();
       inv.forEach((row) => {
-        const supplierName = row.supplier_name || "Fără furnizor";
+        const supplierName = row.supplier_name || (row.supplier_id ? supplierMap.get(row.supplier_id) : null) || "Fără furnizor";
         const docNumber = row.document_number || "";
         const key = `${supplierName}__${docNumber}`;
         if (!grouped.has(key)) {
@@ -158,10 +222,10 @@ const ReceptionReport: React.FC = () => {
           inventory_id: row.id,
           // AUTO
           denumire_produs: row.name,
-          producator: row.manufacturers?.name || "",
-          cantitate_receptionata: Number(row.quantity || 0),
+          producator: row.manufacturer_id ? manufacturerMap.get(row.manufacturer_id) || "" : "",
+          cantitate_receptionata: Number(row.net_quantity ?? row.original_quantity ?? 0),
           unit: row.unit || "",
-          tip_lada_culoare: row.crate_types?.name ?? "",
+          tip_lada_culoare: row.crate_type_id ? crateTypeMap.get(row.crate_type_id) || "" : "",
           nr_lazi: row.crate_count ?? null,
           // MANUAL
           paleti_lazi_document: existing?.paleti_lazi_document ?? "",
@@ -179,11 +243,11 @@ const ReceptionReport: React.FC = () => {
       });
 
       setGroups(Array.from(grouped.values()));
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       toast({
         title: "Eroare la încărcare",
-        description: e.message,
+        description: getErrorMessage(e),
         variant: "destructive",
       });
     } finally {
@@ -200,7 +264,7 @@ const ReceptionReport: React.FC = () => {
     groupIdx: number,
     rowIdx: number,
     field: keyof ReportRow,
-    value: any
+    value: ReportRow[keyof ReportRow]
   ) => {
     setGroups((prev) => {
       const next = [...prev];
@@ -259,11 +323,11 @@ const ReceptionReport: React.FC = () => {
         title: "Salvat",
         description: `${payload.length} rânduri actualizate.`,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       toast({
         title: "Eroare la salvare",
-        description: e.message,
+        description: getErrorMessage(e),
         variant: "destructive",
       });
     } finally {
