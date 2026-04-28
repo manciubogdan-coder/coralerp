@@ -168,7 +168,7 @@ const ReceptionReport: React.FC = () => {
 
       // Fetch existing report data (batch 50)
       const invIds = inv.map((r) => r.id);
-      const reportMap = new Map<string, any>();
+      const reportMap = new Map<string, ReportDataRow>();
       for (let i = 0; i < invIds.length; i += 50) {
         const slice = invIds.slice(i, i + 50);
         const { data: repData, error: repErr } = await supabase
@@ -176,22 +176,23 @@ const ReceptionReport: React.FC = () => {
           .select("*")
           .in("inventory_id", slice);
         if (repErr) throw repErr;
-        (repData || []).forEach((r: any) => reportMap.set(r.inventory_id, r));
+        ((repData || []) as ReportDataRow[]).forEach((r) => reportMap.set(r.inventory_id, r));
       }
 
       const crateTypeIds = Array.from(new Set(inv.map((r) => r.crate_type_id).filter(Boolean))) as string[];
       const supplierIds = Array.from(new Set(inv.map((r) => r.supplier_id).filter(Boolean))) as string[];
       const manufacturerIds = Array.from(new Set(inv.map((r) => r.manufacturer_id).filter(Boolean))) as string[];
 
+      const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
       const [crateTypesRes, suppliersRes, manufacturersRes] = await Promise.all([
         crateTypeIds.length
-          ? (supabase as any).from(getCrateTypeTable(inventoryType)).select("id, name").in("id", crateTypeIds)
+          ? dynamicSupabase.from(getCrateTypeTable(inventoryType)).select("id, name").in("id", crateTypeIds)
           : Promise.resolve({ data: [], error: null }),
         supplierIds.length
-          ? (supabase as any).from(getSupplierTable(inventoryType)).select("id, name").in("id", supplierIds)
+          ? dynamicSupabase.from(getSupplierTable(inventoryType)).select("id, name").in("id", supplierIds)
           : Promise.resolve({ data: [], error: null }),
         manufacturerIds.length
-          ? (supabase as any).from(getManufacturerTable(inventoryType)).select("id, name").in("id", manufacturerIds)
+          ? dynamicSupabase.from(getManufacturerTable(inventoryType)).select("id, name").in("id", manufacturerIds)
           : Promise.resolve({ data: [], error: null }),
       ]);
 
@@ -199,9 +200,9 @@ const ReceptionReport: React.FC = () => {
       if (suppliersRes.error) throw suppliersRes.error;
       if (manufacturersRes.error) throw manufacturersRes.error;
 
-      const crateTypeMap = new Map<string, string>((crateTypesRes.data || []).map((r: any) => [String(r.id), String(r.name)]));
-      const supplierMap = new Map<string, string>((suppliersRes.data || []).map((r: any) => [String(r.id), String(r.name)]));
-      const manufacturerMap = new Map<string, string>((manufacturersRes.data || []).map((r: any) => [String(r.id), String(r.name)]));
+      const crateTypeMap = new Map<string, string>((crateTypesRes.data || []).map((r) => [String(r.id), String(r.name)]));
+      const supplierMap = new Map<string, string>((suppliersRes.data || []).map((r) => [String(r.id), String(r.name)]));
+      const manufacturerMap = new Map<string, string>((manufacturersRes.data || []).map((r) => [String(r.id), String(r.name)]));
 
       // Group by supplier + document_number
       const grouped = new Map<string, SupplierGroup>();
@@ -242,11 +243,11 @@ const ReceptionReport: React.FC = () => {
       });
 
       setGroups(Array.from(grouped.values()));
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       toast({
         title: "Eroare la încărcare",
-        description: e.message,
+        description: getErrorMessage(e),
         variant: "destructive",
       });
     } finally {
