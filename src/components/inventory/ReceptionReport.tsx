@@ -264,7 +264,7 @@ const ReceptionReport: React.FC = () => {
     groupIdx: number,
     rowIdx: number,
     field: keyof ReportRow,
-    value: any
+    value: ReportRow[keyof ReportRow]
   ) => {
     setGroups((prev) => {
       const next = [...prev];
@@ -323,11 +323,11 @@ const ReceptionReport: React.FC = () => {
         title: "Salvat",
         description: `${payload.length} rânduri actualizate.`,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       toast({
         title: "Eroare la salvare",
-        description: e.message,
+        description: getErrorMessage(e),
         variant: "destructive",
       });
     } finally {
