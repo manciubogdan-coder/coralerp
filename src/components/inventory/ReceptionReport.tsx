@@ -139,7 +139,7 @@ const ReceptionReport: React.FC = () => {
   const { toast } = useToast();
   const [date, setDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
   const [groups, setGroups] = useState<SupplierGroup[]>([]);
 
   const loadData = async () => {
