@@ -46,17 +46,13 @@ export function ReceptionRegistration({
 
   const selectedProduct = products.find(p => p.id === productId);
 
-  const calculateNetQuantity = () => {
+  // Recalculez cantitatea netă când se schimbă valorile
+  React.useEffect(() => {
     const selectedCrateType = crateTypes.find(ct => ct.id === crateTypeId);
     const crateWeight = selectedCrateType && crateTypeId !== "no-crate" ? selectedCrateType.weight * crateCount : 0;
     const calculatedNet = Math.max(0, grossQuantity - crateWeight - palletWeight);
     setNetQuantity(calculatedNet);
-  };
-
-  // Recalculez cantitatea netă când se schimbă valorile
-  React.useEffect(() => {
-    calculateNetQuantity();
-  }, [grossQuantity, crateTypeId, crateCount, palletWeight]);
+  }, [crateCount, crateTypeId, crateTypes, grossQuantity, palletWeight]);
 
   // Pentru etichete, cantitatea netă = cantitatea introdusă direct (fără calcul lăzi/paleți)
   const isEtichete = inventoryType === 'etichete';
@@ -117,7 +113,7 @@ export function ReceptionRegistration({
           manufacturer_id: isManufacturerRequired ? manufacturerId : null,
           document_number: documentNumber,
           quantity: quantityToSave,
-          gross_quantity: isEtichete ? grossQuantity : grossQuantity,
+          gross_quantity: grossQuantity,
           net_quantity: isEtichete ? grossQuantity : netQuantity,
           crate_type_id: validCrateTypeId,
           crate_count: validCrateTypeId ? crateCount : 0,
@@ -147,10 +143,10 @@ export function ReceptionRegistration({
       setCrateCount(0);
       setPalletWeight(0);
       setNetQuantity(0);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Eroare",
-        description: error.message,
+        description: error instanceof Error ? error.message : "A apărut o eroare la salvare.",
         variant: "destructive"
       });
     } finally {
