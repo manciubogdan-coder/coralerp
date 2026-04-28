@@ -540,6 +540,7 @@ const ReceptionReport: React.FC = () => {
                   <TableHead>Pierdere %</TableHead>
                   <TableHead>Transmis</TableHead>
                   <TableHead>Pierdere (kg)</TableHead>
+                  <TableHead>Kg luate în considerare</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
