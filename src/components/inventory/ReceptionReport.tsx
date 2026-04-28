@@ -396,6 +396,7 @@ const ReceptionReport: React.FC = () => {
           : null,
         r.transmis_la_furnizor ? "DA" : "NU",
         pkg,
+        calcKgConsiderate(r),
       ]);
     });
 
