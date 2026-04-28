@@ -581,11 +581,11 @@ const ReceptionReport: React.FC = () => {
                       <TableCell>
                         <Input
                           value={r.tip_palet}
-                          placeholder="lemn / plastic"
+                          placeholder="lemn"
                           onChange={(e) =>
                             updateRow(gIdx, rIdx, "tip_palet", e.target.value)
                           }
-                          className="min-w-[120px]"
+                          className="h-7 text-xs px-1 w-full"
                         />
                       </TableCell>
                       <TableCell className="font-semibold">
@@ -608,7 +608,7 @@ const ReceptionReport: React.FC = () => {
                           onChange={(e) =>
                             updateRow(gIdx, rIdx, "pierdere_calitativa_procent", e.target.value)
                           }
-                          className="min-w-[80px]"
+                          className="h-7 text-xs px-1 w-full"
                         />
                       </TableCell>
                       <TableCell className="text-center">
