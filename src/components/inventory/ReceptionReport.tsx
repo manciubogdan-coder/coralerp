@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { format, startOfDay, endOfDay, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import { CalendarIcon, Download, Save, Loader2 } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -44,22 +44,19 @@ type InventoryRow = {
 
 type ReportRow = {
   inventory_id: string;
-  // Auto-completate
+  // === AUTO din recepție (read-only) ===
   denumire_produs: string;
   producator: string;
-  cantitate_document: number;
+  cantitate_receptionata: number;   // = inventory.quantity
   unit: string;
-  nr_lazi_auto: number | null;
-  tip_lada_auto: string | null;
-  // Manuale (persistente)
+  tip_lada_culoare: string;          // = crate_types.name
+  nr_lazi: number | null;            // = crate_count
+  // === MANUALE (persistente) ===
   paleti_lazi_document: string;
-  cantitate_receptionata: string;
-  tip_lada_culoare: string;
+  cantitate_document: string;        // INPUT manual
   tip_palet: string;
-  nr_lazi: string;
   pierdere_calitativa_procent: string;
   transmis_la_furnizor: boolean;
-  report_id?: string;
 };
 
 type SupplierGroup = {
@@ -74,6 +71,28 @@ const getInventoryTable = (type: string) => {
   return "inventory" as const;
 };
 
+// Convert a calendar date (interpreted in Europe/Bucharest TZ) into the
+// UTC ISO range covering that local day. Romania = UTC+2 (winter) or +3 (DST).
+const getRomaniaDayRange = (date: Date) => {
+  const y = date.getFullYear();
+  const m = date.getMonth();
+  const d = date.getDate();
+  // Compute offset of Bucharest at this date
+  // We use Intl to get the offset hours
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Bucharest",
+    timeZoneName: "shortOffset",
+  });
+  const parts = dtf.formatToParts(new Date(y, m, d, 12));
+  const tzPart = parts.find((p) => p.type === "timeZoneName")?.value || "GMT+2";
+  const match = tzPart.match(/GMT([+-]\d+)/);
+  const offsetHours = match ? parseInt(match[1], 10) : 2;
+  // Local 00:00 in Bucharest -> UTC = -offset
+  const startUtc = new Date(Date.UTC(y, m, d, 0 - offsetHours, 0, 0, 0));
+  const endUtc = new Date(Date.UTC(y, m, d, 23 - offsetHours, 59, 59, 999));
+  return { start: startUtc.toISOString(), end: endUtc.toISOString() };
+};
+
 const ReceptionReport: React.FC = () => {
   const { inventoryType } = useInventoryType();
   const { toast } = useToast();
@@ -85,8 +104,7 @@ const ReceptionReport: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const start = startOfDay(date).toISOString();
-      const end = endOfDay(date).toISOString();
+      const { start, end } = getRomaniaDayRange(date);
       const tableName = getInventoryTable(inventoryType);
 
       const { data: invData, error: invErr } = await supabase
@@ -109,7 +127,7 @@ const ReceptionReport: React.FC = () => {
         return;
       }
 
-      // Fetch existing report data for these inventory ids (batch 50)
+      // Fetch existing report data (batch 50)
       const invIds = inv.map((r) => r.id);
       const reportMap = new Map<string, any>();
       for (let i = 0; i < invIds.length; i += 50) {
@@ -119,7 +137,7 @@ const ReceptionReport: React.FC = () => {
           .select("*")
           .in("inventory_id", slice);
         if (repErr) throw repErr;
-        (repData || []).forEach((r) => reportMap.set(r.inventory_id, r));
+        (repData || []).forEach((r: any) => reportMap.set(r.inventory_id, r));
       }
 
       // Group by supplier + document_number
@@ -138,32 +156,25 @@ const ReceptionReport: React.FC = () => {
         const existing = reportMap.get(row.id);
         grouped.get(key)!.rows.push({
           inventory_id: row.id,
+          // AUTO
           denumire_produs: row.name,
           producator: row.manufacturers?.name || "",
-          cantitate_document: Number(row.quantity || 0),
+          cantitate_receptionata: Number(row.quantity || 0),
           unit: row.unit || "",
-          nr_lazi_auto: row.crate_count ?? null,
-          tip_lada_auto: row.crate_types?.name ?? null,
+          tip_lada_culoare: row.crate_types?.name ?? "",
+          nr_lazi: row.crate_count ?? null,
+          // MANUAL
           paleti_lazi_document: existing?.paleti_lazi_document ?? "",
-          cantitate_receptionata:
-            existing?.cantitate_receptionata != null
-              ? String(existing.cantitate_receptionata)
+          cantitate_document:
+            existing?.cantitate_document != null
+              ? String(existing.cantitate_document)
               : "",
-          tip_lada_culoare:
-            existing?.tip_lada_culoare ?? row.crate_types?.name ?? "",
           tip_palet: existing?.tip_palet ?? "",
-          nr_lazi:
-            existing?.nr_lazi != null
-              ? String(existing.nr_lazi)
-              : row.crate_count != null
-              ? String(row.crate_count)
-              : "",
           pierdere_calitativa_procent:
             existing?.pierdere_calitativa_procent != null
               ? String(existing.pierdere_calitativa_procent)
               : "",
           transmis_la_furnizor: existing?.transmis_la_furnizor ?? false,
-          report_id: existing?.id,
         });
       });
 
@@ -204,15 +215,14 @@ const ReceptionReport: React.FC = () => {
 
   // Calcule
   const calcDiferenta = (r: ReportRow) => {
-    const rec = parseFloat(r.cantitate_receptionata);
-    if (isNaN(rec)) return null;
-    return rec - r.cantitate_document;
+    const doc = parseFloat(r.cantitate_document);
+    if (isNaN(doc)) return null;
+    return r.cantitate_receptionata - doc;
   };
   const calcPierdereKg = (r: ReportRow) => {
-    const rec = parseFloat(r.cantitate_receptionata);
     const proc = parseFloat(r.pierdere_calitativa_procent);
-    if (isNaN(rec) || isNaN(proc)) return null;
-    return (rec * proc) / 100;
+    if (isNaN(proc)) return null;
+    return (r.cantitate_receptionata * proc) / 100;
   };
 
   const handleSaveAll = async () => {
@@ -223,13 +233,13 @@ const ReceptionReport: React.FC = () => {
         inventory_id: r.inventory_id,
         inventory_type: inventoryType,
         paleti_lazi_document: r.paleti_lazi_document || null,
-        cantitate_receptionata:
-          r.cantitate_receptionata !== ""
-            ? parseFloat(r.cantitate_receptionata)
-            : null,
+        cantitate_document:
+          r.cantitate_document !== "" ? parseFloat(r.cantitate_document) : null,
+        // Persistăm și auto fields ca snapshot (pentru istoric corect)
+        cantitate_receptionata: r.cantitate_receptionata,
         tip_lada_culoare: r.tip_lada_culoare || null,
         tip_palet: r.tip_palet || null,
-        nr_lazi: r.nr_lazi !== "" ? parseInt(r.nr_lazi, 10) : null,
+        nr_lazi: r.nr_lazi,
         pierdere_calitativa_procent:
           r.pierdere_calitativa_procent !== ""
             ? parseFloat(r.pierdere_calitativa_procent)
@@ -237,7 +247,6 @@ const ReceptionReport: React.FC = () => {
         transmis_la_furnizor: r.transmis_la_furnizor,
       }));
 
-      // Upsert in batches of 50
       for (let i = 0; i < payload.length; i += 50) {
         const slice = payload.slice(i, i + 50);
         const { error } = await supabase
@@ -250,7 +259,6 @@ const ReceptionReport: React.FC = () => {
         title: "Salvat",
         description: `${payload.length} rânduri actualizate.`,
       });
-      await loadData();
     } catch (e: any) {
       console.error(e);
       toast({
@@ -272,13 +280,7 @@ const ReceptionReport: React.FC = () => {
     aoa.push([
       "Data receptie:",
       dateStr,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
+      null, null, null, null, null, null, null,
       "Nr document",
       null,
       group.documentNumber || "",
@@ -313,13 +315,11 @@ const ReceptionReport: React.FC = () => {
         r.denumire_produs,
         r.producator,
         r.paleti_lazi_document,
-        r.cantitate_document,
-        r.cantitate_receptionata !== ""
-          ? parseFloat(r.cantitate_receptionata)
-          : null,
+        r.cantitate_document !== "" ? parseFloat(r.cantitate_document) : null,
+        r.cantitate_receptionata,
         r.tip_lada_culoare,
         r.tip_palet,
-        r.nr_lazi !== "" ? parseInt(r.nr_lazi, 10) : null,
+        r.nr_lazi,
         dif,
         r.pierdere_calitativa_procent !== ""
           ? parseFloat(r.pierdere_calitativa_procent)
@@ -329,55 +329,26 @@ const ReceptionReport: React.FC = () => {
       ]);
     });
 
-    // Padding rows
     for (let i = group.rows.length; i < 15; i++) {
       aoa.push([i + 1]);
     }
 
     aoa.push([]);
     aoa.push([
-      null,
-      "Nume Prenume receptioner",
-      "_____________________________________________",
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      "Semnatura",
-      "_____________________",
+      null, "Nume Prenume receptioner", "_____________________________________________",
+      null, null, null, null, null, null, "Semnatura", "_____________________",
     ]);
     aoa.push([]);
     aoa.push([
-      null,
-      "Nume Prenume calitate",
-      "_____________________________________________",
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      "Semnatura",
-      "_____________________",
+      null, "Nume Prenume calitate", "_____________________________________________",
+      null, null, null, null, null, null, "Semnatura", "_____________________",
     ]);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"] = [
-      { wch: 6 },
-      { wch: 22 },
-      { wch: 22 },
-      { wch: 18 },
-      { wch: 16 },
-      { wch: 18 },
-      { wch: 22 },
-      { wch: 22 },
-      { wch: 10 },
-      { wch: 12 },
-      { wch: 16 },
-      { wch: 18 },
-      { wch: 18 },
+      { wch: 6 }, { wch: 22 }, { wch: 22 }, { wch: 18 }, { wch: 16 },
+      { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 }, { wch: 12 },
+      { wch: 16 }, { wch: 18 }, { wch: 18 },
     ];
 
     const wb = XLSX.utils.book_new();
@@ -407,7 +378,7 @@ const ReceptionReport: React.FC = () => {
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-[240px] justify-start text-left font-normal",
+                    "w-[260px] justify-start text-left font-normal",
                     !date && "text-muted-foreground"
                   )}
                 >
@@ -459,7 +430,7 @@ const ReceptionReport: React.FC = () => {
       </Card>
 
       {groups.map((group, gIdx) => (
-        <Card key={gIdx}>
+        <Card key={`${group.supplierName}-${group.documentNumber}-${gIdx}`}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-lg">
@@ -487,12 +458,14 @@ const ReceptionReport: React.FC = () => {
                   <TableHead>Denumire produs</TableHead>
                   <TableHead>Producator</TableHead>
                   <TableHead>Paleti/lazi document</TableHead>
-                  <TableHead>Cantitate document</TableHead>
-                  <TableHead>Cantitate receptionata</TableHead>
+                  <TableHead className="bg-amber-50 dark:bg-amber-950/30">
+                    Cantitate document <span className="text-xs">(manual)</span>
+                  </TableHead>
+                  <TableHead>Cantitate recepționată</TableHead>
                   <TableHead>Tip lada/culoare</TableHead>
                   <TableHead>Tip palet</TableHead>
                   <TableHead>Nr Lazi</TableHead>
-                  <TableHead>Diferenta</TableHead>
+                  <TableHead>Diferență</TableHead>
                   <TableHead>Pierdere %</TableHead>
                   <TableHead>Transmis</TableHead>
                   <TableHead>Pierdere (kg)</TableHead>
@@ -508,55 +481,33 @@ const ReceptionReport: React.FC = () => {
                       <TableCell className="font-medium">
                         {r.denumire_produs}
                       </TableCell>
-                      <TableCell>{r.producator}</TableCell>
+                      <TableCell>{r.producator || "—"}</TableCell>
                       <TableCell>
                         <Input
                           value={r.paleti_lazi_document}
                           placeholder="Ex: 2P / ALBASTRE"
                           onChange={(e) =>
-                            updateRow(
-                              gIdx,
-                              rIdx,
-                              "paleti_lazi_document",
-                              e.target.value
-                            )
+                            updateRow(gIdx, rIdx, "paleti_lazi_document", e.target.value)
                           }
                           className="min-w-[140px]"
                         />
                       </TableCell>
-                      <TableCell className="font-semibold">
-                        {r.cantitate_document} {r.unit}
-                      </TableCell>
-                      <TableCell>
+                      <TableCell className="bg-amber-50/50 dark:bg-amber-950/10">
                         <Input
                           type="number"
                           step="0.01"
-                          value={r.cantitate_receptionata}
+                          placeholder="manual"
+                          value={r.cantitate_document}
                           onChange={(e) =>
-                            updateRow(
-                              gIdx,
-                              rIdx,
-                              "cantitate_receptionata",
-                              e.target.value
-                            )
+                            updateRow(gIdx, rIdx, "cantitate_document", e.target.value)
                           }
                           className="min-w-[110px]"
                         />
                       </TableCell>
-                      <TableCell>
-                        <Input
-                          value={r.tip_lada_culoare}
-                          onChange={(e) =>
-                            updateRow(
-                              gIdx,
-                              rIdx,
-                              "tip_lada_culoare",
-                              e.target.value
-                            )
-                          }
-                          className="min-w-[140px]"
-                        />
+                      <TableCell className="font-semibold">
+                        {r.cantitate_receptionata} {r.unit}
                       </TableCell>
+                      <TableCell>{r.tip_lada_culoare || "—"}</TableCell>
                       <TableCell>
                         <Input
                           value={r.tip_palet}
@@ -567,15 +518,8 @@ const ReceptionReport: React.FC = () => {
                           className="min-w-[120px]"
                         />
                       </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          value={r.nr_lazi}
-                          onChange={(e) =>
-                            updateRow(gIdx, rIdx, "nr_lazi", e.target.value)
-                          }
-                          className="min-w-[80px]"
-                        />
+                      <TableCell className="font-semibold">
+                        {r.nr_lazi != null ? r.nr_lazi : "—"}
                       </TableCell>
                       <TableCell
                         className={cn(
@@ -592,12 +536,7 @@ const ReceptionReport: React.FC = () => {
                           step="0.01"
                           value={r.pierdere_calitativa_procent}
                           onChange={(e) =>
-                            updateRow(
-                              gIdx,
-                              rIdx,
-                              "pierdere_calitativa_procent",
-                              e.target.value
-                            )
+                            updateRow(gIdx, rIdx, "pierdere_calitativa_procent", e.target.value)
                           }
                           className="min-w-[80px]"
                         />
@@ -606,12 +545,7 @@ const ReceptionReport: React.FC = () => {
                         <Checkbox
                           checked={r.transmis_la_furnizor}
                           onCheckedChange={(v) =>
-                            updateRow(
-                              gIdx,
-                              rIdx,
-                              "transmis_la_furnizor",
-                              Boolean(v)
-                            )
+                            updateRow(gIdx, rIdx, "transmis_la_furnizor", Boolean(v))
                           }
                         />
                         <div className="text-xs mt-1 font-medium">
