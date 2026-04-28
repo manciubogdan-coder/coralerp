@@ -36,11 +36,10 @@ type InventoryRow = {
   receipt_date: string;
   document_number: string | null;
   crate_count: number | null;
+  crate_type_id: string | null;
   supplier_id: string | null;
   supplier_name: string | null;
   manufacturer_id: string | null;
-  manufacturers: { name: string } | null;
-  crate_types: { name: string } | null;
 };
 
 type ReportRow = {
@@ -90,12 +89,6 @@ const getManufacturerTable = (type: string) => {
   return "manufacturers" as const;
 };
 
-const getLegacyInventoryTable = (type: string) => {
-  if (type === "ambalaje") return "ambalaje_inventory" as const;
-  if (type === "etichete") return "etichete_inventory" as const;
-  return "inventory" as const;
-};
-
 // Convert a calendar date (interpreted in Europe/Bucharest TZ) into the
 // UTC ISO range covering that local day. Romania = UTC+2 (winter) or +3 (DST).
 const getRomaniaDayRange = (date: Date) => {
@@ -135,10 +128,8 @@ const ReceptionReport: React.FC = () => {
       const { data: invData, error: invErr } = await supabase
         .from(tableName)
         .select(
-          `id, name, quantity, unit, receipt_date, document_number, crate_count,
-           supplier_id, supplier_name, manufacturer_id,
-           manufacturers ( name ),
-           crate_types ( name )`
+          `id, name, original_quantity, net_quantity, unit, receipt_date, document_number,
+           crate_count, crate_type_id, supplier_id, supplier_name, manufacturer_id`
         )
         .gte("receipt_date", start)
         .lte("receipt_date", end)
@@ -165,10 +156,34 @@ const ReceptionReport: React.FC = () => {
         (repData || []).forEach((r: any) => reportMap.set(r.inventory_id, r));
       }
 
+      const crateTypeIds = Array.from(new Set(inv.map((r) => r.crate_type_id).filter(Boolean))) as string[];
+      const supplierIds = Array.from(new Set(inv.map((r) => r.supplier_id).filter(Boolean))) as string[];
+      const manufacturerIds = Array.from(new Set(inv.map((r) => r.manufacturer_id).filter(Boolean))) as string[];
+
+      const [crateTypesRes, suppliersRes, manufacturersRes] = await Promise.all([
+        crateTypeIds.length
+          ? (supabase as any).from(getCrateTypeTable(inventoryType)).select("id, name").in("id", crateTypeIds)
+          : Promise.resolve({ data: [], error: null }),
+        supplierIds.length
+          ? (supabase as any).from(getSupplierTable(inventoryType)).select("id, name").in("id", supplierIds)
+          : Promise.resolve({ data: [], error: null }),
+        manufacturerIds.length
+          ? (supabase as any).from(getManufacturerTable(inventoryType)).select("id, name").in("id", manufacturerIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (crateTypesRes.error) throw crateTypesRes.error;
+      if (suppliersRes.error) throw suppliersRes.error;
+      if (manufacturersRes.error) throw manufacturersRes.error;
+
+      const crateTypeMap = new Map((crateTypesRes.data || []).map((r: any) => [r.id, r.name]));
+      const supplierMap = new Map((suppliersRes.data || []).map((r: any) => [r.id, r.name]));
+      const manufacturerMap = new Map((manufacturersRes.data || []).map((r: any) => [r.id, r.name]));
+
       // Group by supplier + document_number
       const grouped = new Map<string, SupplierGroup>();
       inv.forEach((row) => {
-        const supplierName = row.supplier_name || "Fără furnizor";
+        const supplierName = row.supplier_name || (row.supplier_id ? supplierMap.get(row.supplier_id) : null) || "Fără furnizor";
         const docNumber = row.document_number || "";
         const key = `${supplierName}__${docNumber}`;
         if (!grouped.has(key)) {
@@ -183,10 +198,10 @@ const ReceptionReport: React.FC = () => {
           inventory_id: row.id,
           // AUTO
           denumire_produs: row.name,
-          producator: row.manufacturers?.name || "",
-          cantitate_receptionata: Number(row.quantity || 0),
+          producator: row.manufacturer_id ? manufacturerMap.get(row.manufacturer_id) || "" : "",
+          cantitate_receptionata: Number(row.net_quantity ?? row.original_quantity ?? 0),
           unit: row.unit || "",
-          tip_lada_culoare: row.crate_types?.name ?? "",
+          tip_lada_culoare: row.crate_type_id ? crateTypeMap.get(row.crate_type_id) || "" : "",
           nr_lazi: row.crate_count ?? null,
           // MANUAL
           paleti_lazi_document: existing?.paleti_lazi_document ?? "",
