@@ -1,0 +1,1 @@
+ALTER TABLE public.reception_report_data ADD COLUMN IF NOT EXISTS cantitate_document NUMERIC;

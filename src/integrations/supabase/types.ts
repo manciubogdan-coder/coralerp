@@ -7315,6 +7315,7 @@ export type Database = {
       }
       reception_report_data: {
         Row: {
+          cantitate_document: number | null
           cantitate_receptionata: number | null
           created_at: string
           id: string
@@ -7330,6 +7331,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cantitate_document?: number | null
           cantitate_receptionata?: number | null
           created_at?: string
           id?: string
@@ -7345,6 +7347,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cantitate_document?: number | null
           cantitate_receptionata?: number | null
           created_at?: string
           id?: string
