@@ -1,16 +1,18 @@
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, ShoppingCart, Users, Boxes, BarChart4, Factory, TrendingUp } from "lucide-react";
+import { Package, ShoppingCart, Users, Boxes, BarChart4, Factory, TrendingUp, ClipboardCheck, FileClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import DashboardMenuItem, { DashboardMenuItem as DashboardMenuItemType } from "@/components/DashboardMenuItem";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
-  const menuItems: DashboardMenuItemType[] = [
+  const baseMenuItems: DashboardMenuItemType[] = [
     {
       id: "inventory",
       name: "Stoc Depozit",
@@ -66,8 +68,28 @@ const Dashboard = () => {
       icon: BarChart4,
       route: "/dashboard/crate-types",
       description: "Gestionați tipurile de lădițe."
+    },
+    {
+      id: "reception-report",
+      name: "Raport de Recepție",
+      icon: ClipboardCheck,
+      route: "/dashboard/reception-report",
+      description: "Rapoarte zilnice pe furnizor pentru recepții."
     }
   ];
+
+  const menuItems: DashboardMenuItemType[] = isAdmin
+    ? [
+        ...baseMenuItems,
+        {
+          id: "audit",
+          name: "Audit Operații",
+          icon: FileClock,
+          route: "/audit",
+          description: "Istoric operații și acțiuni utilizatori."
+        }
+      ]
+    : baseMenuItems;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
