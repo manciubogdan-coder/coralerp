@@ -555,23 +555,23 @@ const ReceptionReport: React.FC = () => {
                       <TableCell>
                         <Input
                           value={r.paleti_lazi_document}
-                          placeholder="Ex: 2P / ALBASTRE"
+                          placeholder="2P/ALB"
                           onChange={(e) =>
                             updateRow(gIdx, rIdx, "paleti_lazi_document", e.target.value)
                           }
-                          className="min-w-[140px]"
+                          className="h-7 text-xs px-1 w-full"
                         />
                       </TableCell>
                       <TableCell className="bg-amber-50/50 dark:bg-amber-950/10">
                         <Input
                           type="number"
                           step="0.01"
-                          placeholder="manual"
+                          placeholder="kg"
                           value={r.cantitate_document}
                           onChange={(e) =>
                             updateRow(gIdx, rIdx, "cantitate_document", e.target.value)
                           }
-                          className="min-w-[110px]"
+                          className="h-7 text-xs px-1 w-full"
                         />
                       </TableCell>
                       <TableCell className="font-semibold">
