@@ -30,7 +30,8 @@ import { useInventoryType } from "@/context/inventory-type";
 type InventoryRow = {
   id: string;
   name: string;
-  quantity: number;
+  original_quantity: number;
+  net_quantity: number | null;
   unit: string;
   receipt_date: string;
   document_number: string | null;
@@ -66,6 +67,30 @@ type SupplierGroup = {
 };
 
 const getInventoryTable = (type: string) => {
+  if (type === "ambalaje") return "ambalaje_reception_records" as const;
+  if (type === "etichete") return "etichete_reception_records" as const;
+  return "reception_records" as const;
+};
+
+const getCrateTypeTable = (type: string) => {
+  if (type === "ambalaje") return "ambalaje_crate_types" as const;
+  if (type === "etichete") return "etichete_crate_types" as const;
+  return "crate_types" as const;
+};
+
+const getSupplierTable = (type: string) => {
+  if (type === "ambalaje") return "ambalaje_suppliers" as const;
+  if (type === "etichete") return "etichete_suppliers" as const;
+  return "suppliers" as const;
+};
+
+const getManufacturerTable = (type: string) => {
+  if (type === "ambalaje") return "ambalaje_manufacturers" as const;
+  if (type === "etichete") return "etichete_manufacturers" as const;
+  return "manufacturers" as const;
+};
+
+const getLegacyInventoryTable = (type: string) => {
   if (type === "ambalaje") return "ambalaje_inventory" as const;
   if (type === "etichete") return "etichete_inventory" as const;
   return "inventory" as const;
