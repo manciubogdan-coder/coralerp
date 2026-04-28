@@ -499,14 +499,28 @@ const ReceptionReport: React.FC = () => {
                 {group.rows.length} produse
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => exportSupplierReport(group)}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Exportă Excel
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => handleSaveGroup(group)}
+                disabled={savingKey === `${group.supplierName}__${group.documentNumber}`}
+              >
+                {savingKey === `${group.supplierName}__${group.documentNumber}` ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Salvează
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => exportSupplierReport(group)}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportă Excel
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <Table>
