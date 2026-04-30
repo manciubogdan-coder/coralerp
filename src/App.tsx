@@ -165,14 +165,7 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/productie/forecast"
-                  element={
-                    <ProtectedRoute requireDepartment="productie">
-                      <ForecastPage />
-                    </ProtectedRoute>
-                  }
-                />
+                <Route path="/productie/forecast" element={<Navigate to="/depozit-mp/forecast" replace />} />
 
                 {/* ========== PICKING & VÂNZĂRI ========== */}
                 <Route
