@@ -3,9 +3,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShieldCheck, Package, Boxes, Tag } from "lucide-react";
 import { ForceInventoryType, type InventoryType } from "@/context/inventory-type";
-import DailyStockGroupView from "@/components/inventory/DailyStockGroupView";
+import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView";
 import DailyStockQuality from "@/components/inventory/DailyStockQuality";
-import DailyLotConsumption from "@/components/inventory/DailyLotConsumption";
+import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
 import ReceptionReport from "@/components/inventory/ReceptionReport";
 
 type DepotKey = "materii-prime" | "ambalaje" | "etichete";
