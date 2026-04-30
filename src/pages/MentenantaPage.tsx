@@ -488,12 +488,24 @@ const DefectiuneDialog: React.FC<{
               </Select>
             </div>
             <div>
-              <Label>Ore oprire efectivă</Label>
+              <Label>
+                Ore oprire efectivă
+                {aFunctionat === "nu" && (
+                  <span className="ml-2 text-xs text-muted-foreground">(auto)</span>
+                )}
+              </Label>
               <Input
                 type="number"
                 step="0.25"
                 value={oreOprire}
                 onChange={(e) => setOreOprire(e.target.value)}
+                readOnly={aFunctionat === "nu"}
+                className={aFunctionat === "nu" ? "bg-muted cursor-not-allowed" : ""}
+                title={
+                  aFunctionat === "nu"
+                    ? "Calculat automat din data start → data final (linia nu a funcționat)"
+                    : ""
+                }
               />
             </div>
             <div>
