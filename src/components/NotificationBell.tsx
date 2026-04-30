@@ -26,7 +26,7 @@ interface Notif {
 const NotificationBell: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { chatUnread, taskUnread, totalUnread, markTasksSeen, refresh } = useCollaborationAlerts();
+  const { chatUnread, taskUnread, totalUnread, markChatSeen, markTasksSeen, refresh } = useCollaborationAlerts();
   const [items, setItems] = useState<Notif[]>([]);
   const [open, setOpen] = useState(false);
 
@@ -82,6 +82,7 @@ const NotificationBell: React.FC = () => {
         .update({ read_at: new Date().toISOString() })
         .in("id", ids);
     }
+    await markChatSeen();
     markTasksSeen();
     await load();
     window.dispatchEvent(new Event("collaboration-alerts-refresh"));
@@ -128,6 +129,7 @@ const NotificationBell: React.FC = () => {
           {chatUnread > 0 && (
             <button
               onClick={() => {
+                markChatSeen();
                 setOpen(false);
                 navigate("/chat");
               }}
