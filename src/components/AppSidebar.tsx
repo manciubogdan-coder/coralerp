@@ -39,6 +39,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCollaborationAlerts } from '@/contexts/CollaborationAlertsContext';
 import { DEPARTMENTS, type DepartmentRole } from '@/lib/departments';
 
 interface MenuLink {
@@ -131,6 +132,7 @@ const AppSidebar: React.FC = () => {
   const location = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
   const { hasDepartment, isAdmin } = useAuth();
+  const { chatUnread, taskUnread } = useCollaborationAlerts();
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -203,6 +205,11 @@ const AppSidebar: React.FC = () => {
                 >
                   <MessageSquare className="mr-2" size={16} />
                   <span>Chat</span>
+                  {chatUnread > 0 && (
+                    <span className="ml-auto h-5 min-w-5 rounded-full bg-destructive px-1.5 text-[10px] font-semibold leading-5 text-destructive-foreground text-center">
+                      {chatUnread > 99 ? '99+' : chatUnread}
+                    </span>
+                  )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -214,6 +221,11 @@ const AppSidebar: React.FC = () => {
                 >
                   <CheckSquare className="mr-2" size={16} />
                   <span>Taskuri</span>
+                  {taskUnread > 0 && (
+                    <span className="ml-auto h-5 min-w-5 rounded-full bg-destructive px-1.5 text-[10px] font-semibold leading-5 text-destructive-foreground text-center">
+                      {taskUnread > 99 ? '99+' : taskUnread}
+                    </span>
+                  )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {isAdmin && (
