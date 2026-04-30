@@ -60,6 +60,7 @@ const ChatPage: React.FC = () => {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const [filter, setFilter] = useState<"toate" | "dm" | "group" | "department">("toate");
   const [newDmOpen, setNewDmOpen] = useState(false);
   const [newGroupOpen, setNewGroupOpen] = useState(false);
@@ -171,6 +172,14 @@ const ChatPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
+  // Fallback polling: legacy realtime is not always reliable, so keep the active chat fresh.
+  useEffect(() => {
+    if (!activeId) return;
+    const interval = window.setInterval(() => loadMessages(activeId), 5000);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
+
   // ---------- SCROLL ----------
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -178,17 +187,34 @@ const ChatPage: React.FC = () => {
 
   // ---------- SEND ----------
   const sendMessage = async () => {
-    if (!draft.trim() || !activeId) return;
+    if (!draft.trim() || !activeId || !userId || isSending) return;
     const body = draft.trim();
+    const convId = activeId;
+    const tempId = `temp-${crypto.randomUUID()}`;
     setDraft("");
+    setIsSending(true);
+    setMessages((current) => [
+      ...current,
+      {
+        id: tempId,
+        conversation_id: convId,
+        author_id: userId,
+        body,
+        created_at: new Date().toISOString(),
+      },
+    ]);
     const { error } = await (supabase as any).rpc("chat_send_message", {
-      p_conversation_id: activeId,
+      p_conversation_id: convId,
       p_body: body,
     });
     if (error) {
       toast({ title: "Eroare", description: error.message, variant: "destructive" });
+      setMessages((current) => current.filter((message) => message.id !== tempId));
       setDraft(body);
+    } else {
+      await Promise.all([loadMessages(convId), loadConversations()]);
     }
+    setIsSending(false);
   };
 
   // ---------- CREATE DM ----------
