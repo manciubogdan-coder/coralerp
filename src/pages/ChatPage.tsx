@@ -122,18 +122,9 @@ const ChatPage: React.FC = () => {
       }
 
       if (convId) {
-        // sunt membru?
-        const { data: mem } = await (supabase as any)
+        await (supabase as any)
           .from("chat_members")
-          .select("user_id")
-          .eq("conversation_id", convId)
-          .eq("user_id", userId)
-          .maybeSingle();
-        if (!mem) {
-          await (supabase as any)
-            .from("chat_members")
-            .insert({ conversation_id: convId, user_id: userId });
-        }
+          .upsert({ conversation_id: convId, user_id: userId }, { onConflict: "conversation_id,user_id" });
       }
     }
   };
@@ -247,50 +238,26 @@ const ChatPage: React.FC = () => {
 
   // ---------- CREATE DM ----------
   const createDM = async (otherUserId: string) => {
-    // verifică dacă există deja un DM între cei doi
-    const { data: myMems } = await (supabase as any)
-      .from("chat_members")
-      .select("conversation_id")
-      .eq("user_id", userId);
-    const myIds = (myMems ?? []).map((m: any) => m.conversation_id);
-    if (myIds.length > 0) {
-      const { data: theirMems } = await (supabase as any)
-        .from("chat_members")
-        .select("conversation_id")
-        .eq("user_id", otherUserId)
-        .in("conversation_id", myIds);
-      const sharedIds = (theirMems ?? []).map((m: any) => m.conversation_id);
-      if (sharedIds.length > 0) {
-        const { data: dms } = await (supabase as any)
-          .from("chat_conversations")
-          .select("id")
-          .eq("type", "dm")
-          .in("id", sharedIds)
-          .limit(1);
-        if (dms && dms.length > 0) {
-          setNewDmOpen(false);
-          await loadConversations();
-          setActiveId(dms[0].id);
-          return;
-        }
-      }
-    }
-    // creează nou
+    const partner = profiles[otherUserId];
     const { data: conv, error } = await (supabase as any)
       .from("chat_conversations")
-      .insert({ type: "dm", created_by: userId })
+      .insert({ type: "dm", name: partner?.name || partner?.email || "DM", created_by: userId })
       .select("id")
       .single();
     if (error || !conv) {
       toast({ title: "Eroare", description: error?.message, variant: "destructive" });
       return;
     }
-    await (supabase as any)
+    const { error: membersError } = await (supabase as any)
       .from("chat_members")
       .insert([
         { conversation_id: conv.id, user_id: userId },
         { conversation_id: conv.id, user_id: otherUserId },
       ]);
+    if (membersError) {
+      toast({ title: "Eroare membri chat", description: membersError.message, variant: "destructive" });
+      return;
+    }
     setNewDmOpen(false);
     await loadConversations();
     setActiveId(conv.id);
