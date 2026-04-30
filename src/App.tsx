@@ -55,12 +55,13 @@ const AppShell = () => {
           <div className="flex flex-col min-h-screen w-full">
             <div className="flex items-center justify-between p-2 sm:p-4 border-b">
               <SidebarTrigger className="mr-2 sm:mr-4" />
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {profile?.email && (
-                  <span className="hidden sm:inline text-sm text-muted-foreground">
+                  <span className="hidden sm:inline text-sm text-muted-foreground mr-1">
                     {profile.name || profile.email}
                   </span>
                 )}
+                <NotificationBell />
                 <Button variant="ghost" size="icon" onClick={signOut} title="Deconectare">
                   <LogOut size={16} />
                 </Button>
@@ -212,6 +213,26 @@ const AppShell = () => {
                   element={
                     <ProtectedRoute>
                       <CalitateHub />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* ========== CHAT ========== */}
+                <Route
+                  path="/chat"
+                  element={
+                    <ProtectedRoute>
+                      <ChatPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* ========== TASKURI ========== */}
+                <Route
+                  path="/taskuri"
+                  element={
+                    <ProtectedRoute>
+                      <TaskuriPage />
                     </ProtectedRoute>
                   }
                 />
