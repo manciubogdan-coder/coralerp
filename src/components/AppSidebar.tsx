@@ -64,6 +64,7 @@ const GROUPS: DeptGroup[] = [
     items: [
       { name: 'Stoc MP', icon: Package, path: '/depozit-mp' },
       { name: 'Recepție MP', icon: ClipboardCheck, path: '/depozit-mp/receptie' },
+      { name: 'Forecast MP', icon: TrendingUp, path: '/depozit-mp/forecast' },
       { name: 'Nomenclatoare', icon: Layers, path: '/depozit-mp/nomenclatoare' },
     ],
   },
@@ -72,6 +73,7 @@ const GROUPS: DeptGroup[] = [
     label: 'Depozit Ambalaje',
     items: [
       { name: 'Stoc Ambalaje', icon: Boxes, path: '/depozit-ambalaje' },
+      { name: 'Forecast Ambalaje', icon: TrendingUp, path: '/depozit-ambalaje/forecast' },
       { name: 'Nomenclatoare', icon: Layers, path: '/depozit-ambalaje/nomenclatoare' },
     ],
   },
@@ -80,6 +82,7 @@ const GROUPS: DeptGroup[] = [
     label: 'Etichete',
     items: [
       { name: 'Stoc Etichete', icon: Tag, path: '/etichete' },
+      { name: 'Forecast Etichete', icon: TrendingUp, path: '/etichete/forecast' },
       { name: 'Nomenclatoare', icon: Layers, path: '/etichete/nomenclatoare' },
     ],
   },
@@ -88,7 +91,6 @@ const GROUPS: DeptGroup[] = [
     label: 'Producție',
     items: [
       { name: 'Stoc Producție', icon: Factory, path: '/productie' },
-      { name: 'Forecast', icon: TrendingUp, path: '/productie/forecast' },
     ],
   },
   {
