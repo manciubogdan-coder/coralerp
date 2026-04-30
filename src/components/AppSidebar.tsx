@@ -93,10 +93,16 @@ const GROUPS: DeptGroup[] = [
   },
   {
     dept: 'picking_vanzari',
-    label: 'Picking & Vânzări',
+    label: 'Picking',
     items: [
       { name: 'Picking', icon: Truck, path: '/picking' },
-      { name: 'Vânzări', icon: ShoppingBag, path: '/vanzari' },
+    ],
+  },
+  {
+    dept: 'picking_vanzari',
+    label: 'Vânzări',
+    items: [
+      { name: 'Hub Vânzări', icon: ShoppingBag, path: '/vanzari' },
     ],
   },
   {
@@ -179,7 +185,7 @@ const AppSidebar: React.FC = () => {
         </SidebarGroup>
 
         {visibleGroups.map((group) => (
-          <SidebarGroup key={group.dept}>
+          <SidebarGroup key={`${group.dept}-${group.label}`}>
             <SidebarGroupLabel className={isMobile ? 'text-black font-medium' : ''}>
               {group.label}
             </SidebarGroupLabel>

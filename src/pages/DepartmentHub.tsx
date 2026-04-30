@@ -2,14 +2,26 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { DEPARTMENTS } from '@/lib/departments';
-import { ShieldAlert } from 'lucide-react';
+import { DEPARTMENTS, type DepartmentDef } from '@/lib/departments';
+import { ShieldAlert, ShieldCheck } from 'lucide-react';
+
+const CALITATE_TILE: DepartmentDef = {
+  id: 'administrativ' as any, // pseudo — vizibil pentru toți userii aprobați
+  label: 'Calitate',
+  short: 'Calitate',
+  icon: ShieldCheck,
+  rootPath: '/calitate',
+  description: 'Stocuri, calitate, consum pe loturi și recepții — toate depozitele.',
+};
 
 const DepartmentHub: React.FC = () => {
   const navigate = useNavigate();
   const { hasDepartment, profile } = useAuth();
 
-  const accessible = DEPARTMENTS.filter((d) => hasDepartment(d.id));
+  const accessible = [
+    CALITATE_TILE,
+    ...DEPARTMENTS.filter((d) => hasDepartment(d.id)),
+  ];
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -37,7 +49,7 @@ const DepartmentHub: React.FC = () => {
             const Icon = dept.icon;
             return (
               <Card
-                key={dept.id}
+                key={`${dept.id}-${dept.rootPath}`}
                 onClick={() => navigate(dept.rootPath)}
                 className="cursor-pointer hover:border-primary transition-colors"
               >

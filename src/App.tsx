@@ -22,6 +22,7 @@ import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import ProductionStockPage from "./pages/dashboard/ProductionStockPage";
 import MentenantaPage from "./pages/MentenantaPage";
 import CalitateHub from "./pages/CalitateHub";
+import VanzariHub from "./pages/VanzariHub";
 import ForecastPage from "./pages/dashboard/ForecastPage";
 import NomenclatoarePage from "./pages/NomenclatoarePage";
 import NotFound from "./pages/NotFound";
@@ -186,7 +187,7 @@ const AppShell = () => {
                   path="/vanzari"
                   element={
                     <ProtectedRoute requireDepartment="picking_vanzari">
-                      <PlaceholderPage title="Vânzări" description="Gestionare comenzi clienți." />
+                      <VanzariHub />
                     </ProtectedRoute>
                   }
                 />
