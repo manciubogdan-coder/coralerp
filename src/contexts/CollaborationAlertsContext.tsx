@@ -8,6 +8,7 @@ interface CollaborationAlertsValue {
   taskUnread: number;
   totalUnread: number;
   refresh: () => Promise<void>;
+  markChatSeen: () => Promise<void>;
   markTasksSeen: () => void;
 }
 
@@ -40,6 +41,15 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
     if (!user?.id) return;
     window.localStorage.setItem(taskSeenKey(user.id), new Date().toISOString());
     setTaskUnread(0);
+  }, [user?.id]);
+
+  const markChatSeen = useCallback(async () => {
+    if (!user?.id) return;
+    await (supabase as any)
+      .from("chat_members")
+      .update({ last_read_at: new Date().toISOString() })
+      .eq("user_id", user.id);
+    setChatUnread(0);
   }, [user?.id]);
 
   const loadChatUnread = useCallback(async () => {
@@ -134,8 +144,8 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
   }, [location.pathname, markTasksSeen, refresh, user?.id]);
 
   const value = useMemo(
-    () => ({ chatUnread, taskUnread, totalUnread: chatUnread + taskUnread, refresh, markTasksSeen }),
-    [chatUnread, markTasksSeen, refresh, taskUnread]
+    () => ({ chatUnread, taskUnread, totalUnread: chatUnread + taskUnread, refresh, markChatSeen, markTasksSeen }),
+    [chatUnread, markChatSeen, markTasksSeen, refresh, taskUnread]
   );
 
   return <CollaborationAlertsContext.Provider value={value}>{children}</CollaborationAlertsContext.Provider>;
