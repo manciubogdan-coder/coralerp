@@ -419,7 +419,7 @@ const ChatPage: React.FC = () => {
                   rows={2}
                   className="resize-none"
                 />
-                <Button onClick={sendMessage} disabled={!draft.trim()}>
+                <Button onClick={sendMessage} disabled={!draft.trim() || isSending}>
                   <Send size={16} />
                 </Button>
               </div>
