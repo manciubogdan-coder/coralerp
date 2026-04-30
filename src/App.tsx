@@ -20,6 +20,7 @@ import InventoryPage from "./pages/dashboard/InventoryPage";
 import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import ProductionStockPage from "./pages/dashboard/ProductionStockPage";
 import ForecastPage from "./pages/dashboard/ForecastPage";
+import NomenclatoarePage from "./pages/NomenclatoarePage";
 import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
 import InventoryOverviewPage from "./pages/InventoryPage";
@@ -102,6 +103,17 @@ const AppShell = () => {
                   }
                 />
 
+                <Route
+                  path="/depozit-mp/nomenclatoare"
+                  element={
+                    <ProtectedRoute requireDepartment="depozit_mp">
+                      <ForceInventoryType type="materii-prime">
+                        <NomenclatoarePage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* ========== DEPOZIT AMBALAJE ========== */}
                 <Route
                   path="/depozit-ambalaje"
@@ -109,6 +121,16 @@ const AppShell = () => {
                     <ProtectedRoute requireDepartment="depozit_ambalaje">
                       <ForceInventoryType type="ambalaje">
                         <InventoryPage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/depozit-ambalaje/nomenclatoare"
+                  element={
+                    <ProtectedRoute requireDepartment="depozit_ambalaje">
+                      <ForceInventoryType type="ambalaje">
+                        <NomenclatoarePage />
                       </ForceInventoryType>
                     </ProtectedRoute>
                   }
@@ -125,8 +147,16 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
-
-                {/* ========== PRODUCȚIE ========== */}
+                <Route
+                  path="/etichete/nomenclatoare"
+                  element={
+                    <ProtectedRoute requireDepartment="etichete">
+                      <ForceInventoryType type="etichete">
+                        <NomenclatoarePage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/productie"
                   element={
@@ -197,38 +227,10 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/administrativ/produse"
-                  element={
-                    <ProtectedRoute requireDepartment="administrativ">
-                      <ProductsPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/administrativ/furnizori"
-                  element={
-                    <ProtectedRoute requireDepartment="administrativ">
-                      <SuppliersPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/administrativ/producatori"
-                  element={
-                    <ProtectedRoute requireDepartment="administrativ">
-                      <ManufacturersPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/administrativ/lazi"
-                  element={
-                    <ProtectedRoute requireDepartment="administrativ">
-                      <CrateTypesPage />
-                    </ProtectedRoute>
-                  }
-                />
+                <Route path="/administrativ/produse" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
+                <Route path="/administrativ/furnizori" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
+                <Route path="/administrativ/producatori" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
+                <Route path="/administrativ/lazi" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
                 <Route
                   path="/administrativ/analytics"
                   element={
