@@ -118,13 +118,53 @@ const ChatPage: React.FC = () => {
     }
 
     setConversations((convs as Conversation[]) ?? []);
+    loadUnreadCounts();
+  };
+
+  const loadUnreadCounts = async () => {
+    if (!userId) return;
+    const { data: memberships } = await (supabase as any)
+      .from("chat_members")
+      .select("conversation_id,last_read_at")
+      .eq("user_id", userId);
+    if (!memberships?.length) {
+      setUnreadByConv({});
+      return;
+    }
+    const readByConv = new Map<string, string>(
+      memberships.map((m: any) => [m.conversation_id, m.last_read_at ?? new Date(0).toISOString()])
+    );
+    const ids = Array.from(readByConv.keys());
+    const { data: rows } = await (supabase as any)
+      .from("chat_messages")
+      .select("conversation_id,author_id,created_at")
+      .in("conversation_id", ids)
+      .neq("author_id", userId);
+    const next: Record<string, number> = {};
+    ((rows as Message[]) ?? []).forEach((m) => {
+      if (new Date(m.created_at) > new Date(readByConv.get(m.conversation_id) ?? 0)) {
+        next[m.conversation_id] = (next[m.conversation_id] ?? 0) + 1;
+      }
+    });
+    setUnreadByConv(next);
+  };
+
+  const markConversationRead = async (convId: string) => {
+    if (!userId) return;
+    await (supabase as any)
+      .from("chat_members")
+      .update({ last_read_at: new Date().toISOString() })
+      .eq("conversation_id", convId)
+      .eq("user_id", userId);
+    setUnreadByConv((u) => ({ ...u, [convId]: 0 }));
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   // ---------- LOAD MESSAGES ----------
   const loadMessages = async (convId: string) => {
     const { data } = await (supabase as any).rpc("chat_list_messages", { p_conversation_id: convId });
     setMessages((data as Message[]) ?? []);
-    setUnreadByConv((u) => ({ ...u, [convId]: 0 }));
+    markConversationRead(convId);
   };
 
   // ---------- INITIAL LOAD ----------
@@ -150,12 +190,14 @@ const ChatPage: React.FC = () => {
           const msg = payload.new as Message;
           if (msg.conversation_id === activeId) {
             setMessages((m) => [...m, msg]);
+            if (msg.author_id !== userId) markConversationRead(msg.conversation_id);
           } else {
             // crește unread
             setUnreadByConv((u) => ({
               ...u,
               [msg.conversation_id]: (u[msg.conversation_id] ?? 0) + (msg.author_id !== userId ? 1 : 0),
             }));
+            if (msg.author_id !== userId) window.dispatchEvent(new Event("collaboration-alerts-refresh"));
           }
         }
       )
@@ -175,7 +217,10 @@ const ChatPage: React.FC = () => {
   // Fallback polling: legacy realtime is not always reliable, so keep the active chat fresh.
   useEffect(() => {
     if (!activeId) return;
-    const interval = window.setInterval(() => loadMessages(activeId), 5000);
+    const interval = window.setInterval(() => {
+      loadMessages(activeId);
+      loadConversations();
+    }, 5000);
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
