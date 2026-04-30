@@ -5,6 +5,10 @@ import { Package, Boxes, Tag, TrendingUp, Warehouse } from "lucide-react";
 import InventoryManagement from "@/components/dashboard/InventoryManagement";
 import ForecastView from "@/components/forecast/ForecastView";
 import StockSufficiency from "@/components/forecast/StockSufficiency";
+import OrderManagement from "@/components/forecast/OrderManagement";
+import OrderHistory from "@/components/forecast/OrderHistory";
+import ConsumptionReport from "@/components/forecast/ConsumptionReport";
+import ProductOrderSettings from "@/components/forecast/ProductOrderSettings";
 import { useInventoryType, type InventoryType } from "@/context/inventory-type";
 
 type WarehouseTab = "materii-prime" | "ambalaje" | "etichete";
@@ -15,11 +19,6 @@ const WAREHOUSES: { id: WarehouseTab; label: string; icon: React.ComponentType<{
   { id: "etichete", label: "Etichete", icon: Tag },
 ];
 
-/**
- * Sincronizează tipul de inventar din context cu tabul activ,
- * astfel încât componentele copil (InventoryManagement, ForecastView etc.)
- * să citească datele din tabelele corecte.
- */
 const InventoryTypeSync: React.FC<{ type: InventoryType; children: React.ReactNode }> = ({ type, children }) => {
   const { inventoryType, setInventoryType } = useInventoryType();
   const [ready, setReady] = useState(inventoryType === type);
@@ -37,9 +36,29 @@ const InventoryTypeSync: React.FC<{ type: InventoryType; children: React.ReactNo
   return <>{children}</>;
 };
 
+const WarehouseSelector: React.FC<{
+  value: WarehouseTab;
+  onChange: (v: WarehouseTab) => void;
+}> = ({ value, onChange }) => (
+  <Tabs value={value} onValueChange={(v) => onChange(v as WarehouseTab)} className="w-full">
+    <TabsList className="grid w-full grid-cols-3">
+      {WAREHOUSES.map((w) => {
+        const Icon = w.icon;
+        return (
+          <TabsTrigger key={w.id} value={w.id} className="flex items-center gap-2">
+            <Icon className="h-4 w-4" />
+            <span>{w.label}</span>
+          </TabsTrigger>
+        );
+      })}
+    </TabsList>
+  </Tabs>
+);
+
 const AchizitiiHub: React.FC = () => {
-  const [section, setSection] = useState<"stoc" | "forecast" | "zile">("stoc");
-  const [warehouse, setWarehouse] = useState<WarehouseTab>("materii-prime");
+  const [section, setSection] = useState<"stocuri" | "forecast">("stocuri");
+  const [stocWarehouse, setStocWarehouse] = useState<WarehouseTab>("materii-prime");
+  const [forecastWarehouse, setForecastWarehouse] = useState<WarehouseTab>("materii-prime");
 
   return (
     <div className="container mx-auto py-4 md:py-6 space-y-4 md:space-y-6">
@@ -49,60 +68,85 @@ const AchizitiiHub: React.FC = () => {
           Hub Achiziții
         </h1>
         <p className="text-muted-foreground">
-          Vizualizare rapidă a stocurilor și a forecastului pe toate cele trei depozite.
+          Stocuri și planificare aprovizionare pentru toate cele trei depozite.
         </p>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Selectează depozitul</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={warehouse} onValueChange={(v) => setWarehouse(v as WarehouseTab)} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              {WAREHOUSES.map((w) => {
-                const Icon = w.icon;
-                return (
-                  <TabsTrigger key={w.id} value={w.id} className="flex items-center gap-2">
-                    <Icon className="h-4 w-4" />
-                    <span>{w.label}</span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-          </Tabs>
-        </CardContent>
-      </Card>
-
       <Tabs value={section} onValueChange={(v) => setSection(v as typeof section)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-xl">
-          <TabsTrigger value="stoc" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="stocuri" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
-            Stoc
+            Stocuri
           </TabsTrigger>
           <TabsTrigger value="forecast" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             Forecast
           </TabsTrigger>
-          <TabsTrigger value="zile" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Zile Stoc
-          </TabsTrigger>
         </TabsList>
 
-        <div className="mt-4 bg-white rounded-lg shadow-sm border p-3 md:p-4">
-          <InventoryTypeSync type={warehouse}>
-            <TabsContent value="stoc" className="mt-0">
+        {/* ========== STOCURI ========== */}
+        <TabsContent value="stocuri" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Selectează depozitul</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <WarehouseSelector value={stocWarehouse} onChange={setStocWarehouse} />
+            </CardContent>
+          </Card>
+
+          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+            <InventoryTypeSync type={stocWarehouse}>
               <InventoryManagement />
-            </TabsContent>
-            <TabsContent value="forecast" className="mt-0">
-              <ForecastView inventoryType={warehouse} />
-            </TabsContent>
-            <TabsContent value="zile" className="mt-0">
-              <StockSufficiency inventoryType={warehouse} />
-            </TabsContent>
-          </InventoryTypeSync>
-        </div>
+            </InventoryTypeSync>
+          </div>
+        </TabsContent>
+
+        {/* ========== FORECAST ========== */}
+        <TabsContent value="forecast" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Selectează depozitul pentru forecast</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <WarehouseSelector value={forecastWarehouse} onChange={setForecastWarehouse} />
+            </CardContent>
+          </Card>
+
+          <div className="bg-white rounded-lg shadow-sm border p-3 md:p-4">
+            <InventoryTypeSync type={forecastWarehouse}>
+              <Tabs defaultValue="orders" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 mb-4">
+                  <TabsTrigger value="orders">Gestionare Comenzi</TabsTrigger>
+                  <TabsTrigger value="history">Istoric Comenzi</TabsTrigger>
+                  <TabsTrigger value="consumption">Raport Consum</TabsTrigger>
+                  <TabsTrigger value="forecast">Forecast</TabsTrigger>
+                  <TabsTrigger value="sufficiency">Zile Stoc</TabsTrigger>
+                  <TabsTrigger value="settings">Setări Produse</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="orders">
+                  <OrderManagement inventoryType={forecastWarehouse} />
+                </TabsContent>
+                <TabsContent value="history">
+                  <OrderHistory inventoryType={forecastWarehouse} />
+                </TabsContent>
+                <TabsContent value="consumption">
+                  <ConsumptionReport inventoryType={forecastWarehouse} />
+                </TabsContent>
+                <TabsContent value="forecast">
+                  <ForecastView inventoryType={forecastWarehouse} />
+                </TabsContent>
+                <TabsContent value="sufficiency">
+                  <StockSufficiency inventoryType={forecastWarehouse} />
+                </TabsContent>
+                <TabsContent value="settings">
+                  <ProductOrderSettings inventoryType={forecastWarehouse} />
+                </TabsContent>
+              </Tabs>
+            </InventoryTypeSync>
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );
