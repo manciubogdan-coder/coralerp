@@ -347,13 +347,21 @@ const DefectiuneDialog: React.FC<{
     }
   }, [open, editing, defaultUser]);
 
-  // Auto-suggest ore oprire = durata defecțiunii dacă linia nu a funcționat
+  // Auto-calcul ore oprire = durata defecțiunii dacă linia NU a funcționat cu defecțiune.
+  // Suprascrie mereu (inclusiv la editare) atâta timp cât avem start + final.
   useEffect(() => {
-    if (aFunctionat === "nu" && dataStart && dataFinal && !editing) {
-      const h = hoursBetween(fromLocalInput(dataStart)!, fromLocalInput(dataFinal));
-      setOreOprire(h.toFixed(2));
+    if (aFunctionat === "nu" && dataStart && dataFinal) {
+      const start = fromLocalInput(dataStart);
+      const final = fromLocalInput(dataFinal);
+      if (start && final) {
+        const h = hoursBetween(start, final);
+        setOreOprire(h.toFixed(2));
+      }
+    } else if (aFunctionat === "nu" && !dataFinal) {
+      // Fără data final → 0 până la finalizare
+      setOreOprire("0");
     }
-  }, [aFunctionat, dataStart, dataFinal, editing]);
+  }, [aFunctionat, dataStart, dataFinal]);
 
   const save = async () => {
     if (!linieId || !dataStart || !componenta.trim()) {
@@ -480,12 +488,24 @@ const DefectiuneDialog: React.FC<{
               </Select>
             </div>
             <div>
-              <Label>Ore oprire efectivă</Label>
+              <Label>
+                Ore oprire efectivă
+                {aFunctionat === "nu" && (
+                  <span className="ml-2 text-xs text-muted-foreground">(auto)</span>
+                )}
+              </Label>
               <Input
                 type="number"
                 step="0.25"
                 value={oreOprire}
                 onChange={(e) => setOreOprire(e.target.value)}
+                readOnly={aFunctionat === "nu"}
+                className={aFunctionat === "nu" ? "bg-muted cursor-not-allowed" : ""}
+                title={
+                  aFunctionat === "nu"
+                    ? "Calculat automat din data start → data final (linia nu a funcționat)"
+                    : ""
+                }
               />
             </div>
             <div>
