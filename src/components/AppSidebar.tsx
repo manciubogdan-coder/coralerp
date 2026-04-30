@@ -156,6 +156,28 @@ const AppSidebar: React.FC = () => {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Calitate — vizibil pentru toți userii aprobați (transversal) */}
+        <SidebarGroup>
+          <SidebarGroupLabel className={isMobile ? 'text-black font-medium' : ''}>
+            Calitate
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={location.pathname === '/calitate'}
+                  onClick={() => handleNavigation('/calitate')}
+                  tooltip="Hub Calitate"
+                  className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                >
+                  <ShieldCheck className="mr-2" size={16} />
+                  <span>Hub Calitate</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {visibleGroups.map((group) => (
           <SidebarGroup key={group.dept}>
             <SidebarGroupLabel className={isMobile ? 'text-black font-medium' : ''}>
