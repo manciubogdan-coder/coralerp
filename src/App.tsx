@@ -113,6 +113,16 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/depozit-mp/forecast"
+                  element={
+                    <ProtectedRoute requireDepartment="depozit_mp">
+                      <ForceInventoryType type="materii-prime">
+                        <ForecastPage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* ========== DEPOZIT AMBALAJE ========== */}
                 <Route
@@ -131,6 +141,16 @@ const AppShell = () => {
                     <ProtectedRoute requireDepartment="depozit_ambalaje">
                       <ForceInventoryType type="ambalaje">
                         <NomenclatoarePage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/depozit-ambalaje/forecast"
+                  element={
+                    <ProtectedRoute requireDepartment="depozit_ambalaje">
+                      <ForceInventoryType type="ambalaje">
+                        <ForecastPage />
                       </ForceInventoryType>
                     </ProtectedRoute>
                   }
@@ -158,6 +178,16 @@ const AppShell = () => {
                   }
                 />
                 <Route
+                  path="/etichete/forecast"
+                  element={
+                    <ProtectedRoute requireDepartment="etichete">
+                      <ForceInventoryType type="etichete">
+                        <ForecastPage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/productie"
                   element={
                     <ProtectedRoute requireDepartment="productie">
@@ -165,14 +195,7 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/productie/forecast"
-                  element={
-                    <ProtectedRoute requireDepartment="productie">
-                      <ForecastPage />
-                    </ProtectedRoute>
-                  }
-                />
+                <Route path="/productie/forecast" element={<Navigate to="/depozit-mp/forecast" replace />} />
 
                 {/* ========== PICKING & VÂNZĂRI ========== */}
                 <Route
