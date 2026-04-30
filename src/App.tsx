@@ -41,6 +41,7 @@ import AuditLogPage from "./pages/AuditLogPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { InventoryTypeProvider, ForceInventoryType } from "@/context/inventory-type";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { CollaborationAlertsProvider } from "@/contexts/CollaborationAlertsContext";
 
 const queryClient = new QueryClient();
 
@@ -328,7 +329,9 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <InventoryTypeProvider>
-                        <AppShell />
+                        <CollaborationAlertsProvider>
+                          <AppShell />
+                        </CollaborationAlertsProvider>
                       </InventoryTypeProvider>
                     </ProtectedRoute>
                   }
