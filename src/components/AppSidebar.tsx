@@ -64,6 +64,7 @@ const GROUPS: DeptGroup[] = [
     items: [
       { name: 'Stoc MP', icon: Package, path: '/depozit-mp' },
       { name: 'Recepție MP', icon: ClipboardCheck, path: '/depozit-mp/receptie' },
+      { name: 'Nomenclatoare', icon: Layers, path: '/depozit-mp/nomenclatoare' },
     ],
   },
   {
@@ -71,6 +72,7 @@ const GROUPS: DeptGroup[] = [
     label: 'Depozit Ambalaje',
     items: [
       { name: 'Stoc Ambalaje', icon: Boxes, path: '/depozit-ambalaje' },
+      { name: 'Nomenclatoare', icon: Layers, path: '/depozit-ambalaje/nomenclatoare' },
     ],
   },
   {
@@ -78,6 +80,7 @@ const GROUPS: DeptGroup[] = [
     label: 'Etichete',
     items: [
       { name: 'Stoc Etichete', icon: Tag, path: '/etichete' },
+      { name: 'Nomenclatoare', icon: Layers, path: '/etichete/nomenclatoare' },
     ],
   },
   {
@@ -110,10 +113,6 @@ const GROUPS: DeptGroup[] = [
       { name: 'Hub Administrativ', icon: Settings, path: '/administrativ' },
       { name: 'Utilizatori', icon: Users, path: '/administrativ/users' },
       { name: 'Audit', icon: FileClock, path: '/administrativ/audit' },
-      { name: 'Produse', icon: PackageSearch, path: '/administrativ/produse' },
-      { name: 'Furnizori', icon: Building2, path: '/administrativ/furnizori' },
-      { name: 'Producători', icon: Factory, path: '/administrativ/producatori' },
-      { name: 'Tipuri Lădițe', icon: Layers, path: '/administrativ/lazi' },
     ],
   },
 ];
