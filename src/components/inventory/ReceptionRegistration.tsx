@@ -10,6 +10,7 @@ import type { Product, Supplier, Manufacturer } from "@/types";
 import { useInventoryType } from "@/context/inventory-type";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
+import { emitNotification } from "@/lib/notifications";
 
 interface ReceptionRegistrationProps {
   products: Product[];
@@ -127,6 +128,23 @@ export function ReceptionRegistration({
       toast({
         title: "Recepție înregistrată",
         description: `Cantitate stocată: ${quantityToSave.toFixed(isEtichete ? 0 : 2)} ${unitToSave}`
+      });
+
+      await emitNotification("reception.completed", "Recepție finalizată", {
+        body: `${zoneLabel}: ${selectedProduct.name} — ${quantityToSave.toFixed(isEtichete ? 0 : 2)} ${unitToSave}${selectedSupplier ? `, furnizor ${selectedSupplier.name}` : ""}`,
+        link: "/calitate",
+        payload: {
+          inventoryType,
+          product_id: productId,
+          product_name: selectedProduct.name,
+          supplier_id: supplierId,
+          supplier_name: selectedSupplier?.name ?? null,
+          manufacturer_id: manufacturerId,
+          manufacturer_name: selectedManufacturer?.name ?? null,
+          document_number: documentNumber,
+          quantity: quantityToSave,
+          unit: unitToSave,
+        },
       });
 
       setShowConfirm(false);
