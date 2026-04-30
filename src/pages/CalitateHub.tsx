@@ -7,6 +7,7 @@ import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView"
 import DailyStockQuality from "@/components/inventory/DailyStockQuality";
 import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
 import ReceptionReport from "@/components/inventory/ReceptionReport";
+import BackToHubButton from "@/components/BackToHubButton";
 
 type DepotKey = "materii-prime" | "ambalaje" | "etichete";
 
@@ -80,16 +81,19 @@ const CalitateHub: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-primary/10 text-primary">
-          <ShieldCheck className="h-6 w-6" />
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+            <ShieldCheck className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Calitate</h1>
+            <p className="text-sm text-muted-foreground">
+              Stocuri, calitate, consum pe loturi și recepții — pe fiecare depozit.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">Calitate</h1>
-          <p className="text-sm text-muted-foreground">
-            Stocuri, calitate, consum pe loturi și recepții — pe fiecare depozit.
-          </p>
-        </div>
+        <BackToHubButton />
       </div>
 
       <Tabs value={depot} onValueChange={(v) => setDepot(v as DepotKey)} className="w-full">

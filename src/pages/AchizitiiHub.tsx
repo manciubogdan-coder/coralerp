@@ -10,6 +10,7 @@ import OrderHistory from "@/components/forecast/OrderHistory";
 import ConsumptionReport from "@/components/forecast/ConsumptionReport";
 import ProductOrderSettings from "@/components/forecast/ProductOrderSettings";
 import { useInventoryType, type InventoryType } from "@/context/inventory-type";
+import BackToHubButton from "@/components/BackToHubButton";
 
 type WarehouseTab = "materii-prime" | "ambalaje" | "etichete";
 
@@ -62,14 +63,17 @@ const AchizitiiHub: React.FC = () => {
 
   return (
     <div className="container mx-auto py-4 md:py-6 space-y-4 md:space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Warehouse className="h-6 w-6 text-primary" />
-          Hub Achiziții
-        </h1>
-        <p className="text-muted-foreground">
-          Stocuri și planificare aprovizionare pentru toate cele trei depozite.
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Warehouse className="h-6 w-6 text-primary" />
+            Hub Achiziții
+          </h1>
+          <p className="text-muted-foreground">
+            Stocuri și planificare aprovizionare pentru toate cele trei depozite.
+          </p>
+        </div>
+        <BackToHubButton />
       </div>
 
       <Tabs value={section} onValueChange={(v) => setSection(v as typeof section)} className="w-full">

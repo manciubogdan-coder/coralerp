@@ -8,6 +8,7 @@ import ConsumptionAnalytics from "@/components/productie/ConsumptionAnalytics";
 import OrderOCR from "@/components/productie/OrderOCR";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import OcrOrdersByClient from "@/components/productie/OcrOrdersByClient";
+import BackToHubButton from "@/components/BackToHubButton";
 
 const TABS = [
   { key: "stoc-marfa", label: "Stoc Marfă Început Zi", icon: Package },
@@ -24,16 +25,19 @@ const VanzariHub: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-primary/10 text-primary">
-          <ShoppingBag className="h-6 w-6" />
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+            <ShoppingBag className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Vânzări</h1>
+            <p className="text-sm text-muted-foreground">
+              Stoc marfă, consumuri, necesar materie primă, restocări și comenzi pe client.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">Vânzări</h1>
-          <p className="text-sm text-muted-foreground">
-            Stoc marfă, consumuri, necesar materie primă, restocări și comenzi pe client.
-          </p>
-        </div>
+        <BackToHubButton />
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="w-full">
