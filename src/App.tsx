@@ -113,6 +113,16 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/depozit-mp/forecast"
+                  element={
+                    <ProtectedRoute requireDepartment="depozit_mp">
+                      <ForceInventoryType type="materii-prime">
+                        <ForecastPage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* ========== DEPOZIT AMBALAJE ========== */}
                 <Route
@@ -135,6 +145,16 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/depozit-ambalaje/forecast"
+                  element={
+                    <ProtectedRoute requireDepartment="depozit_ambalaje">
+                      <ForceInventoryType type="ambalaje">
+                        <ForecastPage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* ========== ETICHETE ========== */}
                 <Route
@@ -153,6 +173,16 @@ const AppShell = () => {
                     <ProtectedRoute requireDepartment="etichete">
                       <ForceInventoryType type="etichete">
                         <NomenclatoarePage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/etichete/forecast"
+                  element={
+                    <ProtectedRoute requireDepartment="etichete">
+                      <ForceInventoryType type="etichete">
+                        <ForecastPage />
                       </ForceInventoryType>
                     </ProtectedRoute>
                   }
