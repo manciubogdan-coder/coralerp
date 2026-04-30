@@ -181,9 +181,10 @@ const ChatPage: React.FC = () => {
     if (!draft.trim() || !activeId) return;
     const body = draft.trim();
     setDraft("");
-    const { error } = await (supabase as any)
-      .from("chat_messages")
-      .insert({ conversation_id: activeId, author_id: userId, body });
+    const { error } = await (supabase as any).rpc("chat_send_message", {
+      p_conversation_id: activeId,
+      p_body: body,
+    });
     if (error) {
       toast({ title: "Eroare", description: error.message, variant: "destructive" });
       setDraft(body);
@@ -193,28 +194,17 @@ const ChatPage: React.FC = () => {
   // ---------- CREATE DM ----------
   const createDM = async (otherUserId: string) => {
     const partner = profiles[otherUserId];
-    const { data: conv, error } = await (supabase as any)
-      .from("chat_conversations")
-      .insert({ type: "dm", name: partner?.name || partner?.email || "DM", created_by: userId })
-      .select("id")
-      .single();
-    if (error || !conv) {
-      toast({ title: "Eroare", description: error?.message, variant: "destructive" });
-      return;
-    }
-    const { error: membersError } = await (supabase as any)
-      .from("chat_members")
-      .insert([
-        { conversation_id: conv.id, user_id: userId },
-        { conversation_id: conv.id, user_id: otherUserId },
-      ]);
-    if (membersError) {
-      toast({ title: "Eroare membri chat", description: membersError.message, variant: "destructive" });
+    const { data: convId, error } = await (supabase as any).rpc("chat_create_dm", {
+      p_other_user_id: otherUserId,
+      p_name: partner?.name || partner?.email || "DM",
+    });
+    if (error || !convId) {
+      toast({ title: "Eroare", description: error?.message ?? "Nu s-a creat conversația", variant: "destructive" });
       return;
     }
     setNewDmOpen(false);
     await loadConversations();
-    setActiveId(conv.id);
+    setActiveId(convId as string);
   };
 
   // ---------- CREATE GROUP ----------
@@ -223,29 +213,19 @@ const ChatPage: React.FC = () => {
       toast({ title: "Completează numele și cel puțin un membru", variant: "destructive" });
       return;
     }
-    const { data: conv, error } = await (supabase as any)
-      .from("chat_conversations")
-      .insert({ type: "group", name: newGroupName.trim(), created_by: userId })
-      .select("id")
-      .single();
-    if (error || !conv) {
-      toast({ title: "Eroare", description: error?.message, variant: "destructive" });
-      return;
-    }
-    const members = [{ conversation_id: conv.id, user_id: userId }];
-    newGroupMembers.forEach((uid) => {
-      if (uid !== userId) members.push({ conversation_id: conv.id, user_id: uid });
+    const { data: convId, error } = await (supabase as any).rpc("chat_create_group", {
+      p_name: newGroupName.trim(),
+      p_member_ids: Array.from(newGroupMembers),
     });
-    const { error: membersError } = await (supabase as any).from("chat_members").insert(members);
-    if (membersError) {
-      toast({ title: "Eroare membri chat", description: membersError.message, variant: "destructive" });
+    if (error || !convId) {
+      toast({ title: "Eroare", description: error?.message ?? "Nu s-a creat grupul", variant: "destructive" });
       return;
     }
     setNewGroupOpen(false);
     setNewGroupName("");
     setNewGroupMembers(new Set());
     await loadConversations();
-    setActiveId(conv.id);
+    setActiveId(convId as string);
   };
 
   const getConvLabel = (c: Conversation) => {
