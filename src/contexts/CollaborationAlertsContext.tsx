@@ -161,6 +161,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
 
   useEffect(() => {
     if (!user?.id) return;
+    if (location.pathname.startsWith("/chat")) markChatSeen();
     if (location.pathname.startsWith("/taskuri")) markTasksSeen();
     refresh();
     const interval = window.setInterval(refresh, 5000);
