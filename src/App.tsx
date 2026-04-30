@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
+import NotificationBell from "@/components/NotificationBell";
 
 import DepartmentHub from "./pages/DepartmentHub";
 import AdministrativHub from "./pages/AdministrativHub";
@@ -23,6 +24,9 @@ import ProductionStockPage from "./pages/dashboard/ProductionStockPage";
 import MentenantaPage from "./pages/MentenantaPage";
 import CalitateHub from "./pages/CalitateHub";
 import VanzariHub from "./pages/VanzariHub";
+import ChatPage from "./pages/ChatPage";
+import TaskuriPage from "./pages/TaskuriPage";
+import NotifRulesPage from "./pages/NotifRulesPage";
 import ForecastPage from "./pages/dashboard/ForecastPage";
 import NomenclatoarePage from "./pages/NomenclatoarePage";
 import NotFound from "./pages/NotFound";
