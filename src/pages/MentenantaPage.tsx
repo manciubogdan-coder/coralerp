@@ -347,13 +347,21 @@ const DefectiuneDialog: React.FC<{
     }
   }, [open, editing, defaultUser]);
 
-  // Auto-suggest ore oprire = durata defecțiunii dacă linia nu a funcționat
+  // Auto-calcul ore oprire = durata defecțiunii dacă linia NU a funcționat cu defecțiune.
+  // Suprascrie mereu (inclusiv la editare) atâta timp cât avem start + final.
   useEffect(() => {
-    if (aFunctionat === "nu" && dataStart && dataFinal && !editing) {
-      const h = hoursBetween(fromLocalInput(dataStart)!, fromLocalInput(dataFinal));
-      setOreOprire(h.toFixed(2));
+    if (aFunctionat === "nu" && dataStart && dataFinal) {
+      const start = fromLocalInput(dataStart);
+      const final = fromLocalInput(dataFinal);
+      if (start && final) {
+        const h = hoursBetween(start, final);
+        setOreOprire(h.toFixed(2));
+      }
+    } else if (aFunctionat === "nu" && !dataFinal) {
+      // Fără data final → 0 până la finalizare
+      setOreOprire("0");
     }
-  }, [aFunctionat, dataStart, dataFinal, editing]);
+  }, [aFunctionat, dataStart, dataFinal]);
 
   const save = async () => {
     if (!linieId || !dataStart || !componenta.trim()) {
