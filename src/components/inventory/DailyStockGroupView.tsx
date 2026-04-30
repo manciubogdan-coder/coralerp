@@ -88,8 +88,8 @@ export const DailyStockGroupView = () => {
         throw error;
       }
 
-      const snapshots = data || [];
-      setStockSnapshots(snapshots);
+      const snapshots = (data || []) as any[];
+      setStockSnapshots(snapshots as any);
 
       // Fetch quality data for these snapshots (read-only display)
       const qualityTable = inventoryType === 'ambalaje'
@@ -143,7 +143,7 @@ export const DailyStockGroupView = () => {
       const groupedResults = Array.from(grouped.values());
       setGroupedData(groupedResults);
       setFilteredGroupedData(groupedResults);
-      setFilteredStockSnapshots(snapshots);
+      setFilteredStockSnapshots(snapshots as any);
     } catch (error: any) {
       console.error("Error fetching daily stock snapshots:", error);
       toast({
