@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Trash2, ShoppingCart } from "lucide-react";
-import { useProducts, useCreateOrder, useClients } from "@/hooks/useProductionData";
+import { useProducts, useCreateOrder, useClients } from "@/hooks/productie/useProductionData";
 
 interface ProductItem {
   id: string;

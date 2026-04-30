@@ -9,9 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, ChefHat, Minus } from "lucide-react";
-import { useRecipes, useCreateRecipe, useUpdateRecipe, useDeleteRecipe } from "@/hooks/useRecipes";
-import { useProducts } from "@/hooks/useProductionData";
-import { useIngredients } from "@/hooks/useIngredients";
+import { useRecipes, useCreateRecipe, useUpdateRecipe, useDeleteRecipe } from "@/hooks/productie/useRecipes";
+import { useProducts } from "@/hooks/productie/useProductionData";
+import { useIngredients } from "@/hooks/productie/useIngredients";
 
 interface IngredientFormData {
   ingredient_id: string;

@@ -4,9 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useProductionLines, useWorkSessions } from "@/hooks/useProductionData";
-import { useOrdersForReports } from "@/hooks/useOrdersForReports";
-import { useShifts, calculateShiftDuration } from "@/hooks/useShifts";
+import { useProductionLines, useWorkSessions } from "@/hooks/productie/useProductionData";
+import { useOrdersForReports } from "@/hooks/productie/useOrdersForReports";
+import { useShifts, calculateShiftDuration } from "@/hooks/productie/useShifts";
 import {
   Loader2,
   TrendingUp,

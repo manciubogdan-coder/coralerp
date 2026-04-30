@@ -2,8 +2,8 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { useOrders, useProductionLines, useDeliveryZones } from '@/hooks/useProductionData';
-import { useShifts, calculateShiftDuration, getCurrentShift } from '@/hooks/useShifts';
+import { useOrders, useProductionLines, useDeliveryZones } from '@/hooks/productie/useProductionData';
+import { useShifts, calculateShiftDuration, getCurrentShift } from '@/hooks/productie/useShifts';
 import { AlertTriangle, Clock, Truck, CheckCircle, XCircle } from 'lucide-react';
 
 interface CapacityAnalysis {

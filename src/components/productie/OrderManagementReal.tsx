@@ -7,13 +7,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Loader2, Plus, Search, Zap, Edit, Trash2, ChefHat, Archive } from "lucide-react";
-import { useOrders, useUpdateOrder, useDeleteOrder, useAutoDistributeToLine } from "@/hooks/useProductionData";
+import { useOrders, useUpdateOrder, useDeleteOrder, useAutoDistributeToLine } from "@/hooks/productie/useProductionData";
 import { toast } from "sonner";
 import OrderFormNew from "./OrderFormNew";
 import { ErrorBoundary } from "./ErrorBoundary";
 import OrderEditDialog from "./OrderEditDialog";
 import OrderIngredientEditor from "./OrderIngredientEditor";
-import { useOrdersPagination } from "@/hooks/useOrdersPagination";
+import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 
 const OrderManagementReal = () => {

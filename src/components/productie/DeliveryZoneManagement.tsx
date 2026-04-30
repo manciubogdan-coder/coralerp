@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useDeliveryZones, useCreateDeliveryZone, useUpdateDeliveryZone, useDeleteDeliveryZone } from '@/hooks/useProductionData';
+import { useDeliveryZones, useCreateDeliveryZone, useUpdateDeliveryZone, useDeleteDeliveryZone } from '@/hooks/productie/useProductionData';
 import { toast } from 'sonner';
 import { Pencil, Trash2, Plus, MapPin, ArrowUp, ArrowDown, Clock } from 'lucide-react';
 

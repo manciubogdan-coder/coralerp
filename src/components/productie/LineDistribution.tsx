@@ -8,10 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ArrowLeft, Play, Pause, Square, Loader2, AlertTriangle, Package, Search } from "lucide-react";
-import { useOrders, useUpdateOrder, useProductionLines, useCreateWorkSession, useWorkSessions, useFinishWorkSession } from "@/hooks/useProductionData";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { useOrdersPagination } from "@/hooks/useOrdersPagination";
-import { useLinesPagination } from "@/hooks/useLinesPagination";
+import { useOrders, useUpdateOrder, useProductionLines, useCreateWorkSession, useWorkSessions, useFinishWorkSession } from "@/hooks/productie/useProductionData";
+import { useAutoRefresh } from "@/hooks/productie/useAutoRefresh";
+import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
+import { useLinesPagination } from "@/hooks/productie/useLinesPagination";
 import OrdersPagination from "./OrdersPagination";
 
 const LineDistribution = () => {

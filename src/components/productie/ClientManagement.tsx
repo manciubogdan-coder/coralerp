@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useClients, useCreateClient, useUpdateClient, useDeleteClient, useDeliveryZones } from '@/hooks/useProductionData';
+import { useClients, useCreateClient, useUpdateClient, useDeleteClient, useDeliveryZones } from '@/hooks/productie/useProductionData';
 import { toast } from 'sonner';
 import { Pencil, Trash2, Plus, MapPin } from 'lucide-react';
 import ClientSearch from './ClientSearch';

@@ -6,10 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useProductionLines } from '@/hooks/useProductionData';
-import { useIngredients } from '@/hooks/useIngredients';
-import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe } from '@/hooks/useRecipes';
-import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct } from '@/hooks/useDistributionRules';
+import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useProductionLines } from '@/hooks/productie/useProductionData';
+import { useIngredients } from '@/hooks/productie/useIngredients';
+import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe } from '@/hooks/productie/useRecipes';
+import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct } from '@/hooks/productie/useDistributionRules';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Edit, Trash2, Package, Loader2 } from 'lucide-react';
 

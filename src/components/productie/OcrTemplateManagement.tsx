@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useClients, useProducts } from "@/hooks/useProductionData";
+import { useClients, useProducts } from "@/hooks/productie/useProductionData";
 import { Settings, Plus, Trash2, Save, ChevronRight, Edit2, Upload, X, Eye, MousePointer, ArrowDown, ArrowUp, FileImage } from "lucide-react";
 import InteractiveTablePreview from "./InteractiveTablePreview";
 import PdfColumnSplitter from "./PdfColumnSplitter";
@@ -156,7 +156,7 @@ export default function OcrTemplateManagement() {
       
       if (isPdf) {
         // Parse PDF using improved parser
-        const { parsePdfToRawData } = await import("@/lib/parsePdfToTable");
+        const { parsePdfToRawData } = await import("@/lib/productie/parsePdfToTable");
         const arrayBuf = await file.arrayBuffer();
         const copyForPreview = arrayBuf.slice(0);
         const allRows = await parsePdfToRawData(arrayBuf);
@@ -373,7 +373,7 @@ export default function OcrTemplateManagement() {
     // If PDF has visual separators, re-parse with them to get correct rawData
     if (isPdf && hasVisualSeps && builderFileData) {
       try {
-        const { parsePdfToRawData } = await import("@/lib/parsePdfToTable");
+        const { parsePdfToRawData } = await import("@/lib/productie/parsePdfToTable");
         const visualSeps = { v: builderVSeparators, h: builderHSeparators };
         const reParsed = await parsePdfToRawData(builderFileData.slice(0), visualSeps);
         setBuilderRawData(reParsed.slice(0, 50));

@@ -4,10 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Package, AlertTriangle, Calendar } from "lucide-react";
-import { useInventoryStock } from "@/hooks/useInventoryData";
+import { useInventoryStock } from "@/hooks/productie/useInventoryDataProductie";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useRecipes } from "@/hooks/useRecipes";
+import { useRecipes } from "@/hooks/productie/useRecipes";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 

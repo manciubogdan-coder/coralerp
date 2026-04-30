@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Calendar, TrendingDown, Package, AlertCircle, FileText, Clock, Filter } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useIngredients } from "@/hooks/useIngredients";
+import { useIngredients } from "@/hooks/productie/useIngredients";
 import ExportConsumptionDialog from "./ExportConsumptionDialog";
 import { DateRange } from "react-day-picker";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";

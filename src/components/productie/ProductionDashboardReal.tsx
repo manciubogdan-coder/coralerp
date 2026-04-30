@@ -2,11 +2,11 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useProducts, useProductionLines, useOrders, useWorkSessions } from "@/hooks/useProductionData";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useProducts, useProductionLines, useOrders, useWorkSessions } from "@/hooks/productie/useProductionData";
+import { useAutoRefresh } from "@/hooks/productie/useAutoRefresh";
 import { Loader2, Package, Factory, ShoppingCart, Users, AlertTriangle, TrendingUp } from "lucide-react";
 import CapacityMonitor from "./CapacityMonitor";
-import { useOrdersPagination } from "@/hooks/useOrdersPagination";
+import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 
 const ProductionDashboardReal = () => {

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Edit3, AlertTriangle, CheckCircle } from "lucide-react";
-import { useQuantityCorrection } from "@/hooks/useQuantityCorrection";
+import { useQuantityCorrection } from "@/hooks/productie/useQuantityCorrection";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 

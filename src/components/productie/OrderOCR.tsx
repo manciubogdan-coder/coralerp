@@ -13,21 +13,21 @@ import { Badge } from "@/components/ui/badge";
  import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useClients, useProducts, useCreateOrder, useAutoDistributeToLine } from "@/hooks/useProductionData";
+import { useClients, useProducts, useCreateOrder, useAutoDistributeToLine } from "@/hooks/productie/useProductionData";
 import { Upload, X, FileImage, Loader2, Check, AlertCircle, Trash2, Plus, Save, FileSpreadsheet, FileText, Calendar as CalendarIcon, List, Package, FlaskConical, AlertTriangle, Printer, Download, Settings } from "lucide-react";
  import { Users } from "lucide-react";
 import * as XLSX from 'xlsx';
  import * as pdfjsLib from 'pdfjs-dist';
  import { cn } from "@/lib/utils";
  import { useQuery, useQueryClient } from "@tanstack/react-query";
- import { useOcrMaterialNeeds } from "@/hooks/useOcrMaterialNeeds";
- import OcrOrdersByClient from "@/components/OcrOrdersByClient";
- import OcrTemplateManagement from "@/components/OcrTemplateManagement";
- import { parseExcelWithTemplate } from "@/lib/parseExcelWithTemplate";
+ import { useOcrMaterialNeeds } from "@/hooks/productie/useOcrMaterialNeeds";
+ import OcrOrdersByClient from "@/components/productie/OcrOrdersByClient";
+ import OcrTemplateManagement from "@/components/productie/OcrTemplateManagement";
+ import { parseExcelWithTemplate } from "@/lib/productie/parseExcelWithTemplate";
 
-import { parsePdfToRawData } from "@/lib/parsePdfToTable";
-import TemplateWizard from "@/components/TemplateWizard";
-import ScanColumnPicker, { type ScanColumnConfig } from "@/components/ScanColumnPicker";
+import { parsePdfToRawData } from "@/lib/productie/parsePdfToTable";
+import TemplateWizard from "@/components/productie/TemplateWizard";
+import ScanColumnPicker, { type ScanColumnConfig } from "@/components/productie/ScanColumnPicker";
 
 
 interface ExtractedProduct {

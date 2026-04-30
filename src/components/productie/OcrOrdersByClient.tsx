@@ -14,7 +14,7 @@
  import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
  import { useToast } from "@/hooks/use-toast";
  import { supabase } from "@/integrations/supabase/client";
- import { useClients, useProducts } from "@/hooks/useProductionData";
+ import { useClients, useProducts } from "@/hooks/productie/useProductionData";
  import { Loader2, Calendar as CalendarIcon, Users, Printer, Download, Edit2, Trash2, Save, X, ChevronRight, Plus } from "lucide-react";
  import * as XLSX from 'xlsx';
  import { cn } from "@/lib/utils";

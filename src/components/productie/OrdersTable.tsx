@@ -4,9 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ProductieComanda, ProductieSesiuneLucru } from "@/hooks/useProductionData";
+import { ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/useProductionData";
 import { Package, AlertTriangle, CheckCircle, Clock, Factory, Archive, Play, Users } from "lucide-react";
-import { useOrdersPagination } from "@/hooks/useOrdersPagination";
+import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 
 interface OrdersTableProps {

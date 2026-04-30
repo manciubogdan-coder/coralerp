@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useProductionLines, useUpdateLine, useCreateLine, useDeleteLine } from "@/hooks/useProductionData";
+import { useProductionLines, useUpdateLine, useCreateLine, useDeleteLine } from "@/hooks/productie/useProductionData";
 import { Loader2, Settings, Edit, Plus, Trash2 } from "lucide-react";
 
 const LineManagement = () => {

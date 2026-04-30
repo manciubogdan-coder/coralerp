@@ -7,8 +7,8 @@ import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ArrowLeft, Factory, Users, Clock, Play, CheckCircle, Square, AlertCircle, Timer, AlertTriangle, TrendingUp, Package } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useProductionLines, useOrders, useCreateWorkSession, useWorkSessions, useFinishWorkSession, ProductieLinie, ProductieComanda, ProductieSesiuneLucru } from "@/hooks/useProductionData";
-import { useOrdersPagination } from "@/hooks/useOrdersPagination";
+import { useProductionLines, useOrders, useCreateWorkSession, useWorkSessions, useFinishWorkSession, ProductieLinie, ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/useProductionData";
+import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 import OrdersTable from "./OrdersTable";
 

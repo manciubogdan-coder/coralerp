@@ -17,8 +17,8 @@ import {
   useUpdatePickingProdus,
   useFinalizareSesiune,
   type ComenziDisponibile
-} from '@/hooks/usePickingSimple';
-import { useAuth } from '@/contexts/AuthContext';
+} from '@/hooks/productie/usePickingSimple';
+import { useAuth } from '@/contexts/productie/AuthContext';
 import MarfaRestocataView from './MarfaRestocataView';
 
 const PickingManagementSimple = () => {

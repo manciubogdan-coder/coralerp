@@ -8,9 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Loader2, Factory, Package, Clock, Plus, TrendingUp, Edit, Trash2, ChefHat, Search, Zap, CheckCircle } from "lucide-react";
-import { useOrders, useUpdateOrder, useDeleteOrder, useAutoDistributeToLine } from "@/hooks/useProductionData";
-import { useRestockings } from "@/hooks/useInventoryData";
-import { useOrdersPagination } from "@/hooks/useOrdersPagination";
+import { useOrders, useUpdateOrder, useDeleteOrder, useAutoDistributeToLine } from "@/hooks/productie/useProductionData";
+import { useRestockings } from "@/hooks/productie/useInventoryDataProductie";
+import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import { toast } from "sonner";
 import AdvanceProductionForm from "./AdvanceProductionForm";
 import OrderEditDialog from "./OrderEditDialog";

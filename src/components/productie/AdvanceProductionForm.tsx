@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Info } from "lucide-react";
-import { useProducts, useProductionLines, useCreateOrder, useAutoDistributeToLine } from "@/hooks/useProductionData";
+import { useProducts, useProductionLines, useCreateOrder, useAutoDistributeToLine } from "@/hooks/productie/useProductionData";
 import { toast } from "sonner";
 
 interface AdvanceProductionFormProps {

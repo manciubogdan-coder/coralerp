@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { useProducts, useClients, useUpdateOrder, useProductionLines } from "@/hooks/useProductionData";
+import { useProducts, useClients, useUpdateOrder, useProductionLines } from "@/hooks/productie/useProductionData";
 
 interface OrderEditDialogProps {
   order: any;
