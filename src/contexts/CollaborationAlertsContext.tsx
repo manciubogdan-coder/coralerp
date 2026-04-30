@@ -21,9 +21,9 @@ const chunk = <T,>(items: T[], size = 50) => {
 };
 
 const taskSeenKey = (userId: string) => `coral:taskuri:last-seen:${userId}`;
+const chatSeenKey = (userId: string) => `coral:chat:last-seen:${userId}`;
 
-const getOrInitSeenAt = (userId: string) => {
-  const key = taskSeenKey(userId);
+const getSeenAt = (key: string) => {
   const existing = window.localStorage.getItem(key);
   if (existing) return existing;
   return new Date(0).toISOString();
@@ -39,46 +39,72 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
     if (!user?.id) return;
     window.localStorage.setItem(taskSeenKey(user.id), new Date().toISOString());
     setTaskUnread(0);
+    (supabase as any)
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("user_id", user.id)
+      .is("read_at", null)
+      .or("link.eq./taskuri,event_key.like.task.%")
+      .then(() => undefined);
   }, [user?.id]);
 
   const markChatSeen = useCallback(async () => {
     if (!user?.id) return;
+    window.localStorage.setItem(chatSeenKey(user.id), new Date().toISOString());
     await (supabase as any)
       .from("chat_members")
       .update({ last_read_at: new Date().toISOString() })
       .eq("user_id", user.id);
+    await (supabase as any)
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("user_id", user.id)
+      .is("read_at", null)
+      .or("link.eq./chat,event_key.eq.chat.message");
     setChatUnread(0);
+  }, [user?.id]);
+
+  const loadNotificationUnread = useCallback(async () => {
+    if (!user?.id) return { chat: 0, task: 0 };
+    const { data } = await (supabase as any)
+      .from("notifications")
+      .select("event_key,link")
+      .eq("user_id", user.id)
+      .is("read_at", null)
+      .limit(1000);
+
+    return ((data as Array<{ event_key: string | null; link: string | null }> | null) ?? []).reduce(
+      (acc, n) => {
+        if (n.link === "/chat" || n.event_key === "chat.message") acc.chat += 1;
+        if (n.link === "/taskuri" || n.event_key?.startsWith("task.")) acc.task += 1;
+        return acc;
+      },
+      { chat: 0, task: 0 }
+    );
   }, [user?.id]);
 
   const loadChatUnread = useCallback(async () => {
     if (!user?.id) return 0;
+    const seenAt = getSeenAt(chatSeenKey(user.id));
     const { data: memberships, error } = await (supabase as any)
       .from("chat_members")
       .select("conversation_id,last_read_at")
       .eq("user_id", user.id);
-    if (error || !memberships?.length) return 0;
-
-    const readByConv = new Map<string, string>(
-      memberships.map((m: any) => [m.conversation_id, m.last_read_at ?? new Date(0).toISOString()])
-    );
     let total = 0;
+    const convIds = error || !memberships?.length ? [] : memberships.map((m: any) => m.conversation_id);
 
-    for (const ids of chunk(Array.from(readByConv.keys()))) {
-      const oldestRead = ids.reduce((min, id) => {
-        const value = readByConv.get(id) ?? min;
-        return value < min ? value : min;
-      }, new Date().toISOString());
-
-      const { data: messages } = await (supabase as any)
+    for (const ids of convIds.length ? chunk(convIds) : [[]]) {
+      let query = (supabase as any)
         .from("chat_messages")
         .select("conversation_id,author_id,created_at")
-        .in("conversation_id", ids)
         .neq("author_id", user.id)
-        .gt("created_at", oldestRead);
+        .gt("created_at", seenAt)
+        .limit(1000);
+      if (ids.length) query = query.in("conversation_id", ids);
+      const { data: messages } = await query;
 
-      total += ((messages as any[]) ?? []).filter(
-        (m) => new Date(m.created_at) > new Date(readByConv.get(m.conversation_id) ?? 0)
-      ).length;
+      total += ((messages as any[]) ?? []).length;
+      if (!convIds.length) break;
     }
 
     return total;
@@ -86,7 +112,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
 
   const loadTaskUnread = useCallback(async () => {
     if (!user?.id || location.pathname.startsWith("/taskuri")) return 0;
-    const seenAt = getOrInitSeenAt(user.id);
+    const seenAt = getSeenAt(taskSeenKey(user.id));
     let page = 0;
     const pageSize = 1000;
     let relevant = 0;
@@ -96,7 +122,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       const to = from + pageSize - 1;
       const { data, error } = await (supabase as any)
         .from("app_tasks")
-        .select("id,updated_at,created_by,department,status,assignee_id,assigned_to")
+        .select("*")
         .gt("updated_at", seenAt)
         .order("updated_at", { ascending: false })
         .range(from, to);
@@ -124,13 +150,18 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       setTaskUnread(0);
       return;
     }
-    const [nextChatUnread, nextTaskUnread] = await Promise.all([loadChatUnread(), loadTaskUnread()]);
-    setChatUnread(nextChatUnread);
-    setTaskUnread(nextTaskUnread);
-  }, [loadChatUnread, loadTaskUnread, user?.id]);
+    const [nextChatUnread, nextTaskUnread, notifUnread] = await Promise.all([
+      loadChatUnread(),
+      loadTaskUnread(),
+      loadNotificationUnread(),
+    ]);
+    setChatUnread(Math.max(nextChatUnread, notifUnread.chat));
+    setTaskUnread(Math.max(nextTaskUnread, notifUnread.task));
+  }, [loadChatUnread, loadNotificationUnread, loadTaskUnread, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
+    if (location.pathname.startsWith("/chat")) markChatSeen();
     if (location.pathname.startsWith("/taskuri")) markTasksSeen();
     refresh();
     const interval = window.setInterval(refresh, 5000);

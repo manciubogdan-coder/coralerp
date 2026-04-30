@@ -31,7 +31,7 @@ const NotificationBell: React.FC = () => {
   const [open, setOpen] = useState(false);
 
   const dbUnread = items.filter((i) => !i.read_at).length;
-  const unread = dbUnread + totalUnread;
+  const unread = Math.max(dbUnread, totalUnread);
 
   const load = async () => {
     if (!user) return;
@@ -42,13 +42,13 @@ const NotificationBell: React.FC = () => {
       .order("created_at", { ascending: false })
       .limit(30);
     setItems((data as Notif[]) ?? []);
-    refresh();
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   useEffect(() => {
     if (!user) return;
     load();
-    const interval = window.setInterval(load, 15000);
+    const interval = window.setInterval(load, 5000);
     const channel = (supabase as any)
       .channel(`notif-${user.id}`)
       .on(
