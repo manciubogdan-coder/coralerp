@@ -44,6 +44,7 @@ const NotificationBell: React.FC = () => {
   useEffect(() => {
     if (!user) return;
     load();
+    const interval = window.setInterval(load, 15000);
     const channel = (supabase as any)
       .channel(`notif-${user.id}`)
       .on(
@@ -58,9 +59,15 @@ const NotificationBell: React.FC = () => {
       )
       .subscribe();
     return () => {
+      window.clearInterval(interval);
       (supabase as any).removeChannel(channel);
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (open) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const markAllRead = async () => {
     if (!user) return;

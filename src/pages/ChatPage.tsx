@@ -122,18 +122,9 @@ const ChatPage: React.FC = () => {
       }
 
       if (convId) {
-        // sunt membru?
-        const { data: mem } = await (supabase as any)
+        await (supabase as any)
           .from("chat_members")
-          .select("user_id")
-          .eq("conversation_id", convId)
-          .eq("user_id", userId)
-          .maybeSingle();
-        if (!mem) {
-          await (supabase as any)
-            .from("chat_members")
-            .insert({ conversation_id: convId, user_id: userId });
-        }
+          .upsert({ conversation_id: convId, user_id: userId }, { onConflict: "conversation_id,user_id" });
       }
     }
   };
@@ -141,41 +132,18 @@ const ChatPage: React.FC = () => {
   // ---------- LOAD CONVERSATIONS ----------
   const loadConversations = async () => {
     if (!userId) return;
-    // ia conversațiile în care sunt membru
-    const { data: memberships } = await (supabase as any)
-      .from("chat_members")
-      .select("conversation_id,last_read_at")
-      .eq("user_id", userId);
-    const ids = (memberships ?? []).map((m: any) => m.conversation_id);
-    if (ids.length === 0) {
+    const { data: convs, error } = await (supabase as any)
+      .from("chat_conversations")
+      .select("id,type,name,department,created_by,updated_at")
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      toast({ title: "Eroare chat", description: error.message, variant: "destructive" });
       setConversations([]);
       return;
     }
-    const { data: convs } = await (supabase as any)
-      .from("chat_conversations")
-      .select("id,type,name,department,created_by,updated_at")
-      .in("id", ids)
-      .order("updated_at", { ascending: false });
 
     setConversations((convs as Conversation[]) ?? []);
-
-    // unread count
-    const lastReadMap: Record<string, string> = {};
-    (memberships ?? []).forEach((m: any) => {
-      lastReadMap[m.conversation_id] = m.last_read_at;
-    });
-    const unreadMap: Record<string, number> = {};
-    for (const cid of ids) {
-      const since = lastReadMap[cid] ?? "1970-01-01T00:00:00Z";
-      const { count } = await (supabase as any)
-        .from("chat_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("conversation_id", cid)
-        .gt("created_at", since)
-        .neq("author_id", userId);
-      unreadMap[cid] = count ?? 0;
-    }
-    setUnreadByConv(unreadMap);
   };
 
   // ---------- LOAD MESSAGES ----------
@@ -187,12 +155,6 @@ const ChatPage: React.FC = () => {
       .order("created_at", { ascending: true })
       .limit(500);
     setMessages((data as Message[]) ?? []);
-    // marchează citit
-    await (supabase as any)
-      .from("chat_members")
-      .update({ last_read_at: new Date().toISOString() })
-      .eq("conversation_id", convId)
-      .eq("user_id", userId);
     setUnreadByConv((u) => ({ ...u, [convId]: 0 }));
   };
 
@@ -219,14 +181,6 @@ const ChatPage: React.FC = () => {
           const msg = payload.new as Message;
           if (msg.conversation_id === activeId) {
             setMessages((m) => [...m, msg]);
-            // marchează citit dacă e mesajul altuia
-            if (msg.author_id !== userId) {
-              (supabase as any)
-                .from("chat_members")
-                .update({ last_read_at: new Date().toISOString() })
-                .eq("conversation_id", activeId!)
-                .eq("user_id", userId);
-            }
           } else {
             // crește unread
             setUnreadByConv((u) => ({
@@ -270,50 +224,26 @@ const ChatPage: React.FC = () => {
 
   // ---------- CREATE DM ----------
   const createDM = async (otherUserId: string) => {
-    // verifică dacă există deja un DM între cei doi
-    const { data: myMems } = await (supabase as any)
-      .from("chat_members")
-      .select("conversation_id")
-      .eq("user_id", userId);
-    const myIds = (myMems ?? []).map((m: any) => m.conversation_id);
-    if (myIds.length > 0) {
-      const { data: theirMems } = await (supabase as any)
-        .from("chat_members")
-        .select("conversation_id")
-        .eq("user_id", otherUserId)
-        .in("conversation_id", myIds);
-      const sharedIds = (theirMems ?? []).map((m: any) => m.conversation_id);
-      if (sharedIds.length > 0) {
-        const { data: dms } = await (supabase as any)
-          .from("chat_conversations")
-          .select("id")
-          .eq("type", "dm")
-          .in("id", sharedIds)
-          .limit(1);
-        if (dms && dms.length > 0) {
-          setNewDmOpen(false);
-          await loadConversations();
-          setActiveId(dms[0].id);
-          return;
-        }
-      }
-    }
-    // creează nou
+    const partner = profiles[otherUserId];
     const { data: conv, error } = await (supabase as any)
       .from("chat_conversations")
-      .insert({ type: "dm", created_by: userId })
+      .insert({ type: "dm", name: partner?.name || partner?.email || "DM", created_by: userId })
       .select("id")
       .single();
     if (error || !conv) {
       toast({ title: "Eroare", description: error?.message, variant: "destructive" });
       return;
     }
-    await (supabase as any)
+    const { error: membersError } = await (supabase as any)
       .from("chat_members")
       .insert([
         { conversation_id: conv.id, user_id: userId },
         { conversation_id: conv.id, user_id: otherUserId },
       ]);
+    if (membersError) {
+      toast({ title: "Eroare membri chat", description: membersError.message, variant: "destructive" });
+      return;
+    }
     setNewDmOpen(false);
     await loadConversations();
     setActiveId(conv.id);
@@ -338,7 +268,11 @@ const ChatPage: React.FC = () => {
     newGroupMembers.forEach((uid) => {
       if (uid !== userId) members.push({ conversation_id: conv.id, user_id: uid });
     });
-    await (supabase as any).from("chat_members").insert(members);
+    const { error: membersError } = await (supabase as any).from("chat_members").insert(members);
+    if (membersError) {
+      toast({ title: "Eroare membri chat", description: membersError.message, variant: "destructive" });
+      return;
+    }
     setNewGroupOpen(false);
     setNewGroupName("");
     setNewGroupMembers(new Set());
@@ -346,34 +280,11 @@ const ChatPage: React.FC = () => {
     setActiveId(conv.id);
   };
 
-  // ---------- DM PARTNER NAMES ----------
-  // pentru DM, calculează celălalt user — încărcăm membrii pentru toate convs
-  const [convMembers, setConvMembers] = useState<Record<string, string[]>>({});
-  useEffect(() => {
-    if (conversations.length === 0) return;
-    (async () => {
-      const ids = conversations.map((c) => c.id);
-      const { data } = await (supabase as any)
-        .from("chat_members")
-        .select("conversation_id,user_id")
-        .in("conversation_id", ids);
-      const map: Record<string, string[]> = {};
-      (data ?? []).forEach((m: any) => {
-        if (!map[m.conversation_id]) map[m.conversation_id] = [];
-        map[m.conversation_id].push(m.user_id);
-      });
-      setConvMembers(map);
-    })();
-  }, [conversations]);
-
   const getConvLabel = (c: Conversation) => {
     if (c.type === "department")
       return `# ${c.name ?? c.department}`;
     if (c.type === "group") return c.name ?? "Grup";
-    // DM
-    const others = (convMembers[c.id] ?? []).filter((u) => u !== userId);
-    const partner = others[0];
-    return profiles[partner]?.name || profiles[partner]?.email || "DM";
+    return c.name || "DM";
   };
 
   const getConvIcon = (c: Conversation) => {
