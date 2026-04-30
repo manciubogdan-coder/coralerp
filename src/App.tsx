@@ -227,38 +227,10 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/administrativ/produse"
-                  element={
-                    <ProtectedRoute requireDepartment="administrativ">
-                      <ProductsPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/administrativ/furnizori"
-                  element={
-                    <ProtectedRoute requireDepartment="administrativ">
-                      <SuppliersPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/administrativ/producatori"
-                  element={
-                    <ProtectedRoute requireDepartment="administrativ">
-                      <ManufacturersPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/administrativ/lazi"
-                  element={
-                    <ProtectedRoute requireDepartment="administrativ">
-                      <CrateTypesPage />
-                    </ProtectedRoute>
-                  }
-                />
+                <Route path="/administrativ/produse" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
+                <Route path="/administrativ/furnizori" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
+                <Route path="/administrativ/producatori" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
+                <Route path="/administrativ/lazi" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
                 <Route
                   path="/administrativ/analytics"
                   element={
