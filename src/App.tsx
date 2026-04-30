@@ -103,6 +103,17 @@ const AppShell = () => {
                   }
                 />
 
+                <Route
+                  path="/depozit-mp/nomenclatoare"
+                  element={
+                    <ProtectedRoute requireDepartment="depozit_mp">
+                      <ForceInventoryType type="materii-prime">
+                        <NomenclatoarePage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* ========== DEPOZIT AMBALAJE ========== */}
                 <Route
                   path="/depozit-ambalaje"
@@ -110,6 +121,16 @@ const AppShell = () => {
                     <ProtectedRoute requireDepartment="depozit_ambalaje">
                       <ForceInventoryType type="ambalaje">
                         <InventoryPage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/depozit-ambalaje/nomenclatoare"
+                  element={
+                    <ProtectedRoute requireDepartment="depozit_ambalaje">
+                      <ForceInventoryType type="ambalaje">
+                        <NomenclatoarePage />
                       </ForceInventoryType>
                     </ProtectedRoute>
                   }
@@ -126,8 +147,16 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
-
-                {/* ========== PRODUCȚIE ========== */}
+                <Route
+                  path="/etichete/nomenclatoare"
+                  element={
+                    <ProtectedRoute requireDepartment="etichete">
+                      <ForceInventoryType type="etichete">
+                        <NomenclatoarePage />
+                      </ForceInventoryType>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/productie"
                   element={
