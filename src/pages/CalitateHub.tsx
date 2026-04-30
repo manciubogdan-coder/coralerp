@@ -107,7 +107,7 @@ const CalitateHub: React.FC = () => {
         </TabsList>
 
         {DEPOTS.map((d) => (
-          <TabsContent key={d.key} value={d.key} forceMount={false}>
+          <TabsContent key={d.key} value={d.key}>
             {/* Render-uim doar dacă e activ pentru a evita request-uri inutile */}
             {depot === d.key && <DepotPanel type={d.type} />}
           </TabsContent>
