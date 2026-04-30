@@ -1,0 +1,336 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+// Tipuri
+export interface ComenziDisponibile {
+  magazin: string;
+  punct_livrare: string;
+  total_produse: number;
+  produse: {
+    sesiune_lucru_id: string;
+    produs_id: string;
+    nume_produs: string;
+    cantitate_produsa: number;
+    unitate_masura: string;
+  }[];
+}
+
+export interface PickingSesiune {
+  id: string;
+  magazin: string;
+  punct_livrare: string;
+  operator_nume: string;
+  status: string;
+  data_sesiune: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PickingProdus {
+  id: string;
+  sesiune_id: string;
+  sesiune_lucru_id: string;
+  produs_id: string;
+  nume_produs: string;
+  cantitate_comandata: number;
+  cantitate_numarata: number;
+  cantitate_lipsa: number;
+  unitate_masura: string;
+  status: string;
+  observatii?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Hook pentru comenzile disponibile - toate comenzile de client (inclusiv cele din restocări)
+export const useComenziDisponibile = () => {
+  return useQuery({
+    queryKey: ['comenzi-disponibile-picking'],
+    queryFn: async () => {
+      // Iau toate comenzile de CLIENT (NU avans) cu produsul direct pe comandă
+      const { data: comenzi, error: comenziErr } = await supabase
+        .from('productie_comenzi')
+        .select('id, magazin, punct_livrare, status, numar_comanda, produs_id, cantitate, cantitate_din_restock')
+        .neq('magazin', 'Producție în avans')
+        .neq('magazin', 'Productie in avans')
+        .neq('magazin', 'AVANS')
+        .neq('magazin', 'PRODUCTIE_AVANS')
+        .neq('magazin', 'PRODUCȚIE_AVANS')
+        .neq('status', 'draft')
+        .neq('status', 'canceled')
+        .order('created_at', { ascending: false });
+
+      if (comenziErr) throw comenziErr;
+      if (!comenzi || comenzi.length === 0) return [] as ComenziDisponibile[];
+
+      // Verific pentru fiecare comandă cantitatea produsă efectiv
+      const comenziIds = comenzi.map((c: any) => c.id);
+      const { data: sesiuniLucru, error: sesiuniErr } = await supabase
+        .from('productie_sesiuni_lucru')
+        .select('comanda_id, cantitate_produsa')
+        .in('comanda_id', comenziIds)
+        .in('status', ['finalizata', 'partial']);
+      
+      if (sesiuniErr) throw sesiuniErr;
+
+      // Calculez cantitatea produsă pentru fiecare comandă
+      const cantitateProdusaMap = new Map<string, number>();
+      (sesiuniLucru || []).forEach((s: any) => {
+        const current = cantitateProdusaMap.get(s.comanda_id) || 0;
+        cantitateProdusaMap.set(s.comanda_id, current + Number(s.cantitate_produsa || 0));
+      });
+
+      // Filtrez comenzile acoperite COMPLET (producție + restocări)
+      const comenziProduse = comenzi.filter((com: any) => {
+        const cantitateProducta = cantitateProdusaMap.get(com.id) || 0;
+        const cantitateComanda = Number(com.cantitate || 0);
+        const cantitateDinRestock = Number(com.cantitate_din_restock || 0);
+        
+        // Disponibil pentru picking dacă producția + restocările acoperă 100%
+        return (cantitateProducta + cantitateDinRestock) >= cantitateComanda;
+      });
+
+      if (comenziProduse.length === 0) return [] as ComenziDisponibile[];
+
+      // Exclud comenzile deja preluate în picking
+      const comenziProduseIds = comenziProduse.map((c: any) => c.id);
+      const { data: pickingRows, error: pickingErr } = await supabase
+        .from('picking_produse')
+        .select('sesiune_lucru_id')
+        .in('sesiune_lucru_id', comenziProduseIds);
+      if (pickingErr) throw pickingErr;
+      const pickedSet = new Set((pickingRows || []).map((r: any) => r.sesiune_lucru_id));
+      const comenziDisponibile = comenziProduse.filter((c: any) => !pickedSet.has(c.id));
+
+      if (comenziDisponibile.length === 0) return [] as ComenziDisponibile[];
+
+      // Încarc detalii de produs separat (nu avem FK declarat)
+      const productIds = Array.from(new Set(
+        comenziDisponibile.map((c: any) => c.produs_id).filter(Boolean)
+      ));
+      const { data: produseDetalii, error: produseErr } = await supabase
+        .from('productie_produse')
+        .select('id, nume, unitate_masura')
+        .in('id', productIds);
+      if (produseErr) throw produseErr;
+      const produseMap = new Map<string, { nume: string; unitate_masura: string }>();
+      (produseDetalii || []).forEach((p: any) => {
+        produseMap.set(p.id, { nume: p.nume, unitate_masura: p.unitate_masura });
+      });
+
+      // Grupare pe magazin|punct_livrare (fiecare comandă rămâne separată)
+      const grouped = new Map<string, ComenziDisponibile>();
+      comenziDisponibile.forEach((com: any) => {
+        const key = `${com.magazin}|${com.punct_livrare}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            magazin: com.magazin,
+            punct_livrare: com.punct_livrare,
+            total_produse: 0,
+            produse: []
+          });
+        }
+        const entry = grouped.get(key)!;
+        const det = produseMap.get(com.produs_id) || { nume: 'Produs', unitate_masura: '' };
+
+        // Adaug fiecare comandă ca un produs separat (nu mai agreghez)
+        entry.total_produse += 1;
+        entry.produse.push({
+          sesiune_lucru_id: com.id, // folosim id-ul comenzii
+          produs_id: com.produs_id,
+          nume_produs: `${det.nume} (${com.numar_comanda})`, // adaug și numărul comenzii pentru claritate
+          cantitate_produsa: Number(com.cantitate || 0),
+          unitate_masura: det.unitate_masura
+        });
+      });
+
+      // Returnez toate grupările (comenzile individuale deja excluse mai sus)
+      const rezultat = Array.from(grouped.values());
+      return rezultat;
+    }
+  });
+};
+
+// Hook pentru sesiunile de picking
+export const usePickingSesiuni = (status?: string) => {
+  return useQuery({
+    queryKey: ['picking-sesiuni', status],
+    queryFn: async () => {
+      let query = supabase
+        .from('picking_sesiuni')
+        .select('*')
+        .neq('magazin', 'PRODUCTIE_AVANS')
+        .neq('magazin', 'PRODUCȚIE_AVANS')
+        .neq('magazin', 'Producție în avans')
+        .neq('magazin', 'Productie in avans')
+        .neq('magazin', 'AVANS')
+        .order('created_at', { ascending: false });
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as PickingSesiune[];
+    }
+  });
+};
+
+// Hook pentru crearea sesiunii de picking
+export const useCreatePickingSesiune = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      magazin: string;
+      punct_livrare: string;
+      operator_nume: string;
+      produse: {
+        sesiune_lucru_id: string;
+        produs_id: string;
+        nume_produs: string;
+        cantitate_comandata: number;
+        unitate_masura: string;
+      }[];
+    }) => {
+      // Creez sesiunea
+      const { data: sesiune, error: sesiuneError } = await supabase
+        .from('picking_sesiuni')
+        .insert({
+          magazin: params.magazin,
+          punct_livrare: params.punct_livrare,
+          operator_nume: params.operator_nume,
+          status: 'in_lucru'
+        })
+        .select()
+        .single();
+
+      if (sesiuneError) throw sesiuneError;
+
+      // Construiesc produsele strict cu coloanele existente în picking_produse
+      const produse = params.produse.map(p => ({
+        sesiune_id: sesiune.id,
+        sesiune_lucru_id: p.sesiune_lucru_id,
+        produs_id: p.produs_id,
+        nume_produs: p.nume_produs,
+        cantitate_comandata: p.cantitate_comandata,
+        unitate_masura: p.unitate_masura,
+        status: 'asteptare'
+      }));
+
+      const { error: produseError } = await supabase
+        .from('picking_produse')
+        .insert(produse);
+
+      if (produseError) throw produseError;
+
+      return sesiune;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['picking-sesiuni'] });
+      queryClient.invalidateQueries({ queryKey: ['comenzi-disponibile-picking'] });
+      toast.success('Sesiune de picking creată cu succes');
+    },
+    onError: (error: Error) => {
+      toast.error(`Eroare la crearea sesiunii: ${error.message}`);
+    }
+  });
+};
+
+// Hook pentru produsele din sesiune
+export const usePickingProduse = (sesiuneId?: string) => {
+  return useQuery({
+    queryKey: ['picking-produse', sesiuneId],
+    queryFn: async () => {
+      if (!sesiuneId) return [];
+
+      const { data, error } = await supabase
+        .from('picking_produse')
+        .select('*')
+        .eq('sesiune_id', sesiuneId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Îmbogățesc cu detalii din comanda originală (total comandat + din restocări)
+      const comandaIds = (data || []).map((p: any) => p.sesiune_lucru_id).filter(Boolean);
+      if (comandaIds.length === 0) return data as any[];
+
+      const { data: comenziDetalii, error: comenziErr } = await supabase
+        .from('productie_comenzi')
+        .select('id, cantitate, cantitate_din_restock')
+        .in('id', comandaIds);
+
+      if (comenziErr) throw comenziErr;
+
+      const map = new Map((comenziDetalii || []).map((c: any) => [c.id, c]));
+      const enriched = (data || []).map((p: any) => {
+        const c = map.get(p.sesiune_lucru_id);
+        return {
+          ...p,
+          cantitate_totala_comanda: c?.cantitate ?? p.cantitate_comandata,
+          cantitate_din_restock: c?.cantitate_din_restock ?? 0,
+        };
+      });
+
+      return enriched as any[];
+    },
+    enabled: !!sesiuneId
+  });
+};
+
+// Hook pentru actualizarea produsului
+export const useUpdatePickingProdus = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      id: string;
+      cantitate_numarata?: number;
+      cantitate_lipsa?: number;
+      status?: string;
+      observatii?: string;
+    }) => {
+      const { error } = await supabase
+        .from('picking_produse')
+        .update(params)
+        .eq('id', params.id);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['picking-produse'] });
+      toast.success('Produs actualizat');
+    },
+    onError: (error: Error) => {
+      toast.error(`Eroare: ${error.message}`);
+    }
+  });
+};
+
+// Hook pentru finalizarea sesiunii
+export const useFinalizareSesiune = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (sesiuneId: string) => {
+      const { error } = await supabase
+        .from('picking_sesiuni')
+        .update({ status: 'finalizata' })
+        .eq('id', sesiuneId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['picking-sesiuni'] });
+      queryClient.invalidateQueries({ queryKey: ['picking-produse'] });
+      queryClient.invalidateQueries({ queryKey: ['comenzi-disponibile-picking'] });
+      toast.success('Comandă finalizată cu succes! Marfa este pregătită pentru expediere.');
+    },
+    onError: (error: Error) => {
+      toast.error(`Eroare la finalizare: ${error.message}`);
+    }
+  });
+};
