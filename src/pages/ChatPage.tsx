@@ -181,14 +181,6 @@ const ChatPage: React.FC = () => {
           const msg = payload.new as Message;
           if (msg.conversation_id === activeId) {
             setMessages((m) => [...m, msg]);
-            // marchează citit dacă e mesajul altuia
-            if (msg.author_id !== userId) {
-              (supabase as any)
-                .from("chat_members")
-                .update({ last_read_at: new Date().toISOString() })
-                .eq("conversation_id", activeId!)
-                .eq("user_id", userId);
-            }
           } else {
             // crește unread
             setUnreadByConv((u) => ({
@@ -276,7 +268,11 @@ const ChatPage: React.FC = () => {
     newGroupMembers.forEach((uid) => {
       if (uid !== userId) members.push({ conversation_id: conv.id, user_id: uid });
     });
-    await (supabase as any).from("chat_members").insert(members);
+    const { error: membersError } = await (supabase as any).from("chat_members").insert(members);
+    if (membersError) {
+      toast({ title: "Eroare membri chat", description: membersError.message, variant: "destructive" });
+      return;
+    }
     setNewGroupOpen(false);
     setNewGroupName("");
     setNewGroupMembers(new Set());
