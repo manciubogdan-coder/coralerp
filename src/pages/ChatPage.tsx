@@ -155,12 +155,6 @@ const ChatPage: React.FC = () => {
       .order("created_at", { ascending: true })
       .limit(500);
     setMessages((data as Message[]) ?? []);
-    // marchează citit
-    await (supabase as any)
-      .from("chat_members")
-      .update({ last_read_at: new Date().toISOString() })
-      .eq("conversation_id", convId)
-      .eq("user_id", userId);
     setUnreadByConv((u) => ({ ...u, [convId]: 0 }));
   };
 
@@ -290,34 +284,11 @@ const ChatPage: React.FC = () => {
     setActiveId(conv.id);
   };
 
-  // ---------- DM PARTNER NAMES ----------
-  // pentru DM, calculează celălalt user — încărcăm membrii pentru toate convs
-  const [convMembers, setConvMembers] = useState<Record<string, string[]>>({});
-  useEffect(() => {
-    if (conversations.length === 0) return;
-    (async () => {
-      const ids = conversations.map((c) => c.id);
-      const { data } = await (supabase as any)
-        .from("chat_members")
-        .select("conversation_id,user_id")
-        .in("conversation_id", ids);
-      const map: Record<string, string[]> = {};
-      (data ?? []).forEach((m: any) => {
-        if (!map[m.conversation_id]) map[m.conversation_id] = [];
-        map[m.conversation_id].push(m.user_id);
-      });
-      setConvMembers(map);
-    })();
-  }, [conversations]);
-
   const getConvLabel = (c: Conversation) => {
     if (c.type === "department")
       return `# ${c.name ?? c.department}`;
     if (c.type === "group") return c.name ?? "Grup";
-    // DM
-    const others = (convMembers[c.id] ?? []).filter((u) => u !== userId);
-    const partner = others[0];
-    return profiles[partner]?.name || profiles[partner]?.email || "DM";
+    return c.name || "DM";
   };
 
   const getConvIcon = (c: Conversation) => {
