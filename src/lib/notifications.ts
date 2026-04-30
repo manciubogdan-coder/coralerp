@@ -17,7 +17,7 @@ export async function emitNotification(
   opts: { body?: string; link?: string; payload?: Record<string, unknown> } = {}
 ) {
   try {
-    const { error } = await (supabase as any).rpc("emit_notification_event", {
+    const { data, error } = await (supabase as any).rpc("emit_notification_event", {
       p_event_key: eventKey,
       p_title_default: defaultTitle,
       p_body: opts.body ?? null,
@@ -26,8 +26,11 @@ export async function emitNotification(
     });
     if (error) {
       console.warn(`[notifications] emit "${eventKey}" failed:`, error.message);
+      return null;
     }
+    return typeof data === "number" ? data : null;
   } catch (e: any) {
     console.warn(`[notifications] emit "${eventKey}" exception:`, e?.message);
+    return null;
   }
 }

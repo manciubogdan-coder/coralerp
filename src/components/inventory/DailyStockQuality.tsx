@@ -7,6 +7,7 @@ import { Calendar, Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { useInventoryType } from "@/context/inventory-type";
+import { emitNotification } from "@/lib/notifications";
 
 interface DailyStockItem {
   id: string;
@@ -213,6 +214,24 @@ export const DailyStockQuality = () => {
         setQualityMap((prev) => ({ ...prev, [snapshotId]: fresh as QualityRow }));
       }
 
+      const snapshot = snapshots.find((s) => s.id === snapshotId);
+      if (snapshot) {
+        await emitNotification("quality.completed", "Calitate finalizată", {
+          body: `${snapshot.name} — ${fresh?.consider_quantity ?? "-"} ${snapshot.unit} considerat conform`,
+          link: "/calitate",
+          payload: {
+            inventoryType,
+            snapshot_id: snapshotId,
+            product_name: snapshot.name,
+            document_number: snapshot.document_number,
+            lot_number: snapshot.lot_number,
+            nonconform_percent: fresh?.nonconform_percent ?? payload.nonconform_percent,
+            consider_quantity: fresh?.consider_quantity ?? null,
+            unit: snapshot.unit,
+          },
+        });
+      }
+
       toast({ title: "Salvat", description: "Calitatea a fost actualizată." });
     } catch (error: any) {
       console.error("Error saving quality row:", error);
@@ -256,6 +275,17 @@ export const DailyStockQuality = () => {
         updates[r.snapshot_id] = r as QualityRow;
       });
       setQualityMap((prev) => ({ ...prev, ...updates }));
+
+      await emitNotification('quality.completed', 'Calitate finalizată', {
+        body: `${groupName} — calitate actualizată pentru ${items.length} loturi`,
+        link: '/calitate',
+        payload: {
+          inventoryType,
+          product_name: groupName,
+          snapshot_ids: ids,
+          lots_count: items.length,
+        },
+      });
 
       // clear drafts for group
       setGroupObsDraft((prev) => {
