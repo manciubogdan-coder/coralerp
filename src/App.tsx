@@ -24,6 +24,7 @@ import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
 import InventoryOverviewPage from "./pages/InventoryPage";
 import ReceptionReportPage from "./pages/ReceptionReportPage";
+import PickingPage from "./pages/PickingPage";
 import AuthPage from "./pages/AuthPage";
 import PendingApprovalPage from "./pages/PendingApprovalPage";
 import UserManagementPage from "./pages/UserManagementPage";
@@ -148,7 +149,7 @@ const AppShell = () => {
                   path="/picking"
                   element={
                     <ProtectedRoute requireDepartment="picking_vanzari">
-                      <PlaceholderPage title="Picking" description="Pregătire comenzi pentru livrare." />
+                      <PickingPage />
                     </ProtectedRoute>
                   }
                 />
