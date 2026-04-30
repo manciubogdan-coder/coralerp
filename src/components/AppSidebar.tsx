@@ -13,129 +13,190 @@ import {
   SidebarFooter,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { 
-  Package, 
-  Factory, 
-  Truck, 
-  Box, 
-  Database,
-  FileClock,
+import {
   Home,
-  Warehouse,
+  ShoppingCart,
+  ClipboardList,
+  Package,
+  ClipboardCheck,
+  Boxes,
+  Tag,
+  Factory,
   TrendingUp,
-  ClipboardCheck
+  Truck,
+  ShoppingBag,
+  Wrench,
+  Settings,
+  Users,
+  FileClock,
+  PackageSearch,
+  Building2,
+  Layers,
+  type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { DEPARTMENTS, type DepartmentRole } from '@/lib/departments';
 
-const AppSidebar = () => {
+interface MenuLink {
+  name: string;
+  icon: LucideIcon;
+  path: string;
+}
+
+interface DeptGroup {
+  dept: DepartmentRole;
+  label: string;
+  items: MenuLink[];
+}
+
+const GROUPS: DeptGroup[] = [
+  {
+    dept: 'achizitii',
+    label: 'Achiziții',
+    items: [
+      { name: 'Hub Achiziții', icon: ShoppingCart, path: '/achizitii' },
+      { name: 'Comenzi Furnizori', icon: ClipboardList, path: '/achizitii/comenzi' },
+    ],
+  },
+  {
+    dept: 'depozit_mp',
+    label: 'Depozit Materie Primă',
+    items: [
+      { name: 'Stoc MP', icon: Package, path: '/depozit-mp' },
+      { name: 'Recepție MP', icon: ClipboardCheck, path: '/depozit-mp/receptie' },
+    ],
+  },
+  {
+    dept: 'depozit_ambalaje',
+    label: 'Depozit Ambalaje',
+    items: [
+      { name: 'Stoc Ambalaje', icon: Boxes, path: '/depozit-ambalaje' },
+    ],
+  },
+  {
+    dept: 'etichete',
+    label: 'Etichete',
+    items: [
+      { name: 'Stoc Etichete', icon: Tag, path: '/etichete' },
+    ],
+  },
+  {
+    dept: 'productie',
+    label: 'Producție',
+    items: [
+      { name: 'Stoc Producție', icon: Factory, path: '/productie' },
+      { name: 'Forecast', icon: TrendingUp, path: '/productie/forecast' },
+    ],
+  },
+  {
+    dept: 'picking_vanzari',
+    label: 'Picking & Vânzări',
+    items: [
+      { name: 'Picking', icon: Truck, path: '/picking' },
+      { name: 'Vânzări', icon: ShoppingBag, path: '/vanzari' },
+    ],
+  },
+  {
+    dept: 'mentenanta',
+    label: 'Mentenanță',
+    items: [
+      { name: 'Hub Mentenanță', icon: Wrench, path: '/mentenanta' },
+    ],
+  },
+  {
+    dept: 'administrativ',
+    label: 'Administrativ',
+    items: [
+      { name: 'Hub Administrativ', icon: Settings, path: '/administrativ' },
+      { name: 'Utilizatori', icon: Users, path: '/administrativ/users' },
+      { name: 'Audit', icon: FileClock, path: '/administrativ/audit' },
+      { name: 'Produse', icon: PackageSearch, path: '/administrativ/produse' },
+      { name: 'Furnizori', icon: Building2, path: '/administrativ/furnizori' },
+      { name: 'Producători', icon: Factory, path: '/administrativ/producatori' },
+      { name: 'Tipuri Lădițe', icon: Layers, path: '/administrativ/lazi' },
+    ],
+  },
+];
+
+const AppSidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
-  const { isAdmin } = useAuth();
-
-  const menuItems = [
-    {
-      id: "home",
-      name: "Pagina Principală",
-      icon: Home,
-      path: "/",
-    },
-    {
-      id: "products",
-      name: "Produse",
-      icon: Package,
-      path: "/dashboard/products",
-    },
-    {
-      id: "suppliers",
-      name: "Furnizori",
-      icon: Truck,
-      path: "/dashboard/suppliers",
-    },
-    {
-      id: "manufacturers",
-      name: "Producători",
-      icon: Factory,
-      path: "/dashboard/manufacturers",
-    },
-    {
-      id: "crate-types",
-      name: "Tipuri de lădițe",
-      icon: Box,
-      path: "/dashboard/crate-types",
-    },
-    {
-      id: "inventory",
-      name: "Inventar Depozit",
-      icon: Database,
-      path: "/dashboard/inventory",
-    },
-    {
-      id: "production-stock",
-      name: "Stoc Producție",
-      icon: Warehouse,
-      path: "/dashboard/production-stock",
-    },
-    {
-      id: "forecast",
-      name: "Planificare & Forecast",
-      icon: TrendingUp,
-      path: "/dashboard/forecast",
-    },
-    {
-      id: "reception-report",
-      name: "Raport de Recepție",
-      icon: ClipboardCheck,
-      path: "/dashboard/reception-report",
-    }
-  ];
-
-  const visibleMenuItems = isAdmin
-    ? [...menuItems, { id: "audit", name: "Audit Operații", icon: FileClock, path: "/audit" }]
-    : menuItems;
+  const { hasDepartment } = useAuth();
 
   const handleNavigation = (path: string) => {
     navigate(path);
-    // Pe mobil, închide sidebar-ul după navigare
-    if (isMobile) {
-      setOpenMobile(false);
-    }
+    if (isMobile) setOpenMobile(false);
   };
 
+  const visibleGroups = GROUPS.filter((g) => hasDepartment(g.dept));
+
   return (
-    <Sidebar className={isMobile ? "bg-white" : ""}>
+    <Sidebar className={isMobile ? 'bg-white' : ''}>
       <SidebarHeader className="p-4 border-b bg-white">
-        <h1 className="text-xl font-bold text-black">Stoc Depozit</h1>
+        <h1 className="text-lg font-bold text-black">Coral ERP</h1>
+        <p className="text-xs text-muted-foreground">Sistem departamental</p>
       </SidebarHeader>
-      
-      <SidebarContent className={isMobile ? "bg-white" : ""}>
+
+      <SidebarContent className={isMobile ? 'bg-white' : ''}>
         <SidebarGroup>
-          <SidebarGroupLabel className={`${isMobile ? "text-black font-medium" : ""}`}>Navigare</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleMenuItems.map((item) => (
-                <SidebarMenuItem key={item.id}>
-                  <SidebarMenuButton 
-                    isActive={location.pathname === item.path}
-                    onClick={() => handleNavigation(item.path)}
-                    tooltip={item.name}
-                    className={isMobile ? "text-black hover:bg-gray-100" : ""}
-                  >
-                    <item.icon className="mr-2" size={18} />
-                    <span>{item.name}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={location.pathname === '/'}
+                  onClick={() => handleNavigation('/')}
+                  tooltip="Hub Departamente"
+                  className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                >
+                  <Home className="mr-2" size={18} />
+                  <span>Hub Departamente</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {visibleGroups.map((group) => (
+          <SidebarGroup key={group.dept}>
+            <SidebarGroupLabel className={isMobile ? 'text-black font-medium' : ''}>
+              {group.label}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.path}>
+                    <SidebarMenuButton
+                      isActive={location.pathname === item.path}
+                      onClick={() => handleNavigation(item.path)}
+                      tooltip={item.name}
+                      className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                    >
+                      <item.icon className="mr-2" size={16} />
+                      <span>{item.name}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+
+        {visibleGroups.length === 0 && (
+          <div className="p-4 text-sm text-muted-foreground">
+            Nu ai încă acces la niciun departament. Contactează un administrator.
+          </div>
+        )}
       </SidebarContent>
-      
-      <SidebarFooter className="p-4 border-t text-sm text-gray-500 bg-white">
-        <p>© 2025 Inventory Manager</p>
+
+      <SidebarFooter className="p-4 border-t text-xs text-gray-500 bg-white">
+        <p>© 2025 Coral Biogreens</p>
       </SidebarFooter>
     </Sidebar>
   );
 };
+
+// Reference DEPARTMENTS to satisfy `noUnusedLocals` if it lands later.
+void DEPARTMENTS;
 
 export default AppSidebar;

@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Check, X, Shield, Loader2, Users, ArrowLeft, Trash2 } from 'lucide-react';
+import { Check, X, Shield, Loader2, Users, ArrowLeft, Trash2, Settings2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertDialog,
@@ -19,6 +20,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { DEPARTMENTS, type AppRole, type DepartmentRole } from '@/lib/departments';
 
 interface UserProfile {
   id: string;
@@ -28,6 +38,7 @@ interface UserProfile {
   approved: boolean;
   created_at: string;
   isAdmin?: boolean;
+  departments?: DepartmentRole[];
 }
 
 const UserManagementPage: React.FC = () => {
@@ -37,6 +48,12 @@ const UserManagementPage: React.FC = () => {
   const { isAdmin, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Roles editor dialog state
+  const [editing, setEditing] = useState<UserProfile | null>(null);
+  const [draftAdmin, setDraftAdmin] = useState(false);
+  const [draftDepts, setDraftDepts] = useState<Set<DepartmentRole>>(new Set());
+  const [savingRoles, setSavingRoles] = useState(false);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -48,20 +65,30 @@ const UserManagementPage: React.FC = () => {
 
       if (profilesError) throw profilesError;
 
-      // Fetch admin roles
-      const { data: adminRoles, error: rolesError } = await supabase
+      const { data: allRoles, error: rolesError } = await supabase
         .from('app_user_roles' as any)
-        .select('user_id')
-        .eq('role', 'admin');
+        .select('user_id, role');
 
       if (rolesError) throw rolesError;
 
-      const adminUserIds = new Set((adminRoles as any[])?.map(r => r.user_id) || []);
+      const rolesByUser = new Map<string, string[]>();
+      ((allRoles as unknown as Array<{ user_id: string; role: string }>) || []).forEach((r) => {
+        const arr = rolesByUser.get(r.user_id) || [];
+        arr.push(r.role);
+        rolesByUser.set(r.user_id, arr);
+      });
 
-      const usersWithRoles = (profiles as any[])?.map(profile => ({
-        ...profile,
-        isAdmin: adminUserIds.has(profile.user_id),
-      })) || [];
+      const usersWithRoles = ((profiles as any[]) || []).map((profile) => {
+        const roles = rolesByUser.get(profile.user_id) || [];
+        const departments = roles.filter((r): r is DepartmentRole =>
+          DEPARTMENTS.some((d) => d.id === r),
+        );
+        return {
+          ...profile,
+          isAdmin: roles.includes('admin'),
+          departments,
+        } as UserProfile;
+      });
 
       setUsers(usersWithRoles);
     } catch (error) {
@@ -89,22 +116,12 @@ const UserManagementPage: React.FC = () => {
         .from('app_profiles' as any)
         .update({ approved: true })
         .eq('id', userProfile.id);
-
       if (error) throw error;
-
-      toast({
-        title: 'Utilizator aprobat',
-        description: `${userProfile.email} a fost aprobat cu succes`,
-      });
-      
+      toast({ title: 'Utilizator aprobat', description: `${userProfile.email} a fost aprobat cu succes` });
       fetchUsers();
     } catch (error) {
       console.error('Error approving user:', error);
-      toast({
-        title: 'Eroare',
-        description: 'Nu s-a putut aproba utilizatorul',
-        variant: 'destructive',
-      });
+      toast({ title: 'Eroare', description: 'Nu s-a putut aproba utilizatorul', variant: 'destructive' });
     } finally {
       setActionLoading(null);
     }
@@ -117,66 +134,12 @@ const UserManagementPage: React.FC = () => {
         .from('app_profiles' as any)
         .update({ approved: false })
         .eq('id', userProfile.id);
-
       if (error) throw error;
-
-      toast({
-        title: 'Acces revocat',
-        description: `Accesul pentru ${userProfile.email} a fost revocat`,
-      });
-      
+      toast({ title: 'Acces revocat', description: `Accesul pentru ${userProfile.email} a fost revocat` });
       fetchUsers();
     } catch (error) {
       console.error('Error rejecting user:', error);
-      toast({
-        title: 'Eroare',
-        description: 'Nu s-a putut revoca accesul',
-        variant: 'destructive',
-      });
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleToggleAdmin = async (userProfile: UserProfile) => {
-    setActionLoading(userProfile.id);
-    try {
-      if (userProfile.isAdmin) {
-        // Remove admin role
-        const { error } = await supabase
-          .from('app_user_roles' as any)
-          .delete()
-          .eq('user_id', userProfile.user_id)
-          .eq('role', 'admin');
-
-        if (error) throw error;
-
-        toast({
-          title: 'Rol actualizat',
-          description: `${userProfile.email} nu mai este administrator`,
-        });
-      } else {
-        // Add admin role
-        const { error } = await supabase
-          .from('app_user_roles' as any)
-          .insert({ user_id: userProfile.user_id, role: 'admin' });
-
-        if (error) throw error;
-
-        toast({
-          title: 'Rol actualizat',
-          description: `${userProfile.email} este acum administrator`,
-        });
-      }
-      
-      fetchUsers();
-    } catch (error) {
-      console.error('Error toggling admin:', error);
-      toast({
-        title: 'Eroare',
-        description: 'Nu s-a putut actualiza rolul',
-        variant: 'destructive',
-      });
+      toast({ title: 'Eroare', description: 'Nu s-a putut revoca accesul', variant: 'destructive' });
     } finally {
       setActionLoading(null);
     }
@@ -185,29 +148,80 @@ const UserManagementPage: React.FC = () => {
   const handleDeleteUser = async (userProfile: UserProfile) => {
     setActionLoading(userProfile.id);
     try {
-      // Delete profile (cascade will delete roles)
       const { error } = await supabase
         .from('app_profiles' as any)
         .delete()
         .eq('id', userProfile.id);
-
       if (error) throw error;
-
-      toast({
-        title: 'Utilizator șters',
-        description: `${userProfile.email} a fost șters`,
-      });
-      
+      toast({ title: 'Utilizator șters', description: `${userProfile.email} a fost șters` });
       fetchUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut șterge utilizatorul', variant: 'destructive' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openRolesEditor = (u: UserProfile) => {
+    setEditing(u);
+    setDraftAdmin(!!u.isAdmin);
+    setDraftDepts(new Set(u.departments || []));
+  };
+
+  const toggleDept = (dept: DepartmentRole) => {
+    setDraftDepts((prev) => {
+      const next = new Set(prev);
+      if (next.has(dept)) next.delete(dept);
+      else next.add(dept);
+      return next;
+    });
+  };
+
+  const saveRoles = async () => {
+    if (!editing) return;
+    setSavingRoles(true);
+    try {
+      const current = new Set<AppRole>([
+        ...(editing.isAdmin ? (['admin'] as AppRole[]) : []),
+        ...(editing.departments || []),
+      ]);
+      const desired = new Set<AppRole>([
+        ...(draftAdmin ? (['admin'] as AppRole[]) : []),
+        ...Array.from(draftDepts),
+      ]);
+
+      const toAdd: AppRole[] = Array.from(desired).filter((r) => !current.has(r));
+      const toRemove: AppRole[] = Array.from(current).filter((r) => !desired.has(r));
+
+      if (toAdd.length) {
+        const { error } = await supabase
+          .from('app_user_roles' as any)
+          .insert(toAdd.map((role) => ({ user_id: editing.user_id, role })));
+        if (error) throw error;
+      }
+
+      for (const role of toRemove) {
+        const { error } = await supabase
+          .from('app_user_roles' as any)
+          .delete()
+          .eq('user_id', editing.user_id)
+          .eq('role', role);
+        if (error) throw error;
+      }
+
+      toast({ title: 'Roluri actualizate', description: `Rolurile pentru ${editing.email} au fost salvate.` });
+      setEditing(null);
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error saving roles:', error);
       toast({
-        title: 'Eroare',
-        description: 'Nu s-a putut șterge utilizatorul',
+        title: 'Eroare la salvare',
+        description: error?.message || 'Nu s-au putut salva rolurile.',
         variant: 'destructive',
       });
     } finally {
-      setActionLoading(null);
+      setSavingRoles(false);
     }
   };
 
@@ -219,13 +233,13 @@ const UserManagementPage: React.FC = () => {
     );
   }
 
-  const pendingUsers = users.filter(u => !u.approved);
-  const approvedUsers = users.filter(u => u.approved);
+  const pendingUsers = users.filter((u) => !u.approved);
+  const approvedUsers = users.filter((u) => u.approved);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/administrativ')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
@@ -233,9 +247,7 @@ const UserManagementPage: React.FC = () => {
             <Users className="h-6 w-6" />
             Managementul Utilizatorilor
           </h1>
-          <p className="text-muted-foreground">
-            Aprobă și gestionează accesul utilizatorilor
-          </p>
+          <p className="text-muted-foreground">Aprobă și gestionează accesul utilizatorilor</p>
         </div>
       </div>
 
@@ -254,9 +266,7 @@ const UserManagementPage: React.FC = () => {
                   </Badge>
                   Utilizatori în așteptare
                 </CardTitle>
-                <CardDescription>
-                  Acești utilizatori așteaptă aprobarea pentru a accesa aplicația
-                </CardDescription>
+                <CardDescription>Acești utilizatori așteaptă aprobarea pentru a accesa aplicația</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -271,13 +281,9 @@ const UserManagementPage: React.FC = () => {
                   <TableBody>
                     {pendingUsers.map((userProfile) => (
                       <TableRow key={userProfile.id}>
-                        <TableCell className="font-medium">
-                          {userProfile.name || '-'}
-                        </TableCell>
+                        <TableCell className="font-medium">{userProfile.name || '-'}</TableCell>
                         <TableCell>{userProfile.email}</TableCell>
-                        <TableCell>
-                          {new Date(userProfile.created_at).toLocaleDateString('ro-RO')}
-                        </TableCell>
+                        <TableCell>{new Date(userProfile.created_at).toLocaleDateString('ro-RO')}</TableCell>
                         <TableCell className="text-right space-x-2">
                           <Button
                             size="sm"
@@ -296,11 +302,7 @@ const UserManagementPage: React.FC = () => {
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                disabled={actionLoading === userProfile.id}
-                              >
+                              <Button size="sm" variant="destructive" disabled={actionLoading === userProfile.id}>
                                 <Trash2 className="h-4 w-4 mr-1" />
                                 Șterge
                               </Button>
@@ -337,22 +339,18 @@ const UserManagementPage: React.FC = () => {
                 </Badge>
                 Utilizatori activi
               </CardTitle>
-              <CardDescription>
-                Utilizatorii care au acces la aplicație
-              </CardDescription>
+              <CardDescription>Utilizatorii care au acces la aplicație</CardDescription>
             </CardHeader>
             <CardContent>
               {approvedUsers.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">
-                  Nu există utilizatori activi
-                </p>
+                <p className="text-muted-foreground text-center py-4">Nu există utilizatori activi</p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nume</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead>Rol</TableHead>
+                      <TableHead>Departamente</TableHead>
                       <TableHead>Data înregistrării</TableHead>
                       <TableHead className="text-right">Acțiuni</TableHead>
                     </TableRow>
@@ -360,40 +358,41 @@ const UserManagementPage: React.FC = () => {
                   <TableBody>
                     {approvedUsers.map((userProfile) => (
                       <TableRow key={userProfile.id}>
-                        <TableCell className="font-medium">
-                          {userProfile.name || '-'}
-                        </TableCell>
+                        <TableCell className="font-medium">{userProfile.name || '-'}</TableCell>
                         <TableCell>{userProfile.email}</TableCell>
                         <TableCell>
-                          {userProfile.isAdmin ? (
-                            <Badge className="bg-primary/10 text-primary">
-                              <Shield className="h-3 w-3 mr-1" />
-                              Admin
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary">Utilizator</Badge>
-                          )}
+                          <div className="flex flex-wrap gap-1">
+                            {userProfile.isAdmin && (
+                              <Badge className="bg-primary/10 text-primary">
+                                <Shield className="h-3 w-3 mr-1" />
+                                Admin
+                              </Badge>
+                            )}
+                            {(userProfile.departments || []).map((d) => {
+                              const def = DEPARTMENTS.find((x) => x.id === d);
+                              return (
+                                <Badge key={d} variant="secondary">
+                                  {def?.short || d}
+                                </Badge>
+                              );
+                            })}
+                            {!userProfile.isAdmin && (userProfile.departments || []).length === 0 && (
+                              <span className="text-xs text-muted-foreground">Niciunul</span>
+                            )}
+                          </div>
                         </TableCell>
-                        <TableCell>
-                          {new Date(userProfile.created_at).toLocaleDateString('ro-RO')}
-                        </TableCell>
+                        <TableCell>{new Date(userProfile.created_at).toLocaleDateString('ro-RO')}</TableCell>
                         <TableCell className="text-right space-x-2">
-                          {userProfile.user_id !== user?.id && (
+                          {userProfile.user_id !== user?.id ? (
                             <>
                               <Button
                                 size="sm"
-                                variant={userProfile.isAdmin ? "secondary" : "outline"}
-                                onClick={() => handleToggleAdmin(userProfile)}
+                                variant="outline"
+                                onClick={() => openRolesEditor(userProfile)}
                                 disabled={actionLoading === userProfile.id}
                               >
-                                {actionLoading === userProfile.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <>
-                                    <Shield className="h-4 w-4 mr-1" />
-                                    {userProfile.isAdmin ? 'Revocă Admin' : 'Fă Admin'}
-                                  </>
-                                )}
+                                <Settings2 className="h-4 w-4 mr-1" />
+                                Editează roluri
                               </Button>
                               <Button
                                 size="sm"
@@ -405,8 +404,7 @@ const UserManagementPage: React.FC = () => {
                                 Revocă Acces
                               </Button>
                             </>
-                          )}
-                          {userProfile.user_id === user?.id && (
+                          ) : (
                             <Badge variant="outline">Tu</Badge>
                           )}
                         </TableCell>
@@ -419,6 +417,60 @@ const UserManagementPage: React.FC = () => {
           </Card>
         </>
       )}
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editează roluri</DialogTitle>
+            <DialogDescription>
+              {editing?.email} — selectează departamentele la care are acces.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <label className="flex items-center gap-3 p-3 rounded-md border bg-primary/5">
+              <Checkbox
+                checked={draftAdmin}
+                onCheckedChange={(v) => setDraftAdmin(v === true)}
+              />
+              <div>
+                <div className="font-medium flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-primary" />
+                  Administrator
+                </div>
+                <div className="text-xs text-muted-foreground">Acces complet la toate departamentele.</div>
+              </div>
+            </label>
+
+            <div className="space-y-1">
+              {DEPARTMENTS.map((dept) => {
+                const Icon = dept.icon;
+                const checked = draftDepts.has(dept.id);
+                return (
+                  <label
+                    key={dept.id}
+                    className="flex items-center gap-3 p-2 rounded-md border hover:bg-muted/50 cursor-pointer"
+                  >
+                    <Checkbox checked={checked} onCheckedChange={() => toggleDept(dept.id)} />
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">{dept.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)} disabled={savingRoles}>
+              Anulează
+            </Button>
+            <Button onClick={saveRoles} disabled={savingRoles}>
+              {savingRoles && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salvează
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

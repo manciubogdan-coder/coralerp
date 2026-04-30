@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  DEPARTMENT_ROLES,
+  type DepartmentRole,
+} from '@/lib/departments';
 
 interface AppProfile {
   id: string;
@@ -19,6 +23,10 @@ interface AuthContextType {
   isAdmin: boolean;
   isApproved: boolean;
   isLoading: boolean;
+  /** Rolurile pe departamente atribuite userului curent (fără 'admin'). */
+  departments: DepartmentRole[];
+  /** True dacă userul are accesul cerut (admin trece automat). */
+  hasDepartment: (dept: DepartmentRole) => boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -40,11 +48,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<AppProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [departments, setDepartments] = useState<DepartmentRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
     let nextProfile: AppProfile | null = null;
     let nextIsAdmin = false;
+    let nextDepartments: DepartmentRole[] = [];
 
     try {
       // Use raw query since types aren't generated yet
@@ -60,22 +70,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         nextProfile = (profileData as unknown as AppProfile) ?? null;
       }
 
-      const { data: roleData, error: roleError } = await supabase
+      // Fetch ALL roles for this user, not just admin.
+      const { data: roleRows, error: roleError } = await supabase
         .from('app_user_roles' as any)
         .select('role')
-        .eq('user_id', userId)
-        .eq('role', 'admin')
-        .maybeSingle();
+        .eq('user_id', userId);
 
       if (roleError) {
-        // Not fatal (can happen if no row). We keep nextIsAdmin=false.
+        console.warn('Could not load user roles:', roleError.message);
+      } else if (roleRows) {
+        const roles = (roleRows as unknown as Array<{ role: string }>).map((r) => r.role);
+        nextIsAdmin = roles.includes('admin');
+        nextDepartments = roles.filter((r): r is DepartmentRole =>
+          (DEPARTMENT_ROLES as readonly string[]).includes(r),
+        );
       }
-      nextIsAdmin = !!roleData;
     } catch (error) {
       console.error('Error in fetchProfile:', error);
     } finally {
       setProfile(nextProfile);
       setIsAdmin(nextIsAdmin);
+      setDepartments(nextDepartments);
     }
   };
 
@@ -163,9 +178,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
     setProfile(null);
     setIsAdmin(false);
+    setDepartments([]);
   };
 
   const isApproved = profile?.approved ?? false;
+  const hasDepartment = (dept: DepartmentRole) =>
+    isAdmin || departments.includes(dept);
 
   return (
     <AuthContext.Provider
@@ -176,6 +194,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAdmin,
         isApproved,
         isLoading,
+        departments,
+        hasDepartment,
         signIn,
         signUp,
         signOut,
