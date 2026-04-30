@@ -8,6 +8,7 @@ import {
   ShoppingBag,
   Wrench,
   Settings,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ export const DEPARTMENT_ROLES = [
   "etichete",
   "productie",
   "picking_vanzari",
+  "calitate",
   "mentenanta",
   "administrativ",
 ] as const;
@@ -93,6 +95,14 @@ export const DEPARTMENTS: DepartmentDef[] = [
     icon: ShoppingBag,
     rootPath: "/vanzari",
     description: "Stoc marfă, consumuri, necesar MP, restocări, comenzi pe client.",
+  },
+  {
+    id: "calitate",
+    label: "Calitate",
+    short: "Calitate",
+    icon: ShieldCheck,
+    rootPath: "/calitate",
+    description: "Stocuri, calitate, consum pe loturi și recepții.",
   },
   {
     id: "mentenanta",
