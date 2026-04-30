@@ -577,17 +577,57 @@ const DefectiuniTab: React.FC<{
   const [editing, setEditing] = useState<Defectiune | null>(null);
   const [filterLine, setFilterLine] = useState<string>("toate");
   const [filterStatus, setFilterStatus] = useState<string>("toate");
+  const [filterSev, setFilterSev] = useState<string>("toate");
+  const [filterReparator, setFilterReparator] = useState<string>("toate");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
 
   const lineMap = useMemo(
     () => Object.fromEntries(lines.map((l) => [l.id, l.nume])),
     [lines]
   );
 
-  const filtered = defects.filter(
-    (d) =>
-      (filterLine === "toate" || d.linie_id === filterLine) &&
-      (filterStatus === "toate" || d.status === filterStatus)
-  );
+  // Lista distinctă de reparatori (din înregistrările existente)
+  const reparatori = useMemo(() => {
+    const set = new Set<string>();
+    defects.forEach((d) => {
+      const r = d.reparat_de?.trim();
+      if (r) set.add(r);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "ro"));
+  }, [defects]);
+
+  const filtered = defects.filter((d) => {
+    if (filterLine !== "toate" && d.linie_id !== filterLine) return false;
+    if (filterStatus !== "toate" && d.status !== filterStatus) return false;
+    if (filterSev !== "toate" && d.severitate !== filterSev) return false;
+    if (filterReparator !== "toate") {
+      const r = (d.reparat_de ?? "").trim();
+      if (filterReparator === "__none__") {
+        if (r) return false;
+      } else if (r !== filterReparator) {
+        return false;
+      }
+    }
+    if (dateFrom) {
+      const fromD = new Date(`${dateFrom}T00:00:00`);
+      if (new Date(d.data_start) < fromD) return false;
+    }
+    if (dateTo) {
+      const toD = new Date(`${dateTo}T23:59:59`);
+      if (new Date(d.data_start) > toD) return false;
+    }
+    return true;
+  });
+
+  const resetFilters = () => {
+    setFilterLine("toate");
+    setFilterStatus("toate");
+    setFilterSev("toate");
+    setFilterReparator("toate");
+    setDateFrom("");
+    setDateTo("");
+  };
 
   const remove = async (d: Defectiune) => {
     if (!confirm("Ștergi această defecțiune?")) return;
