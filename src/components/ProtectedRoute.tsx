@@ -2,14 +2,20 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import type { DepartmentRole } from '@/lib/departments';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
+  requireDepartment?: DepartmentRole;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin = false }) => {
-  const { user, isApproved, isAdmin, isLoading } = useAuth();
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  requireAdmin = false,
+  requireDepartment,
+}) => {
+  const { user, isApproved, isAdmin, hasDepartment, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -19,18 +25,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin 
     );
   }
 
-  // Not logged in
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
 
-  // Logged in but not approved
   if (!isApproved) {
     return <Navigate to="/pending-approval" replace />;
   }
 
-  // Requires admin but user is not admin
   if (requireAdmin && !isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (requireDepartment && !hasDepartment(requireDepartment)) {
     return <Navigate to="/" replace />;
   }
 
