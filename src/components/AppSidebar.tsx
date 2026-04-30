@@ -26,6 +26,7 @@ import {
   Truck,
   ShoppingBag,
   Wrench,
+  ShieldCheck,
   Settings,
   Users,
   FileClock,
