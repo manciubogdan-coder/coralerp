@@ -201,6 +201,16 @@ const AppShell = () => {
                   }
                 />
 
+                {/* ========== CALITATE ========== */}
+                <Route
+                  path="/calitate"
+                  element={
+                    <ProtectedRoute>
+                      <CalitateHub />
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* ========== ADMINISTRATIV ========== */}
                 <Route
                   path="/administrativ"
