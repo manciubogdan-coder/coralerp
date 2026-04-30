@@ -38,7 +38,6 @@ import {
 } from "lucide-react";
 import BackToHubButton from "@/components/BackToHubButton";
 import { DEPARTMENTS } from "@/lib/departments";
-import { emitNotification } from "@/lib/notifications";
 
 interface Profile {
   user_id: string;
@@ -272,18 +271,6 @@ const TaskuriPage: React.FC = () => {
       return;
     }
     toast({ title: editing ? "Task actualizat" : "Task creat" });
-
-    // notificare către assignee dacă diferit de creator
-    if (finalAssignee && finalAssignee !== userId) {
-      const assigneeName = profiles[finalAssignee]?.name || profiles[finalAssignee]?.email || "tu";
-      await (supabase as any).from("notifications").insert({
-        user_id: finalAssignee,
-        title: editing ? `Task actualizat: ${title}` : `Task nou pentru ${assigneeName}`,
-        body: description.trim().slice(0, 200) || null,
-        link: "/taskuri",
-        event_key: "task.assigned",
-      });
-    }
 
     setOpen(false);
     reset();
