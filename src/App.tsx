@@ -42,6 +42,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { InventoryTypeProvider, ForceInventoryType } from "@/context/inventory-type";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CollaborationAlertsProvider } from "@/contexts/CollaborationAlertsContext";
+import CollaborationAlertBadges from "@/components/CollaborationAlertBadges";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,7 @@ const AppShell = () => {
                     {profile.name || profile.email}
                   </span>
                 )}
+                <CollaborationAlertBadges />
                 <NotificationBell />
                 <Button variant="ghost" size="icon" onClick={signOut} title="Deconectare">
                   <LogOut size={16} />

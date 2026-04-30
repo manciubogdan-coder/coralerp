@@ -1,7 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCollaborationAlerts } from '@/contexts/CollaborationAlertsContext';
 import { DEPARTMENTS, type DepartmentDef } from '@/lib/departments';
 import { ShieldAlert, ShieldCheck, MessageSquare, ListTodo, Bell } from 'lucide-react';
 
@@ -47,6 +49,7 @@ const COLLAB_TILES: CollabTile[] = [
 const DepartmentHub: React.FC = () => {
   const navigate = useNavigate();
   const { hasDepartment, profile, isAdmin } = useAuth();
+  const { chatUnread, taskUnread } = useCollaborationAlerts();
 
   const accessible = [
     CALITATE_TILE,
@@ -114,6 +117,7 @@ const DepartmentHub: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {collab.map((t) => {
             const Icon = t.icon;
+            const unread = t.rootPath === '/chat' ? chatUnread : t.rootPath === '/taskuri' ? taskUnread : 0;
             return (
               <Card
                 key={t.rootPath}
@@ -125,7 +129,14 @@ const DepartmentHub: React.FC = () => {
                     <div className="p-2 rounded-md bg-primary/10 text-primary">
                       <Icon className="h-6 w-6" />
                     </div>
-                    <CardTitle className="text-lg">{t.label}</CardTitle>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      {t.label}
+                      {unread > 0 && (
+                        <Badge className="bg-destructive text-destructive-foreground border-0">
+                          {unread > 99 ? '99+' : unread}
+                        </Badge>
+                      )}
+                    </CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
