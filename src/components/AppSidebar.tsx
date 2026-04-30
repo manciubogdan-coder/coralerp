@@ -185,7 +185,7 @@ const AppSidebar: React.FC = () => {
         </SidebarGroup>
 
         {visibleGroups.map((group) => (
-          <SidebarGroup key={group.dept}>
+          <SidebarGroup key={`${group.dept}-${group.label}`}>
             <SidebarGroupLabel className={isMobile ? 'text-black font-medium' : ''}>
               {group.label}
             </SidebarGroupLabel>
