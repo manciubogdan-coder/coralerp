@@ -26,9 +26,7 @@ const getOrInitSeenAt = (userId: string) => {
   const key = taskSeenKey(userId);
   const existing = window.localStorage.getItem(key);
   if (existing) return existing;
-  const now = new Date().toISOString();
-  window.localStorage.setItem(key, now);
-  return now;
+  return new Date(0).toISOString();
 };
 
 export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -135,7 +133,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
     if (!user?.id) return;
     if (location.pathname.startsWith("/taskuri")) markTasksSeen();
     refresh();
-    const interval = window.setInterval(refresh, 10000);
+    const interval = window.setInterval(refresh, 5000);
     window.addEventListener("collaboration-alerts-refresh", refresh);
     return () => {
       window.clearInterval(interval);
