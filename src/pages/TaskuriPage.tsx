@@ -166,10 +166,15 @@ const TaskuriPage: React.FC = () => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "app_tasks" },
-        () => loadTasks()
+        () => {
+          loadTasks();
+          window.dispatchEvent(new Event("collaboration-alerts-refresh"));
+        }
       )
       .subscribe();
+    const interval = window.setInterval(loadTasks, 10000);
     return () => {
+      window.clearInterval(interval);
       (supabase as any).removeChannel(channel);
     };
   }, [userId]);
@@ -360,19 +365,27 @@ const TaskuriPage: React.FC = () => {
       label: newCheckLabel.trim(),
       position: checklist.length,
     });
+    await (supabase as any).from("app_tasks").update({ updated_at: new Date().toISOString() }).eq("id", detailTaskId);
     setNewCheckLabel("");
     openDetails(detailTaskId);
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
   const toggleCheck = async (item: ChecklistItem) => {
     await (supabase as any)
       .from("app_task_checklist")
       .update({ done: !item.done })
       .eq("id", item.id);
+    await (supabase as any).from("app_tasks").update({ updated_at: new Date().toISOString() }).eq("id", item.task_id);
     openDetails(detailTaskId!);
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
   const removeCheck = async (id: string) => {
     await (supabase as any).from("app_task_checklist").delete().eq("id", id);
+    if (detailTaskId) {
+      await (supabase as any).from("app_tasks").update({ updated_at: new Date().toISOString() }).eq("id", detailTaskId);
+    }
     openDetails(detailTaskId!);
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   const addComment = async () => {
@@ -382,8 +395,10 @@ const TaskuriPage: React.FC = () => {
       author_id: userId,
       body: newComment.trim(),
     });
+    await (supabase as any).from("app_tasks").update({ updated_at: new Date().toISOString() }).eq("id", detailTaskId);
     setNewComment("");
     openDetails(detailTaskId);
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   // ---------- DRAG & DROP (HTML5) ----------
