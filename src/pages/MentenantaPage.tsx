@@ -54,6 +54,7 @@ import {
   Clock,
   Wrench,
 } from "lucide-react";
+import BackToHubButton from "@/components/BackToHubButton";
 
 // ---------- Types ----------
 interface Linie {
