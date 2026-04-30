@@ -38,7 +38,6 @@ import {
 } from "lucide-react";
 import BackToHubButton from "@/components/BackToHubButton";
 import { DEPARTMENTS } from "@/lib/departments";
-import { emitNotification } from "@/lib/notifications";
 
 interface Profile {
   user_id: string;
@@ -166,10 +165,15 @@ const TaskuriPage: React.FC = () => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "app_tasks" },
-        () => loadTasks()
+        () => {
+          loadTasks();
+          window.dispatchEvent(new Event("collaboration-alerts-refresh"));
+        }
       )
       .subscribe();
+    const interval = window.setInterval(loadTasks, 10000);
     return () => {
+      window.clearInterval(interval);
       (supabase as any).removeChannel(channel);
     };
   }, [userId]);
@@ -249,6 +253,7 @@ const TaskuriPage: React.FC = () => {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
+      updated_at: new Date().toISOString(),
     };
 
     let res: any;
@@ -267,21 +272,10 @@ const TaskuriPage: React.FC = () => {
     }
     toast({ title: editing ? "Task actualizat" : "Task creat" });
 
-    // notificare către assignee dacă diferit de creator
-    if (finalAssignee && finalAssignee !== userId) {
-      const assigneeName = profiles[finalAssignee]?.name || profiles[finalAssignee]?.email || "tu";
-      await (supabase as any).from("notifications").insert({
-        user_id: finalAssignee,
-        title: editing ? `Task actualizat: ${title}` : `Task nou pentru ${assigneeName}`,
-        body: description.trim().slice(0, 200) || null,
-        link: "/taskuri",
-        event_key: "task.assigned",
-      });
-    }
-
     setOpen(false);
     reset();
     loadTasks();
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   const remove = async (t: Task) => {
@@ -296,7 +290,7 @@ const TaskuriPage: React.FC = () => {
   };
 
   const moveTo = async (t: Task, status: Task["status"]) => {
-    const updates: any = { status };
+    const updates: any = { status, updated_at: new Date().toISOString() };
     if (status === "done") {
       updates.completed_at = new Date().toISOString();
       // taskuri recurente — generează următorul
@@ -329,6 +323,7 @@ const TaskuriPage: React.FC = () => {
     }
     await (supabase as any).from("app_tasks").update(updates).eq("id", t.id);
     loadTasks();
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   // ---------- DETAILS (checklist + comments) ----------
@@ -357,19 +352,27 @@ const TaskuriPage: React.FC = () => {
       label: newCheckLabel.trim(),
       position: checklist.length,
     });
+    await (supabase as any).from("app_tasks").update({ updated_at: new Date().toISOString() }).eq("id", detailTaskId);
     setNewCheckLabel("");
     openDetails(detailTaskId);
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
   const toggleCheck = async (item: ChecklistItem) => {
     await (supabase as any)
       .from("app_task_checklist")
       .update({ done: !item.done })
       .eq("id", item.id);
+    await (supabase as any).from("app_tasks").update({ updated_at: new Date().toISOString() }).eq("id", item.task_id);
     openDetails(detailTaskId!);
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
   const removeCheck = async (id: string) => {
     await (supabase as any).from("app_task_checklist").delete().eq("id", id);
+    if (detailTaskId) {
+      await (supabase as any).from("app_tasks").update({ updated_at: new Date().toISOString() }).eq("id", detailTaskId);
+    }
     openDetails(detailTaskId!);
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   const addComment = async () => {
@@ -379,8 +382,10 @@ const TaskuriPage: React.FC = () => {
       author_id: userId,
       body: newComment.trim(),
     });
+    await (supabase as any).from("app_tasks").update({ updated_at: new Date().toISOString() }).eq("id", detailTaskId);
     setNewComment("");
     openDetails(detailTaskId);
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   // ---------- DRAG & DROP (HTML5) ----------
