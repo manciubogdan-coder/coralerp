@@ -141,41 +141,18 @@ const ChatPage: React.FC = () => {
   // ---------- LOAD CONVERSATIONS ----------
   const loadConversations = async () => {
     if (!userId) return;
-    // ia conversațiile în care sunt membru
-    const { data: memberships } = await (supabase as any)
-      .from("chat_members")
-      .select("conversation_id,last_read_at")
-      .eq("user_id", userId);
-    const ids = (memberships ?? []).map((m: any) => m.conversation_id);
-    if (ids.length === 0) {
+    const { data: convs, error } = await (supabase as any)
+      .from("chat_conversations")
+      .select("id,type,name,department,created_by,updated_at")
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      toast({ title: "Eroare chat", description: error.message, variant: "destructive" });
       setConversations([]);
       return;
     }
-    const { data: convs } = await (supabase as any)
-      .from("chat_conversations")
-      .select("id,type,name,department,created_by,updated_at")
-      .in("id", ids)
-      .order("updated_at", { ascending: false });
 
     setConversations((convs as Conversation[]) ?? []);
-
-    // unread count
-    const lastReadMap: Record<string, string> = {};
-    (memberships ?? []).forEach((m: any) => {
-      lastReadMap[m.conversation_id] = m.last_read_at;
-    });
-    const unreadMap: Record<string, number> = {};
-    for (const cid of ids) {
-      const since = lastReadMap[cid] ?? "1970-01-01T00:00:00Z";
-      const { count } = await (supabase as any)
-        .from("chat_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("conversation_id", cid)
-        .gt("created_at", since)
-        .neq("author_id", userId);
-      unreadMap[cid] = count ?? 0;
-    }
-    setUnreadByConv(unreadMap);
   };
 
   // ---------- LOAD MESSAGES ----------
