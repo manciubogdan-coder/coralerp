@@ -645,33 +645,9 @@ const DefectiuniTab: React.FC<{
 
   return (
     <Card>
-      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <CardTitle>Registru defecțiuni</CardTitle>
-        <div className="flex flex-wrap gap-2">
-          <Select value={filterLine} onValueChange={setFilterLine}>
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-72 overflow-y-auto">
-              <SelectItem value="toate">Toate liniile</SelectItem>
-              {lines.map((l) => (
-                <SelectItem key={l.id} value={l.id}>
-                  {l.nume}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="toate">Toate statusurile</SelectItem>
-              <SelectItem value="deschisa">Deschisă</SelectItem>
-              <SelectItem value="in_lucru">În lucru</SelectItem>
-              <SelectItem value="rezolvata">Rezolvată</SelectItem>
-            </SelectContent>
-          </Select>
+      <CardHeader className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <CardTitle>Registru defecțiuni</CardTitle>
           <Button
             size="sm"
             onClick={() => {
@@ -681,6 +657,100 @@ const DefectiuniTab: React.FC<{
           >
             <Plus size={16} className="mr-1" /> Înregistrează
           </Button>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Linie</Label>
+            <Select value={filterLine} onValueChange={setFilterLine}>
+              <SelectTrigger className="w-44 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-72 overflow-y-auto">
+                <SelectItem value="toate">Toate liniile</SelectItem>
+                {lines.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.nume}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Status</Label>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-40 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="toate">Toate statusurile</SelectItem>
+                <SelectItem value="deschisa">Deschisă</SelectItem>
+                <SelectItem value="in_lucru">În lucru</SelectItem>
+                <SelectItem value="rezolvata">Rezolvată</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Severitate</Label>
+            <Select value={filterSev} onValueChange={setFilterSev}>
+              <SelectTrigger className="w-36 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="toate">Toate</SelectItem>
+                <SelectItem value="minora">Minoră</SelectItem>
+                <SelectItem value="medie">Medie</SelectItem>
+                <SelectItem value="critica">Critică</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Reparator</Label>
+            <Select value={filterReparator} onValueChange={setFilterReparator}>
+              <SelectTrigger className="w-44 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-72 overflow-y-auto">
+                <SelectItem value="toate">Toți reparatorii</SelectItem>
+                <SelectItem value="__none__">Fără reparator</SelectItem>
+                {reparatori.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {r}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">De la (data start)</Label>
+            <Input
+              type="date"
+              className="h-9 w-40"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Până la</Label>
+            <Input
+              type="date"
+              className="h-9 w-40"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </div>
+          {(filterLine !== "toate" ||
+            filterStatus !== "toate" ||
+            filterSev !== "toate" ||
+            filterReparator !== "toate" ||
+            dateFrom ||
+            dateTo) && (
+            <Button variant="ghost" size="sm" className="h-9" onClick={resetFilters}>
+              Resetează filtre
+            </Button>
+          )}
+          <div className="ml-auto text-sm text-muted-foreground self-center">
+            {filtered.length} / {defects.length} defecțiuni
+          </div>
         </div>
       </CardHeader>
       <CardContent>
