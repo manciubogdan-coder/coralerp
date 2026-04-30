@@ -7,6 +7,7 @@ import { Calendar, Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { useInventoryType } from "@/context/inventory-type";
+import { emitNotification } from "@/lib/notifications";
 
 interface DailyStockItem {
   id: string;
@@ -211,6 +212,24 @@ export const DailyStockQuality = () => {
       if (fetchErr) throw fetchErr;
       if (fresh) {
         setQualityMap((prev) => ({ ...prev, [snapshotId]: fresh as QualityRow }));
+      }
+
+      const snapshot = snapshots.find((s) => s.id === snapshotId);
+      if (snapshot) {
+        await emitNotification("quality.completed", "Calitate finalizată", {
+          body: `${snapshot.name} — ${fresh?.consider_quantity ?? "-"} ${snapshot.unit} considerat conform`,
+          link: "/calitate",
+          payload: {
+            inventoryType,
+            snapshot_id: snapshotId,
+            product_name: snapshot.name,
+            document_number: snapshot.document_number,
+            lot_number: snapshot.lot_number,
+            nonconform_percent: fresh?.nonconform_percent ?? payload.nonconform_percent,
+            consider_quantity: fresh?.consider_quantity ?? null,
+            unit: snapshot.unit,
+          },
+        });
       }
 
       toast({ title: "Salvat", description: "Calitatea a fost actualizată." });
