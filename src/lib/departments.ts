@@ -5,6 +5,7 @@ import {
   Tag,
   Factory,
   Truck,
+  ShoppingBag,
   Wrench,
   Settings,
   type LucideIcon,
@@ -79,11 +80,19 @@ export const DEPARTMENTS: DepartmentDef[] = [
   },
   {
     id: "picking_vanzari",
-    label: "Picking & Vânzări",
+    label: "Picking",
     short: "Picking",
     icon: Truck,
     rootPath: "/picking",
     description: "Pregătire comenzi și expediții.",
+  },
+  {
+    id: "picking_vanzari",
+    label: "Vânzări",
+    short: "Vânzări",
+    icon: ShoppingBag,
+    rootPath: "/vanzari",
+    description: "Stoc marfă, consumuri, necesar MP, restocări, comenzi pe client.",
   },
   {
     id: "mentenanta",
