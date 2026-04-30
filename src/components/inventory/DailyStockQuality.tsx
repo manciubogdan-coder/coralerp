@@ -276,6 +276,17 @@ export const DailyStockQuality = () => {
       });
       setQualityMap((prev) => ({ ...prev, ...updates }));
 
+      await emitNotification('quality.completed', 'Calitate finalizată', {
+        body: `${groupName} — calitate actualizată pentru ${items.length} loturi`,
+        link: '/calitate',
+        payload: {
+          inventoryType,
+          product_name: groupName,
+          snapshot_ids: ids,
+          lots_count: items.length,
+        },
+      });
+
       // clear drafts for group
       setGroupObsDraft((prev) => {
         const n = { ...prev };
