@@ -6,6 +6,7 @@ import {
   FileClock,
   type LucideIcon,
 } from 'lucide-react';
+import BackToHubButton from '@/components/BackToHubButton';
 
 interface Tile {
   label: string;
@@ -23,9 +24,12 @@ const AdministrativHub: React.FC = () => {
   const navigate = useNavigate();
   return (
     <div className="container mx-auto py-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Administrativ</h1>
-        <p className="text-muted-foreground">Gestionare utilizatori, audit și nomenclatoare.</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">Administrativ</h1>
+          <p className="text-muted-foreground">Gestionare utilizatori, audit și nomenclatoare.</p>
+        </div>
+        <BackToHubButton />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {TILES.map((t) => {

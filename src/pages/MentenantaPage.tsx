@@ -54,6 +54,7 @@ import {
   Clock,
   Wrench,
 } from "lucide-react";
+import BackToHubButton from "@/components/BackToHubButton";
 
 // ---------- Types ----------
 interface Linie {
@@ -1122,7 +1123,7 @@ const MentenantaPage: React.FC = () => {
             Defecțiuni, reparații și disponibilitate linii.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           {openCount > 0 ? (
             <Badge className="bg-red-500 text-white">
               <AlertTriangle size={14} className="mr-1" /> {openCount} active
@@ -1132,6 +1133,7 @@ const MentenantaPage: React.FC = () => {
               <CheckCircle2 size={14} className="mr-1" /> Toate rezolvate
             </Badge>
           )}
+          <BackToHubButton />
         </div>
       </div>
 

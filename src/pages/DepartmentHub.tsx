@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { DEPARTMENTS, type DepartmentDef } from '@/lib/departments';
-import { ShieldAlert, ShieldCheck } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, MessageSquare, ListTodo, Bell } from 'lucide-react';
 
 const CALITATE_TILE: DepartmentDef = {
   id: 'administrativ' as any, // pseudo — vizibil pentru toți userii aprobați
@@ -14,17 +14,49 @@ const CALITATE_TILE: DepartmentDef = {
   description: 'Stocuri, calitate, consum pe loturi și recepții — toate depozitele.',
 };
 
+interface CollabTile {
+  label: string;
+  description: string;
+  rootPath: string;
+  icon: React.ComponentType<{ className?: string }>;
+  adminOnly?: boolean;
+}
+
+const COLLAB_TILES: CollabTile[] = [
+  {
+    label: 'Chat',
+    description: 'Mesaje directe, grupuri și canale de departament.',
+    rootPath: '/chat',
+    icon: MessageSquare,
+  },
+  {
+    label: 'Taskuri',
+    description: 'Kanban personal și de echipă, deadline-uri și recurențe.',
+    rootPath: '/taskuri',
+    icon: ListTodo,
+  },
+  {
+    label: 'Reguli notificări',
+    description: 'Configurează cine primește notificări la fiecare eveniment.',
+    rootPath: '/administrativ/notificari-reguli',
+    icon: Bell,
+    adminOnly: true,
+  },
+];
+
 const DepartmentHub: React.FC = () => {
   const navigate = useNavigate();
-  const { hasDepartment, profile } = useAuth();
+  const { hasDepartment, profile, isAdmin } = useAuth();
 
   const accessible = [
     CALITATE_TILE,
     ...DEPARTMENTS.filter((d) => hasDepartment(d.id)),
   ];
 
+  const collab = COLLAB_TILES.filter((t) => !t.adminOnly || isAdmin);
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Coral ERP</h1>
         <p className="text-muted-foreground">
@@ -44,13 +76,48 @@ const DepartmentHub: React.FC = () => {
           </CardContent>
         </Card>
       ) : (
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            Departamente
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {accessible.map((dept) => {
+              const Icon = dept.icon;
+              return (
+                <Card
+                  key={`${dept.id}-${dept.rootPath}`}
+                  onClick={() => navigate(dept.rootPath)}
+                  className="cursor-pointer hover:border-primary transition-colors"
+                >
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-md bg-primary/10 text-primary">
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <CardTitle className="text-lg">{dept.label}</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription>{dept.description}</CardDescription>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Colaborare
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {accessible.map((dept) => {
-            const Icon = dept.icon;
+          {collab.map((t) => {
+            const Icon = t.icon;
             return (
               <Card
-                key={`${dept.id}-${dept.rootPath}`}
-                onClick={() => navigate(dept.rootPath)}
+                key={t.rootPath}
+                onClick={() => navigate(t.rootPath)}
                 className="cursor-pointer hover:border-primary transition-colors"
               >
                 <CardHeader>
@@ -58,17 +125,17 @@ const DepartmentHub: React.FC = () => {
                     <div className="p-2 rounded-md bg-primary/10 text-primary">
                       <Icon className="h-6 w-6" />
                     </div>
-                    <CardTitle className="text-lg">{dept.label}</CardTitle>
+                    <CardTitle className="text-lg">{t.label}</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <CardDescription>{dept.description}</CardDescription>
+                  <CardDescription>{t.description}</CardDescription>
                 </CardContent>
               </Card>
             );
           })}
         </div>
-      )}
+      </div>
     </div>
   );
 };

@@ -14,13 +14,329 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      app_task_checklist: {
+        Row: {
+          created_at: string
+          done: boolean
+          id: string
+          label: string
+          position: number
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          label: string
+          position?: number
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          label?: string
+          position?: number
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_task_checklist_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "app_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_task_comments: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "app_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_tasks: {
+        Row: {
+          assignee_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          department: string | null
+          description: string | null
+          due_at: string | null
+          id: string
+          parent_task_id: string | null
+          priority: string
+          recurrence: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          department?: string | null
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          parent_task_id?: string | null
+          priority?: string
+          recurrence?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          department?: string | null
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          parent_task_id?: string | null
+          priority?: string
+          recurrence?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_conversations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department: string | null
+          id: string
+          name: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          id?: string
+          name?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          id?: string
+          name?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_members: {
+        Row: {
+          conversation_id: string
+          joined_at: string
+          last_read_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          joined_at?: string
+          last_read_at?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          joined_at?: string
+          last_read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_members_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          author_id: string
+          body: string
+          conversation_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notif_events_catalog: {
+        Row: {
+          description: string | null
+          event_key: string
+          label: string
+        }
+        Insert: {
+          description?: string | null
+          event_key: string
+          label: string
+        }
+        Update: {
+          description?: string | null
+          event_key?: string
+          label?: string
+        }
+        Relationships: []
+      }
+      notif_rules: {
+        Row: {
+          body_template: string | null
+          created_at: string
+          enabled: boolean
+          event_key: string
+          id: string
+          target_department: string | null
+          target_user_id: string | null
+          title_template: string
+        }
+        Insert: {
+          body_template?: string | null
+          created_at?: string
+          enabled?: boolean
+          event_key: string
+          id?: string
+          target_department?: string | null
+          target_user_id?: string | null
+          title_template: string
+        }
+        Update: {
+          body_template?: string | null
+          created_at?: string
+          enabled?: boolean
+          event_key?: string
+          id?: string
+          target_department?: string | null
+          target_user_id?: string | null
+          title_template?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notif_rules_event_key_fkey"
+            columns: ["event_key"]
+            isOneToOne: false
+            referencedRelation: "notif_events_catalog"
+            referencedColumns: ["event_key"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          event_key: string | null
+          id: string
+          link: string | null
+          payload: Json | null
+          read_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          event_key?: string | null
+          id?: string
+          link?: string | null
+          payload?: Json | null
+          read_at?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          event_key?: string | null
+          id?: string
+          link?: string | null
+          payload?: Json | null
+          read_at?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      emit_notification_event: {
+        Args: {
+          p_body?: string
+          p_event_key: string
+          p_link?: string
+          p_payload?: Json
+          p_title_default: string
+        }
+        Returns: number
+      }
+      is_chat_member: {
+        Args: { _conv: string; _user: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
