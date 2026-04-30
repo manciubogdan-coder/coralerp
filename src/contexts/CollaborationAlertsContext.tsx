@@ -39,6 +39,13 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
     if (!user?.id) return;
     window.localStorage.setItem(taskSeenKey(user.id), new Date().toISOString());
     setTaskUnread(0);
+    (supabase as any)
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("user_id", user.id)
+      .is("read_at", null)
+      .or("link.eq./taskuri,event_key.like.task.%")
+      .then(() => undefined);
   }, [user?.id]);
 
   const markChatSeen = useCallback(async () => {
@@ -47,7 +54,32 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       .from("chat_members")
       .update({ last_read_at: new Date().toISOString() })
       .eq("user_id", user.id);
+    await (supabase as any)
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("user_id", user.id)
+      .is("read_at", null)
+      .or("link.eq./chat,event_key.eq.chat.message");
     setChatUnread(0);
+  }, [user?.id]);
+
+  const loadNotificationUnread = useCallback(async () => {
+    if (!user?.id) return { chat: 0, task: 0 };
+    const { data } = await (supabase as any)
+      .from("notifications")
+      .select("event_key,link")
+      .eq("user_id", user.id)
+      .is("read_at", null)
+      .limit(1000);
+
+    return ((data as Array<{ event_key: string | null; link: string | null }> | null) ?? []).reduce(
+      (acc, n) => {
+        if (n.link === "/chat" || n.event_key === "chat.message") acc.chat += 1;
+        if (n.link === "/taskuri" || n.event_key?.startsWith("task.")) acc.task += 1;
+        return acc;
+      },
+      { chat: 0, task: 0 }
+    );
   }, [user?.id]);
 
   const loadChatUnread = useCallback(async () => {
@@ -96,7 +128,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       const to = from + pageSize - 1;
       const { data, error } = await (supabase as any)
         .from("app_tasks")
-        .select("id,updated_at,created_by,department,status,assignee_id,assigned_to")
+        .select("*")
         .gt("updated_at", seenAt)
         .order("updated_at", { ascending: false })
         .range(from, to);
@@ -124,10 +156,14 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       setTaskUnread(0);
       return;
     }
-    const [nextChatUnread, nextTaskUnread] = await Promise.all([loadChatUnread(), loadTaskUnread()]);
-    setChatUnread(nextChatUnread);
-    setTaskUnread(nextTaskUnread);
-  }, [loadChatUnread, loadTaskUnread, user?.id]);
+    const [nextChatUnread, nextTaskUnread, notifUnread] = await Promise.all([
+      loadChatUnread(),
+      loadTaskUnread(),
+      loadNotificationUnread(),
+    ]);
+    setChatUnread(Math.max(nextChatUnread, notifUnread.chat));
+    setTaskUnread(Math.max(nextTaskUnread, notifUnread.task));
+  }, [loadChatUnread, loadNotificationUnread, loadTaskUnread, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
