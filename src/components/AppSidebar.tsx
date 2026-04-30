@@ -54,7 +54,7 @@ const GROUPS: DeptGroup[] = [
     dept: 'achizitii',
     label: 'Achiziții',
     items: [
-      { name: 'Hub Achiziții', icon: ShoppingCart, path: '/achizitii' },
+      { name: 'Stocuri & Forecast', icon: ShoppingCart, path: '/achizitii' },
       { name: 'Comenzi Furnizori', icon: ClipboardList, path: '/achizitii/comenzi' },
     ],
   },

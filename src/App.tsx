@@ -10,6 +10,7 @@ import { LogOut } from "lucide-react";
 
 import DepartmentHub from "./pages/DepartmentHub";
 import AdministrativHub from "./pages/AdministrativHub";
+import AchizitiiHub from "./pages/AchizitiiHub";
 import PlaceholderPage from "./components/PlaceholderPage";
 
 import ProductsPage from "./pages/dashboard/ProductsPage";
@@ -68,7 +69,7 @@ const AppShell = () => {
                   path="/achizitii"
                   element={
                     <ProtectedRoute requireDepartment="achizitii">
-                      <PlaceholderPage title="Achiziții" description="Hub-ul departamentului de achiziții." />
+                      <AchizitiiHub />
                     </ProtectedRoute>
                   }
                 />
