@@ -87,7 +87,6 @@ const ChatPage: React.FC = () => {
   // și că userul e membru.
   const ensureDepartmentChannels = async () => {
     if (!userId) return;
-    // ia rolurile userului
     const { data: rolesData } = await (supabase as any)
       .from("app_user_roles")
       .select("role")
@@ -96,46 +95,20 @@ const ChatPage: React.FC = () => {
       .map((r: any) => r.role)
       .filter((r: string) => r !== "admin");
 
-    for (const dept of userDepts) {
-      // există canalul?
-      const { data: existing } = await (supabase as any)
-        .from("chat_conversations")
-        .select("id")
-        .eq("type", "department")
-        .eq("department", dept)
-        .maybeSingle();
-
-      let convId: string | undefined = existing?.id;
-      if (!convId) {
-        const deptDef = DEPARTMENTS.find((d) => d.id === dept);
-        const { data: created } = await (supabase as any)
-          .from("chat_conversations")
-          .insert({
-            type: "department",
-            department: dept,
-            name: deptDef?.label ?? dept,
-            created_by: userId,
-          })
-          .select("id")
-          .single();
-        convId = created?.id;
-      }
-
-      if (convId) {
-        await (supabase as any)
-          .from("chat_members")
-          .upsert({ conversation_id: convId, user_id: userId }, { onConflict: "conversation_id,user_id" });
-      }
-    }
+    const deptLabels = Object.fromEntries(
+      userDepts.map((dept) => [dept, DEPARTMENTS.find((d) => d.id === dept)?.label ?? dept])
+    );
+    const { error } = await (supabase as any).rpc("chat_ensure_department_channels", {
+      p_departments: userDepts,
+      p_department_labels: deptLabels,
+    });
+    if (error) toast({ title: "Eroare chat", description: error.message, variant: "destructive" });
   };
 
   // ---------- LOAD CONVERSATIONS ----------
   const loadConversations = async () => {
     if (!userId) return;
-    const { data: convs, error } = await (supabase as any)
-      .from("chat_conversations")
-      .select("id,type,name,department,created_by,updated_at")
-      .order("updated_at", { ascending: false });
+    const { data: convs, error } = await (supabase as any).rpc("chat_list_conversations");
 
     if (error) {
       toast({ title: "Eroare chat", description: error.message, variant: "destructive" });
@@ -148,12 +121,7 @@ const ChatPage: React.FC = () => {
 
   // ---------- LOAD MESSAGES ----------
   const loadMessages = async (convId: string) => {
-    const { data } = await (supabase as any)
-      .from("chat_messages")
-      .select("*")
-      .eq("conversation_id", convId)
-      .order("created_at", { ascending: true })
-      .limit(500);
+    const { data } = await (supabase as any).rpc("chat_list_messages", { p_conversation_id: convId });
     setMessages((data as Message[]) ?? []);
     setUnreadByConv((u) => ({ ...u, [convId]: 0 }));
   };
