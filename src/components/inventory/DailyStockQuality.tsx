@@ -95,7 +95,7 @@ export const DailyStockQuality = () => {
 
       if (snapErr) throw snapErr;
 
-      const snaps = snapData as DailyStockItem[] | null;
+      const snaps = snapData as unknown as DailyStockItem[] | null;
       const snapshotList = snaps ?? [];
       setSnapshots(snapshotList);
 

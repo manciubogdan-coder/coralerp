@@ -200,7 +200,7 @@ export const DailyLotConsumption = () => {
         if (!productDetailsMap.has(item.name)) {
           productDetailsMap.set(item.name, {
             name: item.name,
-            code: item.products?.cod_produs || '',
+            code: (item as any).products?.cod_produs || '',
             unit: item.unit,
             product_id: item.product_id
           });
@@ -215,7 +215,7 @@ export const DailyLotConsumption = () => {
         if (!productDetailsMap.has(item.name)) {
           productDetailsMap.set(item.name, {
             name: item.name,
-            code: item.products?.cod_produs || '',
+            code: (item as any).products?.cod_produs || '',
             unit: item.unit,
             product_id: item.product_id
           });

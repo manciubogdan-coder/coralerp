@@ -29,7 +29,7 @@ import PendingApprovalPage from "./pages/PendingApprovalPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { InventoryTypeProvider } from "@/context/inventory-type";
+import { InventoryTypeProvider, ForceInventoryType } from "@/context/inventory-type";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
@@ -84,7 +84,9 @@ const AppShell = () => {
                   path="/depozit-mp"
                   element={
                     <ProtectedRoute requireDepartment="depozit_mp">
-                      <InventoryPage />
+                      <ForceInventoryType type="materii-prime">
+                        <InventoryPage />
+                      </ForceInventoryType>
                     </ProtectedRoute>
                   }
                 />
@@ -92,7 +94,9 @@ const AppShell = () => {
                   path="/depozit-mp/receptie"
                   element={
                     <ProtectedRoute requireDepartment="depozit_mp">
-                      <ReceptionReportPage />
+                      <ForceInventoryType type="materii-prime">
+                        <ReceptionReportPage />
+                      </ForceInventoryType>
                     </ProtectedRoute>
                   }
                 />
@@ -102,7 +106,9 @@ const AppShell = () => {
                   path="/depozit-ambalaje"
                   element={
                     <ProtectedRoute requireDepartment="depozit_ambalaje">
-                      <InventoryPage />
+                      <ForceInventoryType type="ambalaje">
+                        <InventoryPage />
+                      </ForceInventoryType>
                     </ProtectedRoute>
                   }
                 />
@@ -112,7 +118,9 @@ const AppShell = () => {
                   path="/etichete"
                   element={
                     <ProtectedRoute requireDepartment="etichete">
-                      <InventoryPage />
+                      <ForceInventoryType type="etichete">
+                        <InventoryPage />
+                      </ForceInventoryType>
                     </ProtectedRoute>
                   }
                 />

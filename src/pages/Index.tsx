@@ -67,7 +67,7 @@ const Index = () => {
       }, {} as Record<string, any>);
 
       // Convert to array
-      const aggregatedData = Object.values(groupedInventory);
+      const aggregatedData = Object.values(groupedInventory) as any[];
       setInventory(aggregatedData);
     } catch (error: any) {
       toast({
