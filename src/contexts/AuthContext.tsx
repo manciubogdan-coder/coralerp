@@ -79,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (roleError) {
         console.warn('Could not load user roles:', roleError.message);
       } else if (roleRows) {
-        const roles = (roleRows as Array<{ role: string }>).map((r) => r.role);
+        const roles = (roleRows as unknown as Array<{ role: string }>).map((r) => r.role);
         nextIsAdmin = roles.includes('admin');
         nextDepartments = roles.filter((r): r is DepartmentRole =>
           (DEPARTMENT_ROLES as readonly string[]).includes(r),
