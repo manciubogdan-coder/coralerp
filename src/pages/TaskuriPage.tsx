@@ -249,6 +249,7 @@ const TaskuriPage: React.FC = () => {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
+      updated_at: new Date().toISOString(),
     };
 
     let res: any;
@@ -282,6 +283,7 @@ const TaskuriPage: React.FC = () => {
     setOpen(false);
     reset();
     loadTasks();
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   const remove = async (t: Task) => {
@@ -296,7 +298,7 @@ const TaskuriPage: React.FC = () => {
   };
 
   const moveTo = async (t: Task, status: Task["status"]) => {
-    const updates: any = { status };
+    const updates: any = { status, updated_at: new Date().toISOString() };
     if (status === "done") {
       updates.completed_at = new Date().toISOString();
       // taskuri recurente — generează următorul
@@ -329,6 +331,7 @@ const TaskuriPage: React.FC = () => {
     }
     await (supabase as any).from("app_tasks").update(updates).eq("id", t.id);
     loadTasks();
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   // ---------- DETAILS (checklist + comments) ----------
