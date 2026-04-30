@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
+import NotificationBell from "@/components/NotificationBell";
 
 import DepartmentHub from "./pages/DepartmentHub";
 import AdministrativHub from "./pages/AdministrativHub";
@@ -23,6 +24,9 @@ import ProductionStockPage from "./pages/dashboard/ProductionStockPage";
 import MentenantaPage from "./pages/MentenantaPage";
 import CalitateHub from "./pages/CalitateHub";
 import VanzariHub from "./pages/VanzariHub";
+import ChatPage from "./pages/ChatPage";
+import TaskuriPage from "./pages/TaskuriPage";
+import NotifRulesPage from "./pages/NotifRulesPage";
 import ForecastPage from "./pages/dashboard/ForecastPage";
 import NomenclatoarePage from "./pages/NomenclatoarePage";
 import NotFound from "./pages/NotFound";
@@ -51,12 +55,13 @@ const AppShell = () => {
           <div className="flex flex-col min-h-screen w-full">
             <div className="flex items-center justify-between p-2 sm:p-4 border-b">
               <SidebarTrigger className="mr-2 sm:mr-4" />
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {profile?.email && (
-                  <span className="hidden sm:inline text-sm text-muted-foreground">
+                  <span className="hidden sm:inline text-sm text-muted-foreground mr-1">
                     {profile.name || profile.email}
                   </span>
                 )}
+                <NotificationBell />
                 <Button variant="ghost" size="icon" onClick={signOut} title="Deconectare">
                   <LogOut size={16} />
                 </Button>
@@ -212,6 +217,26 @@ const AppShell = () => {
                   }
                 />
 
+                {/* ========== CHAT ========== */}
+                <Route
+                  path="/chat"
+                  element={
+                    <ProtectedRoute>
+                      <ChatPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* ========== TASKURI ========== */}
+                <Route
+                  path="/taskuri"
+                  element={
+                    <ProtectedRoute>
+                      <TaskuriPage />
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* ========== ADMINISTRATIV ========== */}
                 <Route
                   path="/administrativ"
@@ -246,6 +271,14 @@ const AppShell = () => {
                   element={
                     <ProtectedRoute requireDepartment="administrativ">
                       <AnalyticsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/administrativ/notificari-reguli"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <NotifRulesPage />
                     </ProtectedRoute>
                   }
                 />
