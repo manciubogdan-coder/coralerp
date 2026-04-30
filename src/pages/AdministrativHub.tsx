@@ -4,10 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   Users,
   FileClock,
-  PackageSearch,
-  Building2,
-  Factory,
-  Layers,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -21,10 +17,6 @@ interface Tile {
 const TILES: Tile[] = [
   { label: 'Utilizatori', desc: 'Aprobare conturi și roluri pe departamente.', path: '/administrativ/users', icon: Users },
   { label: 'Audit Operații', desc: 'Istoric acțiuni utilizatori.', path: '/administrativ/audit', icon: FileClock },
-  { label: 'Produse', desc: 'Nomenclator produse.', path: '/administrativ/produse', icon: PackageSearch },
-  { label: 'Furnizori', desc: 'Listă furnizori.', path: '/administrativ/furnizori', icon: Building2 },
-  { label: 'Producători', desc: 'Listă producători.', path: '/administrativ/producatori', icon: Factory },
-  { label: 'Tipuri Lădițe', desc: 'Configurare tipuri de lădițe.', path: '/administrativ/lazi', icon: Layers },
 ];
 
 const AdministrativHub: React.FC = () => {
