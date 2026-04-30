@@ -12,6 +12,7 @@ import {
 import { Bell, CheckCheck } from "lucide-react";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
+import { useCollaborationAlerts } from "@/contexts/CollaborationAlertsContext";
 
 interface Notif {
   id: string;
@@ -25,10 +26,12 @@ interface Notif {
 const NotificationBell: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { chatUnread, taskUnread, totalUnread, markTasksSeen, refresh } = useCollaborationAlerts();
   const [items, setItems] = useState<Notif[]>([]);
   const [open, setOpen] = useState(false);
 
-  const unread = items.filter((i) => !i.read_at).length;
+  const dbUnread = items.filter((i) => !i.read_at).length;
+  const unread = dbUnread + totalUnread;
 
   const load = async () => {
     if (!user) return;
@@ -39,6 +42,7 @@ const NotificationBell: React.FC = () => {
       .order("created_at", { ascending: false })
       .limit(30);
     setItems((data as Notif[]) ?? []);
+    refresh();
   };
 
   useEffect(() => {
@@ -72,12 +76,15 @@ const NotificationBell: React.FC = () => {
   const markAllRead = async () => {
     if (!user) return;
     const ids = items.filter((i) => !i.read_at).map((i) => i.id);
-    if (ids.length === 0) return;
-    await (supabase as any)
-      .from("notifications")
-      .update({ read_at: new Date().toISOString() })
-      .in("id", ids);
-    load();
+    if (ids.length > 0) {
+      await (supabase as any)
+        .from("notifications")
+        .update({ read_at: new Date().toISOString() })
+        .in("id", ids);
+    }
+    markTasksSeen();
+    await load();
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   const openItem = async (n: Notif) => {
@@ -118,7 +125,46 @@ const NotificationBell: React.FC = () => {
           )}
         </div>
         <div className="max-h-96 overflow-y-auto">
-          {items.length === 0 ? (
+          {chatUnread > 0 && (
+            <button
+              onClick={() => {
+                setOpen(false);
+                navigate("/chat");
+              }}
+              className="w-full text-left p-3 border-b hover:bg-accent transition-colors bg-accent/40"
+            >
+              <div className="flex items-start gap-2">
+                <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">Mesaje noi în chat</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {chatUnread > 99 ? "99+" : chatUnread} mesaje necitite
+                  </div>
+                </div>
+              </div>
+            </button>
+          )}
+          {taskUnread > 0 && (
+            <button
+              onClick={() => {
+                markTasksSeen();
+                setOpen(false);
+                navigate("/taskuri");
+              }}
+              className="w-full text-left p-3 border-b hover:bg-accent transition-colors bg-accent/40"
+            >
+              <div className="flex items-start gap-2">
+                <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">Taskuri modificate</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {taskUnread > 99 ? "99+" : taskUnread} modificări noi
+                  </div>
+                </div>
+              </div>
+            </button>
+          )}
+          {items.length === 0 && totalUnread === 0 ? (
             <div className="p-6 text-center text-sm text-muted-foreground">
               Nicio notificare.
             </div>
