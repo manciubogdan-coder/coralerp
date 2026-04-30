@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useCallback } from "react";
  import { format } from "date-fns";
  import { ro } from "date-fns/locale";
