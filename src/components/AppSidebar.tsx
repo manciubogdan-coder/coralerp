@@ -130,7 +130,7 @@ const AppSidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
-  const { hasDepartment } = useAuth();
+  const { hasDepartment, isAdmin } = useAuth();
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -183,6 +183,52 @@ const AppSidebar: React.FC = () => {
                   <span>Hub Calitate</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Colaborare — Chat, Taskuri (+ Reguli notificări pentru admin) */}
+        <SidebarGroup>
+          <SidebarGroupLabel className={isMobile ? 'text-black font-medium' : ''}>
+            Colaborare
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={location.pathname === '/chat'}
+                  onClick={() => handleNavigation('/chat')}
+                  tooltip="Chat"
+                  className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                >
+                  <MessageSquare className="mr-2" size={16} />
+                  <span>Chat</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={location.pathname === '/taskuri'}
+                  onClick={() => handleNavigation('/taskuri')}
+                  tooltip="Taskuri"
+                  className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                >
+                  <CheckSquare className="mr-2" size={16} />
+                  <span>Taskuri</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={location.pathname === '/administrativ/notificari-reguli'}
+                    onClick={() => handleNavigation('/administrativ/notificari-reguli')}
+                    tooltip="Reguli notificări"
+                    className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                  >
+                    <Bell className="mr-2" size={16} />
+                    <span>Reguli notificări</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
