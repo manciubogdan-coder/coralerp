@@ -21,9 +21,9 @@ const chunk = <T,>(items: T[], size = 50) => {
 };
 
 const taskSeenKey = (userId: string) => `coral:taskuri:last-seen:${userId}`;
+const chatSeenKey = (userId: string) => `coral:chat:last-seen:${userId}`;
 
-const getOrInitSeenAt = (userId: string) => {
-  const key = taskSeenKey(userId);
+const getSeenAt = (key: string) => {
   const existing = window.localStorage.getItem(key);
   if (existing) return existing;
   return new Date(0).toISOString();
@@ -50,6 +50,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
 
   const markChatSeen = useCallback(async () => {
     if (!user?.id) return;
+    window.localStorage.setItem(chatSeenKey(user.id), new Date().toISOString());
     await (supabase as any)
       .from("chat_members")
       .update({ last_read_at: new Date().toISOString() })
@@ -84,33 +85,26 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
 
   const loadChatUnread = useCallback(async () => {
     if (!user?.id) return 0;
+    const seenAt = getSeenAt(chatSeenKey(user.id));
     const { data: memberships, error } = await (supabase as any)
       .from("chat_members")
       .select("conversation_id,last_read_at")
       .eq("user_id", user.id);
-    if (error || !memberships?.length) return 0;
-
-    const readByConv = new Map<string, string>(
-      memberships.map((m: any) => [m.conversation_id, m.last_read_at ?? new Date(0).toISOString()])
-    );
     let total = 0;
+    const convIds = error || !memberships?.length ? [] : memberships.map((m: any) => m.conversation_id);
 
-    for (const ids of chunk(Array.from(readByConv.keys()))) {
-      const oldestRead = ids.reduce((min, id) => {
-        const value = readByConv.get(id) ?? min;
-        return value < min ? value : min;
-      }, new Date().toISOString());
-
-      const { data: messages } = await (supabase as any)
+    for (const ids of convIds.length ? chunk(convIds) : [[]]) {
+      let query = (supabase as any)
         .from("chat_messages")
         .select("conversation_id,author_id,created_at")
-        .in("conversation_id", ids)
         .neq("author_id", user.id)
-        .gt("created_at", oldestRead);
+        .gt("created_at", seenAt)
+        .limit(1000);
+      if (ids.length) query = query.in("conversation_id", ids);
+      const { data: messages } = await query;
 
-      total += ((messages as any[]) ?? []).filter(
-        (m) => new Date(m.created_at) > new Date(readByConv.get(m.conversation_id) ?? 0)
-      ).length;
+      total += ((messages as any[]) ?? []).length;
+      if (!convIds.length) break;
     }
 
     return total;
@@ -118,7 +112,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
 
   const loadTaskUnread = useCallback(async () => {
     if (!user?.id || location.pathname.startsWith("/taskuri")) return 0;
-    const seenAt = getOrInitSeenAt(user.id);
+    const seenAt = getSeenAt(taskSeenKey(user.id));
     let page = 0;
     const pageSize = 1000;
     let relevant = 0;
