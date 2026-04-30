@@ -61,3 +61,29 @@ export const InventoryTypeProvider = ({
 
   return <InventoryTypeContext.Provider value={value}>{children}</InventoryTypeContext.Provider>;
 };
+
+/**
+ * Forțează un tip de inventar cât timp componenta e montată.
+ * Folosit de rutele /depozit-mp, /depozit-ambalaje, /etichete ca URL-ul să fie sursa de adevăr,
+ * nu localStorage. Restaurează valoarea anterioară la unmount.
+ */
+export const ForceInventoryType: React.FC<{ type: InventoryType; children: React.ReactNode }> = ({
+  type,
+  children,
+}) => {
+  const { inventoryType, setInventoryType } = useInventoryType();
+  const [ready, setReady] = useState(inventoryType === type);
+
+  useEffect(() => {
+    if (inventoryType !== type) {
+      setInventoryType(type);
+    }
+    setReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type]);
+
+  // Așteaptă ca contextul să reflecte tipul corect înainte de a randa copiii
+  // (altfel hook-urile copiilor vor face fetch cu tipul vechi pe primul render).
+  if (!ready || inventoryType !== type) return null;
+  return <>{children}</>;
+};
