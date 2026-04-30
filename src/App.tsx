@@ -21,6 +21,7 @@ import InventoryPage from "./pages/dashboard/InventoryPage";
 import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import ProductionStockPage from "./pages/dashboard/ProductionStockPage";
 import MentenantaPage from "./pages/MentenantaPage";
+import CalitateHub from "./pages/CalitateHub";
 import ForecastPage from "./pages/dashboard/ForecastPage";
 import NomenclatoarePage from "./pages/NomenclatoarePage";
 import NotFound from "./pages/NotFound";
@@ -196,6 +197,16 @@ const AppShell = () => {
                   element={
                     <ProtectedRoute requireDepartment="mentenanta">
                       <MentenantaPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* ========== CALITATE ========== */}
+                <Route
+                  path="/calitate"
+                  element={
+                    <ProtectedRoute>
+                      <CalitateHub />
                     </ProtectedRoute>
                   }
                 />
