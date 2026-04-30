@@ -195,7 +195,7 @@ const AppShell = () => {
                   path="/mentenanta"
                   element={
                     <ProtectedRoute requireDepartment="mentenanta">
-                      <PlaceholderPage title="Mentenanță" description="Echipamente, intervenții, planificare." />
+                      <MentenantaPage />
                     </ProtectedRoute>
                   }
                 />
