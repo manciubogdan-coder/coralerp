@@ -37,7 +37,7 @@ const DepartmentHub: React.FC = () => {
             const Icon = dept.icon;
             return (
               <Card
-                key={dept.id}
+                key={`${dept.id}-${dept.rootPath}`}
                 onClick={() => navigate(dept.rootPath)}
                 className="cursor-pointer hover:border-primary transition-colors"
               >
