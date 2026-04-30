@@ -274,6 +274,14 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/administrativ/notificari-reguli"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <NotifRulesPage />
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* ========== REDIRECT-URI VECHI → NOI ========== */}
                 <Route path="/dashboard" element={<Navigate to="/" replace />} />
