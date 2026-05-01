@@ -429,11 +429,23 @@ const ChatPage: React.FC = () => {
                       formatDay(prev.created_at) !== formatDay(m.created_at);
                     const isMine = m.author_id === userId;
                     const author = profiles[m.author_id];
+                    const isUnreadAnchor = m.id === activeUnreadAnchor;
+                    const isUnread =
+                      !isMine && new Date(m.created_at) > new Date(getConvSeen(m.conversation_id));
                     return (
                       <div key={m.id}>
                         {showDay && (
                           <div className="text-center text-xs text-muted-foreground my-3">
                             {formatDay(m.created_at)}
+                          </div>
+                        )}
+                        {isUnreadAnchor && (
+                          <div className="flex items-center gap-2 my-3">
+                            <div className="flex-1 h-px bg-red-500/60" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-red-500">
+                              Mesaje noi
+                            </span>
+                            <div className="flex-1 h-px bg-red-500/60" />
                           </div>
                         )}
                         <div
@@ -444,10 +456,11 @@ const ChatPage: React.FC = () => {
                               isMine
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-muted"
-                            }`}
+                            } ${isUnread ? "ring-2 ring-red-500/70" : ""}`}
                           >
                             {!isMine && (
-                              <div className="text-xs font-medium mb-0.5 opacity-80">
+                              <div className="text-xs font-medium mb-0.5 opacity-80 flex items-center gap-1">
+                                {isUnread && <span className="inline-block h-2 w-2 rounded-full bg-red-500" />}
                                 {author?.name || author?.email || "Utilizator"}
                               </div>
                             )}
