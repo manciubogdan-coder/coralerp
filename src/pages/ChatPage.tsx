@@ -59,6 +59,8 @@ const ChatPage: React.FC = () => {
   const [unreadByConv, setUnreadByConv] = useState<Record<string, number>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [convSeenAt, setConvSeenAt] = useState<Record<string, string>>({});
+  const [activeUnreadAnchor, setActiveUnreadAnchor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [filter, setFilter] = useState<"toate" | "dm" | "group" | "department">("toate");
@@ -121,6 +123,14 @@ const ChatPage: React.FC = () => {
     loadUnreadCounts();
   };
 
+  const convSeenKey = (convId: string) => `coral:chat:conv-seen:${userId}:${convId}`;
+  const getConvSeen = (convId: string) =>
+    window.localStorage.getItem(convSeenKey(convId)) ?? new Date(0).toISOString();
+  const setConvSeen = (convId: string, iso: string) => {
+    window.localStorage.setItem(convSeenKey(convId), iso);
+    setConvSeenAt((s) => ({ ...s, [convId]: iso }));
+  };
+
   const loadUnreadCounts = async () => {
     if (!userId) return;
     const { data: convs, error } = await (supabase as any).rpc("chat_list_conversations");
@@ -128,10 +138,12 @@ const ChatPage: React.FC = () => {
       setUnreadByConv({});
       return;
     }
-    const seenAt = window.localStorage.getItem(`coral:chat:last-seen:${userId}`) ?? new Date(0).toISOString();
     const next: Record<string, number> = {};
+    const seenMap: Record<string, string> = {};
     await Promise.all(
       ((convs as Conversation[]) ?? []).map(async (conv) => {
+        const seenAt = getConvSeen(conv.id);
+        seenMap[conv.id] = seenAt;
         if (conv.id === activeId) return;
         const { data: rows } = await (supabase as any).rpc("chat_list_messages", { p_conversation_id: conv.id });
         const unread = ((rows as Message[]) ?? []).filter(
@@ -140,11 +152,13 @@ const ChatPage: React.FC = () => {
         if (unread > 0) next[conv.id] = unread;
       })
     );
+    setConvSeenAt((s) => ({ ...s, ...seenMap }));
     setUnreadByConv(next);
   };
 
   const markConversationRead = async (convId: string) => {
     if (!userId) return;
+    setConvSeen(convId, new Date().toISOString());
     await (supabase as any)
       .from("chat_members")
       .update({ last_read_at: new Date().toISOString() })
@@ -157,7 +171,14 @@ const ChatPage: React.FC = () => {
   // ---------- LOAD MESSAGES ----------
   const loadMessages = async (convId: string) => {
     const { data } = await (supabase as any).rpc("chat_list_messages", { p_conversation_id: convId });
-    setMessages((data as Message[]) ?? []);
+    const list = (data as Message[]) ?? [];
+    // calculează ancora de "necitit" ÎNAINTE să marcăm conversația ca citită
+    const seenAt = getConvSeen(convId);
+    const firstUnread = list.find(
+      (m) => m.author_id !== userId && new Date(m.created_at) > new Date(seenAt)
+    );
+    setActiveUnreadAnchor(firstUnread?.id ?? null);
+    setMessages(list);
     markConversationRead(convId);
   };
 
@@ -408,11 +429,23 @@ const ChatPage: React.FC = () => {
                       formatDay(prev.created_at) !== formatDay(m.created_at);
                     const isMine = m.author_id === userId;
                     const author = profiles[m.author_id];
+                    const isUnreadAnchor = m.id === activeUnreadAnchor;
+                    const isUnread =
+                      !isMine && new Date(m.created_at) > new Date(getConvSeen(m.conversation_id));
                     return (
                       <div key={m.id}>
                         {showDay && (
                           <div className="text-center text-xs text-muted-foreground my-3">
                             {formatDay(m.created_at)}
+                          </div>
+                        )}
+                        {isUnreadAnchor && (
+                          <div className="flex items-center gap-2 my-3">
+                            <div className="flex-1 h-px bg-red-500/60" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-red-500">
+                              Mesaje noi
+                            </span>
+                            <div className="flex-1 h-px bg-red-500/60" />
                           </div>
                         )}
                         <div
@@ -423,10 +456,11 @@ const ChatPage: React.FC = () => {
                               isMine
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-muted"
-                            }`}
+                            } ${isUnread ? "ring-2 ring-red-500/70" : ""}`}
                           >
                             {!isMine && (
-                              <div className="text-xs font-medium mb-0.5 opacity-80">
+                              <div className="text-xs font-medium mb-0.5 opacity-80 flex items-center gap-1">
+                                {isUnread && <span className="inline-block h-2 w-2 rounded-full bg-red-500" />}
                                 {author?.name || author?.email || "Utilizator"}
                               </div>
                             )}
