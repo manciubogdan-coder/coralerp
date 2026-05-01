@@ -14,12 +14,6 @@ interface CollaborationAlertsValue {
 
 const CollaborationAlertsContext = createContext<CollaborationAlertsValue | undefined>(undefined);
 
-const chunk = <T,>(items: T[], size = 50) => {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
-};
-
 const taskSeenKey = (userId: string) => `coral:taskuri:last-seen:${userId}`;
 const chatSeenKey = (userId: string) => `coral:chat:last-seen:${userId}`;
 
