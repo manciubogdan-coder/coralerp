@@ -129,6 +129,33 @@ const NotifRulesPage: React.FC = () => {
       toast({ title: "Selectează un utilizator", variant: "destructive" });
       return;
     }
+    if (targetType === "users" && targetUsers.length === 0) {
+      toast({ title: "Selectează cel puțin un utilizator", variant: "destructive" });
+      return;
+    }
+
+    if (targetType === "users" && !editing) {
+      // Creează câte o regulă pentru fiecare user selectat
+      const rows = targetUsers.map((uid) => ({
+        event_key: eventKey,
+        target_department: null,
+        target_user_id: uid,
+        title_template: titleTpl.trim(),
+        body_template: bodyTpl.trim() || null,
+        enabled,
+      }));
+      const res = await (supabase as any).from("notif_rules").insert(rows);
+      if (res.error) {
+        toast({ title: "Eroare", description: res.error.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: `${rows.length} reguli create` });
+      setOpen(false);
+      reset();
+      load();
+      return;
+    }
+
     const payload: any = {
       event_key: eventKey,
       target_department: targetType === "department" ? targetDept : null,
