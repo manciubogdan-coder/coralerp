@@ -55,6 +55,7 @@ import {
   Wrench,
 } from "lucide-react";
 import BackToHubButton from "@/components/BackToHubButton";
+import { emitNotification } from "@/lib/notifications";
 
 // ---------- Types ----------
 interface Linie {
