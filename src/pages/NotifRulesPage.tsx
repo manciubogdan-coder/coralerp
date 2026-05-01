@@ -63,12 +63,14 @@ const NotifRulesPage: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Rule | null>(null);
   const [eventKey, setEventKey] = useState("");
-  const [targetType, setTargetType] = useState<"department" | "user">("department");
+  const [targetType, setTargetType] = useState<"department" | "user" | "users">("department");
   const [targetDept, setTargetDept] = useState("");
   const [targetUser, setTargetUser] = useState("");
+  const [targetUsers, setTargetUsers] = useState<string[]>([]);
   const [titleTpl, setTitleTpl] = useState("");
   const [bodyTpl, setBodyTpl] = useState("");
   const [enabled, setEnabled] = useState(true);
+  const [userFilter, setUserFilter] = useState("");
 
   const load = async () => {
     const [{ data: ev }, { data: rl }, { data: pr }] = await Promise.all([
@@ -91,9 +93,11 @@ const NotifRulesPage: React.FC = () => {
     setTargetType("department");
     setTargetDept("");
     setTargetUser("");
+    setTargetUsers([]);
     setTitleTpl("");
     setBodyTpl("");
     setEnabled(true);
+    setUserFilter("");
   };
 
   const openNew = () => {
@@ -125,6 +129,33 @@ const NotifRulesPage: React.FC = () => {
       toast({ title: "Selectează un utilizator", variant: "destructive" });
       return;
     }
+    if (targetType === "users" && targetUsers.length === 0) {
+      toast({ title: "Selectează cel puțin un utilizator", variant: "destructive" });
+      return;
+    }
+
+    if (targetType === "users" && !editing) {
+      // Creează câte o regulă pentru fiecare user selectat
+      const rows = targetUsers.map((uid) => ({
+        event_key: eventKey,
+        target_department: null,
+        target_user_id: uid,
+        title_template: titleTpl.trim(),
+        body_template: bodyTpl.trim() || null,
+        enabled,
+      }));
+      const res = await (supabase as any).from("notif_rules").insert(rows);
+      if (res.error) {
+        toast({ title: "Eroare", description: res.error.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: `${rows.length} reguli create` });
+      setOpen(false);
+      reset();
+      load();
+      return;
+    }
+
     const payload: any = {
       event_key: eventKey,
       target_department: targetType === "department" ? targetDept : null,
@@ -293,10 +324,13 @@ const NotifRulesPage: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="department">Departament (toți userii)</SelectItem>
                   <SelectItem value="user">Utilizator specific</SelectItem>
+                  {!editing && (
+                    <SelectItem value="users">Mai mulți utilizatori (din departamente diferite)</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
-            {targetType === "department" ? (
+            {targetType === "department" && (
               <div>
                 <Label>Departament *</Label>
                 <Select value={targetDept} onValueChange={setTargetDept}>
@@ -310,7 +344,8 @@ const NotifRulesPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
-            ) : (
+            )}
+            {targetType === "user" && (
               <div>
                 <Label>Utilizator *</Label>
                 <Select value={targetUser} onValueChange={setTargetUser}>
@@ -323,6 +358,56 @@ const NotifRulesPage: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+            {targetType === "users" && (
+              <div>
+                <Label>Utilizatori * ({targetUsers.length} selectați)</Label>
+                <Input
+                  placeholder="Caută după nume sau email..."
+                  value={userFilter}
+                  onChange={(e) => setUserFilter(e.target.value)}
+                  className="mb-2"
+                />
+                <div className="border rounded max-h-64 overflow-y-auto divide-y">
+                  {profiles
+                    .filter((p) => {
+                      const q = userFilter.trim().toLowerCase();
+                      if (!q) return true;
+                      return (
+                        (p.name || "").toLowerCase().includes(q) ||
+                        (p.email || "").toLowerCase().includes(q)
+                      );
+                    })
+                    .map((p) => {
+                      const checked = targetUsers.includes(p.user_id);
+                      return (
+                        <label
+                          key={p.user_id}
+                          className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted cursor-pointer text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setTargetUsers((prev) =>
+                                e.target.checked
+                                  ? [...prev, p.user_id]
+                                  : prev.filter((x) => x !== p.user_id)
+                              );
+                            }}
+                          />
+                          <span className="flex-1">{p.name || p.email}</span>
+                          {p.name && (
+                            <span className="text-xs text-muted-foreground">{p.email}</span>
+                          )}
+                        </label>
+                      );
+                    })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Se va crea câte o regulă separată pentru fiecare utilizator selectat.
+                </p>
               </div>
             )}
             <div>

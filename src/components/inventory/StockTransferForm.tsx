@@ -21,6 +21,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useInventoryType } from "@/context/inventory-type";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
+import { emitNotification } from "@/lib/notifications";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;
@@ -446,6 +447,25 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
           remainingNet = normalizeStockQuantity(remainingNet - netToDeduct);
         }
+      }
+
+      const dest = (formData.destination || "").toString();
+      const isProductionDest = /produc[țt]ie/i.test(dest);
+      try {
+        await emitNotification("transfer.created", "Transfer creat", {
+          body: `Bon transfer către ${dest} (${selectedItems.length} produse)`,
+          link: "/depozit-mp",
+          payload: { destination: dest, items: selectedItems.length },
+        });
+        if (isProductionDest) {
+          await emitNotification("transfer.to_production", "Transfer către Producție", {
+            body: `Bon transfer către ${dest} (${selectedItems.length} produse)`,
+            link: "/depozit-mp",
+            payload: { destination: dest, items: selectedItems.length },
+          });
+        }
+      } catch (e) {
+        console.warn("[transfer] notif emit failed", e);
       }
 
       toast({
