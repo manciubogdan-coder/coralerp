@@ -59,6 +59,8 @@ const ChatPage: React.FC = () => {
   const [unreadByConv, setUnreadByConv] = useState<Record<string, number>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [convSeenAt, setConvSeenAt] = useState<Record<string, string>>({});
+  const [activeUnreadAnchor, setActiveUnreadAnchor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [filter, setFilter] = useState<"toate" | "dm" | "group" | "department">("toate");
