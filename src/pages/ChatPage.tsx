@@ -123,6 +123,14 @@ const ChatPage: React.FC = () => {
     loadUnreadCounts();
   };
 
+  const convSeenKey = (convId: string) => `coral:chat:conv-seen:${userId}:${convId}`;
+  const getConvSeen = (convId: string) =>
+    window.localStorage.getItem(convSeenKey(convId)) ?? new Date(0).toISOString();
+  const setConvSeen = (convId: string, iso: string) => {
+    window.localStorage.setItem(convSeenKey(convId), iso);
+    setConvSeenAt((s) => ({ ...s, [convId]: iso }));
+  };
+
   const loadUnreadCounts = async () => {
     if (!userId) return;
     const { data: convs, error } = await (supabase as any).rpc("chat_list_conversations");
@@ -130,10 +138,12 @@ const ChatPage: React.FC = () => {
       setUnreadByConv({});
       return;
     }
-    const seenAt = window.localStorage.getItem(`coral:chat:last-seen:${userId}`) ?? new Date(0).toISOString();
     const next: Record<string, number> = {};
+    const seenMap: Record<string, string> = {};
     await Promise.all(
       ((convs as Conversation[]) ?? []).map(async (conv) => {
+        const seenAt = getConvSeen(conv.id);
+        seenMap[conv.id] = seenAt;
         if (conv.id === activeId) return;
         const { data: rows } = await (supabase as any).rpc("chat_list_messages", { p_conversation_id: conv.id });
         const unread = ((rows as Message[]) ?? []).filter(
@@ -142,11 +152,13 @@ const ChatPage: React.FC = () => {
         if (unread > 0) next[conv.id] = unread;
       })
     );
+    setConvSeenAt((s) => ({ ...s, ...seenMap }));
     setUnreadByConv(next);
   };
 
   const markConversationRead = async (convId: string) => {
     if (!userId) return;
+    setConvSeen(convId, new Date().toISOString());
     await (supabase as any)
       .from("chat_members")
       .update({ last_read_at: new Date().toISOString() })
@@ -159,7 +171,14 @@ const ChatPage: React.FC = () => {
   // ---------- LOAD MESSAGES ----------
   const loadMessages = async (convId: string) => {
     const { data } = await (supabase as any).rpc("chat_list_messages", { p_conversation_id: convId });
-    setMessages((data as Message[]) ?? []);
+    const list = (data as Message[]) ?? [];
+    // calculează ancora de "necitit" ÎNAINTE să marcăm conversația ca citită
+    const seenAt = getConvSeen(convId);
+    const firstUnread = list.find(
+      (m) => m.author_id !== userId && new Date(m.created_at) > new Date(seenAt)
+    );
+    setActiveUnreadAnchor(firstUnread?.id ?? null);
+    setMessages(list);
     markConversationRead(convId);
   };
 
