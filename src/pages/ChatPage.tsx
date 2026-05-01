@@ -135,7 +135,7 @@ const ChatPage: React.FC = () => {
         if (conv.id === activeId) return;
         const { data: rows } = await (supabase as any).rpc("chat_list_messages", { p_conversation_id: conv.id });
         const unread = ((rows as Message[]) ?? []).filter(
-          (m) => m.author_id !== userId && m.created_at > seenAt
+          (m) => m.author_id !== userId && new Date(m.created_at) > new Date(seenAt)
         ).length;
         if (unread > 0) next[conv.id] = unread;
       })
