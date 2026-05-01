@@ -449,6 +449,25 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         }
       }
 
+      const dest = (formData.destination || "").toString();
+      const isProductionDest = /produc[țt]ie/i.test(dest);
+      try {
+        await emitNotification("transfer.created", "Transfer creat", {
+          body: `Bon transfer către ${dest} (${selectedItems.length} produse)`,
+          link: "/depozit-mp",
+          payload: { destination: dest, items: selectedItems.length },
+        });
+        if (isProductionDest) {
+          await emitNotification("transfer.to_production", "Transfer către Producție", {
+            body: `Bon transfer către ${dest} (${selectedItems.length} produse)`,
+            link: "/depozit-mp",
+            payload: { destination: dest, items: selectedItems.length },
+          });
+        }
+      } catch (e) {
+        console.warn("[transfer] notif emit failed", e);
+      }
+
       toast({
         title: "Transfer creat cu succes",
         description: `Bonul de transfer pentru ${formData.destination} a fost generat.`,
