@@ -399,6 +399,35 @@ const DefectiuneDialog: React.FC<{
       toast({ title: "Eroare", description: res.error.message, variant: "destructive" });
       return;
     }
+
+    // Notificări pe baza regulilor configurate
+    try {
+      const linie = lines.find((l) => l.id === linieId);
+      const linieNume = linie?.nume ?? "linie necunoscută";
+      const titluProblema = `${componenta.trim()} (${SEV_LABEL[severitate]})`;
+      if (!editing) {
+        await emitNotification("maintenance.opened", "Problemă deschisă", {
+          body: `${linieNume} – ${titluProblema}`,
+          link: "/mentenanta",
+          payload: { linie_id: linieId, severitate, componenta: componenta.trim() },
+        });
+      } else if (editing.status !== "rezolvata" && status === "rezolvata") {
+        await emitNotification("maintenance.resolved", "Problemă rezolvată", {
+          body: `${linieNume} – ${titluProblema}`,
+          link: "/mentenanta",
+          payload: { linie_id: linieId, defectiune_id: editing.id },
+        });
+      } else if (editing.status !== status) {
+        await emitNotification("maintenance.updated", "Problemă actualizată", {
+          body: `${linieNume} – ${titluProblema} → ${STATUS_LABEL[status]}`,
+          link: "/mentenanta",
+          payload: { linie_id: linieId, defectiune_id: editing.id, status },
+        });
+      }
+    } catch {
+      // notificările nu trebuie să blocheze salvarea
+    }
+
     toast({ title: editing ? "Defecțiune actualizată" : "Defecțiune înregistrată" });
     onOpenChange(false);
     onSaved();
