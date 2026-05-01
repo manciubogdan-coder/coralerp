@@ -63,12 +63,14 @@ const NotifRulesPage: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Rule | null>(null);
   const [eventKey, setEventKey] = useState("");
-  const [targetType, setTargetType] = useState<"department" | "user">("department");
+  const [targetType, setTargetType] = useState<"department" | "user" | "users">("department");
   const [targetDept, setTargetDept] = useState("");
   const [targetUser, setTargetUser] = useState("");
+  const [targetUsers, setTargetUsers] = useState<string[]>([]);
   const [titleTpl, setTitleTpl] = useState("");
   const [bodyTpl, setBodyTpl] = useState("");
   const [enabled, setEnabled] = useState(true);
+  const [userFilter, setUserFilter] = useState("");
 
   const load = async () => {
     const [{ data: ev }, { data: rl }, { data: pr }] = await Promise.all([
