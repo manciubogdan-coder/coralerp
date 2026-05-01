@@ -21,6 +21,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useInventoryType } from "@/context/inventory-type";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
+import { emitNotification } from "@/lib/notifications";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;
