@@ -123,29 +123,23 @@ const ChatPage: React.FC = () => {
 
   const loadUnreadCounts = async () => {
     if (!userId) return;
-    const { data: memberships } = await (supabase as any)
-      .from("chat_members")
-      .select("conversation_id,last_read_at")
-      .eq("user_id", userId);
-    if (!memberships?.length) {
+    const { data: convs, error } = await (supabase as any).rpc("chat_list_conversations");
+    if (error || !convs?.length) {
       setUnreadByConv({});
       return;
     }
-    const readByConv = new Map<string, string>(
-      memberships.map((m: any) => [m.conversation_id, m.last_read_at ?? new Date(0).toISOString()])
-    );
-    const ids = Array.from(readByConv.keys());
-    const { data: rows } = await (supabase as any)
-      .from("chat_messages")
-      .select("conversation_id,author_id,created_at")
-      .in("conversation_id", ids)
-      .neq("author_id", userId);
+    const seenAt = window.localStorage.getItem(`coral:chat:last-seen:${userId}`) ?? new Date(0).toISOString();
     const next: Record<string, number> = {};
-    ((rows as Message[]) ?? []).forEach((m) => {
-      if (new Date(m.created_at) > new Date(readByConv.get(m.conversation_id) ?? 0)) {
-        next[m.conversation_id] = (next[m.conversation_id] ?? 0) + 1;
-      }
-    });
+    await Promise.all(
+      ((convs as Conversation[]) ?? []).map(async (conv) => {
+        if (conv.id === activeId) return;
+        const { data: rows } = await (supabase as any).rpc("chat_list_messages", { p_conversation_id: conv.id });
+        const unread = ((rows as Message[]) ?? []).filter(
+          (m) => m.author_id !== userId && m.created_at > seenAt
+        ).length;
+        if (unread > 0) next[conv.id] = unread;
+      })
+    );
     setUnreadByConv(next);
   };
 
