@@ -24,7 +24,7 @@ const getSeenAt = (key: string) => {
 };
 
 export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, departments, isAdmin } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
   const [chatUnread, setChatUnread] = useState(0);
   const [taskUnread, setTaskUnread] = useState(0);
