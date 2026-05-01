@@ -30,7 +30,7 @@ const getSeenAt = (key: string) => {
 };
 
 export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, departments } = useAuth();
+  const { user, departments, isAdmin } = useAuth();
   const location = useLocation();
   const [chatUnread, setChatUnread] = useState(0);
   const [taskUnread, setTaskUnread] = useState(0);
@@ -44,7 +44,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       .update({ read_at: new Date().toISOString() })
       .eq("user_id", user.id)
       .is("read_at", null)
-      .or("link.eq./taskuri,event_key.like.task.%")
+      .or("link.eq./taskuri,event_key.eq.task.assigned,event_key.eq.task.moved,event_key.eq.task.updated,event_key.eq.task.due_soon")
       .then(() => undefined);
   }, [user?.id]);
 
@@ -86,25 +86,18 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
   const loadChatUnread = useCallback(async () => {
     if (!user?.id) return 0;
     const seenAt = getSeenAt(chatSeenKey(user.id));
-    const { data: memberships, error } = await (supabase as any)
-      .from("chat_members")
-      .select("conversation_id,last_read_at")
-      .eq("user_id", user.id);
+    const { data: conversations, error } = await (supabase as any).rpc("chat_list_conversations");
+    if (error || !conversations?.length) return 0;
+
     let total = 0;
-    const convIds = error || !memberships?.length ? [] : memberships.map((m: any) => m.conversation_id);
-
-    for (const ids of convIds.length ? chunk(convIds) : [[]]) {
-      let query = (supabase as any)
-        .from("chat_messages")
-        .select("conversation_id,author_id,created_at")
-        .neq("author_id", user.id)
-        .gt("created_at", seenAt)
-        .limit(1000);
-      if (ids.length) query = query.in("conversation_id", ids);
-      const { data: messages } = await query;
-
-      total += ((messages as any[]) ?? []).length;
-      if (!convIds.length) break;
+    for (const conv of conversations as Array<{ id: string }>) {
+      const { data: messages, error: messagesError } = await (supabase as any).rpc("chat_list_messages", {
+        p_conversation_id: conv.id,
+      });
+      if (messagesError) continue;
+      total += ((messages as any[]) ?? []).filter(
+        (message) => message.author_id !== user.id && message.created_at > seenAt
+      ).length;
     }
 
     return total;
@@ -122,7 +115,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       const to = from + pageSize - 1;
       const { data, error } = await (supabase as any)
         .from("app_tasks")
-        .select("*")
+        .select("id,department,created_by,assigned_to,assignee_id,updated_at")
         .gt("updated_at", seenAt)
         .order("updated_at", { ascending: false })
         .range(from, to);
@@ -131,6 +124,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       relevant += ((data as any[]) ?? []).filter((task) => {
         const assignedTo = task.assigned_to ?? task.assignee_id;
         return (
+          isAdmin ||
           assignedTo === user.id ||
           task.created_by === user.id ||
           (task.department && departments.includes(task.department))
@@ -142,7 +136,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
     }
 
     return relevant;
-  }, [departments, location.pathname, user?.id]);
+  }, [departments, isAdmin, location.pathname, user?.id]);
 
   const refresh = useCallback(async () => {
     if (!user?.id) {
@@ -150,11 +144,14 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       setTaskUnread(0);
       return;
     }
-    const [nextChatUnread, nextTaskUnread, notifUnread] = await Promise.all([
+    const [chatResult, taskResult, notifResult] = await Promise.allSettled([
       loadChatUnread(),
       loadTaskUnread(),
       loadNotificationUnread(),
     ]);
+    const nextChatUnread = chatResult.status === "fulfilled" ? chatResult.value : 0;
+    const nextTaskUnread = taskResult.status === "fulfilled" ? taskResult.value : 0;
+    const notifUnread = notifResult.status === "fulfilled" ? notifResult.value : { chat: 0, task: 0 };
     setChatUnread(Math.max(nextChatUnread, notifUnread.chat));
     setTaskUnread(Math.max(nextTaskUnread, notifUnread.task));
   }, [loadChatUnread, loadNotificationUnread, loadTaskUnread, user?.id]);
