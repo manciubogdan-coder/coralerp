@@ -93,9 +93,11 @@ const NotifRulesPage: React.FC = () => {
     setTargetType("department");
     setTargetDept("");
     setTargetUser("");
+    setTargetUsers([]);
     setTitleTpl("");
     setBodyTpl("");
     setEnabled(true);
+    setUserFilter("");
   };
 
   const openNew = () => {
