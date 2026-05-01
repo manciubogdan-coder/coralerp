@@ -324,10 +324,13 @@ const NotifRulesPage: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="department">Departament (toți userii)</SelectItem>
                   <SelectItem value="user">Utilizator specific</SelectItem>
+                  {!editing && (
+                    <SelectItem value="users">Mai mulți utilizatori (din departamente diferite)</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
-            {targetType === "department" ? (
+            {targetType === "department" && (
               <div>
                 <Label>Departament *</Label>
                 <Select value={targetDept} onValueChange={setTargetDept}>
@@ -341,7 +344,8 @@ const NotifRulesPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
-            ) : (
+            )}
+            {targetType === "user" && (
               <div>
                 <Label>Utilizator *</Label>
                 <Select value={targetUser} onValueChange={setTargetUser}>
@@ -354,6 +358,56 @@ const NotifRulesPage: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+            {targetType === "users" && (
+              <div>
+                <Label>Utilizatori * ({targetUsers.length} selectați)</Label>
+                <Input
+                  placeholder="Caută după nume sau email..."
+                  value={userFilter}
+                  onChange={(e) => setUserFilter(e.target.value)}
+                  className="mb-2"
+                />
+                <div className="border rounded max-h-64 overflow-y-auto divide-y">
+                  {profiles
+                    .filter((p) => {
+                      const q = userFilter.trim().toLowerCase();
+                      if (!q) return true;
+                      return (
+                        (p.name || "").toLowerCase().includes(q) ||
+                        (p.email || "").toLowerCase().includes(q)
+                      );
+                    })
+                    .map((p) => {
+                      const checked = targetUsers.includes(p.user_id);
+                      return (
+                        <label
+                          key={p.user_id}
+                          className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted cursor-pointer text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setTargetUsers((prev) =>
+                                e.target.checked
+                                  ? [...prev, p.user_id]
+                                  : prev.filter((x) => x !== p.user_id)
+                              );
+                            }}
+                          />
+                          <span className="flex-1">{p.name || p.email}</span>
+                          {p.name && (
+                            <span className="text-xs text-muted-foreground">{p.email}</span>
+                          )}
+                        </label>
+                      );
+                    })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Se va crea câte o regulă separată pentru fiecare utilizator selectat.
+                </p>
               </div>
             )}
             <div>
