@@ -90,7 +90,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       });
       if (messagesError) continue;
       total += ((messages as any[]) ?? []).filter(
-        (message) => message.author_id !== user.id && message.created_at > seenAt
+        (message) => message.author_id !== user.id && new Date(message.created_at) > new Date(seenAt)
       ).length;
     }
 
@@ -115,22 +115,14 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
         .range(from, to);
       if (error || !data?.length) break;
 
-      relevant += ((data as any[]) ?? []).filter((task) => {
-        const assignedTo = task.assigned_to ?? task.assignee_id;
-        return (
-          isAdmin ||
-          assignedTo === user.id ||
-          task.created_by === user.id ||
-          (task.department && departments.includes(task.department))
-        );
-      }).length;
+      relevant += ((data as any[]) ?? []).length;
 
       if (data.length < pageSize) break;
       page += 1;
     }
 
     return relevant;
-  }, [departments, isAdmin, location.pathname, user?.id]);
+  }, [location.pathname, user?.id]);
 
   const refresh = useCallback(async () => {
     if (!user?.id) {
