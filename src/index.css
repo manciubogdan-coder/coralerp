@@ -70,6 +70,72 @@
     --input: 240 3.7% 15.9%;
     --ring: 0 71% 67%;
   }
+
+  /* ============================================================
+     PALETE DE CULORI (selectabile per user din pagina de profil)
+     Aplicate prin atributul data-palette pe <html>.
+     Default = coral (deja definit în :root).
+     ============================================================ */
+
+  html[data-palette="blue"] {
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 217 91% 75%;
+    --ring: 217 91% 60%;
+    --accent: 217 91% 96%;
+    --accent-foreground: 217 91% 25%;
+  }
+  html[data-palette="blue"].dark {
+    --primary: 217 91% 60%;
+    --ring: 217 91% 60%;
+    --accent: 217 30% 18%;
+    --accent-foreground: 217 91% 88%;
+  }
+
+  html[data-palette="green"] {
+    --primary: 142 70% 42%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 142 70% 60%;
+    --ring: 142 70% 42%;
+    --accent: 142 50% 95%;
+    --accent-foreground: 142 70% 18%;
+  }
+  html[data-palette="green"].dark {
+    --primary: 142 60% 50%;
+    --ring: 142 60% 50%;
+    --accent: 142 30% 18%;
+    --accent-foreground: 142 50% 88%;
+  }
+
+  html[data-palette="violet"] {
+    --primary: 262 83% 62%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 262 83% 76%;
+    --ring: 262 83% 62%;
+    --accent: 262 80% 96%;
+    --accent-foreground: 262 83% 25%;
+  }
+  html[data-palette="violet"].dark {
+    --primary: 262 83% 68%;
+    --ring: 262 83% 68%;
+    --accent: 262 30% 20%;
+    --accent-foreground: 262 80% 90%;
+  }
+
+  html[data-palette="mocha"] {
+    --primary: 25 60% 45%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 25 60% 60%;
+    --ring: 25 60% 45%;
+    --accent: 25 40% 94%;
+    --accent-foreground: 25 60% 22%;
+  }
+  html[data-palette="mocha"].dark {
+    --primary: 25 55% 55%;
+    --ring: 25 55% 55%;
+    --accent: 25 20% 18%;
+    --accent-foreground: 25 40% 88%;
+  }
 }
 
 @layer base {
