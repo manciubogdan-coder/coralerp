@@ -107,6 +107,14 @@ export const DEPARTMENTS: DepartmentDef[] = [
     description: "Stocuri, calitate, consum pe loturi și recepții.",
   },
   {
+    id: "operator",
+    label: "Operator",
+    short: "Operator",
+    icon: HardHat,
+    rootPath: "/operator",
+    description: "Interfața operatorului de producție — comenzi pe linie, consum, raportare.",
+  },
+  {
     id: "mentenanta",
     label: "Mentenanță",
     short: "Mentenanță",
