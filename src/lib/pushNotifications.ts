@@ -62,6 +62,16 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer | null): string => {
   return btoa(binary);
 };
 
+const base64UrlToBase64 = (value: string): string => {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  return (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+};
+
+const subscriptionUsesVapidKey = (sub: PushSubscription, vapidPublicKey: string): boolean => {
+  const currentKey = arrayBufferToBase64(sub.options.applicationServerKey ?? null);
+  return !!currentKey && currentKey === base64UrlToBase64(vapidPublicKey);
+};
+
 const getVapidPublicKey = async (): Promise<string> => {
   try {
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`);
@@ -140,6 +150,12 @@ export const enablePushOnThisDevice = async (
   // 3. Subscribe la push
   const vapidPublicKey = await getVapidPublicKey();
   let sub = await reg.pushManager.getSubscription();
+  if (sub && !subscriptionUsesVapidKey(sub, vapidPublicKey)) {
+    const oldEndpoint = sub.endpoint;
+    await sub.unsubscribe();
+    await (supabase as any).rpc("delete_push_subscription", { p_endpoint: oldEndpoint });
+    sub = null;
+  }
   if (!sub) {
     sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
