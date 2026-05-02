@@ -810,6 +810,25 @@ const ChatPage: React.FC = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Confirm delete conversation */}
+      <AlertDialog open={!!deleteConvTarget} onOpenChange={(o) => !o && setDeleteConvTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ștergi conversația?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Conversația „{deleteConvTarget ? getConvLabel(deleteConvTarget) : ""}” va fi eliminată din lista ta.
+              Ceilalți participanți o vor vedea în continuare. Dacă primești un mesaj nou aici, conversația va reapărea automat.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteConv} className="bg-destructive hover:bg-destructive/90">
+              Șterge pentru mine
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Image preview */}
       <Dialog open={!!imagePreview} onOpenChange={(o) => !o && setImagePreview(null)}>
         <DialogContent className="max-w-4xl p-2">
