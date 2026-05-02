@@ -27,6 +27,7 @@ import {
   ShoppingBag,
   Wrench,
   ShieldCheck,
+  HardHat,
   MessageSquare,
   CheckSquare,
   Bell,
