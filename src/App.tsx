@@ -42,7 +42,7 @@ import UserManagementPage from "./pages/UserManagementPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { InventoryTypeProvider, ForceInventoryType } from "@/context/inventory-type";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { CollaborationAlertsProvider } from "@/contexts/CollaborationAlertsContext";
 import CollaborationAlertBadges from "@/components/CollaborationAlertBadges";
 
