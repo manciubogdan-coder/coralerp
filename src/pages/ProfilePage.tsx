@@ -10,6 +10,7 @@ import UserAvatar from "@/components/UserAvatar";
 import BackToHubButton from "@/components/BackToHubButton";
 import { Camera, Save, Sun, Moon, Monitor, Image as ImageIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import PushNotificationsCard from "@/components/PushNotificationsCard";
 
 type Mode = "light" | "dark" | "auto";
 type Palette = "coral" | "blue" | "green" | "violet" | "mocha";
@@ -287,6 +288,9 @@ const ProfilePage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* PUSH NOTIFICATIONS */}
+      <PushNotificationsCard />
     </div>
   );
 };
