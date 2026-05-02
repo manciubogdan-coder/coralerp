@@ -86,6 +86,20 @@ export interface SubscribeResult {
   error?: string;
 }
 
+const getCurrentPushSubscriptionPayload = async () => {
+  const reg = await navigator.serviceWorker.getRegistration(SW_PATH);
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return null;
+
+  const json = sub.toJSON();
+  const endpoint = json.endpoint || sub.endpoint;
+  const p256dh = json.keys?.p256dh ?? arrayBufferToBase64(sub.getKey("p256dh"));
+  const auth = json.keys?.auth ?? arrayBufferToBase64(sub.getKey("auth"));
+
+  if (!endpoint || !p256dh || !auth) return null;
+  return { endpoint, p256dh_key: p256dh, auth_key: auth };
+};
+
 /** Cere permisiune, se abonează la push și salvează subscription-ul în DB. */
 export const enablePushOnThisDevice = async (
   customLabel?: string
@@ -132,6 +146,36 @@ export const enablePushOnThisDevice = async (
 
   if (error) return { ok: false, error: error.message };
   return { ok: true, endpoint };
+};
+
+/** Trimite un push de test către acest dispozitiv, fără să depindă de trigger-ul din DB. */
+export const sendTestPushToThisDevice = async (): Promise<SubscribeResult> => {
+  if (!isPushAllowedHere()) {
+    return { ok: false, error: "Push nu e disponibil în această fereastră. Deschide aplicația publicată/instalată." };
+  }
+
+  const sub = await getCurrentPushSubscriptionPayload();
+  if (!sub) {
+    return { ok: false, error: "Acest dispozitiv nu are încă o subscriere push activă. Apasă mai întâi «Activează push»." };
+  }
+
+  const functionBase = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`;
+  const response = await fetch(functionBase, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: "Test notificare Coral",
+      body: "Dacă vezi acest mesaj, telefonul poate primi push.",
+      link: "/",
+      notification_id: `test-${Date.now()}`,
+      subscriptions: [sub],
+    }),
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) return { ok: false, error: result?.error || `Eroare test push (${response.status})` };
+  if (!result?.delivered) return { ok: false, error: "Backend-ul a răspuns, dar notificarea nu a fost livrată către browser." };
+  return { ok: true, endpoint: sub.endpoint };
 };
 
 /** Dezabonează acest device. */
