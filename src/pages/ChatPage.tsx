@@ -337,6 +337,22 @@ const ChatPage: React.FC = () => {
     loadConversations();
   };
 
+  // ---------- DELETE CONVERSATION (for me) ----------
+  const confirmDeleteConv = async () => {
+    if (!deleteConvTarget) return;
+    const { error } = await (supabase as any).rpc("chat_delete_conversation", {
+      p_conversation_id: deleteConvTarget.id,
+    });
+    if (error) {
+      toast({ title: "Eroare", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Conversație ștearsă", description: "A fost eliminată din lista ta." });
+      if (activeId === deleteConvTarget.id) setActiveId(null);
+      await loadConversations();
+    }
+    setDeleteConvTarget(null);
+  };
+
   // ---------- CREATE DM ----------
   const createDM = async (otherUserId: string) => {
     const { data: convId, error } = await (supabase as any).rpc("chat_create_dm", {
