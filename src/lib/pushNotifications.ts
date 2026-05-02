@@ -85,6 +85,7 @@ export interface SubscribeResult {
   endpoint?: string;
   delivered?: number;
   expired?: string[];
+  failed?: Array<{ statusCode?: number; body?: string }>;
   error?: string;
 }
 
@@ -197,9 +198,11 @@ export const sendTestPushToSubscription = async (
     const expiredMsg = Array.isArray(result?.expired) && result.expired.length > 0
       ? " Subscrierea pare expirată; șterge dispozitivul și activează push din nou pe telefon."
       : "";
-    return { ok: false, error: `Backend-ul a răspuns, dar notificarea nu a fost livrată către browser.${expiredMsg}` };
+    const failed = Array.isArray(result?.failed) ? result.failed[0] : null;
+    const failedMsg = failed?.statusCode ? ` Cod push service: ${failed.statusCode}.` : "";
+    return { ok: false, error: `Backend-ul a răspuns, dar notificarea nu a fost livrată către browser.${expiredMsg}${failedMsg}` };
   }
-  return { ok: true, endpoint: sub.endpoint, delivered: result.delivered, expired: result.expired ?? [] };
+  return { ok: true, endpoint: sub.endpoint, delivered: result.delivered, expired: result.expired ?? [], failed: result.failed ?? [] };
 };
 
 /** Dezabonează acest device. */
