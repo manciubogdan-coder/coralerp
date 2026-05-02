@@ -574,7 +574,16 @@ const ChatPage: React.FC = () => {
                             <div className="flex-1 h-px bg-red-500/60" />
                           </div>
                         )}
-                        <div className={`group/msg flex mb-2 items-start gap-1 ${isMine ? "justify-end" : "justify-start"}`}>
+                        <div className={`group/msg flex mb-2 items-end gap-2 ${isMine ? "justify-end" : "justify-start"}`}>
+                          {!isMine && (
+                            <UserAvatar
+                              size="xs"
+                              name={author?.display_name || author?.name}
+                              email={author?.email}
+                              url={author?.avatar_url}
+                              className="mb-1"
+                            />
+                          )}
                           {isMine && !m.deleted_for_all && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -597,13 +606,13 @@ const ChatPage: React.FC = () => {
                           )}
                           <div
                             className={`max-w-[75%] rounded-lg px-3 py-2 ${
-                              isMine ? "bg-primary text-primary-foreground" : "bg-muted"
+                              isMine ? "bg-primary text-primary-foreground" : "bg-card border"
                             } ${isUnread ? "ring-2 ring-red-500/70" : ""} ${m.deleted_for_all ? "italic opacity-70" : ""}`}
                           >
                             {!isMine && (
                               <div className="text-xs font-medium mb-0.5 opacity-80 flex items-center gap-1">
                                 {isUnread && <span className="inline-block h-2 w-2 rounded-full bg-red-500" />}
-                                {author?.name || author?.email || "Utilizator"}
+                                {author?.display_name || author?.name || author?.email || "Utilizator"}
                               </div>
                             )}
                             {m.deleted_for_all ? (
