@@ -35,6 +35,12 @@ import {
   CheckSquare,
   MessageSquare,
   RefreshCw,
+  CheckCircle2,
+  CircleDashed,
+  CalendarClock,
+  CalendarOff,
+  Filter,
+  X,
 } from "lucide-react";
 import BackToHubButton from "@/components/BackToHubButton";
 import { DEPARTMENTS } from "@/lib/departments";
