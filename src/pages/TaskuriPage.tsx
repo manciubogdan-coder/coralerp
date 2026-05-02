@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { format, isPast, addDays, addWeeks, addMonths } from "date-fns";
+import { format, isPast, isToday, addDays, addWeeks, addMonths, differenceInHours } from "date-fns";
 import { ro } from "date-fns/locale";
 import {
   Plus,
