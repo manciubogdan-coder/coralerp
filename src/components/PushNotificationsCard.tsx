@@ -14,6 +14,7 @@ import {
   isPushAllowedHere,
   getPermissionState,
   sendTestPushToThisDevice,
+  sendTestPushToSubscription,
 } from "@/lib/pushNotifications";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
@@ -21,6 +22,8 @@ import { ro } from "date-fns/locale";
 interface DeviceRow {
   id: string;
   endpoint: string;
+  p256dh_key: string;
+  auth_key: string;
   device_label: string | null;
   user_agent: string | null;
   last_used_at: string;
@@ -42,7 +45,7 @@ const PushNotificationsCard: React.FC = () => {
     if (!user) return;
     const { data } = await (supabase as any)
       .from("push_subscriptions")
-      .select("id,endpoint,device_label,user_agent,last_used_at,created_at")
+      .select("id,endpoint,p256dh_key,auth_key,device_label,user_agent,last_used_at,created_at")
       .eq("user_id", user.id)
       .order("last_used_at", { ascending: false });
     setDevices((data as DeviceRow[]) ?? []);
@@ -113,6 +116,21 @@ const PushNotificationsCard: React.FC = () => {
     setLoading(false);
     if (r.ok) {
       toast({ title: "Test trimis", description: "Verifică notificarea pe acest dispozitiv." });
+    } else {
+      toast({ title: "Test push eșuat", description: r.error, variant: "destructive" });
+    }
+  };
+
+  const handleTestDevice = async (device: DeviceRow) => {
+    setLoading(true);
+    const r = await sendTestPushToSubscription({
+      endpoint: device.endpoint,
+      p256dh_key: device.p256dh_key,
+      auth_key: device.auth_key,
+    });
+    setLoading(false);
+    if (r.ok) {
+      toast({ title: "Test trimis", description: `Trimis către ${device.device_label || "dispozitiv"}.` });
     } else {
       toast({ title: "Test push eșuat", description: r.error, variant: "destructive" });
     }
