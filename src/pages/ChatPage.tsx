@@ -45,6 +45,8 @@ import {
 import EmojiPicker, { EmojiStyle, Theme } from "emoji-picker-react";
 import BackToHubButton from "@/components/BackToHubButton";
 import { DEPARTMENTS } from "@/lib/departments";
+import UserAvatar from "@/components/UserAvatar";
+import { useTheme } from "@/contexts/ThemeContext";
 
 interface Profile {
   user_id: string;
