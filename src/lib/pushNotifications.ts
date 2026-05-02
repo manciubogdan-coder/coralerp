@@ -4,8 +4,9 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-// Cheia VAPID publică (NU e secretă; e safe în client)
-const VAPID_PUBLIC_KEY =
+// Fallback pentru cheia VAPID publică (NU e secretă; e safe în client).
+// La activare o cerem din backend ca să fie mereu sincronizată cu cheia privată.
+const FALLBACK_VAPID_PUBLIC_KEY =
   "BEmABGwlMAirCHjJux58gCgDxro_Finw-CLb-fp-w0M81tgWED9-Fvs81MoCljttfK_PFFhjLvfsrEuOM32O7rM";
 
 const SW_PATH = "/sw-push.js";
@@ -61,6 +62,26 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer | null): string => {
   return btoa(binary);
 };
 
+const base64UrlToBase64 = (value: string): string => {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  return (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+};
+
+const subscriptionUsesVapidKey = (sub: PushSubscription, vapidPublicKey: string): boolean => {
+  const currentKey = arrayBufferToBase64(sub.options.applicationServerKey ?? null);
+  return !!currentKey && currentKey === base64UrlToBase64(vapidPublicKey);
+};
+
+const getVapidPublicKey = async (): Promise<string> => {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`);
+    const data = await response.json();
+    return data?.publicKey || FALLBACK_VAPID_PUBLIC_KEY;
+  } catch {
+    return FALLBACK_VAPID_PUBLIC_KEY;
+  }
+};
+
 const registerSW = async (): Promise<ServiceWorkerRegistration> => {
   // Folosim un scope explicit ca să NU intre în coliziune cu eventuale alte SW-uri
   const reg = await navigator.serviceWorker.register(SW_PATH, { scope: "/" });
@@ -83,7 +104,16 @@ const detectDeviceLabel = (): string => {
 export interface SubscribeResult {
   ok: boolean;
   endpoint?: string;
+  delivered?: number;
+  expired?: string[];
+  failed?: Array<{ statusCode?: number; body?: string }>;
   error?: string;
+}
+
+export interface PushSubscriptionPayload {
+  endpoint: string;
+  p256dh_key: string;
+  auth_key: string;
 }
 
 const getCurrentPushSubscriptionPayload = async () => {
@@ -118,11 +148,18 @@ export const enablePushOnThisDevice = async (
   const reg = await registerSW();
 
   // 3. Subscribe la push
+  const vapidPublicKey = await getVapidPublicKey();
   let sub = await reg.pushManager.getSubscription();
+  if (sub && !subscriptionUsesVapidKey(sub, vapidPublicKey)) {
+    const oldEndpoint = sub.endpoint;
+    await sub.unsubscribe();
+    await (supabase as any).rpc("delete_push_subscription", { p_endpoint: oldEndpoint });
+    sub = null;
+  }
   if (!sub) {
     sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
     });
   }
 
@@ -159,6 +196,17 @@ export const sendTestPushToThisDevice = async (): Promise<SubscribeResult> => {
     return { ok: false, error: "Acest dispozitiv nu are încă o subscriere push activă. Apasă mai întâi «Activează push»." };
   }
 
+  return sendTestPushToSubscription(sub);
+};
+
+/** Trimite un push de test către o subscriere salvată în DB (ex: telefon din listă). */
+export const sendTestPushToSubscription = async (
+  sub: PushSubscriptionPayload
+): Promise<SubscribeResult> => {
+  if (!sub?.endpoint || !sub?.p256dh_key || !sub?.auth_key) {
+    return { ok: false, error: "Lipsesc cheile de push pentru acest dispozitiv. Re-activează push pe telefon." };
+  }
+
   const functionBase = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`;
   const response = await fetch(functionBase, {
     method: "POST",
@@ -174,8 +222,15 @@ export const sendTestPushToThisDevice = async (): Promise<SubscribeResult> => {
 
   const result = await response.json().catch(() => ({}));
   if (!response.ok) return { ok: false, error: result?.error || `Eroare test push (${response.status})` };
-  if (!result?.delivered) return { ok: false, error: "Backend-ul a răspuns, dar notificarea nu a fost livrată către browser." };
-  return { ok: true, endpoint: sub.endpoint };
+  if (!result?.delivered) {
+    const expiredMsg = Array.isArray(result?.expired) && result.expired.length > 0
+      ? " Subscrierea pare expirată; șterge dispozitivul și activează push din nou pe telefon."
+      : "";
+    const failed = Array.isArray(result?.failed) ? result.failed[0] : null;
+    const failedMsg = failed?.statusCode ? ` Cod push service: ${failed.statusCode}.` : "";
+    return { ok: false, error: `Backend-ul a răspuns, dar notificarea nu a fost livrată către browser.${expiredMsg}${failedMsg}` };
+  }
+  return { ok: true, endpoint: sub.endpoint, delivered: result.delivered, expired: result.expired ?? [], failed: result.failed ?? [] };
 };
 
 /** Dezabonează acest device. */
