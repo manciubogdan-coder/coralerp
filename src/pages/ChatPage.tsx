@@ -540,7 +540,10 @@ const ChatPage: React.FC = () => {
                   {activeConv.archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
                 </Button>
               </div>
-              <ScrollArea className="flex-1 p-4">
+              <ScrollArea
+                className="flex-1 p-4"
+                style={chatBackground ? { background: chatBackground } : undefined}
+              >
                 {messages.length === 0 ? (
                   <div className="text-center text-sm text-muted-foreground py-8">
                     Niciun mesaj încă. Scrie primul!
