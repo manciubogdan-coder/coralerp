@@ -5,9 +5,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
+import UserMenu from "@/components/UserMenu";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import ProfilePage from "./pages/ProfilePage";
 
 import DepartmentHub from "./pages/DepartmentHub";
 import AdministrativHub from "./pages/AdministrativHub";
@@ -41,15 +42,13 @@ import UserManagementPage from "./pages/UserManagementPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { InventoryTypeProvider, ForceInventoryType } from "@/context/inventory-type";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { CollaborationAlertsProvider } from "@/contexts/CollaborationAlertsContext";
 import CollaborationAlertBadges from "@/components/CollaborationAlertBadges";
 
 const queryClient = new QueryClient();
 
 const AppShell = () => {
-  const { signOut, profile } = useAuth();
-
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -59,22 +58,18 @@ const AppShell = () => {
             <div className="flex items-center justify-between p-2 sm:p-4 border-b">
               <SidebarTrigger className="mr-2 sm:mr-4" />
               <div className="flex items-center gap-2">
-                {profile?.email && (
-                  <span className="hidden sm:inline text-sm text-muted-foreground mr-1">
-                    {profile.name || profile.email}
-                  </span>
-                )}
                 <CollaborationAlertBadges />
                 <NotificationBell />
-                <Button variant="ghost" size="icon" onClick={signOut} title="Deconectare">
-                  <LogOut size={16} />
-                </Button>
+                <UserMenu />
               </div>
             </div>
             <main className="flex-1 p-2 sm:p-4">
               <Routes>
                 {/* Hub principal */}
                 <Route path="/" element={<DepartmentHub />} />
+
+                {/* ========== PROFIL ========== */}
+                <Route path="/profil" element={<ProfilePage />} />
 
                 {/* ========== ACHIZIȚII ========== */}
                 <Route
@@ -329,27 +324,29 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <AuthProvider>
-              <Routes>
-                <Route path="/auth" element={<AuthPage />} />
-                <Route path="/pending-approval" element={<PendingApprovalPage />} />
+              <ThemeProvider>
+                <Routes>
+                  <Route path="/auth" element={<AuthPage />} />
+                  <Route path="/pending-approval" element={<PendingApprovalPage />} />
 
-                {/* Redirect-uri legacy pentru rute aflate înainte la rădăcină */}
-                <Route path="/users" element={<Navigate to="/administrativ/users" replace />} />
-                <Route path="/audit" element={<Navigate to="/administrativ/audit" replace />} />
+                  {/* Redirect-uri legacy pentru rute aflate înainte la rădăcină */}
+                  <Route path="/users" element={<Navigate to="/administrativ/users" replace />} />
+                  <Route path="/audit" element={<Navigate to="/administrativ/audit" replace />} />
 
-                <Route
-                  path="/*"
-                  element={
-                    <ProtectedRoute>
-                      <InventoryTypeProvider>
-                        <CollaborationAlertsProvider>
-                          <AppShell />
-                        </CollaborationAlertsProvider>
-                      </InventoryTypeProvider>
-                    </ProtectedRoute>
-                  }
-                />
-              </Routes>
+                  <Route
+                    path="/*"
+                    element={
+                      <ProtectedRoute>
+                        <InventoryTypeProvider>
+                          <CollaborationAlertsProvider>
+                            <AppShell />
+                          </CollaborationAlertsProvider>
+                        </InventoryTypeProvider>
+                      </ProtectedRoute>
+                    }
+                  />
+                </Routes>
+              </ThemeProvider>
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>

@@ -14,6 +14,12 @@ interface AppProfile {
   approved: boolean;
   created_at: string;
   updated_at: string;
+  // extensii noi
+  avatar_url?: string | null;
+  display_name?: string | null;
+  theme_mode?: "light" | "dark" | "auto" | null;
+  theme_palette?: "coral" | "blue" | "green" | "violet" | "mocha" | null;
+  chat_background?: string | null;
 }
 
 interface AuthContextType {

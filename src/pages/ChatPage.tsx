@@ -45,11 +45,15 @@ import {
 import EmojiPicker, { EmojiStyle, Theme } from "emoji-picker-react";
 import BackToHubButton from "@/components/BackToHubButton";
 import { DEPARTMENTS } from "@/lib/departments";
+import UserAvatar from "@/components/UserAvatar";
+import { useTheme } from "@/contexts/ThemeContext";
 
 interface Profile {
   user_id: string;
   name: string | null;
   email: string;
+  avatar_url?: string | null;
+  display_name?: string | null;
 }
 interface Attachment {
   url: string;
@@ -93,6 +97,7 @@ const formatBytes = (b: number) => {
 
 const ChatPage: React.FC = () => {
   const { user } = useAuth();
+  const { chatBackground } = useTheme();
   const { toast } = useToast();
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -111,6 +116,7 @@ const ChatPage: React.FC = () => {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Message | null>(null);
   const [deleteMode, setDeleteMode] = useState<"me" | "all">("me");
+  const [deleteConvTarget, setDeleteConvTarget] = useState<Conversation | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -331,6 +337,22 @@ const ChatPage: React.FC = () => {
     loadConversations();
   };
 
+  // ---------- DELETE CONVERSATION (for me) ----------
+  const confirmDeleteConv = async () => {
+    if (!deleteConvTarget) return;
+    const { error } = await (supabase as any).rpc("chat_delete_conversation", {
+      p_conversation_id: deleteConvTarget.id,
+    });
+    if (error) {
+      toast({ title: "Eroare", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Conversație ștearsă", description: "A fost eliminată din lista ta." });
+      if (activeId === deleteConvTarget.id) setActiveId(null);
+      await loadConversations();
+    }
+    setDeleteConvTarget(null);
+  };
+
   // ---------- CREATE DM ----------
   const createDM = async (otherUserId: string) => {
     const { data: convId, error } = await (supabase as any).rpc("chat_create_dm", {
@@ -434,6 +456,13 @@ const ChatPage: React.FC = () => {
             ) : (
               filtered.map((c) => {
                 const unread = unreadByConv[c.id] ?? 0;
+                // pentru DM extragem celălalt user (din lista de membri o vom afla din profile)
+                let dmOther: Profile | undefined;
+                if (c.type === "dm") {
+                  dmOther = Object.values(profiles).find(
+                    (p) => p.user_id !== userId && (p.display_name === c.name || p.name === c.name || p.email === c.name)
+                  );
+                }
                 return (
                   <div
                     key={c.id}
@@ -445,7 +474,16 @@ const ChatPage: React.FC = () => {
                       onClick={() => setActiveId(c.id)}
                       className="flex-1 flex items-center gap-2 text-left min-w-0"
                     >
-                      {getConvIcon(c)}
+                      {c.type === "dm" ? (
+                        <UserAvatar
+                          size="sm"
+                          name={dmOther?.display_name || dmOther?.name || c.name}
+                          email={dmOther?.email}
+                          url={dmOther?.avatar_url}
+                        />
+                      ) : (
+                        getConvIcon(c)
+                      )}
                       <span className="flex-1 truncate text-sm">{getConvLabel(c)}</span>
                       {unread > 0 && (
                         <Badge className="bg-red-500 text-white border-0 h-5 min-w-[20px] px-1 text-[10px]">
@@ -455,7 +493,7 @@ const ChatPage: React.FC = () => {
                     </button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100">
+                        <Button size="icon" variant="ghost" className="h-6 w-6 opacity-60 group-hover:opacity-100">
                           <MoreVertical size={14} />
                         </Button>
                       </DropdownMenuTrigger>
@@ -466,6 +504,13 @@ const ChatPage: React.FC = () => {
                           ) : (
                             <><Archive size={14} className="mr-2" /> Arhivează</>
                           )}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => setDeleteConvTarget(c)}
+                        >
+                          <Trash2 size={14} className="mr-2" /> Șterge conversația
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -495,7 +540,10 @@ const ChatPage: React.FC = () => {
                   {activeConv.archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
                 </Button>
               </div>
-              <ScrollArea className="flex-1 p-4">
+              <ScrollArea
+                className="flex-1 p-4"
+                style={chatBackground ? { background: chatBackground } : undefined}
+              >
                 {messages.length === 0 ? (
                   <div className="text-center text-sm text-muted-foreground py-8">
                     Niciun mesaj încă. Scrie primul!
@@ -526,7 +574,16 @@ const ChatPage: React.FC = () => {
                             <div className="flex-1 h-px bg-red-500/60" />
                           </div>
                         )}
-                        <div className={`group/msg flex mb-2 items-start gap-1 ${isMine ? "justify-end" : "justify-start"}`}>
+                        <div className={`group/msg flex mb-2 items-end gap-2 ${isMine ? "justify-end" : "justify-start"}`}>
+                          {!isMine && (
+                            <UserAvatar
+                              size="xs"
+                              name={author?.display_name || author?.name}
+                              email={author?.email}
+                              url={author?.avatar_url}
+                              className="mb-1"
+                            />
+                          )}
                           {isMine && !m.deleted_for_all && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -549,13 +606,13 @@ const ChatPage: React.FC = () => {
                           )}
                           <div
                             className={`max-w-[75%] rounded-lg px-3 py-2 ${
-                              isMine ? "bg-primary text-primary-foreground" : "bg-muted"
+                              isMine ? "bg-primary text-primary-foreground" : "bg-card border"
                             } ${isUnread ? "ring-2 ring-red-500/70" : ""} ${m.deleted_for_all ? "italic opacity-70" : ""}`}
                           >
                             {!isMine && (
                               <div className="text-xs font-medium mb-0.5 opacity-80 flex items-center gap-1">
                                 {isUnread && <span className="inline-block h-2 w-2 rounded-full bg-red-500" />}
-                                {author?.name || author?.email || "Utilizator"}
+                                {author?.display_name || author?.name || author?.email || "Utilizator"}
                               </div>
                             )}
                             {m.deleted_for_all ? (
@@ -749,6 +806,25 @@ const ChatPage: React.FC = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Anulează</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete}>Șterge</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm delete conversation */}
+      <AlertDialog open={!!deleteConvTarget} onOpenChange={(o) => !o && setDeleteConvTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ștergi conversația?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Conversația „{deleteConvTarget ? getConvLabel(deleteConvTarget) : ""}” va fi eliminată din lista ta.
+              Ceilalți participanți o vor vedea în continuare. Dacă primești un mesaj nou aici, conversația va reapărea automat.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteConv} className="bg-destructive hover:bg-destructive/90">
+              Șterge pentru mine
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
