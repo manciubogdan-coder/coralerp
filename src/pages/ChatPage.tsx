@@ -52,6 +52,8 @@ interface Profile {
   user_id: string;
   name: string | null;
   email: string;
+  avatar_url?: string | null;
+  display_name?: string | null;
 }
 interface Attachment {
   url: string;
