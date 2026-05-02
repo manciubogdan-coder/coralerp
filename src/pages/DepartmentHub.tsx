@@ -4,26 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCollaborationAlerts } from '@/contexts/CollaborationAlertsContext';
-import { DEPARTMENTS, type DepartmentDef } from '@/lib/departments';
-import { ShieldAlert, ShieldCheck, MessageSquare, ListTodo, Bell, HardHat } from 'lucide-react';
-
-const CALITATE_TILE: DepartmentDef = {
-  id: 'administrativ' as any, // pseudo — vizibil pentru toți userii aprobați
-  label: 'Calitate',
-  short: 'Calitate',
-  icon: ShieldCheck,
-  rootPath: '/calitate',
-  description: 'Stocuri, calitate, consum pe loturi și recepții — toate depozitele.',
-};
-
-const OPERATOR_TILE: DepartmentDef = {
-  id: 'administrativ' as any, // pseudo — vizibil pentru toți userii aprobați
-  label: 'Operator',
-  short: 'Operator',
-  icon: HardHat,
-  rootPath: '/operator',
-  description: 'Interfața operatorului de producție — comenzi pe linie, consum, raportare.',
-};
+import { DEPARTMENTS } from '@/lib/departments';
+import { ShieldAlert, MessageSquare, ListTodo, Bell } from 'lucide-react';
 
 interface CollabTile {
   label: string;
@@ -60,11 +42,9 @@ const DepartmentHub: React.FC = () => {
   const { hasDepartment, profile, isAdmin } = useAuth();
   const { chatUnread, taskUnread } = useCollaborationAlerts();
 
-  const accessible = [
-    CALITATE_TILE,
-    OPERATOR_TILE,
-    ...DEPARTMENTS.filter((d) => hasDepartment(d.id)),
-  ];
+  // Toate hub-urile (inclusiv Calitate și Operator) provin din DEPARTMENTS;
+  // tile-ul apare doar dacă userul are rolul corespunzător (sau e admin).
+  const accessible = DEPARTMENTS.filter((d) => hasDepartment(d.id));
 
   const collab = COLLAB_TILES.filter((t) => !t.adminOnly || isAdmin);
 
