@@ -9,6 +9,7 @@ import {
   Wrench,
   Settings,
   ShieldCheck,
+  HardHat,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,6 +25,7 @@ export const DEPARTMENT_ROLES = [
   "calitate",
   "mentenanta",
   "administrativ",
+  "operator",
 ] as const;
 
 export type DepartmentRole = (typeof DEPARTMENT_ROLES)[number];
