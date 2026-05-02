@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCollaborationAlerts } from '@/contexts/CollaborationAlertsContext';
 import { DEPARTMENTS, type DepartmentDef } from '@/lib/departments';
-import { ShieldAlert, ShieldCheck, MessageSquare, ListTodo, Bell } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, MessageSquare, ListTodo, Bell, HardHat } from 'lucide-react';
 
 const CALITATE_TILE: DepartmentDef = {
   id: 'administrativ' as any, // pseudo — vizibil pentru toți userii aprobați
@@ -14,6 +14,15 @@ const CALITATE_TILE: DepartmentDef = {
   icon: ShieldCheck,
   rootPath: '/calitate',
   description: 'Stocuri, calitate, consum pe loturi și recepții — toate depozitele.',
+};
+
+const OPERATOR_TILE: DepartmentDef = {
+  id: 'administrativ' as any, // pseudo — vizibil pentru toți userii aprobați
+  label: 'Operator',
+  short: 'Operator',
+  icon: HardHat,
+  rootPath: '/operator',
+  description: 'Interfața operatorului de producție — comenzi pe linie, consum, raportare.',
 };
 
 interface CollabTile {
