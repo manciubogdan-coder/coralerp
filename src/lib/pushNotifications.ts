@@ -4,8 +4,9 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-// Cheia VAPID publică (NU e secretă; e safe în client)
-const VAPID_PUBLIC_KEY =
+// Fallback pentru cheia VAPID publică (NU e secretă; e safe în client).
+// La activare o cerem din backend ca să fie mereu sincronizată cu cheia privată.
+const FALLBACK_VAPID_PUBLIC_KEY =
   "BEmABGwlMAirCHjJux58gCgDxro_Finw-CLb-fp-w0M81tgWED9-Fvs81MoCljttfK_PFFhjLvfsrEuOM32O7rM";
 
 const SW_PATH = "/sw-push.js";
@@ -59,6 +60,16 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer | null): string => {
   let binary = "";
   for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
   return btoa(binary);
+};
+
+const getVapidPublicKey = async (): Promise<string> => {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`);
+    const data = await response.json();
+    return data?.publicKey || FALLBACK_VAPID_PUBLIC_KEY;
+  } catch {
+    return FALLBACK_VAPID_PUBLIC_KEY;
+  }
 };
 
 const registerSW = async (): Promise<ServiceWorkerRegistration> => {
@@ -127,11 +138,12 @@ export const enablePushOnThisDevice = async (
   const reg = await registerSW();
 
   // 3. Subscribe la push
+  const vapidPublicKey = await getVapidPublicKey();
   let sub = await reg.pushManager.getSubscription();
   if (!sub) {
     sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
     });
   }
 
