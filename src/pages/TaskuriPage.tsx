@@ -122,6 +122,13 @@ const TaskuriPage: React.FC = () => {
   const [view, setView] = useState<"mine" | "assigned_to_me" | "all">("assigned_to_me");
   const [search, setSearch] = useState("");
 
+  // Filtre profi
+  type DeadlineFilter = "all" | "overdue" | "today" | "soon" | "upcoming" | "no_deadline" | "completed";
+  const [deadlineFilter, setDeadlineFilter] = useState<DeadlineFilter>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+
   // dialog editare
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
