@@ -51,8 +51,6 @@ import CollaborationAlertBadges from "@/components/CollaborationAlertBadges";
 const queryClient = new QueryClient();
 
 const AppShell = () => {
-  const { signOut, profile } = useAuth();
-
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -62,22 +60,18 @@ const AppShell = () => {
             <div className="flex items-center justify-between p-2 sm:p-4 border-b">
               <SidebarTrigger className="mr-2 sm:mr-4" />
               <div className="flex items-center gap-2">
-                {profile?.email && (
-                  <span className="hidden sm:inline text-sm text-muted-foreground mr-1">
-                    {profile.name || profile.email}
-                  </span>
-                )}
                 <CollaborationAlertBadges />
                 <NotificationBell />
-                <Button variant="ghost" size="icon" onClick={signOut} title="Deconectare">
-                  <LogOut size={16} />
-                </Button>
+                <UserMenu />
               </div>
             </div>
             <main className="flex-1 p-2 sm:p-4">
               <Routes>
                 {/* Hub principal */}
                 <Route path="/" element={<DepartmentHub />} />
+
+                {/* ========== PROFIL ========== */}
+                <Route path="/profil" element={<ProfilePage />} />
 
                 {/* ========== ACHIZIȚII ========== */}
                 <Route
