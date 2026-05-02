@@ -168,38 +168,44 @@ const AppSidebar: React.FC = () => {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Transversal — Calitate & Operator (vizibile pentru toți userii aprobați) */}
-        <SidebarGroup>
-          <SidebarGroupLabel className={isMobile ? 'text-black font-medium' : ''}>
-            Transversal
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={location.pathname === '/calitate'}
-                  onClick={() => handleNavigation('/calitate')}
-                  tooltip="Hub Calitate"
-                  className={isMobile ? 'text-black hover:bg-gray-100' : ''}
-                >
-                  <ShieldCheck className="mr-2" size={16} />
-                  <span>Hub Calitate</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={location.pathname === '/operator'}
-                  onClick={() => handleNavigation('/operator')}
-                  tooltip="Hub Operator"
-                  className={isMobile ? 'text-black hover:bg-gray-100' : ''}
-                >
-                  <HardHat className="mr-2" size={16} />
-                  <span>Hub Operator</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Transversal — Calitate & Operator (vizibile doar dacă userul are rolul) */}
+        {(hasDepartment('calitate') || hasDepartment('operator' as any)) && (
+          <SidebarGroup>
+            <SidebarGroupLabel className={isMobile ? 'text-black font-medium' : ''}>
+              Transversal
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {hasDepartment('calitate') && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={location.pathname === '/calitate'}
+                      onClick={() => handleNavigation('/calitate')}
+                      tooltip="Hub Calitate"
+                      className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                    >
+                      <ShieldCheck className="mr-2" size={16} />
+                      <span>Hub Calitate</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {hasDepartment('operator' as any) && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={location.pathname === '/operator'}
+                      onClick={() => handleNavigation('/operator')}
+                      tooltip="Hub Operator"
+                      className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                    >
+                      <HardHat className="mr-2" size={16} />
+                      <span>Hub Operator</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Colaborare — Chat, Taskuri (+ Reguli notificări pentru admin) */}
         <SidebarGroup>
