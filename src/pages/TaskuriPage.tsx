@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { format, isPast, addDays, addWeeks, addMonths } from "date-fns";
+import { format, isPast, isToday, addDays, addWeeks, addMonths, differenceInHours } from "date-fns";
 import { ro } from "date-fns/locale";
 import {
   Plus,
@@ -35,6 +35,12 @@ import {
   CheckSquare,
   MessageSquare,
   RefreshCw,
+  CheckCircle2,
+  CircleDashed,
+  CalendarClock,
+  CalendarOff,
+  Filter,
+  X,
 } from "lucide-react";
 import BackToHubButton from "@/components/BackToHubButton";
 import { DEPARTMENTS } from "@/lib/departments";
@@ -116,6 +122,13 @@ const TaskuriPage: React.FC = () => {
   const [view, setView] = useState<"mine" | "assigned_to_me" | "all">("assigned_to_me");
   const [search, setSearch] = useState("");
 
+  // Filtre profi
+  type DeadlineFilter = "all" | "overdue" | "today" | "soon" | "upcoming" | "no_deadline" | "completed";
+  const [deadlineFilter, setDeadlineFilter] = useState<DeadlineFilter>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+
   // dialog editare
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
@@ -179,7 +192,8 @@ const TaskuriPage: React.FC = () => {
   }, [userId]);
 
   // ---------- FILTRARE ----------
-  const filtered = useMemo(() => {
+  // Bază: aplicăm view + search (folosit și pentru numărarea chip-urilor)
+  const baseFiltered = useMemo(() => {
     let arr = tasks;
     if (view === "mine") arr = arr.filter((t) => t.created_by === userId);
     else if (view === "assigned_to_me")
@@ -195,6 +209,79 @@ const TaskuriPage: React.FC = () => {
     }
     return arr;
   }, [tasks, view, userId, search]);
+
+  // Helper pentru bucket-ul de deadline al unui task
+  const matchDeadline = (t: Task, f: DeadlineFilter): boolean => {
+    if (f === "all") return true;
+    if (f === "completed") return t.status === "done";
+    // celelalte bucket-uri exclud taskurile finalizate
+    if (t.status === "done") return false;
+    if (f === "no_deadline") return !t.deadline;
+    if (!t.deadline) return false;
+    const d = new Date(t.deadline);
+    const now = new Date();
+    if (f === "overdue") return isPast(d) && !isToday(d);
+    if (f === "today") return isToday(d);
+    if (f === "soon") {
+      // în următoarele 24h dar nu azi
+      const h = differenceInHours(d, now);
+      return h > 0 && h <= 48 && !isToday(d);
+    }
+    if (f === "upcoming") {
+      // în 3-7 zile
+      const h = differenceInHours(d, now);
+      return h > 48 && h <= 24 * 7;
+    }
+    return true;
+  };
+
+  // Numărători pentru chip-uri (pe baseFiltered, fără filtrele suplimentare)
+  const counts = useMemo(() => {
+    const c = {
+      all: baseFiltered.length,
+      overdue: 0,
+      today: 0,
+      soon: 0,
+      upcoming: 0,
+      no_deadline: 0,
+      completed: 0,
+    };
+    baseFiltered.forEach((t) => {
+      if (matchDeadline(t, "overdue")) c.overdue++;
+      if (matchDeadline(t, "today")) c.today++;
+      if (matchDeadline(t, "soon")) c.soon++;
+      if (matchDeadline(t, "upcoming")) c.upcoming++;
+      if (matchDeadline(t, "no_deadline")) c.no_deadline++;
+      if (matchDeadline(t, "completed")) c.completed++;
+    });
+    return c;
+  }, [baseFiltered]);
+
+  const filtered = useMemo(() => {
+    return baseFiltered.filter((t) => {
+      if (!matchDeadline(t, deadlineFilter)) return false;
+      if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
+      if (departmentFilter !== "all" && (t.department ?? "none") !== departmentFilter) return false;
+      if (assigneeFilter !== "all") {
+        if (assigneeFilter === "unassigned" && t.assigned_to) return false;
+        if (assigneeFilter !== "unassigned" && t.assigned_to !== assigneeFilter) return false;
+      }
+      return true;
+    });
+  }, [baseFiltered, deadlineFilter, priorityFilter, departmentFilter, assigneeFilter]);
+
+  const activeFiltersCount =
+    (deadlineFilter !== "all" ? 1 : 0) +
+    (priorityFilter !== "all" ? 1 : 0) +
+    (departmentFilter !== "all" ? 1 : 0) +
+    (assigneeFilter !== "all" ? 1 : 0);
+
+  const clearFilters = () => {
+    setDeadlineFilter("all");
+    setPriorityFilter("all");
+    setDepartmentFilter("all");
+    setAssigneeFilter("all");
+  };
 
   const byStatus = useMemo(() => {
     const m: Record<Task["status"], Task[]> = { todo: [], in_progress: [], done: [] };
@@ -433,7 +520,85 @@ const TaskuriPage: React.FC = () => {
         />
       </div>
 
-      {/* KANBAN */}
+      {/* CHIP-URI STATUS DEADLINE */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          { key: "all" as const, label: "Toate", icon: Filter, count: counts.all, cls: "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200", active: "bg-slate-700 text-white border-slate-700" },
+          { key: "overdue" as const, label: "În întârziere", icon: AlertTriangle, count: counts.overdue, cls: "bg-red-50 text-red-700 border-red-200 hover:bg-red-100", active: "bg-red-600 text-white border-red-600" },
+          { key: "today" as const, label: "Scadent azi", icon: CalendarClock, count: counts.today, cls: "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100", active: "bg-orange-600 text-white border-orange-600" },
+          { key: "soon" as const, label: "În 48h", icon: Clock, count: counts.soon, cls: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100", active: "bg-amber-600 text-white border-amber-600" },
+          { key: "upcoming" as const, label: "Săpt. viitoare", icon: CalendarIcon, count: counts.upcoming, cls: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100", active: "bg-blue-600 text-white border-blue-600" },
+          { key: "no_deadline" as const, label: "Fără termen", icon: CalendarOff, count: counts.no_deadline, cls: "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100", active: "bg-slate-500 text-white border-slate-500" },
+          { key: "completed" as const, label: "OK / Finalizate", icon: CheckCircle2, count: counts.completed, cls: "bg-green-50 text-green-700 border-green-200 hover:bg-green-100", active: "bg-green-600 text-white border-green-600" },
+        ].map((chip) => {
+          const Icon = chip.icon;
+          const isActive = deadlineFilter === chip.key;
+          return (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => setDeadlineFilter(chip.key)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${isActive ? chip.active : chip.cls}`}
+            >
+              <Icon size={13} />
+              {chip.label}
+              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? "bg-white/25" : "bg-white/70"}`}>
+                {chip.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* FILTRE AVANSATE */}
+      <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg border bg-muted/20">
+        <Filter size={14} className="text-muted-foreground" />
+        <span className="text-xs text-muted-foreground font-medium">Filtre:</span>
+
+        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+          <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="Prioritate" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toate prioritățile</SelectItem>
+            <SelectItem value="urgent">🔴 Urgentă</SelectItem>
+            <SelectItem value="high">🟠 Înaltă</SelectItem>
+            <SelectItem value="medium">🟡 Medie</SelectItem>
+            <SelectItem value="low">⚪ Joasă</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+          <SelectTrigger className="h-8 w-[170px] text-xs"><SelectValue placeholder="Departament" /></SelectTrigger>
+          <SelectContent className="max-h-72 overflow-y-auto">
+            <SelectItem value="all">Toate departamentele</SelectItem>
+            <SelectItem value="none">— Fără departament —</SelectItem>
+            {DEPARTMENTS.map((d, i) => (
+              <SelectItem key={`f-${d.id}-${i}`} value={d.id}>{d.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+          <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="Asignat" /></SelectTrigger>
+          <SelectContent className="max-h-72 overflow-y-auto">
+            <SelectItem value="all">Toți utilizatorii</SelectItem>
+            <SelectItem value="unassigned">— Neatribuit —</SelectItem>
+            {Object.values(profiles).map((u) => (
+              <SelectItem key={`fa-${u.user_id}`} value={u.user_id}>{u.name || u.email}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {activeFiltersCount > 0 && (
+          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={clearFilters}>
+            <X size={13} className="mr-1" /> Resetează ({activeFiltersCount})
+          </Button>
+        )}
+
+        <div className="ml-auto text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">{filtered.length}</span> task{filtered.length === 1 ? "" : "uri"} afișate
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {STATUS_COLS.map((col) => (
           <div
