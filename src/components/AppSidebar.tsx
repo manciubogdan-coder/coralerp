@@ -168,10 +168,10 @@ const AppSidebar: React.FC = () => {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Calitate — vizibil pentru toți userii aprobați (transversal) */}
+        {/* Transversal — Calitate & Operator (vizibile pentru toți userii aprobați) */}
         <SidebarGroup>
           <SidebarGroupLabel className={isMobile ? 'text-black font-medium' : ''}>
-            Calitate
+            Transversal
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
