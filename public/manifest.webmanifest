@@ -1,0 +1,33 @@
+{
+  "name": "Coral Biogreens",
+  "short_name": "Coral",
+  "description": "Aplicație Coral Biogreens pentru gestiunea stocurilor, producție și colaborare",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#e57373",
+  "lang": "ro",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/lovable-uploads/14a34d6c-2fa6-4719-8bb8-8f61820ae5ee.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/lovable-uploads/14a34d6c-2fa6-4719-8bb8-8f61820ae5ee.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/lovable-uploads/14a34d6c-2fa6-4719-8bb8-8f61820ae5ee.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
