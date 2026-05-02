@@ -326,27 +326,29 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <AuthProvider>
-              <Routes>
-                <Route path="/auth" element={<AuthPage />} />
-                <Route path="/pending-approval" element={<PendingApprovalPage />} />
+              <ThemeProvider>
+                <Routes>
+                  <Route path="/auth" element={<AuthPage />} />
+                  <Route path="/pending-approval" element={<PendingApprovalPage />} />
 
-                {/* Redirect-uri legacy pentru rute aflate înainte la rădăcină */}
-                <Route path="/users" element={<Navigate to="/administrativ/users" replace />} />
-                <Route path="/audit" element={<Navigate to="/administrativ/audit" replace />} />
+                  {/* Redirect-uri legacy pentru rute aflate înainte la rădăcină */}
+                  <Route path="/users" element={<Navigate to="/administrativ/users" replace />} />
+                  <Route path="/audit" element={<Navigate to="/administrativ/audit" replace />} />
 
-                <Route
-                  path="/*"
-                  element={
-                    <ProtectedRoute>
-                      <InventoryTypeProvider>
-                        <CollaborationAlertsProvider>
-                          <AppShell />
-                        </CollaborationAlertsProvider>
-                      </InventoryTypeProvider>
-                    </ProtectedRoute>
-                  }
-                />
-              </Routes>
+                  <Route
+                    path="/*"
+                    element={
+                      <ProtectedRoute>
+                        <InventoryTypeProvider>
+                          <CollaborationAlertsProvider>
+                            <AppShell />
+                          </CollaborationAlertsProvider>
+                        </InventoryTypeProvider>
+                      </ProtectedRoute>
+                    }
+                  />
+                </Routes>
+              </ThemeProvider>
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>
