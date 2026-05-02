@@ -221,11 +221,11 @@ const AppShell = () => {
                   }
                 />
 
-                {/* ========== CALITATE ========== */}
+                {/* ========== CALITATE (necesită rolul calitate) ========== */}
                 <Route
                   path="/calitate"
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute requireDepartment="calitate">
                       <CalitateHub />
                     </ProtectedRoute>
                   }
