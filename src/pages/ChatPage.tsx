@@ -116,6 +116,7 @@ const ChatPage: React.FC = () => {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Message | null>(null);
   const [deleteMode, setDeleteMode] = useState<"me" | "all">("me");
+  const [deleteConvTarget, setDeleteConvTarget] = useState<Conversation | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
