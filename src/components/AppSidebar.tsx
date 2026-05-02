@@ -186,6 +186,17 @@ const AppSidebar: React.FC = () => {
                   <span>Hub Calitate</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={location.pathname === '/operator'}
+                  onClick={() => handleNavigation('/operator')}
+                  tooltip="Hub Operator"
+                  className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                >
+                  <HardHat className="mr-2" size={16} />
+                  <span>Hub Operator</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
