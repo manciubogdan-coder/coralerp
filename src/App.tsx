@@ -34,6 +34,7 @@ import AppSidebar from "./components/AppSidebar";
 import InventoryOverviewPage from "./pages/InventoryPage";
 import ReceptionReportPage from "./pages/ReceptionReportPage";
 import PickingPage from "./pages/PickingPage";
+import OperatorHub from "./pages/OperatorHub";
 import AuthPage from "./pages/AuthPage";
 import PendingApprovalPage from "./pages/PendingApprovalPage";
 import UserManagementPage from "./pages/UserManagementPage";
@@ -181,6 +182,16 @@ const AppShell = () => {
                   }
                 />
                 <Route path="/productie/forecast" element={<Navigate to="/achizitii" replace />} />
+
+                {/* ========== OPERATOR (accesibil tuturor userilor aprobați) ========== */}
+                <Route
+                  path="/operator"
+                  element={
+                    <ProtectedRoute>
+                      <OperatorHub />
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* ========== PICKING & VÂNZĂRI ========== */}
                 <Route

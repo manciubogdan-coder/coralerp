@@ -27,6 +27,7 @@ import {
   ShoppingBag,
   Wrench,
   ShieldCheck,
+  HardHat,
   MessageSquare,
   CheckSquare,
   Bell,
@@ -167,10 +168,10 @@ const AppSidebar: React.FC = () => {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Calitate — vizibil pentru toți userii aprobați (transversal) */}
+        {/* Transversal — Calitate & Operator (vizibile pentru toți userii aprobați) */}
         <SidebarGroup>
           <SidebarGroupLabel className={isMobile ? 'text-black font-medium' : ''}>
-            Calitate
+            Transversal
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -183,6 +184,17 @@ const AppSidebar: React.FC = () => {
                 >
                   <ShieldCheck className="mr-2" size={16} />
                   <span>Hub Calitate</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={location.pathname === '/operator'}
+                  onClick={() => handleNavigation('/operator')}
+                  tooltip="Hub Operator"
+                  className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                >
+                  <HardHat className="mr-2" size={16} />
+                  <span>Hub Operator</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
