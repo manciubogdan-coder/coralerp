@@ -13,6 +13,7 @@ import {
   isPushSupported,
   isPushAllowedHere,
   getPermissionState,
+  sendTestPushToThisDevice,
 } from "@/lib/pushNotifications";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
@@ -106,6 +107,17 @@ const PushNotificationsCard: React.FC = () => {
     setInstallPromptEvent(null);
   };
 
+  const handleTest = async () => {
+    setLoading(true);
+    const r = await sendTestPushToThisDevice();
+    setLoading(false);
+    if (r.ok) {
+      toast({ title: "Test trimis", description: "Verifică notificarea pe acest dispozitiv." });
+    } else {
+      toast({ title: "Test push eșuat", description: r.error, variant: "destructive" });
+    }
+  };
+
   if (!user) return null;
 
   const isStandalone =
@@ -168,6 +180,9 @@ const PushNotificationsCard: React.FC = () => {
             {subscribedHere ? (
               <>
                 <Badge variant="default" className="gap-1"><Bell size={12} /> Activ pe acest dispozitiv</Badge>
+                <Button variant="outline" size="sm" onClick={handleTest} disabled={loading}>
+                  Test notificare
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleDisable} disabled={loading}>
                   <BellOff size={14} className="mr-2" /> Dezactivează aici
                 </Button>
