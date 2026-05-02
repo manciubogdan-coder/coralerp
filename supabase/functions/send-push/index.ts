@@ -12,7 +12,10 @@ const corsHeaders = {
 
 const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY")!;
-const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:admin@example.com";
+const rawVapidSubject = Deno.env.get("VAPID_SUBJECT") || "";
+const VAPID_SUBJECT = /^(mailto:|https?:\/\/)/i.test(rawVapidSubject)
+  ? rawVapidSubject
+  : "mailto:admin@coralerp.lovable.app";
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
