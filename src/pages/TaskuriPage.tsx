@@ -520,7 +520,85 @@ const TaskuriPage: React.FC = () => {
         />
       </div>
 
-      {/* KANBAN */}
+      {/* CHIP-URI STATUS DEADLINE */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          { key: "all" as const, label: "Toate", icon: Filter, count: counts.all, cls: "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200", active: "bg-slate-700 text-white border-slate-700" },
+          { key: "overdue" as const, label: "În întârziere", icon: AlertTriangle, count: counts.overdue, cls: "bg-red-50 text-red-700 border-red-200 hover:bg-red-100", active: "bg-red-600 text-white border-red-600" },
+          { key: "today" as const, label: "Scadent azi", icon: CalendarClock, count: counts.today, cls: "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100", active: "bg-orange-600 text-white border-orange-600" },
+          { key: "soon" as const, label: "În 48h", icon: Clock, count: counts.soon, cls: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100", active: "bg-amber-600 text-white border-amber-600" },
+          { key: "upcoming" as const, label: "Săpt. viitoare", icon: CalendarIcon, count: counts.upcoming, cls: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100", active: "bg-blue-600 text-white border-blue-600" },
+          { key: "no_deadline" as const, label: "Fără termen", icon: CalendarOff, count: counts.no_deadline, cls: "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100", active: "bg-slate-500 text-white border-slate-500" },
+          { key: "completed" as const, label: "OK / Finalizate", icon: CheckCircle2, count: counts.completed, cls: "bg-green-50 text-green-700 border-green-200 hover:bg-green-100", active: "bg-green-600 text-white border-green-600" },
+        ].map((chip) => {
+          const Icon = chip.icon;
+          const isActive = deadlineFilter === chip.key;
+          return (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => setDeadlineFilter(chip.key)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${isActive ? chip.active : chip.cls}`}
+            >
+              <Icon size={13} />
+              {chip.label}
+              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? "bg-white/25" : "bg-white/70"}`}>
+                {chip.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* FILTRE AVANSATE */}
+      <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg border bg-muted/20">
+        <Filter size={14} className="text-muted-foreground" />
+        <span className="text-xs text-muted-foreground font-medium">Filtre:</span>
+
+        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+          <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="Prioritate" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toate prioritățile</SelectItem>
+            <SelectItem value="urgent">🔴 Urgentă</SelectItem>
+            <SelectItem value="high">🟠 Înaltă</SelectItem>
+            <SelectItem value="medium">🟡 Medie</SelectItem>
+            <SelectItem value="low">⚪ Joasă</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+          <SelectTrigger className="h-8 w-[170px] text-xs"><SelectValue placeholder="Departament" /></SelectTrigger>
+          <SelectContent className="max-h-72 overflow-y-auto">
+            <SelectItem value="all">Toate departamentele</SelectItem>
+            <SelectItem value="none">— Fără departament —</SelectItem>
+            {DEPARTMENTS.map((d, i) => (
+              <SelectItem key={`f-${d.id}-${i}`} value={d.id}>{d.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+          <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="Asignat" /></SelectTrigger>
+          <SelectContent className="max-h-72 overflow-y-auto">
+            <SelectItem value="all">Toți utilizatorii</SelectItem>
+            <SelectItem value="unassigned">— Neatribuit —</SelectItem>
+            {Object.values(profiles).map((u) => (
+              <SelectItem key={`fa-${u.user_id}`} value={u.user_id}>{u.name || u.email}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {activeFiltersCount > 0 && (
+          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={clearFilters}>
+            <X size={13} className="mr-1" /> Resetează ({activeFiltersCount})
+          </Button>
+        )}
+
+        <div className="ml-auto text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">{filtered.length}</span> task{filtered.length === 1 ? "" : "uri"} afișate
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {STATUS_COLS.map((col) => (
           <div
