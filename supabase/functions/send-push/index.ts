@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
 
     let delivered = 0;
     const expired: string[] = [];
+    const failed: Array<{ statusCode?: number; body?: string }> = [];
 
     await Promise.all(
       payload.subscriptions.map(async (s) => {
@@ -75,6 +76,7 @@ Deno.serve(async (req) => {
           if (e?.statusCode === 404 || e?.statusCode === 410) {
             expired.push(s.endpoint);
           } else {
+            failed.push({ statusCode: e?.statusCode, body: String(e?.body || e?.message || "unknown").slice(0, 300) });
             console.warn("[send-push] failed", s.endpoint, e?.statusCode, e?.body);
           }
         }
@@ -82,7 +84,7 @@ Deno.serve(async (req) => {
     );
 
     return new Response(
-      JSON.stringify({ delivered, expired }),
+      JSON.stringify({ delivered, expired, failed }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e: any) {
