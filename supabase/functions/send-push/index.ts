@@ -36,6 +36,12 @@ interface PushPayload {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  if (req.method === "GET") {
+    return new Response(JSON.stringify({ publicKey: VAPID_PUBLIC }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const payload = (await req.json()) as PushPayload;
 
