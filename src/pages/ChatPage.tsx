@@ -97,6 +97,7 @@ const formatBytes = (b: number) => {
 
 const ChatPage: React.FC = () => {
   const { user } = useAuth();
+  const { chatBackground } = useTheme();
   const { toast } = useToast();
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [conversations, setConversations] = useState<Conversation[]>([]);
