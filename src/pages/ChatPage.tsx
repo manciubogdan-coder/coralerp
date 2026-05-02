@@ -73,11 +73,24 @@ const ChatPage: React.FC = () => {
   const userId = user?.id ?? "";
 
   // ---------- LOAD PROFILES ----------
+  // Folosim RPC SECURITY DEFINER ca să ocolim RLS-ul restrictiv
+  // de pe app_profiles (orice user autenticat trebuie să vadă lista
+  // colegilor pentru a putea iniția DM-uri sau grupuri în chat).
   const loadProfiles = async () => {
-    const { data } = await (supabase as any)
-      .from("app_profiles")
-      .select("user_id,name,email")
-      .order("name");
+    const { data, error } = await (supabase as any).rpc("chat_list_users");
+    if (error) {
+      // Fallback la query direct dacă RPC-ul nu există încă în DB
+      const { data: fallback } = await (supabase as any)
+        .from("app_profiles")
+        .select("user_id,name,email")
+        .order("name");
+      const map: Record<string, Profile> = {};
+      (fallback ?? []).forEach((p: Profile) => {
+        map[p.user_id] = p;
+      });
+      setProfiles(map);
+      return;
+    }
     const map: Record<string, Profile> = {};
     (data ?? []).forEach((p: Profile) => {
       map[p.user_id] = p;
