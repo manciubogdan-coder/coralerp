@@ -192,7 +192,8 @@ const TaskuriPage: React.FC = () => {
   }, [userId]);
 
   // ---------- FILTRARE ----------
-  const filtered = useMemo(() => {
+  // Bază: aplicăm view + search (folosit și pentru numărarea chip-urilor)
+  const baseFiltered = useMemo(() => {
     let arr = tasks;
     if (view === "mine") arr = arr.filter((t) => t.created_by === userId);
     else if (view === "assigned_to_me")
@@ -208,6 +209,79 @@ const TaskuriPage: React.FC = () => {
     }
     return arr;
   }, [tasks, view, userId, search]);
+
+  // Helper pentru bucket-ul de deadline al unui task
+  const matchDeadline = (t: Task, f: DeadlineFilter): boolean => {
+    if (f === "all") return true;
+    if (f === "completed") return t.status === "done";
+    // celelalte bucket-uri exclud taskurile finalizate
+    if (t.status === "done") return false;
+    if (f === "no_deadline") return !t.deadline;
+    if (!t.deadline) return false;
+    const d = new Date(t.deadline);
+    const now = new Date();
+    if (f === "overdue") return isPast(d) && !isToday(d);
+    if (f === "today") return isToday(d);
+    if (f === "soon") {
+      // în următoarele 24h dar nu azi
+      const h = differenceInHours(d, now);
+      return h > 0 && h <= 48 && !isToday(d);
+    }
+    if (f === "upcoming") {
+      // în 3-7 zile
+      const h = differenceInHours(d, now);
+      return h > 48 && h <= 24 * 7;
+    }
+    return true;
+  };
+
+  // Numărători pentru chip-uri (pe baseFiltered, fără filtrele suplimentare)
+  const counts = useMemo(() => {
+    const c = {
+      all: baseFiltered.length,
+      overdue: 0,
+      today: 0,
+      soon: 0,
+      upcoming: 0,
+      no_deadline: 0,
+      completed: 0,
+    };
+    baseFiltered.forEach((t) => {
+      if (matchDeadline(t, "overdue")) c.overdue++;
+      if (matchDeadline(t, "today")) c.today++;
+      if (matchDeadline(t, "soon")) c.soon++;
+      if (matchDeadline(t, "upcoming")) c.upcoming++;
+      if (matchDeadline(t, "no_deadline")) c.no_deadline++;
+      if (matchDeadline(t, "completed")) c.completed++;
+    });
+    return c;
+  }, [baseFiltered]);
+
+  const filtered = useMemo(() => {
+    return baseFiltered.filter((t) => {
+      if (!matchDeadline(t, deadlineFilter)) return false;
+      if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
+      if (departmentFilter !== "all" && (t.department ?? "none") !== departmentFilter) return false;
+      if (assigneeFilter !== "all") {
+        if (assigneeFilter === "unassigned" && t.assigned_to) return false;
+        if (assigneeFilter !== "unassigned" && t.assigned_to !== assigneeFilter) return false;
+      }
+      return true;
+    });
+  }, [baseFiltered, deadlineFilter, priorityFilter, departmentFilter, assigneeFilter]);
+
+  const activeFiltersCount =
+    (deadlineFilter !== "all" ? 1 : 0) +
+    (priorityFilter !== "all" ? 1 : 0) +
+    (departmentFilter !== "all" ? 1 : 0) +
+    (assigneeFilter !== "all" ? 1 : 0);
+
+  const clearFilters = () => {
+    setDeadlineFilter("all");
+    setPriorityFilter("all");
+    setDepartmentFilter("all");
+    setAssigneeFilter("all");
+  };
 
   const byStatus = useMemo(() => {
     const m: Record<Task["status"], Task[]> = { todo: [], in_progress: [], done: [] };
