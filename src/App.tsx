@@ -183,6 +183,16 @@ const AppShell = () => {
                 />
                 <Route path="/productie/forecast" element={<Navigate to="/achizitii" replace />} />
 
+                {/* ========== OPERATOR (accesibil tuturor userilor aprobați) ========== */}
+                <Route
+                  path="/operator"
+                  element={
+                    <ProtectedRoute>
+                      <OperatorHub />
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* ========== PICKING & VÂNZĂRI ========== */}
                 <Route
                   path="/picking"
