@@ -8,6 +8,9 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
+import UserMenu from "@/components/UserMenu";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import ProfilePage from "./pages/ProfilePage";
 
 import DepartmentHub from "./pages/DepartmentHub";
 import AdministrativHub from "./pages/AdministrativHub";
