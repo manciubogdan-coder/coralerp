@@ -62,6 +62,7 @@ const DepartmentHub: React.FC = () => {
 
   const accessible = [
     CALITATE_TILE,
+    OPERATOR_TILE,
     ...DEPARTMENTS.filter((d) => hasDepartment(d.id)),
   ];
 
