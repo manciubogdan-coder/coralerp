@@ -456,6 +456,13 @@ const ChatPage: React.FC = () => {
             ) : (
               filtered.map((c) => {
                 const unread = unreadByConv[c.id] ?? 0;
+                // pentru DM extragem celălalt user (din lista de membri o vom afla din profile)
+                let dmOther: Profile | undefined;
+                if (c.type === "dm") {
+                  dmOther = Object.values(profiles).find(
+                    (p) => p.user_id !== userId && (p.display_name === c.name || p.name === c.name || p.email === c.name)
+                  );
+                }
                 return (
                   <div
                     key={c.id}
@@ -467,7 +474,16 @@ const ChatPage: React.FC = () => {
                       onClick={() => setActiveId(c.id)}
                       className="flex-1 flex items-center gap-2 text-left min-w-0"
                     >
-                      {getConvIcon(c)}
+                      {c.type === "dm" ? (
+                        <UserAvatar
+                          size="sm"
+                          name={dmOther?.display_name || dmOther?.name || c.name}
+                          email={dmOther?.email}
+                          url={dmOther?.avatar_url}
+                        />
+                      ) : (
+                        getConvIcon(c)
+                      )}
                       <span className="flex-1 truncate text-sm">{getConvLabel(c)}</span>
                       {unread > 0 && (
                         <Badge className="bg-red-500 text-white border-0 h-5 min-w-[20px] px-1 text-[10px]">
@@ -477,7 +493,7 @@ const ChatPage: React.FC = () => {
                     </button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100">
+                        <Button size="icon" variant="ghost" className="h-6 w-6 opacity-60 group-hover:opacity-100">
                           <MoreVertical size={14} />
                         </Button>
                       </DropdownMenuTrigger>
@@ -488,6 +504,13 @@ const ChatPage: React.FC = () => {
                           ) : (
                             <><Archive size={14} className="mr-2" /> Arhivează</>
                           )}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => setDeleteConvTarget(c)}
+                        >
+                          <Trash2 size={14} className="mr-2" /> Șterge conversația
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
