@@ -9,6 +9,7 @@ import {
   Wrench,
   Settings,
   ShieldCheck,
+  HardHat,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,6 +25,7 @@ export const DEPARTMENT_ROLES = [
   "calitate",
   "mentenanta",
   "administrativ",
+  "operator",
 ] as const;
 
 export type DepartmentRole = (typeof DEPARTMENT_ROLES)[number];
@@ -103,6 +105,14 @@ export const DEPARTMENTS: DepartmentDef[] = [
     icon: ShieldCheck,
     rootPath: "/calitate",
     description: "Stocuri, calitate, consum pe loturi și recepții.",
+  },
+  {
+    id: "operator",
+    label: "Operator",
+    short: "Operator",
+    icon: HardHat,
+    rootPath: "/operator",
+    description: "Interfața operatorului de producție — comenzi pe linie, consum, raportare.",
   },
   {
     id: "mentenanta",
