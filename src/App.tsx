@@ -183,11 +183,11 @@ const AppShell = () => {
                 />
                 <Route path="/productie/forecast" element={<Navigate to="/achizitii" replace />} />
 
-                {/* ========== OPERATOR (accesibil tuturor userilor aprobați) ========== */}
+                {/* ========== OPERATOR (necesită rolul operator) ========== */}
                 <Route
                   path="/operator"
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute requireDepartment="operator">
                       <OperatorHub />
                     </ProtectedRoute>
                   }
