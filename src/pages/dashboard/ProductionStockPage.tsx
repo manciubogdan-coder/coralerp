@@ -30,8 +30,8 @@ const ProductionStockPage = () => {
   const [selectedLine, setSelectedLine] = useState("");
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <main className="flex-1 container mx-auto p-2 md:p-4">
+    <div className="min-h-screen bg-background">
+      <main className="container mx-auto p-2 md:p-4 pb-24">
         <div className="mb-4 flex items-center gap-3">
           <Button
             variant="outline"
