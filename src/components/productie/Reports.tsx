@@ -123,11 +123,12 @@ const Reports = () => {
           .filter(s => s.ora_start)
           .map(s => format(new Date(s.ora_start!), "yyyy-MM-dd"))
       );
-      // Ore calendaristice = nr zile × 8h (schimb standard)
+      // Ore calendaristice = nr zile × 8h (schimb standard) - păstrat pentru export
       const oreCalendaristice = zileLucratoare.size * 8;
 
       const bucPeOraReale = oreReale > 0 ? totalBuc / oreReale : 0;
-      const bucPeOraCal = oreCalendaristice > 0 ? totalBuc / oreCalendaristice : 0;
+      // Buc/minut bazat pe timpul real lucrat
+      const bucPeMinut = totalMinReale > 0 ? totalBuc / totalMinReale : 0;
       const bucPeZi = zileLucratoare.size > 0 ? totalBuc / zileLucratoare.size : 0;
 
       // Operatori distincti pe această linie
@@ -149,7 +150,7 @@ const Reports = () => {
         oreReale: round1(oreReale),
         oreCalendaristice,
         bucPeOraReale: round1(bucPeOraReale),
-        bucPeOraCal: round1(bucPeOraCal),
+        bucPeMinut: Math.round(bucPeMinut * 100) / 100,
         bucPeZi: round1(bucPeZi),
         nrSesiuni: lineSessions.length,
         nrOperatori: operatoriSet.size,
@@ -452,7 +453,7 @@ const Reports = () => {
         "Ore Reale Lucrate": l.oreReale,
         "Ore Calendaristice (8h/zi)": l.oreCalendaristice,
         "Buc/Oră (real)": l.bucPeOraReale,
-        "Buc/Oră (calendar)": l.bucPeOraCal,
+        "Buc/Minut": l.bucPeMinut,
         "Buc/Zi": l.bucPeZi,
         "Zile Lucrate": l.zileLucratoare,
         "Nr Sesiuni": l.nrSesiuni,
@@ -615,8 +616,8 @@ const Reports = () => {
                       radius={[6, 6, 0, 0]}
                     />
                     <Bar
-                      dataKey="bucPeOraCal"
-                      name="Buc/Oră (calendar 8h)"
+                      dataKey="bucPeMinut"
+                      name="Buc/Minut"
                       fill="hsl(var(--muted-foreground))"
                       radius={[6, 6, 0, 0]}
                     />
@@ -638,7 +639,7 @@ const Reports = () => {
                     <TableHead className="text-right">Total Buc</TableHead>
                     <TableHead className="text-right">Ore Reale</TableHead>
                     <TableHead className="text-right">Buc/Oră (real)</TableHead>
-                    <TableHead className="text-right">Buc/Oră (calendar)</TableHead>
+                    <TableHead className="text-right">Buc/Minut</TableHead>
                     <TableHead className="text-right">Buc/Zi</TableHead>
                     <TableHead className="text-right">Operatori</TableHead>
                     <TableHead className="text-right">Sesiuni</TableHead>
@@ -672,7 +673,7 @@ const Reports = () => {
                         </span>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        {l.bucPeOraCal}
+                        {l.bucPeMinut}
                       </TableCell>
                       <TableCell className="text-right">{l.bucPeZi}</TableCell>
                       <TableCell className="text-right">{l.nrOperatori}</TableCell>
