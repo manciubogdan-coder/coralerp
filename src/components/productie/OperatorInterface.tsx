@@ -243,7 +243,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     const procentProgres = cantitateComandată > 0 ? Math.round(cantitateAcoperitaTotal / cantitateComandată * 100) : 0;
 
     return (
-      <div className="space-y-6" key={`session-${refreshKey}-${forceRefreshKey}`}>
+      <div className="space-y-6 pb-24" key={`session-${refreshKey}-${forceRefreshKey}`}>
         <div className="flex items-center gap-4">
           <Button
             variant="outline"
