@@ -942,7 +942,10 @@ export const useFinishWorkSession = () => {
         cantitate_din_restock: comanda.cantitate_din_restock
       });
 
+      const esteComandeAvans = comanda.magazin === 'PRODUCTIE_AVANS' || comanda.tip_comanda === 'PRODUCTIE_AVANS';
+
       // ALOCĂ AUTOMAT DIN RESTOCĂRI LA FINALIZARE pentru a acoperi comanda
+      // Producția în avans nu trebuie să se acopere singură din restocări.
       // 1) Calculez totalul produs până acum pentru această comandă
       const { data: sesiuniLucru, error: sesiuniErr } = await supabase
         .from('productie_sesiuni_lucru')
@@ -960,7 +963,7 @@ export const useFinishWorkSession = () => {
       let necesarDinRestocari = Math.max(0, Number(comanda.cantitate || 0) - totalProdus - restockDejaAlocat);
       let alocatDinRestocari = 0;
 
-      if (necesarDinRestocari > 0) {
+      if (!esteComandeAvans && necesarDinRestocari > 0) {
         console.log('📦 Trebuie alocat din restocări:', necesarDinRestocari);
         // 2) Ia restocările disponibile FIFO
         const { data: restocariDisponibile, error: restocariError } = await supabase
@@ -1029,14 +1032,12 @@ export const useFinishWorkSession = () => {
       }
 
       // Recalculez corect acoperirea comenzii: producția contează doar până la necesarul rămas după restocări
-      const esteComandeAvans = comanda.magazin === 'PRODUCTIE_AVANS';
-
       // Cantitatea din restocări folosită după alocarea de mai sus
       const restockFolositFinal = Number(comanda.cantitate_din_restock || 0) + alocatDinRestocari;
       const necesarDinProductie = Math.max(0, Number(comanda.cantitate || 0) - restockFolositFinal);
 
       // Producția totală (toate sesiunile) care poate fi luată în considerare pentru această comandă
-      const produsConsideratPentruComanda = esteComandeAvans ? 0 : Math.min(totalProdus, necesarDinProductie);
+      const produsConsideratPentruComanda = Math.min(totalProdus, necesarDinProductie);
 
       // Actualizez cantitatea reală produsă în comanda (clamped)
       const { error: updProdErr } = await supabase
