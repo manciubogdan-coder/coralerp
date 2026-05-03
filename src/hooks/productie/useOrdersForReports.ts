@@ -39,13 +39,18 @@ export const useOrdersForReports = () => {
           .eq('comanda_id', comanda.id)
           .in('status', ['finalizata', 'partial']);
         
-        const cantitateRealaProadusa = sesiuni?.reduce((total, sesiune) => 
-          total + (sesiune.cantitate_produsa || 0), 0) || 0;
+        const totalProdusDinSesiuni = sesiuni?.reduce((total, sesiune) => 
+          total + Number(sesiune.cantitate_produsa || 0), 0) || 0;
+        const cantitateDinRestock = Number(comanda.cantitate_din_restock || 0);
+        const necesarMaximDinProductie = Math.max(0, Number(comanda.cantitate || 0) - cantitateDinRestock);
+        const cantitateRealaProadusa = Math.min(totalProdusDinSesiuni, necesarMaximDinProductie);
         
         return {
           ...comanda,
           productie_clienti: client,
-          cantitate_reala_produsa: cantitateRealaProadusa
+          cantitate_reala_produsa: cantitateRealaProadusa,
+          cantitate_produsa_sesiuni: totalProdusDinSesiuni,
+          cantitate_surplus_produsa: Math.max(0, totalProdusDinSesiuni - cantitateRealaProadusa)
         };
       }));
       

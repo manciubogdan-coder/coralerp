@@ -65,6 +65,8 @@ export interface ProductieComanda {
   updated_at: string;
   cantitate_din_restock?: number;
   cantitate_reala_produsa?: number; // Added this property
+  cantitate_produsa_sesiuni?: number;
+  cantitate_surplus_produsa?: number;
   productie_produse?: ProductieProds;
   productie_linii?: ProductieLiniePartial;
   productie_clienti?: ProductieClient;
@@ -487,13 +489,18 @@ export const useOrders = () => {
           .eq('comanda_id', comanda.id)
           .in('status', ['finalizata', 'partial']);
         
-        const cantitateRealaProadusa = sesiuni?.reduce((total, sesiune) => 
-          total + (sesiune.cantitate_produsa || 0), 0) || 0;
+        const totalProdusDinSesiuni = sesiuni?.reduce((total, sesiune) => 
+          total + Number(sesiune.cantitate_produsa || 0), 0) || 0;
+        const cantitateDinRestock = Number(comanda.cantitate_din_restock || 0);
+        const necesarMaximDinProductie = Math.max(0, Number(comanda.cantitate || 0) - cantitateDinRestock);
+        const cantitateRealaProadusa = Math.min(totalProdusDinSesiuni, necesarMaximDinProductie);
         
         return {
           ...comanda,
           productie_clienti: client,
-          cantitate_reala_produsa: cantitateRealaProadusa
+          cantitate_reala_produsa: cantitateRealaProadusa,
+          cantitate_produsa_sesiuni: totalProdusDinSesiuni,
+          cantitate_surplus_produsa: Math.max(0, totalProdusDinSesiuni - cantitateRealaProadusa)
         };
       }));
       
@@ -501,6 +508,7 @@ export const useOrders = () => {
       for (const com of comandiCuClienti) {
         const produsId = (com as any).produs_id;
         if (!produsId) continue;
+        if ((com as any).magazin === 'PRODUCTIE_AVANS' || (com as any).tip_comanda === 'PRODUCTIE_AVANS') continue;
         const acoperit = (com as any).cantitate_reala_produsa + ((com as any).cantitate_din_restock || 0);
         let necesar = Math.max(0, (com as any).cantitate - acoperit);
         const status = (com as any).status || '';
@@ -934,7 +942,10 @@ export const useFinishWorkSession = () => {
         cantitate_din_restock: comanda.cantitate_din_restock
       });
 
+      const esteComandeAvans = comanda.magazin === 'PRODUCTIE_AVANS' || comanda.tip_comanda === 'PRODUCTIE_AVANS';
+
       // ALOCĂ AUTOMAT DIN RESTOCĂRI LA FINALIZARE pentru a acoperi comanda
+      // Producția în avans nu trebuie să se acopere singură din restocări.
       // 1) Calculez totalul produs până acum pentru această comandă
       const { data: sesiuniLucru, error: sesiuniErr } = await supabase
         .from('productie_sesiuni_lucru')
@@ -952,7 +963,7 @@ export const useFinishWorkSession = () => {
       let necesarDinRestocari = Math.max(0, Number(comanda.cantitate || 0) - totalProdus - restockDejaAlocat);
       let alocatDinRestocari = 0;
 
-      if (necesarDinRestocari > 0) {
+      if (!esteComandeAvans && necesarDinRestocari > 0) {
         console.log('📦 Trebuie alocat din restocări:', necesarDinRestocari);
         // 2) Ia restocările disponibile FIFO
         const { data: restocariDisponibile, error: restocariError } = await supabase
@@ -1021,14 +1032,12 @@ export const useFinishWorkSession = () => {
       }
 
       // Recalculez corect acoperirea comenzii: producția contează doar până la necesarul rămas după restocări
-      const esteComandeAvans = comanda.magazin === 'PRODUCTIE_AVANS';
-
       // Cantitatea din restocări folosită după alocarea de mai sus
       const restockFolositFinal = Number(comanda.cantitate_din_restock || 0) + alocatDinRestocari;
       const necesarDinProductie = Math.max(0, Number(comanda.cantitate || 0) - restockFolositFinal);
 
       // Producția totală (toate sesiunile) care poate fi luată în considerare pentru această comandă
-      const produsConsideratPentruComanda = esteComandeAvans ? 0 : Math.min(totalProdus, necesarDinProductie);
+      const produsConsideratPentruComanda = Math.min(totalProdus, necesarDinProductie);
 
       // Actualizez cantitatea reală produsă în comanda (clamped)
       const { error: updProdErr } = await supabase
