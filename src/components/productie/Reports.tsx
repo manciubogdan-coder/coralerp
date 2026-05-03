@@ -123,11 +123,12 @@ const Reports = () => {
           .filter(s => s.ora_start)
           .map(s => format(new Date(s.ora_start!), "yyyy-MM-dd"))
       );
-      // Ore calendaristice = nr zile × 8h (schimb standard)
+      // Ore calendaristice = nr zile × 8h (schimb standard) - păstrat pentru export
       const oreCalendaristice = zileLucratoare.size * 8;
 
       const bucPeOraReale = oreReale > 0 ? totalBuc / oreReale : 0;
-      const bucPeOraCal = oreCalendaristice > 0 ? totalBuc / oreCalendaristice : 0;
+      // Buc/minut bazat pe timpul real lucrat
+      const bucPeMinut = totalMinReale > 0 ? totalBuc / totalMinReale : 0;
       const bucPeZi = zileLucratoare.size > 0 ? totalBuc / zileLucratoare.size : 0;
 
       // Operatori distincti pe această linie
