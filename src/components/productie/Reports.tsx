@@ -453,7 +453,7 @@ const Reports = () => {
         "Ore Reale Lucrate": l.oreReale,
         "Ore Calendaristice (8h/zi)": l.oreCalendaristice,
         "Buc/Oră (real)": l.bucPeOraReale,
-        "Buc/Oră (calendar)": l.bucPeOraCal,
+        "Buc/Minut": l.bucPeMinut,
         "Buc/Zi": l.bucPeZi,
         "Zile Lucrate": l.zileLucratoare,
         "Nr Sesiuni": l.nrSesiuni,
