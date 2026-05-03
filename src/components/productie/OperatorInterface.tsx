@@ -157,9 +157,25 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     }
   };
 
-  const handleFinishSession = async (sessionId: string, cantitate: number, status: 'finalizata' | 'partial') => {
+  const handleFinishSession = async (sessionId: string, cantitate: number) => {
     const session = activeSessions.find(s => s.id === sessionId);
     if (!session) return;
+
+    const order = orders?.find(o => o.id === session.comanda_id);
+    const cantitateComandă = order?.cantitate || 0;
+    const cantRealaPrev = order?.cantitate_reala_produsa || 0;
+    const cantRestockPrev = order?.cantitate_din_restock || 0;
+    const acoperitPrev = cantRealaPrev + cantRestockPrev;
+    // Cât mai e nevoie de produs în această sesiune ca să acoperim comanda
+    const ramasDeAcoperit = Math.max(0, cantitateComandă - acoperitPrev);
+    // Restocările disponibile vor acoperi automat restul. Aici doar deducem dacă a finalizat sau nu.
+    // Considerăm finalizată dacă această sesiune + acoperirea anterioară ≥ cantitatea cerută.
+    const status: 'finalizata' | 'partial' = (acoperitPrev + cantitate) >= cantitateComandă ? 'finalizata' : 'partial';
+
+    if (cantitate <= 0) {
+      const ok = window.confirm('Ai introdus 0 bucăți produse. Ești sigur că vrei să finalizezi sesiunea fără producție?');
+      if (!ok) return;
+    }
 
     try {
       await finishSessionMutation.mutateAsync({
@@ -170,11 +186,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       });
 
       toast({
-        title: "Sesiune finalizată",
-        description: `Sesiunea a fost finalizată cu ${cantitate} bucăți produse.`
+        title: status === 'finalizata' ? "✅ Sesiune finalizată complet" : "⚠️ Sesiune finalizată parțial",
+        description: `${cantitate} buc produse în această sesiune. ${status === 'partial' ? `Mai rămân de produs ~${Math.max(0, ramasDeAcoperit - cantitate)} buc.` : 'Comanda este acoperită integral.'}`
       });
 
-      // Nu redirectăm, rămânem pe aceeași comandă să putem vedea progresul
       setOperatorNames([""]);
       setProducedQuantity(0);
     } catch (error) {
@@ -450,26 +465,17 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleFinishSession(activeSession.id, producedQuantity, 'partial')}
-                    disabled={finishSessionMutation.isPending}
-                    className="border-coral-primary text-coral-primary hover:bg-coral-50"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Finalizare Parțială
-                  </Button>
-                  
-                  <Button
-                    onClick={() => handleFinishSession(activeSession.id, producedQuantity, 'finalizata')}
-                    disabled={finishSessionMutation.isPending}
-                    className="bg-coral-primary hover:bg-coral-600 text-white"
-                  >
-                    <Square className="h-4 w-4 mr-2" />
-                    Finalizare Completă
-                  </Button>
-                </div>
+                <Button
+                  onClick={() => handleFinishSession(activeSession.id, producedQuantity)}
+                  disabled={finishSessionMutation.isPending}
+                  className="w-full bg-coral-primary hover:bg-coral-600 text-white h-12 text-base"
+                >
+                  <CheckCircle className="h-5 w-5 mr-2" />
+                  Finalizare Sesiune
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">
+                  Sistemul detectează automat dacă comanda e completă sau parțială pe baza cantităților introduse.
+                </p>
               </div>
             </CardContent>
           </Card>

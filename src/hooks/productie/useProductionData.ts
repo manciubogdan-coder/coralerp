@@ -947,7 +947,9 @@ export const useFinishWorkSession = () => {
       }
 
       const totalProdus = (sesiuniLucru || []).reduce((acc, s) => acc + Number(s.cantitate_produsa || 0), 0);
-      let necesarDinRestocari = Math.max(0, Number(comanda.cantitate || 0) - totalProdus);
+      const restockDejaAlocat = Number(comanda.cantitate_din_restock || 0);
+      // FIX: scădem și restocările deja alocate ca să nu alocăm dublu
+      let necesarDinRestocari = Math.max(0, Number(comanda.cantitate || 0) - totalProdus - restockDejaAlocat);
       let alocatDinRestocari = 0;
 
       if (necesarDinRestocari > 0) {
