@@ -616,8 +616,8 @@ const Reports = () => {
                       radius={[6, 6, 0, 0]}
                     />
                     <Bar
-                      dataKey="bucPeOraCal"
-                      name="Buc/Oră (calendar 8h)"
+                      dataKey="bucPeMinut"
+                      name="Buc/Minut"
                       fill="hsl(var(--muted-foreground))"
                       radius={[6, 6, 0, 0]}
                     />
