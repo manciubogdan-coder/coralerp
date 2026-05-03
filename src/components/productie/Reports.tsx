@@ -639,7 +639,7 @@ const Reports = () => {
                     <TableHead className="text-right">Total Buc</TableHead>
                     <TableHead className="text-right">Ore Reale</TableHead>
                     <TableHead className="text-right">Buc/Oră (real)</TableHead>
-                    <TableHead className="text-right">Buc/Oră (calendar)</TableHead>
+                    <TableHead className="text-right">Buc/Minut</TableHead>
                     <TableHead className="text-right">Buc/Zi</TableHead>
                     <TableHead className="text-right">Operatori</TableHead>
                     <TableHead className="text-right">Sesiuni</TableHead>
