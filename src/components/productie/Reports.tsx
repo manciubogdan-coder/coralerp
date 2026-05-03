@@ -150,7 +150,7 @@ const Reports = () => {
         oreReale: round1(oreReale),
         oreCalendaristice,
         bucPeOraReale: round1(bucPeOraReale),
-        bucPeOraCal: round1(bucPeOraCal),
+        bucPeMinut: Math.round(bucPeMinut * 100) / 100,
         bucPeZi: round1(bucPeZi),
         nrSesiuni: lineSessions.length,
         nrOperatori: operatoriSet.size,
