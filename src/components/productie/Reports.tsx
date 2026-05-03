@@ -673,7 +673,7 @@ const Reports = () => {
                         </span>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        {l.bucPeOraCal}
+                        {l.bucPeMinut}
                       </TableCell>
                       <TableCell className="text-right">{l.bucPeZi}</TableCell>
                       <TableCell className="text-right">{l.nrOperatori}</TableCell>
