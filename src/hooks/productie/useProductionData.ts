@@ -508,6 +508,7 @@ export const useOrders = () => {
       for (const com of comandiCuClienti) {
         const produsId = (com as any).produs_id;
         if (!produsId) continue;
+        if ((com as any).magazin === 'PRODUCTIE_AVANS' || (com as any).tip_comanda === 'PRODUCTIE_AVANS') continue;
         const acoperit = (com as any).cantitate_reala_produsa + ((com as any).cantitate_din_restock || 0);
         let necesar = Math.max(0, (com as any).cantitate - acoperit);
         const status = (com as any).status || '';
