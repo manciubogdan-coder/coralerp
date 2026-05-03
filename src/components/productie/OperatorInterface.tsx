@@ -465,26 +465,17 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleFinishSession(activeSession.id, producedQuantity, 'partial')}
-                    disabled={finishSessionMutation.isPending}
-                    className="border-coral-primary text-coral-primary hover:bg-coral-50"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Finalizare Parțială
-                  </Button>
-                  
-                  <Button
-                    onClick={() => handleFinishSession(activeSession.id, producedQuantity, 'finalizata')}
-                    disabled={finishSessionMutation.isPending}
-                    className="bg-coral-primary hover:bg-coral-600 text-white"
-                  >
-                    <Square className="h-4 w-4 mr-2" />
-                    Finalizare Completă
-                  </Button>
-                </div>
+                <Button
+                  onClick={() => handleFinishSession(activeSession.id, producedQuantity)}
+                  disabled={finishSessionMutation.isPending}
+                  className="w-full bg-coral-primary hover:bg-coral-600 text-white h-12 text-base"
+                >
+                  <CheckCircle className="h-5 w-5 mr-2" />
+                  Finalizare Sesiune
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">
+                  Sistemul detectează automat dacă comanda e completă sau parțială pe baza cantităților introduse.
+                </p>
               </div>
             </CardContent>
           </Card>
