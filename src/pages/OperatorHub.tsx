@@ -9,8 +9,8 @@ const OperatorHub: React.FC = () => {
   const [selectedLine, setSelectedLine] = useState("");
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <main className="flex-1 container mx-auto p-2 md:p-4">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-2 md:p-4 pb-24">
         <div className="mb-4 flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => navigate("/")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -23,7 +23,7 @@ const OperatorHub: React.FC = () => {
           selectedLine={selectedLine}
           onLineSelect={setSelectedLine}
         />
-      </main>
+      </div>
     </div>
   );
 };
