@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Boxes, Tag, TrendingUp, Warehouse } from "lucide-react";
 import InventoryManagement from "@/components/dashboard/InventoryManagement";
+import ReceptionReport from "@/components/inventory/ReceptionReport";
 import ForecastView from "@/components/forecast/ForecastView";
 import StockSufficiency from "@/components/forecast/StockSufficiency";
 import OrderManagement from "@/components/forecast/OrderManagement";
@@ -99,11 +100,24 @@ const AchizitiiHub: React.FC = () => {
             </CardContent>
           </Card>
 
-          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-            <InventoryTypeSync type={stocWarehouse}>
-              <InventoryManagement />
-            </InventoryTypeSync>
-          </div>
+          <InventoryTypeSync type={stocWarehouse}>
+            <Tabs defaultValue="stoc" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 max-w-md mb-4">
+                <TabsTrigger value="stoc">Stoc</TabsTrigger>
+                <TabsTrigger value="receptie">Recepție</TabsTrigger>
+              </TabsList>
+              <TabsContent value="stoc">
+                <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+                  <InventoryManagement />
+                </div>
+              </TabsContent>
+              <TabsContent value="receptie">
+                <div className="bg-white rounded-lg shadow-sm border p-3 md:p-4">
+                  <ReceptionReport />
+                </div>
+              </TabsContent>
+            </Tabs>
+          </InventoryTypeSync>
         </TabsContent>
 
         {/* ========== FORECAST ========== */}
