@@ -1,5 +1,5 @@
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { ProductieComanda } from './useProductionData';
 
 interface UseOrdersPaginationProps {
@@ -20,19 +20,18 @@ export const useOrdersPagination = ({ orders, initialPageSize = 25 }: UseOrdersP
     return orders.slice(startIndex, endIndex);
   }, [orders, currentPage, pageSize]);
 
-  const handlePageChange = (page: number) => {
+  const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
-  };
+  }, []);
 
-  const handlePageSizeChange = (size: number) => {
+  const handlePageSizeChange = useCallback((size: number) => {
     setPageSize(size);
-    setCurrentPage(1); // Reset to first page when changing page size
-  };
-
-  // Reset to first page when orders change (e.g., after filtering)
-  const resetPagination = () => {
     setCurrentPage(1);
-  };
+  }, []);
+
+  const resetPagination = useCallback(() => {
+    setCurrentPage(1);
+  }, []);
 
   return {
     currentPage,

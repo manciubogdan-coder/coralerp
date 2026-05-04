@@ -49,8 +49,30 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
   const activeSessions = workSessions?.filter(session => session.status === 'activa') || [];
 
+  // Ordinea fixă pentru produsele de aromate (conform fișei de lucru)
+  const AROMATE_ORDER = ['menta', 'rozmarin', 'cimbru', 'coriandru', 'chivas', 'salvie', 'tarhon', 'oregrano', 'busuioc'];
+  const currentLineObj = lines?.find(l => l.id === currentLineId);
+  const isAromateLine = (currentLineObj?.nume || '').toLowerCase().includes('arom');
+
+  const getAromateIndex = (numeProdus: string | undefined) => {
+    if (!numeProdus) return 999;
+    const lower = numeProdus.toLowerCase();
+    const idx = AROMATE_ORDER.findIndex(a => lower.includes(a));
+    return idx === -1 ? 999 : idx;
+  };
+
   // Prepare orders for pagination - only for the selected line when viewing orders
   const lineOrders = view === 'orders' && currentLineId ? orders?.filter(order => order.linie_id === currentLineId).sort((a, b) => {
+    // Pentru liniile de aromate: sortare fixă după lista standard (Menta, Rozmarin, ...)
+    if (isAromateLine) {
+      const idxA = getAromateIndex(a.productie_produse?.nume);
+      const idxB = getAromateIndex(b.productie_produse?.nume);
+      if (idxA !== idxB) return idxA - idxB;
+      const prA = a.productie_clienti?.productie_zone_livrare?.prioritate || 999;
+      const prB = b.productie_clienti?.productie_zone_livrare?.prioritate || 999;
+      return prA - prB;
+    }
+
     // Calculăm progresul pentru fiecare comandă pentru sortare
     const getOrderProgress = (order: any) => {
       const cantitateComandată = order.cantitate;

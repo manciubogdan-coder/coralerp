@@ -104,6 +104,11 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                       <div className="text-sm text-gray-500">
                         {cantitateComandată} {order.productie_produse?.unitate_masura}
                       </div>
+                      {(order as any).baxare && (
+                        <div className="text-xs px-2 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 font-medium">
+                          📝 {(order as any).baxare}
+                        </div>
+                      )}
                       {cantitateRamasaDeProdus > 0 && (
                         <div className="text-xs text-red-600 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3" />
