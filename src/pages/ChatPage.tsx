@@ -126,6 +126,15 @@ const ChatPage: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const userId = user?.id ?? "";
+  const activeConvStorageKey = userId ? `coral:chat:active-conversation:${userId}` : "";
+  const pendingStorageKey = (convId: string) => `coral:chat:pending-attachments:${userId}:${convId}`;
+
+  const selectConversation = (convId: string | null) => {
+    setActiveId(convId);
+    if (!activeConvStorageKey) return;
+    if (convId) window.localStorage.setItem(activeConvStorageKey, convId);
+    else window.localStorage.removeItem(activeConvStorageKey);
+  };
 
   // ---------- LOAD PROFILES ----------
   const loadProfiles = async () => {
@@ -219,6 +228,8 @@ const ChatPage: React.FC = () => {
   // ---------- INITIAL LOAD ----------
   useEffect(() => {
     if (!userId) return;
+    const savedActiveId = window.localStorage.getItem(activeConvStorageKey);
+    if (savedActiveId) setActiveId(savedActiveId);
     (async () => {
       await loadProfiles();
       await ensureDepartmentChannels();
@@ -257,10 +268,24 @@ const ChatPage: React.FC = () => {
   }, [userId, activeId]);
 
   useEffect(() => {
-    if (activeId) loadMessages(activeId);
-    else setMessages([]);
+    if (activeId) {
+      window.localStorage.setItem(activeConvStorageKey, activeId);
+      const savedPending = window.localStorage.getItem(pendingStorageKey(activeId));
+      setPendingAttachments(savedPending ? JSON.parse(savedPending) : []);
+      loadMessages(activeId);
+    } else {
+      setMessages([]);
+      setPendingAttachments([]);
+      if (activeConvStorageKey) window.localStorage.removeItem(activeConvStorageKey);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
+
+  useEffect(() => {
+    if (!activeId || !userId) return;
+    window.localStorage.setItem(pendingStorageKey(activeId), JSON.stringify(pendingAttachments));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAttachments, activeId, userId]);
 
   useEffect(() => {
     if (!activeId) return;
@@ -304,6 +329,7 @@ const ChatPage: React.FC = () => {
     const convId = activeId;
     const attachments = pendingAttachments;
     setDraft(""); setPendingAttachments([]); setPendingFiles([]); setIsSending(true);
+    window.localStorage.removeItem(pendingStorageKey(convId));
 
     const { error } = await (supabase as any).rpc("chat_send_message", {
       p_conversation_id: convId, p_body: body, p_attachments: attachments,
@@ -333,7 +359,7 @@ const ChatPage: React.FC = () => {
     await (supabase as any).rpc("chat_set_archived", {
       p_conversation_id: conv.id, p_archived: !conv.archived,
     });
-    if (activeId === conv.id) setActiveId(null);
+    if (activeId === conv.id) selectConversation(null);
     loadConversations();
   };
 
@@ -347,7 +373,7 @@ const ChatPage: React.FC = () => {
       toast({ title: "Eroare", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Conversație ștearsă", description: "A fost eliminată din lista ta." });
-      if (activeId === deleteConvTarget.id) setActiveId(null);
+      if (activeId === deleteConvTarget.id) selectConversation(null);
       await loadConversations();
     }
     setDeleteConvTarget(null);
@@ -364,7 +390,7 @@ const ChatPage: React.FC = () => {
     }
     setNewDmOpen(false);
     await loadConversations();
-    setActiveId(convId as string);
+    selectConversation(convId as string);
   };
 
   // ---------- CREATE GROUP ----------
@@ -382,7 +408,7 @@ const ChatPage: React.FC = () => {
     }
     setNewGroupOpen(false); setNewGroupName(""); setNewGroupMembers(new Set());
     await loadConversations();
-    setActiveId(convId as string);
+    selectConversation(convId as string);
   };
 
   const insertEmoji = (emoji: string) => {
@@ -392,14 +418,19 @@ const ChatPage: React.FC = () => {
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const convId = activeId;
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!files.length) return;
+    if (!files.length || !convId) return;
     setPendingFiles((p) => [...p, ...files]);
     setUploadingFiles(true);
     try {
       const uploaded = await uploadAttachments(files);
-      setPendingAttachments((a) => [...a, ...uploaded]);
+      setPendingAttachments((a) => {
+        const next = [...a, ...uploaded];
+        window.localStorage.setItem(pendingStorageKey(convId), JSON.stringify(next));
+        return next;
+      });
     } finally {
       setUploadingFiles(false);
     }
@@ -479,7 +510,7 @@ const ChatPage: React.FC = () => {
                     }`}
                   >
                     <button
-                      onClick={() => setActiveId(c.id)}
+                      onClick={() => selectConversation(c.id)}
                       className="flex-1 flex items-center gap-2 text-left min-w-0"
                     >
                       {c.type === "dm" ? (
@@ -542,7 +573,7 @@ const ChatPage: React.FC = () => {
                   size="icon"
                   variant="ghost"
                   className="md:hidden h-8 w-8 -ml-1"
-                  onClick={() => setActiveId(null)}
+                  onClick={() => selectConversation(null)}
                   title="Înapoi"
                 >
                   <ArrowLeft size={18} />
