@@ -299,21 +299,18 @@ const ChatPage: React.FC = () => {
 
   // ---------- SEND ----------
   const sendMessage = async () => {
-    if ((!draft.trim() && pendingFiles.length === 0) || !activeId || !userId || isSending) return;
+    if ((!draft.trim() && pendingAttachments.length === 0) || !activeId || !userId || isSending || uploadingFiles) return;
     const body = draft.trim();
     const convId = activeId;
-    const files = pendingFiles;
-    setDraft(""); setPendingFiles([]); setIsSending(true);
-
-    let attachments: Attachment[] = [];
-    if (files.length) attachments = await uploadAttachments(files);
+    const attachments = pendingAttachments;
+    setDraft(""); setPendingAttachments([]); setPendingFiles([]); setIsSending(true);
 
     const { error } = await (supabase as any).rpc("chat_send_message", {
       p_conversation_id: convId, p_body: body, p_attachments: attachments,
     });
     if (error) {
       toast({ title: "Eroare", description: error.message, variant: "destructive" });
-      setDraft(body); setPendingFiles(files);
+      setDraft(body); setPendingAttachments(attachments);
     } else {
       await Promise.all([loadMessages(convId), loadConversations()]);
     }
