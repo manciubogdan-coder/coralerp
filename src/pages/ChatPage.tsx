@@ -107,6 +107,8 @@ const ChatPage: React.FC = () => {
   const [activeUnreadAnchor, setActiveUnreadAnchor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [filter, setFilter] = useState<"toate" | "dm" | "group" | "department" | "arhivate">("toate");
   const [newDmOpen, setNewDmOpen] = useState(false);
@@ -120,6 +122,7 @@ const ChatPage: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const userId = user?.id ?? "";
