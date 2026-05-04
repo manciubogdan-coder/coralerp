@@ -359,7 +359,7 @@ const ChatPage: React.FC = () => {
     await (supabase as any).rpc("chat_set_archived", {
       p_conversation_id: conv.id, p_archived: !conv.archived,
     });
-    if (activeId === conv.id) setActiveId(null);
+    if (activeId === conv.id) selectConversation(null);
     loadConversations();
   };
 
@@ -373,7 +373,7 @@ const ChatPage: React.FC = () => {
       toast({ title: "Eroare", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Conversație ștearsă", description: "A fost eliminată din lista ta." });
-      if (activeId === deleteConvTarget.id) setActiveId(null);
+      if (activeId === deleteConvTarget.id) selectConversation(null);
       await loadConversations();
     }
     setDeleteConvTarget(null);
@@ -390,7 +390,7 @@ const ChatPage: React.FC = () => {
     }
     setNewDmOpen(false);
     await loadConversations();
-    setActiveId(convId as string);
+    selectConversation(convId as string);
   };
 
   // ---------- CREATE GROUP ----------
@@ -408,7 +408,7 @@ const ChatPage: React.FC = () => {
     }
     setNewGroupOpen(false); setNewGroupName(""); setNewGroupMembers(new Set());
     await loadConversations();
-    setActiveId(convId as string);
+    selectConversation(convId as string);
   };
 
   const insertEmoji = (emoji: string) => {
