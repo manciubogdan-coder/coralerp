@@ -750,7 +750,7 @@ const ChatPage: React.FC = () => {
               <div className="p-2 sm:p-3 border-t flex gap-1 sm:gap-2 items-end">
                 <input
                   type="file" ref={fileInputRef} className="hidden" multiple
-                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
+                  accept="image/*"
                   onChange={handleFileSelect}
                 />
                 <input
