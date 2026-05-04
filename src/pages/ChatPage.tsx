@@ -682,31 +682,63 @@ const ChatPage: React.FC = () => {
               </ScrollArea>
 
               {/* Pending attachments preview */}
-              {pendingFiles.length > 0 && (
+              {(pendingAttachments.length > 0 || uploadingFiles) && (
                 <div className="px-3 pt-2 flex flex-wrap gap-2 border-t">
-                  {pendingFiles.map((f, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-muted rounded px-2 py-1 text-xs">
-                      {f.type.startsWith("image/") ? <ImageIcon size={14} /> : <FileText size={14} />}
-                      <span className="max-w-[150px] truncate">{f.name}</span>
-                      <button onClick={() => setPendingFiles((p) => p.filter((_, k) => k !== i))}>
-                        <X size={12} />
+                  {pendingAttachments.map((a, i) => (
+                    <div key={`a-${i}`} className="flex items-center gap-2 bg-muted rounded px-2 py-1 text-xs">
+                      {a.kind === "image" ? (
+                        <img src={a.url} alt={a.name} className="h-10 w-10 object-cover rounded" />
+                      ) : (
+                        <FileText size={14} />
+                      )}
+                      <span className="max-w-[120px] truncate">{a.name}</span>
+                      <button
+                        onClick={() => setPendingAttachments((p) => p.filter((_, k) => k !== i))}
+                        title="Elimină"
+                      >
+                        <X size={14} />
                       </button>
                     </div>
                   ))}
+                  {uploadingFiles && (
+                    <div className="flex items-center gap-2 bg-muted rounded px-2 py-1 text-xs animate-pulse">
+                      <ImageIcon size={14} />
+                      <span>Se încarcă...</span>
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div className="p-3 border-t flex gap-2 items-end">
+              <div className="p-2 sm:p-3 border-t flex gap-1 sm:gap-2 items-end">
                 <input
                   type="file" ref={fileInputRef} className="hidden" multiple
+                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
                   onChange={handleFileSelect}
                 />
-                <Button size="icon" variant="ghost" onClick={() => fileInputRef.current?.click()} title="Atașează">
+                <input
+                  type="file" ref={cameraInputRef} className="hidden"
+                  accept="image/*" capture="environment"
+                  onChange={handleFileSelect}
+                />
+                <Button
+                  size="icon" variant="ghost"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Atașează fișiere/poze"
+                >
                   <Paperclip size={18} />
+                </Button>
+                <Button
+                  size="icon" variant="ghost"
+                  className="h-9 w-9 shrink-0 md:hidden"
+                  onClick={() => cameraInputRef.current?.click()}
+                  title="Cameră"
+                >
+                  <Camera size={18} />
                 </Button>
                 <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
                   <PopoverTrigger asChild>
-                    <Button size="icon" variant="ghost" title="Emoji">
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 hidden sm:inline-flex" title="Emoji">
                       <Smile size={18} />
                     </Button>
                   </PopoverTrigger>
@@ -730,11 +762,16 @@ const ChatPage: React.FC = () => {
                       sendMessage();
                     }
                   }}
-                  placeholder="Scrie un mesaj... (Enter trimite, Shift+Enter linie nouă)"
-                  rows={2}
-                  className="resize-none flex-1"
+                  placeholder="Scrie un mesaj..."
+                  rows={1}
+                  className="resize-none flex-1 min-h-[40px] max-h-32 text-base"
                 />
-                <Button onClick={sendMessage} disabled={(!draft.trim() && pendingFiles.length === 0) || isSending}>
+                <Button
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={sendMessage}
+                  disabled={(!draft.trim() && pendingAttachments.length === 0) || isSending || uploadingFiles}
+                >
                   <Send size={16} />
                 </Button>
               </div>
