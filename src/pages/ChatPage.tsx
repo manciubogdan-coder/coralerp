@@ -40,7 +40,7 @@ import { ro } from "date-fns/locale";
 import {
   Plus, Send, MessageSquare, Hash, Users, User as UserIcon,
   Paperclip, Smile, MoreVertical, Trash2, Archive, ArchiveRestore,
-  FileText, Download, X, Image as ImageIcon,
+  FileText, Download, X, Image as ImageIcon, Camera, ArrowLeft,
 } from "lucide-react";
 import EmojiPicker, { EmojiStyle, Theme } from "emoji-picker-react";
 import BackToHubButton from "@/components/BackToHubButton";
@@ -107,6 +107,8 @@ const ChatPage: React.FC = () => {
   const [activeUnreadAnchor, setActiveUnreadAnchor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [filter, setFilter] = useState<"toate" | "dm" | "group" | "department" | "arhivate">("toate");
   const [newDmOpen, setNewDmOpen] = useState(false);
@@ -120,6 +122,7 @@ const ChatPage: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const userId = user?.id ?? "";
@@ -296,21 +299,18 @@ const ChatPage: React.FC = () => {
 
   // ---------- SEND ----------
   const sendMessage = async () => {
-    if ((!draft.trim() && pendingFiles.length === 0) || !activeId || !userId || isSending) return;
+    if ((!draft.trim() && pendingAttachments.length === 0) || !activeId || !userId || isSending || uploadingFiles) return;
     const body = draft.trim();
     const convId = activeId;
-    const files = pendingFiles;
-    setDraft(""); setPendingFiles([]); setIsSending(true);
-
-    let attachments: Attachment[] = [];
-    if (files.length) attachments = await uploadAttachments(files);
+    const attachments = pendingAttachments;
+    setDraft(""); setPendingAttachments([]); setPendingFiles([]); setIsSending(true);
 
     const { error } = await (supabase as any).rpc("chat_send_message", {
       p_conversation_id: convId, p_body: body, p_attachments: attachments,
     });
     if (error) {
       toast({ title: "Eroare", description: error.message, variant: "destructive" });
-      setDraft(body); setPendingFiles(files);
+      setDraft(body); setPendingAttachments(attachments);
     } else {
       await Promise.all([loadMessages(convId), loadConversations()]);
     }
@@ -391,10 +391,18 @@ const ChatPage: React.FC = () => {
     setTimeout(() => textareaRef.current?.focus(), 50);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    if (files.length) setPendingFiles((p) => [...p, ...files]);
     e.target.value = "";
+    if (!files.length) return;
+    setPendingFiles((p) => [...p, ...files]);
+    setUploadingFiles(true);
+    try {
+      const uploaded = await uploadAttachments(files);
+      setPendingAttachments((a) => [...a, ...uploaded]);
+    } finally {
+      setUploadingFiles(false);
+    }
   };
 
   const getConvLabel = (c: Conversation) => {
@@ -419,18 +427,18 @@ const ChatPage: React.FC = () => {
   const activeConv = conversations.find((c) => c.id === activeId);
 
   return (
-    <div className="container mx-auto p-4 space-y-4">
+    <div className="container mx-auto p-2 sm:p-4 space-y-2 sm:space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <MessageSquare className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Chat</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Chat</h1>
         </div>
         <BackToHubButton />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 h-[calc(100vh-180px)]">
+      <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-2 sm:gap-4 h-[calc(100vh-140px)] sm:h-[calc(100vh-180px)]">
         {/* Sidebar */}
-        <Card className="flex flex-col overflow-hidden">
+        <Card className={`flex flex-col overflow-hidden ${activeId ? "hidden md:flex" : "flex"}`}>
           <div className="p-3 border-b space-y-2">
             <div className="flex gap-2">
               <Button size="sm" className="flex-1" onClick={() => setNewDmOpen(true)}>
@@ -522,17 +530,26 @@ const ChatPage: React.FC = () => {
         </Card>
 
         {/* Mesaje */}
-        <Card className="flex flex-col overflow-hidden">
+        <Card className={`flex flex-col overflow-hidden ${activeId ? "flex" : "hidden md:flex"}`}>
           {!activeConv ? (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               Selectează o conversație.
             </div>
           ) : (
             <>
-              <div className="p-3 border-b flex items-center gap-2">
+              <div className="p-2 sm:p-3 border-b flex items-center gap-2">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="md:hidden h-8 w-8 -ml-1"
+                  onClick={() => setActiveId(null)}
+                  title="Înapoi"
+                >
+                  <ArrowLeft size={18} />
+                </Button>
                 {getConvIcon(activeConv)}
-                <span className="font-medium">{getConvLabel(activeConv)}</span>
-                <Badge variant="outline" className="text-xs ml-auto">
+                <span className="font-medium truncate">{getConvLabel(activeConv)}</span>
+                <Badge variant="outline" className="text-xs ml-auto hidden sm:inline-flex">
                   {activeConv.type === "dm" ? "Direct"
                     : activeConv.type === "group" ? "Grup" : "Departament"}
                 </Badge>
@@ -665,31 +682,63 @@ const ChatPage: React.FC = () => {
               </ScrollArea>
 
               {/* Pending attachments preview */}
-              {pendingFiles.length > 0 && (
+              {(pendingAttachments.length > 0 || uploadingFiles) && (
                 <div className="px-3 pt-2 flex flex-wrap gap-2 border-t">
-                  {pendingFiles.map((f, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-muted rounded px-2 py-1 text-xs">
-                      {f.type.startsWith("image/") ? <ImageIcon size={14} /> : <FileText size={14} />}
-                      <span className="max-w-[150px] truncate">{f.name}</span>
-                      <button onClick={() => setPendingFiles((p) => p.filter((_, k) => k !== i))}>
-                        <X size={12} />
+                  {pendingAttachments.map((a, i) => (
+                    <div key={`a-${i}`} className="flex items-center gap-2 bg-muted rounded px-2 py-1 text-xs">
+                      {a.kind === "image" ? (
+                        <img src={a.url} alt={a.name} className="h-10 w-10 object-cover rounded" />
+                      ) : (
+                        <FileText size={14} />
+                      )}
+                      <span className="max-w-[120px] truncate">{a.name}</span>
+                      <button
+                        onClick={() => setPendingAttachments((p) => p.filter((_, k) => k !== i))}
+                        title="Elimină"
+                      >
+                        <X size={14} />
                       </button>
                     </div>
                   ))}
+                  {uploadingFiles && (
+                    <div className="flex items-center gap-2 bg-muted rounded px-2 py-1 text-xs animate-pulse">
+                      <ImageIcon size={14} />
+                      <span>Se încarcă...</span>
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div className="p-3 border-t flex gap-2 items-end">
+              <div className="p-2 sm:p-3 border-t flex gap-1 sm:gap-2 items-end">
                 <input
                   type="file" ref={fileInputRef} className="hidden" multiple
+                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
                   onChange={handleFileSelect}
                 />
-                <Button size="icon" variant="ghost" onClick={() => fileInputRef.current?.click()} title="Atașează">
+                <input
+                  type="file" ref={cameraInputRef} className="hidden"
+                  accept="image/*" capture="environment"
+                  onChange={handleFileSelect}
+                />
+                <Button
+                  size="icon" variant="ghost"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Atașează fișiere/poze"
+                >
                   <Paperclip size={18} />
+                </Button>
+                <Button
+                  size="icon" variant="ghost"
+                  className="h-9 w-9 shrink-0 md:hidden"
+                  onClick={() => cameraInputRef.current?.click()}
+                  title="Cameră"
+                >
+                  <Camera size={18} />
                 </Button>
                 <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
                   <PopoverTrigger asChild>
-                    <Button size="icon" variant="ghost" title="Emoji">
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 hidden sm:inline-flex" title="Emoji">
                       <Smile size={18} />
                     </Button>
                   </PopoverTrigger>
@@ -713,11 +762,16 @@ const ChatPage: React.FC = () => {
                       sendMessage();
                     }
                   }}
-                  placeholder="Scrie un mesaj... (Enter trimite, Shift+Enter linie nouă)"
-                  rows={2}
-                  className="resize-none flex-1"
+                  placeholder="Scrie un mesaj..."
+                  rows={1}
+                  className="resize-none flex-1 min-h-[40px] max-h-32 text-base"
                 />
-                <Button onClick={sendMessage} disabled={(!draft.trim() && pendingFiles.length === 0) || isSending}>
+                <Button
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={sendMessage}
+                  disabled={(!draft.trim() && pendingAttachments.length === 0) || isSending || uploadingFiles}
+                >
                   <Send size={16} />
                 </Button>
               </div>
