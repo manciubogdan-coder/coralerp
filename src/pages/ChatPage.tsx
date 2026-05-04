@@ -391,10 +391,18 @@ const ChatPage: React.FC = () => {
     setTimeout(() => textareaRef.current?.focus(), 50);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    if (files.length) setPendingFiles((p) => [...p, ...files]);
     e.target.value = "";
+    if (!files.length) return;
+    setPendingFiles((p) => [...p, ...files]);
+    setUploadingFiles(true);
+    try {
+      const uploaded = await uploadAttachments(files);
+      setPendingAttachments((a) => [...a, ...uploaded]);
+    } finally {
+      setUploadingFiles(false);
+    }
   };
 
   const getConvLabel = (c: Conversation) => {
