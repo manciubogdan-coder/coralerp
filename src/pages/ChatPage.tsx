@@ -126,6 +126,15 @@ const ChatPage: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const userId = user?.id ?? "";
+  const activeConvStorageKey = userId ? `coral:chat:active-conversation:${userId}` : "";
+  const pendingStorageKey = (convId: string) => `coral:chat:pending-attachments:${userId}:${convId}`;
+
+  const selectConversation = (convId: string | null) => {
+    setActiveId(convId);
+    if (!activeConvStorageKey) return;
+    if (convId) window.localStorage.setItem(activeConvStorageKey, convId);
+    else window.localStorage.removeItem(activeConvStorageKey);
+  };
 
   // ---------- LOAD PROFILES ----------
   const loadProfiles = async () => {
@@ -219,6 +228,8 @@ const ChatPage: React.FC = () => {
   // ---------- INITIAL LOAD ----------
   useEffect(() => {
     if (!userId) return;
+    const savedActiveId = window.localStorage.getItem(activeConvStorageKey);
+    if (savedActiveId) setActiveId(savedActiveId);
     (async () => {
       await loadProfiles();
       await ensureDepartmentChannels();
@@ -257,10 +268,24 @@ const ChatPage: React.FC = () => {
   }, [userId, activeId]);
 
   useEffect(() => {
-    if (activeId) loadMessages(activeId);
-    else setMessages([]);
+    if (activeId) {
+      window.localStorage.setItem(activeConvStorageKey, activeId);
+      const savedPending = window.localStorage.getItem(pendingStorageKey(activeId));
+      setPendingAttachments(savedPending ? JSON.parse(savedPending) : []);
+      loadMessages(activeId);
+    } else {
+      setMessages([]);
+      setPendingAttachments([]);
+      if (activeConvStorageKey) window.localStorage.removeItem(activeConvStorageKey);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
+
+  useEffect(() => {
+    if (!activeId || !userId) return;
+    window.localStorage.setItem(pendingStorageKey(activeId), JSON.stringify(pendingAttachments));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAttachments, activeId, userId]);
 
   useEffect(() => {
     if (!activeId) return;
