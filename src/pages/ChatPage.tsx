@@ -40,7 +40,7 @@ import { ro } from "date-fns/locale";
 import {
   Plus, Send, MessageSquare, Hash, Users, User as UserIcon,
   Paperclip, Smile, MoreVertical, Trash2, Archive, ArchiveRestore,
-  FileText, Download, X, Image as ImageIcon,
+  FileText, Download, X, Image as ImageIcon, Camera, ArrowLeft,
 } from "lucide-react";
 import EmojiPicker, { EmojiStyle, Theme } from "emoji-picker-react";
 import BackToHubButton from "@/components/BackToHubButton";
