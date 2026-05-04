@@ -754,8 +754,8 @@ const ChatPage: React.FC = () => {
                   onChange={handleFileSelect}
                 />
                 <input
-                  type="file" ref={cameraInputRef} className="hidden"
-                  accept="image/*" capture="environment"
+                  type="file" ref={cameraInputRef} className="hidden" multiple
+                  accept="image/*"
                   onChange={handleFileSelect}
                 />
                 <Button
