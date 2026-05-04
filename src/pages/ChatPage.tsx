@@ -530,17 +530,26 @@ const ChatPage: React.FC = () => {
         </Card>
 
         {/* Mesaje */}
-        <Card className="flex flex-col overflow-hidden">
+        <Card className={`flex flex-col overflow-hidden ${activeId ? "flex" : "hidden md:flex"}`}>
           {!activeConv ? (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               Selectează o conversație.
             </div>
           ) : (
             <>
-              <div className="p-3 border-b flex items-center gap-2">
+              <div className="p-2 sm:p-3 border-b flex items-center gap-2">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="md:hidden h-8 w-8 -ml-1"
+                  onClick={() => setActiveId(null)}
+                  title="Înapoi"
+                >
+                  <ArrowLeft size={18} />
+                </Button>
                 {getConvIcon(activeConv)}
-                <span className="font-medium">{getConvLabel(activeConv)}</span>
-                <Badge variant="outline" className="text-xs ml-auto">
+                <span className="font-medium truncate">{getConvLabel(activeConv)}</span>
+                <Badge variant="outline" className="text-xs ml-auto hidden sm:inline-flex">
                   {activeConv.type === "dm" ? "Direct"
                     : activeConv.type === "group" ? "Grup" : "Departament"}
                 </Badge>
