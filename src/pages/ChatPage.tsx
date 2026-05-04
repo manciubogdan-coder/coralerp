@@ -427,18 +427,18 @@ const ChatPage: React.FC = () => {
   const activeConv = conversations.find((c) => c.id === activeId);
 
   return (
-    <div className="container mx-auto p-4 space-y-4">
+    <div className="container mx-auto p-2 sm:p-4 space-y-2 sm:space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <MessageSquare className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Chat</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Chat</h1>
         </div>
         <BackToHubButton />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 h-[calc(100vh-180px)]">
+      <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-2 sm:gap-4 h-[calc(100vh-140px)] sm:h-[calc(100vh-180px)]">
         {/* Sidebar */}
-        <Card className="flex flex-col overflow-hidden">
+        <Card className={`flex flex-col overflow-hidden ${activeId ? "hidden md:flex" : "flex"}`}>
           <div className="p-3 border-b space-y-2">
             <div className="flex gap-2">
               <Button size="sm" className="flex-1" onClick={() => setNewDmOpen(true)}>
