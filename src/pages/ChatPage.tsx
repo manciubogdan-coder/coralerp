@@ -329,6 +329,7 @@ const ChatPage: React.FC = () => {
     const convId = activeId;
     const attachments = pendingAttachments;
     setDraft(""); setPendingAttachments([]); setPendingFiles([]); setIsSending(true);
+    window.localStorage.removeItem(pendingStorageKey(convId));
 
     const { error } = await (supabase as any).rpc("chat_send_message", {
       p_conversation_id: convId, p_body: body, p_attachments: attachments,
@@ -417,14 +418,19 @@ const ChatPage: React.FC = () => {
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const convId = activeId;
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!files.length) return;
+    if (!files.length || !convId) return;
     setPendingFiles((p) => [...p, ...files]);
     setUploadingFiles(true);
     try {
       const uploaded = await uploadAttachments(files);
-      setPendingAttachments((a) => [...a, ...uploaded]);
+      setPendingAttachments((a) => {
+        const next = [...a, ...uploaded];
+        window.localStorage.setItem(pendingStorageKey(convId), JSON.stringify(next));
+        return next;
+      });
     } finally {
       setUploadingFiles(false);
     }
