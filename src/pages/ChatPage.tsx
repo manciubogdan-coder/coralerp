@@ -510,7 +510,7 @@ const ChatPage: React.FC = () => {
                     }`}
                   >
                     <button
-                      onClick={() => setActiveId(c.id)}
+                      onClick={() => selectConversation(c.id)}
                       className="flex-1 flex items-center gap-2 text-left min-w-0"
                     >
                       {c.type === "dm" ? (
@@ -573,7 +573,7 @@ const ChatPage: React.FC = () => {
                   size="icon"
                   variant="ghost"
                   className="md:hidden h-8 w-8 -ml-1"
-                  onClick={() => setActiveId(null)}
+                  onClick={() => selectConversation(null)}
                   title="Înapoi"
                 >
                   <ArrowLeft size={18} />
