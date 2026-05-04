@@ -95,6 +95,11 @@ const formatBytes = (b: number) => {
   return `${(b / 1024 / 1024).toFixed(1)} MB`;
 };
 
+const makeUploadId = () => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 const ChatPage: React.FC = () => {
   const { user } = useAuth();
   const { chatBackground } = useTheme();
@@ -306,7 +311,7 @@ const ChatPage: React.FC = () => {
     const out: Attachment[] = [];
     for (const file of files) {
       const ext = file.name.split(".").pop() || "bin";
-      const path = `${userId}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+      const path = `${userId}/${Date.now()}-${makeUploadId()}.${ext}`;
       const { error } = await (supabase as any).storage
         .from("chat-attachments").upload(path, file, { contentType: file.type });
       if (error) {
@@ -431,6 +436,8 @@ const ChatPage: React.FC = () => {
         window.localStorage.setItem(pendingStorageKey(convId), JSON.stringify(next));
         return next;
       });
+    } catch (error: any) {
+      toast({ title: "Poza nu s-a atașat", description: error?.message ?? "Te rog încearcă din nou.", variant: "destructive" });
     } finally {
       setUploadingFiles(false);
     }
@@ -747,8 +754,8 @@ const ChatPage: React.FC = () => {
                   onChange={handleFileSelect}
                 />
                 <input
-                  type="file" ref={cameraInputRef} className="hidden"
-                  accept="image/*" capture="environment"
+                  type="file" ref={cameraInputRef} className="hidden" multiple
+                  accept="image/*"
                   onChange={handleFileSelect}
                 />
                 <Button
