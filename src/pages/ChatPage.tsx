@@ -423,17 +423,29 @@ const ChatPage: React.FC = () => {
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const convId = activeId;
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!files.length || !convId) return;
+    if (!files.length) return;
+    // Fallback: dacă activeId s-a pierdut după ce iOS a reîncărcat pagina,
+    // încearcă să-l recuperezi din localStorage.
+    let convId = activeId;
+    if (!convId && userId) {
+      try {
+        convId = window.localStorage.getItem(activeConvStorageKey);
+        if (convId) setActiveId(convId);
+      } catch {}
+    }
+    if (!convId) {
+      toast({ title: "Selectează o conversație", description: "Deschide o conversație înainte să atașezi fișiere.", variant: "destructive" });
+      return;
+    }
     setPendingFiles((p) => [...p, ...files]);
     setUploadingFiles(true);
     try {
       const uploaded = await uploadAttachments(files);
       setPendingAttachments((a) => {
         const next = [...a, ...uploaded];
-        window.localStorage.setItem(pendingStorageKey(convId), JSON.stringify(next));
+        window.localStorage.setItem(pendingStorageKey(convId!), JSON.stringify(next));
         return next;
       });
     } catch (error: any) {
@@ -750,7 +762,7 @@ const ChatPage: React.FC = () => {
               <div className="p-2 sm:p-3 border-t flex gap-1 sm:gap-2 items-end">
                 <input
                   type="file" ref={fileInputRef} className="hidden" multiple
-                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
+                  accept="image/*"
                   onChange={handleFileSelect}
                 />
                 <input
