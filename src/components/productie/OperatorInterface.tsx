@@ -5,12 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ArrowLeft, Factory, Users, Clock, Play, CheckCircle, Square, AlertCircle, Timer, AlertTriangle, TrendingUp, Package } from "lucide-react";
+import { Loader2, ArrowLeft, Factory, Users, Clock, Play, CheckCircle, Square, AlertCircle, Timer, AlertTriangle, TrendingUp, Package, CalendarDays } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useProductionLines, useOrders, useCreateWorkSession, useWorkSessions, useFinishWorkSession, ProductieLinie, ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/useProductionData";
 import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 import OrdersTable from "./OrdersTable";
+import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 
 interface OperatorInterfaceProps {
   selectedLine: string;
