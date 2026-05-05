@@ -16,6 +16,7 @@ import AdvanceProductionForm from "./AdvanceProductionForm";
 import OrderEditDialog from "./OrderEditDialog";
 import OrderIngredientEditor from "./OrderIngredientEditor";
 import OrdersPagination from "./OrdersPagination";
+import SabloaneProductieAvans from "./SabloaneProductieAvans";
 
 const AdvanceProductionManagement = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -347,7 +348,7 @@ const AdvanceProductionManagement = () => {
       </Card>
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="pending">
             <Clock className="h-4 w-4 mr-2" />
             În Așteptare ({pendingTotalItems})
@@ -363,6 +364,10 @@ const AdvanceProductionManagement = () => {
           <TabsTrigger value="available-stock">
             <Package className="h-4 w-4 mr-2" />
             Stoc Disponibil ({availableRestockings.length})
+          </TabsTrigger>
+          <TabsTrigger value="sabloane">
+            <Zap className="h-4 w-4 mr-2" />
+            Șabloane
           </TabsTrigger>
         </TabsList>
 
@@ -772,6 +777,14 @@ const AdvanceProductionManagement = () => {
                   </TableBody>
                 </Table>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sabloane">
+          <Card>
+            <CardContent className="pt-6">
+              <SabloaneProductieAvans onGenerated={refetchOrders} />
             </CardContent>
           </Card>
         </TabsContent>

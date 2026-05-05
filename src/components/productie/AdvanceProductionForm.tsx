@@ -15,11 +15,14 @@ interface AdvanceProductionFormProps {
   onSuccess: () => void;
 }
 
+import DateProductiePicker, { todayISO } from "./DateProductiePicker";
+
 const AdvanceProductionForm = ({ onClose, onSuccess }: AdvanceProductionFormProps) => {
   const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [quantity, setQuantity] = useState<string>('');
   const [selectedLine, setSelectedLine] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [dataProductie, setDataProductie] = useState<string>(todayISO());
 
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: lines, isLoading: linesLoading } = useProductionLines();
@@ -57,7 +60,8 @@ const AdvanceProductionForm = ({ onClose, onSuccess }: AdvanceProductionFormProp
         baxare: notes || undefined,
         linie_id: selectedLine === 'auto-distribute' ? null : selectedLine || null,
         status: 'pending',
-        tip_comanda: 'PRODUCTIE_AVANS'
+        tip_comanda: 'PRODUCTIE_AVANS',
+        data_productie: dataProductie || null,
       };
 
       const newOrder = await createOrderMutation.mutateAsync(orderData);
@@ -194,6 +198,9 @@ const AdvanceProductionForm = ({ onClose, onSuccess }: AdvanceProductionFormProp
               rows={3}
             />
           </div>
+
+          {/* Data țintă pentru producție */}
+          <DateProductiePicker value={dataProductie} onChange={setDataProductie} />
 
           {/* Informații despre funcționare */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

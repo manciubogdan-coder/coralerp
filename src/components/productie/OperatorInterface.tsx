@@ -5,12 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ArrowLeft, Factory, Users, Clock, Play, CheckCircle, Square, AlertCircle, Timer, AlertTriangle, TrendingUp, Package } from "lucide-react";
+import { Loader2, ArrowLeft, Factory, Users, Clock, Play, CheckCircle, Square, AlertCircle, Timer, AlertTriangle, TrendingUp, Package, CalendarDays } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useProductionLines, useOrders, useCreateWorkSession, useWorkSessions, useFinishWorkSession, ProductieLinie, ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/useProductionData";
 import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 import OrdersTable from "./OrdersTable";
+import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 
 interface OperatorInterfaceProps {
   selectedLine: string;
@@ -28,6 +29,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const [producedQuantity, setProducedQuantity] = useState<number>(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [forceRefreshKey, setForceRefreshKey] = useState(0);
+  const [selectedDay, setSelectedDay] = useState<string>(todayISO());
 
   const {
     data: lines,
@@ -61,8 +63,30 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     return idx === -1 ? 999 : idx;
   };
 
+  // Helper: o comandă este "finalizată/acoperită" pentru sortare
+  const isOrderDone = (o: any) => {
+    if (o.status === 'completed') return true;
+    const acoperit = (o.cantitate_reala_produsa || 0) + (o.cantitate_din_restock || 0);
+    return o.cantitate > 0 && acoperit >= o.cantitate;
+  };
+
   // Prepare orders for pagination - only for the selected line when viewing orders
-  const lineOrders = view === 'orders' && currentLineId ? orders?.filter(order => order.linie_id === currentLineId).sort((a, b) => {
+  const lineOrders = view === 'orders' && currentLineId ? orders?.filter(order => {
+    if (order.linie_id !== currentLineId) return false;
+    // Filtrare pe ziua selectată (data_productie); comenzile fără data_productie apar doar la "azi"
+    const dp = (order as any).data_productie;
+    if (dp) {
+      if (dp !== selectedDay) return false;
+    } else {
+      if (selectedDay !== todayISO()) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    // Comenzile finalizate/acoperite merg la coadă întotdeauna
+    const doneA = isOrderDone(a);
+    const doneB = isOrderDone(b);
+    if (doneA !== doneB) return doneA ? 1 : -1;
+
     // Pentru liniile de aromate: sortare fixă după lista standard (Menta, Rozmarin, ...)
     if (isAromateLine) {
       const idxA = getAromateIndex(a.productie_produse?.nume);
@@ -582,6 +606,16 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             Comenzi pentru {currentLine?.nume} - {totalItems} comenzi (ordinea livrării)
           </h2>
         </div>
+
+        <Card className="border-coral-200">
+          <CardContent className="pt-4 flex items-center gap-2 flex-wrap">
+            <CalendarDays className="h-5 w-5 text-coral-primary" />
+            <DateProductiePicker value={selectedDay} onChange={setSelectedDay} label="" />
+            <span className="text-xs text-muted-foreground ml-2">
+              Comenzile fără dată țintă apar la „Azi".
+            </span>
+          </CardContent>
+        </Card>
 
         {totalItems > 0 ? (
           <>
