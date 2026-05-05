@@ -585,6 +585,7 @@ export const useCreateOrder = () => {
       linie_id?: string | null;
       status?: string;
       tip_comanda?: string;
+      data_productie?: string | null;
     }) => {
       console.log('🆕 Creez comandă nouă:', orderData);
       
