@@ -125,7 +125,8 @@ const OrderFormNew = ({ onClose, onSuccess }: OrderFormNewProps) => {
           punct_livrare: punctLivrare,
           produs_id: produs.produs_id,
           cantitate: produs.cantitate,
-          status: 'pending'
+          status: 'pending',
+          data_productie: dataProductie || null,
         });
       }
 
