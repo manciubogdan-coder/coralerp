@@ -287,17 +287,15 @@ export const DailyStockQuality = () => {
         },
       });
 
-      // clear drafts for group
-      setGroupObsDraft((prev) => {
-        const n = { ...prev };
-        delete (n as any)[groupName];
-        return n;
-      });
-      setGroupPercentDraft((prev) => {
-        const n = { ...prev } as Record<string, number>;
-        delete (n as any)[groupName];
-        return n as Record<string, number>;
-      });
+      // keep drafts populated with the applied values so user still sees them
+      const appliedObs = hasObs ? obsVal : undefined;
+      const appliedPct = hasPct ? clamp(Number(pctRaw)) : undefined;
+      if (appliedObs !== undefined) {
+        setGroupObsDraft((prev) => ({ ...prev, [groupName]: appliedObs }));
+      }
+      if (appliedPct !== undefined) {
+        setGroupPercentDraft((prev) => ({ ...prev, [groupName]: appliedPct }));
+      }
 
       toast({ title: 'Aplicat', description: 'Valori aplicate tuturor loturilor din grup.' });
     } catch (error: any) {
