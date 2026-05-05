@@ -111,21 +111,19 @@ export const useUpsertSablonItem = () => {
           .eq("id", item.id);
         if (error) throw error;
       } else {
+        // INSERT plain — permitem același produs de mai multe ori (variații cu observații diferite)
         const { error } = await (supabase as any)
           .from("productie_sabloane_items")
-          .upsert(
-            [
-              {
-                sablon_id: item.sablon_id,
-                produs_id: item.produs_id,
-                observatie_default: item.observatie_default ?? null,
-                cantitate_default: item.cantitate_default ?? null,
-                linie_id: item.linie_id ?? null,
-                pozitie: item.pozitie ?? 0,
-              },
-            ],
-            { onConflict: "sablon_id,produs_id" }
-          );
+          .insert([
+            {
+              sablon_id: item.sablon_id,
+              produs_id: item.produs_id,
+              observatie_default: item.observatie_default ?? null,
+              cantitate_default: item.cantitate_default ?? null,
+              linie_id: item.linie_id ?? null,
+              pozitie: item.pozitie ?? 0,
+            },
+          ]);
         if (error) throw error;
       }
     },
