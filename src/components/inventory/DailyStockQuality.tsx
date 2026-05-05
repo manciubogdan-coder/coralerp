@@ -287,17 +287,15 @@ export const DailyStockQuality = () => {
         },
       });
 
-      // clear drafts for group
-      setGroupObsDraft((prev) => {
-        const n = { ...prev };
-        delete (n as any)[groupName];
-        return n;
-      });
-      setGroupPercentDraft((prev) => {
-        const n = { ...prev } as Record<string, number>;
-        delete (n as any)[groupName];
-        return n as Record<string, number>;
-      });
+      // keep drafts populated with the applied values so user still sees them
+      const appliedObs = hasObs ? obsVal : undefined;
+      const appliedPct = hasPct ? clamp(Number(pctRaw)) : undefined;
+      if (appliedObs !== undefined) {
+        setGroupObsDraft((prev) => ({ ...prev, [groupName]: appliedObs }));
+      }
+      if (appliedPct !== undefined) {
+        setGroupPercentDraft((prev) => ({ ...prev, [groupName]: appliedPct }));
+      }
 
       toast({ title: 'Aplicat', description: 'Valori aplicate tuturor loturilor din grup.' });
     } catch (error: any) {
@@ -356,14 +354,26 @@ export const DailyStockQuality = () => {
                 <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Data Rec.</TableHead>
                 <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Furnizor</TableHead>
                 <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Producător</TableHead>
-                <TableHead className="w-20 hidden lg:table-cell print:hidden">Obs</TableHead>
-                <TableHead className="w-16 hidden md:table-cell print:hidden">% neconf.</TableHead>
+                <TableHead className="w-20 print:hidden">Obs</TableHead>
+                <TableHead className="w-16 print:hidden">% neconf.</TableHead>
                 <TableHead className="w-16 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">C. Cons.</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {groupMode === 'product' ? (
-                groupedByProduct.map((group) => (
+                groupedByProduct.map((group) => {
+                  // Determine common obs/% across all lots in the group (if all share the same value)
+                  const obsVals = group.items.map((it) => qualityMap[it.id]?.obs ?? '');
+                  const pctVals = group.items.map((it) => qualityMap[it.id]?.nonconform_percent ?? 0);
+                  const allObsSame = obsVals.every((v) => v === obsVals[0]);
+                  const allPctSame = pctVals.every((v) => v === pctVals[0]);
+                  const commonObs = allObsSame ? obsVals[0] : '';
+                  const commonPct = allPctSame ? pctVals[0] : undefined;
+                  const obsValue = groupObsDraft[group.name] ?? commonObs ?? '';
+                  const pctValue = groupPercentDraft[group.name] !== undefined && Number.isFinite(groupPercentDraft[group.name])
+                    ? String(groupPercentDraft[group.name])
+                    : (commonPct !== undefined ? String(commonPct) : '');
+                  return (
                   <TableRow key={group.name} className="bg-muted/50">
                     <TableCell colSpan={13} className="font-semibold">
                       <div className="flex flex-col gap-2">
@@ -374,8 +384,8 @@ export const DailyStockQuality = () => {
                         <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
                           <Textarea
                             rows={2}
-                            placeholder="Obs pentru produs"
-                            value={groupObsDraft[group.name] ?? ''}
+                            placeholder={allObsSame ? 'Obs pentru produs' : 'Obs (valori diferite pe loturi)'}
+                            value={obsValue}
                             onChange={(e) => setGroupObsDraft((prev) => ({ ...prev, [group.name]: (e.target as HTMLTextAreaElement).value }))}
                             className="min-w-[140px] whitespace-pre-wrap break-words text-xs"
                           />
@@ -384,8 +394,8 @@ export const DailyStockQuality = () => {
                             min={0}
                             max={100}
                             step={0.1}
-                            placeholder="% neconform"
-                            value={groupPercentDraft[group.name] !== undefined && Number.isFinite(groupPercentDraft[group.name]) ? String(groupPercentDraft[group.name]) : ''}
+                            placeholder={allPctSame ? '% neconform' : 'mixt'}
+                            value={pctValue}
                             onChange={(e) => {
                               const raw = (e.target as HTMLInputElement).value;
                               const num = Number(raw);
@@ -395,10 +405,27 @@ export const DailyStockQuality = () => {
                           />
                           <Button size="sm" onClick={() => handleApplyToGroup(group.name, group.items)}>Aplică la toate loturile</Button>
                         </div>
+                        {/* Per-lot recap so user sees what was saved on each lot */}
+                        <div className="text-[11px] font-normal text-muted-foreground space-y-0.5">
+                          {group.items.map((it) => {
+                            const qq = qualityMap[it.id];
+                            const lot = it.lot_number || '-';
+                            const pct = qq?.nonconform_percent ?? 0;
+                            const obs = qq?.obs ?? '';
+                            return (
+                              <div key={it.id} className="flex flex-wrap gap-x-3">
+                                <span>Lot <b>{lot}</b></span>
+                                <span>% neconf: <b>{pct}</b></span>
+                                {obs ? <span className="truncate">Obs: {obs}</span> : null}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
+                  );
+                })
               ) : (
                 filteredSnapshots.map((item) => {
                   const q = qualityMap[item.id];
