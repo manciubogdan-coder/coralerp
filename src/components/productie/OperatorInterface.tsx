@@ -607,6 +607,16 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           </h2>
         </div>
 
+        <Card className="border-coral-200">
+          <CardContent className="pt-4 flex items-center gap-2 flex-wrap">
+            <CalendarDays className="h-5 w-5 text-coral-primary" />
+            <DateProductiePicker value={selectedDay} onChange={setSelectedDay} label="" />
+            <span className="text-xs text-muted-foreground ml-2">
+              Comenzile fără dată țintă apar la „Azi".
+            </span>
+          </CardContent>
+        </Card>
+
         {totalItems > 0 ? (
           <>
             <OrdersTable 
