@@ -375,6 +375,7 @@ const SablonItemRow = ({
   lines,
   onSave,
   onDelete,
+  onDuplicate,
 }: any) => {
   const [obs, setObs] = useState(item.observatie_default || "");
   const [cant, setCant] = useState<string>(item.cantitate_default?.toString() || "");
@@ -417,7 +418,14 @@ const SablonItemRow = ({
         </Select>
       </TableCell>
       <TableCell>
-        <Button size="sm" variant="ghost" onClick={onDelete}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" onClick={onDuplicate} title="Duplică rând">
+            <Copy className="h-4 w-4 text-blue-600" />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onDelete} title="Șterge">
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );
