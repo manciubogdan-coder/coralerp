@@ -15,11 +15,14 @@ interface AdvanceProductionFormProps {
   onSuccess: () => void;
 }
 
+import DateProductiePicker, { todayISO } from "./DateProductiePicker";
+
 const AdvanceProductionForm = ({ onClose, onSuccess }: AdvanceProductionFormProps) => {
   const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [quantity, setQuantity] = useState<string>('');
   const [selectedLine, setSelectedLine] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [dataProductie, setDataProductie] = useState<string>(todayISO());
 
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: lines, isLoading: linesLoading } = useProductionLines();
