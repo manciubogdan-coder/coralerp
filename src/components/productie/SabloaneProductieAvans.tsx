@@ -241,8 +241,8 @@ const SablonEditDialog = ({ sablon, products, lines, onClose, onUpsertItem, onDe
     return m;
   }, [products]);
 
-  const usedIds = new Set(items.map((i) => i.produs_id));
-  const availableProducts = products.filter((p) => !usedIds.has(p.id));
+  // Permitem adăugarea aceluiași produs de mai multe ori (variații cu observații diferite)
+  const availableProducts = products;
 
   const handleAdd = async () => {
     if (!addProdusId) return;
