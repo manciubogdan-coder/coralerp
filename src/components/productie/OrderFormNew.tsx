@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Trash2, ShoppingCart } from "lucide-react";
 import { useProducts, useCreateOrder, useClients } from "@/hooks/productie/useProductionData";
+import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 
 interface ProductItem {
   id: string;
@@ -28,6 +29,7 @@ const OrderFormNew = ({ onClose, onSuccess }: OrderFormNewProps) => {
   const [currentProdusId, setCurrentProdusId] = useState("");
   const [currentCantitate, setCurrentCantitate] = useState(1);
   const [produse, setProduse] = useState<ProductItem[]>([]);
+  const [dataProductie, setDataProductie] = useState<string>(todayISO());
 
   const { data: products } = useProducts();
   const { data: clients } = useClients();
