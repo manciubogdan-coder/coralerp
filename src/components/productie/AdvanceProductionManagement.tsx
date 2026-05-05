@@ -780,6 +780,14 @@ const AdvanceProductionManagement = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="sabloane">
+          <Card>
+            <CardContent className="pt-6">
+              <SabloaneProductieAvans onGenerated={refetchOrders} />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
