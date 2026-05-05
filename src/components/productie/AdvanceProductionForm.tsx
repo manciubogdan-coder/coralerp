@@ -199,6 +199,9 @@ const AdvanceProductionForm = ({ onClose, onSuccess }: AdvanceProductionFormProp
             />
           </div>
 
+          {/* Data țintă pentru producție */}
+          <DateProductiePicker value={dataProductie} onChange={setDataProductie} />
+
           {/* Informații despre funcționare */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-start gap-3">
