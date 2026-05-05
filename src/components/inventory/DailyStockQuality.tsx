@@ -356,8 +356,8 @@ export const DailyStockQuality = () => {
                 <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Data Rec.</TableHead>
                 <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Furnizor</TableHead>
                 <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Producător</TableHead>
-                <TableHead className="w-20 hidden lg:table-cell print:hidden">Obs</TableHead>
-                <TableHead className="w-16 hidden md:table-cell print:hidden">% neconf.</TableHead>
+                <TableHead className="w-20 print:hidden">Obs</TableHead>
+                <TableHead className="w-16 print:hidden">% neconf.</TableHead>
                 <TableHead className="w-16 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">C. Cons.</TableHead>
               </TableRow>
             </TableHeader>
