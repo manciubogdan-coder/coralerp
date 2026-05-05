@@ -348,7 +348,7 @@ const AdvanceProductionManagement = () => {
       </Card>
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="pending">
             <Clock className="h-4 w-4 mr-2" />
             În Așteptare ({pendingTotalItems})
@@ -364,6 +364,10 @@ const AdvanceProductionManagement = () => {
           <TabsTrigger value="available-stock">
             <Package className="h-4 w-4 mr-2" />
             Stoc Disponibil ({availableRestockings.length})
+          </TabsTrigger>
+          <TabsTrigger value="sabloane">
+            <Zap className="h-4 w-4 mr-2" />
+            Șabloane
           </TabsTrigger>
         </TabsList>
 
