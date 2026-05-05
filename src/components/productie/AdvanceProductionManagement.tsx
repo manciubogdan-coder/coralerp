@@ -16,6 +16,7 @@ import AdvanceProductionForm from "./AdvanceProductionForm";
 import OrderEditDialog from "./OrderEditDialog";
 import OrderIngredientEditor from "./OrderIngredientEditor";
 import OrdersPagination from "./OrdersPagination";
+import SabloaneProductieAvans from "./SabloaneProductieAvans";
 
 const AdvanceProductionManagement = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
