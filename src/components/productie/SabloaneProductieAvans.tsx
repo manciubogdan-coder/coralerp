@@ -329,6 +329,21 @@ const SablonEditDialog = ({ sablon, products, lines, onClose, onUpsertItem, onDe
                         ...updates,
                       })
                     }
+                    onDuplicate={async () => {
+                      try {
+                        await onUpsertItem({
+                          sablon_id: sablon.id,
+                          produs_id: it.produs_id,
+                          observatie_default: it.observatie_default,
+                          cantitate_default: it.cantitate_default,
+                          linie_id: it.linie_id,
+                          pozitie: items.length,
+                        });
+                        toast.success("Rând duplicat");
+                      } catch (e: any) {
+                        toast.error(e.message);
+                      }
+                    }}
                     onDelete={() => onDeleteItem(it.id)}
                   />
                 );
