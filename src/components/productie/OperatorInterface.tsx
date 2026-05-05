@@ -29,6 +29,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const [producedQuantity, setProducedQuantity] = useState<number>(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [forceRefreshKey, setForceRefreshKey] = useState(0);
+  const [selectedDay, setSelectedDay] = useState<string>(todayISO());
 
   const {
     data: lines,
