@@ -171,6 +171,12 @@ const OrderFormNew = ({ onClose, onSuccess }: OrderFormNewProps) => {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardContent className="pt-4">
+            <DateProductiePicker value={dataProductie} onChange={setDataProductie} />
+          </CardContent>
+        </Card>
+
         {/* Adăugare produse - compact */}
         <Card>
           <CardHeader className="pb-3">
