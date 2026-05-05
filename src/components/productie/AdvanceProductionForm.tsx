@@ -60,7 +60,8 @@ const AdvanceProductionForm = ({ onClose, onSuccess }: AdvanceProductionFormProp
         baxare: notes || undefined,
         linie_id: selectedLine === 'auto-distribute' ? null : selectedLine || null,
         status: 'pending',
-        tip_comanda: 'PRODUCTIE_AVANS'
+        tip_comanda: 'PRODUCTIE_AVANS',
+        data_productie: dataProductie || null,
       };
 
       const newOrder = await createOrderMutation.mutateAsync(orderData);
