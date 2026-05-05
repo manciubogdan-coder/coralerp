@@ -63,8 +63,30 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     return idx === -1 ? 999 : idx;
   };
 
+  // Helper: o comandă este "finalizată/acoperită" pentru sortare
+  const isOrderDone = (o: any) => {
+    if (o.status === 'completed') return true;
+    const acoperit = (o.cantitate_reala_produsa || 0) + (o.cantitate_din_restock || 0);
+    return o.cantitate > 0 && acoperit >= o.cantitate;
+  };
+
   // Prepare orders for pagination - only for the selected line when viewing orders
-  const lineOrders = view === 'orders' && currentLineId ? orders?.filter(order => order.linie_id === currentLineId).sort((a, b) => {
+  const lineOrders = view === 'orders' && currentLineId ? orders?.filter(order => {
+    if (order.linie_id !== currentLineId) return false;
+    // Filtrare pe ziua selectată (data_productie); comenzile fără data_productie apar doar la "azi"
+    const dp = (order as any).data_productie;
+    if (dp) {
+      if (dp !== selectedDay) return false;
+    } else {
+      if (selectedDay !== todayISO()) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    // Comenzile finalizate/acoperite merg la coadă întotdeauna
+    const doneA = isOrderDone(a);
+    const doneB = isOrderDone(b);
+    if (doneA !== doneB) return doneA ? 1 : -1;
+
     // Pentru liniile de aromate: sortare fixă după lista standard (Menta, Rozmarin, ...)
     if (isAromateLine) {
       const idxA = getAromateIndex(a.productie_produse?.nume);
