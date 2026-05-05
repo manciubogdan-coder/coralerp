@@ -14,6 +14,7 @@ import OrderOCR from "@/components/productie/OrderOCR";
 import OperatorInterface from "@/components/productie/OperatorInterface";
 import LineManagement from "@/components/productie/LineManagement";
 import RecipeManagement from "@/components/productie/RecipeManagement";
+import ProductManagement from "@/components/productie/ProductManagement";
 import IngredientManagement from "@/components/productie/IngredientManagement";
 import ClientManagement from "@/components/productie/ClientManagement";
 import DeliveryZoneManagement from "@/components/productie/DeliveryZoneManagement";
@@ -119,6 +120,7 @@ const ProductionStockPage = () => {
             <Tabs defaultValue="lines" className="w-full">
               <TabsList className="flex flex-wrap gap-1 h-auto">
                 <TabsTrigger value="lines">Linii</TabsTrigger>
+                <TabsTrigger value="products">Produse</TabsTrigger>
                 <TabsTrigger value="recipes">Rețete</TabsTrigger>
                 <TabsTrigger value="ingredients">Ingrediente</TabsTrigger>
                 <TabsTrigger value="clients">Clienți</TabsTrigger>
@@ -127,6 +129,9 @@ const ProductionStockPage = () => {
               </TabsList>
               <TabsContent value="lines" className="mt-4">
                 <LineManagement />
+              </TabsContent>
+              <TabsContent value="products" className="mt-4">
+                <ProductManagement />
               </TabsContent>
               <TabsContent value="recipes" className="mt-4">
                 <RecipeManagement />
