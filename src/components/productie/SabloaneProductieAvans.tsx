@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Edit, Play, Loader2, ListChecks } from "lucide-react";
+import { Plus, Trash2, Edit, Play, Loader2, ListChecks, Copy } from "lucide-react";
 import { toast } from "sonner";
 import {
   useSabloane,
@@ -241,8 +241,8 @@ const SablonEditDialog = ({ sablon, products, lines, onClose, onUpsertItem, onDe
     return m;
   }, [products]);
 
-  const usedIds = new Set(items.map((i) => i.produs_id));
-  const availableProducts = products.filter((p) => !usedIds.has(p.id));
+  // Permitem adăugarea aceluiași produs de mai multe ori (variații cu observații diferite)
+  const availableProducts = products;
 
   const handleAdd = async () => {
     if (!addProdusId) return;
@@ -329,6 +329,21 @@ const SablonEditDialog = ({ sablon, products, lines, onClose, onUpsertItem, onDe
                         ...updates,
                       })
                     }
+                    onDuplicate={async () => {
+                      try {
+                        await onUpsertItem({
+                          sablon_id: sablon.id,
+                          produs_id: it.produs_id,
+                          observatie_default: it.observatie_default,
+                          cantitate_default: it.cantitate_default,
+                          linie_id: it.linie_id,
+                          pozitie: items.length,
+                        });
+                        toast.success("Rând duplicat");
+                      } catch (e: any) {
+                        toast.error(e.message);
+                      }
+                    }}
                     onDelete={() => onDeleteItem(it.id)}
                   />
                 );
@@ -360,6 +375,7 @@ const SablonItemRow = ({
   lines,
   onSave,
   onDelete,
+  onDuplicate,
 }: any) => {
   const [obs, setObs] = useState(item.observatie_default || "");
   const [cant, setCant] = useState<string>(item.cantitate_default?.toString() || "");
@@ -402,7 +418,14 @@ const SablonItemRow = ({
         </Select>
       </TableCell>
       <TableCell>
-        <Button size="sm" variant="ghost" onClick={onDelete}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" onClick={onDuplicate} title="Duplică rând">
+            <Copy className="h-4 w-4 text-blue-600" />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onDelete} title="Șterge">
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );
