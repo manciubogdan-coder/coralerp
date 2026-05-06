@@ -89,8 +89,8 @@ const ConsumptionAnalytics = () => {
             )
           )
         `)
-        .gte('created_at', `${startDate}T00:00:00`)
-        .lte('created_at', `${endDate}T23:59:59`)
+        .gte('created_at', startTs)
+        .lte('created_at', endTs)
         .order('created_at', { ascending: false });
 
       if (comenziError) {
