@@ -1,21 +1,17 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShoppingBag, Package, TrendingDown, ClipboardList, Truck, Users } from "lucide-react";
+import { ShoppingBag, Package, TrendingDown, Truck } from "lucide-react";
 
-import ProductionStockManagement from "@/components/production/ProductionStockManagement";
+import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView";
 import ConsumptionAnalytics from "@/components/productie/ConsumptionAnalytics";
-import OrderOCR from "@/components/productie/OrderOCR";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
-import OcrOrdersByClient from "@/components/productie/OcrOrdersByClient";
 import BackToHubButton from "@/components/BackToHubButton";
 
 const TABS = [
   { key: "stoc-marfa", label: "Stoc Marfă Început Zi", icon: Package },
   { key: "consumuri", label: "Analiză Consumuri", icon: TrendingDown },
-  { key: "necesar-mp", label: "Necesar Materie Primă", icon: ClipboardList },
   { key: "restocari", label: "Restocări Marfă", icon: Truck },
-  { key: "comenzi-client", label: "Comenzi pe Client", icon: Users },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -33,7 +29,7 @@ const VanzariHub: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold">Vânzări</h1>
             <p className="text-sm text-muted-foreground">
-              Stoc marfă, consumuri, necesar materie primă, restocări și comenzi pe client.
+              Stoc marfă început zi, analiză consumuri și restocări.
             </p>
           </div>
         </div>
@@ -41,7 +37,7 @@ const VanzariHub: React.FC = () => {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-4 h-auto">
+        <TabsList className="grid w-full grid-cols-3 mb-4 h-auto">
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
@@ -57,7 +53,7 @@ const VanzariHub: React.FC = () => {
         <TabsContent value="stoc-marfa">
           <Card>
             <CardContent className="p-4">
-              <ProductionStockManagement />
+              <DailyStockGroupView />
             </CardContent>
           </Card>
         </TabsContent>
@@ -70,26 +66,10 @@ const VanzariHub: React.FC = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="necesar-mp">
-          <Card>
-            <CardContent className="p-4">
-              <OrderOCR />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="restocari">
           <Card>
             <CardContent className="p-4">
               <MarfaRestocataView />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="comenzi-client">
-          <Card>
-            <CardContent className="p-4">
-              <OcrOrdersByClient />
             </CardContent>
           </Card>
         </TabsContent>
