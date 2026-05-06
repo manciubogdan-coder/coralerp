@@ -183,18 +183,30 @@ const AuditLogPage: React.FC = () => {
   useEffect(() => {
     const fetchLogs = async () => {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('audit_logs' as any)
-        .select('id, occurred_at, user_email, user_name, action, table_name, record_label, changed_fields, old_data, new_data')
-        .order('occurred_at', { ascending: false })
-        .limit(300);
-
-      if (error) {
+      try {
+        const pageSize = 1000;
+        let offset = 0;
+        let all: AuditLog[] = [];
+        // Hard cap to avoid runaway loads
+        const maxRows = 50000;
+        while (offset < maxRows) {
+          const { data, error } = await supabase
+            .from('audit_logs' as any)
+            .select('id, occurred_at, user_email, user_name, action, table_name, record_label, changed_fields, old_data, new_data')
+            .order('occurred_at', { ascending: false })
+            .range(offset, offset + pageSize - 1);
+          if (error) throw error;
+          const batch = (data as unknown as AuditLog[]) ?? [];
+          all = all.concat(batch);
+          if (batch.length < pageSize) break;
+          offset += pageSize;
+        }
+        setLogs(all);
+      } catch (e) {
         toast({ title: 'Eroare', description: 'Nu s-a putut încărca jurnalul de audit', variant: 'destructive' });
-      } else {
-        setLogs(((data as unknown as AuditLog[]) ?? []));
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     if (isAdmin) fetchLogs();
