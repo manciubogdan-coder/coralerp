@@ -89,8 +89,7 @@ const ConsumptionAnalytics = () => {
             )
           )
         `)
-        .gte('created_at', startTs)
-        .lte('created_at', endTs)
+        .or(`and(data_productie.gte.${startDate},data_productie.lte.${endDate}),and(data_productie.is.null,created_at.gte.${startTs},created_at.lte.${endTs})`)
         .order('created_at', { ascending: false });
 
       if (comenziError) {
