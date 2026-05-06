@@ -38,13 +38,26 @@ const ConsumptionAnalytics = () => {
   const { toast } = useToast();
   const { data: ingredients } = useIngredients();
 
-  // Extragem datele de start și de final din range (dacă nu e selectat, fallback la azi)
-  const startDate = dateRange?.from
-    ? dateRange.from.toISOString().split('T')[0]
-    : new Date().toISOString().split('T')[0];
-  const endDate = dateRange?.to
-    ? dateRange.to.toISOString().split('T')[0]
-    : new Date().toISOString().split('T')[0];
+  // Extragem datele de start/final folosind data LOCALĂ (nu UTC) pentru a evita
+  // probleme de fus orar care fac ca "azi" să nu apară în rezultate.
+  const toLocalISODate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const startDate = dateRange?.from ? toLocalISODate(dateRange.from) : toLocalISODate(new Date());
+  const endDate = dateRange?.to ? toLocalISODate(dateRange.to) : toLocalISODate(new Date());
+
+  // Calculăm boundaries cu offset explicit Europe/Bucharest pentru a interoga corect timestamptz
+  const tzOffset = (() => {
+    const offMin = -new Date().getTimezoneOffset();
+    const sign = offMin >= 0 ? '+' : '-';
+    const abs = Math.abs(offMin);
+    return `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+  })();
+  const startTs = `${startDate}T00:00:00${tzOffset}`;
+  const endTs = `${endDate}T23:59:59${tzOffset}`;
 
   // Query pentru consumurile și necesarul
   const { data: consumptionData, isLoading } = useQuery({
