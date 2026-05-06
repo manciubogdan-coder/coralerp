@@ -315,6 +315,7 @@ const AuditLogPage: React.FC = () => {
                 <TableBody>
                   {filteredLogs.map((log) => {
                     const quantityChange = getQuantityChange(log);
+                    const opInfo = getOperationInfo(log);
                     return (
                       <TableRow key={log.id}>
                         <TableCell className="whitespace-nowrap">{new Date(log.occurred_at).toLocaleString('ro-RO')}</TableCell>
@@ -324,8 +325,8 @@ const AuditLogPage: React.FC = () => {
                         </TableCell>
                         <TableCell><Badge variant="outline">{actionLabel[log.action] || log.action}</Badge></TableCell>
                         <TableCell>
-                          <div className="font-medium">{getOperationType(log)}</div>
-                          <div className="text-xs text-muted-foreground">{getInventoryType(log.table_name)}</div>
+                          <Badge variant="outline" className={`${opInfo.color} font-medium`}>{opInfo.label}</Badge>
+                          <div className="text-xs text-muted-foreground mt-1">{getInventoryType(log.table_name)}</div>
                         </TableCell>
                         <TableCell>{tableLabels[log.table_name] || log.table_name}</TableCell>
                         <TableCell>{log.record_label || '-'}</TableCell>
