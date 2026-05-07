@@ -213,7 +213,14 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                   
                   <TableCell>
                     <div className="space-y-1">
-                      <div className="font-medium">{order.magazin}</div>
+                      <div className="font-medium flex items-center gap-2 flex-wrap">
+                        {order.magazin}
+                        {(order.tip_comanda === 'REAMBALARE' || order.magazin === 'REAMBALARE') && (
+                          <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100">
+                            🔁 Reambalare
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-sm text-gray-500">{order.punct_livrare}</div>
                     </div>
                   </TableCell>
