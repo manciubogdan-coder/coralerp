@@ -1061,9 +1061,11 @@ export const useFinishWorkSession = () => {
       }
 
       // Calculez surplusul acestei sesiuni (ce nu încape în comandă)
+      // Pentru REAMBALARE: toată cantitatea produsă devine restocare nouă (revine ca surplus disponibil)
+      const esteReambalareCom = (comanda as any).magazin === 'REAMBALARE' || (comanda as any).tip_comanda === 'REAMBALARE';
       const produsAnteriorPentruComanda = Number(comanda.cantitate_reala_produsa || 0);
       const alocatDinAceastaSesiuneLaComanda = Math.max(0, produsConsideratPentruComanda - produsAnteriorPentruComanda);
-      const surplusDinAceastaSesiune = esteComandeAvans
+      const surplusDinAceastaSesiune = (esteComandeAvans || esteReambalareCom)
         ? Number(cantitate_produsa || 0)
         : Math.max(0, Number(cantitate_produsa || 0) - alocatDinAceastaSesiuneLaComanda);
 
