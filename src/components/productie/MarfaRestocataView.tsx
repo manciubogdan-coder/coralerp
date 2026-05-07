@@ -242,50 +242,116 @@ const MarfaRestocataView = () => {
   };
 
   const openScoatere = (lot: MarfaRestocata, motiv: MotivScoatere) => {
-    setScoatereDialog({ open: true, lot, motiv, observatii: '' });
+    setScoatereDialog({
+      open: true,
+      lot,
+      motiv,
+      observatii: '',
+      cantitate: lot.cantitate_surplus.toString(),
+    });
   };
+
+  const closeScoatere = () =>
+    setScoatereDialog({ open: false, lot: null, motiv: 'aruncat', observatii: '', cantitate: '' });
 
   const confirmScoatere = async () => {
     if (!scoatereDialog.lot) return;
+    const lot = scoatereDialog.lot;
+    const cantScoasa = parseFloat(scoatereDialog.cantitate || '0');
+
+    if (!isFinite(cantScoasa) || cantScoasa <= 0) {
+      toast.error('Introdu o cantitate validă');
+      return;
+    }
+    if (cantScoasa > lot.cantitate_surplus + 1e-6) {
+      toast.error(`Cantitatea depășește lotul (${lot.cantitate_surplus} ${lot.unitate_masura})`);
+      return;
+    }
+
     try {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData?.user?.id || null;
+      const esteTotal = Math.abs(cantScoasa - lot.cantitate_surplus) < 1e-6;
+      const ramas = Number((lot.cantitate_surplus - cantScoasa).toFixed(4));
 
-      const fullUpdate = {
-        status: 'scos',
-        cantitate_surplus: 0,
+      const meta = {
         motiv_scoatere: scoatereDialog.motiv,
         observatii_scoatere: scoatereDialog.observatii?.trim() || null,
         scos_la: new Date().toISOString(),
         scos_de: userId,
       };
 
-      let { error } = await (supabase as any)
-        .from('productie_restocari')
-        .update(fullUpdate)
-        .eq('id', scoatereDialog.lot.id);
-
-      // Fallback dacă coloanele noi nu există încă în DB
-      if (error && /column .* does not exist/i.test(error.message || '')) {
-        const res = await (supabase as any)
+      const tryUpdate = async (id: string, payload: Record<string, any>) => {
+        let { error } = await (supabase as any)
           .from('productie_restocari')
-          .update({ status: 'scos', cantitate_surplus: 0 })
-          .eq('id', scoatereDialog.lot.id);
-        error = res.error;
-        if (!error) {
-          toast.warning('Lot scos, dar coloanele motiv/observații lipsesc din DB. Rulează migrarea SQL.');
+          .update(payload)
+          .eq('id', id);
+        if (error && /column .* does not exist/i.test(error.message || '')) {
+          const stripped: Record<string, any> = { ...payload };
+          delete stripped.motiv_scoatere;
+          delete stripped.observatii_scoatere;
+          delete stripped.scos_la;
+          delete stripped.scos_de;
+          const res = await (supabase as any)
+            .from('productie_restocari')
+            .update(stripped)
+            .eq('id', id);
+          error = res.error;
+          if (!error) toast.warning('Salvat parțial. Coloanele motiv/observații lipsesc din DB.');
+        }
+        if (error) throw error;
+      };
+
+      if (esteTotal) {
+        // Folosim 'folosit' ca să respectăm check constraint-ul existent
+        await tryUpdate(lot.id, { status: 'folosit', cantitate_surplus: 0, ...meta });
+      } else {
+        // Scoatere parțială: reduc lotul original și clonez o linie de istoric
+        const { data: originalRow, error: selErr } = await (supabase as any)
+          .from('productie_restocari')
+          .select('*')
+          .eq('id', lot.id)
+          .maybeSingle();
+        if (selErr) throw selErr;
+
+        await tryUpdate(lot.id, { cantitate_surplus: ramas });
+
+        if (originalRow) {
+          const clone: Record<string, any> = { ...originalRow };
+          delete clone.id;
+          delete clone.created_at;
+          delete clone.updated_at;
+          clone.status = 'folosit';
+          clone.cantitate_surplus = 0;
+          clone.motiv_scoatere = meta.motiv_scoatere;
+          clone.observatii_scoatere = `[${cantScoasa} ${lot.unitate_masura}] ${meta.observatii_scoatere || ''}`.trim();
+          clone.scos_la = meta.scos_la;
+          clone.scos_de = meta.scos_de;
+
+          let { error: insErr } = await (supabase as any).from('productie_restocari').insert(clone);
+          if (insErr && /column .* does not exist/i.test(insErr.message || '')) {
+            delete clone.motiv_scoatere;
+            delete clone.observatii_scoatere;
+            delete clone.scos_la;
+            delete clone.scos_de;
+            const r2 = await (supabase as any).from('productie_restocari').insert(clone);
+            insErr = r2.error;
+          }
+          if (insErr) {
+            console.warn('Istoric scoatere nu a putut fi salvat:', insErr.message);
+            toast.warning('Cantitatea a fost scoasă, dar istoricul nu a fost salvat.');
+          }
         }
       }
 
-      if (error) throw error;
+      toast.success(
+        `${cantScoasa} ${lot.unitate_masura} marcat ca "${MOTIV_LABEL[scoatereDialog.motiv]}".`
+      );
+      closeScoatere();
 
-      toast.success(`Lot marcat ca "${MOTIV_LABEL[scoatereDialog.motiv]}". Nu se mai consumă materie primă.`);
-      setScoatereDialog({ open: false, lot: null, motiv: 'aruncat', observatii: '' });
-
-      // Închide și dialogul de editare dacă lotul scos era ultimul
       const grup = editDialog.produsGrupat;
-      if (grup) {
-        const ramase = grup.loturi.filter((l) => l.id !== scoatereDialog.lot!.id);
+      if (grup && esteTotal) {
+        const ramase = grup.loturi.filter((l) => l.id !== lot.id);
         if (ramase.length === 0) {
           setEditDialog({ open: false, produsGrupat: null, cantitatiEditate: {} });
         }
