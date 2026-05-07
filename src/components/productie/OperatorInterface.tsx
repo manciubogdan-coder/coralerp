@@ -66,7 +66,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   // Helper: o comandă este "finalizată/acoperită" pentru sortare
   const isOrderDone = (o: any) => {
     if (o.status === 'completed') return true;
-    const acoperit = (o.cantitate_reala_produsa || 0) + (o.cantitate_din_restock || 0);
+    const esteReambalare = o.magazin === 'REAMBALARE' || o.tip_comanda === 'REAMBALARE';
+    const acoperit = (o.cantitate_reala_produsa || 0) + (esteReambalare ? 0 : (o.cantitate_din_restock || 0));
     return o.cantitate > 0 && acoperit >= o.cantitate;
   };
 
@@ -101,7 +102,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     const getOrderProgress = (order: any) => {
       const cantitateComandată = order.cantitate;
       const cantitateRealaProadusa = order.cantitate_reala_produsa || 0;
-      const cantitatedinRestock = order.cantitate_din_restock || 0;
+      const esteReambalare = (order as any).magazin === 'REAMBALARE' || (order as any).tip_comanda === 'REAMBALARE';
+      const cantitatedinRestock = esteReambalare ? 0 : order.cantitate_din_restock || 0;
       const cantitateAcoperitaTotal = cantitateRealaProadusa + cantitatedinRestock;
       return cantitateComandată > 0 ? Math.round(cantitateAcoperitaTotal / cantitateComandată * 100) : 0;
     };
@@ -210,7 +212,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     const order = orders?.find(o => o.id === session.comanda_id);
     const cantitateComandă = order?.cantitate || 0;
     const cantRealaPrev = order?.cantitate_reala_produsa || 0;
-    const cantRestockPrev = order?.cantitate_din_restock || 0;
+    const esteReambalare = (order as any)?.magazin === 'REAMBALARE' || (order as any)?.tip_comanda === 'REAMBALARE';
+    const cantRestockPrev = esteReambalare ? 0 : order?.cantitate_din_restock || 0;
     const acoperitPrev = cantRealaPrev + cantRestockPrev;
     // Cât mai e nevoie de produs în această sesiune ca să acoperim comanda
     const ramasDeAcoperit = Math.max(0, cantitateComandă - acoperitPrev);
