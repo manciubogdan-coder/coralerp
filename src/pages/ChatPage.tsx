@@ -229,7 +229,12 @@ const ChatPage: React.FC = () => {
   // ---------- LOAD MESSAGES ----------
   const loadMessages = async (convId: string) => {
     const { data } = await (supabase as any).rpc("chat_list_messages", { p_conversation_id: convId });
-    const list = (data as Message[]) ?? [];
+    let list = (data as Message[]) ?? [];
+    const clearedAt = getConvClearedAt(convId);
+    if (clearedAt) {
+      const cutoff = new Date(clearedAt).getTime();
+      list = list.filter((m) => new Date(m.created_at).getTime() > cutoff);
+    }
     const seenAt = getConvSeen(convId);
     const firstUnread = list.find(
       (m) => m.author_id !== userId && new Date(m.created_at) > new Date(seenAt)
@@ -237,6 +242,14 @@ const ChatPage: React.FC = () => {
     setActiveUnreadAnchor(firstUnread?.id ?? null);
     setMessages(list);
     markConversationRead(convId);
+    // Load other members' last_read_at for read receipts
+    const { data: members } = await (supabase as any)
+      .from("chat_members")
+      .select("user_id,last_read_at")
+      .eq("conversation_id", convId);
+    const map: Record<string, string> = {};
+    (members ?? []).forEach((m: any) => { map[m.user_id] = m.last_read_at; });
+    setMemberLastRead((prev) => ({ ...prev, [convId]: map }));
   };
 
   // ---------- INITIAL LOAD ----------
