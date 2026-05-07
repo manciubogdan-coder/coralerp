@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -85,6 +85,34 @@ export interface ProductieSesiuneLucru {
   created_at: string;
   updated_at: string;
 }
+
+const esteComandaReambalare = (comanda: any) =>
+  comanda?.magazin === 'REAMBALARE' || comanda?.tip_comanda === 'REAMBALARE';
+
+const esteComandaProductieAvans = (comanda: any) =>
+  comanda?.magazin === 'PRODUCTIE_AVANS' || comanda?.tip_comanda === 'PRODUCTIE_AVANS';
+
+const refreshProductionCaches = async (queryClient: QueryClient) => {
+  const queryKeys = [
+    ['orders'],
+    ['production-orders'],
+    ['productie-comenzi'],
+    ['work-sessions'],
+    ['restockings'],
+    ['marfa-restocata'],
+    ['marfa-restocata-istoric'],
+    ['products'],
+    ['production-lines'],
+    ['lines'],
+  ];
+
+  queryKeys.forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
+  await Promise.all(
+    queryKeys.map((queryKey) =>
+      queryClient.refetchQueries({ queryKey, type: 'active' })
+    )
+  );
+};
 
 // Hook pentru încărcarea liniilor de producție
 export const useProductionLines = () => {
