@@ -79,7 +79,8 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
             {paginatedOrders.map((order) => {
               const cantitateComandată = order.cantitate;
               const cantitateRealaProadusa = order.cantitate_reala_produsa || 0;
-              const cantitatedinRestock = order.cantitate_din_restock || 0;
+              const esteReambalare = (order as any).magazin === 'REAMBALARE' || (order as any).tip_comanda === 'REAMBALARE';
+              const cantitatedinRestock = esteReambalare ? 0 : order.cantitate_din_restock || 0;
               const cantitateAcoperitaTotal = cantitateRealaProadusa + cantitatedinRestock;
               const cantitateRamasaDeProdus = Math.max(0, cantitateComandată - cantitateAcoperitaTotal);
               const procentProgres = cantitateComandată > 0 ? Math.round(cantitateAcoperitaTotal / cantitateComandată * 100) : 0;
