@@ -737,7 +737,7 @@ export const useUpdateOrder = () => {
         // Citesc datele actuale ale comenzii
         const { data: comandaData, error: fetchError } = await supabase
           .from('productie_comenzi')
-          .select('cantitate, cantitate_reala_produsa, magazin, produs_id')
+          .select('cantitate, cantitate_reala_produsa, magazin, produs_id, tip_comanda')
           .eq('id', id)
           .single();
         
@@ -748,8 +748,8 @@ export const useUpdateOrder = () => {
         
         const cantitateComandată = comandaData.cantitate;
         const cantitateReală = comandaData.cantitate_reala_produsa || 0;
-        const esteComandeAvans = comandaData.magazin === 'PRODUCTIE_AVANS';
-        const esteReambalareCom = comandaData.magazin === 'REAMBALARE' || (comandaData as any).tip_comanda === 'REAMBALARE';
+        const esteComandeAvans = esteComandaProductieAvans(comandaData);
+        const esteReambalareCom = esteComandaReambalare(comandaData);
         
         console.log('📊 Verificare cantități:', {
           cantitateComandată,
