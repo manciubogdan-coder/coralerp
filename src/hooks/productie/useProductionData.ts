@@ -525,6 +525,7 @@ export const useOrders = () => {
         return {
           ...comanda,
           productie_clienti: client,
+          cantitate_din_restock: cantitateDinRestock,
           cantitate_reala_produsa: cantitateRealaProadusa,
           cantitate_produsa_sesiuni: totalProdusDinSesiuni,
           cantitate_surplus_produsa: Math.max(0, totalProdusDinSesiuni - cantitateRealaProadusa)
