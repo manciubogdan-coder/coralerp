@@ -728,6 +728,14 @@ const ChatPage: React.FC = () => {
                                       >
                                         <img src={a.url} alt={a.name} className="max-h-60 object-contain" />
                                       </button>
+                                    ) : a.kind === "video" ? (
+                                      <video
+                                        key={idx}
+                                        src={a.url}
+                                        controls
+                                        playsInline
+                                        className="max-h-60 max-w-full rounded"
+                                      />
                                     ) : (
                                       <a
                                         key={idx}
