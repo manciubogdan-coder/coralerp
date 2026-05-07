@@ -45,6 +45,27 @@ export function ReceptionRegistration({
   // Cantitatea netă calculată - aceasta se salvează
   const [netQuantity, setNetQuantity] = useState<number>(0);
 
+  // Tip palet + nr paleți recepționați (se salvează în reception_records)
+  const [palletTypeId, setPalletTypeId] = useState<string | null>(null);
+  const [palletCount, setPalletCount] = useState<number>(0);
+  const [palletTypes, setPalletTypes] = useState<{ id: string; name: string }[]>([]);
+
+  const palletTypesTable = inventoryType === "ambalaje"
+    ? "ambalaje_pallet_types"
+    : inventoryType === "etichete"
+      ? "etichete_pallet_types"
+      : "pallet_types";
+
+  React.useEffect(() => {
+    (async () => {
+      const { data, error } = await (supabase as any)
+        .from(palletTypesTable)
+        .select("id, name")
+        .order("name");
+      if (!error) setPalletTypes((data as { id: string; name: string }[]) || []);
+    })();
+  }, [palletTypesTable, isOpen]);
+
   const selectedProduct = products.find(p => p.id === productId);
 
   // Recalculez cantitatea netă când se schimbă valorile
