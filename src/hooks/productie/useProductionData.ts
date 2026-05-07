@@ -732,13 +732,13 @@ export const useUpdateOrder = () => {
           procentProgres: cantitateComandată > 0 ? Math.round((cantitateReală / cantitateComandată) * 100) : 0
         });
         
-        if (!esteComandeAvans && cantitateReală < cantitateComandată) {
+        if (!esteComandeAvans && !esteReambalareCom && cantitateReală < cantitateComandată) {
           const procentProgres = cantitateComandată > 0 ? Math.round((cantitateReală / cantitateComandată) * 100) : 0;
           throw new Error(`Nu poți finaliza comanda! Ai produs doar ${cantitateReală} din ${cantitateComandată} bucăți (${procentProgres}%). Trebuie să ai cel puțin 100% pentru a marca comanda ca finalizată.`);
         }
         
-        // CREARE RESTOCăRI pentru comenzile de producție în avans când sunt finalizate manual
-        if (esteComandeAvans && cantitateReală > 0) {
+        // CREARE RESTOCăRI pentru comenzile de producție în avans / reambalare când sunt finalizate manual
+        if ((esteComandeAvans || esteReambalareCom) && cantitateReală > 0) {
           console.log('🎯 COMANDĂ DE PRODUCȚIE ÎN AVANS FINALIZATĂ MANUAL - creez restocată pentru:', cantitateReală);
           
           // Verifică dacă nu există deja o restocată pentru această comandă
