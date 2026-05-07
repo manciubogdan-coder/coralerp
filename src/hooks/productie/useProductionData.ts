@@ -273,9 +273,8 @@ export const useAutoDistributeToLine = () => {
       console.log('✅ Comandă distribuită cu succes pe linia:', linieSelectata.nume);
       return comandaActualizata;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['production-orders'] });
+    onSuccess: async () => {
+      await refreshProductionCaches(queryClient);
     }
   });
 };
@@ -916,9 +915,8 @@ export const useCreateWorkSession = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    onSuccess: async () => {
+      await refreshProductionCaches(queryClient);
     }
   });
 };
@@ -1144,14 +1142,10 @@ export const useFinishWorkSession = () => {
       console.log('🏁 Finalizarea sesiunii s-a completat cu succes');
       return sessionData;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       console.log('🔄 Invalidez cache-urile...');
-      queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      await refreshProductionCaches(queryClient);
       queryClient.invalidateQueries({ queryKey: ['orders-for-reports'] });
-      queryClient.invalidateQueries({ queryKey: ['restockings'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
       console.log('✅ Cache-urile au fost invalidate');
     }
   });
