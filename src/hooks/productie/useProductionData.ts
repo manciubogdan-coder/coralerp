@@ -593,15 +593,19 @@ export const useCreateOrder = () => {
       let cantitatedinRestock = 0;
       let statusFinal = orderData.status || 'pending';
       
-      // IMPORTANT: Pentru comenzile PRODUCTIE_AVANS nu se ia din restocări
+      // IMPORTANT: Pentru comenzile PRODUCTIE_AVANS și REAMBALARE nu se ia din restocări
       const esteProductieAvans = orderData.tip_comanda === 'PRODUCTIE_AVANS';
+      const esteReambalare = orderData.tip_comanda === 'REAMBALARE' || orderData.magazin === 'REAMBALARE';
       
       if (esteProductieAvans) {
         console.log('🔧 Comandă de producție în avans - NU se alocă din restocări');
       }
+      if (esteReambalare) {
+        console.log('🔁 Comandă de reambalare - NU se alocă din restocări');
+      }
       
-      // Verifică restocări disponibile pentru acest produs DOAR dacă NU e producție în avans
-      if (!esteProductieAvans) {
+      // Verifică restocări disponibile pentru acest produs DOAR dacă NU e producție în avans/reambalare
+      if (!esteProductieAvans && !esteReambalare) {
         const { data: restocariDisponibile } = await supabase
           .from('productie_restocari')
           .select('*')
