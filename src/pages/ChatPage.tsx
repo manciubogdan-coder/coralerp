@@ -815,19 +815,20 @@ const ChatPage: React.FC = () => {
               <div className="p-2 sm:p-3 border-t flex gap-1 sm:gap-2 items-end">
                 <input
                   type="file" ref={fileInputRef} className="hidden" multiple
-                  accept="image/*"
+                  accept="image/*,video/*"
                   onChange={handleFileSelect}
                 />
                 <input
                   type="file" ref={cameraInputRef} className="hidden" multiple
-                  accept="image/*"
+                  accept="image/*,video/*"
+                  capture="environment"
                   onChange={handleFileSelect}
                 />
                 <Button
                   size="icon" variant="ghost"
                   className="h-9 w-9 shrink-0"
                   onClick={() => fileInputRef.current?.click()}
-                  title="Atașează fișiere/poze"
+                  title="Atașează poze sau videoclipuri"
                 >
                   <Paperclip size={18} />
                 </Button>
@@ -841,7 +842,7 @@ const ChatPage: React.FC = () => {
                 </Button>
                 <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
                   <PopoverTrigger asChild>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 hidden sm:inline-flex" title="Emoji">
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" title="Emoji">
                       <Smile size={18} />
                     </Button>
                   </PopoverTrigger>
