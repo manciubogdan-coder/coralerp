@@ -601,6 +601,8 @@ const OrderManagementReal = () => {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
