@@ -76,6 +76,8 @@ interface LotScos {
 }
 
 const MarfaRestocataView = () => {
+  const createOrderMutation = useCreateOrder();
+  const autoDistributeMutation = useAutoDistributeToLine();
   const [dataFiltru, setDataFiltru] = useState<string>('');
   const [cautareProdu, setCautareProdu] = useState<string>('');
   const [editDialog, setEditDialog] = useState<{
