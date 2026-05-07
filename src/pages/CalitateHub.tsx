@@ -27,7 +27,13 @@ const SUB_TABS = [
 type SubTabKey = (typeof SUB_TABS)[number]["key"];
 
 const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
-  const [sub, setSub] = useState<SubTabKey>("stoc-inceput");
+  const storageKey = `calitate.subtab.${type}`;
+  const [sub, setSub] = useState<SubTabKey>(() => {
+    if (typeof window === "undefined") return "stoc-inceput";
+    const v = localStorage.getItem(storageKey) as SubTabKey | null;
+    return v && SUB_TABS.some((t) => t.key === v) ? v : "stoc-inceput";
+  });
+  React.useEffect(() => { localStorage.setItem(storageKey, sub); }, [sub, storageKey]);
   // ForceInventoryType garantează că toate componentele copil citesc tipul corect
   return (
     <ForceInventoryType type={type}>
