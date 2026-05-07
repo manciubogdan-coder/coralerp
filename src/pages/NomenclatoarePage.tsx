@@ -7,6 +7,8 @@ import SuppliersTable from "@/components/dashboard/SuppliersTable";
 import ProductsTable from "@/components/dashboard/ProductsTable";
 import ManufacturersTable from "@/components/dashboard/ManufacturersTable";
 import CrateTypesTable from "@/components/dashboard/CrateTypesTable";
+import PalletTypesTable from "@/components/dashboard/PalletTypesTable";
+import QualityDefectsTable from "@/components/dashboard/QualityDefectsTable";
 import { useInventoryType } from "@/context/inventory-type";
 
 const LABELS: Record<string, { title: string; back: string; backLabel: string }> = {
@@ -37,6 +39,8 @@ const NomenclatoarePage: React.FC = () => {
           <TabsTrigger value="produse">Produse</TabsTrigger>
           <TabsTrigger value="producatori">Producători</TabsTrigger>
           {showCrates && <TabsTrigger value="laditе">Lădițe</TabsTrigger>}
+          <TabsTrigger value="paleti">Tip paleți</TabsTrigger>
+          <TabsTrigger value="defecte">Defecte calitate</TabsTrigger>
         </TabsList>
 
         <TabsContent value="furnizori">
@@ -61,6 +65,16 @@ const NomenclatoarePage: React.FC = () => {
             </div>
           </TabsContent>
         )}
+        <TabsContent value="paleti">
+          <div className="bg-card rounded-lg shadow-sm border">
+            <PalletTypesTable />
+          </div>
+        </TabsContent>
+        <TabsContent value="defecte">
+          <div className="bg-card rounded-lg shadow-sm border">
+            <QualityDefectsTable />
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );
