@@ -27,7 +27,13 @@ const SUB_TABS = [
 type SubTabKey = (typeof SUB_TABS)[number]["key"];
 
 const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
-  const [sub, setSub] = useState<SubTabKey>("stoc-inceput");
+  const storageKey = `calitate.subtab.${type}`;
+  const [sub, setSub] = useState<SubTabKey>(() => {
+    if (typeof window === "undefined") return "stoc-inceput";
+    const v = localStorage.getItem(storageKey) as SubTabKey | null;
+    return v && SUB_TABS.some((t) => t.key === v) ? v : "stoc-inceput";
+  });
+  React.useEffect(() => { localStorage.setItem(storageKey, sub); }, [sub, storageKey]);
   // ForceInventoryType garantează că toate componentele copil citesc tipul corect
   return (
     <ForceInventoryType type={type}>
@@ -77,7 +83,12 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
 };
 
 const CalitateHub: React.FC = () => {
-  const [depot, setDepot] = useState<DepotKey>("materii-prime");
+  const [depot, setDepot] = useState<DepotKey>(() => {
+    if (typeof window === "undefined") return "materii-prime";
+    const v = localStorage.getItem("calitate.depot") as DepotKey | null;
+    return v && DEPOTS.some((d) => d.key === v) ? v : "materii-prime";
+  });
+  React.useEffect(() => { localStorage.setItem("calitate.depot", depot); }, [depot]);
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4">
