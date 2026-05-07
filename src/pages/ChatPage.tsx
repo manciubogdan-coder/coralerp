@@ -60,7 +60,7 @@ interface Attachment {
   name: string;
   size: number;
   mime: string;
-  kind: "image" | "file";
+  kind: "image" | "video" | "file";
 }
 interface Conversation {
   id: string;
