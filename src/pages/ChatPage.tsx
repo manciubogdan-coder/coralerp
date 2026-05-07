@@ -397,18 +397,43 @@ const ChatPage: React.FC = () => {
 
   // ---------- DELETE CONVERSATION (for me) ----------
   const confirmDeleteConv = async () => {
-    if (!deleteConvTarget) return;
-    // Always set a local cutoff so messages don't reappear when reopening
-    setConvClearedAt(deleteConvTarget.id, new Date().toISOString());
-    const { error } = await (supabase as any).rpc("chat_delete_conversation", {
-      p_conversation_id: deleteConvTarget.id,
+    if (!deleteConvTarget || !userId) return;
+    const convId = deleteConvTarget.id;
+    const isDept = deleteConvTarget.type === "department";
+
+    // Local cutoff as a safety net (also hides for department channels which we don't leave)
+    setConvClearedAt(convId, new Date().toISOString());
+
+    // Try RPC first if it ever exists; ignore errors
+    const { error: rpcErr } = await (supabase as any).rpc("chat_delete_conversation", {
+      p_conversation_id: convId,
     });
-    if (error) {
-      // RPC may not exist — local cutoff still hides the messages
-      console.warn("chat_delete_conversation RPC failed, using local cutoff", error);
+
+    if (rpcErr && !isDept) {
+      // Real DB cleanup: remove me from members. RLS will then hide messages/conv.
+      const { error: leaveErr } = await (supabase as any)
+        .from("chat_members")
+        .delete()
+        .eq("conversation_id", convId)
+        .eq("user_id", userId);
+      if (leaveErr) {
+        console.warn("Leave conversation failed", leaveErr);
+        toast({ title: "Eroare", description: leaveErr.message, variant: "destructive" });
+      } else {
+        // If no members remain, hard-delete messages + conversation
+        const { data: remaining } = await (supabase as any)
+          .from("chat_members")
+          .select("user_id")
+          .eq("conversation_id", convId);
+        if (!remaining || remaining.length === 0) {
+          await (supabase as any).from("chat_messages").delete().eq("conversation_id", convId);
+          await (supabase as any).from("chat_conversations").delete().eq("id", convId);
+        }
+      }
     }
-    toast({ title: "Conversație ștearsă", description: "Mesajele au fost ascunse din lista ta." });
-    if (activeId === deleteConvTarget.id) {
+
+    toast({ title: "Conversație ștearsă", description: "Conversația a fost eliminată." });
+    if (activeId === convId) {
       setMessages([]);
       selectConversation(null);
     }
