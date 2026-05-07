@@ -26,7 +26,8 @@ import {
 import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 
 const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) => {
-  const { data: sabloane = [], isLoading } = useSabloane();
+  const { data: allSabloane = [], isLoading } = useSabloane();
+  const sabloane = (allSabloane || []).filter((s: any) => !(s.nume || "").startsWith("[CLIENT]"));
   const { data: products = [] } = useProducts();
   const { data: lines = [] } = useProductionLines();
   const createSablon = useCreateSablon();
