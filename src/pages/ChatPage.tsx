@@ -395,44 +395,42 @@ const ChatPage: React.FC = () => {
     loadConversations();
   };
 
-  // ---------- DELETE CONVERSATION (for me) ----------
+  // ---------- DELETE CONVERSATION ----------
   const confirmDeleteConv = async () => {
     if (!deleteConvTarget || !userId) return;
     const convId = deleteConvTarget.id;
     const isDept = deleteConvTarget.type === "department";
 
-    // Local cutoff as a safety net (also hides for department channels which we don't leave)
+    // Local cutoff as a safety net while the database action is being applied.
     setConvClearedAt(convId, new Date().toISOString());
 
-    // Try RPC first if it ever exists; ignore errors
     const { error: rpcErr } = await (supabase as any).rpc("chat_delete_conversation", {
       p_conversation_id: convId,
     });
 
-    if (rpcErr && !isDept) {
-      // Real DB cleanup: remove me from members. RLS will then hide messages/conv.
+    if (rpcErr) {
+      console.warn("Conversation delete RPC failed", rpcErr);
+      toast({ title: "Eroare", description: rpcErr.message, variant: "destructive" });
+      setDeleteConvTarget(null);
+      return;
+    }
+
+    const { data: stillExists } = await (supabase as any)
+      .from("chat_conversations")
+      .select("id")
+      .eq("id", convId)
+      .maybeSingle();
+
+    if (stillExists && !isDept) {
       const { error: leaveErr } = await (supabase as any)
         .from("chat_members")
         .delete()
         .eq("conversation_id", convId)
         .eq("user_id", userId);
-      if (leaveErr) {
-        console.warn("Leave conversation failed", leaveErr);
-        toast({ title: "Eroare", description: leaveErr.message, variant: "destructive" });
-      } else {
-        // If no members remain, hard-delete messages + conversation
-        const { data: remaining } = await (supabase as any)
-          .from("chat_members")
-          .select("user_id")
-          .eq("conversation_id", convId);
-        if (!remaining || remaining.length === 0) {
-          await (supabase as any).from("chat_messages").delete().eq("conversation_id", convId);
-          await (supabase as any).from("chat_conversations").delete().eq("id", convId);
-        }
-      }
+      if (leaveErr) console.warn("Fallback leave conversation failed", leaveErr);
     }
 
-    toast({ title: "Conversație ștearsă", description: "Conversația a fost eliminată." });
+    toast({ title: "Conversație ștearsă", description: "Conversația a fost ștearsă din baza de date." });
     if (activeId === convId) {
       setMessages([]);
       selectConversation(null);
@@ -997,16 +995,16 @@ const ChatPage: React.FC = () => {
       <AlertDialog open={!!deleteConvTarget} onOpenChange={(o) => !o && setDeleteConvTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Ștergi conversația?</AlertDialogTitle>
+            <AlertDialogTitle>Ștergi conversația definitiv?</AlertDialogTitle>
             <AlertDialogDescription>
-              Conversația „{deleteConvTarget ? getConvLabel(deleteConvTarget) : ""}” va fi eliminată din lista ta.
-              Ceilalți participanți o vor vedea în continuare. Dacă primești un mesaj nou aici, conversația va reapărea automat.
+              Conversația „{deleteConvTarget ? getConvLabel(deleteConvTarget) : ""}” va fi ștearsă din baza de date, împreună cu mesajele ei.
+              Această acțiune nu poate fi anulată.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Anulează</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDeleteConv} className="bg-destructive hover:bg-destructive/90">
-              Șterge pentru mine
+              Șterge definitiv
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
