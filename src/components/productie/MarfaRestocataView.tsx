@@ -562,28 +562,53 @@ const MarfaRestocataView = () => {
       {/* Dialog confirmare scoatere */}
       <Dialog
         open={scoatereDialog.open}
-        onOpenChange={(open) => !open && setScoatereDialog({ open: false, lot: null, motiv: 'aruncat', observatii: '' })}
+        onOpenChange={(open) => !open && closeScoatere()}
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{MOTIV_LABEL[scoatereDialog.motiv]}</DialogTitle>
             <DialogDescription>
-              Lotul de <strong>{scoatereDialog.lot?.cantitate_surplus.toFixed(2)} {scoatereDialog.lot?.unitate_masura}</strong>{' '}
-              <strong>{scoatereDialog.lot?.nume_produs}</strong> va fi scos din stoc și nu se va mai calcula la consumul de materie primă.
+              Lot disponibil: <strong>{scoatereDialog.lot?.cantitate_surplus.toFixed(2)} {scoatereDialog.lot?.unitate_masura}</strong>{' '}
+              din <strong>{scoatereDialog.lot?.nume_produs}</strong>. Cantitatea scoasă nu se va mai calcula la consumul de materie primă.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="obs-scoatere">Observații (opțional)</Label>
-            <Textarea
-              id="obs-scoatere"
-              placeholder="Ex: ambalaj defect, expirat, contaminat..."
-              value={scoatereDialog.observatii}
-              onChange={(e) => setScoatereDialog((prev) => ({ ...prev, observatii: e.target.value }))}
-              rows={3}
-            />
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="cant-scoatere">Cantitate de scos *</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="cant-scoatere"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={scoatereDialog.lot?.cantitate_surplus}
+                  value={scoatereDialog.cantitate}
+                  onChange={(e) => setScoatereDialog((prev) => ({ ...prev, cantitate: e.target.value }))}
+                />
+                <span className="text-sm text-muted-foreground">{scoatereDialog.lot?.unitate_masura}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setScoatereDialog((prev) => ({ ...prev, cantitate: prev.lot?.cantitate_surplus.toString() || '' }))}
+                >
+                  Tot
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="obs-scoatere">Observații (opțional)</Label>
+              <Textarea
+                id="obs-scoatere"
+                placeholder="Ex: ambalaj defect, expirat, contaminat..."
+                value={scoatereDialog.observatii}
+                onChange={(e) => setScoatereDialog((prev) => ({ ...prev, observatii: e.target.value }))}
+                rows={3}
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScoatereDialog({ open: false, lot: null, motiv: 'aruncat', observatii: '' })}>
+            <Button variant="outline" onClick={closeScoatere}>
               Anulează
             </Button>
             <Button onClick={confirmScoatere}>Confirmă scoaterea</Button>
