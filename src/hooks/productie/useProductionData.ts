@@ -723,6 +723,7 @@ export const useUpdateOrder = () => {
         const cantitateComandată = comandaData.cantitate;
         const cantitateReală = comandaData.cantitate_reala_produsa || 0;
         const esteComandeAvans = comandaData.magazin === 'PRODUCTIE_AVANS';
+        const esteReambalareCom = comandaData.magazin === 'REAMBALARE' || (comandaData as any).tip_comanda === 'REAMBALARE';
         
         console.log('📊 Verificare cantități:', {
           cantitateComandată,
