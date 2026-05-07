@@ -337,6 +337,47 @@ const ReceptionReport: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, inventoryType]);
 
+  // Persist o singură linie în DB (folosit pentru autosave + salvare imediată poze)
+  const persistRow = async (row: ReportRow) => {
+    if (row.is_missing) return;
+    try {
+      const { error } = await (supabase as any)
+        .from("reception_report_data")
+        .upsert([{
+          inventory_id: row.inventory_id,
+          inventory_type: inventoryType,
+          paleti_lazi_document: row.paleti_lazi_document || null,
+          cantitate_document: row.cantitate_document !== "" ? parseFloat(row.cantitate_document) : null,
+          cantitate_receptionata: row.cantitate_receptionata,
+          tip_lada_culoare: row.tip_lada_culoare || null,
+          tip_palet: row.tip_palet || null,
+          nr_lazi: row.nr_lazi,
+          pierdere_calitativa_procent:
+            row.pierdere_calitativa_procent !== "" ? parseFloat(row.pierdere_calitativa_procent) : null,
+          transmis_la_furnizor: row.transmis_la_furnizor,
+          photos: row.photos,
+          defects: row.defects,
+          observations: row.observations || null,
+        }], { onConflict: "inventory_id" });
+      if (error) throw error;
+    } catch (e) {
+      console.error("Autosave eșuat", e);
+    }
+  };
+
+  // Autosave debounced per inventory_id
+  const autosaveTimers = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const scheduleAutosave = (row: ReportRow) => {
+    const id = row.inventory_id;
+    const existing = autosaveTimers.current.get(id);
+    if (existing) clearTimeout(existing);
+    const t = setTimeout(() => {
+      persistRow(row);
+      autosaveTimers.current.delete(id);
+    }, 800);
+    autosaveTimers.current.set(id, t);
+  };
+
   const updateRow = (
     groupIdx: number, rowIdx: number,
     field: keyof ReportRow, value: ReportRow[keyof ReportRow]
@@ -348,6 +389,8 @@ const ReceptionReport: React.FC = () => {
       rows[rowIdx] = { ...rows[rowIdx], [field]: value };
       grp.rows = rows;
       next[groupIdx] = grp;
+      // Autosave (debounced)
+      scheduleAutosave(rows[rowIdx]);
       return next;
     });
   };
@@ -428,6 +471,8 @@ const ReceptionReport: React.FC = () => {
       }
     }
     updateRow(groupIdx, rowIdx, "photos", newPhotos);
+    // Persist IMEDIAT (nu așteptăm debounce) — pe mobil, după cameră, tab-ul poate fi reîncărcat
+    await persistRow({ ...row, photos: newPhotos });
   };
 
   const handleDeletePhoto = async (groupIdx: number, rowIdx: number, photoIdx: number) => {
@@ -438,6 +483,7 @@ const ReceptionReport: React.FC = () => {
     } catch { /* ignore */ }
     const newPhotos = row.photos.filter((_, i) => i !== photoIdx);
     updateRow(groupIdx, rowIdx, "photos", newPhotos);
+    await persistRow({ ...row, photos: newPhotos });
   };
 
   // Missing items
