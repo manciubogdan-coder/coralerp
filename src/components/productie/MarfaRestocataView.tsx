@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { PackagePlus, Search, Edit2, Trash2, Download, Printer, History, Trash, RefreshCw, AlertCircle } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCreateOrder, useAutoDistributeToLine } from '@/hooks/productie/useProductionData';
 import { format } from 'date-fns';
@@ -76,6 +76,7 @@ interface LotScos {
 }
 
 const MarfaRestocataView = () => {
+  const queryClient = useQueryClient();
   const createOrderMutation = useCreateOrder();
   const autoDistributeMutation = useAutoDistributeToLine();
   const [dataFiltru, setDataFiltru] = useState<string>('');
@@ -109,6 +110,9 @@ const MarfaRestocataView = () => {
   // Marfă restocată = surplus disponibil
   const { data: marfaRestocata, isLoading, refetch } = useQuery({
     queryKey: ['marfa-restocata'],
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('productie_restocari')
@@ -237,7 +241,7 @@ const MarfaRestocataView = () => {
       await Promise.all(updates);
       toast.success('Cantitățile au fost actualizate');
       setEditDialog({ open: false, produsGrupat: null, cantitatiEditate: {} });
-      refetch();
+      await queryClient.refetchQueries({ queryKey: ['marfa-restocata'], type: 'active' });
     } catch (error) {
       console.error('Eroare la actualizare:', error);
       toast.error('Eroare la actualizarea cantităților');
@@ -392,7 +396,11 @@ const MarfaRestocataView = () => {
           setEditDialog({ open: false, produsGrupat: null, cantitatiEditate: {} });
         }
       }
-      refetch();
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['marfa-restocata'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['work-sessions'], type: 'active' }),
+      ]);
     } catch (error: any) {
       console.error('Eroare la scoatere:', error);
       toast.error(`Eroare: ${error.message || 'necunoscută'}`);
