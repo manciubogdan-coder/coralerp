@@ -133,6 +133,15 @@ const ChatPage: React.FC = () => {
   const userId = user?.id ?? "";
   const activeConvStorageKey = userId ? `coral:chat:active-conversation:${userId}` : "";
   const pendingStorageKey = (convId: string) => `coral:chat:pending-attachments:${userId}:${convId}`;
+  const convClearedKey = (convId: string) => `coral:chat:cleared-at:${userId}:${convId}`;
+  const getConvClearedAt = (convId: string): string | null =>
+    userId ? window.localStorage.getItem(convClearedKey(convId)) : null;
+  const setConvClearedAt = (convId: string, iso: string) => {
+    if (userId) window.localStorage.setItem(convClearedKey(convId), iso);
+  };
+
+  // Last-read timestamps for other members (used for read receipts in DMs)
+  const [memberLastRead, setMemberLastRead] = useState<Record<string, Record<string, string>>>({});
 
   const selectConversation = (convId: string | null) => {
     setActiveId(convId);
