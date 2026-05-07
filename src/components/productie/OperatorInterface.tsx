@@ -66,7 +66,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   // Helper: o comandă este "finalizată/acoperită" pentru sortare
   const isOrderDone = (o: any) => {
     if (o.status === 'completed') return true;
-    const acoperit = (o.cantitate_reala_produsa || 0) + (o.cantitate_din_restock || 0);
+    const esteReambalare = o.magazin === 'REAMBALARE' || o.tip_comanda === 'REAMBALARE';
+    const acoperit = (o.cantitate_reala_produsa || 0) + (esteReambalare ? 0 : (o.cantitate_din_restock || 0));
     return o.cantitate > 0 && acoperit >= o.cantitate;
   };
 
@@ -101,7 +102,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     const getOrderProgress = (order: any) => {
       const cantitateComandată = order.cantitate;
       const cantitateRealaProadusa = order.cantitate_reala_produsa || 0;
-      const cantitatedinRestock = order.cantitate_din_restock || 0;
+      const esteReambalare = (order as any).magazin === 'REAMBALARE' || (order as any).tip_comanda === 'REAMBALARE';
+      const cantitatedinRestock = esteReambalare ? 0 : order.cantitate_din_restock || 0;
       const cantitateAcoperitaTotal = cantitateRealaProadusa + cantitatedinRestock;
       return cantitateComandată > 0 ? Math.round(cantitateAcoperitaTotal / cantitateComandată * 100) : 0;
     };
@@ -210,7 +212,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     const order = orders?.find(o => o.id === session.comanda_id);
     const cantitateComandă = order?.cantitate || 0;
     const cantRealaPrev = order?.cantitate_reala_produsa || 0;
-    const cantRestockPrev = order?.cantitate_din_restock || 0;
+    const esteReambalare = (order as any)?.magazin === 'REAMBALARE' || (order as any)?.tip_comanda === 'REAMBALARE';
+    const cantRestockPrev = esteReambalare ? 0 : order?.cantitate_din_restock || 0;
     const acoperitPrev = cantRealaPrev + cantRestockPrev;
     // Cât mai e nevoie de produs în această sesiune ca să acoperim comanda
     const ramasDeAcoperit = Math.max(0, cantitateComandă - acoperitPrev);
@@ -296,7 +299,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     const activeSession = activeSessions.find(session => session.comanda_id === currentOrderId && session.linie_id === currentLineId);
     const cantitateComandată = currentOrder?.cantitate || 0;
     const cantitateRealaProadusa = currentOrder?.cantitate_reala_produsa || 0;
-    const cantitatedinRestock = currentOrder?.cantitate_din_restock || 0;
+    const esteReambalare = (currentOrder as any)?.magazin === 'REAMBALARE' || (currentOrder as any)?.tip_comanda === 'REAMBALARE';
+    const cantitatedinRestock = esteReambalare ? 0 : currentOrder?.cantitate_din_restock || 0;
 
     // Calculăm progresul mai precis
     const cantitateAcoperitaTotal = cantitateRealaProadusa + cantitatedinRestock;
@@ -666,7 +670,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           const lineOrdersCount = orders?.filter(order => {
             if (order.linie_id !== line.id) return false;
             if (order.status === 'completed') return false;
-            const acoperit = (order.cantitate_reala_produsa || 0) + (order.cantitate_din_restock || 0);
+            const esteReambalare = (order as any).magazin === 'REAMBALARE' || (order as any).tip_comanda === 'REAMBALARE';
+            const acoperit = (order.cantitate_reala_produsa || 0) + (esteReambalare ? 0 : (order.cantitate_din_restock || 0));
             const cerut = order.cantitate || 0;
             // Dacă e complet acoperit (din stoc/producție), nu mai e de lucrat
             if (cerut > 0 && acoperit >= cerut) return false;

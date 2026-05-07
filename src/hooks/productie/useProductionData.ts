@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -85,6 +85,34 @@ export interface ProductieSesiuneLucru {
   created_at: string;
   updated_at: string;
 }
+
+const esteComandaReambalare = (comanda: any) =>
+  comanda?.magazin === 'REAMBALARE' || comanda?.tip_comanda === 'REAMBALARE';
+
+const esteComandaProductieAvans = (comanda: any) =>
+  comanda?.magazin === 'PRODUCTIE_AVANS' || comanda?.tip_comanda === 'PRODUCTIE_AVANS';
+
+const refreshProductionCaches = async (queryClient: QueryClient) => {
+  const queryKeys = [
+    ['orders'],
+    ['production-orders'],
+    ['productie-comenzi'],
+    ['work-sessions'],
+    ['restockings'],
+    ['marfa-restocata'],
+    ['marfa-restocata-istoric'],
+    ['products'],
+    ['production-lines'],
+    ['lines'],
+  ];
+
+  queryKeys.forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
+  await Promise.all(
+    queryKeys.map((queryKey) =>
+      queryClient.refetchQueries({ queryKey, type: 'active' })
+    )
+  );
+};
 
 // Hook pentru încărcarea liniilor de producție
 export const useProductionLines = () => {
@@ -245,9 +273,8 @@ export const useAutoDistributeToLine = () => {
       console.log('✅ Comandă distribuită cu succes pe linia:', linieSelectata.nume);
       return comandaActualizata;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['production-orders'] });
+    onSuccess: async () => {
+      await refreshProductionCaches(queryClient);
     }
   });
 };
@@ -491,13 +518,14 @@ export const useOrders = () => {
         
         const totalProdusDinSesiuni = sesiuni?.reduce((total, sesiune) => 
           total + Number(sesiune.cantitate_produsa || 0), 0) || 0;
-        const cantitateDinRestock = Number(comanda.cantitate_din_restock || 0);
+        const cantitateDinRestock = esteComandaReambalare(comanda) ? 0 : Number(comanda.cantitate_din_restock || 0);
         const necesarMaximDinProductie = Math.max(0, Number(comanda.cantitate || 0) - cantitateDinRestock);
         const cantitateRealaProadusa = Math.min(totalProdusDinSesiuni, necesarMaximDinProductie);
         
         return {
           ...comanda,
           productie_clienti: client,
+          cantitate_din_restock: cantitateDinRestock,
           cantitate_reala_produsa: cantitateRealaProadusa,
           cantitate_produsa_sesiuni: totalProdusDinSesiuni,
           cantitate_surplus_produsa: Math.max(0, totalProdusDinSesiuni - cantitateRealaProadusa)
@@ -508,8 +536,7 @@ export const useOrders = () => {
       for (const com of comandiCuClienti) {
         const produsId = (com as any).produs_id;
         if (!produsId) continue;
-        if ((com as any).magazin === 'PRODUCTIE_AVANS' || (com as any).tip_comanda === 'PRODUCTIE_AVANS') continue;
-        if ((com as any).magazin === 'REAMBALARE' || (com as any).tip_comanda === 'REAMBALARE') continue;
+        if (esteComandaProductieAvans(com) || esteComandaReambalare(com)) continue;
         const acoperit = (com as any).cantitate_reala_produsa + ((com as any).cantitate_din_restock || 0);
         let necesar = Math.max(0, (com as any).cantitate - acoperit);
         const status = (com as any).status || '';
@@ -595,8 +622,8 @@ export const useCreateOrder = () => {
       let statusFinal = orderData.status || 'pending';
       
       // IMPORTANT: Pentru comenzile PRODUCTIE_AVANS și REAMBALARE nu se ia din restocări
-      const esteProductieAvans = orderData.tip_comanda === 'PRODUCTIE_AVANS';
-      const esteReambalare = orderData.tip_comanda === 'REAMBALARE' || orderData.magazin === 'REAMBALARE';
+      const esteProductieAvans = esteComandaProductieAvans(orderData);
+      const esteReambalare = esteComandaReambalare(orderData);
       
       if (esteProductieAvans) {
         console.log('🔧 Comandă de producție în avans - NU se alocă din restocări');
@@ -667,7 +694,7 @@ export const useCreateOrder = () => {
           baxare: orderData.baxare || undefined,
           linie_id: orderData.linie_id || null,
           status: statusFinal,
-          cantitate_din_restock: cantitatedinRestock,
+          cantitate_din_restock: esteReambalare ? 0 : cantitatedinRestock,
           tip_comanda: orderData.tip_comanda,
           data_productie: orderData.data_productie || null,
           numar_comanda: ''
@@ -680,18 +707,15 @@ export const useCreateOrder = () => {
       console.log('✅ Comandă creată cu succes:', {
         id: data.id,
         status: statusFinal,
-        cantitate_din_restock: cantitatedinRestock,
+        cantitate_din_restock: esteReambalare ? 0 : cantitatedinRestock,
         cantitate_ramasa_de_produs: cantitateRamasa,
         procent_acoperire: Math.round((cantitatedinRestock / orderData.cantitate) * 100)
       });
       
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['restockings'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
+    onSuccess: async () => {
+      await refreshProductionCaches(queryClient);
     }
   });
 };
@@ -713,7 +737,7 @@ export const useUpdateOrder = () => {
         // Citesc datele actuale ale comenzii
         const { data: comandaData, error: fetchError } = await supabase
           .from('productie_comenzi')
-          .select('cantitate, cantitate_reala_produsa, magazin, produs_id')
+          .select('cantitate, cantitate_reala_produsa, magazin, produs_id, tip_comanda')
           .eq('id', id)
           .single();
         
@@ -724,8 +748,8 @@ export const useUpdateOrder = () => {
         
         const cantitateComandată = comandaData.cantitate;
         const cantitateReală = comandaData.cantitate_reala_produsa || 0;
-        const esteComandeAvans = comandaData.magazin === 'PRODUCTIE_AVANS';
-        const esteReambalareCom = comandaData.magazin === 'REAMBALARE' || (comandaData as any).tip_comanda === 'REAMBALARE';
+        const esteComandeAvans = esteComandaProductieAvans(comandaData);
+        const esteReambalareCom = esteComandaReambalare(comandaData);
         
         console.log('📊 Verificare cantități:', {
           cantitateComandată,
@@ -812,14 +836,9 @@ export const useUpdateOrder = () => {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       console.log('🎯 Invalidez cache-urile după actualizarea comenzii...');
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['production-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['productie-comenzi'] });
-      queryClient.invalidateQueries({ queryKey: ['restockings'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
+      await refreshProductionCaches(queryClient);
       toast({
         title: "Succes",
         description: "Comanda actualizată cu succes!"
@@ -849,9 +868,8 @@ export const useDeleteOrder = () => {
       
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['production-orders'] });
+    onSuccess: async () => {
+      await refreshProductionCaches(queryClient);
     }
   });
 };
@@ -892,9 +910,8 @@ export const useCreateWorkSession = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    onSuccess: async () => {
+      await refreshProductionCaches(queryClient);
     }
   });
 };
@@ -956,7 +973,8 @@ export const useFinishWorkSession = () => {
         cantitate_din_restock: comanda.cantitate_din_restock
       });
 
-      const esteComandeAvans = comanda.magazin === 'PRODUCTIE_AVANS' || comanda.tip_comanda === 'PRODUCTIE_AVANS';
+      const esteComandeAvans = esteComandaProductieAvans(comanda);
+      const esteReambalareCom = esteComandaReambalare(comanda);
 
       // ALOCĂ AUTOMAT DIN RESTOCĂRI LA FINALIZARE pentru a acoperi comanda
       // Producția în avans nu trebuie să se acopere singură din restocări.
@@ -977,7 +995,7 @@ export const useFinishWorkSession = () => {
       let necesarDinRestocari = Math.max(0, Number(comanda.cantitate || 0) - totalProdus - restockDejaAlocat);
       let alocatDinRestocari = 0;
 
-      if (!esteComandeAvans && necesarDinRestocari > 0) {
+      if (!esteComandeAvans && !esteReambalareCom && necesarDinRestocari > 0) {
         console.log('📦 Trebuie alocat din restocări:', necesarDinRestocari);
         // 2) Ia restocările disponibile FIFO
         const { data: restocariDisponibile, error: restocariError } = await supabase
@@ -1047,7 +1065,7 @@ export const useFinishWorkSession = () => {
 
       // Recalculez corect acoperirea comenzii: producția contează doar până la necesarul rămas după restocări
       // Cantitatea din restocări folosită după alocarea de mai sus
-      const restockFolositFinal = Number(comanda.cantitate_din_restock || 0) + alocatDinRestocari;
+      const restockFolositFinal = esteReambalareCom ? 0 : Number(comanda.cantitate_din_restock || 0) + alocatDinRestocari;
       const necesarDinProductie = Math.max(0, Number(comanda.cantitate || 0) - restockFolositFinal);
 
       // Producția totală (toate sesiunile) care poate fi luată în considerare pentru această comandă
@@ -1067,7 +1085,6 @@ export const useFinishWorkSession = () => {
 
       // Calculez surplusul acestei sesiuni (ce nu încape în comandă)
       // Pentru REAMBALARE: toată cantitatea produsă devine restocare nouă (revine ca surplus disponibil)
-      const esteReambalareCom = (comanda as any).magazin === 'REAMBALARE' || (comanda as any).tip_comanda === 'REAMBALARE';
       const produsAnteriorPentruComanda = Number(comanda.cantitate_reala_produsa || 0);
       const alocatDinAceastaSesiuneLaComanda = Math.max(0, produsConsideratPentruComanda - produsAnteriorPentruComanda);
       const surplusDinAceastaSesiune = (esteComandeAvans || esteReambalareCom)
@@ -1120,14 +1137,10 @@ export const useFinishWorkSession = () => {
       console.log('🏁 Finalizarea sesiunii s-a completat cu succes');
       return sessionData;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       console.log('🔄 Invalidez cache-urile...');
-      queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      await refreshProductionCaches(queryClient);
       queryClient.invalidateQueries({ queryKey: ['orders-for-reports'] });
-      queryClient.invalidateQueries({ queryKey: ['restockings'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
       console.log('✅ Cache-urile au fost invalidate');
     }
   });
@@ -1368,11 +1381,8 @@ export const useCreateSurplusRestocking = () => {
       
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['restockings'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    onSuccess: async () => {
+      await refreshProductionCaches(queryClient);
     }
   });
 };
