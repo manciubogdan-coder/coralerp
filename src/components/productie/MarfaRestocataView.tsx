@@ -344,8 +344,36 @@ const MarfaRestocataView = () => {
         }
       }
 
+      // Dacă e REAMBALARE → creez automat o comandă de producție tip REAMBALARE
+      let comandaReambalareCreata = false;
+      if (scoatereDialog.motiv === 'reambalare') {
+        try {
+          const obsText = scoatereDialog.observatii?.trim()
+            ? ` - ${scoatereDialog.observatii.trim()}`
+            : '';
+          const { error: insOrderErr } = await (supabase as any)
+            .from('productie_comenzi')
+            .insert({
+              magazin: 'REAMBALARE',
+              punct_livrare: 'REAMBALARE',
+              produs_id: lot.produs_id,
+              cantitate: cantScoasa,
+              baxare: `Reambalare lot surplus${obsText}`,
+              status: 'pending',
+              tip_comanda: 'REAMBALARE',
+              data_productie: new Date().toISOString().slice(0, 10),
+            });
+          if (insOrderErr) throw insOrderErr;
+          comandaReambalareCreata = true;
+        } catch (e: any) {
+          console.warn('Nu s-a putut crea comanda de reambalare:', e?.message);
+          toast.warning('Lot scos, dar comanda de reambalare nu s-a putut crea automat.');
+        }
+      }
+
       toast.success(
-        `${cantScoasa} ${lot.unitate_masura} marcat ca "${MOTIV_LABEL[scoatereDialog.motiv]}".`
+        `${cantScoasa} ${lot.unitate_masura} marcat ca "${MOTIV_LABEL[scoatereDialog.motiv]}".` +
+          (comandaReambalareCreata ? ' Comandă de reambalare creată.' : '')
       );
       closeScoatere();
 
