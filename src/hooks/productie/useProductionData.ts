@@ -980,7 +980,8 @@ export const useFinishWorkSession = () => {
         cantitate_din_restock: comanda.cantitate_din_restock
       });
 
-      const esteComandeAvans = comanda.magazin === 'PRODUCTIE_AVANS' || comanda.tip_comanda === 'PRODUCTIE_AVANS';
+      const esteComandeAvans = esteComandaProductieAvans(comanda);
+      const esteReambalareCom = esteComandaReambalare(comanda);
 
       // ALOCĂ AUTOMAT DIN RESTOCĂRI LA FINALIZARE pentru a acoperi comanda
       // Producția în avans nu trebuie să se acopere singură din restocări.
@@ -1001,7 +1002,7 @@ export const useFinishWorkSession = () => {
       let necesarDinRestocari = Math.max(0, Number(comanda.cantitate || 0) - totalProdus - restockDejaAlocat);
       let alocatDinRestocari = 0;
 
-      if (!esteComandeAvans && necesarDinRestocari > 0) {
+      if (!esteComandeAvans && !esteReambalareCom && necesarDinRestocari > 0) {
         console.log('📦 Trebuie alocat din restocări:', necesarDinRestocari);
         // 2) Ia restocările disponibile FIFO
         const { data: restocariDisponibile, error: restocariError } = await supabase
@@ -1071,7 +1072,7 @@ export const useFinishWorkSession = () => {
 
       // Recalculez corect acoperirea comenzii: producția contează doar până la necesarul rămas după restocări
       // Cantitatea din restocări folosită după alocarea de mai sus
-      const restockFolositFinal = Number(comanda.cantitate_din_restock || 0) + alocatDinRestocari;
+      const restockFolositFinal = esteReambalareCom ? 0 : Number(comanda.cantitate_din_restock || 0) + alocatDinRestocari;
       const necesarDinProductie = Math.max(0, Number(comanda.cantitate || 0) - restockFolositFinal);
 
       // Producția totală (toate sesiunile) care poate fi luată în considerare pentru această comandă
@@ -1091,7 +1092,6 @@ export const useFinishWorkSession = () => {
 
       // Calculez surplusul acestei sesiuni (ce nu încape în comandă)
       // Pentru REAMBALARE: toată cantitatea produsă devine restocare nouă (revine ca surplus disponibil)
-      const esteReambalareCom = (comanda as any).magazin === 'REAMBALARE' || (comanda as any).tip_comanda === 'REAMBALARE';
       const produsAnteriorPentruComanda = Number(comanda.cantitate_reala_produsa || 0);
       const alocatDinAceastaSesiuneLaComanda = Math.max(0, produsConsideratPentruComanda - produsAnteriorPentruComanda);
       const surplusDinAceastaSesiune = (esteComandeAvans || esteReambalareCom)
