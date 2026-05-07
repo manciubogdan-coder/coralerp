@@ -206,6 +206,15 @@ const OrderManagementReal = () => {
 
   return (
     <div className="space-y-6">
+      <Tabs defaultValue="comenzi" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="comenzi">Comenzi</TabsTrigger>
+          <TabsTrigger value="sabloane">Șabloane Client</TabsTrigger>
+        </TabsList>
+        <TabsContent value="sabloane">
+          <SabloaneComenziClient onGenerated={refetchOrders} />
+        </TabsContent>
+        <TabsContent value="comenzi" className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">Management Comenzi</h2>
