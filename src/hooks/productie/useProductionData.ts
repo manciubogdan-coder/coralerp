@@ -835,14 +835,9 @@ export const useUpdateOrder = () => {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       console.log('🎯 Invalidez cache-urile după actualizarea comenzii...');
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['production-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['productie-comenzi'] });
-      queryClient.invalidateQueries({ queryKey: ['restockings'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
+      await refreshProductionCaches(queryClient);
       toast({
         title: "Succes",
         description: "Comanda actualizată cu succes!"
@@ -872,9 +867,8 @@ export const useDeleteOrder = () => {
       
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['production-orders'] });
+    onSuccess: async () => {
+      await refreshProductionCaches(queryClient);
     }
   });
 };
