@@ -786,10 +786,23 @@ const ReceptionReport: React.FC = () => {
             const row = groups[photoDialog.groupIdx].rows[photoDialog.rowIdx];
             return (
               <div className="space-y-4">
-                <div>
-                  <input type="file" accept="image/*" multiple capture="environment"
-                    onChange={(e) => handleUploadPhotos(photoDialog.groupIdx, photoDialog.rowIdx, e.target.files)}
-                    className="block w-full text-sm" />
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <label className="flex-1">
+                    <input type="file" accept="image/*" multiple capture="environment"
+                      onChange={(e) => { handleUploadPhotos(photoDialog.groupIdx, photoDialog.rowIdx, e.target.files); e.target.value = ""; }}
+                      className="hidden" />
+                    <span className="block w-full text-center text-sm font-medium px-4 py-2 rounded-md border bg-primary text-primary-foreground cursor-pointer hover:opacity-90">
+                      📷 Fă poză
+                    </span>
+                  </label>
+                  <label className="flex-1">
+                    <input type="file" accept="image/*" multiple
+                      onChange={(e) => { handleUploadPhotos(photoDialog.groupIdx, photoDialog.rowIdx, e.target.files); e.target.value = ""; }}
+                      className="hidden" />
+                    <span className="block w-full text-center text-sm font-medium px-4 py-2 rounded-md border bg-secondary text-secondary-foreground cursor-pointer hover:opacity-90">
+                      🖼️ Alege din galerie
+                    </span>
+                  </label>
                 </div>
                 {row.photos.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">Nu există poze.</p>
