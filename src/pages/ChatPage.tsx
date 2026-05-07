@@ -341,9 +341,14 @@ const ChatPage: React.FC = () => {
         continue;
       }
       const { data: pub } = (supabase as any).storage.from("chat-attachments").getPublicUrl(path);
+      const kind: Attachment["kind"] = file.type.startsWith("image/")
+        ? "image"
+        : file.type.startsWith("video/")
+        ? "video"
+        : "file";
       out.push({
         url: pub.publicUrl, name: file.name, size: file.size,
-        mime: file.type, kind: file.type.startsWith("image/") ? "image" : "file",
+        mime: file.type, kind,
       });
     }
     return out;
