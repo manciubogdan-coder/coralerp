@@ -83,7 +83,12 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
 };
 
 const CalitateHub: React.FC = () => {
-  const [depot, setDepot] = useState<DepotKey>("materii-prime");
+  const [depot, setDepot] = useState<DepotKey>(() => {
+    if (typeof window === "undefined") return "materii-prime";
+    const v = localStorage.getItem("calitate.depot") as DepotKey | null;
+    return v && DEPOTS.some((d) => d.key === v) ? v : "materii-prime";
+  });
+  React.useEffect(() => { localStorage.setItem("calitate.depot", depot); }, [depot]);
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4">
