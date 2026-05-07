@@ -148,6 +148,30 @@ export function ReceptionRegistration({
 
       if (error) throw error;
 
+      // Asigură-te că pallet_type_id și pallet_count ajung și în reception_records
+      // (raportul de Calitate citește de acolo). Dacă există un trigger care
+      // copiază din inventory, update-ul de mai jos doar reaplică valorile —
+      // dacă nu există, le scrie manual pentru ultima recepție a produsului.
+      try {
+        const receptionTable = inventoryType === 'ambalaje'
+          ? 'ambalaje_reception_records'
+          : inventoryType === 'etichete'
+            ? 'etichete_reception_records'
+            : 'reception_records';
+        await (supabase as any)
+          .from(receptionTable)
+          .update({
+            pallet_type_id: palletTypeId || null,
+            pallet_count: palletCount || 0,
+          })
+          .eq('product_id', productId)
+          .eq('document_number', documentNumber)
+          .order('receipt_date', { ascending: false })
+          .limit(1);
+      } catch (e) {
+        console.warn('Nu am putut sincroniza paleții în reception_records:', e);
+      }
+
       toast({
         title: "Recepție înregistrată",
         description: `Cantitate stocată: ${quantityToSave.toFixed(isEtichete ? 0 : 2)} ${unitToSave}`
