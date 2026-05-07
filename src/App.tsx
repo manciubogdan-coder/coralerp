@@ -46,7 +46,15 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { CollaborationAlertsProvider } from "@/contexts/CollaborationAlertsContext";
 import CollaborationAlertBadges from "@/components/CollaborationAlertBadges";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: true,
+      refetchOnMount: true,
+      staleTime: 0,
+    },
+  },
+});
 
 const AppShell = () => {
   return (

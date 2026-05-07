@@ -39,8 +39,16 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
 
   // dialoguri
   const [createOpen, setCreateOpen] = useState(false);
-  const [editSablon, setEditSablon] = useState<Sablon | null>(null);
-  const [generateSablon, setGenerateSablon] = useState<Sablon | null>(null);
+  const [editSablonId, setEditSablonId] = useState<string | null>(null);
+  const [generateSablonId, setGenerateSablonId] = useState<string | null>(null);
+  const editSablon = useMemo(
+    () => (editSablonId ? sabloane.find((s) => s.id === editSablonId) || null : null),
+    [editSablonId, sabloane]
+  );
+  const generateSablon = useMemo(
+    () => (generateSablonId ? sabloane.find((s) => s.id === generateSablonId) || null : null),
+    [generateSablonId, sabloane]
+  );
 
   // form create sablon
   const [newName, setNewName] = useState("");
@@ -108,11 +116,11 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
                     size="sm"
                     className="bg-green-600 hover:bg-green-700"
                     disabled={(s.productie_sabloane_items?.length || 0) === 0}
-                    onClick={() => setGenerateSablon(s)}
+                    onClick={() => setGenerateSablonId(s.id)}
                   >
                     <Play className="h-3 w-3 mr-1" /> Generează comenzi
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditSablon(s)}>
+                  <Button size="sm" variant="outline" onClick={() => setEditSablonId(s.id)}>
                     <Edit className="h-3 w-3 mr-1" /> Editează
                   </Button>
                   <Button
@@ -168,7 +176,7 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
           sablon={editSablon}
           products={products}
           lines={lines}
-          onClose={() => setEditSablon(null)}
+          onClose={() => setEditSablonId(null)}
           onUpsertItem={(item) => upsertItem.mutateAsync(item)}
           onDeleteItem={(id) => deleteItem.mutateAsync(id)}
           onRename={async (nume, descriere) => {
@@ -181,7 +189,7 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
       {generateSablon && (
         <GenerateOrdersDialog
           sablon={generateSablon}
-          onClose={() => setGenerateSablon(null)}
+          onClose={() => setGenerateSablonId(null)}
           onGenerate={async (rows, dataProductie) => {
             let count = 0;
             for (const r of rows) {
@@ -210,7 +218,7 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
               });
             }
             toast.success(`${count} comenzi generate cu succes`);
-            setGenerateSablon(null);
+            setGenerateSablonId(null);
             onGenerated?.();
           }}
         />

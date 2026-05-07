@@ -690,6 +690,8 @@ export const useCreateOrder = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['restockings'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
     }
   });
 };
@@ -723,6 +725,7 @@ export const useUpdateOrder = () => {
         const cantitateComandată = comandaData.cantitate;
         const cantitateReală = comandaData.cantitate_reala_produsa || 0;
         const esteComandeAvans = comandaData.magazin === 'PRODUCTIE_AVANS';
+        const esteReambalareCom = comandaData.magazin === 'REAMBALARE' || (comandaData as any).tip_comanda === 'REAMBALARE';
         
         console.log('📊 Verificare cantități:', {
           cantitateComandată,
@@ -731,13 +734,13 @@ export const useUpdateOrder = () => {
           procentProgres: cantitateComandată > 0 ? Math.round((cantitateReală / cantitateComandată) * 100) : 0
         });
         
-        if (!esteComandeAvans && cantitateReală < cantitateComandată) {
+        if (!esteComandeAvans && !esteReambalareCom && cantitateReală < cantitateComandată) {
           const procentProgres = cantitateComandată > 0 ? Math.round((cantitateReală / cantitateComandată) * 100) : 0;
           throw new Error(`Nu poți finaliza comanda! Ai produs doar ${cantitateReală} din ${cantitateComandată} bucăți (${procentProgres}%). Trebuie să ai cel puțin 100% pentru a marca comanda ca finalizată.`);
         }
         
-        // CREARE RESTOCăRI pentru comenzile de producție în avans când sunt finalizate manual
-        if (esteComandeAvans && cantitateReală > 0) {
+        // CREARE RESTOCăRI pentru comenzile de producție în avans / reambalare când sunt finalizate manual
+        if ((esteComandeAvans || esteReambalareCom) && cantitateReală > 0) {
           console.log('🎯 COMANDĂ DE PRODUCȚIE ÎN AVANS FINALIZATĂ MANUAL - creez restocată pentru:', cantitateReală);
           
           // Verifică dacă nu există deja o restocată pentru această comandă
@@ -815,6 +818,8 @@ export const useUpdateOrder = () => {
       queryClient.invalidateQueries({ queryKey: ['production-orders'] });
       queryClient.invalidateQueries({ queryKey: ['productie-comenzi'] });
       queryClient.invalidateQueries({ queryKey: ['restockings'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
       toast({
         title: "Succes",
         description: "Comanda actualizată cu succes!"
@@ -1061,9 +1066,11 @@ export const useFinishWorkSession = () => {
       }
 
       // Calculez surplusul acestei sesiuni (ce nu încape în comandă)
+      // Pentru REAMBALARE: toată cantitatea produsă devine restocare nouă (revine ca surplus disponibil)
+      const esteReambalareCom = (comanda as any).magazin === 'REAMBALARE' || (comanda as any).tip_comanda === 'REAMBALARE';
       const produsAnteriorPentruComanda = Number(comanda.cantitate_reala_produsa || 0);
       const alocatDinAceastaSesiuneLaComanda = Math.max(0, produsConsideratPentruComanda - produsAnteriorPentruComanda);
-      const surplusDinAceastaSesiune = esteComandeAvans
+      const surplusDinAceastaSesiune = (esteComandeAvans || esteReambalareCom)
         ? Number(cantitate_produsa || 0)
         : Math.max(0, Number(cantitate_produsa || 0) - alocatDinAceastaSesiuneLaComanda);
 
@@ -1119,6 +1126,8 @@ export const useFinishWorkSession = () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders-for-reports'] });
       queryClient.invalidateQueries({ queryKey: ['restockings'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
       console.log('✅ Cache-urile au fost invalidate');
     }
   });
@@ -1361,6 +1370,8 @@ export const useCreateSurplusRestocking = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['restockings'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
     }
   });
