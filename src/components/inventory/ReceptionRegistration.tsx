@@ -141,8 +141,10 @@ export function ReceptionRegistration({
           crate_count: validCrateTypeId ? crateCount : 0,
           crate_weight: totalCrateWeight + (!isEtichete ? palletWeight : 0),
           unit: unitToSave,
+          pallet_type_id: palletTypeId || null,
+          pallet_count: palletCount || 0,
           receipt_date: new Date().toISOString()
-        });
+        } as any);
 
       if (error) throw error;
 
@@ -182,6 +184,8 @@ export function ReceptionRegistration({
       setCrateCount(0);
       setPalletWeight(0);
       setNetQuantity(0);
+      setPalletTypeId(null);
+      setPalletCount(0);
     } catch (error: unknown) {
       toast({
         title: "Eroare",
