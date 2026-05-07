@@ -371,6 +371,45 @@ export function ReceptionRegistration({
             </div>
           )}
 
+          {/* Tip palet + nr paleți recepționați (toate cele 3 tipuri) */}
+          <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
+            <h3 className="font-semibold text-lg">Paleți recepționați</h3>
+            <p className="text-sm text-muted-foreground">
+              Tipul de palet și câți paleți ai primit pentru acest articol. Apar în raportul de Calitate.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tip palet</label>
+                <Select value={palletTypeId || ''} onValueChange={(v) => setPalletTypeId(v || null)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selectează tipul de palet" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                    {palletTypes.length === 0 && (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                        Nu există tipuri. Adaugă în Nomenclatoare → Tip paleți.
+                      </div>
+                    )}
+                    {palletTypes.map((pt) => (
+                      <SelectItem key={pt.id} value={pt.id}>{pt.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Nr. paleți recepționați</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={palletCount || ''}
+                  onChange={(e) => setPalletCount(parseInt(e.target.value) || 0)}
+                  placeholder="ex: 2"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-end pt-4">
             <Button 
               onClick={handleSubmit} 
