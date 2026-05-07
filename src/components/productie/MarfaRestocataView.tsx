@@ -92,11 +92,13 @@ const MarfaRestocataView = () => {
     lot: MarfaRestocata | null;
     motiv: MotivScoatere;
     observatii: string;
+    cantitate: string;
   }>({
     open: false,
     lot: null,
     motiv: 'aruncat',
     observatii: '',
+    cantitate: '',
   });
 
   const [istoricOpen, setIstoricOpen] = useState(false);
