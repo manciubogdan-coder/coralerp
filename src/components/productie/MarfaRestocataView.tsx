@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { PackagePlus, Search, Edit2, Trash2, Download, Printer, History, Trash, RefreshCw, AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useCreateOrder, useAutoDistributeToLine } from '@/hooks/productie/useProductionData';
 import { format } from 'date-fns';
 import { ro } from 'date-fns/locale';
 import { toast } from 'sonner';
