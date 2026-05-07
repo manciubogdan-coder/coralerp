@@ -158,16 +158,23 @@ export function ReceptionRegistration({
           : inventoryType === 'etichete'
             ? 'etichete_reception_records'
             : 'reception_records';
-        await (supabase as any)
+        const { data: latest } = await (supabase as any)
           .from(receptionTable)
-          .update({
-            pallet_type_id: palletTypeId || null,
-            pallet_count: palletCount || 0,
-          })
+          .select('id')
           .eq('product_id', productId)
           .eq('document_number', documentNumber)
           .order('receipt_date', { ascending: false })
           .limit(1);
+        const latestId = (latest as any[])?.[0]?.id;
+        if (latestId) {
+          await (supabase as any)
+            .from(receptionTable)
+            .update({
+              pallet_type_id: palletTypeId || null,
+              pallet_count: palletCount || 0,
+            })
+            .eq('id', latestId);
+        }
       } catch (e) {
         console.warn('Nu am putut sincroniza paleții în reception_records:', e);
       }
