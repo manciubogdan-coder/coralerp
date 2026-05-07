@@ -249,17 +249,31 @@ const MarfaRestocataView = () => {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData?.user?.id || null;
 
-      const { error } = await (supabase as any)
+      const fullUpdate = {
+        status: 'scos',
+        cantitate_surplus: 0,
+        motiv_scoatere: scoatereDialog.motiv,
+        observatii_scoatere: scoatereDialog.observatii?.trim() || null,
+        scos_la: new Date().toISOString(),
+        scos_de: userId,
+      };
+
+      let { error } = await (supabase as any)
         .from('productie_restocari')
-        .update({
-          status: 'scos',
-          cantitate_surplus: 0,
-          motiv_scoatere: scoatereDialog.motiv,
-          observatii_scoatere: scoatereDialog.observatii?.trim() || null,
-          scos_la: new Date().toISOString(),
-          scos_de: userId,
-        })
+        .update(fullUpdate)
         .eq('id', scoatereDialog.lot.id);
+
+      // Fallback dacă coloanele noi nu există încă în DB
+      if (error && /column .* does not exist/i.test(error.message || '')) {
+        const res = await (supabase as any)
+          .from('productie_restocari')
+          .update({ status: 'scos', cantitate_surplus: 0 })
+          .eq('id', scoatereDialog.lot.id);
+        error = res.error;
+        if (!error) {
+          toast.warning('Lot scos, dar coloanele motiv/observații lipsesc din DB. Rulează migrarea SQL.');
+        }
+      }
 
       if (error) throw error;
 
