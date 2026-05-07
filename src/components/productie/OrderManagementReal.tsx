@@ -15,6 +15,8 @@ import OrderEditDialog from "./OrderEditDialog";
 import OrderIngredientEditor from "./OrderIngredientEditor";
 import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import SabloaneComenziClient from "./SabloaneComenziClient";
 
 const OrderManagementReal = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
