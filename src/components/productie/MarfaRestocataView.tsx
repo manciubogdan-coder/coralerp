@@ -354,19 +354,24 @@ const MarfaRestocataView = () => {
           const obsText = scoatereDialog.observatii?.trim()
             ? ` - ${scoatereDialog.observatii.trim()}`
             : '';
-          const { error: insOrderErr } = await (supabase as any)
-            .from('productie_comenzi')
-            .insert({
-              magazin: 'REAMBALARE',
-              punct_livrare: 'REAMBALARE',
-              produs_id: lot.produs_id,
-              cantitate: cantScoasa,
-              baxare: `Reambalare lot surplus${obsText}`,
-              status: 'pending',
-              tip_comanda: 'REAMBALARE',
-              data_productie: new Date().toISOString().slice(0, 10),
-            });
-          if (insOrderErr) throw insOrderErr;
+          const newOrder = await createOrderMutation.mutateAsync({
+            magazin: 'REAMBALARE',
+            punct_livrare: 'REAMBALARE',
+            produs_id: lot.produs_id,
+            cantitate: cantScoasa,
+            baxare: `Reambalare lot surplus${obsText}`,
+            status: 'pending',
+            tip_comanda: 'REAMBALARE',
+            data_productie: new Date().toISOString().slice(0, 10),
+            linie_id: null,
+          });
+          // Auto-distribuie pe o linie ca să apară la operator
+          try {
+            await autoDistributeMutation.mutateAsync(newOrder.id);
+          } catch (autoErr: any) {
+            console.warn('Auto-distribuire eșuată pentru reambalare:', autoErr?.message);
+            toast.warning('Comanda de reambalare a fost creată, dar nu s-a alocat pe linie.');
+          }
           comandaReambalareCreata = true;
         } catch (e: any) {
           console.warn('Nu s-a putut crea comanda de reambalare:', e?.message);
