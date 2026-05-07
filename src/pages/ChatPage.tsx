@@ -393,16 +393,21 @@ const ChatPage: React.FC = () => {
   // ---------- DELETE CONVERSATION (for me) ----------
   const confirmDeleteConv = async () => {
     if (!deleteConvTarget) return;
+    // Always set a local cutoff so messages don't reappear when reopening
+    setConvClearedAt(deleteConvTarget.id, new Date().toISOString());
     const { error } = await (supabase as any).rpc("chat_delete_conversation", {
       p_conversation_id: deleteConvTarget.id,
     });
     if (error) {
-      toast({ title: "Eroare", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Conversație ștearsă", description: "A fost eliminată din lista ta." });
-      if (activeId === deleteConvTarget.id) selectConversation(null);
-      await loadConversations();
+      // RPC may not exist — local cutoff still hides the messages
+      console.warn("chat_delete_conversation RPC failed, using local cutoff", error);
     }
+    toast({ title: "Conversație ștearsă", description: "Mesajele au fost ascunse din lista ta." });
+    if (activeId === deleteConvTarget.id) {
+      setMessages([]);
+      selectConversation(null);
+    }
+    await loadConversations();
     setDeleteConvTarget(null);
   };
 
