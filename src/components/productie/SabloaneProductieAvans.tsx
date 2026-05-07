@@ -39,8 +39,16 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
 
   // dialoguri
   const [createOpen, setCreateOpen] = useState(false);
-  const [editSablon, setEditSablon] = useState<Sablon | null>(null);
-  const [generateSablon, setGenerateSablon] = useState<Sablon | null>(null);
+  const [editSablonId, setEditSablonId] = useState<string | null>(null);
+  const [generateSablonId, setGenerateSablonId] = useState<string | null>(null);
+  const editSablon = useMemo(
+    () => (editSablonId ? sabloane.find((s) => s.id === editSablonId) || null : null),
+    [editSablonId, sabloane]
+  );
+  const generateSablon = useMemo(
+    () => (generateSablonId ? sabloane.find((s) => s.id === generateSablonId) || null : null),
+    [generateSablonId, sabloane]
+  );
 
   // form create sablon
   const [newName, setNewName] = useState("");
