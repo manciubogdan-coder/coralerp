@@ -690,6 +690,8 @@ export const useCreateOrder = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['restockings'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
     }
   });
 };
@@ -816,6 +818,8 @@ export const useUpdateOrder = () => {
       queryClient.invalidateQueries({ queryKey: ['production-orders'] });
       queryClient.invalidateQueries({ queryKey: ['productie-comenzi'] });
       queryClient.invalidateQueries({ queryKey: ['restockings'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
       toast({
         title: "Succes",
         description: "Comanda actualizată cu succes!"
@@ -1122,6 +1126,8 @@ export const useFinishWorkSession = () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders-for-reports'] });
       queryClient.invalidateQueries({ queryKey: ['restockings'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
       console.log('✅ Cache-urile au fost invalidate');
     }
   });
@@ -1364,6 +1370,8 @@ export const useCreateSurplusRestocking = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['restockings'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
     }
   });
