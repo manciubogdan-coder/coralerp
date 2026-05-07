@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import {
-  CalendarIcon, Download, Save, Loader2, Plus, Camera, Trash2, X, Image as ImageIcon, AlertTriangle,
+  CalendarIcon, Download, Save, Loader2, Plus, Camera, Trash2, X, AlertTriangle,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
