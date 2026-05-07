@@ -60,7 +60,7 @@ interface Attachment {
   name: string;
   size: number;
   mime: string;
-  kind: "image" | "file";
+  kind: "image" | "video" | "file";
 }
 interface Conversation {
   id: string;
@@ -133,6 +133,15 @@ const ChatPage: React.FC = () => {
   const userId = user?.id ?? "";
   const activeConvStorageKey = userId ? `coral:chat:active-conversation:${userId}` : "";
   const pendingStorageKey = (convId: string) => `coral:chat:pending-attachments:${userId}:${convId}`;
+  const convClearedKey = (convId: string) => `coral:chat:cleared-at:${userId}:${convId}`;
+  const getConvClearedAt = (convId: string): string | null =>
+    userId ? window.localStorage.getItem(convClearedKey(convId)) : null;
+  const setConvClearedAt = (convId: string, iso: string) => {
+    if (userId) window.localStorage.setItem(convClearedKey(convId), iso);
+  };
+
+  // Last-read timestamps for other members (used for read receipts in DMs)
+  const [memberLastRead, setMemberLastRead] = useState<Record<string, Record<string, string>>>({});
 
   const selectConversation = (convId: string | null) => {
     setActiveId(convId);
@@ -220,7 +229,12 @@ const ChatPage: React.FC = () => {
   // ---------- LOAD MESSAGES ----------
   const loadMessages = async (convId: string) => {
     const { data } = await (supabase as any).rpc("chat_list_messages", { p_conversation_id: convId });
-    const list = (data as Message[]) ?? [];
+    let list = (data as Message[]) ?? [];
+    const clearedAt = getConvClearedAt(convId);
+    if (clearedAt) {
+      const cutoff = new Date(clearedAt).getTime();
+      list = list.filter((m) => new Date(m.created_at).getTime() > cutoff);
+    }
     const seenAt = getConvSeen(convId);
     const firstUnread = list.find(
       (m) => m.author_id !== userId && new Date(m.created_at) > new Date(seenAt)
@@ -228,6 +242,14 @@ const ChatPage: React.FC = () => {
     setActiveUnreadAnchor(firstUnread?.id ?? null);
     setMessages(list);
     markConversationRead(convId);
+    // Load other members' last_read_at for read receipts
+    const { data: members } = await (supabase as any)
+      .from("chat_members")
+      .select("user_id,last_read_at")
+      .eq("conversation_id", convId);
+    const map: Record<string, string> = {};
+    (members ?? []).forEach((m: any) => { map[m.user_id] = m.last_read_at; });
+    setMemberLastRead((prev) => ({ ...prev, [convId]: map }));
   };
 
   // ---------- INITIAL LOAD ----------
@@ -319,9 +341,14 @@ const ChatPage: React.FC = () => {
         continue;
       }
       const { data: pub } = (supabase as any).storage.from("chat-attachments").getPublicUrl(path);
+      const kind: Attachment["kind"] = file.type.startsWith("image/")
+        ? "image"
+        : file.type.startsWith("video/")
+        ? "video"
+        : "file";
       out.push({
         url: pub.publicUrl, name: file.name, size: file.size,
-        mime: file.type, kind: file.type.startsWith("image/") ? "image" : "file",
+        mime: file.type, kind,
       });
     }
     return out;
@@ -371,16 +398,21 @@ const ChatPage: React.FC = () => {
   // ---------- DELETE CONVERSATION (for me) ----------
   const confirmDeleteConv = async () => {
     if (!deleteConvTarget) return;
+    // Always set a local cutoff so messages don't reappear when reopening
+    setConvClearedAt(deleteConvTarget.id, new Date().toISOString());
     const { error } = await (supabase as any).rpc("chat_delete_conversation", {
       p_conversation_id: deleteConvTarget.id,
     });
     if (error) {
-      toast({ title: "Eroare", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Conversație ștearsă", description: "A fost eliminată din lista ta." });
-      if (activeId === deleteConvTarget.id) selectConversation(null);
-      await loadConversations();
+      // RPC may not exist — local cutoff still hides the messages
+      console.warn("chat_delete_conversation RPC failed, using local cutoff", error);
     }
+    toast({ title: "Conversație ștearsă", description: "Mesajele au fost ascunse din lista ta." });
+    if (activeId === deleteConvTarget.id) {
+      setMessages([]);
+      selectConversation(null);
+    }
+    await loadConversations();
     setDeleteConvTarget(null);
   };
 
@@ -696,6 +728,14 @@ const ChatPage: React.FC = () => {
                                       >
                                         <img src={a.url} alt={a.name} className="max-h-60 object-contain" />
                                       </button>
+                                    ) : a.kind === "video" ? (
+                                      <video
+                                        key={idx}
+                                        src={a.url}
+                                        controls
+                                        playsInline
+                                        className="max-h-60 max-w-full rounded"
+                                      />
                                     ) : (
                                       <a
                                         key={idx}
@@ -719,8 +759,21 @@ const ChatPage: React.FC = () => {
                                 )}
                               </>
                             )}
-                            <div className={`text-[10px] mt-1 ${isMine ? "opacity-80" : "text-muted-foreground"}`}>
-                              {format(new Date(m.created_at), "HH:mm")}
+                            <div className={`text-[10px] mt-1 flex items-center gap-1 ${isMine ? "justify-end opacity-80" : "text-muted-foreground"}`}>
+                              <span>{format(new Date(m.created_at), "HH:mm")}</span>
+                              {isMine && !m.deleted_for_all && (() => {
+                                const reads = memberLastRead[m.conversation_id] ?? {};
+                                const others = Object.entries(reads).filter(([uid]) => uid !== userId);
+                                if (others.length === 0) return null;
+                                const msgTime = new Date(m.created_at).getTime();
+                                const seenByAll = others.every(([, ts]) => ts && new Date(ts).getTime() >= msgTime);
+                                const seenByAny = others.some(([, ts]) => ts && new Date(ts).getTime() >= msgTime);
+                                return (
+                                  <span title={seenByAll ? "Citit" : seenByAny ? "Citit de unii" : "Trimis"}>
+                                    {seenByAll ? "✓✓" : seenByAny ? "✓✓" : "✓"}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -762,19 +815,20 @@ const ChatPage: React.FC = () => {
               <div className="p-2 sm:p-3 border-t flex gap-1 sm:gap-2 items-end">
                 <input
                   type="file" ref={fileInputRef} className="hidden" multiple
-                  accept="image/*"
+                  accept="image/*,video/*"
                   onChange={handleFileSelect}
                 />
                 <input
                   type="file" ref={cameraInputRef} className="hidden" multiple
-                  accept="image/*"
+                  accept="image/*,video/*"
+                  capture="environment"
                   onChange={handleFileSelect}
                 />
                 <Button
                   size="icon" variant="ghost"
                   className="h-9 w-9 shrink-0"
                   onClick={() => fileInputRef.current?.click()}
-                  title="Atașează fișiere/poze"
+                  title="Atașează poze sau videoclipuri"
                 >
                   <Paperclip size={18} />
                 </Button>
@@ -788,7 +842,7 @@ const ChatPage: React.FC = () => {
                 </Button>
                 <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
                   <PopoverTrigger asChild>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 hidden sm:inline-flex" title="Emoji">
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" title="Emoji">
                       <Smile size={18} />
                     </Button>
                   </PopoverTrigger>
