@@ -1380,11 +1380,8 @@ export const useCreateSurplusRestocking = () => {
       
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['restockings'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    onSuccess: async () => {
+      await refreshProductionCaches(queryClient);
     }
   });
 };
