@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Edit, Play, Loader2, ListChecks, Copy } from "lucide-react";
+import { Plus, Trash2, Edit, Play, Loader2, ListChecks, Copy, Store } from "lucide-react";
 import { toast } from "sonner";
 import {
   useSabloane,
@@ -22,14 +22,17 @@ import {
   useProducts,
   useProductionLines,
   useCreateOrder,
+  useClients,
 } from "@/hooks/productie/useProductionData";
 import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 
-const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) => {
+const PREFIX = "[CLIENT] ";
+
+const SabloaneComenziClient = ({ onGenerated }: { onGenerated?: () => void }) => {
   const { data: allSabloane = [], isLoading } = useSabloane();
-  const sabloane = (allSabloane || []).filter((s: any) => !(s.nume || "").startsWith("[CLIENT]"));
   const { data: products = [] } = useProducts();
   const { data: lines = [] } = useProductionLines();
+  const { data: clients = [] } = useClients();
   const createSablon = useCreateSablon();
   const updateSablon = useUpdateSablon();
   const deleteSablon = useDeleteSablon();
@@ -37,12 +40,16 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
   const deleteItem = useDeleteSablonItem();
   const createOrder = useCreateOrder();
 
-  // dialoguri
+  // Doar șabloane cu prefix [CLIENT] (separat de cele de producție în avans)
+  const sabloane = useMemo(
+    () => allSabloane.filter((s) => (s.nume || "").startsWith(PREFIX)),
+    [allSabloane]
+  );
+
   const [createOpen, setCreateOpen] = useState(false);
   const [editSablon, setEditSablon] = useState<Sablon | null>(null);
   const [generateSablon, setGenerateSablon] = useState<Sablon | null>(null);
 
-  // form create sablon
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
 
@@ -52,7 +59,10 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
       return;
     }
     try {
-      await createSablon.mutateAsync({ nume: newName.trim(), descriere: newDesc.trim() || undefined });
+      await createSablon.mutateAsync({
+        nume: PREFIX + newName.trim(),
+        descriere: newDesc.trim() || undefined,
+      });
       toast.success("Șablon creat");
       setNewName("");
       setNewDesc("");
@@ -62,16 +72,18 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
     }
   };
 
+  const stripPrefix = (n: string) => n.replace(/^\[CLIENT\]\s*/, "");
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-xl font-semibold">Șabloane Producție Avans</h3>
+          <h3 className="text-xl font-semibold">Șabloane Comenzi Client</h3>
           <p className="text-sm text-muted-foreground">
-            Creează liste predefinite (ex: Aromate) și generează rapid comenzi pentru o anumită zi.
+            Liste predefinite de produse. Alegi magazinul + data și generezi rapid comenzile.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+        <Button onClick={() => setCreateOpen(true)} className="bg-green-600 hover:bg-green-700">
           <Plus className="h-4 w-4 mr-2" /> Șablon nou
         </Button>
       </div>
@@ -83,7 +95,7 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
       ) : sabloane.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
-            Nu există șabloane. Creează primul șablon pentru a genera rapid comenzi.
+            Nu există șabloane pentru comenzi client. Creează primul șablon.
           </CardContent>
         </Card>
       ) : (
@@ -92,8 +104,8 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
             <Card key={s.id}>
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <ListChecks className="h-4 w-4 text-blue-600" />
-                  {s.nume}
+                  <ListChecks className="h-4 w-4 text-green-600" />
+                  {stripPrefix(s.nume)}
                 </CardTitle>
                 {s.descriere && (
                   <p className="text-xs text-muted-foreground">{s.descriere}</p>
@@ -119,7 +131,7 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
                     size="sm"
                     variant="destructive"
                     onClick={async () => {
-                      if (!window.confirm(`Ștergi șablonul "${s.nume}"?`)) return;
+                      if (!window.confirm(`Ștergi șablonul "${stripPrefix(s.nume)}"?`)) return;
                       try {
                         await deleteSablon.mutateAsync(s.id);
                         toast.success("Șablon șters");
@@ -141,12 +153,16 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Șablon nou</DialogTitle>
+            <DialogTitle>Șablon comandă client nou</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Nume șablon *</Label>
-              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ex: Aromate" />
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Ex: Comandă standard săptămânală"
+              />
             </div>
             <div>
               <Label>Descriere (opțional)</Label>
@@ -162,43 +178,48 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
         </DialogContent>
       </Dialog>
 
-      {/* Dialog editare items */}
+      {/* Editare items */}
       {editSablon && (
         <SablonEditDialog
           sablon={editSablon}
+          stripPrefix={stripPrefix}
           products={products}
           lines={lines}
           onClose={() => setEditSablon(null)}
           onUpsertItem={(item) => upsertItem.mutateAsync(item)}
           onDeleteItem={(id) => deleteItem.mutateAsync(id)}
           onRename={async (nume, descriere) => {
-            await updateSablon.mutateAsync({ id: editSablon.id, nume, descriere });
+            await updateSablon.mutateAsync({
+              id: editSablon.id,
+              nume: PREFIX + nume.replace(/^\[CLIENT\]\s*/, ""),
+              descriere,
+            });
           }}
         />
       )}
 
-      {/* Dialog generare comenzi */}
+      {/* Generare comenzi */}
       {generateSablon && (
         <GenerateOrdersDialog
           sablon={generateSablon}
+          stripPrefix={stripPrefix}
+          clients={clients}
           onClose={() => setGenerateSablon(null)}
-          onGenerate={async (rows, dataProductie) => {
+          onGenerate={async (rows, dataProductie, magazin, punctLivrare) => {
             let count = 0;
             for (const r of rows) {
               if (!r.cantitate || r.cantitate <= 0) continue;
               await createOrder.mutateAsync({
-                magazin: "PRODUCTIE_AVANS",
-                punct_livrare: "PRODUCTIE_AVANS",
+                magazin,
+                punct_livrare: punctLivrare,
                 produs_id: r.produs_id,
                 cantitate: r.cantitate,
                 baxare: r.observatie || undefined,
                 linie_id: r.linie_id || null,
                 status: "pending",
-                tip_comanda: "PRODUCTIE_AVANS",
                 data_productie: dataProductie || null,
               });
               count++;
-              // salvează observația ca "ultima folosită" pe item
               await upsertItem.mutateAsync({
                 id: r.item_id,
                 sablon_id: generateSablon.id,
@@ -209,7 +230,7 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
                 pozitie: r.pozitie,
               });
             }
-            toast.success(`${count} comenzi generate cu succes`);
+            toast.success(`${count} comenzi generate pentru ${magazin}`);
             setGenerateSablon(null);
             onGenerated?.();
           }}
@@ -220,18 +241,26 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
 };
 
 // ============= EDIT DIALOG =============
-interface SablonEditDialogProps {
+const SablonEditDialog = ({
+  sablon,
+  stripPrefix,
+  products,
+  lines,
+  onClose,
+  onUpsertItem,
+  onDeleteItem,
+  onRename,
+}: {
   sablon: Sablon;
+  stripPrefix: (n: string) => string;
   products: any[];
   lines: any[];
   onClose: () => void;
   onUpsertItem: (item: any) => Promise<void>;
   onDeleteItem: (id: string) => Promise<void>;
   onRename: (nume: string, descriere?: string) => Promise<void>;
-}
-
-const SablonEditDialog = ({ sablon, products, lines, onClose, onUpsertItem, onDeleteItem, onRename }: SablonEditDialogProps) => {
-  const [nume, setNume] = useState(sablon.nume);
+}) => {
+  const [nume, setNume] = useState(stripPrefix(sablon.nume));
   const [descriere, setDescriere] = useState(sablon.descriere || "");
   const [addProdusId, setAddProdusId] = useState("");
   const items = sablon.productie_sabloane_items || [];
@@ -241,9 +270,6 @@ const SablonEditDialog = ({ sablon, products, lines, onClose, onUpsertItem, onDe
     products.forEach((p) => m.set(p.id, p));
     return m;
   }, [products]);
-
-  // Permitem adăugarea aceluiași produs de mai multe ori (variații cu observații diferite)
-  const availableProducts = products;
 
   const handleAdd = async () => {
     if (!addProdusId) return;
@@ -264,7 +290,7 @@ const SablonEditDialog = ({ sablon, products, lines, onClose, onUpsertItem, onDe
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editare șablon: {sablon.nume}</DialogTitle>
+          <DialogTitle>Editare șablon: {stripPrefix(sablon.nume)}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -287,7 +313,7 @@ const SablonEditDialog = ({ sablon, products, lines, onClose, onUpsertItem, onDe
                   <SelectValue placeholder="Selectează produs..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableProducts.map((p) => (
+                  {products.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.nume} ({p.unitate_masura})
                     </SelectItem>
@@ -322,7 +348,7 @@ const SablonEditDialog = ({ sablon, products, lines, onClose, onUpsertItem, onDe
                     productNume={prod?.nume || "Necunoscut"}
                     unit={prod?.unitate_masura || ""}
                     lines={lines}
-                    onSave={(updates) =>
+                    onSave={(updates: any) =>
                       onUpsertItem({
                         id: it.id,
                         sablon_id: sablon.id,
@@ -394,18 +420,14 @@ const SablonItemRow = ({
   return (
     <TableRow>
       <TableCell>{idx + 1}</TableCell>
-      <TableCell className="font-medium">{productNume} <span className="text-xs text-muted-foreground">({unit})</span></TableCell>
-      <TableCell>
-        <Input
-          type="number"
-          value={cant}
-          onChange={(e) => setCant(e.target.value)}
-          onBlur={flush}
-          className="h-8"
-        />
+      <TableCell className="font-medium">
+        {productNume} <span className="text-xs text-muted-foreground">({unit})</span>
       </TableCell>
       <TableCell>
-        <Input value={obs} onChange={(e) => setObs(e.target.value)} onBlur={flush} className="h-8" placeholder="Ex: prioritate mare" />
+        <Input type="number" value={cant} onChange={(e) => setCant(e.target.value)} onBlur={flush} className="h-8" />
+      </TableCell>
+      <TableCell>
+        <Input value={obs} onChange={(e) => setObs(e.target.value)} onBlur={flush} className="h-8" placeholder="Ex: prioritate" />
       </TableCell>
       <TableCell>
         <Select value={linieId} onValueChange={(v) => { setLinieId(v); setTimeout(flush, 0); }}>
@@ -446,14 +468,19 @@ interface GenerateRow {
 
 const GenerateOrdersDialog = ({
   sablon,
+  stripPrefix,
+  clients,
   onClose,
   onGenerate,
 }: {
   sablon: Sablon;
+  stripPrefix: (n: string) => string;
+  clients: any[];
   onClose: () => void;
-  onGenerate: (rows: GenerateRow[], dataProductie: string) => Promise<void>;
+  onGenerate: (rows: GenerateRow[], dataProductie: string, magazin: string, punctLivrare: string) => Promise<void>;
 }) => {
   const [dataProductie, setDataProductie] = useState<string>(todayISO());
+  const [magazin, setMagazin] = useState<string>("");
   const [rows, setRows] = useState<GenerateRow[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -473,6 +500,17 @@ const GenerateOrdersDialog = ({
     );
   }, [sablon]);
 
+  const uniqueStores = useMemo(() => {
+    if (!clients) return [];
+    return Array.from(
+      new Set(
+        clients
+          .filter((c: any) => c?.nume_magazin && typeof c.nume_magazin === "string" && c.nume_magazin.trim() !== "")
+          .map((c: any) => c.nume_magazin.trim())
+      )
+    ).sort();
+  }, [clients]);
+
   const update = (i: number, patch: Partial<GenerateRow>) => {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   };
@@ -480,13 +518,19 @@ const GenerateOrdersDialog = ({
   const totalActive = rows.filter((r) => r.cantitate > 0).length;
 
   const handleGenerate = async () => {
+    if (!magazin) {
+      toast.error("Selectează magazinul");
+      return;
+    }
     if (totalActive === 0) {
       toast.error("Setează cantitatea pentru cel puțin un produs");
       return;
     }
+    const client = clients?.find((c: any) => c.nume_magazin === magazin);
+    const punctLivrare = client?.punct_livrare || "Standard";
     setSubmitting(true);
     try {
-      await onGenerate(rows, dataProductie);
+      await onGenerate(rows, dataProductie, magazin, punctLivrare);
     } finally {
       setSubmitting(false);
     }
@@ -496,10 +540,27 @@ const GenerateOrdersDialog = ({
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Generează comenzi din șablonul: {sablon.nume}</DialogTitle>
+          <DialogTitle>Generează comenzi din șablon: {stripPrefix(sablon.nume)}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <DateProductiePicker value={dataProductie} onChange={setDataProductie} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label className="flex items-center gap-1"><Store className="h-4 w-4" /> Magazin *</Label>
+              <Select value={magazin} onValueChange={setMagazin}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selectează magazinul..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {uniqueStores.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <DateProductiePicker value={dataProductie} onChange={setDataProductie} />
+            </div>
+          </div>
 
           <Table>
             <TableHeader>
@@ -529,7 +590,7 @@ const GenerateOrdersDialog = ({
                       value={r.observatie}
                       onChange={(e) => update(i, { observatie: e.target.value })}
                       className="h-8"
-                      placeholder="(folosește ultima observație)"
+                      placeholder="(opțional)"
                     />
                   </TableCell>
                 </TableRow>
@@ -543,7 +604,11 @@ const GenerateOrdersDialog = ({
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={onClose}>Anulează</Button>
-              <Button onClick={handleGenerate} disabled={submitting || totalActive === 0} className="bg-green-600 hover:bg-green-700">
+              <Button
+                onClick={handleGenerate}
+                disabled={submitting || totalActive === 0 || !magazin}
+                className="bg-green-600 hover:bg-green-700"
+              >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}
                 Generează {totalActive} comenzi
               </Button>
@@ -555,4 +620,4 @@ const GenerateOrdersDialog = ({
   );
 };
 
-export default SabloaneProductieAvans;
+export default SabloaneComenziClient;

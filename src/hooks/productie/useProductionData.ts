@@ -617,12 +617,14 @@ export const useCreateOrder = () => {
           for (const restocate of restocariDisponibile) {
             if (cantitateRamasa <= 0) break;
             
-            const cantitateUtilizata = Math.min(cantitateRamasa, restocate.cantitate_surplus);
+            const surplusDisponibil = Number(restocate.cantitate_surplus || 0);
+            if (surplusDisponibil <= 0) continue;
+            const cantitateUtilizata = Math.min(cantitateRamasa, surplusDisponibil);
             cantitatedinRestock += cantitateUtilizata;
             cantitateRamasa -= cantitateUtilizata;
             
             // Actualizează restocarea
-            if (cantitateUtilizata === restocate.cantitate_surplus) {
+            if (cantitateUtilizata >= surplusDisponibil) {
               // Restocarea este complet utilizată
               await supabase
                 .from('productie_restocari')
@@ -633,9 +635,9 @@ export const useCreateOrder = () => {
               // Restocarea este parțial utilizată
               await supabase
                 .from('productie_restocari')
-                .update({ cantitate_surplus: restocate.cantitate_surplus - cantitateUtilizata })
+                .update({ cantitate_surplus: surplusDisponibil - cantitateUtilizata })
                 .eq('id', restocate.id);
-              console.log('📝 Restocarea parțial utilizată:', restocate.id, 'Rămas:', restocate.cantitate_surplus - cantitateUtilizata);
+              console.log('📝 Restocarea parțial utilizată:', restocate.id, 'Rămas:', surplusDisponibil - cantitateUtilizata);
             }
           }
           
