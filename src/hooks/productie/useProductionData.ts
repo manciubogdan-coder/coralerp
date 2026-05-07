@@ -536,8 +536,7 @@ export const useOrders = () => {
       for (const com of comandiCuClienti) {
         const produsId = (com as any).produs_id;
         if (!produsId) continue;
-        if ((com as any).magazin === 'PRODUCTIE_AVANS' || (com as any).tip_comanda === 'PRODUCTIE_AVANS') continue;
-        if ((com as any).magazin === 'REAMBALARE' || (com as any).tip_comanda === 'REAMBALARE') continue;
+        if (esteComandaProductieAvans(com) || esteComandaReambalare(com)) continue;
         const acoperit = (com as any).cantitate_reala_produsa + ((com as any).cantitate_din_restock || 0);
         let necesar = Math.max(0, (com as any).cantitate - acoperit);
         const status = (com as any).status || '';
@@ -623,8 +622,8 @@ export const useCreateOrder = () => {
       let statusFinal = orderData.status || 'pending';
       
       // IMPORTANT: Pentru comenzile PRODUCTIE_AVANS și REAMBALARE nu se ia din restocări
-      const esteProductieAvans = orderData.tip_comanda === 'PRODUCTIE_AVANS';
-      const esteReambalare = orderData.tip_comanda === 'REAMBALARE' || orderData.magazin === 'REAMBALARE';
+      const esteProductieAvans = esteComandaProductieAvans(orderData);
+      const esteReambalare = esteComandaReambalare(orderData);
       
       if (esteProductieAvans) {
         console.log('🔧 Comandă de producție în avans - NU se alocă din restocări');
@@ -695,7 +694,7 @@ export const useCreateOrder = () => {
           baxare: orderData.baxare || undefined,
           linie_id: orderData.linie_id || null,
           status: statusFinal,
-          cantitate_din_restock: cantitatedinRestock,
+          cantitate_din_restock: esteReambalare ? 0 : cantitatedinRestock,
           tip_comanda: orderData.tip_comanda,
           data_productie: orderData.data_productie || null,
           numar_comanda: ''
@@ -708,18 +707,15 @@ export const useCreateOrder = () => {
       console.log('✅ Comandă creată cu succes:', {
         id: data.id,
         status: statusFinal,
-        cantitate_din_restock: cantitatedinRestock,
+        cantitate_din_restock: esteReambalare ? 0 : cantitatedinRestock,
         cantitate_ramasa_de_produs: cantitateRamasa,
         procent_acoperire: Math.round((cantitatedinRestock / orderData.cantitate) * 100)
       });
       
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['restockings'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
-      queryClient.invalidateQueries({ queryKey: ['marfa-restocata-istoric'] });
+    onSuccess: async () => {
+      await refreshProductionCaches(queryClient);
     }
   });
 };
