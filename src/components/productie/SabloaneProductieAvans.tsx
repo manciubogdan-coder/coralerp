@@ -116,11 +116,11 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
                     size="sm"
                     className="bg-green-600 hover:bg-green-700"
                     disabled={(s.productie_sabloane_items?.length || 0) === 0}
-                    onClick={() => setGenerateSablonId(s)}
+                    onClick={() => setGenerateSablonId(s.id)}
                   >
                     <Play className="h-3 w-3 mr-1" /> Generează comenzi
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditSablonId(s)}>
+                  <Button size="sm" variant="outline" onClick={() => setEditSablonId(s.id)}>
                     <Edit className="h-3 w-3 mr-1" /> Editează
                   </Button>
                   <Button
