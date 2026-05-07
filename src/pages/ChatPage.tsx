@@ -759,8 +759,21 @@ const ChatPage: React.FC = () => {
                                 )}
                               </>
                             )}
-                            <div className={`text-[10px] mt-1 ${isMine ? "opacity-80" : "text-muted-foreground"}`}>
-                              {format(new Date(m.created_at), "HH:mm")}
+                            <div className={`text-[10px] mt-1 flex items-center gap-1 ${isMine ? "justify-end opacity-80" : "text-muted-foreground"}`}>
+                              <span>{format(new Date(m.created_at), "HH:mm")}</span>
+                              {isMine && !m.deleted_for_all && (() => {
+                                const reads = memberLastRead[m.conversation_id] ?? {};
+                                const others = Object.entries(reads).filter(([uid]) => uid !== userId);
+                                if (others.length === 0) return null;
+                                const msgTime = new Date(m.created_at).getTime();
+                                const seenByAll = others.every(([, ts]) => ts && new Date(ts).getTime() >= msgTime);
+                                const seenByAny = others.some(([, ts]) => ts && new Date(ts).getTime() >= msgTime);
+                                return (
+                                  <span title={seenByAll ? "Citit" : seenByAny ? "Citit de unii" : "Trimis"}>
+                                    {seenByAll ? "✓✓" : seenByAny ? "✓✓" : "✓"}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
