@@ -7,6 +7,7 @@ import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView"
 import DailyStockQuality from "@/components/inventory/DailyStockQuality";
 import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
 import ReceptionReport from "@/components/inventory/ReceptionReport";
+import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import BackToHubButton from "@/components/BackToHubButton";
 
 type DepotKey = "materii-prime" | "ambalaje" | "etichete";
