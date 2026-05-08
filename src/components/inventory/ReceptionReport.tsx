@@ -159,6 +159,7 @@ const ReceptionReport: React.FC = () => {
   const [groups, setGroups] = useState<SupplierGroup[]>([]);
   const [defectsList, setDefectsList] = useState<LookupRow[]>([]);
   const [crateTypeMap, setCrateTypeMap] = useState<Map<string, string>>(new Map());
+  const [crateTypesList, setCrateTypesList] = useState<LookupRow[]>([]);
 
   // Dialogs
   const [photoDialog, setPhotoDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
