@@ -1029,6 +1029,18 @@ const ReceptionReport: React.FC = () => {
                           </Button>
                         </TableCell>
                         <TableCell>
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
+                            disabled={r.is_missing}
+                            onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+                            <Layers className="h-3 w-3 mr-1" />
+                            {(() => {
+                              const { bd } = parsePalDoc(r.paleti_lazi_document || "");
+                              const n = bd.rec_pallets.length + bd.rec_crates.length + bd.doc_pallets.length + bd.doc_crates.length;
+                              return n > 0 ? n : "+";
+                            })()}
+                          </Button>
+                        </TableCell>
+                        <TableCell>
                           {r.is_missing && r.missing_id && (
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
                               onClick={() => handleRemoveMissing(r.missing_id!)}>
