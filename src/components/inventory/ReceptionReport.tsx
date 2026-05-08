@@ -778,13 +778,13 @@ const ReceptionReport: React.FC = () => {
                         <TableCell>{r.producator || "—"}</TableCell>
                         <TableCell>
                           {(() => {
-                            const { p, l } = parsePalDoc(r.paleti_lazi_document || "");
+                            const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
                             return (
                               <Input type="number" min="0" step="1" placeholder="0"
                                 value={p ?? ""} disabled={r.is_missing}
                                 onChange={(e) => {
                                   const np = e.target.value === "" ? null : parseInt(e.target.value, 10);
-                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(np, l));
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(np, l, tip));
                                 }}
                                 className="h-7 text-xs px-1 w-full" />
                             );
@@ -792,15 +792,39 @@ const ReceptionReport: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const { p, l } = parsePalDoc(r.paleti_lazi_document || "");
+                            const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
                             return (
                               <Input type="number" min="0" step="1" placeholder="0"
                                 value={l ?? ""} disabled={r.is_missing}
                                 onChange={(e) => {
                                   const nl = e.target.value === "" ? null : parseInt(e.target.value, 10);
-                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, nl));
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, nl, tip));
                                 }}
                                 className="h-7 text-xs px-1 w-full" />
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
+                            return (
+                              <Select
+                                value={tip || "__none__"}
+                                disabled={r.is_missing}
+                                onValueChange={(v) => {
+                                  const newTip = v === "__none__" ? "" : v;
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, l, newTip));
+                                }}>
+                                <SelectTrigger className="h-7 text-xs px-2 w-full">
+                                  <SelectValue placeholder="—" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px] overflow-y-auto">
+                                  <SelectItem value="__none__">—</SelectItem>
+                                  {crateTypesList.map((c) => (
+                                    <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             );
                           })()}
                         </TableCell>
