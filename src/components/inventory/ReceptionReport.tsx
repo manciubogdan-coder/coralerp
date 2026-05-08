@@ -1266,7 +1266,21 @@ const ReceptionReport: React.FC = () => {
           </DialogHeader>
           {detailsDialog && (() => {
             const row = groups[detailsDialog.groupIdx].rows[detailsDialog.rowIdx];
-            const { bd } = parsePalDoc(row.paleti_lazi_document || "");
+            const parsed = parsePalDoc(row.paleti_lazi_document || "");
+            const bd: BreakdownPayload = {
+              rec_pallets: parsed.bd.rec_pallets,
+              rec_crates: parsed.bd.rec_crates,
+              doc_pallets: parsed.bd.doc_pallets,
+              doc_crates: parsed.bd.doc_crates,
+            };
+            // Fallback pentru date vechi (înainte de breakdown): folosește
+            // câmpurile single-tip din înregistrare ca să pre-populeze recepția.
+            if (bd.rec_pallets.length === 0 && (row.nr_paleti_rec || 0) > 0) {
+              bd.rec_pallets = [{ id: null, name: row.tip_palet || "", count: Number(row.nr_paleti_rec) || 0 }];
+            }
+            if (bd.rec_crates.length === 0 && (row.nr_lazi || 0) > 0) {
+              bd.rec_crates = [{ id: null, name: row.tip_lada_culoare || "", count: Number(row.nr_lazi) || 0 }];
+            }
             const update = (next: BreakdownPayload) => {
               const encoded = encodePalDoc(next);
               updateRow(detailsDialog.groupIdx, detailsDialog.rowIdx, "paleti_lazi_document", encoded);
