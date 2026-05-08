@@ -376,6 +376,7 @@ const ReceptionReport: React.FC = () => {
     loadDefects();
     loadProducts();
     loadCrateTypes();
+    loadPalletTypes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, inventoryType]);
 
