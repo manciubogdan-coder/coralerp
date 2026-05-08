@@ -119,6 +119,25 @@ export function ReceptionRegistration({
     setShowConfirm(true);
   };
 
+  const cleanCrateRows = (): BreakdownEntry[] =>
+    crateRows
+      .filter((r) => r.id && (Number(r.count) || 0) > 0)
+      .map((r) => {
+        const ct = crateTypes.find((c) => c.id === r.id);
+        return { id: r.id, name: ct?.name || r.name || "", count: Number(r.count) || 0 };
+      });
+
+  const cleanPalletRows = (): BreakdownEntry[] =>
+    palletRows
+      .filter((r) => r.id && (Number(r.count) || 0) > 0)
+      .map((r) => {
+        const pt = palletTypes.find((p) => p.id === r.id);
+        return { id: r.id, name: pt?.name || r.name || "", count: Number(r.count) || 0 };
+      });
+
+  const totalPalletCount = totalBreakdown(palletRows);
+  const totalCrateCount = totalBreakdown(crateRows);
+
   const executeSave = async () => {
     try {
       setIsSubmitting(true);
@@ -130,16 +149,26 @@ export function ReceptionRegistration({
           ? 'etichete_inventory'
           : 'inventory';
 
-      const validCrateTypeId = !isEtichete && crateTypeId && crateTypeId !== "no-crate" ? crateTypeId : null;
-      const selectedCrateType = crateTypes.find(ct => ct.id === validCrateTypeId);
-      const totalCrateWeight = selectedCrateType ? selectedCrateType.weight * crateCount : 0;
+      const cleanedCrates = cleanCrateRows();
+      const cleanedPallets = cleanPalletRows();
+
+      // Tip "dominant" pentru compatibilitate cu coloanele single-FK
+      const dominantCrateId = !isEtichete && cleanedCrates[0]?.id ? cleanedCrates[0].id : null;
+      const dominantPalletId = cleanedPallets[0]?.id || null;
+      const totalCrateWeight = !isEtichete
+        ? cleanedCrates.reduce((sum, r) => {
+            const ct = crateTypes.find((c) => c.id === r.id);
+            return sum + (ct ? ct.weight * r.count : 0);
+          }, 0)
+        : 0;
 
       console.log('Salvez recepție:', {
         productName: selectedProduct.name,
         grossQuantity,
         quantityToSave,
         isEtichete,
-        calculationDetails: isEtichete ? 'N/A' : { crateTypeId, crateCount, palletWeight }
+        crates: cleanedCrates,
+        pallets: cleanedPallets,
       });
 
       const { error } = await supabase
@@ -153,21 +182,20 @@ export function ReceptionRegistration({
           quantity: quantityToSave,
           gross_quantity: grossQuantity,
           net_quantity: isEtichete ? grossQuantity : netQuantity,
-          crate_type_id: validCrateTypeId,
-          crate_count: validCrateTypeId ? crateCount : 0,
+          crate_type_id: dominantCrateId,
+          crate_count: dominantCrateId ? totalCrateCount : 0,
           crate_weight: totalCrateWeight + (!isEtichete ? palletWeight : 0),
           unit: unitToSave,
-          pallet_type_id: palletTypeId || null,
-          pallet_count: palletCount || 0,
+          pallet_type_id: dominantPalletId,
+          pallet_count: totalPalletCount || 0,
           receipt_date: new Date().toISOString()
         } as any);
 
       if (error) throw error;
 
       // Asigură-te că pallet_type_id și pallet_count ajung și în reception_records
-      // (raportul de Calitate citește de acolo). Dacă există un trigger care
-      // copiază din inventory, update-ul de mai jos doar reaplică valorile —
-      // dacă nu există, le scrie manual pentru ultima recepție a produsului.
+      // și salvăm breakdown-ul multi-tip pentru raportul de Calitate.
+      let latestRecordId: string | null = null;
       try {
         const receptionTable = inventoryType === 'ambalaje'
           ? 'ambalaje_reception_records'
@@ -181,18 +209,42 @@ export function ReceptionRegistration({
           .eq('document_number', documentNumber)
           .order('receipt_date', { ascending: false })
           .limit(1);
-        const latestId = (latest as any[])?.[0]?.id;
-        if (latestId) {
+        latestRecordId = (latest as any[])?.[0]?.id || null;
+        if (latestRecordId) {
           await (supabase as any)
             .from(receptionTable)
             .update({
-              pallet_type_id: palletTypeId || null,
-              pallet_count: palletCount || 0,
+              pallet_type_id: dominantPalletId,
+              pallet_count: totalPalletCount || 0,
             })
-            .eq('id', latestId);
+            .eq('id', latestRecordId);
         }
       } catch (e) {
         console.warn('Nu am putut sincroniza paleții în reception_records:', e);
+      }
+
+      // Salvează breakdown-ul recepției în reception_report_data (doc rămâne gol)
+      if (latestRecordId && (cleanedPallets.length > 0 || cleanedCrates.length > 0)) {
+        try {
+          const encoded = encodePalDoc({
+            ...emptyBreakdown(),
+            rec_pallets: cleanedPallets,
+            rec_crates: cleanedCrates,
+          });
+          await (supabase as any)
+            .from('reception_report_data')
+            .upsert([{
+              inventory_id: latestRecordId,
+              inventory_type: inventoryType,
+              paleti_lazi_document: encoded || null,
+              cantitate_receptionata: quantityToSave,
+              tip_palet: cleanedPallets[0]?.name || null,
+              tip_lada_culoare: cleanedCrates[0]?.name || null,
+              nr_lazi: totalCrateCount || null,
+            }], { onConflict: 'inventory_id' });
+        } catch (e) {
+          console.warn('Nu am putut salva breakdown-ul în reception_report_data:', e);
+        }
       }
 
       toast({
@@ -227,12 +279,10 @@ export function ReceptionRegistration({
       setManufacturerId(null);
       setDocumentNumber('');
       setGrossQuantity(0);
-      setCrateTypeId(null);
-      setCrateCount(0);
       setPalletWeight(0);
       setNetQuantity(0);
-      setPalletTypeId(null);
-      setPalletCount(0);
+      setCrateRows([{ id: null, name: "", count: 0 }]);
+      setPalletRows([{ id: null, name: "", count: 0 }]);
     } catch (error: unknown) {
       toast({
         title: "Eroare",
