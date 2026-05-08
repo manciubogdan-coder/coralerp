@@ -40,7 +40,7 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
   return (
     <ForceInventoryType type={type}>
       <Tabs value={sub} onValueChange={(v) => setSub(v as SubTabKey)} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-4">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-4">
           {SUB_TABS.map((t) => (
             <TabsTrigger key={t.key} value={t.key}>
               {t.label}
