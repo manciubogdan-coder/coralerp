@@ -193,11 +193,18 @@ const ReceptionReport: React.FC = () => {
   };
 
   const loadCrateTypes = async () => {
-    const { data } = await (supabase as any)
-      .from(getCrateTable(inventoryType))
-      .select("id, name")
-      .order("name");
-    setCrateTypesList((data as LookupRow[]) || []);
+    const tables = ["crate_types", "ambalaje_crate_types", "etichete_crate_types"];
+    const results = await Promise.all(
+      tables.map((t) =>
+        (supabase as any).from(t).select("id, name").order("name").then((r: any) => (r.data as LookupRow[]) || [])
+      )
+    );
+    const merged = new Map<string, LookupRow>();
+    results.flat().forEach((r) => {
+      const key = r.name.trim().toLowerCase();
+      if (!merged.has(key)) merged.set(key, r);
+    });
+    setCrateTypesList(Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name)));
   };
 
   const loadData = async () => {
@@ -591,19 +598,23 @@ const ReceptionReport: React.FC = () => {
     let totalLaziDoc = 0;
     let totalCantDoc = 0;
     const ladiByType = new Map<string, number>();
+    const ladiDocByType = new Map<string, number>();
     group.rows.forEach((r) => {
       if (r.is_missing) return;
       totalPaleti += r.nr_paleti_rec || 0;
       if (r.tip_lada_culoare && r.nr_lazi) {
         ladiByType.set(r.tip_lada_culoare, (ladiByType.get(r.tip_lada_culoare) || 0) + r.nr_lazi);
       }
-      const { p, l } = parsePalDoc(r.paleti_lazi_document || "");
+      const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
       if (p) totalPaletiDoc += p;
       if (l) totalLaziDoc += l;
+      if (tip && l) {
+        ladiDocByType.set(tip, (ladiDocByType.get(tip) || 0) + l);
+      }
       const cd = parseFloat(r.cantitate_document);
       if (!isNaN(cd)) totalCantDoc += cd;
     });
-    return { totalPaleti, ladiByType, totalPaletiDoc, totalLaziDoc, totalCantDoc };
+    return { totalPaleti, ladiByType, ladiDocByType, totalPaletiDoc, totalLaziDoc, totalCantDoc };
   };
 
   // ============ EXPORT EXCEL ============
@@ -892,7 +903,15 @@ const ReceptionReport: React.FC = () => {
                     <TableCell colSpan={3} className="text-right">TOTAL document:</TableCell>
                     <TableCell className="text-sm text-center">{totals.totalPaletiDoc || "—"}</TableCell>
                     <TableCell className="text-sm text-center">{totals.totalLaziDoc || "—"}</TableCell>
-                    <TableCell />
+                    <TableCell className="text-[10px] leading-tight">
+                      {totals.ladiDocByType.size > 0 ? (
+                        <div className="flex flex-col gap-0.5">
+                          {Array.from(totals.ladiDocByType.entries()).map(([tip, cnt]) => (
+                            <span key={tip}>{tip}: <strong>{cnt}</strong></span>
+                          ))}
+                        </div>
+                      ) : "—"}
+                    </TableCell>
                     <TableCell className="bg-amber-50/50 dark:bg-amber-950/10 text-sm">
                       {totals.totalCantDoc > 0 ? totals.totalCantDoc.toFixed(2) : "—"}
                     </TableCell>
