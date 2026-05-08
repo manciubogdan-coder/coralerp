@@ -747,6 +747,7 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="min-w-[90px]">Producator</TableHead>
                     <TableHead className="min-w-[95px]">Paleți doc</TableHead>
                     <TableHead className="min-w-[95px]">Lăzi doc</TableHead>
+                    <TableHead className="min-w-[120px]">Tip lăzi doc</TableHead>
                     <TableHead className="bg-amber-50 dark:bg-amber-950/30 min-w-[110px]">Cant. doc</TableHead>
                     <TableHead className="w-[80px]">Cant. recep.</TableHead>
                     <TableHead className="w-[90px]">Tip lada/culoare</TableHead>
