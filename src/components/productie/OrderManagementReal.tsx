@@ -60,8 +60,8 @@ const OrderManagementReal = () => {
     const matchesDate = !selectedDate || 
       new Date(order.created_at).toISOString().split('T')[0] === selectedDate;
 
-    const orderProdDate = order.data_productie 
-      ? String(order.data_productie).split('T')[0] 
+    const orderProdDate = (order as any).data_productie 
+      ? String((order as any).data_productie).split('T')[0] 
       : null;
     const matchesProdDate = !productionDate || orderProdDate === productionDate;
 
