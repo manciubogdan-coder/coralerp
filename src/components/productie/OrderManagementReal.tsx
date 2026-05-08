@@ -376,6 +376,15 @@ const OrderManagementReal = () => {
                 onChange={(e) => setSelectedDate(e.target.value)}
               />
             </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Data producției programate</label>
+              <Input
+                type="date"
+                value={productionDate}
+                onChange={(e) => setProductionDate(e.target.value)}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
