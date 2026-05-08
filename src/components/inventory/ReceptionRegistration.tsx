@@ -171,7 +171,7 @@ export function ReceptionRegistration({
         pallets: cleanedPallets,
       });
 
-      const { error } = await supabase
+      const { data: insertedInv, error } = await (supabase as any)
         .from(inventoryTable)
         .insert({
           product_id: productId,
@@ -189,7 +189,9 @@ export function ReceptionRegistration({
           pallet_type_id: dominantPalletId,
           pallet_count: totalPalletCount || 0,
           receipt_date: new Date().toISOString()
-        } as any);
+        } as any)
+        .select('id')
+        .single();
 
       if (error) throw error;
 
@@ -224,7 +226,10 @@ export function ReceptionRegistration({
       }
 
       // Salvează breakdown-ul recepției în reception_report_data (doc rămâne gol)
-      if (latestRecordId && (cleanedPallets.length > 0 || cleanedCrates.length > 0)) {
+      // IMPORTANT: cheia este `inventory.id` (nu reception_records.id) pentru
+      // că raportul de Calitate citește reception_report_data after `inventory.id`.
+      const inventoryRowId: string | null = (insertedInv as any)?.id || null;
+      if (inventoryRowId && (cleanedPallets.length > 0 || cleanedCrates.length > 0)) {
         try {
           const encoded = encodePalDoc({
             ...emptyBreakdown(),
@@ -234,7 +239,7 @@ export function ReceptionRegistration({
           await (supabase as any)
             .from('reception_report_data')
             .upsert([{
-              inventory_id: latestRecordId,
+              inventory_id: inventoryRowId,
               inventory_type: inventoryType,
               paleti_lazi_document: encoded || null,
               cantitate_receptionata: quantityToSave,

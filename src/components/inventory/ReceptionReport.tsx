@@ -1266,11 +1266,39 @@ const ReceptionReport: React.FC = () => {
           </DialogHeader>
           {detailsDialog && (() => {
             const row = groups[detailsDialog.groupIdx].rows[detailsDialog.rowIdx];
-            const { bd } = parsePalDoc(row.paleti_lazi_document || "");
+            const parsed = parsePalDoc(row.paleti_lazi_document || "");
+            const bd: BreakdownPayload = {
+              rec_pallets: parsed.bd.rec_pallets,
+              rec_crates: parsed.bd.rec_crates,
+              doc_pallets: parsed.bd.doc_pallets,
+              doc_crates: parsed.bd.doc_crates,
+            };
+            // Fallback pentru date vechi (înainte de breakdown): folosește
+            // câmpurile single-tip din înregistrare ca să pre-populeze recepția.
+            if (bd.rec_pallets.length === 0 && (row.nr_paleti_rec || 0) > 0) {
+              bd.rec_pallets = [{ id: null, name: row.tip_palet || "", count: Number(row.nr_paleti_rec) || 0 }];
+            }
+            if (bd.rec_crates.length === 0 && (row.nr_lazi || 0) > 0) {
+              bd.rec_crates = [{ id: null, name: row.tip_lada_culoare || "", count: Number(row.nr_lazi) || 0 }];
+            }
             const update = (next: BreakdownPayload) => {
               const encoded = encodePalDoc(next);
               updateRow(detailsDialog.groupIdx, detailsDialog.rowIdx, "paleti_lazi_document", encoded);
             };
+            // Auto-rezolvă id pentru rândurile legacy cu doar name (caută în lista de tipuri).
+            const resolveIds = (rows: BreakdownEntry[], types: LookupRow[]): BreakdownEntry[] =>
+              rows.map((r) => {
+                if (r.id) return r;
+                const match = types.find(
+                  (t) => t.name.trim().toLowerCase() === (r.name || "").trim().toLowerCase()
+                );
+                return match ? { ...r, id: match.id, name: match.name } : r;
+              });
+            bd.rec_pallets = resolveIds(bd.rec_pallets, palletTypesList);
+            bd.rec_crates = resolveIds(bd.rec_crates, crateTypesList);
+            bd.doc_pallets = resolveIds(bd.doc_pallets, palletTypesList);
+            bd.doc_crates = resolveIds(bd.doc_crates, crateTypesList);
+
             const renderSection = (
               title: string,
               rows: BreakdownEntry[],
