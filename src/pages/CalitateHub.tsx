@@ -7,6 +7,7 @@ import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView"
 import DailyStockQuality from "@/components/inventory/DailyStockQuality";
 import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
 import ReceptionReport from "@/components/inventory/ReceptionReport";
+import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import BackToHubButton from "@/components/BackToHubButton";
 
 type DepotKey = "materii-prime" | "ambalaje" | "etichete";
@@ -22,6 +23,7 @@ const SUB_TABS = [
   { key: "stoc-calitate", label: "Stoc Zilnic Calitate" },
   { key: "consum-loturi", label: "Consum pe Loturi" },
   { key: "receptie", label: "Recepție" },
+  { key: "restocari", label: "Restocări" },
 ] as const;
 
 type SubTabKey = (typeof SUB_TABS)[number]["key"];
@@ -38,7 +40,7 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
   return (
     <ForceInventoryType type={type}>
       <Tabs value={sub} onValueChange={(v) => setSub(v as SubTabKey)} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-4">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-4">
           {SUB_TABS.map((t) => (
             <TabsTrigger key={t.key} value={t.key}>
               {t.label}
@@ -74,6 +76,14 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
           <Card>
             <CardContent className="p-4">
               <ReceptionReport />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="restocari">
+          <Card>
+            <CardContent className="p-4">
+              <MarfaRestocataView />
             </CardContent>
           </Card>
         </TabsContent>
