@@ -1254,6 +1254,93 @@ const ReceptionReport: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Detalii multi-tip dialog */}
+      <Dialog open={!!detailsDialog} onOpenChange={(o) => !o && setDetailsDialog(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Detalii paleți & lăzi: {detailsDialog && groups[detailsDialog.groupIdx]?.rows[detailsDialog.rowIdx]?.denumire_produs}
+            </DialogTitle>
+          </DialogHeader>
+          {detailsDialog && (() => {
+            const row = groups[detailsDialog.groupIdx].rows[detailsDialog.rowIdx];
+            const { bd } = parsePalDoc(row.paleti_lazi_document || "");
+            const update = (next: BreakdownPayload) => {
+              const encoded = encodePalDoc(next);
+              updateRow(detailsDialog.groupIdx, detailsDialog.rowIdx, "paleti_lazi_document", encoded);
+            };
+            const renderSection = (
+              title: string,
+              rows: BreakdownEntry[],
+              opts: { key: keyof BreakdownPayload; types: LookupRow[] }
+            ) => (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-sm">{title}</h4>
+                  <Button size="sm" variant="outline"
+                    onClick={() => update({ ...bd, [opts.key]: [...rows, { id: null, name: "", count: 0 }] })}>
+                    <Plus className="h-3 w-3 mr-1" /> Adaugă
+                  </Button>
+                </div>
+                {rows.length === 0 && <p className="text-xs text-muted-foreground">Niciun rând.</p>}
+                {rows.map((r2, i) => (
+                  <div key={i} className="grid grid-cols-[1fr,90px,40px] gap-2 items-center">
+                    <Select
+                      value={r2.id || (r2.name ? `__name__${r2.name}` : "")}
+                      onValueChange={(v) => {
+                        const t = opts.types.find((x) => x.id === v);
+                        const next = rows.map((rr, j) => j === i
+                          ? { ...rr, id: t?.id || null, name: t?.name || "" }
+                          : rr);
+                        update({ ...bd, [opts.key]: next });
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Tip" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px] overflow-y-auto">
+                        {opts.types.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input type="number" min="0" step="1" placeholder="Nr"
+                      value={r2.count || ""}
+                      onChange={(e) => {
+                        const c = parseInt(e.target.value) || 0;
+                        const next = rows.map((rr, j) => j === i ? { ...rr, count: c } : rr);
+                        update({ ...bd, [opts.key]: next });
+                      }}
+                      className="h-9 text-xs" />
+                    <Button size="sm" variant="ghost" className="h-9 w-9 p-0"
+                      onClick={() => update({ ...bd, [opts.key]: rows.filter((_, j) => j !== i) })}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            );
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4 p-3 border rounded-md">
+                  <h3 className="font-bold text-sm">Recepționat</h3>
+                  {renderSection("Paleți", bd.rec_pallets, { key: "rec_pallets", types: palletTypesList })}
+                  {renderSection("Lăzi", bd.rec_crates, { key: "rec_crates", types: crateTypesList })}
+                </div>
+                <div className="space-y-4 p-3 border rounded-md bg-amber-50/30 dark:bg-amber-950/10">
+                  <h3 className="font-bold text-sm">Document</h3>
+                  {renderSection("Paleți", bd.doc_pallets, { key: "doc_pallets", types: palletTypesList })}
+                  {renderSection("Lăzi", bd.doc_crates, { key: "doc_crates", types: crateTypesList })}
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button onClick={() => setDetailsDialog(null)}>Gata</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
