@@ -55,7 +55,12 @@ const AdvanceProductionManagement = () => {
 
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    const orderProdDate = (order as any).data_productie 
+      ? String((order as any).data_productie).split('T')[0] 
+      : null;
+    const matchesProdDate = !productionDate || orderProdDate === productionDate;
+
+    return matchesSearch && matchesStatus && matchesProdDate;
   });
 
   // Grupează pe status
