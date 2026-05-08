@@ -496,16 +496,26 @@ export function ReceptionRegistration({
             </div>
           )}
 
-          {/* Tip palet + nr paleți recepționați (toate cele 3 tipuri) */}
-          <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
-            <h3 className="font-semibold text-lg">Paleți recepționați</h3>
+          {/* Paleți recepționați - multi-tip */}
+          <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-lg">Paleți recepționați</h3>
+              <Button type="button" size="sm" variant="outline"
+                onClick={() => setPalletRows((rows) => [...rows, { id: null, name: "", count: 0 }])}>
+                <Plus className="h-3 w-3 mr-1" /> Adaugă tip
+              </Button>
+            </div>
             <p className="text-sm text-muted-foreground">
-              Tipul de palet și câți paleți ai primit pentru acest articol. Apar în raportul de Calitate.
+              Poți adăuga mai multe tipuri de paleți pentru același articol. Apar în raportul de Calitate.
             </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tip palet</label>
-                <Select value={palletTypeId || ''} onValueChange={(v) => setPalletTypeId(v || null)}>
+            {palletRows.map((row, idx) => (
+              <div key={idx} className="grid grid-cols-[1fr,110px,40px] gap-2 items-center">
+                <Select
+                  value={row.id || ''}
+                  onValueChange={(v) => setPalletRows((rows) => rows.map((r, i) => i === idx
+                    ? { ...r, id: v || null, name: palletTypes.find((p) => p.id === v)?.name || "" }
+                    : r))}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selectează tipul de palet" />
                   </SelectTrigger>
@@ -520,19 +530,31 @@ export function ReceptionRegistration({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nr. paleți recepționați</label>
                 <Input
                   type="number"
                   min="0"
                   step="1"
-                  value={palletCount || ''}
-                  onChange={(e) => setPalletCount(parseInt(e.target.value) || 0)}
+                  value={row.count || ''}
+                  onChange={(e) => setPalletRows((rows) => rows.map((r, i) => i === idx
+                    ? { ...r, count: parseInt(e.target.value) || 0 }
+                    : r))}
                   placeholder="ex: 2"
+                  disabled={!row.id}
                 />
+                <Button type="button" size="sm" variant="ghost"
+                  className="h-9 w-9 p-0"
+                  disabled={palletRows.length <= 1}
+                  onClick={() => setPalletRows((rows) => rows.filter((_, i) => i !== idx))}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
               </div>
-            </div>
+            ))}
+            <p className="text-xs text-muted-foreground">
+              Total paleți: <strong>{totalPalletCount}</strong>
+              {palletRows.some((r) => r.id && r.count > 0) && (
+                <> · {summarizeBreakdown(palletRows.filter((r) => r.id && r.count > 0).map((r) => ({ ...r, name: palletTypes.find((p) => p.id === r.id)?.name || "" })))}</>
+              )}
+            </p>
           </div>
 
           <div className="flex justify-end pt-4">
