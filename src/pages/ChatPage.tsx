@@ -784,18 +784,19 @@ const ChatPage: React.FC = () => {
                                 )}
                               </>
                             )}
-                            <div className={`text-[10px] mt-1 flex items-center gap-1 ${isMine ? "justify-end opacity-80" : "text-muted-foreground"}`}>
+                            <div className={`text-[10px] mt-1 flex items-center gap-1 ${isMine ? "justify-end opacity-90" : "text-muted-foreground"}`}>
                               <span>{format(new Date(m.created_at), "HH:mm")}</span>
                               {isMine && !m.deleted_for_all && (() => {
                                 const reads = memberLastRead[m.conversation_id] ?? {};
                                 const others = Object.entries(reads).filter(([uid]) => uid !== userId);
-                                if (others.length === 0) return null;
                                 const msgTime = new Date(m.created_at).getTime();
-                                const seenByAll = others.every(([, ts]) => ts && new Date(ts).getTime() >= msgTime);
+                                const seenByAll = others.length > 0 && others.every(([, ts]) => ts && new Date(ts).getTime() >= msgTime);
                                 const seenByAny = others.some(([, ts]) => ts && new Date(ts).getTime() >= msgTime);
+                                const label = seenByAll ? "Citit" : seenByAny ? "Citit de unii" : "Trimis";
+                                const color = seenByAll ? "text-sky-300" : "text-primary-foreground/70";
                                 return (
-                                  <span title={seenByAll ? "Citit" : seenByAny ? "Citit de unii" : "Trimis"}>
-                                    {seenByAll ? "✓✓" : seenByAny ? "✓✓" : "✓"}
+                                  <span title={label} className={`inline-flex items-center font-bold tracking-tighter text-xs ${color}`}>
+                                    {seenByAny || seenByAll ? "✓✓" : "✓"}
                                   </span>
                                 );
                               })()}
