@@ -557,6 +557,9 @@ const ReceptionReport: React.FC = () => {
   // Totaluri pe grup
   const groupTotals = (group: SupplierGroup) => {
     let totalPaleti = 0;
+    let totalPaletiDoc = 0;
+    let totalLaziDoc = 0;
+    let totalCantDoc = 0;
     const ladiByType = new Map<string, number>();
     group.rows.forEach((r) => {
       if (r.is_missing) return;
@@ -564,8 +567,16 @@ const ReceptionReport: React.FC = () => {
       if (r.tip_lada_culoare && r.nr_lazi) {
         ladiByType.set(r.tip_lada_culoare, (ladiByType.get(r.tip_lada_culoare) || 0) + r.nr_lazi);
       }
+      // Parse paleti_lazi_document (ex: "2P/ALB", "3L", "1P 4L")
+      const txt = r.paleti_lazi_document || "";
+      const pMatches = txt.match(/(\d+)\s*P/gi);
+      if (pMatches) pMatches.forEach((m) => { totalPaletiDoc += parseInt(m, 10) || 0; });
+      const lMatches = txt.match(/(\d+)\s*L/gi);
+      if (lMatches) lMatches.forEach((m) => { totalLaziDoc += parseInt(m, 10) || 0; });
+      const cd = parseFloat(r.cantitate_document);
+      if (!isNaN(cd)) totalCantDoc += cd;
     });
-    return { totalPaleti, ladiByType };
+    return { totalPaleti, ladiByType, totalPaletiDoc, totalLaziDoc, totalCantDoc };
   };
 
   // ============ EXPORT EXCEL ============
@@ -704,8 +715,8 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="w-8">Nr</TableHead>
                     <TableHead className="min-w-[110px]">Denumire produs</TableHead>
                     <TableHead className="min-w-[90px]">Producator</TableHead>
-                    <TableHead className="w-[80px]">Paleti/lazi doc</TableHead>
-                    <TableHead className="bg-amber-50 dark:bg-amber-950/30 w-[80px]">Cant. doc</TableHead>
+                    <TableHead className="min-w-[120px]">Paleti/lazi doc</TableHead>
+                    <TableHead className="bg-amber-50 dark:bg-amber-950/30 min-w-[110px]">Cant. doc</TableHead>
                     <TableHead className="w-[80px]">Cant. recep.</TableHead>
                     <TableHead className="w-[90px]">Tip lada/culoare</TableHead>
                     <TableHead className="w-[80px]">Tip palet</TableHead>
@@ -799,7 +810,16 @@ const ReceptionReport: React.FC = () => {
                 </TableBody>
                 <TableFooter>
                   <TableRow className="bg-muted/60 font-semibold">
-                    <TableCell colSpan={8} className="text-right">TOTAL paleți recepționați:</TableCell>
+                    <TableCell colSpan={3} className="text-right">TOTAL document:</TableCell>
+                    <TableCell className="text-xs">
+                      {totals.totalPaletiDoc > 0 && <span>{totals.totalPaletiDoc}P </span>}
+                      {totals.totalLaziDoc > 0 && <span>{totals.totalLaziDoc}L</span>}
+                      {totals.totalPaletiDoc === 0 && totals.totalLaziDoc === 0 && "—"}
+                    </TableCell>
+                    <TableCell className="bg-amber-50/50 dark:bg-amber-950/10 text-sm">
+                      {totals.totalCantDoc > 0 ? totals.totalCantDoc.toFixed(2) : "—"}
+                    </TableCell>
+                    <TableCell colSpan={3} className="text-right">Paleți rec:</TableCell>
                     <TableCell className="text-base">{totals.totalPaleti}</TableCell>
                     <TableCell colSpan={9}>
                       {totals.ladiByType.size > 0 && (
