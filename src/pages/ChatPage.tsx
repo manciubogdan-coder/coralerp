@@ -255,8 +255,10 @@ const ChatPage: React.FC = () => {
   // ---------- INITIAL LOAD ----------
   useEffect(() => {
     if (!userId) return;
+    const isDesktop = typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches;
     const savedActiveId = window.localStorage.getItem(activeConvStorageKey);
-    if (savedActiveId) setActiveId(savedActiveId);
+    // Pe mobil pornim mereu de la lista de conversații (nu auto-deschidem ultima)
+    if (savedActiveId && isDesktop) setActiveId(savedActiveId);
     (async () => {
       await loadProfiles();
       await ensureDepartmentChannels();
