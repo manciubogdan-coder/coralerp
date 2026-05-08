@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import {
-  CalendarIcon, Download, Save, Loader2, Plus, Camera, Trash2, X, AlertTriangle,
+  CalendarIcon, Download, Save, Loader2, Plus, Camera, Trash2, X, AlertTriangle, Layers,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -28,6 +28,15 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useInventoryType } from "@/context/inventory-type";
 import { emitNotification } from "@/lib/notifications";
+import {
+  type BreakdownEntry,
+  type BreakdownPayload,
+  decodePalDoc,
+  encodePalDoc,
+  emptyBreakdown,
+  summarizeBreakdown,
+  aggregateByType,
+} from "@/lib/receptionBreakdown";
 
 type InventoryRow = {
   id: string;
