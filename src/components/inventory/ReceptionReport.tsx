@@ -903,7 +903,15 @@ const ReceptionReport: React.FC = () => {
                     <TableCell colSpan={3} className="text-right">TOTAL document:</TableCell>
                     <TableCell className="text-sm text-center">{totals.totalPaletiDoc || "—"}</TableCell>
                     <TableCell className="text-sm text-center">{totals.totalLaziDoc || "—"}</TableCell>
-                    <TableCell />
+                    <TableCell className="text-[10px] leading-tight">
+                      {totals.ladiDocByType.size > 0 ? (
+                        <div className="flex flex-col gap-0.5">
+                          {Array.from(totals.ladiDocByType.entries()).map(([tip, cnt]) => (
+                            <span key={tip}>{tip}: <strong>{cnt}</strong></span>
+                          ))}
+                        </div>
+                      ) : "—"}
+                    </TableCell>
                     <TableCell className="bg-amber-50/50 dark:bg-amber-950/10 text-sm">
                       {totals.totalCantDoc > 0 ? totals.totalCantDoc.toFixed(2) : "—"}
                     </TableCell>
