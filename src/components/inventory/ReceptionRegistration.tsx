@@ -428,33 +428,61 @@ export function ReceptionRegistration({
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tip lădiță</label>
-                  <Select value={crateTypeId || ''} onValueChange={setCrateTypeId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selectează tipul de lădiță" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="no-crate">Fără lăzi</SelectItem>
-                      {crateTypes.map(crateType => (
-                        <SelectItem key={crateType.id} value={crateType.id}>
-                          {crateType.name} ({crateType.weight} kg)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Număr lădițe</label>
-                  <Input
-                    type="number"
-                    value={crateCount || ''}
-                    onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
-                    placeholder="Numărul de lăzi"
-                    disabled={!crateTypeId || crateTypeId === "no-crate"}
-                  />
+              {/* Lădițe multi-tip */}
+              <div className="space-y-3 mt-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Lădițe (multiple tipuri)</label>
+                  <Button type="button" size="sm" variant="outline"
+                    onClick={() => setCrateRows((rows) => [...rows, { id: null, name: "", count: 0 }])}>
+                    <Plus className="h-3 w-3 mr-1" /> Adaugă tip
+                  </Button>
                 </div>
+                {crateRows.map((row, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr,110px,40px] gap-2 items-center">
+                    <Select
+                      value={row.id || ''}
+                      onValueChange={(v) => setCrateRows((rows) => rows.map((r, i) => i === idx
+                        ? { ...r, id: v || null, name: crateTypes.find((c) => c.id === v)?.name || "" }
+                        : r))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selectează tipul de lădiță" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px] overflow-y-auto">
+                        {crateTypes.map((crateType) => (
+                          <SelectItem key={crateType.id} value={crateType.id}>
+                            {crateType.name} ({crateType.weight} kg)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={row.count || ''}
+                      onChange={(e) => setCrateRows((rows) => rows.map((r, i) => i === idx
+                        ? { ...r, count: parseInt(e.target.value) || 0 }
+                        : r))}
+                      placeholder="Nr. lăzi"
+                      disabled={!row.id}
+                    />
+                    <Button type="button" size="sm" variant="ghost"
+                      className="h-9 w-9 p-0"
+                      disabled={crateRows.length <= 1}
+                      onClick={() => setCrateRows((rows) => rows.filter((_, i) => i !== idx))}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  Total lăzi: <strong>{totalCrateCount}</strong>
+                  {crateRows.some((r) => r.id && r.count > 0) && (
+                    <> · {summarizeBreakdown(crateRows.filter((r) => r.id && r.count > 0).map((r) => ({ ...r, name: crateTypes.find((c) => c.id === r.id)?.name || "" })))}</>
+                  )}
+                </p>
               </div>
 
               <div className="mt-4 p-4 bg-background rounded-md border-2 border-primary/30">
