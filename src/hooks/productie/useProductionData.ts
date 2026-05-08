@@ -484,44 +484,62 @@ export const useDeleteClient = () => {
 export const useOrders = () => {
   return useQuery({
     queryKey: ['orders'],
+    staleTime: 15_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('productie_comenzi')
-        .select(`
-          *,
-          productie_produse(id, nume, unitate_masura, created_at, updated_at),
-          productie_linii(id, nume)
-        `)
-        .order('updated_at', { ascending: false })
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      // Găsim clientul pentru fiecare comandă bazat pe magazin și punct_livrare
-      const comandiCuClienti = await Promise.all(data.map(async (comanda) => {
-        const { data: client } = await supabase
-          .from('productie_clienti')
+      // PAGINARE — bypass limita de 1000 rânduri din Supabase
+      const PAGE = 1000;
+      let from = 0;
+      let allOrders: any[] = [];
+      while (true) {
+        const { data, error } = await supabase
+          .from('productie_comenzi')
           .select(`
             *,
-            productie_zone_livrare(*)
+            productie_produse(id, nume, unitate_masura, created_at, updated_at),
+            productie_linii(id, nume)
           `)
-          .eq('nume_magazin', comanda.magazin)
-          .eq('punct_livrare', comanda.punct_livrare)
-          .single();
-        
-        // Calculăm cantitatea reală produsă din sesiunile de lucru
+          .order('updated_at', { ascending: false })
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allOrders = allOrders.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      const data = allOrders;
+
+      // BATCH FETCH clienți: un singur query pentru toți clienții (lista e mică)
+      const { data: clientiData } = await supabase
+        .from('productie_clienti')
+        .select(`*, productie_zone_livrare(*)`);
+      const clientiMap = new Map<string, any>();
+      (clientiData || []).forEach((c: any) => {
+        clientiMap.set(`${c.nume_magazin}||${c.punct_livrare}`, c);
+      });
+
+      // BATCH FETCH sesiuni: în loturi de 50 ID-uri pentru a evita URL-uri prea lungi
+      const sesiuniMap = new Map<string, number>();
+      const orderIds = data.map((o: any) => o.id);
+      for (let i = 0; i < orderIds.length; i += 50) {
+        const chunk = orderIds.slice(i, i + 50);
         const { data: sesiuni } = await supabase
           .from('productie_sesiuni_lucru')
-          .select('cantitate_produsa')
-          .eq('comanda_id', comanda.id)
+          .select('comanda_id, cantitate_produsa, status')
+          .in('comanda_id', chunk)
           .in('status', ['finalizata', 'partial']);
-        
-        const totalProdusDinSesiuni = sesiuni?.reduce((total, sesiune) => 
-          total + Number(sesiune.cantitate_produsa || 0), 0) || 0;
+        (sesiuni || []).forEach((s: any) => {
+          const prev = sesiuniMap.get(s.comanda_id) || 0;
+          sesiuniMap.set(s.comanda_id, prev + Number(s.cantitate_produsa || 0));
+        });
+      }
+
+      const comandiCuClienti = data.map((comanda: any) => {
+        const client = clientiMap.get(`${comanda.magazin}||${comanda.punct_livrare}`) || null;
+        const totalProdusDinSesiuni = sesiuniMap.get(comanda.id) || 0;
         const cantitateDinRestock = esteComandaReambalare(comanda) ? 0 : Number(comanda.cantitate_din_restock || 0);
         const necesarMaximDinProductie = Math.max(0, Number(comanda.cantitate || 0) - cantitateDinRestock);
         const cantitateRealaProadusa = Math.min(totalProdusDinSesiuni, necesarMaximDinProductie);
-        
         return {
           ...comanda,
           productie_clienti: client,
@@ -530,7 +548,7 @@ export const useOrders = () => {
           cantitate_produsa_sesiuni: totalProdusDinSesiuni,
           cantitate_surplus_produsa: Math.max(0, totalProdusDinSesiuni - cantitateRealaProadusa)
         };
-      }));
+      });
       
       // Încearcă alocare automată din restocări pentru comenzi neacoperite (FIFO)
       for (const com of comandiCuClienti) {
