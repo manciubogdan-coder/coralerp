@@ -760,9 +760,32 @@ const ReceptionReport: React.FC = () => {
                         </TableCell>
                         <TableCell>{r.producator || "—"}</TableCell>
                         <TableCell>
-                          <Input value={r.paleti_lazi_document} placeholder="2P/ALB" disabled={r.is_missing}
-                            onChange={(e) => updateRow(gIdx, rIdx, "paleti_lazi_document", e.target.value)}
-                            className="h-7 text-xs px-1 w-full" />
+                          {(() => {
+                            const { p, l } = parsePalDoc(r.paleti_lazi_document || "");
+                            return (
+                              <Input type="number" min="0" step="1" placeholder="0"
+                                value={p ?? ""} disabled={r.is_missing}
+                                onChange={(e) => {
+                                  const np = e.target.value === "" ? null : parseInt(e.target.value, 10);
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(np, l));
+                                }}
+                                className="h-7 text-xs px-1 w-full" />
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const { p, l } = parsePalDoc(r.paleti_lazi_document || "");
+                            return (
+                              <Input type="number" min="0" step="1" placeholder="0"
+                                value={l ?? ""} disabled={r.is_missing}
+                                onChange={(e) => {
+                                  const nl = e.target.value === "" ? null : parseInt(e.target.value, 10);
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, nl));
+                                }}
+                                className="h-7 text-xs px-1 w-full" />
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="bg-amber-50/50 dark:bg-amber-950/10">
                           <Input type="number" step="0.01" placeholder="kg"
