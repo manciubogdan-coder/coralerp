@@ -849,11 +849,8 @@ const ReceptionReport: React.FC = () => {
                 <TableFooter>
                   <TableRow className="bg-muted/60 font-semibold">
                     <TableCell colSpan={3} className="text-right">TOTAL document:</TableCell>
-                    <TableCell className="text-xs">
-                      {totals.totalPaletiDoc > 0 && <span>{totals.totalPaletiDoc}P </span>}
-                      {totals.totalLaziDoc > 0 && <span>{totals.totalLaziDoc}L</span>}
-                      {totals.totalPaletiDoc === 0 && totals.totalLaziDoc === 0 && "—"}
-                    </TableCell>
+                    <TableCell className="text-sm text-center">{totals.totalPaletiDoc || "—"}</TableCell>
+                    <TableCell className="text-sm text-center">{totals.totalLaziDoc || "—"}</TableCell>
                     <TableCell className="bg-amber-50/50 dark:bg-amber-950/10 text-sm">
                       {totals.totalCantDoc > 0 ? totals.totalCantDoc.toFixed(2) : "—"}
                     </TableCell>
