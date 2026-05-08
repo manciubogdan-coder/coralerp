@@ -215,6 +215,7 @@ const ReceptionReport: React.FC = () => {
       const key = r.name.trim().toLowerCase();
       if (!merged.has(key)) merged.set(key, r);
     });
+    setCrateTypesList(Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name)));
   };
 
   const loadPalletTypes = async () => {
