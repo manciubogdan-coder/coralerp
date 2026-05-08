@@ -192,6 +192,14 @@ const ReceptionReport: React.FC = () => {
     setProductsList((data as any[]) || []);
   };
 
+  const loadCrateTypes = async () => {
+    const { data } = await (supabase as any)
+      .from(getCrateTable(inventoryType))
+      .select("id, name")
+      .order("name");
+    setCrateTypesList((data as LookupRow[]) || []);
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
