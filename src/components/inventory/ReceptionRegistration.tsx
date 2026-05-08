@@ -45,16 +45,21 @@ export function ReceptionRegistration({
   
   // Câmpuri pentru calcul - nu se salvează
   const [grossQuantity, setGrossQuantity] = useState<number>(0);
-  const [crateTypeId, setCrateTypeId] = useState<string | null>(null);
-  const [crateCount, setCrateCount] = useState<number>(0);
   const [palletWeight, setPalletWeight] = useState<number>(0);
-  
+
+  // Breakdown multi-tip pentru lăzi recepționate (înlocuiește single crateTypeId/crateCount)
+  const [crateRows, setCrateRows] = useState<BreakdownEntry[]>([
+    { id: null, name: "", count: 0 },
+  ]);
+
+  // Breakdown multi-tip pentru paleți recepționați (înlocuiește single palletTypeId/palletCount)
+  const [palletRows, setPalletRows] = useState<BreakdownEntry[]>([
+    { id: null, name: "", count: 0 },
+  ]);
+
   // Cantitatea netă calculată - aceasta se salvează
   const [netQuantity, setNetQuantity] = useState<number>(0);
 
-  // Tip palet + nr paleți recepționați (se salvează în reception_records)
-  const [palletTypeId, setPalletTypeId] = useState<string | null>(null);
-  const [palletCount, setPalletCount] = useState<number>(0);
   const [palletTypes, setPalletTypes] = useState<{ id: string; name: string }[]>([]);
 
   const palletTypesTable = inventoryType === "ambalaje"
@@ -75,13 +80,17 @@ export function ReceptionRegistration({
 
   const selectedProduct = products.find(p => p.id === productId);
 
-  // Recalculez cantitatea netă când se schimbă valorile
+  // Recalculez cantitatea netă pe baza tuturor tipurilor de lăzi alese
   React.useEffect(() => {
-    const selectedCrateType = crateTypes.find(ct => ct.id === crateTypeId);
-    const crateWeight = selectedCrateType && crateTypeId !== "no-crate" ? selectedCrateType.weight * crateCount : 0;
-    const calculatedNet = Math.max(0, grossQuantity - crateWeight - palletWeight);
+    const totalCrateWeight = crateRows.reduce((sum, row) => {
+      if (!row.id) return sum;
+      const ct = crateTypes.find((c) => c.id === row.id);
+      if (!ct) return sum;
+      return sum + ct.weight * (Number(row.count) || 0);
+    }, 0);
+    const calculatedNet = Math.max(0, grossQuantity - totalCrateWeight - palletWeight);
     setNetQuantity(calculatedNet);
-  }, [crateCount, crateTypeId, crateTypes, grossQuantity, palletWeight]);
+  }, [crateRows, crateTypes, grossQuantity, palletWeight]);
 
   // Pentru etichete, cantitatea netă = cantitatea introdusă direct (fără calcul lăzi/paleți)
   const isEtichete = inventoryType === 'etichete';
