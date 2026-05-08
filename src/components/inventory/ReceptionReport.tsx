@@ -1285,6 +1285,20 @@ const ReceptionReport: React.FC = () => {
               const encoded = encodePalDoc(next);
               updateRow(detailsDialog.groupIdx, detailsDialog.rowIdx, "paleti_lazi_document", encoded);
             };
+            // Auto-rezolvă id pentru rândurile legacy cu doar name (caută în lista de tipuri).
+            const resolveIds = (rows: BreakdownEntry[], types: LookupRow[]): BreakdownEntry[] =>
+              rows.map((r) => {
+                if (r.id) return r;
+                const match = types.find(
+                  (t) => t.name.trim().toLowerCase() === (r.name || "").trim().toLowerCase()
+                );
+                return match ? { ...r, id: match.id, name: match.name } : r;
+              });
+            bd.rec_pallets = resolveIds(bd.rec_pallets, palletTypesList);
+            bd.rec_crates = resolveIds(bd.rec_crates, crateTypesList);
+            bd.doc_pallets = resolveIds(bd.doc_pallets, palletTypesList);
+            bd.doc_crates = resolveIds(bd.doc_crates, crateTypesList);
+
             const renderSection = (
               title: string,
               rows: BreakdownEntry[],
