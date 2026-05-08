@@ -63,6 +63,17 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     return idx === -1 ? 999 : idx;
   };
 
+  const normalizeProductionDate = (value?: string | null) => {
+    if (!value) return null;
+    return String(value).slice(0, 10);
+  };
+
+  const matchesSelectedDay = (order: any) => {
+    const dp = normalizeProductionDate((order as any).data_productie);
+    if (dp) return dp === selectedDay;
+    return selectedDay === todayISO();
+  };
+
   // Helper: o comandă este "finalizată/acoperită" pentru sortare
   const isOrderDone = (o: any) => {
     if (o.status === 'completed') return true;
@@ -75,12 +86,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const lineOrders = view === 'orders' && currentLineId ? orders?.filter(order => {
     if (order.linie_id !== currentLineId) return false;
     // Filtrare pe ziua selectată (data_productie); comenzile fără data_productie apar doar la "azi"
-    const dp = (order as any).data_productie;
-    if (dp) {
-      if (dp !== selectedDay) return false;
-    } else {
-      if (selectedDay !== todayISO()) return false;
-    }
+    if (!matchesSelectedDay(order)) return false;
     return true;
   }).sort((a, b) => {
     // Comenzile finalizate/acoperite merg la coadă întotdeauna
@@ -669,6 +675,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           // De lucrat = comenzi care nu sunt completed ȘI nu sunt complet acoperite (din producție + restock)
           const lineOrdersCount = orders?.filter(order => {
             if (order.linie_id !== line.id) return false;
+            if (!matchesSelectedDay(order)) return false;
             if (order.status === 'completed') return false;
             const esteReambalare = (order as any).magazin === 'REAMBALARE' || (order as any).tip_comanda === 'REAMBALARE';
             const acoperit = (order.cantitate_reala_produsa || 0) + (esteReambalare ? 0 : (order.cantitate_din_restock || 0));
