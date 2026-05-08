@@ -189,7 +189,9 @@ export function ReceptionRegistration({
           pallet_type_id: dominantPalletId,
           pallet_count: totalPalletCount || 0,
           receipt_date: new Date().toISOString()
-        } as any);
+        } as any)
+        .select('id')
+        .single();
 
       if (error) throw error;
 
