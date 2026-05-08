@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import {
-  CalendarIcon, Download, Save, Loader2, Plus, Camera, Trash2, X, AlertTriangle,
+  CalendarIcon, Download, Save, Loader2, Plus, Camera, Trash2, X, AlertTriangle, Layers,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -28,6 +28,15 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useInventoryType } from "@/context/inventory-type";
 import { emitNotification } from "@/lib/notifications";
+import {
+  type BreakdownEntry,
+  type BreakdownPayload,
+  decodePalDoc,
+  encodePalDoc,
+  emptyBreakdown,
+  summarizeBreakdown,
+  aggregateByType,
+} from "@/lib/receptionBreakdown";
 
 type InventoryRow = {
   id: string;
@@ -160,11 +169,13 @@ const ReceptionReport: React.FC = () => {
   const [defectsList, setDefectsList] = useState<LookupRow[]>([]);
   const [crateTypeMap, setCrateTypeMap] = useState<Map<string, string>>(new Map());
   const [crateTypesList, setCrateTypesList] = useState<LookupRow[]>([]);
+  const [palletTypesList, setPalletTypesList] = useState<LookupRow[]>([]);
 
   // Dialogs
   const [photoDialog, setPhotoDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
   const [defectsDialog, setDefectsDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
   const [missingDialog, setMissingDialog] = useState<{ groupIdx: number } | null>(null);
+  const [detailsDialog, setDetailsDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
 
   // Missing item form
   const [missingForm, setMissingForm] = useState<{
@@ -204,7 +215,21 @@ const ReceptionReport: React.FC = () => {
       const key = r.name.trim().toLowerCase();
       if (!merged.has(key)) merged.set(key, r);
     });
-    setCrateTypesList(Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name)));
+  };
+
+  const loadPalletTypes = async () => {
+    const tables = ["pallet_types", "ambalaje_pallet_types", "etichete_pallet_types"];
+    const results = await Promise.all(
+      tables.map((t) =>
+        (supabase as any).from(t).select("id, name").order("name").then((r: any) => (r.data as LookupRow[]) || [])
+      )
+    );
+    const merged = new Map<string, LookupRow>();
+    results.flat().forEach((r) => {
+      const key = r.name.trim().toLowerCase();
+      if (!merged.has(key)) merged.set(key, r);
+    });
+    setPalletTypesList(Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name)));
   };
 
   const loadData = async () => {
@@ -351,6 +376,7 @@ const ReceptionReport: React.FC = () => {
     loadDefects();
     loadProducts();
     loadCrateTypes();
+    loadPalletTypes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, inventoryType]);
 
@@ -571,19 +597,47 @@ const ReceptionReport: React.FC = () => {
     }
   };
 
-  // Parse "2P/3L" sau "2P/3L||TipLada" în {p, l, tip}
-  const parsePalDoc = (txt: string): { p: number | null; l: number | null; tip: string } => {
-    if (!txt) return { p: null, l: null, tip: "" };
-    const [counts, tip = ""] = txt.split("||");
-    const pMatch = counts.match(/(\d+)\s*P/i);
-    const lMatch = counts.match(/(\d+)\s*L/i);
+  // Parse "2P/3L" / "2P/3L||TipLada" / "2P/3L||TipLada||BD:..." în {p, l, tip, bd}
+  const parsePalDoc = (txt: string): {
+    p: number | null; l: number | null; tip: string; bd: BreakdownPayload;
+  } => {
+    const decoded = decodePalDoc(txt || "");
     return {
-      p: pMatch ? parseInt(pMatch[1], 10) : null,
-      l: lMatch ? parseInt(lMatch[1], 10) : null,
-      tip: tip.trim(),
+      p: decoded.totalDocP,
+      l: decoded.totalDocL,
+      tip: decoded.legacyTipLada,
+      bd: decoded.breakdown,
     };
   };
-  const formatPalDoc = (p: number | null, l: number | null, tip: string = ""): string => {
+
+  // Reformat — preservă breakdown-ul existent (sau îl reflectă din p/l/tip pentru flow-ul vechi).
+  const formatPalDoc = (
+    p: number | null, l: number | null, tip: string = "", bd?: BreakdownPayload
+  ): string => {
+    const isEmpty = (!p || p <= 0) && (!l || l <= 0) && !tip && (!bd || (
+      bd.rec_pallets.length === 0 && bd.rec_crates.length === 0 &&
+      bd.doc_pallets.length === 0 && bd.doc_crates.length === 0
+    ));
+    if (isEmpty) return "";
+
+    if (bd) {
+      // Sincronizează totalurile doc cu p/l (păstrează intrarea unică din UI dacă există)
+      const next: BreakdownPayload = {
+        rec_pallets: bd.rec_pallets,
+        rec_crates: bd.rec_crates,
+        doc_pallets: bd.doc_pallets.length > 0 ? bd.doc_pallets : (p && p > 0 ? [{ id: null, name: "", count: p }] : []),
+        doc_crates: bd.doc_crates.length > 0 ? bd.doc_crates : (l && l > 0 ? [{ id: null, name: tip, count: l }] : []),
+      };
+      // Dacă utilizatorul modifică totalurile p/l din inputurile simple (un singur tip), reflectă-le
+      if (p != null && next.doc_pallets.length === 1) next.doc_pallets[0].count = p;
+      if (l != null && next.doc_crates.length === 1) {
+        next.doc_crates[0].count = l;
+        if (tip) next.doc_crates[0].name = tip;
+      }
+      return encodePalDoc(next);
+    }
+
+    // Fără breakdown — format simplu
     const parts: string[] = [];
     if (p != null && p > 0) parts.push(`${p}P`);
     if (l != null && l > 0) parts.push(`${l}L`);
@@ -599,22 +653,68 @@ const ReceptionReport: React.FC = () => {
     let totalCantDoc = 0;
     const ladiByType = new Map<string, number>();
     const ladiDocByType = new Map<string, number>();
+    const paletiRecByType = new Map<string, number>();
+    const paletiDocByType = new Map<string, number>();
+    const laziRecByType = new Map<string, number>();
     group.rows.forEach((r) => {
       if (r.is_missing) return;
-      totalPaleti += r.nr_paleti_rec || 0;
-      if (r.tip_lada_culoare && r.nr_lazi) {
+      const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+
+      // Recepție din breakdown (multi-tip) — fallback la coloanele simple dacă nu există BD
+      if (bd.rec_pallets.length > 0) {
+        bd.rec_pallets.forEach((row) => {
+          if ((row.count || 0) <= 0) return;
+          totalPaleti += row.count;
+          if (row.name) paletiRecByType.set(row.name, (paletiRecByType.get(row.name) || 0) + row.count);
+        });
+      } else {
+        totalPaleti += r.nr_paleti_rec || 0;
+        if (r.tip_palet && r.nr_paleti_rec) {
+          paletiRecByType.set(r.tip_palet, (paletiRecByType.get(r.tip_palet) || 0) + r.nr_paleti_rec);
+        }
+      }
+
+      if (bd.rec_crates.length > 0) {
+        bd.rec_crates.forEach((row) => {
+          if ((row.count || 0) <= 0 || !row.name) return;
+          ladiByType.set(row.name, (ladiByType.get(row.name) || 0) + row.count);
+          laziRecByType.set(row.name, (laziRecByType.get(row.name) || 0) + row.count);
+        });
+      } else if (r.tip_lada_culoare && r.nr_lazi) {
         ladiByType.set(r.tip_lada_culoare, (ladiByType.get(r.tip_lada_culoare) || 0) + r.nr_lazi);
+        laziRecByType.set(r.tip_lada_culoare, (laziRecByType.get(r.tip_lada_culoare) || 0) + r.nr_lazi);
       }
-      const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
-      if (p) totalPaletiDoc += p;
-      if (l) totalLaziDoc += l;
-      if (tip && l) {
-        ladiDocByType.set(tip, (ladiDocByType.get(tip) || 0) + l);
+
+      // Document din breakdown
+      if (bd.doc_pallets.length > 0) {
+        bd.doc_pallets.forEach((row) => {
+          if ((row.count || 0) <= 0) return;
+          totalPaletiDoc += row.count;
+          if (row.name) paletiDocByType.set(row.name, (paletiDocByType.get(row.name) || 0) + row.count);
+        });
+      } else if (p) {
+        totalPaletiDoc += p;
       }
+
+      if (bd.doc_crates.length > 0) {
+        bd.doc_crates.forEach((row) => {
+          if ((row.count || 0) <= 0) return;
+          totalLaziDoc += row.count;
+          if (row.name) ladiDocByType.set(row.name, (ladiDocByType.get(row.name) || 0) + row.count);
+        });
+      } else {
+        if (l) totalLaziDoc += l;
+        if (tip && l) ladiDocByType.set(tip, (ladiDocByType.get(tip) || 0) + l);
+      }
+
       const cd = parseFloat(r.cantitate_document);
       if (!isNaN(cd)) totalCantDoc += cd;
     });
-    return { totalPaleti, ladiByType, ladiDocByType, totalPaletiDoc, totalLaziDoc, totalCantDoc };
+    return {
+      totalPaleti, ladiByType, ladiDocByType,
+      totalPaletiDoc, totalLaziDoc, totalCantDoc,
+      paletiRecByType, paletiDocByType, laziRecByType,
+    };
   };
 
   // ============ EXPORT EXCEL ============
@@ -761,8 +861,8 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="min-w-[120px]">Tip lăzi doc</TableHead>
                     <TableHead className="bg-amber-50 dark:bg-amber-950/30 min-w-[110px]">Cant. doc</TableHead>
                     <TableHead className="w-[80px]">Cant. recep.</TableHead>
-                    <TableHead className="w-[90px]">Tip lada/culoare</TableHead>
-                    <TableHead className="w-[80px]">Tip palet</TableHead>
+                    <TableHead className="min-w-[110px]">Tip lada/culoare</TableHead>
+                    <TableHead className="min-w-[100px]">Tip palet</TableHead>
                     <TableHead className="w-[60px]">Nr paleti rec</TableHead>
                     <TableHead className="w-[50px]">Nr Lazi</TableHead>
                     <TableHead className="w-[60px]">Diferență</TableHead>
@@ -772,6 +872,7 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="w-[70px]">Kg consid.</TableHead>
                     <TableHead className="w-[80px]">Defecte</TableHead>
                     <TableHead className="w-[70px]">Poze</TableHead>
+                    <TableHead className="w-[70px]">Detalii</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -789,13 +890,25 @@ const ReceptionReport: React.FC = () => {
                         <TableCell>{r.producator || "—"}</TableCell>
                         <TableCell>
                           {(() => {
-                            const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
+                            const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+                            const multi = bd.doc_pallets.length > 1;
+                            if (multi) {
+                              return (
+                                <button
+                                  type="button"
+                                  className="text-xs text-left underline-offset-2 hover:underline"
+                                  onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}
+                                >
+                                  {summarizeBreakdown(bd.doc_pallets)}
+                                </button>
+                              );
+                            }
                             return (
                               <Input type="number" min="0" step="1" placeholder="0"
                                 value={p ?? ""} disabled={r.is_missing}
                                 onChange={(e) => {
                                   const np = e.target.value === "" ? null : parseInt(e.target.value, 10);
-                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(np, l, tip));
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(np, l, tip, bd));
                                 }}
                                 className="h-7 text-xs px-1 w-full" />
                             );
@@ -803,13 +916,25 @@ const ReceptionReport: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
+                            const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+                            const multi = bd.doc_crates.length > 1;
+                            if (multi) {
+                              return (
+                                <button
+                                  type="button"
+                                  className="text-xs text-left underline-offset-2 hover:underline"
+                                  onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}
+                                >
+                                  {summarizeBreakdown(bd.doc_crates)}
+                                </button>
+                              );
+                            }
                             return (
                               <Input type="number" min="0" step="1" placeholder="0"
                                 value={l ?? ""} disabled={r.is_missing}
                                 onChange={(e) => {
                                   const nl = e.target.value === "" ? null : parseInt(e.target.value, 10);
-                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, nl, tip));
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, nl, tip, bd));
                                 }}
                                 className="h-7 text-xs px-1 w-full" />
                             );
@@ -817,14 +942,18 @@ const ReceptionReport: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
+                            const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+                            const multi = bd.doc_crates.length > 1;
+                            if (multi) {
+                              return <span className="text-[10px] text-muted-foreground">multi</span>;
+                            }
                             return (
                               <Select
                                 value={tip || "__none__"}
                                 disabled={r.is_missing}
                                 onValueChange={(v) => {
                                   const newTip = v === "__none__" ? "" : v;
-                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, l, newTip));
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, l, newTip, bd));
                                 }}>
                                 <SelectTrigger className="h-7 text-xs px-2 w-full">
                                   <SelectValue placeholder="—" />
@@ -848,10 +977,23 @@ const ReceptionReport: React.FC = () => {
                         <TableCell className={cn("font-semibold", r.is_missing && "text-red-600")}>
                           {r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`}
                         </TableCell>
-                        <TableCell>{r.tip_lada_culoare || "—"}</TableCell>
-                        <TableCell>{r.tip_palet || "—"}</TableCell>
-                        <TableCell className="font-semibold">{r.nr_paleti_rec ?? "—"}</TableCell>
-                        <TableCell className="font-semibold">{r.nr_lazi ?? "—"}</TableCell>
+                        {(() => {
+                          const { bd } = parsePalDoc(r.paleti_lazi_document || "");
+                          const recC = bd.rec_crates;
+                          const recP = bd.rec_pallets;
+                          const tipLada = recC.length > 0 ? summarizeBreakdown(recC) : (r.tip_lada_culoare || "—");
+                          const tipPalet = recP.length > 0 ? summarizeBreakdown(recP) : (r.tip_palet || "—");
+                          const totalRecP = recP.length > 0 ? recP.reduce((s, x) => s + (x.count || 0), 0) : (r.nr_paleti_rec ?? null);
+                          const totalRecL = recC.length > 0 ? recC.reduce((s, x) => s + (x.count || 0), 0) : (r.nr_lazi ?? null);
+                          return (
+                            <>
+                              <TableCell className="text-[11px]">{tipLada}</TableCell>
+                              <TableCell className="text-[11px]">{tipPalet}</TableCell>
+                              <TableCell className="font-semibold">{totalRecP ?? "—"}</TableCell>
+                              <TableCell className="font-semibold">{totalRecL ?? "—"}</TableCell>
+                            </>
+                          );
+                        })()}
                         <TableCell className={cn("font-semibold",
                           dif != null && dif < 0 && "text-destructive",
                           dif != null && dif > 0 && "text-green-600")}>
@@ -887,6 +1029,18 @@ const ReceptionReport: React.FC = () => {
                           </Button>
                         </TableCell>
                         <TableCell>
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
+                            disabled={r.is_missing}
+                            onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+                            <Layers className="h-3 w-3 mr-1" />
+                            {(() => {
+                              const { bd } = parsePalDoc(r.paleti_lazi_document || "");
+                              const n = bd.rec_pallets.length + bd.rec_crates.length + bd.doc_pallets.length + bd.doc_crates.length;
+                              return n > 0 ? n : "+";
+                            })()}
+                          </Button>
+                        </TableCell>
+                        <TableCell>
                           {r.is_missing && r.missing_id && (
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
                               onClick={() => handleRemoveMissing(r.missing_id!)}>
@@ -917,7 +1071,7 @@ const ReceptionReport: React.FC = () => {
                     </TableCell>
                     <TableCell colSpan={3} className="text-right">Paleți rec:</TableCell>
                     <TableCell className="text-base">{totals.totalPaleti}</TableCell>
-                    <TableCell colSpan={9}>
+                    <TableCell colSpan={10}>
                       {totals.ladiByType.size > 0 && (
                         <div className="flex flex-wrap gap-3 text-xs">
                           {Array.from(totals.ladiByType.entries()).map(([tip, cnt]) => (
@@ -1097,6 +1251,93 @@ const ReceptionReport: React.FC = () => {
             <Button onClick={handleAddMissing}>
               <Plus className="h-4 w-4 mr-2" />Marchează ca lipsă
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detalii multi-tip dialog */}
+      <Dialog open={!!detailsDialog} onOpenChange={(o) => !o && setDetailsDialog(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Detalii paleți & lăzi: {detailsDialog && groups[detailsDialog.groupIdx]?.rows[detailsDialog.rowIdx]?.denumire_produs}
+            </DialogTitle>
+          </DialogHeader>
+          {detailsDialog && (() => {
+            const row = groups[detailsDialog.groupIdx].rows[detailsDialog.rowIdx];
+            const { bd } = parsePalDoc(row.paleti_lazi_document || "");
+            const update = (next: BreakdownPayload) => {
+              const encoded = encodePalDoc(next);
+              updateRow(detailsDialog.groupIdx, detailsDialog.rowIdx, "paleti_lazi_document", encoded);
+            };
+            const renderSection = (
+              title: string,
+              rows: BreakdownEntry[],
+              opts: { key: keyof BreakdownPayload; types: LookupRow[] }
+            ) => (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-sm">{title}</h4>
+                  <Button size="sm" variant="outline"
+                    onClick={() => update({ ...bd, [opts.key]: [...rows, { id: null, name: "", count: 0 }] })}>
+                    <Plus className="h-3 w-3 mr-1" /> Adaugă
+                  </Button>
+                </div>
+                {rows.length === 0 && <p className="text-xs text-muted-foreground">Niciun rând.</p>}
+                {rows.map((r2, i) => (
+                  <div key={i} className="grid grid-cols-[1fr,90px,40px] gap-2 items-center">
+                    <Select
+                      value={r2.id || (r2.name ? `__name__${r2.name}` : "")}
+                      onValueChange={(v) => {
+                        const t = opts.types.find((x) => x.id === v);
+                        const next = rows.map((rr, j) => j === i
+                          ? { ...rr, id: t?.id || null, name: t?.name || "" }
+                          : rr);
+                        update({ ...bd, [opts.key]: next });
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Tip" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px] overflow-y-auto">
+                        {opts.types.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input type="number" min="0" step="1" placeholder="Nr"
+                      value={r2.count || ""}
+                      onChange={(e) => {
+                        const c = parseInt(e.target.value) || 0;
+                        const next = rows.map((rr, j) => j === i ? { ...rr, count: c } : rr);
+                        update({ ...bd, [opts.key]: next });
+                      }}
+                      className="h-9 text-xs" />
+                    <Button size="sm" variant="ghost" className="h-9 w-9 p-0"
+                      onClick={() => update({ ...bd, [opts.key]: rows.filter((_, j) => j !== i) })}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            );
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4 p-3 border rounded-md">
+                  <h3 className="font-bold text-sm">Recepționat</h3>
+                  {renderSection("Paleți", bd.rec_pallets, { key: "rec_pallets", types: palletTypesList })}
+                  {renderSection("Lăzi", bd.rec_crates, { key: "rec_crates", types: crateTypesList })}
+                </div>
+                <div className="space-y-4 p-3 border rounded-md bg-amber-50/30 dark:bg-amber-950/10">
+                  <h3 className="font-bold text-sm">Document</h3>
+                  {renderSection("Paleți", bd.doc_pallets, { key: "doc_pallets", types: palletTypesList })}
+                  {renderSection("Lăzi", bd.doc_crates, { key: "doc_crates", types: crateTypesList })}
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button onClick={() => setDetailsDialog(null)}>Gata</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

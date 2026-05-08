@@ -1,101 +1,78 @@
+## Obiectiv
 
-# Promptul 1 — Fundație ERP pe 8 departamente
+Permite mai multe tipuri de paleți și lăzi pe același articol, atât la **înregistrarea recepției** (`ReceptionRegistration`) cât și la **raportul de calitate** (`ReceptionReport`), cu perechi recepționat ↔ document defalcate pe fiecare tip și totalizare pe tip.
 
-Scop: pregătesc proiectul ca shell ERP cu acces pe rol și sidebar grupat pe departamente, fără să sparg nimic din ce funcționează acum (Inventar, Recepție, Forecast, Producție, Audit, Useri).
+## Constrângere tehnică
 
-Nu migrez încă nimic din `productiecoral-18` — asta vine în Promptul 2.
+DB-ul folosit este cel legacy (`mfcdlifjxxdrekzdatfb`) — nu putem rula migrări prin Lovable Cloud pe el. Folosim aceeași strategie de encoding string pe care o folosim deja la `paleti_lazi_document` (`2P/10L||TipLada`), extinsă cu un sufix `||BD:<base64-json>` pentru breakdown-ul detaliat. Tabelele rămân neschimbate.
 
-## 1. Bază de date (migrare)
-
-Extind enum-ul `app_role` cu 8 valori noi (admin rămâne):
+## Format encoding `paleti_lazi_document`
 
 ```
-achizitii, depozit_mp, depozit_ambalaje, etichete,
-productie, picking_vanzari, mentenanta, administrativ
+{nrPaletiTotal}P/{nrLaziTotal}L||{tipLadaPrincipal}||BD:{base64(JSON)}
 ```
 
-Adaug funcție security-definer pentru verificare acces pe departament, folosită în RLS și în UI:
-
-```sql
-create or replace function public.has_department_access(_user_id uuid, _dept app_role)
-returns boolean
-language sql stable security definer set search_path = public
-as $$
-  select exists (
-    select 1 from public.app_user_roles
-    where user_id = _user_id
-      and role in (_dept, 'admin')
-  )
-$$;
+JSON-ul conține breakdown-ul complet:
+```json
+{
+  "rec_pallets": [{"id":"uuid","name":"EUR","count":2}, {"id":"uuid","name":"IND","count":1}],
+  "rec_crates":  [{"id":"uuid","name":"Neagra","count":10}, {"id":"uuid","name":"Verde","count":5}],
+  "doc_pallets": [{"id":"uuid","name":"EUR","count":2}],
+  "doc_crates":  [{"id":"uuid","name":"Neagra","count":10}]
+}
 ```
 
-`admin` rămâne super-rol (vede tot). `app_user_roles` poate avea mai multe rânduri per user (multi-departament).
+`nrPaletiTotal` / `nrLaziTotal` rămân suma breakdown-ului, ca să nu strice exporturile/footerele actuale.
 
-## 2. Frontend — `AuthContext`
+## Modificări UI
 
-Extind `AuthContext` cu:
-- `departments: AppRole[]` — toate rolurile non-admin ale userului curent
-- `hasDepartment(dept): boolean` — `isAdmin || departments.includes(dept)`
+### 1. `ReceptionRegistration.tsx`
+Înlocuim secțiunea „Paleți recepționați" (un singur tip palet + un singur tip lădiță) cu două blocuri cu rânduri dinamice:
 
-Schimb fetch-ul de roluri să ia toate rândurile, nu doar `admin`.
+- **Paleți recepționați (multi-tip)** — listă de `{tipPaletId, count}` cu butoane Adaugă rând / Șterge rând. Primul rând e cel implicit. Total paleți afișat dedesubt.
+- **Lădițe recepționate (multi-tip)** — la fel pentru lăzi: `{tipLadaId, count}`. Greutatea lădițelor pentru calculul cantității nete devine suma `count * weight` pe toate rândurile.
 
-## 3. `ProtectedRoute` extins
+La salvare:
+- în `reception_records` scriem totalurile (primul tip rămâne în `pallet_type_id`/`crate_type_id` ca „dominant" pentru compatibilitate; sumele în `pallet_count`/`crate_count`).
+- după insert, scriem un rând în `reception_report_data` cu `paleti_lazi_document` deja codat cu breakdown-ul recepție (doc rămâne gol — se completează în raport).
 
-Adaug prop opțional `requireDepartment?: AppRole`. Dacă e setat și userul nu are acces (nici admin, nici rolul respectiv) → redirect la `/`.
+### 2. `ReceptionReport.tsx`
+- Înlocuim cele 3 coloane curente (Paleți doc / Lăzi doc / Tip lăzi doc) și inputurile pentru paleți doc / lăzi doc cu un **buton „Detalii"** într-o singură coloană care deschide un dialog.
+- **Dialogul „Detalii paleți & lăzi"** are 4 tabele cu rânduri dinamice:
+  - Paleți recepționați (tip + cant)
+  - Paleți document (tip + cant)
+  - Lăzi recepționate (tip + cant)
+  - Lăzi document (tip + cant)
+- În rândul tabelului afișăm un sumar compact: `2 EUR + 1 IND` / `10 Neagră + 5 Verde` (recepționat sus, document jos sau cu badge culoare diferită).
+- Footerul tabelului totalizează pe tip pentru toate cele 4 sub-categorii (extindem `groupTotals.ladiDocByType` cu `paletiRecByType`, `paletiDocByType`, `laziRecByType`, `laziDocByType`).
+- Encoding/decoding centralizat în 2 funcții `encodePalDoc(state)` / `decodePalDoc(text)`.
 
-## 4. Sidebar refactorizat — 8 grupuri
+### 3. Excel export (`ReceptionReport`)
+Înlocuim coloanele „Paleți doc / Lăzi doc / Tip lăzi doc" cu 4 coloane text descriptive:
+- `Paleți rec` (ex: `2 EUR + 1 IND`)
+- `Paleți doc` (ex: `2 EUR + 1 IND`)
+- `Lăzi rec` (ex: `10 Neagră + 5 Verde`)
+- `Lăzi doc` (ex: `10 Neagră + 5 Verde`)
 
-`AppSidebar.tsx` rescris cu `SidebarGroup` per departament. Grupurile pe care userul nu le poate accesa **nu se afișează**. Admin le vede pe toate.
+Footer cu totaluri pe tip pentru fiecare categorie.
 
-```text
-ACHIZIȚII              → /achizitii (placeholder), /achizitii/comenzi (placeholder)
-DEPOZIT MATERIE PRIMĂ  → /depozit-mp (= inventar MP existent), /depozit-mp/receptie
-DEPOZIT AMBALAJE       → /depozit-ambalaje (= inventar ambalaje existent)
-ETICHETE               → /etichete (= inventar etichete existent)
-PRODUCȚIE              → /productie (= ProductionStockPage existent), /productie/forecast
-PICKING & VÂNZĂRI      → /picking (placeholder), /vanzari (placeholder)
-MENTENANȚĂ             → /mentenanta (placeholder)
-ADMINISTRATIV          → /administrativ (dashboard simplu),
-                         /administrativ/users (= /users existent),
-                         /administrativ/audit (= /audit existent),
-                         /administrativ/produse, /furnizori, /producatori, /lăzi
-```
+### 4. Compatibilitate înapoi
+`decodePalDoc` detectează formatul vechi (`2P/10L||TipLada` fără `BD:`) și îl mapează la breakdown cu un singur rând per categorie, folosind `pallet_type_id`/`crate_type_id` din recepție pentru tipuri.
 
-Rutele vechi (`/dashboard/*`, `/inventory`, `/users`, `/audit`) rămân ca **redirect-uri** la noile căi, ca să nu se rupă niciun bookmark și niciun cod intern.
+## Detalii tehnice
 
-Pe `/` afișez un dashboard nou „Hub Departamente": carduri mari pentru fiecare departament la care userul are acces, cu iconuri și descriere scurtă. Înlocuiește `Dashboard.tsx` actual (păstrăm backup logic în noile pagini administrative).
+- **Tipuri noi**: `BreakdownEntry = { id: string|null; name: string; count: number }` și `BreakdownPayload = { rec_pallets, rec_crates, doc_pallets, doc_crates }`.
+- **Helpers** într-un fișier nou `src/lib/receptionBreakdown.ts` (encode/decode + sumar text).
+- **Fără modificări la `inventory` / `reception_records`** — totalurile pe care le folosesc deja alte ecrane rămân corecte.
 
-## 5. Pagini placeholder
+## Fișiere afectate
 
-Creez câte un component minimal pentru fiecare rută nouă care n-are încă conținut:
-- `/achizitii`, `/achizitii/comenzi`
-- `/picking`, `/vanzari`
-- `/mentenanta`
-- `/administrativ` (hub admin)
+- `src/components/inventory/ReceptionRegistration.tsx` (multi-tip la înregistrare)
+- `src/components/inventory/ReceptionReport.tsx` (dialog Detalii + footer extins + export)
+- `src/lib/receptionBreakdown.ts` (nou — helpers encode/decode)
 
-Fiecare placeholder = card cu titlul departamentului + text „Modul în construcție — va fi populat în pașii următori".
+## În afara scopului
 
-## 6. UI atribuire roluri în `/administrativ/users`
-
-În tabelul de utilizatori activi adaug o coloană nouă „Departamente" cu badge-uri și un buton „Editează roluri" care deschide un dialog cu **8 checkbox-uri** (unul per departament) + checkbox separat pentru `admin`. Salvarea face diff și `insert`/`delete` în `app_user_roles`.
-
-## 7. Curățenie barră sus
-
-Butoanele „Materii Prime / Ambalaje / Etichete" din header-ul global se mută doar pe paginile de depozit unde au sens (Depozit MP, Depozit Ambalaje, Etichete devin pagini separate). Header-ul global rămâne doar cu `SidebarTrigger` + identitate user + logout.
-
-## Verificare la final (cer asistentului să raporteze)
-
-- Listă completă de rute create + către ce componentă duc
-- Listă rolurilor disponibile în enum
-- Confirmare că `admin` vede toate cele 8 grupuri în sidebar
-- Confirmare că niciun import vechi nu e rupt (build verde)
-
-## Ce NU fac în acest pas
-
-- Nu migrez cod din `productiecoral-18` (Promptul 2)
-- Nu fac RLS noi pe tabele existente (acces la date rămâne ca acum, doar UI-ul e gated)
-- Nu șterg pagini vechi — doar le redenumesc / re-mapez prin redirect
-
----
-
-Dacă aprobi, intru în mod build și execut tot într-o singură rulare. Dacă vrei să schimbi numele rutelor (ex. `/warehouse-mp` în loc de `/depozit-mp`) sau să muți o pagină în alt departament, spune-mi acum.
+- Nu modificăm schema DB.
+- Nu schimbăm restul coloanelor din raport (defecte, poze, observații, % pierdere etc.).
+- Nu atingem alte ecrane care citesc `pallet_count`/`crate_count` — ele continuă să vadă totalurile corecte.

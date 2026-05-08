@@ -4,13 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-custom-toast";
-import { Plus, Save } from "lucide-react";
+import { Plus, Save, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Product, Supplier, Manufacturer } from "@/types";
 import { useInventoryType } from "@/context/inventory-type";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
 import { emitNotification } from "@/lib/notifications";
+import {
+  type BreakdownEntry,
+  encodePalDoc,
+  emptyBreakdown,
+  summarizeBreakdown,
+  totalBreakdown,
+} from "@/lib/receptionBreakdown";
 
 interface ReceptionRegistrationProps {
   products: Product[];
@@ -38,16 +45,21 @@ export function ReceptionRegistration({
   
   // Câmpuri pentru calcul - nu se salvează
   const [grossQuantity, setGrossQuantity] = useState<number>(0);
-  const [crateTypeId, setCrateTypeId] = useState<string | null>(null);
-  const [crateCount, setCrateCount] = useState<number>(0);
   const [palletWeight, setPalletWeight] = useState<number>(0);
-  
+
+  // Breakdown multi-tip pentru lăzi recepționate (înlocuiește single crateTypeId/crateCount)
+  const [crateRows, setCrateRows] = useState<BreakdownEntry[]>([
+    { id: null, name: "", count: 0 },
+  ]);
+
+  // Breakdown multi-tip pentru paleți recepționați (înlocuiește single palletTypeId/palletCount)
+  const [palletRows, setPalletRows] = useState<BreakdownEntry[]>([
+    { id: null, name: "", count: 0 },
+  ]);
+
   // Cantitatea netă calculată - aceasta se salvează
   const [netQuantity, setNetQuantity] = useState<number>(0);
 
-  // Tip palet + nr paleți recepționați (se salvează în reception_records)
-  const [palletTypeId, setPalletTypeId] = useState<string | null>(null);
-  const [palletCount, setPalletCount] = useState<number>(0);
   const [palletTypes, setPalletTypes] = useState<{ id: string; name: string }[]>([]);
 
   const palletTypesTable = inventoryType === "ambalaje"
@@ -68,13 +80,17 @@ export function ReceptionRegistration({
 
   const selectedProduct = products.find(p => p.id === productId);
 
-  // Recalculez cantitatea netă când se schimbă valorile
+  // Recalculez cantitatea netă pe baza tuturor tipurilor de lăzi alese
   React.useEffect(() => {
-    const selectedCrateType = crateTypes.find(ct => ct.id === crateTypeId);
-    const crateWeight = selectedCrateType && crateTypeId !== "no-crate" ? selectedCrateType.weight * crateCount : 0;
-    const calculatedNet = Math.max(0, grossQuantity - crateWeight - palletWeight);
+    const totalCrateWeight = crateRows.reduce((sum, row) => {
+      if (!row.id) return sum;
+      const ct = crateTypes.find((c) => c.id === row.id);
+      if (!ct) return sum;
+      return sum + ct.weight * (Number(row.count) || 0);
+    }, 0);
+    const calculatedNet = Math.max(0, grossQuantity - totalCrateWeight - palletWeight);
     setNetQuantity(calculatedNet);
-  }, [crateCount, crateTypeId, crateTypes, grossQuantity, palletWeight]);
+  }, [crateRows, crateTypes, grossQuantity, palletWeight]);
 
   // Pentru etichete, cantitatea netă = cantitatea introdusă direct (fără calcul lăzi/paleți)
   const isEtichete = inventoryType === 'etichete';
@@ -103,6 +119,25 @@ export function ReceptionRegistration({
     setShowConfirm(true);
   };
 
+  const cleanCrateRows = (): BreakdownEntry[] =>
+    crateRows
+      .filter((r) => r.id && (Number(r.count) || 0) > 0)
+      .map((r) => {
+        const ct = crateTypes.find((c) => c.id === r.id);
+        return { id: r.id, name: ct?.name || r.name || "", count: Number(r.count) || 0 };
+      });
+
+  const cleanPalletRows = (): BreakdownEntry[] =>
+    palletRows
+      .filter((r) => r.id && (Number(r.count) || 0) > 0)
+      .map((r) => {
+        const pt = palletTypes.find((p) => p.id === r.id);
+        return { id: r.id, name: pt?.name || r.name || "", count: Number(r.count) || 0 };
+      });
+
+  const totalPalletCount = totalBreakdown(palletRows);
+  const totalCrateCount = totalBreakdown(crateRows);
+
   const executeSave = async () => {
     try {
       setIsSubmitting(true);
@@ -114,16 +149,26 @@ export function ReceptionRegistration({
           ? 'etichete_inventory'
           : 'inventory';
 
-      const validCrateTypeId = !isEtichete && crateTypeId && crateTypeId !== "no-crate" ? crateTypeId : null;
-      const selectedCrateType = crateTypes.find(ct => ct.id === validCrateTypeId);
-      const totalCrateWeight = selectedCrateType ? selectedCrateType.weight * crateCount : 0;
+      const cleanedCrates = cleanCrateRows();
+      const cleanedPallets = cleanPalletRows();
+
+      // Tip "dominant" pentru compatibilitate cu coloanele single-FK
+      const dominantCrateId = !isEtichete && cleanedCrates[0]?.id ? cleanedCrates[0].id : null;
+      const dominantPalletId = cleanedPallets[0]?.id || null;
+      const totalCrateWeight = !isEtichete
+        ? cleanedCrates.reduce((sum, r) => {
+            const ct = crateTypes.find((c) => c.id === r.id);
+            return sum + (ct ? ct.weight * r.count : 0);
+          }, 0)
+        : 0;
 
       console.log('Salvez recepție:', {
         productName: selectedProduct.name,
         grossQuantity,
         quantityToSave,
         isEtichete,
-        calculationDetails: isEtichete ? 'N/A' : { crateTypeId, crateCount, palletWeight }
+        crates: cleanedCrates,
+        pallets: cleanedPallets,
       });
 
       const { error } = await supabase
@@ -137,21 +182,20 @@ export function ReceptionRegistration({
           quantity: quantityToSave,
           gross_quantity: grossQuantity,
           net_quantity: isEtichete ? grossQuantity : netQuantity,
-          crate_type_id: validCrateTypeId,
-          crate_count: validCrateTypeId ? crateCount : 0,
+          crate_type_id: dominantCrateId,
+          crate_count: dominantCrateId ? totalCrateCount : 0,
           crate_weight: totalCrateWeight + (!isEtichete ? palletWeight : 0),
           unit: unitToSave,
-          pallet_type_id: palletTypeId || null,
-          pallet_count: palletCount || 0,
+          pallet_type_id: dominantPalletId,
+          pallet_count: totalPalletCount || 0,
           receipt_date: new Date().toISOString()
         } as any);
 
       if (error) throw error;
 
       // Asigură-te că pallet_type_id și pallet_count ajung și în reception_records
-      // (raportul de Calitate citește de acolo). Dacă există un trigger care
-      // copiază din inventory, update-ul de mai jos doar reaplică valorile —
-      // dacă nu există, le scrie manual pentru ultima recepție a produsului.
+      // și salvăm breakdown-ul multi-tip pentru raportul de Calitate.
+      let latestRecordId: string | null = null;
       try {
         const receptionTable = inventoryType === 'ambalaje'
           ? 'ambalaje_reception_records'
@@ -165,18 +209,42 @@ export function ReceptionRegistration({
           .eq('document_number', documentNumber)
           .order('receipt_date', { ascending: false })
           .limit(1);
-        const latestId = (latest as any[])?.[0]?.id;
-        if (latestId) {
+        latestRecordId = (latest as any[])?.[0]?.id || null;
+        if (latestRecordId) {
           await (supabase as any)
             .from(receptionTable)
             .update({
-              pallet_type_id: palletTypeId || null,
-              pallet_count: palletCount || 0,
+              pallet_type_id: dominantPalletId,
+              pallet_count: totalPalletCount || 0,
             })
-            .eq('id', latestId);
+            .eq('id', latestRecordId);
         }
       } catch (e) {
         console.warn('Nu am putut sincroniza paleții în reception_records:', e);
+      }
+
+      // Salvează breakdown-ul recepției în reception_report_data (doc rămâne gol)
+      if (latestRecordId && (cleanedPallets.length > 0 || cleanedCrates.length > 0)) {
+        try {
+          const encoded = encodePalDoc({
+            ...emptyBreakdown(),
+            rec_pallets: cleanedPallets,
+            rec_crates: cleanedCrates,
+          });
+          await (supabase as any)
+            .from('reception_report_data')
+            .upsert([{
+              inventory_id: latestRecordId,
+              inventory_type: inventoryType,
+              paleti_lazi_document: encoded || null,
+              cantitate_receptionata: quantityToSave,
+              tip_palet: cleanedPallets[0]?.name || null,
+              tip_lada_culoare: cleanedCrates[0]?.name || null,
+              nr_lazi: totalCrateCount || null,
+            }], { onConflict: 'inventory_id' });
+        } catch (e) {
+          console.warn('Nu am putut salva breakdown-ul în reception_report_data:', e);
+        }
       }
 
       toast({
@@ -211,12 +279,10 @@ export function ReceptionRegistration({
       setManufacturerId(null);
       setDocumentNumber('');
       setGrossQuantity(0);
-      setCrateTypeId(null);
-      setCrateCount(0);
       setPalletWeight(0);
       setNetQuantity(0);
-      setPalletTypeId(null);
-      setPalletCount(0);
+      setCrateRows([{ id: null, name: "", count: 0 }]);
+      setPalletRows([{ id: null, name: "", count: 0 }]);
     } catch (error: unknown) {
       toast({
         title: "Eroare",
@@ -362,33 +428,61 @@ export function ReceptionRegistration({
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tip lădiță</label>
-                  <Select value={crateTypeId || ''} onValueChange={setCrateTypeId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selectează tipul de lădiță" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="no-crate">Fără lăzi</SelectItem>
-                      {crateTypes.map(crateType => (
-                        <SelectItem key={crateType.id} value={crateType.id}>
-                          {crateType.name} ({crateType.weight} kg)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Număr lădițe</label>
-                  <Input
-                    type="number"
-                    value={crateCount || ''}
-                    onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
-                    placeholder="Numărul de lăzi"
-                    disabled={!crateTypeId || crateTypeId === "no-crate"}
-                  />
+              {/* Lădițe multi-tip */}
+              <div className="space-y-3 mt-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Lădițe (multiple tipuri)</label>
+                  <Button type="button" size="sm" variant="outline"
+                    onClick={() => setCrateRows((rows) => [...rows, { id: null, name: "", count: 0 }])}>
+                    <Plus className="h-3 w-3 mr-1" /> Adaugă tip
+                  </Button>
                 </div>
+                {crateRows.map((row, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr,110px,40px] gap-2 items-center">
+                    <Select
+                      value={row.id || ''}
+                      onValueChange={(v) => setCrateRows((rows) => rows.map((r, i) => i === idx
+                        ? { ...r, id: v || null, name: crateTypes.find((c) => c.id === v)?.name || "" }
+                        : r))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selectează tipul de lădiță" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px] overflow-y-auto">
+                        {crateTypes.map((crateType) => (
+                          <SelectItem key={crateType.id} value={crateType.id}>
+                            {crateType.name} ({crateType.weight} kg)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={row.count || ''}
+                      onChange={(e) => setCrateRows((rows) => rows.map((r, i) => i === idx
+                        ? { ...r, count: parseInt(e.target.value) || 0 }
+                        : r))}
+                      placeholder="Nr. lăzi"
+                      disabled={!row.id}
+                    />
+                    <Button type="button" size="sm" variant="ghost"
+                      className="h-9 w-9 p-0"
+                      disabled={crateRows.length <= 1}
+                      onClick={() => setCrateRows((rows) => rows.filter((_, i) => i !== idx))}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  Total lăzi: <strong>{totalCrateCount}</strong>
+                  {crateRows.some((r) => r.id && r.count > 0) && (
+                    <> · {summarizeBreakdown(crateRows.filter((r) => r.id && r.count > 0).map((r) => ({ ...r, name: crateTypes.find((c) => c.id === r.id)?.name || "" })))}</>
+                  )}
+                </p>
               </div>
 
               <div className="mt-4 p-4 bg-background rounded-md border-2 border-primary/30">
@@ -402,16 +496,26 @@ export function ReceptionRegistration({
             </div>
           )}
 
-          {/* Tip palet + nr paleți recepționați (toate cele 3 tipuri) */}
-          <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
-            <h3 className="font-semibold text-lg">Paleți recepționați</h3>
+          {/* Paleți recepționați - multi-tip */}
+          <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-lg">Paleți recepționați</h3>
+              <Button type="button" size="sm" variant="outline"
+                onClick={() => setPalletRows((rows) => [...rows, { id: null, name: "", count: 0 }])}>
+                <Plus className="h-3 w-3 mr-1" /> Adaugă tip
+              </Button>
+            </div>
             <p className="text-sm text-muted-foreground">
-              Tipul de palet și câți paleți ai primit pentru acest articol. Apar în raportul de Calitate.
+              Poți adăuga mai multe tipuri de paleți pentru același articol. Apar în raportul de Calitate.
             </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tip palet</label>
-                <Select value={palletTypeId || ''} onValueChange={(v) => setPalletTypeId(v || null)}>
+            {palletRows.map((row, idx) => (
+              <div key={idx} className="grid grid-cols-[1fr,110px,40px] gap-2 items-center">
+                <Select
+                  value={row.id || ''}
+                  onValueChange={(v) => setPalletRows((rows) => rows.map((r, i) => i === idx
+                    ? { ...r, id: v || null, name: palletTypes.find((p) => p.id === v)?.name || "" }
+                    : r))}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selectează tipul de palet" />
                   </SelectTrigger>
@@ -426,19 +530,31 @@ export function ReceptionRegistration({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nr. paleți recepționați</label>
                 <Input
                   type="number"
                   min="0"
                   step="1"
-                  value={palletCount || ''}
-                  onChange={(e) => setPalletCount(parseInt(e.target.value) || 0)}
+                  value={row.count || ''}
+                  onChange={(e) => setPalletRows((rows) => rows.map((r, i) => i === idx
+                    ? { ...r, count: parseInt(e.target.value) || 0 }
+                    : r))}
                   placeholder="ex: 2"
+                  disabled={!row.id}
                 />
+                <Button type="button" size="sm" variant="ghost"
+                  className="h-9 w-9 p-0"
+                  disabled={palletRows.length <= 1}
+                  onClick={() => setPalletRows((rows) => rows.filter((_, i) => i !== idx))}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
               </div>
-            </div>
+            ))}
+            <p className="text-xs text-muted-foreground">
+              Total paleți: <strong>{totalPalletCount}</strong>
+              {palletRows.some((r) => r.id && r.count > 0) && (
+                <> · {summarizeBreakdown(palletRows.filter((r) => r.id && r.count > 0).map((r) => ({ ...r, name: palletTypes.find((p) => p.id === r.id)?.name || "" })))}</>
+              )}
+            </p>
           </div>
 
           <div className="flex justify-end pt-4">
