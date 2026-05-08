@@ -597,19 +597,47 @@ const ReceptionReport: React.FC = () => {
     }
   };
 
-  // Parse "2P/3L" sau "2P/3L||TipLada" în {p, l, tip}
-  const parsePalDoc = (txt: string): { p: number | null; l: number | null; tip: string } => {
-    if (!txt) return { p: null, l: null, tip: "" };
-    const [counts, tip = ""] = txt.split("||");
-    const pMatch = counts.match(/(\d+)\s*P/i);
-    const lMatch = counts.match(/(\d+)\s*L/i);
+  // Parse "2P/3L" / "2P/3L||TipLada" / "2P/3L||TipLada||BD:..." în {p, l, tip, bd}
+  const parsePalDoc = (txt: string): {
+    p: number | null; l: number | null; tip: string; bd: BreakdownPayload;
+  } => {
+    const decoded = decodePalDoc(txt || "");
     return {
-      p: pMatch ? parseInt(pMatch[1], 10) : null,
-      l: lMatch ? parseInt(lMatch[1], 10) : null,
-      tip: tip.trim(),
+      p: decoded.totalDocP,
+      l: decoded.totalDocL,
+      tip: decoded.legacyTipLada,
+      bd: decoded.breakdown,
     };
   };
-  const formatPalDoc = (p: number | null, l: number | null, tip: string = ""): string => {
+
+  // Reformat — preservă breakdown-ul existent (sau îl reflectă din p/l/tip pentru flow-ul vechi).
+  const formatPalDoc = (
+    p: number | null, l: number | null, tip: string = "", bd?: BreakdownPayload
+  ): string => {
+    const isEmpty = (!p || p <= 0) && (!l || l <= 0) && !tip && (!bd || (
+      bd.rec_pallets.length === 0 && bd.rec_crates.length === 0 &&
+      bd.doc_pallets.length === 0 && bd.doc_crates.length === 0
+    ));
+    if (isEmpty) return "";
+
+    if (bd) {
+      // Sincronizează totalurile doc cu p/l (păstrează intrarea unică din UI dacă există)
+      const next: BreakdownPayload = {
+        rec_pallets: bd.rec_pallets,
+        rec_crates: bd.rec_crates,
+        doc_pallets: bd.doc_pallets.length > 0 ? bd.doc_pallets : (p && p > 0 ? [{ id: null, name: "", count: p }] : []),
+        doc_crates: bd.doc_crates.length > 0 ? bd.doc_crates : (l && l > 0 ? [{ id: null, name: tip, count: l }] : []),
+      };
+      // Dacă utilizatorul modifică totalurile p/l din inputurile simple (un singur tip), reflectă-le
+      if (p != null && next.doc_pallets.length === 1) next.doc_pallets[0].count = p;
+      if (l != null && next.doc_crates.length === 1) {
+        next.doc_crates[0].count = l;
+        if (tip) next.doc_crates[0].name = tip;
+      }
+      return encodePalDoc(next);
+    }
+
+    // Fără breakdown — format simplu
     const parts: string[] = [];
     if (p != null && p > 0) parts.push(`${p}P`);
     if (l != null && l > 0) parts.push(`${l}L`);
@@ -625,22 +653,68 @@ const ReceptionReport: React.FC = () => {
     let totalCantDoc = 0;
     const ladiByType = new Map<string, number>();
     const ladiDocByType = new Map<string, number>();
+    const paletiRecByType = new Map<string, number>();
+    const paletiDocByType = new Map<string, number>();
+    const laziRecByType = new Map<string, number>();
     group.rows.forEach((r) => {
       if (r.is_missing) return;
-      totalPaleti += r.nr_paleti_rec || 0;
-      if (r.tip_lada_culoare && r.nr_lazi) {
+      const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+
+      // Recepție din breakdown (multi-tip) — fallback la coloanele simple dacă nu există BD
+      if (bd.rec_pallets.length > 0) {
+        bd.rec_pallets.forEach((row) => {
+          if ((row.count || 0) <= 0) return;
+          totalPaleti += row.count;
+          if (row.name) paletiRecByType.set(row.name, (paletiRecByType.get(row.name) || 0) + row.count);
+        });
+      } else {
+        totalPaleti += r.nr_paleti_rec || 0;
+        if (r.tip_palet && r.nr_paleti_rec) {
+          paletiRecByType.set(r.tip_palet, (paletiRecByType.get(r.tip_palet) || 0) + r.nr_paleti_rec);
+        }
+      }
+
+      if (bd.rec_crates.length > 0) {
+        bd.rec_crates.forEach((row) => {
+          if ((row.count || 0) <= 0 || !row.name) return;
+          ladiByType.set(row.name, (ladiByType.get(row.name) || 0) + row.count);
+          laziRecByType.set(row.name, (laziRecByType.get(row.name) || 0) + row.count);
+        });
+      } else if (r.tip_lada_culoare && r.nr_lazi) {
         ladiByType.set(r.tip_lada_culoare, (ladiByType.get(r.tip_lada_culoare) || 0) + r.nr_lazi);
+        laziRecByType.set(r.tip_lada_culoare, (laziRecByType.get(r.tip_lada_culoare) || 0) + r.nr_lazi);
       }
-      const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
-      if (p) totalPaletiDoc += p;
-      if (l) totalLaziDoc += l;
-      if (tip && l) {
-        ladiDocByType.set(tip, (ladiDocByType.get(tip) || 0) + l);
+
+      // Document din breakdown
+      if (bd.doc_pallets.length > 0) {
+        bd.doc_pallets.forEach((row) => {
+          if ((row.count || 0) <= 0) return;
+          totalPaletiDoc += row.count;
+          if (row.name) paletiDocByType.set(row.name, (paletiDocByType.get(row.name) || 0) + row.count);
+        });
+      } else if (p) {
+        totalPaletiDoc += p;
       }
+
+      if (bd.doc_crates.length > 0) {
+        bd.doc_crates.forEach((row) => {
+          if ((row.count || 0) <= 0) return;
+          totalLaziDoc += row.count;
+          if (row.name) ladiDocByType.set(row.name, (ladiDocByType.get(row.name) || 0) + row.count);
+        });
+      } else {
+        if (l) totalLaziDoc += l;
+        if (tip && l) ladiDocByType.set(tip, (ladiDocByType.get(tip) || 0) + l);
+      }
+
       const cd = parseFloat(r.cantitate_document);
       if (!isNaN(cd)) totalCantDoc += cd;
     });
-    return { totalPaleti, ladiByType, ladiDocByType, totalPaletiDoc, totalLaziDoc, totalCantDoc };
+    return {
+      totalPaleti, ladiByType, ladiDocByType,
+      totalPaletiDoc, totalLaziDoc, totalCantDoc,
+      paletiRecByType, paletiDocByType, laziRecByType,
+    };
   };
 
   // ============ EXPORT EXCEL ============
