@@ -892,6 +892,7 @@ const ReceptionReport: React.FC = () => {
                     <TableCell colSpan={3} className="text-right">TOTAL document:</TableCell>
                     <TableCell className="text-sm text-center">{totals.totalPaletiDoc || "—"}</TableCell>
                     <TableCell className="text-sm text-center">{totals.totalLaziDoc || "—"}</TableCell>
+                    <TableCell />
                     <TableCell className="bg-amber-50/50 dark:bg-amber-950/10 text-sm">
                       {totals.totalCantDoc > 0 ? totals.totalCantDoc.toFixed(2) : "—"}
                     </TableCell>
