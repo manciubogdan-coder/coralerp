@@ -215,7 +215,21 @@ const ReceptionReport: React.FC = () => {
       const key = r.name.trim().toLowerCase();
       if (!merged.has(key)) merged.set(key, r);
     });
-    setCrateTypesList(Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name)));
+  };
+
+  const loadPalletTypes = async () => {
+    const tables = ["pallet_types", "ambalaje_pallet_types", "etichete_pallet_types"];
+    const results = await Promise.all(
+      tables.map((t) =>
+        (supabase as any).from(t).select("id, name").order("name").then((r: any) => (r.data as LookupRow[]) || [])
+      )
+    );
+    const merged = new Map<string, LookupRow>();
+    results.flat().forEach((r) => {
+      const key = r.name.trim().toLowerCase();
+      if (!merged.has(key)) merged.set(key, r);
+    });
+    setPalletTypesList(Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name)));
   };
 
   const loadData = async () => {
