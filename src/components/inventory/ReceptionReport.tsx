@@ -608,7 +608,7 @@ const ReceptionReport: React.FC = () => {
     aoa.push([]);
     aoa.push([
       "Nr crt", "Denumire produs", "Producator",
-      "Paleti/lazi document", "Cantitate document", "Cantitate receptionata",
+      "Paleți doc", "Lăzi doc", "Cantitate document", "Cantitate receptionata",
       "Tip lada/culoare", "Tip palet", "Nr paleti rec", "Nr Lazi",
       "Diferenta", "Pierdere calit. (%)", "Transmis furnizor",
       "Pierdere (kg)", "Kg considerate", "Defecte", "Observatii", "Status",
@@ -617,11 +617,13 @@ const ReceptionReport: React.FC = () => {
     group.rows.forEach((r, idx) => {
       const dif = r.is_missing ? null : calcDiferenta(r);
       const pkg = r.is_missing ? null : calcPierdereKg(r);
+      const { p: pDoc, l: lDoc } = parsePalDoc(r.paleti_lazi_document || "");
       aoa.push([
         idx + 1,
         r.denumire_produs,
         r.producator,
-        r.paleti_lazi_document,
+        pDoc,
+        lDoc,
         r.cantitate_document !== "" ? parseFloat(r.cantitate_document) : null,
         r.is_missing ? 0 : r.cantitate_receptionata,
         r.tip_lada_culoare,
