@@ -861,8 +861,8 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="min-w-[120px]">Tip lăzi doc</TableHead>
                     <TableHead className="bg-amber-50 dark:bg-amber-950/30 min-w-[110px]">Cant. doc</TableHead>
                     <TableHead className="w-[80px]">Cant. recep.</TableHead>
-                    <TableHead className="w-[90px]">Tip lada/culoare</TableHead>
-                    <TableHead className="w-[80px]">Tip palet</TableHead>
+                    <TableHead className="min-w-[110px]">Tip lada/culoare</TableHead>
+                    <TableHead className="min-w-[100px]">Tip palet</TableHead>
                     <TableHead className="w-[60px]">Nr paleti rec</TableHead>
                     <TableHead className="w-[50px]">Nr Lazi</TableHead>
                     <TableHead className="w-[60px]">Diferență</TableHead>
@@ -872,6 +872,7 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="w-[70px]">Kg consid.</TableHead>
                     <TableHead className="w-[80px]">Defecte</TableHead>
                     <TableHead className="w-[70px]">Poze</TableHead>
+                    <TableHead className="w-[70px]">Detalii</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                   </TableRow>
                 </TableHeader>
