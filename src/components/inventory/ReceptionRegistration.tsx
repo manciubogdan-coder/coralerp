@@ -171,7 +171,7 @@ export function ReceptionRegistration({
         pallets: cleanedPallets,
       });
 
-      const { error } = await supabase
+      const { data: insertedInv, error } = await (supabase as any)
         .from(inventoryTable)
         .insert({
           product_id: productId,
