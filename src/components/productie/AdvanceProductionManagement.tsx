@@ -349,6 +349,24 @@ const AdvanceProductionManagement = () => {
                 <SelectItem value="completed">Finalizate</SelectItem>
               </SelectContent>
             </Select>
+            <div className="w-full md:w-56">
+              <Input
+                type="date"
+                value={productionDate}
+                onChange={(e) => setProductionDate(e.target.value)}
+                placeholder="Data producției"
+                title="Data producției programate"
+              />
+            </div>
+            {productionDate && (
+              <button
+                type="button"
+                onClick={() => setProductionDate('')}
+                className="text-xs text-muted-foreground hover:text-foreground underline self-center"
+              >
+                Resetează data
+              </button>
+            )}
           </div>
         </CardContent>
       </Card>
