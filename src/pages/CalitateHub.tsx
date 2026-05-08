@@ -23,6 +23,7 @@ const SUB_TABS = [
   { key: "stoc-calitate", label: "Stoc Zilnic Calitate" },
   { key: "consum-loturi", label: "Consum pe Loturi" },
   { key: "receptie", label: "Recepție" },
+  { key: "restocari", label: "Restocări" },
 ] as const;
 
 type SubTabKey = (typeof SUB_TABS)[number]["key"];
