@@ -28,6 +28,7 @@ const AdvanceProductionManagement = () => {
   // Filtre și căutare
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [productionDate, setProductionDate] = useState<string>('');
 
   // All hooks must be called before any early returns
   const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = useOrders();
@@ -54,7 +55,12 @@ const AdvanceProductionManagement = () => {
 
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    const orderProdDate = (order as any).data_productie 
+      ? String((order as any).data_productie).split('T')[0] 
+      : null;
+    const matchesProdDate = !productionDate || orderProdDate === productionDate;
+
+    return matchesSearch && matchesStatus && matchesProdDate;
   });
 
   // Grupează pe status
@@ -343,6 +349,24 @@ const AdvanceProductionManagement = () => {
                 <SelectItem value="completed">Finalizate</SelectItem>
               </SelectContent>
             </Select>
+            <div className="w-full md:w-56">
+              <Input
+                type="date"
+                value={productionDate}
+                onChange={(e) => setProductionDate(e.target.value)}
+                placeholder="Data producției"
+                title="Data producției programate"
+              />
+            </div>
+            {productionDate && (
+              <button
+                type="button"
+                onClick={() => setProductionDate('')}
+                className="text-xs text-muted-foreground hover:text-foreground underline self-center"
+              >
+                Resetează data
+              </button>
+            )}
           </div>
         </CardContent>
       </Card>

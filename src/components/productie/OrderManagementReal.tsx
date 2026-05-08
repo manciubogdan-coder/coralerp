@@ -33,6 +33,7 @@ const OrderManagementReal = () => {
   const [productFilter, setProductFilter] = useState<string>('all');
   const [lineFilter, setLineFilter] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
+  const [productionDate, setProductionDate] = useState<string>('');
 
   const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = useOrders();
   const updateOrderMutation = useUpdateOrder();
@@ -59,8 +60,13 @@ const OrderManagementReal = () => {
     const matchesDate = !selectedDate || 
       new Date(order.created_at).toISOString().split('T')[0] === selectedDate;
 
+    const orderProdDate = (order as any).data_productie 
+      ? String((order as any).data_productie).split('T')[0] 
+      : null;
+    const matchesProdDate = !productionDate || orderProdDate === productionDate;
+
     return matchesSearch && matchesStatus && matchesStore && matchesProduct && 
-           matchesLine && matchesQuantity && matchesDate;
+           matchesLine && matchesQuantity && matchesDate && matchesProdDate;
   }) : [];
 
   // Adăugăm paginația pentru comenzile filtrate
@@ -185,6 +191,7 @@ const OrderManagementReal = () => {
     setProductFilter('all');
     setLineFilter('all');
     setSelectedDate('');
+    setProductionDate('');
   };
 
   const getStatusBadge = (status: string) => {
@@ -367,6 +374,15 @@ const OrderManagementReal = () => {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Data producției programate</label>
+              <Input
+                type="date"
+                value={productionDate}
+                onChange={(e) => setProductionDate(e.target.value)}
               />
             </div>
           </div>
