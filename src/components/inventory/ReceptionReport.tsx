@@ -977,10 +977,23 @@ const ReceptionReport: React.FC = () => {
                         <TableCell className={cn("font-semibold", r.is_missing && "text-red-600")}>
                           {r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`}
                         </TableCell>
-                        <TableCell>{r.tip_lada_culoare || "—"}</TableCell>
-                        <TableCell>{r.tip_palet || "—"}</TableCell>
-                        <TableCell className="font-semibold">{r.nr_paleti_rec ?? "—"}</TableCell>
-                        <TableCell className="font-semibold">{r.nr_lazi ?? "—"}</TableCell>
+                        {(() => {
+                          const { bd } = parsePalDoc(r.paleti_lazi_document || "");
+                          const recC = bd.rec_crates;
+                          const recP = bd.rec_pallets;
+                          const tipLada = recC.length > 0 ? summarizeBreakdown(recC) : (r.tip_lada_culoare || "—");
+                          const tipPalet = recP.length > 0 ? summarizeBreakdown(recP) : (r.tip_palet || "—");
+                          const totalRecP = recP.length > 0 ? recP.reduce((s, x) => s + (x.count || 0), 0) : (r.nr_paleti_rec ?? null);
+                          const totalRecL = recC.length > 0 ? recC.reduce((s, x) => s + (x.count || 0), 0) : (r.nr_lazi ?? null);
+                          return (
+                            <>
+                              <TableCell className="text-[11px]">{tipLada}</TableCell>
+                              <TableCell className="text-[11px]">{tipPalet}</TableCell>
+                              <TableCell className="font-semibold">{totalRecP ?? "—"}</TableCell>
+                              <TableCell className="font-semibold">{totalRecL ?? "—"}</TableCell>
+                            </>
+                          );
+                        })()}
                         <TableCell className={cn("font-semibold",
                           dif != null && dif < 0 && "text-destructive",
                           dif != null && dif > 0 && "text-green-600")}>
