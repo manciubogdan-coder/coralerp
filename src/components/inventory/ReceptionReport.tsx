@@ -672,7 +672,7 @@ const ReceptionReport: React.FC = () => {
       null, null, null, null, null, null, "Semnatura", "_____________________"]);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = Array(18).fill({ wch: 16 });
+    ws["!cols"] = Array(20).fill({ wch: 16 });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Receptie");
     const safe = group.supplierName.replace(/[^a-z0-9]/gi, "_");
