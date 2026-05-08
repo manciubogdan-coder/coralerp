@@ -1071,7 +1071,7 @@ const ReceptionReport: React.FC = () => {
                     </TableCell>
                     <TableCell colSpan={3} className="text-right">Paleți rec:</TableCell>
                     <TableCell className="text-base">{totals.totalPaleti}</TableCell>
-                    <TableCell colSpan={9}>
+                    <TableCell colSpan={10}>
                       {totals.ladiByType.size > 0 && (
                         <div className="flex flex-wrap gap-3 text-xs">
                           {Array.from(totals.ladiByType.entries()).map(([tip, cnt]) => (
