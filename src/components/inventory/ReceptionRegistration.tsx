@@ -4,13 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-custom-toast";
-import { Plus, Save } from "lucide-react";
+import { Plus, Save, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Product, Supplier, Manufacturer } from "@/types";
 import { useInventoryType } from "@/context/inventory-type";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
 import { emitNotification } from "@/lib/notifications";
+import {
+  type BreakdownEntry,
+  encodePalDoc,
+  emptyBreakdown,
+  summarizeBreakdown,
+  totalBreakdown,
+} from "@/lib/receptionBreakdown";
 
 interface ReceptionRegistrationProps {
   products: Product[];
