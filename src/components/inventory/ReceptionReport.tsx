@@ -169,11 +169,13 @@ const ReceptionReport: React.FC = () => {
   const [defectsList, setDefectsList] = useState<LookupRow[]>([]);
   const [crateTypeMap, setCrateTypeMap] = useState<Map<string, string>>(new Map());
   const [crateTypesList, setCrateTypesList] = useState<LookupRow[]>([]);
+  const [palletTypesList, setPalletTypesList] = useState<LookupRow[]>([]);
 
   // Dialogs
   const [photoDialog, setPhotoDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
   const [defectsDialog, setDefectsDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
   const [missingDialog, setMissingDialog] = useState<{ groupIdx: number } | null>(null);
+  const [detailsDialog, setDetailsDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
 
   // Missing item form
   const [missingForm, setMissingForm] = useState<{
