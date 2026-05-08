@@ -554,6 +554,23 @@ const ReceptionReport: React.FC = () => {
     }
   };
 
+  // Parse "2P/3L" sau "2P 3L" în {p, l}
+  const parsePalDoc = (txt: string): { p: number | null; l: number | null } => {
+    if (!txt) return { p: null, l: null };
+    const pMatch = txt.match(/(\d+)\s*P/i);
+    const lMatch = txt.match(/(\d+)\s*L/i);
+    return {
+      p: pMatch ? parseInt(pMatch[1], 10) : null,
+      l: lMatch ? parseInt(lMatch[1], 10) : null,
+    };
+  };
+  const formatPalDoc = (p: number | null, l: number | null): string => {
+    const parts: string[] = [];
+    if (p != null && p > 0) parts.push(`${p}P`);
+    if (l != null && l > 0) parts.push(`${l}L`);
+    return parts.join("/");
+  };
+
   // Totaluri pe grup
   const groupTotals = (group: SupplierGroup) => {
     let totalPaleti = 0;
@@ -567,12 +584,9 @@ const ReceptionReport: React.FC = () => {
       if (r.tip_lada_culoare && r.nr_lazi) {
         ladiByType.set(r.tip_lada_culoare, (ladiByType.get(r.tip_lada_culoare) || 0) + r.nr_lazi);
       }
-      // Parse paleti_lazi_document (ex: "2P/ALB", "3L", "1P 4L")
-      const txt = r.paleti_lazi_document || "";
-      const pMatches = txt.match(/(\d+)\s*P/gi);
-      if (pMatches) pMatches.forEach((m) => { totalPaletiDoc += parseInt(m, 10) || 0; });
-      const lMatches = txt.match(/(\d+)\s*L/gi);
-      if (lMatches) lMatches.forEach((m) => { totalLaziDoc += parseInt(m, 10) || 0; });
+      const { p, l } = parsePalDoc(r.paleti_lazi_document || "");
+      if (p) totalPaletiDoc += p;
+      if (l) totalLaziDoc += l;
       const cd = parseFloat(r.cantitate_document);
       if (!isNaN(cd)) totalCantDoc += cd;
     });
