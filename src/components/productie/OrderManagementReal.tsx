@@ -33,6 +33,7 @@ const OrderManagementReal = () => {
   const [productFilter, setProductFilter] = useState<string>('all');
   const [lineFilter, setLineFilter] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
+  const [productionDate, setProductionDate] = useState<string>('');
 
   const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = useOrders();
   const updateOrderMutation = useUpdateOrder();
