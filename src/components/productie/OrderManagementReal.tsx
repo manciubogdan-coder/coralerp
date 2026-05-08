@@ -191,6 +191,7 @@ const OrderManagementReal = () => {
     setProductFilter('all');
     setLineFilter('all');
     setSelectedDate('');
+    setProductionDate('');
   };
 
   const getStatusBadge = (status: string) => {
