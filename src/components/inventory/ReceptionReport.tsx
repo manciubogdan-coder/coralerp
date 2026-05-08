@@ -889,13 +889,25 @@ const ReceptionReport: React.FC = () => {
                         <TableCell>{r.producator || "—"}</TableCell>
                         <TableCell>
                           {(() => {
-                            const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
+                            const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+                            const multi = bd.doc_pallets.length > 1;
+                            if (multi) {
+                              return (
+                                <button
+                                  type="button"
+                                  className="text-xs text-left underline-offset-2 hover:underline"
+                                  onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}
+                                >
+                                  {summarizeBreakdown(bd.doc_pallets)}
+                                </button>
+                              );
+                            }
                             return (
                               <Input type="number" min="0" step="1" placeholder="0"
                                 value={p ?? ""} disabled={r.is_missing}
                                 onChange={(e) => {
                                   const np = e.target.value === "" ? null : parseInt(e.target.value, 10);
-                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(np, l, tip));
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(np, l, tip, bd));
                                 }}
                                 className="h-7 text-xs px-1 w-full" />
                             );
@@ -903,13 +915,25 @@ const ReceptionReport: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
+                            const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+                            const multi = bd.doc_crates.length > 1;
+                            if (multi) {
+                              return (
+                                <button
+                                  type="button"
+                                  className="text-xs text-left underline-offset-2 hover:underline"
+                                  onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}
+                                >
+                                  {summarizeBreakdown(bd.doc_crates)}
+                                </button>
+                              );
+                            }
                             return (
                               <Input type="number" min="0" step="1" placeholder="0"
                                 value={l ?? ""} disabled={r.is_missing}
                                 onChange={(e) => {
                                   const nl = e.target.value === "" ? null : parseInt(e.target.value, 10);
-                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, nl, tip));
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, nl, tip, bd));
                                 }}
                                 className="h-7 text-xs px-1 w-full" />
                             );
@@ -917,14 +941,18 @@ const ReceptionReport: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
+                            const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+                            const multi = bd.doc_crates.length > 1;
+                            if (multi) {
+                              return <span className="text-[10px] text-muted-foreground">multi</span>;
+                            }
                             return (
                               <Select
                                 value={tip || "__none__"}
                                 disabled={r.is_missing}
                                 onValueChange={(v) => {
                                   const newTip = v === "__none__" ? "" : v;
-                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, l, newTip));
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, l, newTip, bd));
                                 }}>
                                 <SelectTrigger className="h-7 text-xs px-2 w-full">
                                   <SelectValue placeholder="—" />
