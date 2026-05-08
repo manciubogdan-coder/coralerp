@@ -550,46 +550,74 @@ export const useOrders = () => {
         };
       });
       
-      // Încearcă alocare automată din restocări pentru comenzi neacoperite (FIFO)
+      // Alocare automată din restocări — BATCH-uită pentru performanță.
+      // Citim restocările o singură dată per produs (nu per comandă) și
+      // efectuăm update-urile DOAR pentru produsele care au comenzi neacoperite.
+      const uncoveredByProduct = new Map<string, any[]>();
       for (const com of comandiCuClienti) {
         const produsId = (com as any).produs_id;
         if (!produsId) continue;
         if (esteComandaProductieAvans(com) || esteComandaReambalare(com)) continue;
-        const acoperit = (com as any).cantitate_reala_produsa + ((com as any).cantitate_din_restock || 0);
-        let necesar = Math.max(0, (com as any).cantitate - acoperit);
         const status = (com as any).status || '';
-        if (necesar <= 0) continue;
         if (!['pending', 'assigned', 'in_progress', 'alocata', 'allocated'].includes(status)) continue;
-        
-        const { data: restocari } = await supabase
-          .from('productie_restocari')
-          .select('*')
-          .eq('produs_id', produsId)
-          .eq('status', 'disponibil')
-          .gt('cantitate_surplus', 0)
-          .order('data_productie', { ascending: true });
-        
-        if (restocari && restocari.length > 0) {
-          let folosit = 0;
-          for (const r of restocari) {
-            if (necesar <= 0) break;
-            const take = Math.min(necesar, Number(r.cantitate_surplus || 0));
-            if (take <= 0) continue;
-            if (take === r.cantitate_surplus) {
-              await supabase.from('productie_restocari').update({ status: 'folosit', cantitate_surplus: 0 }).eq('id', r.id);
-            } else {
-              await supabase.from('productie_restocari').update({ cantitate_surplus: Number(r.cantitate_surplus) - take }).eq('id', r.id);
+        const acoperit = (com as any).cantitate_reala_produsa + ((com as any).cantitate_din_restock || 0);
+        const necesar = Math.max(0, (com as any).cantitate - acoperit);
+        if (necesar <= 0) continue;
+        if (!uncoveredByProduct.has(produsId)) uncoveredByProduct.set(produsId, []);
+        uncoveredByProduct.get(produsId)!.push(com);
+      }
+
+      if (uncoveredByProduct.size > 0) {
+        const produsIds = Array.from(uncoveredByProduct.keys());
+        // Fetch în loturi pentru toate restocările disponibile
+        const restocariByProduct = new Map<string, any[]>();
+        for (let i = 0; i < produsIds.length; i += 50) {
+          const chunk = produsIds.slice(i, i + 50);
+          const { data: rows } = await supabase
+            .from('productie_restocari')
+            .select('*')
+            .in('produs_id', chunk)
+            .eq('status', 'disponibil')
+            .gt('cantitate_surplus', 0)
+            .order('data_productie', { ascending: true });
+          (rows || []).forEach((r: any) => {
+            if (!restocariByProduct.has(r.produs_id)) restocariByProduct.set(r.produs_id, []);
+            restocariByProduct.get(r.produs_id)!.push(r);
+          });
+        }
+
+        for (const [produsId, comenzi] of uncoveredByProduct.entries()) {
+          const restocari = restocariByProduct.get(produsId);
+          if (!restocari || restocari.length === 0) continue;
+          for (const com of comenzi) {
+            const acoperit = (com as any).cantitate_reala_produsa + ((com as any).cantitate_din_restock || 0);
+            let necesar = Math.max(0, (com as any).cantitate - acoperit);
+            if (necesar <= 0) continue;
+            let folosit = 0;
+            for (const r of restocari) {
+              if (necesar <= 0) break;
+              const surplus = Number(r.cantitate_surplus || 0);
+              if (surplus <= 0) continue;
+              const take = Math.min(necesar, surplus);
+              if (take <= 0) continue;
+              if (take >= surplus) {
+                await supabase.from('productie_restocari').update({ status: 'folosit', cantitate_surplus: 0 }).eq('id', r.id);
+                r.cantitate_surplus = 0;
+              } else {
+                await supabase.from('productie_restocari').update({ cantitate_surplus: surplus - take }).eq('id', r.id);
+                r.cantitate_surplus = surplus - take;
+              }
+              folosit += take;
+              necesar -= take;
             }
-            folosit += take;
-            necesar -= take;
-          }
-          if (folosit > 0) {
-            const cantVeche = Number((com as any).cantitate_din_restock || 0);
-            await supabase
-              .from('productie_comenzi')
-              .update({ cantitate_din_restock: cantVeche + folosit, updated_at: new Date().toISOString() })
-              .eq('id', (com as any).id);
-            (com as any).cantitate_din_restock = cantVeche + folosit; // reflectă imediat în UI
+            if (folosit > 0) {
+              const cantVeche = Number((com as any).cantitate_din_restock || 0);
+              await supabase
+                .from('productie_comenzi')
+                .update({ cantitate_din_restock: cantVeche + folosit, updated_at: new Date().toISOString() })
+                .eq('id', (com as any).id);
+              (com as any).cantitate_din_restock = cantVeche + folosit;
+            }
           }
         }
       }
