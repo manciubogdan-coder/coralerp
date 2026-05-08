@@ -554,6 +554,23 @@ const ReceptionReport: React.FC = () => {
     }
   };
 
+  // Parse "2P/3L" sau "2P 3L" în {p, l}
+  const parsePalDoc = (txt: string): { p: number | null; l: number | null } => {
+    if (!txt) return { p: null, l: null };
+    const pMatch = txt.match(/(\d+)\s*P/i);
+    const lMatch = txt.match(/(\d+)\s*L/i);
+    return {
+      p: pMatch ? parseInt(pMatch[1], 10) : null,
+      l: lMatch ? parseInt(lMatch[1], 10) : null,
+    };
+  };
+  const formatPalDoc = (p: number | null, l: number | null): string => {
+    const parts: string[] = [];
+    if (p != null && p > 0) parts.push(`${p}P`);
+    if (l != null && l > 0) parts.push(`${l}L`);
+    return parts.join("/");
+  };
+
   // Totaluri pe grup
   const groupTotals = (group: SupplierGroup) => {
     let totalPaleti = 0;
@@ -567,12 +584,9 @@ const ReceptionReport: React.FC = () => {
       if (r.tip_lada_culoare && r.nr_lazi) {
         ladiByType.set(r.tip_lada_culoare, (ladiByType.get(r.tip_lada_culoare) || 0) + r.nr_lazi);
       }
-      // Parse paleti_lazi_document (ex: "2P/ALB", "3L", "1P 4L")
-      const txt = r.paleti_lazi_document || "";
-      const pMatches = txt.match(/(\d+)\s*P/gi);
-      if (pMatches) pMatches.forEach((m) => { totalPaletiDoc += parseInt(m, 10) || 0; });
-      const lMatches = txt.match(/(\d+)\s*L/gi);
-      if (lMatches) lMatches.forEach((m) => { totalLaziDoc += parseInt(m, 10) || 0; });
+      const { p, l } = parsePalDoc(r.paleti_lazi_document || "");
+      if (p) totalPaletiDoc += p;
+      if (l) totalLaziDoc += l;
       const cd = parseFloat(r.cantitate_document);
       if (!isNaN(cd)) totalCantDoc += cd;
     });
@@ -594,7 +608,7 @@ const ReceptionReport: React.FC = () => {
     aoa.push([]);
     aoa.push([
       "Nr crt", "Denumire produs", "Producator",
-      "Paleti/lazi document", "Cantitate document", "Cantitate receptionata",
+      "Paleți doc", "Lăzi doc", "Cantitate document", "Cantitate receptionata",
       "Tip lada/culoare", "Tip palet", "Nr paleti rec", "Nr Lazi",
       "Diferenta", "Pierdere calit. (%)", "Transmis furnizor",
       "Pierdere (kg)", "Kg considerate", "Defecte", "Observatii", "Status",
@@ -603,11 +617,13 @@ const ReceptionReport: React.FC = () => {
     group.rows.forEach((r, idx) => {
       const dif = r.is_missing ? null : calcDiferenta(r);
       const pkg = r.is_missing ? null : calcPierdereKg(r);
+      const { p: pDoc, l: lDoc } = parsePalDoc(r.paleti_lazi_document || "");
       aoa.push([
         idx + 1,
         r.denumire_produs,
         r.producator,
-        r.paleti_lazi_document,
+        pDoc,
+        lDoc,
         r.cantitate_document !== "" ? parseFloat(r.cantitate_document) : null,
         r.is_missing ? 0 : r.cantitate_receptionata,
         r.tip_lada_culoare,
@@ -715,7 +731,8 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="w-8">Nr</TableHead>
                     <TableHead className="min-w-[110px]">Denumire produs</TableHead>
                     <TableHead className="min-w-[90px]">Producator</TableHead>
-                    <TableHead className="min-w-[120px]">Paleti/lazi doc</TableHead>
+                    <TableHead className="w-[70px]">Paleți doc</TableHead>
+                    <TableHead className="w-[70px]">Lăzi doc</TableHead>
                     <TableHead className="bg-amber-50 dark:bg-amber-950/30 min-w-[110px]">Cant. doc</TableHead>
                     <TableHead className="w-[80px]">Cant. recep.</TableHead>
                     <TableHead className="w-[90px]">Tip lada/culoare</TableHead>
@@ -745,9 +762,32 @@ const ReceptionReport: React.FC = () => {
                         </TableCell>
                         <TableCell>{r.producator || "—"}</TableCell>
                         <TableCell>
-                          <Input value={r.paleti_lazi_document} placeholder="2P/ALB" disabled={r.is_missing}
-                            onChange={(e) => updateRow(gIdx, rIdx, "paleti_lazi_document", e.target.value)}
-                            className="h-7 text-xs px-1 w-full" />
+                          {(() => {
+                            const { p, l } = parsePalDoc(r.paleti_lazi_document || "");
+                            return (
+                              <Input type="number" min="0" step="1" placeholder="0"
+                                value={p ?? ""} disabled={r.is_missing}
+                                onChange={(e) => {
+                                  const np = e.target.value === "" ? null : parseInt(e.target.value, 10);
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(np, l));
+                                }}
+                                className="h-7 text-xs px-1 w-full" />
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const { p, l } = parsePalDoc(r.paleti_lazi_document || "");
+                            return (
+                              <Input type="number" min="0" step="1" placeholder="0"
+                                value={l ?? ""} disabled={r.is_missing}
+                                onChange={(e) => {
+                                  const nl = e.target.value === "" ? null : parseInt(e.target.value, 10);
+                                  updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, nl));
+                                }}
+                                className="h-7 text-xs px-1 w-full" />
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="bg-amber-50/50 dark:bg-amber-950/10">
                           <Input type="number" step="0.01" placeholder="kg"
@@ -811,11 +851,8 @@ const ReceptionReport: React.FC = () => {
                 <TableFooter>
                   <TableRow className="bg-muted/60 font-semibold">
                     <TableCell colSpan={3} className="text-right">TOTAL document:</TableCell>
-                    <TableCell className="text-xs">
-                      {totals.totalPaletiDoc > 0 && <span>{totals.totalPaletiDoc}P </span>}
-                      {totals.totalLaziDoc > 0 && <span>{totals.totalLaziDoc}L</span>}
-                      {totals.totalPaletiDoc === 0 && totals.totalLaziDoc === 0 && "—"}
-                    </TableCell>
+                    <TableCell className="text-sm text-center">{totals.totalPaletiDoc || "—"}</TableCell>
+                    <TableCell className="text-sm text-center">{totals.totalLaziDoc || "—"}</TableCell>
                     <TableCell className="bg-amber-50/50 dark:bg-amber-950/10 text-sm">
                       {totals.totalCantDoc > 0 ? totals.totalCantDoc.toFixed(2) : "—"}
                     </TableCell>
