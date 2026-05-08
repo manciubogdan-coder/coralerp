@@ -193,11 +193,18 @@ const ReceptionReport: React.FC = () => {
   };
 
   const loadCrateTypes = async () => {
-    const { data } = await (supabase as any)
-      .from(getCrateTable(inventoryType))
-      .select("id, name")
-      .order("name");
-    setCrateTypesList((data as LookupRow[]) || []);
+    const tables = ["crate_types", "ambalaje_crate_types", "etichete_crate_types"];
+    const results = await Promise.all(
+      tables.map((t) =>
+        (supabase as any).from(t).select("id, name").order("name").then((r: any) => (r.data as LookupRow[]) || [])
+      )
+    );
+    const merged = new Map<string, LookupRow>();
+    results.flat().forEach((r) => {
+      const key = r.name.trim().toLowerCase();
+      if (!merged.has(key)) merged.set(key, r);
+    });
+    setCrateTypesList(Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name)));
   };
 
   const loadData = async () => {
