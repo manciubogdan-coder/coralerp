@@ -564,21 +564,24 @@ const ReceptionReport: React.FC = () => {
     }
   };
 
-  // Parse "2P/3L" sau "2P 3L" în {p, l}
-  const parsePalDoc = (txt: string): { p: number | null; l: number | null } => {
-    if (!txt) return { p: null, l: null };
-    const pMatch = txt.match(/(\d+)\s*P/i);
-    const lMatch = txt.match(/(\d+)\s*L/i);
+  // Parse "2P/3L" sau "2P/3L||TipLada" în {p, l, tip}
+  const parsePalDoc = (txt: string): { p: number | null; l: number | null; tip: string } => {
+    if (!txt) return { p: null, l: null, tip: "" };
+    const [counts, tip = ""] = txt.split("||");
+    const pMatch = counts.match(/(\d+)\s*P/i);
+    const lMatch = counts.match(/(\d+)\s*L/i);
     return {
       p: pMatch ? parseInt(pMatch[1], 10) : null,
       l: lMatch ? parseInt(lMatch[1], 10) : null,
+      tip: tip.trim(),
     };
   };
-  const formatPalDoc = (p: number | null, l: number | null): string => {
+  const formatPalDoc = (p: number | null, l: number | null, tip: string = ""): string => {
     const parts: string[] = [];
     if (p != null && p > 0) parts.push(`${p}P`);
     if (l != null && l > 0) parts.push(`${l}L`);
-    return parts.join("/");
+    const counts = parts.join("/");
+    return tip ? `${counts}||${tip}` : counts;
   };
 
   // Totaluri pe grup
