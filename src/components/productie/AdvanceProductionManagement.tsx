@@ -28,6 +28,7 @@ const AdvanceProductionManagement = () => {
   // Filtre și căutare
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [productionDate, setProductionDate] = useState<string>('');
 
   // All hooks must be called before any early returns
   const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = useOrders();
