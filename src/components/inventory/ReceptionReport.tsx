@@ -557,6 +557,9 @@ const ReceptionReport: React.FC = () => {
   // Totaluri pe grup
   const groupTotals = (group: SupplierGroup) => {
     let totalPaleti = 0;
+    let totalPaletiDoc = 0;
+    let totalLaziDoc = 0;
+    let totalCantDoc = 0;
     const ladiByType = new Map<string, number>();
     group.rows.forEach((r) => {
       if (r.is_missing) return;
@@ -564,8 +567,16 @@ const ReceptionReport: React.FC = () => {
       if (r.tip_lada_culoare && r.nr_lazi) {
         ladiByType.set(r.tip_lada_culoare, (ladiByType.get(r.tip_lada_culoare) || 0) + r.nr_lazi);
       }
+      // Parse paleti_lazi_document (ex: "2P/ALB", "3L", "1P 4L")
+      const txt = r.paleti_lazi_document || "";
+      const pMatches = txt.match(/(\d+)\s*P/gi);
+      if (pMatches) pMatches.forEach((m) => { totalPaletiDoc += parseInt(m, 10) || 0; });
+      const lMatches = txt.match(/(\d+)\s*L/gi);
+      if (lMatches) lMatches.forEach((m) => { totalLaziDoc += parseInt(m, 10) || 0; });
+      const cd = parseFloat(r.cantitate_document);
+      if (!isNaN(cd)) totalCantDoc += cd;
     });
-    return { totalPaleti, ladiByType };
+    return { totalPaleti, ladiByType, totalPaletiDoc, totalLaziDoc, totalCantDoc };
   };
 
   // ============ EXPORT EXCEL ============
