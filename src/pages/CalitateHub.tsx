@@ -79,6 +79,14 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="restocari">
+          <Card>
+            <CardContent className="p-4">
+              <MarfaRestocataView />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </ForceInventoryType>
   );
