@@ -598,19 +598,23 @@ const ReceptionReport: React.FC = () => {
     let totalLaziDoc = 0;
     let totalCantDoc = 0;
     const ladiByType = new Map<string, number>();
+    const ladiDocByType = new Map<string, number>();
     group.rows.forEach((r) => {
       if (r.is_missing) return;
       totalPaleti += r.nr_paleti_rec || 0;
       if (r.tip_lada_culoare && r.nr_lazi) {
         ladiByType.set(r.tip_lada_culoare, (ladiByType.get(r.tip_lada_culoare) || 0) + r.nr_lazi);
       }
-      const { p, l } = parsePalDoc(r.paleti_lazi_document || "");
+      const { p, l, tip } = parsePalDoc(r.paleti_lazi_document || "");
       if (p) totalPaletiDoc += p;
       if (l) totalLaziDoc += l;
+      if (tip && l) {
+        ladiDocByType.set(tip, (ladiDocByType.get(tip) || 0) + l);
+      }
       const cd = parseFloat(r.cantitate_document);
       if (!isNaN(cd)) totalCantDoc += cd;
     });
-    return { totalPaleti, ladiByType, totalPaletiDoc, totalLaziDoc, totalCantDoc };
+    return { totalPaleti, ladiByType, ladiDocByType, totalPaletiDoc, totalLaziDoc, totalCantDoc };
   };
 
   // ============ EXPORT EXCEL ============
