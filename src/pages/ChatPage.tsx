@@ -227,6 +227,26 @@ const ChatPage: React.FC = () => {
   const setConvSeen = (convId: string, iso: string) => {
     window.localStorage.setItem(convSeenKey(convId), iso);
   };
+  const readReceiptKey = (convId: string) => `coral:chat:read-receipts:${userId}:${convId}`;
+  const getStoredReadReceipts = (convId: string): Record<string, string> => {
+    try {
+      return JSON.parse(window.localStorage.getItem(readReceiptKey(convId)) ?? "{}") ?? {};
+    } catch {
+      return {};
+    }
+  };
+  const mergeReadReceipts = (convId: string, incoming: Record<string, string>) => {
+    setMemberLastRead((prev) => {
+      const next = { ...getStoredReadReceipts(convId), ...(prev[convId] ?? {}) };
+      Object.entries(incoming).forEach(([uid, ts]) => {
+        if (!ts) return;
+        const existing = next[uid];
+        if (!existing || new Date(ts) > new Date(existing)) next[uid] = ts;
+      });
+      window.localStorage.setItem(readReceiptKey(convId), JSON.stringify(next));
+      return { ...prev, [convId]: next };
+    });
+  };
 
   const loadUnreadCounts = async (convs: Conversation[]) => {
     if (!userId || !convs.length) { setUnreadByConv({}); return; }
@@ -294,7 +314,7 @@ const ChatPage: React.FC = () => {
     if (members) {
       const map: Record<string, string> = {};
       members.forEach((m: any) => { map[m.user_id] = m.last_read_at; });
-      setMemberLastRead((prev) => ({ ...prev, [convId]: map }));
+      mergeReadReceipts(convId, map);
     }
   };
 
@@ -321,12 +341,7 @@ const ChatPage: React.FC = () => {
       .on("broadcast", { event: "read" }, (payload: any) => {
         const { conversation_id, user_id, ts } = payload.payload ?? {};
         if (!conversation_id || !user_id || !ts || user_id === userId) return;
-        setMemberLastRead((prev) => {
-          const conv = { ...(prev[conversation_id] ?? {}) };
-          const existing = conv[user_id];
-          if (!existing || new Date(ts) > new Date(existing)) conv[user_id] = ts;
-          return { ...prev, [conversation_id]: conv };
-        });
+        mergeReadReceipts(conversation_id, { [user_id]: ts });
       })
       .on("postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages" },
@@ -361,6 +376,7 @@ const ChatPage: React.FC = () => {
       window.localStorage.setItem(activeConvStorageKey, activeId);
       const savedPending = window.localStorage.getItem(pendingStorageKey(activeId));
       setPendingAttachments(savedPending ? JSON.parse(savedPending) : []);
+      setMemberLastRead((prev) => ({ ...prev, [activeId]: { ...getStoredReadReceipts(activeId), ...(prev[activeId] ?? {}) } }));
       loadMessages(activeId);
     } else {
       setMessages([]);
@@ -381,19 +397,14 @@ const ChatPage: React.FC = () => {
       if (!members) return;
       const map: Record<string, string> = {};
       members.forEach((m: any) => { map[m.user_id] = m.last_read_at; });
-      setMemberLastRead((prev) => ({ ...prev, [activeId]: map }));
+      mergeReadReceipts(activeId, map);
     };
     const ch = (supabase as any)
       .channel(`chat-read:${activeId}`)
       .on("broadcast", { event: "read" }, (msg: any) => {
         const { user_id, ts } = msg.payload ?? {};
         if (!user_id || !ts || user_id === userId) return;
-        setMemberLastRead((prev) => {
-          const conv = { ...(prev[activeId] ?? {}) };
-          const existing = conv[user_id];
-          if (!existing || new Date(ts) > new Date(existing)) conv[user_id] = ts;
-          return { ...prev, [activeId]: conv };
-        });
+        mergeReadReceipts(activeId, { [user_id]: ts });
       })
       .on(
         "postgres_changes",
