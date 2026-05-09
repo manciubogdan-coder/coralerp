@@ -624,12 +624,17 @@ const ChatPage: React.FC = () => {
                       className="flex-1 flex items-center gap-2 text-left min-w-0"
                     >
                       {c.type === "dm" ? (
-                        <UserAvatar
-                          size="sm"
-                          name={dmOther?.display_name || dmOther?.name || c.name}
-                          email={dmOther?.email}
-                          url={dmOther?.avatar_url}
-                        />
+                        <div className="relative">
+                          <UserAvatar
+                            size="sm"
+                            name={dmOther?.display_name || dmOther?.name || c.name}
+                            email={dmOther?.email}
+                            url={dmOther?.avatar_url}
+                          />
+                          {dmOther?.user_id && isOnline(dmOther.user_id) && (
+                            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
+                          )}
+                        </div>
                       ) : (
                         getConvIcon(c)
                       )}
