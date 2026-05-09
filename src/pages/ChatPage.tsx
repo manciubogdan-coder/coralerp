@@ -144,6 +144,8 @@ const ChatPage: React.FC = () => {
 
   // Last-read timestamps for other members (used for read receipts in DMs)
   const [memberLastRead, setMemberLastRead] = useState<Record<string, Record<string, string>>>({});
+  // Map convId (DM) -> celălalt user_id, ca să afișăm bulina online în lista de conversații
+  const [dmPartnerByConv, setDmPartnerByConv] = useState<Record<string, string>>({});
 
   const selectConversation = (convId: string | null) => {
     setActiveId(convId);
