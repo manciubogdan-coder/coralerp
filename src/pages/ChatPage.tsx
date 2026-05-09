@@ -47,6 +47,7 @@ import BackToHubButton from "@/components/BackToHubButton";
 import { DEPARTMENTS } from "@/lib/departments";
 import UserAvatar from "@/components/UserAvatar";
 import { useTheme } from "@/contexts/ThemeContext";
+import { usePresence } from "@/contexts/PresenceContext";
 
 interface Profile {
   user_id: string;
