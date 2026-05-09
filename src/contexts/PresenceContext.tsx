@@ -25,13 +25,27 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       config: { presence: { key: user.id } },
     });
 
+    const computeOnline = () => {
+      const state = channel.presenceState();
+      const ids = new Set<string>();
+      Object.values(state).forEach((arr: any) => {
+        (arr as any[]).forEach((meta: any) => {
+          const uid = meta?.user_id;
+          if (uid) ids.add(String(uid));
+        });
+      });
+      // include current user always
+      ids.add(user.id);
+      console.log("[presence] online:", Array.from(ids));
+      setOnlineUsers(ids);
+    };
+
     channel
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState();
-        const ids = new Set<string>(Object.keys(state));
-        setOnlineUsers(ids);
-      })
+      .on("presence", { event: "sync" }, computeOnline)
+      .on("presence", { event: "join" }, computeOnline)
+      .on("presence", { event: "leave" }, computeOnline)
       .subscribe(async (status: string) => {
+        console.log("[presence] status:", status);
         if (status === "SUBSCRIBED") {
           await channel.track({ user_id: user.id, online_at: new Date().toISOString() });
         }
