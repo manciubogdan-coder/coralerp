@@ -131,6 +131,7 @@ const ChatPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const globalChatChannelRef = useRef<any>(null);
 
   const userId = user?.id ?? "";
   const activeConvStorageKey = userId ? `coral:chat:active-conversation:${userId}` : "";
@@ -244,12 +245,15 @@ const ChatPage: React.FC = () => {
     if (!userId) return;
     const now = new Date().toISOString();
     setConvSeen(convId, now);
-    await (supabase as any).from("chat_members")
+    const { error: readErr } = await (supabase as any).from("chat_members")
       .update({ last_read_at: now })
       .eq("conversation_id", convId).eq("user_id", userId);
+    if (readErr) console.warn("Chat read DB update failed; using realtime receipt", readErr);
     setUnreadByConv((u) => ({ ...u, [convId]: 0 }));
     // Broadcast read receipt așa încât expeditorul să vadă ✓✓ instant
     try {
+      const payload = { conversation_id: convId, user_id: userId, ts: now };
+      await globalChatChannelRef.current?.send({ type: "broadcast", event: "read", payload });
       const ch = (supabase as any).channel(`chat-read:${convId}`);
       await new Promise<void>((resolve) => {
         ch.subscribe((s: string) => {
@@ -257,7 +261,7 @@ const ChatPage: React.FC = () => {
         });
         setTimeout(() => resolve(), 500);
       });
-      await ch.send({ type: "broadcast", event: "read", payload: { user_id: userId, ts: now } });
+      await ch.send({ type: "broadcast", event: "read", payload });
       (supabase as any).removeChannel(ch);
     } catch {}
     window.dispatchEvent(new Event("collaboration-alerts-refresh"));
@@ -284,9 +288,11 @@ const ChatPage: React.FC = () => {
       .from("chat_members")
       .select("user_id,last_read_at")
       .eq("conversation_id", convId);
-    const map: Record<string, string> = {};
-    (members ?? []).forEach((m: any) => { map[m.user_id] = m.last_read_at; });
-    setMemberLastRead((prev) => ({ ...prev, [convId]: map }));
+    if (members) {
+      const map: Record<string, string> = {};
+      members.forEach((m: any) => { map[m.user_id] = m.last_read_at; });
+      setMemberLastRead((prev) => ({ ...prev, [convId]: map }));
+    }
   };
 
   // ---------- INITIAL LOAD ----------
