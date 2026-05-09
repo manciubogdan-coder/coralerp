@@ -144,6 +144,8 @@ const ChatPage: React.FC = () => {
 
   // Last-read timestamps for other members (used for read receipts in DMs)
   const [memberLastRead, setMemberLastRead] = useState<Record<string, Record<string, string>>>({});
+  // Map convId (DM) -> celălalt user_id, ca să afișăm bulina online în lista de conversații
+  const [dmPartnerByConv, setDmPartnerByConv] = useState<Record<string, string>>({});
 
   const selectConversation = (convId: string | null) => {
     setActiveId(convId);
@@ -192,8 +194,28 @@ const ChatPage: React.FC = () => {
       setConversations([]);
       return;
     }
-    setConversations((convs as Conversation[]) ?? []);
-    loadUnreadCounts((convs as Conversation[]) ?? []);
+    const list = (convs as Conversation[]) ?? [];
+    setConversations(list);
+    loadUnreadCounts(list);
+    loadDmPartners(list);
+  };
+
+  const loadDmPartners = async (list: Conversation[]) => {
+    if (!userId) return;
+    const dmIds = list.filter((c) => c.type === "dm").map((c) => c.id);
+    if (dmIds.length === 0) {
+      setDmPartnerByConv({});
+      return;
+    }
+    const { data: members } = await (supabase as any)
+      .from("chat_members")
+      .select("conversation_id,user_id")
+      .in("conversation_id", dmIds);
+    const map: Record<string, string> = {};
+    (members ?? []).forEach((m: any) => {
+      if (m.user_id !== userId) map[m.conversation_id] = m.user_id;
+    });
+    setDmPartnerByConv(map);
   };
 
   const convSeenKey = (convId: string) => `coral:chat:conv-seen:${userId}:${convId}`;
@@ -607,11 +629,20 @@ const ChatPage: React.FC = () => {
                 const unread = unreadByConv[c.id] ?? 0;
                 // pentru DM extragem celălalt user (din lista de membri o vom afla din profile)
                 let dmOther: Profile | undefined;
+                let dmPartnerId: string | undefined;
                 if (c.type === "dm") {
-                  dmOther = Object.values(profiles).find(
-                    (p) => p.user_id !== userId && (p.display_name === c.name || p.name === c.name || p.email === c.name)
-                  );
+                  dmPartnerId = dmPartnerByConv[c.id];
+                  if (dmPartnerId) {
+                    dmOther = profiles[dmPartnerId];
+                  }
+                  if (!dmOther) {
+                    dmOther = Object.values(profiles).find(
+                      (p) => p.user_id !== userId && (p.display_name === c.name || p.name === c.name || p.email === c.name)
+                    );
+                    if (!dmPartnerId && dmOther) dmPartnerId = dmOther.user_id;
+                  }
                 }
+                const dmOnline = dmPartnerId ? isOnline(dmPartnerId) : false;
                 return (
                   <div
                     key={c.id}
@@ -631,7 +662,7 @@ const ChatPage: React.FC = () => {
                             email={dmOther?.email}
                             url={dmOther?.avatar_url}
                           />
-                          {dmOther?.user_id && isOnline(dmOther.user_id) && (
+                          {dmOnline && (
                             <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
                           )}
                         </div>
