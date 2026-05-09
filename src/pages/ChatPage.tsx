@@ -227,6 +227,26 @@ const ChatPage: React.FC = () => {
   const setConvSeen = (convId: string, iso: string) => {
     window.localStorage.setItem(convSeenKey(convId), iso);
   };
+  const readReceiptKey = (convId: string) => `coral:chat:read-receipts:${userId}:${convId}`;
+  const getStoredReadReceipts = (convId: string): Record<string, string> => {
+    try {
+      return JSON.parse(window.localStorage.getItem(readReceiptKey(convId)) ?? "{}") ?? {};
+    } catch {
+      return {};
+    }
+  };
+  const mergeReadReceipts = (convId: string, incoming: Record<string, string>) => {
+    setMemberLastRead((prev) => {
+      const next = { ...getStoredReadReceipts(convId), ...(prev[convId] ?? {}) };
+      Object.entries(incoming).forEach(([uid, ts]) => {
+        if (!ts) return;
+        const existing = next[uid];
+        if (!existing || new Date(ts) > new Date(existing)) next[uid] = ts;
+      });
+      window.localStorage.setItem(readReceiptKey(convId), JSON.stringify(next));
+      return { ...prev, [convId]: next };
+    });
+  };
 
   const loadUnreadCounts = async (convs: Conversation[]) => {
     if (!userId || !convs.length) { setUnreadByConv({}); return; }
