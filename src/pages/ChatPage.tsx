@@ -629,11 +629,20 @@ const ChatPage: React.FC = () => {
                 const unread = unreadByConv[c.id] ?? 0;
                 // pentru DM extragem celălalt user (din lista de membri o vom afla din profile)
                 let dmOther: Profile | undefined;
+                let dmPartnerId: string | undefined;
                 if (c.type === "dm") {
-                  dmOther = Object.values(profiles).find(
-                    (p) => p.user_id !== userId && (p.display_name === c.name || p.name === c.name || p.email === c.name)
-                  );
+                  dmPartnerId = dmPartnerByConv[c.id];
+                  if (dmPartnerId) {
+                    dmOther = profiles[dmPartnerId];
+                  }
+                  if (!dmOther) {
+                    dmOther = Object.values(profiles).find(
+                      (p) => p.user_id !== userId && (p.display_name === c.name || p.name === c.name || p.email === c.name)
+                    );
+                    if (!dmPartnerId && dmOther) dmPartnerId = dmOther.user_id;
+                  }
                 }
+                const dmOnline = dmPartnerId ? isOnline(dmPartnerId) : false;
                 return (
                   <div
                     key={c.id}
