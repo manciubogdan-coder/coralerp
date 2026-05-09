@@ -132,6 +132,7 @@ const ChatPage: React.FC = () => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const globalChatChannelRef = useRef<any>(null);
+  const readReceiptChannelRef = useRef<any>(null);
 
   const userId = user?.id ?? "";
   const activeConvStorageKey = userId ? `coral:chat:active-conversation:${userId}` : "";
@@ -255,6 +256,7 @@ const ChatPage: React.FC = () => {
     try {
       const payload = { conversation_id: convId, user_id: userId, ts: now };
       await globalChatChannelRef.current?.send({ type: "broadcast", event: "read", payload });
+      await readReceiptChannelRef.current?.send({ type: "broadcast", event: "read", payload });
       const ch = (supabase as any).channel(`chat-read:${convId}`);
       await new Promise<void>((resolve) => {
         ch.subscribe((s: string) => {
