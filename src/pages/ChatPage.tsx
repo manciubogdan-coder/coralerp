@@ -372,8 +372,9 @@ const ChatPage: React.FC = () => {
         .from("chat_members")
         .select("user_id,last_read_at")
         .eq("conversation_id", activeId);
+      if (!members) return;
       const map: Record<string, string> = {};
-      (members ?? []).forEach((m: any) => { map[m.user_id] = m.last_read_at; });
+      members.forEach((m: any) => { map[m.user_id] = m.last_read_at; });
       setMemberLastRead((prev) => ({ ...prev, [activeId]: map }));
     };
     const ch = (supabase as any)
