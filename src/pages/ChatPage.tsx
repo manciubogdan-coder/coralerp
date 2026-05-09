@@ -315,6 +315,16 @@ const ChatPage: React.FC = () => {
     if (!userId) return;
     const channel = (supabase as any)
       .channel("chat-global")
+      .on("broadcast", { event: "read" }, (payload: any) => {
+        const { conversation_id, user_id, ts } = payload.payload ?? {};
+        if (!conversation_id || !user_id || !ts || user_id === userId) return;
+        setMemberLastRead((prev) => {
+          const conv = { ...(prev[conversation_id] ?? {}) };
+          const existing = conv[user_id];
+          if (!existing || new Date(ts) > new Date(existing)) conv[user_id] = ts;
+          return { ...prev, [conversation_id]: conv };
+        });
+      })
       .on("postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages" },
         (payload: any) => {
@@ -335,6 +345,7 @@ const ChatPage: React.FC = () => {
         () => { if (activeId) loadMessages(activeId); }
       )
       .subscribe();
+    globalChatChannelRef.current = channel;
     return () => { (supabase as any).removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, activeId]);
