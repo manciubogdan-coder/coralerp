@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck, Trash2, X } from "lucide-react";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import { useCollaborationAlerts } from "@/contexts/CollaborationAlertsContext";
