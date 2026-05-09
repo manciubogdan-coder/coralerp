@@ -662,7 +662,7 @@ const ChatPage: React.FC = () => {
                             email={dmOther?.email}
                             url={dmOther?.avatar_url}
                           />
-                          {dmOther?.user_id && isOnline(dmOther.user_id) && (
+                          {dmOnline && (
                             <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
                           )}
                         </div>
