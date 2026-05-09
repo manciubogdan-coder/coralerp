@@ -314,7 +314,7 @@ const ChatPage: React.FC = () => {
     if (members) {
       const map: Record<string, string> = {};
       members.forEach((m: any) => { map[m.user_id] = m.last_read_at; });
-      setMemberLastRead((prev) => ({ ...prev, [convId]: map }));
+      mergeReadReceipts(convId, map);
     }
   };
 
@@ -341,12 +341,7 @@ const ChatPage: React.FC = () => {
       .on("broadcast", { event: "read" }, (payload: any) => {
         const { conversation_id, user_id, ts } = payload.payload ?? {};
         if (!conversation_id || !user_id || !ts || user_id === userId) return;
-        setMemberLastRead((prev) => {
-          const conv = { ...(prev[conversation_id] ?? {}) };
-          const existing = conv[user_id];
-          if (!existing || new Date(ts) > new Date(existing)) conv[user_id] = ts;
-          return { ...prev, [conversation_id]: conv };
-        });
+        mergeReadReceipts(conversation_id, { [user_id]: ts });
       })
       .on("postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages" },
