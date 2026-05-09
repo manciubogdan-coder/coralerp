@@ -220,11 +220,24 @@ const ChatPage: React.FC = () => {
 
   const markConversationRead = async (convId: string) => {
     if (!userId) return;
-    setConvSeen(convId, new Date().toISOString());
+    const now = new Date().toISOString();
+    setConvSeen(convId, now);
     await (supabase as any).from("chat_members")
-      .update({ last_read_at: new Date().toISOString() })
+      .update({ last_read_at: now })
       .eq("conversation_id", convId).eq("user_id", userId);
     setUnreadByConv((u) => ({ ...u, [convId]: 0 }));
+    // Broadcast read receipt așa încât expeditorul să vadă ✓✓ instant
+    try {
+      const ch = (supabase as any).channel(`chat-read:${convId}`);
+      await new Promise<void>((resolve) => {
+        ch.subscribe((s: string) => {
+          if (s === "SUBSCRIBED") resolve();
+        });
+        setTimeout(() => resolve(), 500);
+      });
+      await ch.send({ type: "broadcast", event: "read", payload: { user_id: userId, ts: now } });
+      (supabase as any).removeChannel(ch);
+    } catch {}
     window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
