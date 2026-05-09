@@ -347,9 +347,18 @@ const ChatPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
-  // Ascultă "read receipts" pe canalul conversației active
+  // Ascultă "read receipts" pe canalul conversației active + postgres changes pe chat_members
   useEffect(() => {
     if (!activeId || !userId) return;
+    const refreshMembers = async () => {
+      const { data: members } = await (supabase as any)
+        .from("chat_members")
+        .select("user_id,last_read_at")
+        .eq("conversation_id", activeId);
+      const map: Record<string, string> = {};
+      (members ?? []).forEach((m: any) => { map[m.user_id] = m.last_read_at; });
+      setMemberLastRead((prev) => ({ ...prev, [activeId]: map }));
+    };
     const ch = (supabase as any)
       .channel(`chat-read:${activeId}`)
       .on("broadcast", { event: "read" }, (msg: any) => {
@@ -362,8 +371,18 @@ const ChatPage: React.FC = () => {
           return { ...prev, [activeId]: conv };
         });
       })
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "chat_members", filter: `conversation_id=eq.${activeId}` },
+        () => refreshMembers()
+      )
       .subscribe();
-    return () => { (supabase as any).removeChannel(ch); };
+    // Fallback: poll every 3s while conversation is open
+    const interval = window.setInterval(refreshMembers, 3000);
+    return () => {
+      window.clearInterval(interval);
+      (supabase as any).removeChannel(ch);
+    };
   }, [activeId, userId]);
 
   useEffect(() => {
