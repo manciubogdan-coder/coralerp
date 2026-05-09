@@ -194,8 +194,28 @@ const ChatPage: React.FC = () => {
       setConversations([]);
       return;
     }
-    setConversations((convs as Conversation[]) ?? []);
-    loadUnreadCounts((convs as Conversation[]) ?? []);
+    const list = (convs as Conversation[]) ?? [];
+    setConversations(list);
+    loadUnreadCounts(list);
+    loadDmPartners(list);
+  };
+
+  const loadDmPartners = async (list: Conversation[]) => {
+    if (!userId) return;
+    const dmIds = list.filter((c) => c.type === "dm").map((c) => c.id);
+    if (dmIds.length === 0) {
+      setDmPartnerByConv({});
+      return;
+    }
+    const { data: members } = await (supabase as any)
+      .from("chat_members")
+      .select("conversation_id,user_id")
+      .in("conversation_id", dmIds);
+    const map: Record<string, string> = {};
+    (members ?? []).forEach((m: any) => {
+      if (m.user_id !== userId) map[m.conversation_id] = m.user_id;
+    });
+    setDmPartnerByConv(map);
   };
 
   const convSeenKey = (convId: string) => `coral:chat:conv-seen:${userId}:${convId}`;
