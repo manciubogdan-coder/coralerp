@@ -134,13 +134,20 @@ const NotificationBell: React.FC = () => {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
-        <div className="flex items-center justify-between p-3 border-b">
+        <div className="flex items-center justify-between p-3 border-b gap-1">
           <span className="font-medium">Notificări</span>
-          {unread > 0 && (
-            <Button variant="ghost" size="sm" onClick={markAllRead}>
-              <CheckCheck size={14} className="mr-1" /> Marchează tot
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {unread > 0 && (
+              <Button variant="ghost" size="sm" onClick={markAllRead} title="Marchează toate ca citite">
+                <CheckCheck size={14} />
+              </Button>
+            )}
+            {items.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearAll} title="Șterge toate" className="text-destructive hover:text-destructive">
+                <Trash2 size={14} />
+              </Button>
+            )}
+          </div>
         </div>
         <div className="max-h-96 overflow-y-auto">
           {chatUnread > 0 && (
