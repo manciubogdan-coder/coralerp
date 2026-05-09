@@ -396,19 +396,14 @@ const ChatPage: React.FC = () => {
       if (!members) return;
       const map: Record<string, string> = {};
       members.forEach((m: any) => { map[m.user_id] = m.last_read_at; });
-      setMemberLastRead((prev) => ({ ...prev, [activeId]: map }));
+      mergeReadReceipts(activeId, map);
     };
     const ch = (supabase as any)
       .channel(`chat-read:${activeId}`)
       .on("broadcast", { event: "read" }, (msg: any) => {
         const { user_id, ts } = msg.payload ?? {};
         if (!user_id || !ts || user_id === userId) return;
-        setMemberLastRead((prev) => {
-          const conv = { ...(prev[activeId] ?? {}) };
-          const existing = conv[user_id];
-          if (!existing || new Date(ts) > new Date(existing)) conv[user_id] = ts;
-          return { ...prev, [activeId]: conv };
-        });
+        mergeReadReceipts(activeId, { [user_id]: ts });
       })
       .on(
         "postgres_changes",
