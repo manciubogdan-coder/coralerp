@@ -104,6 +104,7 @@ const makeUploadId = () => {
 const ChatPage: React.FC = () => {
   const { user } = useAuth();
   const { chatBackground } = useTheme();
+  const { isOnline } = usePresence();
   const { toast } = useToast();
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [conversations, setConversations] = useState<Conversation[]>([]);
