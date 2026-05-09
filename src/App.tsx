@@ -44,6 +44,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { InventoryTypeProvider, ForceInventoryType } from "@/context/inventory-type";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CollaborationAlertsProvider } from "@/contexts/CollaborationAlertsContext";
+import { PresenceProvider } from "@/contexts/PresenceContext";
 import CollaborationAlertBadges from "@/components/CollaborationAlertBadges";
 
 const productionRefreshKeys = [
@@ -368,9 +369,11 @@ const App = () => {
                     element={
                       <ProtectedRoute>
                         <InventoryTypeProvider>
-                          <CollaborationAlertsProvider>
-                            <AppShell />
-                          </CollaborationAlertsProvider>
+                          <PresenceProvider>
+                            <CollaborationAlertsProvider>
+                              <AppShell />
+                            </CollaborationAlertsProvider>
+                          </PresenceProvider>
                         </InventoryTypeProvider>
                       </ProtectedRoute>
                     }

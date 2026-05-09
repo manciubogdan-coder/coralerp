@@ -47,6 +47,7 @@ import BackToHubButton from "@/components/BackToHubButton";
 import { DEPARTMENTS } from "@/lib/departments";
 import UserAvatar from "@/components/UserAvatar";
 import { useTheme } from "@/contexts/ThemeContext";
+import { usePresence } from "@/contexts/PresenceContext";
 
 interface Profile {
   user_id: string;
@@ -103,6 +104,7 @@ const makeUploadId = () => {
 const ChatPage: React.FC = () => {
   const { user } = useAuth();
   const { chatBackground } = useTheme();
+  const { isOnline } = usePresence();
   const { toast } = useToast();
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -218,11 +220,24 @@ const ChatPage: React.FC = () => {
 
   const markConversationRead = async (convId: string) => {
     if (!userId) return;
-    setConvSeen(convId, new Date().toISOString());
+    const now = new Date().toISOString();
+    setConvSeen(convId, now);
     await (supabase as any).from("chat_members")
-      .update({ last_read_at: new Date().toISOString() })
+      .update({ last_read_at: now })
       .eq("conversation_id", convId).eq("user_id", userId);
     setUnreadByConv((u) => ({ ...u, [convId]: 0 }));
+    // Broadcast read receipt așa încât expeditorul să vadă ✓✓ instant
+    try {
+      const ch = (supabase as any).channel(`chat-read:${convId}`);
+      await new Promise<void>((resolve) => {
+        ch.subscribe((s: string) => {
+          if (s === "SUBSCRIBED") resolve();
+        });
+        setTimeout(() => resolve(), 500);
+      });
+      await ch.send({ type: "broadcast", event: "read", payload: { user_id: userId, ts: now } });
+      (supabase as any).removeChannel(ch);
+    } catch {}
     window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
@@ -309,6 +324,25 @@ const ChatPage: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
+
+  // Ascultă "read receipts" pe canalul conversației active
+  useEffect(() => {
+    if (!activeId || !userId) return;
+    const ch = (supabase as any)
+      .channel(`chat-read:${activeId}`)
+      .on("broadcast", { event: "read" }, (msg: any) => {
+        const { user_id, ts } = msg.payload ?? {};
+        if (!user_id || !ts || user_id === userId) return;
+        setMemberLastRead((prev) => {
+          const conv = { ...(prev[activeId] ?? {}) };
+          const existing = conv[user_id];
+          if (!existing || new Date(ts) > new Date(existing)) conv[user_id] = ts;
+          return { ...prev, [activeId]: conv };
+        });
+      })
+      .subscribe();
+    return () => { (supabase as any).removeChannel(ch); };
+  }, [activeId, userId]);
 
   useEffect(() => {
     if (!activeId || !userId) return;
@@ -590,12 +624,17 @@ const ChatPage: React.FC = () => {
                       className="flex-1 flex items-center gap-2 text-left min-w-0"
                     >
                       {c.type === "dm" ? (
-                        <UserAvatar
-                          size="sm"
-                          name={dmOther?.display_name || dmOther?.name || c.name}
-                          email={dmOther?.email}
-                          url={dmOther?.avatar_url}
-                        />
+                        <div className="relative">
+                          <UserAvatar
+                            size="sm"
+                            name={dmOther?.display_name || dmOther?.name || c.name}
+                            email={dmOther?.email}
+                            url={dmOther?.avatar_url}
+                          />
+                          {dmOther?.user_id && isOnline(dmOther.user_id) && (
+                            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
+                          )}
+                        </div>
                       ) : (
                         getConvIcon(c)
                       )}
@@ -656,6 +695,19 @@ const ChatPage: React.FC = () => {
                 </Button>
                 {getConvIcon(activeConv)}
                 <span className="font-medium truncate">{getConvLabel(activeConv)}</span>
+                {activeConv.type === "dm" && (() => {
+                  const other = Object.values(profiles).find(
+                    (p) => p.user_id !== userId && (p.display_name === activeConv.name || p.name === activeConv.name || p.email === activeConv.name)
+                  );
+                  if (!other) return null;
+                  const online = isOnline(other.user_id);
+                  return (
+                    <span className={`flex items-center gap-1 text-xs ${online ? "text-green-600" : "text-muted-foreground"}`}>
+                      <span className={`h-2 w-2 rounded-full ${online ? "bg-green-500" : "bg-muted-foreground/40"}`} />
+                      {online ? "online" : "offline"}
+                    </span>
+                  );
+                })()}
                 <Badge variant="outline" className="text-xs ml-auto hidden sm:inline-flex">
                   {activeConv.type === "dm" ? "Direct"
                     : activeConv.type === "group" ? "Grup" : "Departament"}

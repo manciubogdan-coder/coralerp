@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck, Trash2, X } from "lucide-react";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import { useCollaborationAlerts } from "@/contexts/CollaborationAlertsContext";
@@ -88,6 +88,23 @@ const NotificationBell: React.FC = () => {
     window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
+  const deleteOne = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) return;
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    await (supabase as any).from("notifications").delete().eq("id", id);
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
+  };
+
+  const clearAll = async () => {
+    if (!user) return;
+    setItems([]);
+    await (supabase as any).from("notifications").delete().eq("user_id", user.id);
+    await markChatSeen();
+    markTasksSeen();
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
+  };
+
   const openItem = async (n: Notif) => {
     if (!n.read_at) {
       await (supabase as any)
@@ -117,13 +134,20 @@ const NotificationBell: React.FC = () => {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
-        <div className="flex items-center justify-between p-3 border-b">
+        <div className="flex items-center justify-between p-3 border-b gap-1">
           <span className="font-medium">Notificări</span>
-          {unread > 0 && (
-            <Button variant="ghost" size="sm" onClick={markAllRead}>
-              <CheckCheck size={14} className="mr-1" /> Marchează tot
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {unread > 0 && (
+              <Button variant="ghost" size="sm" onClick={markAllRead} title="Marchează toate ca citite">
+                <CheckCheck size={14} />
+              </Button>
+            )}
+            {items.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearAll} title="Șterge toate" className="text-destructive hover:text-destructive">
+                <Trash2 size={14} />
+              </Button>
+            )}
+          </div>
         </div>
         <div className="max-h-96 overflow-y-auto">
           {chatUnread > 0 && (
@@ -172,30 +196,43 @@ const NotificationBell: React.FC = () => {
             </div>
           ) : (
             items.map((n) => (
-              <button
+              <div
                 key={n.id}
-                onClick={() => openItem(n)}
-                className={`w-full text-left p-3 border-b hover:bg-accent transition-colors ${
+                className={`group/notif w-full border-b hover:bg-accent transition-colors flex items-start ${
                   !n.read_at ? "bg-accent/40" : ""
                 }`}
               >
-                <div className="flex items-start gap-2">
-                  {!n.read_at && (
-                    <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{n.title}</div>
-                    {n.body && (
-                      <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
-                        {n.body}
-                      </div>
+                <button
+                  onClick={() => openItem(n)}
+                  className="flex-1 text-left p-3 min-w-0"
+                >
+                  <div className="flex items-start gap-2">
+                    {!n.read_at && (
+                      <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
                     )}
-                    <div className="text-[10px] text-muted-foreground mt-1">
-                      {format(new Date(n.created_at), "dd MMM HH:mm", { locale: ro })}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{n.title}</div>
+                      {n.body && (
+                        <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                          {n.body}
+                        </div>
+                      )}
+                      <div className="text-[10px] text-muted-foreground mt-1">
+                        {format(new Date(n.created_at), "dd MMM HH:mm", { locale: ro })}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </button>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 mr-2 mt-2 opacity-50 hover:opacity-100 hover:text-destructive shrink-0"
+                  onClick={(e) => deleteOne(n.id, e)}
+                  title="Șterge notificarea"
+                >
+                  <X size={14} />
+                </Button>
+              </div>
             ))
           )}
         </div>
