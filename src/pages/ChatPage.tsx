@@ -325,6 +325,25 @@ const ChatPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
+  // Ascultă "read receipts" pe canalul conversației active
+  useEffect(() => {
+    if (!activeId || !userId) return;
+    const ch = (supabase as any)
+      .channel(`chat-read:${activeId}`)
+      .on("broadcast", { event: "read" }, (msg: any) => {
+        const { user_id, ts } = msg.payload ?? {};
+        if (!user_id || !ts || user_id === userId) return;
+        setMemberLastRead((prev) => {
+          const conv = { ...(prev[activeId] ?? {}) };
+          const existing = conv[user_id];
+          if (!existing || new Date(ts) > new Date(existing)) conv[user_id] = ts;
+          return { ...prev, [activeId]: conv };
+        });
+      })
+      .subscribe();
+    return () => { (supabase as any).removeChannel(ch); };
+  }, [activeId, userId]);
+
   useEffect(() => {
     if (!activeId || !userId) return;
     window.localStorage.setItem(pendingStorageKey(activeId), JSON.stringify(pendingAttachments));
