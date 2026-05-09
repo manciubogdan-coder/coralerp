@@ -695,6 +695,19 @@ const ChatPage: React.FC = () => {
                 </Button>
                 {getConvIcon(activeConv)}
                 <span className="font-medium truncate">{getConvLabel(activeConv)}</span>
+                {activeConv.type === "dm" && (() => {
+                  const other = Object.values(profiles).find(
+                    (p) => p.user_id !== userId && (p.display_name === activeConv.name || p.name === activeConv.name || p.email === activeConv.name)
+                  );
+                  if (!other) return null;
+                  const online = isOnline(other.user_id);
+                  return (
+                    <span className={`flex items-center gap-1 text-xs ${online ? "text-green-600" : "text-muted-foreground"}`}>
+                      <span className={`h-2 w-2 rounded-full ${online ? "bg-green-500" : "bg-muted-foreground/40"}`} />
+                      {online ? "online" : "offline"}
+                    </span>
+                  );
+                })()}
                 <Badge variant="outline" className="text-xs ml-auto hidden sm:inline-flex">
                   {activeConv.type === "dm" ? "Direct"
                     : activeConv.type === "group" ? "Grup" : "Departament"}
