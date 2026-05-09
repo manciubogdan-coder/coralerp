@@ -349,7 +349,10 @@ const ChatPage: React.FC = () => {
       )
       .subscribe();
     globalChatChannelRef.current = channel;
-    return () => { (supabase as any).removeChannel(channel); };
+    return () => {
+      globalChatChannelRef.current = null;
+      (supabase as any).removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, activeId]);
 
@@ -398,9 +401,11 @@ const ChatPage: React.FC = () => {
         () => refreshMembers()
       )
       .subscribe();
+    readReceiptChannelRef.current = ch;
     // Fallback: poll every 3s while conversation is open
     const interval = window.setInterval(refreshMembers, 3000);
     return () => {
+      readReceiptChannelRef.current = null;
       window.clearInterval(interval);
       (supabase as any).removeChannel(ch);
     };
