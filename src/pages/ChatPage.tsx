@@ -131,6 +131,8 @@ const ChatPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const globalChatChannelRef = useRef<any>(null);
+  const readReceiptChannelRef = useRef<any>(null);
 
   const userId = user?.id ?? "";
   const activeConvStorageKey = userId ? `coral:chat:active-conversation:${userId}` : "";
@@ -211,8 +213,9 @@ const ChatPage: React.FC = () => {
       .from("chat_members")
       .select("conversation_id,user_id")
       .in("conversation_id", dmIds);
+    if (!members) return;
     const map: Record<string, string> = {};
-    (members ?? []).forEach((m: any) => {
+    members.forEach((m: any) => {
       if (m.user_id !== userId) map[m.conversation_id] = m.user_id;
     });
     setDmPartnerByConv(map);
@@ -244,12 +247,16 @@ const ChatPage: React.FC = () => {
     if (!userId) return;
     const now = new Date().toISOString();
     setConvSeen(convId, now);
-    await (supabase as any).from("chat_members")
+    const { error: readErr } = await (supabase as any).from("chat_members")
       .update({ last_read_at: now })
       .eq("conversation_id", convId).eq("user_id", userId);
+    if (readErr) console.warn("Chat read DB update failed; using realtime receipt", readErr);
     setUnreadByConv((u) => ({ ...u, [convId]: 0 }));
     // Broadcast read receipt așa încât expeditorul să vadă ✓✓ instant
     try {
+      const payload = { conversation_id: convId, user_id: userId, ts: now };
+      await globalChatChannelRef.current?.send({ type: "broadcast", event: "read", payload });
+      await readReceiptChannelRef.current?.send({ type: "broadcast", event: "read", payload });
       const ch = (supabase as any).channel(`chat-read:${convId}`);
       await new Promise<void>((resolve) => {
         ch.subscribe((s: string) => {
@@ -257,7 +264,7 @@ const ChatPage: React.FC = () => {
         });
         setTimeout(() => resolve(), 500);
       });
-      await ch.send({ type: "broadcast", event: "read", payload: { user_id: userId, ts: now } });
+      await ch.send({ type: "broadcast", event: "read", payload });
       (supabase as any).removeChannel(ch);
     } catch {}
     window.dispatchEvent(new Event("collaboration-alerts-refresh"));
@@ -284,9 +291,11 @@ const ChatPage: React.FC = () => {
       .from("chat_members")
       .select("user_id,last_read_at")
       .eq("conversation_id", convId);
-    const map: Record<string, string> = {};
-    (members ?? []).forEach((m: any) => { map[m.user_id] = m.last_read_at; });
-    setMemberLastRead((prev) => ({ ...prev, [convId]: map }));
+    if (members) {
+      const map: Record<string, string> = {};
+      members.forEach((m: any) => { map[m.user_id] = m.last_read_at; });
+      setMemberLastRead((prev) => ({ ...prev, [convId]: map }));
+    }
   };
 
   // ---------- INITIAL LOAD ----------
@@ -309,6 +318,16 @@ const ChatPage: React.FC = () => {
     if (!userId) return;
     const channel = (supabase as any)
       .channel("chat-global")
+      .on("broadcast", { event: "read" }, (payload: any) => {
+        const { conversation_id, user_id, ts } = payload.payload ?? {};
+        if (!conversation_id || !user_id || !ts || user_id === userId) return;
+        setMemberLastRead((prev) => {
+          const conv = { ...(prev[conversation_id] ?? {}) };
+          const existing = conv[user_id];
+          if (!existing || new Date(ts) > new Date(existing)) conv[user_id] = ts;
+          return { ...prev, [conversation_id]: conv };
+        });
+      })
       .on("postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages" },
         (payload: any) => {
@@ -329,7 +348,11 @@ const ChatPage: React.FC = () => {
         () => { if (activeId) loadMessages(activeId); }
       )
       .subscribe();
-    return () => { (supabase as any).removeChannel(channel); };
+    globalChatChannelRef.current = channel;
+    return () => {
+      globalChatChannelRef.current = null;
+      (supabase as any).removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, activeId]);
 
@@ -355,8 +378,9 @@ const ChatPage: React.FC = () => {
         .from("chat_members")
         .select("user_id,last_read_at")
         .eq("conversation_id", activeId);
+      if (!members) return;
       const map: Record<string, string> = {};
-      (members ?? []).forEach((m: any) => { map[m.user_id] = m.last_read_at; });
+      members.forEach((m: any) => { map[m.user_id] = m.last_read_at; });
       setMemberLastRead((prev) => ({ ...prev, [activeId]: map }));
     };
     const ch = (supabase as any)
@@ -377,9 +401,11 @@ const ChatPage: React.FC = () => {
         () => refreshMembers()
       )
       .subscribe();
+    readReceiptChannelRef.current = ch;
     // Fallback: poll every 3s while conversation is open
     const interval = window.setInterval(refreshMembers, 3000);
     return () => {
+      readReceiptChannelRef.current = null;
       window.clearInterval(interval);
       (supabase as any).removeChannel(ch);
     };
