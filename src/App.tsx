@@ -369,9 +369,11 @@ const App = () => {
                     element={
                       <ProtectedRoute>
                         <InventoryTypeProvider>
-                          <CollaborationAlertsProvider>
-                            <AppShell />
-                          </CollaborationAlertsProvider>
+                          <PresenceProvider>
+                            <CollaborationAlertsProvider>
+                              <AppShell />
+                            </CollaborationAlertsProvider>
+                          </PresenceProvider>
                         </InventoryTypeProvider>
                       </ProtectedRoute>
                     }
