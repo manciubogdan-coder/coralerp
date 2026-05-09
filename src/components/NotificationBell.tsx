@@ -88,6 +88,23 @@ const NotificationBell: React.FC = () => {
     window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
+  const deleteOne = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) return;
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    await (supabase as any).from("notifications").delete().eq("id", id);
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
+  };
+
+  const clearAll = async () => {
+    if (!user) return;
+    setItems([]);
+    await (supabase as any).from("notifications").delete().eq("user_id", user.id);
+    await markChatSeen();
+    markTasksSeen();
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
+  };
+
   const openItem = async (n: Notif) => {
     if (!n.read_at) {
       await (supabase as any)
