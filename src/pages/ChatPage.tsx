@@ -212,8 +212,9 @@ const ChatPage: React.FC = () => {
       .from("chat_members")
       .select("conversation_id,user_id")
       .in("conversation_id", dmIds);
+    if (!members) return;
     const map: Record<string, string> = {};
-    (members ?? []).forEach((m: any) => {
+    members.forEach((m: any) => {
       if (m.user_id !== userId) map[m.conversation_id] = m.user_id;
     });
     setDmPartnerByConv(map);
