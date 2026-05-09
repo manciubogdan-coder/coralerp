@@ -376,6 +376,7 @@ const ChatPage: React.FC = () => {
       window.localStorage.setItem(activeConvStorageKey, activeId);
       const savedPending = window.localStorage.getItem(pendingStorageKey(activeId));
       setPendingAttachments(savedPending ? JSON.parse(savedPending) : []);
+      setMemberLastRead((prev) => ({ ...prev, [activeId]: { ...getStoredReadReceipts(activeId), ...(prev[activeId] ?? {}) } }));
       loadMessages(activeId);
     } else {
       setMessages([]);
