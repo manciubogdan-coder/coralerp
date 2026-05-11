@@ -42,6 +42,8 @@ interface OrderRow {
 
 interface ItemRow {
   id?: string;
+  cod_articol?: string | null;
+  product_id?: string | null;
   denumire_articol: string;
   descriere_articol: string | null;
   cantitate: number;
@@ -49,6 +51,16 @@ interface ItemRow {
   palet: number;
   valoare_neta: number;
   unit?: string | null;
+}
+
+interface UnknownArticle {
+  cod_articol: string;
+  denumire_articol: string;
+  unit?: string | null;
+  // user input for creation
+  name: string;
+  cod_produs: string;
+  default_unit: string;
 }
 
 const parseDateCell = (val: any): string | null => {
@@ -107,6 +119,16 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
 
   // Detail dialog
   const [detailOrder, setDetailOrder] = useState<OrderRow | null>(null);
+
+  // Unknown articles (after Excel import) — user confirms creation
+  const [unknownArticles, setUnknownArticles] = useState<UnknownArticle[]>([]);
+  const [creatingProducts, setCreatingProducts] = useState(false);
+
+  const productsTable = inventoryType === "ambalaje"
+    ? "ambalaje_products"
+    : inventoryType === "etichete"
+      ? "etichete_products"
+      : "products";
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -199,16 +221,41 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
           });
         }
         groups.get(key)!.lines.push({
-          denumire_articol: String(r.DenumireArticol ?? r.denumire_articol ?? "").trim(),
+          cod_articol: String(r.CodArticol ?? r.codArticol ?? r.cod_articol ?? r.NrArticol ?? r.nr_articol ?? r["Nr articol"] ?? r["Cod articol"] ?? "").trim() || null,
+          denumire_articol: String(r.DenumireArticol ?? r.denumire_articol ?? r["Denumire articol"] ?? "").trim(),
           descriere_articol: String(r.DescriereArticol ?? r.descriere_articol ?? "").trim() || null,
-          cantitate: num(r.CantitateArticol ?? r.cantitate),
+          cantitate: num(r.CantitateArticol ?? r.cantitate ?? r.Cantitate),
           pret_final: num(r.PretFinal ?? r.pret_final),
           palet: num(r.palet ?? r.Palet),
           valoare_neta: num(r.ValoareNeta ?? r.valoare_neta),
+          unit: String(r.UM ?? r.um ?? r.unit ?? "").trim() || null,
+        });
+      }
+
+      // Collect all unique cod_articol from lines
+      const allCodes = new Set<string>();
+      for (const [, g] of groups) {
+        for (const l of g.lines) {
+          if (l.cod_articol) allCodes.add(l.cod_articol);
+        }
+      }
+
+      // Bulk-fetch products by cod_produs (matching against current inventory type)
+      const codeToProductId = new Map<string, string>();
+      const codesArr = Array.from(allCodes);
+      for (let i = 0; i < codesArr.length; i += 50) {
+        const chunk = codesArr.slice(i, i + 50);
+        const { data: prods } = await (supabase as any)
+          .from(productsTable)
+          .select("id,cod_produs")
+          .in("cod_produs", chunk);
+        (prods || []).forEach((p: any) => {
+          if (p.cod_produs) codeToProductId.set(String(p.cod_produs), p.id);
         });
       }
 
       let inserted = 0;
+      const unknownMap = new Map<string, UnknownArticle>();
       for (const [, g] of groups) {
         const totalValue = g.lines.reduce((s, l) => s + (l.valoare_neta || l.cantitate * l.pret_final), 0);
         const { data: orderData, error: orderErr } = await (supabase as any)
@@ -224,7 +271,20 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
           .single();
         if (orderErr) { console.error(orderErr); continue; }
         const orderId = orderData.id;
-        const itemsToInsert = g.lines.filter(l => l.denumire_articol).map(l => ({ ...l, order_id: orderId }));
+        const itemsToInsert = g.lines.filter(l => l.denumire_articol).map(l => {
+          const pid = l.cod_articol ? codeToProductId.get(l.cod_articol) || null : null;
+          if (l.cod_articol && !pid && !unknownMap.has(l.cod_articol)) {
+            unknownMap.set(l.cod_articol, {
+              cod_articol: l.cod_articol,
+              denumire_articol: l.denumire_articol,
+              unit: l.unit || null,
+              name: l.denumire_articol,
+              cod_produs: l.cod_articol,
+              default_unit: l.unit || "kg",
+            });
+          }
+          return { ...l, product_id: pid, order_id: orderId };
+        });
         if (itemsToInsert.length) {
           const { error: itErr } = await (supabase as any)
             .from("purchase_orders_imported_items")
@@ -234,7 +294,16 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
         inserted++;
       }
 
-      toast({ title: `Import reușit`, description: `${inserted} comenzi importate` });
+      const unknownList = Array.from(unknownMap.values());
+      if (unknownList.length > 0) {
+        setUnknownArticles(unknownList);
+        toast({
+          title: `${inserted} comenzi importate`,
+          description: `${unknownList.length} articole noi necesită creare în nomenclator`,
+        });
+      } else {
+        toast({ title: `Import reușit`, description: `${inserted} comenzi importate` });
+      }
       await fetchOrders();
     } catch (e: any) {
       console.error(e);
@@ -380,6 +449,51 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
     setOrders(prev => prev.filter(o => !ids.includes(o.id)));
   };
 
+  const updateUnknown = (i: number, patch: Partial<UnknownArticle>) => {
+    setUnknownArticles(prev => prev.map((u, idx) => idx === i ? { ...u, ...patch } : u));
+  };
+  const removeUnknown = (i: number) => setUnknownArticles(prev => prev.filter((_, idx) => idx !== i));
+
+  const createMissingProducts = async () => {
+    const valid = unknownArticles.filter(u => u.name.trim() && u.cod_produs.trim());
+    if (valid.length === 0) { setUnknownArticles([]); return; }
+    setCreatingProducts(true);
+    try {
+      const rows = valid.map(u => ({
+        name: u.name.trim(),
+        cod_produs: u.cod_produs.trim(),
+        default_unit: u.default_unit || "kg",
+      }));
+      const { data: created, error } = await (supabase as any)
+        .from(productsTable)
+        .insert(rows)
+        .select("id,cod_produs");
+      if (error) throw error;
+
+      // Link new product_ids back to items
+      const codeToId = new Map<string, string>();
+      (created || []).forEach((p: any) => codeToId.set(String(p.cod_produs), p.id));
+
+      for (const [cod, pid] of codeToId) {
+        await (supabase as any)
+          .from("purchase_orders_imported_items")
+          .update({ product_id: pid })
+          .eq("cod_articol", cod)
+          .is("product_id", null);
+      }
+
+      toast({ title: `${created?.length || 0} produse create și legate` });
+      setUnknownArticles([]);
+      // refresh items
+      setItemsByOrder({});
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "Eroare la creare produse", description: e.message, variant: "destructive" });
+    } finally {
+      setCreatingProducts(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -485,9 +599,6 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
                       <Badge variant="secondary" className="shrink-0">{g.count} {g.count === 1 ? "comandă" : "comenzi"}</Badge>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold">
-                        {g.total.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} lei
-                      </div>
                       <Button
                         size="icon"
                         variant="ghost"
@@ -500,75 +611,52 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
                     </div>
                   </div>
                 </CardHeader>
-                {!collapsed && (
-                  <CardContent className="pt-0 space-y-3">
-                    {g.items.map(o => {
-                      const items = itemsByOrder[o.id];
-                      return (
-                        <div key={o.id} className="border rounded-lg overflow-hidden">
-                          <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/30">
-                            <div className="flex items-center gap-2 flex-wrap text-sm">
-                              {o.tip_document && <span className="text-muted-foreground text-xs">{o.tip_document}</span>}
-                              <span className="font-medium">{o.serie || ""} {o.numar || ""}</span>
-                              <Badge variant={o.source === "excel" ? "outline" : "secondary"} className="text-xs">
-                                {o.source === "excel" ? "Excel" : "Manual"}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {o.total_lines} {o.total_lines === 1 ? "articol" : "articole"}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold">
-                                {Number(o.total_value).toLocaleString("ro-RO", { maximumFractionDigits: 2 })} lei
-                              </span>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                onClick={() => deleteOrder(o.id)}
-                                title="Șterge această comandă"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </div>
-                          {!items ? (
-                            <div className="text-center py-3"><Loader2 className="h-4 w-4 animate-spin inline" /></div>
-                          ) : items.length === 0 ? (
-                            <div className="text-center text-muted-foreground py-2 text-sm">Fără articole.</div>
-                          ) : (
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="w-12">Nr.</TableHead>
-                                  <TableHead>Denumire articol</TableHead>
-                                  <TableHead>Descriere</TableHead>
-                                  <TableHead className="text-right">Cantitate</TableHead>
-                                  <TableHead className="text-right">Preț</TableHead>
-                                  <TableHead className="text-right">Palet</TableHead>
-                                  <TableHead className="text-right">Valoare netă</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {items.map((it, i) => (
-                                  <TableRow key={i}>
-                                    <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                                    <TableCell className="font-medium">{it.denumire_articol}</TableCell>
-                                    <TableCell className="text-xs text-muted-foreground">{it.descriere_articol || "-"}</TableCell>
-                                    <TableCell className="text-right">{Number(it.cantitate).toLocaleString("ro-RO", { maximumFractionDigits: 3 })}</TableCell>
-                                    <TableCell className="text-right">{Number(it.pret_final).toLocaleString("ro-RO", { maximumFractionDigits: 4 })}</TableCell>
-                                    <TableCell className="text-right">{Number(it.palet).toLocaleString("ro-RO")}</TableCell>
-                                    <TableCell className="text-right font-medium">{Number(it.valoare_neta).toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </CardContent>
-                )}
+                {!collapsed && (() => {
+                  // Agregare toate articolele din toate comenzile grupului
+                  const allItems = g.items.flatMap(o => itemsByOrder[o.id] || []);
+                  const anyLoading = g.items.some(o => !itemsByOrder[o.id]);
+                  return (
+                    <CardContent className="pt-0">
+                      {anyLoading ? (
+                        <div className="text-center py-3"><Loader2 className="h-4 w-4 animate-spin inline" /></div>
+                      ) : allItems.length === 0 ? (
+                        <div className="text-center text-muted-foreground py-3 text-sm">Fără articole.</div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-16">Cod</TableHead>
+                              <TableHead>Articol</TableHead>
+                              <TableHead className="text-right w-32">Cantitate</TableHead>
+                              <TableHead className="w-20">UM</TableHead>
+                              <TableHead className="text-right w-20">Palet</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {allItems.map((it, i) => (
+                              <TableRow key={i}>
+                                <TableCell className="text-xs text-muted-foreground font-mono">
+                                  {it.cod_articol || "—"}
+                                  {!it.product_id && it.cod_articol && (
+                                    <Badge variant="destructive" className="ml-1 text-[10px] px-1 py-0">nou</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-medium">{it.denumire_articol}</TableCell>
+                                <TableCell className="text-right">
+                                  {Number(it.cantitate).toLocaleString("ro-RO", { maximumFractionDigits: 3 })}
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{it.unit || "—"}</TableCell>
+                                <TableCell className="text-right text-xs text-muted-foreground">
+                                  {it.palet ? Number(it.palet).toLocaleString("ro-RO") : "—"}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  );
+                })()}
               </Card>
             );
           })}
@@ -662,6 +750,59 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
             <Button onClick={saveManual} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
               Salvează comanda
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG ARTICOLE NECUNOSCUTE */}
+      <Dialog open={unknownArticles.length > 0} onOpenChange={(o) => { if (!o) setUnknownArticles([]); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {unknownArticles.length} {unknownArticles.length === 1 ? "articol nou" : "articole noi"} — le creăm în nomenclator?
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Aceste coduri din Excel nu există în {productsTable === "products" ? "Materii Prime" : productsTable === "ambalaje_products" ? "Ambalaje" : "Etichete"}. Verifică numele și UM, apoi salvează.
+            </p>
+          </DialogHeader>
+          <div className="overflow-auto pr-2">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-32">Cod produs</TableHead>
+                  <TableHead>Denumire</TableHead>
+                  <TableHead className="w-24">UM</TableHead>
+                  <TableHead className="w-10"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {unknownArticles.map((u, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Input value={u.cod_produs} onChange={(e) => updateUnknown(i, { cod_produs: e.target.value })} />
+                    </TableCell>
+                    <TableCell>
+                      <Input value={u.name} onChange={(e) => updateUnknown(i, { name: e.target.value })} />
+                    </TableCell>
+                    <TableCell>
+                      <Input value={u.default_unit} onChange={(e) => updateUnknown(i, { default_unit: e.target.value })} />
+                    </TableCell>
+                    <TableCell>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" onClick={() => removeUnknown(i)} title="Sari peste">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUnknownArticles([])}>Mai târziu</Button>
+            <Button onClick={createMissingProducts} disabled={creatingProducts}>
+              {creatingProducts ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+              Creează și leagă
             </Button>
           </DialogFooter>
         </DialogContent>
