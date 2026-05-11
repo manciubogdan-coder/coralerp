@@ -449,6 +449,51 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
     setOrders(prev => prev.filter(o => !ids.includes(o.id)));
   };
 
+  const updateUnknown = (i: number, patch: Partial<UnknownArticle>) => {
+    setUnknownArticles(prev => prev.map((u, idx) => idx === i ? { ...u, ...patch } : u));
+  };
+  const removeUnknown = (i: number) => setUnknownArticles(prev => prev.filter((_, idx) => idx !== i));
+
+  const createMissingProducts = async () => {
+    const valid = unknownArticles.filter(u => u.name.trim() && u.cod_produs.trim());
+    if (valid.length === 0) { setUnknownArticles([]); return; }
+    setCreatingProducts(true);
+    try {
+      const rows = valid.map(u => ({
+        name: u.name.trim(),
+        cod_produs: u.cod_produs.trim(),
+        default_unit: u.default_unit || "kg",
+      }));
+      const { data: created, error } = await (supabase as any)
+        .from(productsTable)
+        .insert(rows)
+        .select("id,cod_produs");
+      if (error) throw error;
+
+      // Link new product_ids back to items
+      const codeToId = new Map<string, string>();
+      (created || []).forEach((p: any) => codeToId.set(String(p.cod_produs), p.id));
+
+      for (const [cod, pid] of codeToId) {
+        await (supabase as any)
+          .from("purchase_orders_imported_items")
+          .update({ product_id: pid })
+          .eq("cod_articol", cod)
+          .is("product_id", null);
+      }
+
+      toast({ title: `${created?.length || 0} produse create și legate` });
+      setUnknownArticles([]);
+      // refresh items
+      setItemsByOrder({});
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "Eroare la creare produse", description: e.message, variant: "destructive" });
+    } finally {
+      setCreatingProducts(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card>
