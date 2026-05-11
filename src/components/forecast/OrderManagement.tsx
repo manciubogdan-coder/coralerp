@@ -15,6 +15,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { exportToExcel } from "@/lib/excelExport";
+import ImportedOrders from "./ImportedOrders";
 
 interface OrderManagementProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
