@@ -538,6 +538,27 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
               <Button size="sm" onClick={() => setShowCreate(true)}>
                 <Plus className="h-4 w-4 mr-1" /> Comandă nouă
               </Button>
+              {orders.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={async () => {
+                    if (!confirm(`Ștergi TOATE cele ${orders.length} comenzi din ${inventoryType}? Această acțiune nu poate fi anulată.`)) return;
+                    const ids = orders.map(o => o.id);
+                    const { error } = await (supabase as any)
+                      .from("purchase_orders_imported")
+                      .delete()
+                      .in("id", ids);
+                    if (error) { toast({ title: "Eroare", description: error.message, variant: "destructive" }); return; }
+                    toast({ title: `${ids.length} comenzi șterse` });
+                    setOrders([]);
+                    setItemsByOrder({});
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" /> Șterge tot
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
