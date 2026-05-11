@@ -599,9 +599,6 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
                       <Badge variant="secondary" className="shrink-0">{g.count} {g.count === 1 ? "comandă" : "comenzi"}</Badge>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold">
-                        {g.total.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} lei
-                      </div>
                       <Button
                         size="icon"
                         variant="ghost"
