@@ -749,6 +749,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
         </Table>
       </div>
 
+      {/* All purchase orders (manual + Excel imported), grouped by partner */}
+      <div className="pt-4 border-t">
+        <ImportedOrders inventoryType={inventoryType} />
+      </div>
+
       {/* Order Dialog */}
       <Dialog open={showOrderDialog} onOpenChange={setShowOrderDialog}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
