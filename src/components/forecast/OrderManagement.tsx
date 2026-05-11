@@ -602,6 +602,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
 
   return (
     <div className="space-y-6">
+      {/* Comenzi achiziții (manual + Excel) — sus */}
+      <ImportedOrders inventoryType={inventoryType} />
+
       {/* Search */}
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -616,10 +619,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
       {/* Order Actions */}
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-lg">Comenzi Rapide pe Furnizor</h3>
-        <Button onClick={handleCreateManualOrder} variant="outline">
-          <Plus className="h-4 w-4 mr-2" />
-          Comandă Nouă
-        </Button>
       </div>
 
       {/* Supplier Groups for Quick Order */}
@@ -747,11 +746,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
             )}
           </TableBody>
         </Table>
-      </div>
-
-      {/* All purchase orders (manual + Excel imported), grouped by partner */}
-      <div className="pt-4 border-t">
-        <ImportedOrders inventoryType={inventoryType} />
       </div>
 
       {/* Order Dialog */}
