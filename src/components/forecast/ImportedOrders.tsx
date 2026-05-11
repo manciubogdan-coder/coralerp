@@ -124,6 +124,30 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
   const [unknownArticles, setUnknownArticles] = useState<UnknownArticle[]>([]);
   const [creatingProducts, setCreatingProducts] = useState(false);
 
+  // Preview import (popup de verificare înainte de salvare)
+  type InvType = "materii-prime" | "ambalaje" | "etichete";
+  interface PreviewLine {
+    cod_articol: string | null;
+    denumire_articol: string;
+    descriere_articol: string | null;
+    cantitate: number;
+    pret_final: number;
+    palet: number;
+    valoare_neta: number;
+    unit: string | null;
+    product_id: string | null;
+    matched_inv: InvType | null; // null = necunoscut
+    target_inv: InvType; // editabil de user
+    partener: string;
+    data: string;
+    serie: string | null;
+    numar: string | null;
+    tip_document: string | null;
+  }
+  const [previewLines, setPreviewLines] = useState<PreviewLine[]>([]);
+  const [previewTab, setPreviewTab] = useState<InvType>("materii-prime");
+  const [confirming, setConfirming] = useState(false);
+
   const productsTable = inventoryType === "ambalaje"
     ? "ambalaje_products"
     : inventoryType === "etichete"
@@ -200,58 +224,42 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
         return;
       }
 
-      // Group by Numar+Partener+Data
-      const groups = new Map<string, { header: any; lines: any[] }>();
+      // Parse toate liniile
+      const parsedLines: Omit<PreviewLine, "matched_inv" | "target_inv" | "product_id">[] = [];
       for (const r of rows) {
         const partener = String(r.Partener ?? r.partener ?? "").trim();
-        const numar = String(r.Numar ?? r.numar ?? "").trim();
         const data = parseDateCell(r.Data ?? r.data);
         if (!partener || !data) continue;
-        const key = `${numar}||${partener}||${data}`;
-        if (!groups.has(key)) {
-          groups.set(key, {
-            header: {
-              tip_document: String(r.TipDocument ?? r.tip_document ?? "").trim() || null,
-              serie: String(r.Serie ?? r.serie ?? "").trim() || null,
-              numar: numar || null,
-              data,
-              partener,
-            },
-            lines: []
-          });
-        }
-        groups.get(key)!.lines.push({
+        const denumire = String(r.DenumireArticol ?? r.denumire_articol ?? r["Denumire articol"] ?? "").trim();
+        if (!denumire) continue;
+        parsedLines.push({
           cod_articol: String(r.CodArticol ?? r.codArticol ?? r.cod_articol ?? r.NrArticol ?? r.nr_articol ?? r["Nr articol"] ?? r["Cod articol"] ?? "").trim() || null,
-          denumire_articol: String(r.DenumireArticol ?? r.denumire_articol ?? r["Denumire articol"] ?? "").trim(),
+          denumire_articol: denumire,
           descriere_articol: String(r.DescriereArticol ?? r.descriere_articol ?? "").trim() || null,
           cantitate: num(r.CantitateArticol ?? r.cantitate ?? r.Cantitate),
           pret_final: num(r.PretFinal ?? r.pret_final),
           palet: num(r.palet ?? r.Palet),
           valoare_neta: num(r.ValoareNeta ?? r.valoare_neta),
           unit: String(r.UM ?? r.um ?? r.unit ?? "").trim() || null,
+          partener,
+          data,
+          serie: String(r.Serie ?? r.serie ?? "").trim() || null,
+          numar: String(r.Numar ?? r.numar ?? "").trim() || null,
+          tip_document: String(r.TipDocument ?? r.tip_document ?? "").trim() || null,
         });
       }
 
-      // Collect all unique cod_articol from lines
-      const allCodes = new Set<string>();
-      for (const [, g] of groups) {
-        for (const l of g.lines) {
-          if (l.cod_articol) allCodes.add(l.cod_articol);
-        }
-      }
-
-      // Bulk-fetch products din TOATE 3 tabelele → routing automat per cod_produs
-      type InvType = "materii-prime" | "ambalaje" | "etichete";
+      // Lookup în toate 3 nomenclatoarele
+      const allCodes = Array.from(new Set(parsedLines.map(l => l.cod_articol).filter(Boolean) as string[]));
       const codeMap = new Map<string, { product_id: string; inv: InvType }>();
-      const codesArr = Array.from(allCodes);
       const tableMap: { table: string; inv: InvType }[] = [
         { table: "products", inv: "materii-prime" },
         { table: "ambalaje_products", inv: "ambalaje" },
         { table: "etichete_products", inv: "etichete" },
       ];
       for (const { table, inv } of tableMap) {
-        for (let i = 0; i < codesArr.length; i += 50) {
-          const chunk = codesArr.slice(i, i + 50);
+        for (let i = 0; i < allCodes.length; i += 50) {
+          const chunk = allCodes.slice(i, i + 50);
           const { data: prods } = await (supabase as any)
             .from(table)
             .select("id,cod_produs")
@@ -264,65 +272,28 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
         }
       }
 
-      let inserted = 0;
-      const unknownMap = new Map<string, UnknownArticle>();
-      // O comandă (numar+partener+data) poate avea articole din 2-3 depozite
-      // → o spargem în câte o sub-comandă per inventory_type
-      for (const [, g] of groups) {
-        // Grupează liniile per inventory_type (necunoscutele → inventoryType curent)
-        const byInv = new Map<InvType, any[]>();
-        for (const l of g.lines) {
-          if (!l.denumire_articol) continue;
-          const matched = l.cod_articol ? codeMap.get(l.cod_articol) : undefined;
-          const inv: InvType = matched ? matched.inv : (inventoryType as InvType);
-          if (!byInv.has(inv)) byInv.set(inv, []);
-          byInv.get(inv)!.push({ ...l, product_id: matched?.product_id || null });
-          if (l.cod_articol && !matched && !unknownMap.has(l.cod_articol)) {
-            unknownMap.set(l.cod_articol, {
-              cod_articol: l.cod_articol,
-              denumire_articol: l.denumire_articol,
-              unit: l.unit || null,
-              name: l.denumire_articol,
-              cod_produs: l.cod_articol,
-              default_unit: l.unit || "kg",
-            });
-          }
-        }
+      // Construiește preview cu target_inv editabil
+      const preview: PreviewLine[] = parsedLines.map(l => {
+        const m = l.cod_articol ? codeMap.get(l.cod_articol) : undefined;
+        return {
+          ...l,
+          product_id: m?.product_id || null,
+          matched_inv: m?.inv || null,
+          target_inv: m?.inv || (inventoryType as InvType),
+        };
+      });
 
-        for (const [inv, lines] of byInv) {
-          const totalValue = lines.reduce((s, l) => s + (l.valoare_neta || l.cantitate * l.pret_final), 0);
-          const { data: orderData, error: orderErr } = await (supabase as any)
-            .from("purchase_orders_imported")
-            .insert({
-              inventory_type: inv,
-              source: "excel",
-              ...g.header,
-              total_value: totalValue,
-              total_lines: lines.length,
-            })
-            .select("id")
-            .single();
-          if (orderErr) { console.error(orderErr); continue; }
-          const itemsToInsert = lines.map(l => ({ ...l, order_id: orderData.id }));
-          const { error: itErr } = await (supabase as any)
-            .from("purchase_orders_imported_items")
-            .insert(itemsToInsert);
-          if (itErr) console.error(itErr);
-          inserted++;
-        }
+      if (preview.length === 0) {
+        toast({ title: "Nicio linie validă în fișier", variant: "destructive" });
+        return;
       }
 
-      const unknownList = Array.from(unknownMap.values());
-      if (unknownList.length > 0) {
-        setUnknownArticles(unknownList);
-        toast({
-          title: `${inserted} comenzi importate (rutate automat per depozit)`,
-          description: `${unknownList.length} articole noi — codurile nu există în nici un nomenclator`,
-        });
-      } else {
-        toast({ title: `Import reușit`, description: `${inserted} comenzi rutate automat per depozit` });
-      }
-      await fetchOrders();
+      setPreviewLines(preview);
+      // Tab inițial = primul depozit cu linii
+      const counts: Record<InvType, number> = { "materii-prime": 0, "ambalaje": 0, "etichete": 0 };
+      preview.forEach(p => { counts[p.target_inv]++; });
+      const firstTab = (["materii-prime", "ambalaje", "etichete"] as InvType[]).find(t => counts[t] > 0) || "materii-prime";
+      setPreviewTab(firstTab);
     } catch (e: any) {
       console.error(e);
       toast({ title: "Eroare la import", description: e.message, variant: "destructive" });
@@ -332,7 +303,91 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
     }
   };
 
-  // ===== MANUAL CREATE =====
+  const updatePreviewLine = (idx: number, patch: Partial<PreviewLine>) => {
+    setPreviewLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l));
+  };
+  const removePreviewLine = (idx: number) => {
+    setPreviewLines(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const confirmImport = async () => {
+    if (previewLines.length === 0) { setPreviewLines([]); return; }
+    setConfirming(true);
+    try {
+      const groups = new Map<string, { inv: InvType; header: any; lines: PreviewLine[] }>();
+      for (const l of previewLines) {
+        const key = `${l.target_inv}||${l.partener}||${l.data}||${l.numar || ""}`;
+        if (!groups.has(key)) {
+          groups.set(key, {
+            inv: l.target_inv,
+            header: { tip_document: l.tip_document, serie: l.serie, numar: l.numar, data: l.data, partener: l.partener },
+            lines: [],
+          });
+        }
+        groups.get(key)!.lines.push(l);
+      }
+
+      let inserted = 0;
+      const unknownMap = new Map<string, UnknownArticle>();
+      for (const [, g] of groups) {
+        const totalValue = g.lines.reduce((s, l) => s + (l.valoare_neta || l.cantitate * l.pret_final), 0);
+        const { data: orderData, error: orderErr } = await (supabase as any)
+          .from("purchase_orders_imported")
+          .insert({
+            inventory_type: g.inv,
+            source: "excel",
+            ...g.header,
+            total_value: totalValue,
+            total_lines: g.lines.length,
+          })
+          .select("id")
+          .single();
+        if (orderErr) { console.error(orderErr); continue; }
+        const items = g.lines.map(l => ({
+          order_id: orderData.id,
+          cod_articol: l.cod_articol,
+          product_id: l.product_id,
+          denumire_articol: l.denumire_articol,
+          descriere_articol: l.descriere_articol,
+          cantitate: l.cantitate,
+          pret_final: l.pret_final,
+          palet: l.palet,
+          valoare_neta: l.valoare_neta,
+          unit: l.unit,
+        }));
+        const { error: itErr } = await (supabase as any)
+          .from("purchase_orders_imported_items")
+          .insert(items);
+        if (itErr) console.error(itErr);
+        g.lines.filter(l => l.cod_articol && !l.product_id).forEach(l => {
+          if (!unknownMap.has(l.cod_articol!)) {
+            unknownMap.set(l.cod_articol!, {
+              cod_articol: l.cod_articol!,
+              denumire_articol: l.denumire_articol,
+              unit: l.unit,
+              name: l.denumire_articol,
+              cod_produs: l.cod_articol!,
+              default_unit: l.unit || "kg",
+            });
+          }
+        });
+        inserted++;
+      }
+
+      toast({ title: `${inserted} comenzi importate` });
+      setPreviewLines([]);
+      const unknownList = Array.from(unknownMap.values());
+      if (unknownList.length > 0) setUnknownArticles(unknownList);
+      await fetchOrders();
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "Eroare la salvare", description: e.message, variant: "destructive" });
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+
   const addManualItem = () => setMItems(p => [...p, { denumire_articol: "", descriere_articol: "", cantitate: 0, pret_final: 0, palet: 0, valoare_neta: 0 }]);
   const updateManualItem = (i: number, patch: Partial<ItemRow>) => {
     setMItems(prev => prev.map((it, idx) => {
@@ -794,7 +849,121 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG ARTICOLE NECUNOSCUTE */}
+      {/* DIALOG PREVIEW IMPORT — verificare înainte de salvare */}
+      <Dialog open={previewLines.length > 0} onOpenChange={(o) => { if (!o && !confirming) setPreviewLines([]); }}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Verifică importul — fiecare linie e atribuită unui depozit</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Codurile găsite în nomenclator sunt rutate automat. Schimbă depozitul (MP / Ambalaje / Etichete) dacă e greșit. Necunoscutele sunt marcate.
+            </p>
+          </DialogHeader>
+
+          {(() => {
+            const counts: Record<InvType, number> = { "materii-prime": 0, "ambalaje": 0, "etichete": 0 };
+            const unknown = previewLines.filter(l => !l.matched_inv && l.cod_articol).length;
+            previewLines.forEach(l => counts[l.target_inv]++);
+            const tabs: { key: InvType; label: string }[] = [
+              { key: "materii-prime", label: "Materii Prime" },
+              { key: "ambalaje", label: "Ambalaje" },
+              { key: "etichete", label: "Etichete" },
+            ];
+            const visible = previewLines
+              .map((l, idx) => ({ l, idx }))
+              .filter(({ l }) => l.target_inv === previewTab);
+            return (
+              <>
+                <div className="flex gap-2 border-b pb-2">
+                  {tabs.map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => setPreviewTab(t.key)}
+                      className={cn(
+                        "px-3 py-1.5 text-sm rounded-md transition",
+                        previewTab === t.key ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                      )}
+                    >
+                      {t.label} <Badge variant="secondary" className="ml-1">{counts[t.key]}</Badge>
+                    </button>
+                  ))}
+                  {unknown > 0 && (
+                    <div className="ml-auto text-xs text-destructive flex items-center gap-1">
+                      ⚠ {unknown} {unknown === 1 ? "cod necunoscut" : "coduri necunoscute"}
+                    </div>
+                  )}
+                </div>
+
+                <div className="overflow-auto flex-1">
+                  {visible.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-8 text-sm">
+                      Nicio linie pentru acest depozit.
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-background">
+                        <TableRow>
+                          <TableHead className="w-24">Cod</TableHead>
+                          <TableHead>Articol</TableHead>
+                          <TableHead>Partener</TableHead>
+                          <TableHead className="text-right w-24">Cant.</TableHead>
+                          <TableHead className="w-16">UM</TableHead>
+                          <TableHead className="w-36">Depozit</TableHead>
+                          <TableHead className="w-10"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {visible.map(({ l, idx }) => (
+                          <TableRow key={idx} className={!l.matched_inv && l.cod_articol ? "bg-destructive/5" : ""}>
+                            <TableCell className="text-xs font-mono">
+                              {l.cod_articol || "—"}
+                              {!l.matched_inv && l.cod_articol && (
+                                <Badge variant="destructive" className="ml-1 text-[10px] px-1 py-0">nou</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">{l.denumire_articol}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{l.partener}</TableCell>
+                            <TableCell className="text-right text-sm">
+                              {Number(l.cantitate).toLocaleString("ro-RO", { maximumFractionDigits: 3 })}
+                            </TableCell>
+                            <TableCell className="text-xs">{l.unit || "—"}</TableCell>
+                            <TableCell>
+                              <Select
+                                value={l.target_inv}
+                                onValueChange={(v: InvType) => updatePreviewLine(idx, { target_inv: v })}
+                              >
+                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="materii-prime">Materii Prime</SelectItem>
+                                  <SelectItem value="ambalaje">Ambalaje</SelectItem>
+                                  <SelectItem value="etichete">Etichete</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removePreviewLine(idx)} title="Sari peste">
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewLines([])} disabled={confirming}>Anulează</Button>
+            <Button onClick={confirmImport} disabled={confirming}>
+              {confirming ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
+              Importă {previewLines.length} {previewLines.length === 1 ? "linie" : "linii"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={unknownArticles.length > 0} onOpenChange={(o) => { if (!o) setUnknownArticles([]); }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
