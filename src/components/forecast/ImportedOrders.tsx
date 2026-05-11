@@ -232,7 +232,30 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
         });
       }
 
+      // Collect all unique cod_articol from lines
+      const allCodes = new Set<string>();
+      for (const [, g] of groups) {
+        for (const l of g.lines) {
+          if (l.cod_articol) allCodes.add(l.cod_articol);
+        }
+      }
+
+      // Bulk-fetch products by cod_produs (matching against current inventory type)
+      const codeToProductId = new Map<string, string>();
+      const codesArr = Array.from(allCodes);
+      for (let i = 0; i < codesArr.length; i += 50) {
+        const chunk = codesArr.slice(i, i + 50);
+        const { data: prods } = await (supabase as any)
+          .from(productsTable)
+          .select("id,cod_produs")
+          .in("cod_produs", chunk);
+        (prods || []).forEach((p: any) => {
+          if (p.cod_produs) codeToProductId.set(String(p.cod_produs), p.id);
+        });
+      }
+
       let inserted = 0;
+      const unknownMap = new Map<string, UnknownArticle>();
       for (const [, g] of groups) {
         const totalValue = g.lines.reduce((s, l) => s + (l.valoare_neta || l.cantitate * l.pret_final), 0);
         const { data: orderData, error: orderErr } = await (supabase as any)
@@ -248,7 +271,20 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
           .single();
         if (orderErr) { console.error(orderErr); continue; }
         const orderId = orderData.id;
-        const itemsToInsert = g.lines.filter(l => l.denumire_articol).map(l => ({ ...l, order_id: orderId }));
+        const itemsToInsert = g.lines.filter(l => l.denumire_articol).map(l => {
+          const pid = l.cod_articol ? codeToProductId.get(l.cod_articol) || null : null;
+          if (l.cod_articol && !pid && !unknownMap.has(l.cod_articol)) {
+            unknownMap.set(l.cod_articol, {
+              cod_articol: l.cod_articol,
+              denumire_articol: l.denumire_articol,
+              unit: l.unit || null,
+              name: l.denumire_articol,
+              cod_produs: l.cod_articol,
+              default_unit: l.unit || "kg",
+            });
+          }
+          return { ...l, product_id: pid, order_id: orderId };
+        });
         if (itemsToInsert.length) {
           const { error: itErr } = await (supabase as any)
             .from("purchase_orders_imported_items")
@@ -258,7 +294,16 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
         inserted++;
       }
 
-      toast({ title: `Import reușit`, description: `${inserted} comenzi importate` });
+      const unknownList = Array.from(unknownMap.values());
+      if (unknownList.length > 0) {
+        setUnknownArticles(unknownList);
+        toast({
+          title: `${inserted} comenzi importate`,
+          description: `${unknownList.length} articole noi necesită creare în nomenclator`,
+        });
+      } else {
+        toast({ title: `Import reușit`, description: `${inserted} comenzi importate` });
+      }
       await fetchOrders();
     } catch (e: any) {
       console.error(e);
