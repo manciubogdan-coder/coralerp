@@ -120,6 +120,16 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
   // Detail dialog
   const [detailOrder, setDetailOrder] = useState<OrderRow | null>(null);
 
+  // Unknown articles (after Excel import) — user confirms creation
+  const [unknownArticles, setUnknownArticles] = useState<UnknownArticle[]>([]);
+  const [creatingProducts, setCreatingProducts] = useState(false);
+
+  const productsTable = inventoryType === "ambalaje"
+    ? "ambalaje_products"
+    : inventoryType === "etichete"
+      ? "etichete_products"
+      : "products";
+
   const fetchOrders = async () => {
     setLoading(true);
     try {
