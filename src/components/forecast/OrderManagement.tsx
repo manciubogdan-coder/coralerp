@@ -15,6 +15,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { exportToExcel } from "@/lib/excelExport";
+import ImportedOrders from "./ImportedOrders";
 
 interface OrderManagementProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -746,6 +747,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ inventoryType }) => {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* All purchase orders (manual + Excel imported), grouped by partner */}
+      <div className="pt-4 border-t">
+        <ImportedOrders inventoryType={inventoryType} />
       </div>
 
       {/* Order Dialog */}

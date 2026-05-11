@@ -318,6 +318,107 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_orders_imported: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data: string
+          id: string
+          inventory_type: string
+          notes: string | null
+          numar: string | null
+          partener: string
+          serie: string | null
+          source: string
+          supplier_id: string | null
+          tip_document: string | null
+          total_lines: number
+          total_value: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data: string
+          id?: string
+          inventory_type: string
+          notes?: string | null
+          numar?: string | null
+          partener: string
+          serie?: string | null
+          source?: string
+          supplier_id?: string | null
+          tip_document?: string | null
+          total_lines?: number
+          total_value?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          id?: string
+          inventory_type?: string
+          notes?: string | null
+          numar?: string | null
+          partener?: string
+          serie?: string | null
+          source?: string
+          supplier_id?: string | null
+          tip_document?: string | null
+          total_lines?: number
+          total_value?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      purchase_orders_imported_items: {
+        Row: {
+          cantitate: number
+          created_at: string
+          denumire_articol: string
+          descriere_articol: string | null
+          id: string
+          order_id: string
+          palet: number
+          pret_final: number
+          unit: string | null
+          valoare_neta: number
+        }
+        Insert: {
+          cantitate?: number
+          created_at?: string
+          denumire_articol: string
+          descriere_articol?: string | null
+          id?: string
+          order_id: string
+          palet?: number
+          pret_final?: number
+          unit?: string | null
+          valoare_neta?: number
+        }
+        Update: {
+          cantitate?: number
+          created_at?: string
+          denumire_articol?: string
+          descriere_articol?: string | null
+          id?: string
+          order_id?: string
+          palet?: number
+          pret_final?: number
+          unit?: string | null
+          valoare_neta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_imported_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders_imported"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_subscriptions: {
         Row: {
           auth_key: string
