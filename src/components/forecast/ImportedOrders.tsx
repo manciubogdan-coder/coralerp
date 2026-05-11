@@ -42,6 +42,8 @@ interface OrderRow {
 
 interface ItemRow {
   id?: string;
+  cod_articol?: string | null;
+  product_id?: string | null;
   denumire_articol: string;
   descriere_articol: string | null;
   cantitate: number;
@@ -49,6 +51,16 @@ interface ItemRow {
   palet: number;
   valoare_neta: number;
   unit?: string | null;
+}
+
+interface UnknownArticle {
+  cod_articol: string;
+  denumire_articol: string;
+  unit?: string | null;
+  // user input for creation
+  name: string;
+  cod_produs: string;
+  default_unit: string;
 }
 
 const parseDateCell = (val: any): string | null => {
