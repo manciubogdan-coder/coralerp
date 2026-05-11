@@ -614,75 +614,52 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
                     </div>
                   </div>
                 </CardHeader>
-                {!collapsed && (
-                  <CardContent className="pt-0 space-y-3">
-                    {g.items.map(o => {
-                      const items = itemsByOrder[o.id];
-                      return (
-                        <div key={o.id} className="border rounded-lg overflow-hidden">
-                          <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/30">
-                            <div className="flex items-center gap-2 flex-wrap text-sm">
-                              {o.tip_document && <span className="text-muted-foreground text-xs">{o.tip_document}</span>}
-                              <span className="font-medium">{o.serie || ""} {o.numar || ""}</span>
-                              <Badge variant={o.source === "excel" ? "outline" : "secondary"} className="text-xs">
-                                {o.source === "excel" ? "Excel" : "Manual"}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {o.total_lines} {o.total_lines === 1 ? "articol" : "articole"}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold">
-                                {Number(o.total_value).toLocaleString("ro-RO", { maximumFractionDigits: 2 })} lei
-                              </span>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                onClick={() => deleteOrder(o.id)}
-                                title="Șterge această comandă"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </div>
-                          {!items ? (
-                            <div className="text-center py-3"><Loader2 className="h-4 w-4 animate-spin inline" /></div>
-                          ) : items.length === 0 ? (
-                            <div className="text-center text-muted-foreground py-2 text-sm">Fără articole.</div>
-                          ) : (
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="w-12">Nr.</TableHead>
-                                  <TableHead>Denumire articol</TableHead>
-                                  <TableHead>Descriere</TableHead>
-                                  <TableHead className="text-right">Cantitate</TableHead>
-                                  <TableHead className="text-right">Preț</TableHead>
-                                  <TableHead className="text-right">Palet</TableHead>
-                                  <TableHead className="text-right">Valoare netă</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {items.map((it, i) => (
-                                  <TableRow key={i}>
-                                    <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                                    <TableCell className="font-medium">{it.denumire_articol}</TableCell>
-                                    <TableCell className="text-xs text-muted-foreground">{it.descriere_articol || "-"}</TableCell>
-                                    <TableCell className="text-right">{Number(it.cantitate).toLocaleString("ro-RO", { maximumFractionDigits: 3 })}</TableCell>
-                                    <TableCell className="text-right">{Number(it.pret_final).toLocaleString("ro-RO", { maximumFractionDigits: 4 })}</TableCell>
-                                    <TableCell className="text-right">{Number(it.palet).toLocaleString("ro-RO")}</TableCell>
-                                    <TableCell className="text-right font-medium">{Number(it.valoare_neta).toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </CardContent>
-                )}
+                {!collapsed && (() => {
+                  // Agregare toate articolele din toate comenzile grupului
+                  const allItems = g.items.flatMap(o => itemsByOrder[o.id] || []);
+                  const anyLoading = g.items.some(o => !itemsByOrder[o.id]);
+                  return (
+                    <CardContent className="pt-0">
+                      {anyLoading ? (
+                        <div className="text-center py-3"><Loader2 className="h-4 w-4 animate-spin inline" /></div>
+                      ) : allItems.length === 0 ? (
+                        <div className="text-center text-muted-foreground py-3 text-sm">Fără articole.</div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-16">Cod</TableHead>
+                              <TableHead>Articol</TableHead>
+                              <TableHead className="text-right w-32">Cantitate</TableHead>
+                              <TableHead className="w-20">UM</TableHead>
+                              <TableHead className="text-right w-20">Palet</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {allItems.map((it, i) => (
+                              <TableRow key={i}>
+                                <TableCell className="text-xs text-muted-foreground font-mono">
+                                  {it.cod_articol || "—"}
+                                  {!it.product_id && it.cod_articol && (
+                                    <Badge variant="destructive" className="ml-1 text-[10px] px-1 py-0">nou</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-medium">{it.denumire_articol}</TableCell>
+                                <TableCell className="text-right">
+                                  {Number(it.cantitate).toLocaleString("ro-RO", { maximumFractionDigits: 3 })}
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{it.unit || "—"}</TableCell>
+                                <TableCell className="text-right text-xs text-muted-foreground">
+                                  {it.palet ? Number(it.palet).toLocaleString("ro-RO") : "—"}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  );
+                })()}
               </Card>
             );
           })}
