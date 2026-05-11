@@ -466,105 +466,107 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
       ) : (
         <div className="space-y-3">
           {grouped.map(g => {
-            const collapsed = collapsedPartners.has(g.partener);
+            const groupKey = `${g.partener}||${g.data}`;
+            const collapsed = collapsedPartners.has(groupKey);
             return (
-              <Card key={g.partener}>
-                <CardHeader
-                  className="pb-2 cursor-pointer hover:bg-muted/30"
-                  onClick={() => togglePartner(g.partener)}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      <CardTitle className="text-base">{g.partener}</CardTitle>
-                      <Badge variant="secondary">{g.count} comenzi</Badge>
+              <Card key={groupKey}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div
+                      className="flex items-center gap-2 cursor-pointer flex-1 min-w-0"
+                      onClick={() => togglePartner(groupKey)}
+                    >
+                      {collapsed ? <ChevronRight className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+                      <CardTitle className="text-base truncate">{g.partener}</CardTitle>
+                      <Badge variant="outline" className="shrink-0">
+                        <CalendarIcon className="h-3 w-3 mr-1" />
+                        {format(new Date(g.data), "dd MMM yyyy", { locale: ro })}
+                      </Badge>
+                      <Badge variant="secondary" className="shrink-0">{g.count} {g.count === 1 ? "comandă" : "comenzi"}</Badge>
                     </div>
-                    <div className="text-sm font-semibold">
-                      {g.total.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} lei
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-semibold">
+                        {g.total.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} lei
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => deleteGroup(g.items)}
+                        title="Șterge toate comenzile din această zi"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>
                 {!collapsed && (
-                  <CardContent className="pt-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-8"></TableHead>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Document</TableHead>
-                          <TableHead className="text-right">Linii</TableHead>
-                          <TableHead className="text-right">Valoare</TableHead>
-                          <TableHead>Sursă</TableHead>
-                          <TableHead className="w-20"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {g.items.map(o => (
-                          <React.Fragment key={o.id}>
-                            <TableRow className="cursor-pointer" onClick={() => toggleExpand(o.id)}>
-                              <TableCell>
-                                {expanded.has(o.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              </TableCell>
-                              <TableCell>{format(new Date(o.data), "dd MMM yyyy", { locale: ro })}</TableCell>
-                              <TableCell>
-                                {o.tip_document && <span className="text-muted-foreground text-xs mr-1">{o.tip_document}</span>}
-                                <span className="font-medium">{o.serie || ""} {o.numar || ""}</span>
-                              </TableCell>
-                              <TableCell className="text-right">{o.total_lines}</TableCell>
-                              <TableCell className="text-right font-medium">
-                                {Number(o.total_value).toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={o.source === "excel" ? "outline" : "secondary"}>
-                                  {o.source === "excel" ? "Excel" : "Manual"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()}>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => deleteOrder(o.id)}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                            {expanded.has(o.id) && (
-                              <TableRow>
-                                <TableCell colSpan={7} className="bg-muted/20 p-3">
-                                  {!itemsByOrder[o.id] ? (
-                                    <div className="text-center py-4"><Loader2 className="h-4 w-4 animate-spin inline" /></div>
-                                  ) : itemsByOrder[o.id].length === 0 ? (
-                                    <div className="text-center text-muted-foreground py-2 text-sm">Fără linii.</div>
-                                  ) : (
-                                    <Table>
-                                      <TableHeader>
-                                        <TableRow>
-                                          <TableHead>Articol</TableHead>
-                                          <TableHead>Descriere</TableHead>
-                                          <TableHead className="text-right">Cant.</TableHead>
-                                          <TableHead className="text-right">Preț</TableHead>
-                                          <TableHead className="text-right">Palet</TableHead>
-                                          <TableHead className="text-right">Valoare</TableHead>
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {itemsByOrder[o.id].map((it, i) => (
-                                          <TableRow key={i}>
-                                            <TableCell className="font-medium">{it.denumire_articol}</TableCell>
-                                            <TableCell className="text-xs text-muted-foreground">{it.descriere_articol || "-"}</TableCell>
-                                            <TableCell className="text-right">{Number(it.cantitate).toLocaleString("ro-RO", { maximumFractionDigits: 3 })}</TableCell>
-                                            <TableCell className="text-right">{Number(it.pret_final).toLocaleString("ro-RO", { maximumFractionDigits: 4 })}</TableCell>
-                                            <TableCell className="text-right">{Number(it.palet).toLocaleString("ro-RO")}</TableCell>
-                                            <TableCell className="text-right font-medium">{Number(it.valoare_neta).toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
-                                          </TableRow>
-                                        ))}
-                                      </TableBody>
-                                    </Table>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </React.Fragment>
-                        ))}
-                      </TableBody>
-                    </Table>
+                  <CardContent className="pt-0 space-y-3">
+                    {g.items.map(o => {
+                      const items = itemsByOrder[o.id];
+                      return (
+                        <div key={o.id} className="border rounded-lg overflow-hidden">
+                          <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/30">
+                            <div className="flex items-center gap-2 flex-wrap text-sm">
+                              {o.tip_document && <span className="text-muted-foreground text-xs">{o.tip_document}</span>}
+                              <span className="font-medium">{o.serie || ""} {o.numar || ""}</span>
+                              <Badge variant={o.source === "excel" ? "outline" : "secondary"} className="text-xs">
+                                {o.source === "excel" ? "Excel" : "Manual"}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {o.total_lines} {o.total_lines === 1 ? "articol" : "articole"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold">
+                                {Number(o.total_value).toLocaleString("ro-RO", { maximumFractionDigits: 2 })} lei
+                              </span>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                onClick={() => deleteOrder(o.id)}
+                                title="Șterge această comandă"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                          {!items ? (
+                            <div className="text-center py-3"><Loader2 className="h-4 w-4 animate-spin inline" /></div>
+                          ) : items.length === 0 ? (
+                            <div className="text-center text-muted-foreground py-2 text-sm">Fără articole.</div>
+                          ) : (
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-12">Nr.</TableHead>
+                                  <TableHead>Denumire articol</TableHead>
+                                  <TableHead>Descriere</TableHead>
+                                  <TableHead className="text-right">Cantitate</TableHead>
+                                  <TableHead className="text-right">Preț</TableHead>
+                                  <TableHead className="text-right">Palet</TableHead>
+                                  <TableHead className="text-right">Valoare netă</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {items.map((it, i) => (
+                                  <TableRow key={i}>
+                                    <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                                    <TableCell className="font-medium">{it.denumire_articol}</TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{it.descriere_articol || "-"}</TableCell>
+                                    <TableCell className="text-right">{Number(it.cantitate).toLocaleString("ro-RO", { maximumFractionDigits: 3 })}</TableCell>
+                                    <TableCell className="text-right">{Number(it.pret_final).toLocaleString("ro-RO", { maximumFractionDigits: 4 })}</TableCell>
+                                    <TableCell className="text-right">{Number(it.palet).toLocaleString("ro-RO")}</TableCell>
+                                    <TableCell className="text-right font-medium">{Number(it.valoare_neta).toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          )}
+                        </div>
+                      );
+                    })}
                   </CardContent>
                 )}
               </Card>
