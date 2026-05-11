@@ -303,7 +303,91 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
     }
   };
 
-  // ===== MANUAL CREATE =====
+  const updatePreviewLine = (idx: number, patch: Partial<PreviewLine>) => {
+    setPreviewLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l));
+  };
+  const removePreviewLine = (idx: number) => {
+    setPreviewLines(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const confirmImport = async () => {
+    if (previewLines.length === 0) { setPreviewLines([]); return; }
+    setConfirming(true);
+    try {
+      const groups = new Map<string, { inv: InvType; header: any; lines: PreviewLine[] }>();
+      for (const l of previewLines) {
+        const key = `${l.target_inv}||${l.partener}||${l.data}||${l.numar || ""}`;
+        if (!groups.has(key)) {
+          groups.set(key, {
+            inv: l.target_inv,
+            header: { tip_document: l.tip_document, serie: l.serie, numar: l.numar, data: l.data, partener: l.partener },
+            lines: [],
+          });
+        }
+        groups.get(key)!.lines.push(l);
+      }
+
+      let inserted = 0;
+      const unknownMap = new Map<string, UnknownArticle>();
+      for (const [, g] of groups) {
+        const totalValue = g.lines.reduce((s, l) => s + (l.valoare_neta || l.cantitate * l.pret_final), 0);
+        const { data: orderData, error: orderErr } = await (supabase as any)
+          .from("purchase_orders_imported")
+          .insert({
+            inventory_type: g.inv,
+            source: "excel",
+            ...g.header,
+            total_value: totalValue,
+            total_lines: g.lines.length,
+          })
+          .select("id")
+          .single();
+        if (orderErr) { console.error(orderErr); continue; }
+        const items = g.lines.map(l => ({
+          order_id: orderData.id,
+          cod_articol: l.cod_articol,
+          product_id: l.product_id,
+          denumire_articol: l.denumire_articol,
+          descriere_articol: l.descriere_articol,
+          cantitate: l.cantitate,
+          pret_final: l.pret_final,
+          palet: l.palet,
+          valoare_neta: l.valoare_neta,
+          unit: l.unit,
+        }));
+        const { error: itErr } = await (supabase as any)
+          .from("purchase_orders_imported_items")
+          .insert(items);
+        if (itErr) console.error(itErr);
+        g.lines.filter(l => l.cod_articol && !l.product_id).forEach(l => {
+          if (!unknownMap.has(l.cod_articol!)) {
+            unknownMap.set(l.cod_articol!, {
+              cod_articol: l.cod_articol!,
+              denumire_articol: l.denumire_articol,
+              unit: l.unit,
+              name: l.denumire_articol,
+              cod_produs: l.cod_articol!,
+              default_unit: l.unit || "kg",
+            });
+          }
+        });
+        inserted++;
+      }
+
+      toast({ title: `${inserted} comenzi importate` });
+      setPreviewLines([]);
+      const unknownList = Array.from(unknownMap.values());
+      if (unknownList.length > 0) setUnknownArticles(unknownList);
+      await fetchOrders();
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "Eroare la salvare", description: e.message, variant: "destructive" });
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+
   const addManualItem = () => setMItems(p => [...p, { denumire_articol: "", descriere_articol: "", cantitate: 0, pret_final: 0, palet: 0, valoare_neta: 0 }]);
   const updateManualItem = (i: number, patch: Partial<ItemRow>) => {
     setMItems(prev => prev.map((it, idx) => {
