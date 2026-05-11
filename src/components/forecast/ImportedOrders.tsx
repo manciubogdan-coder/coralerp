@@ -221,12 +221,14 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
           });
         }
         groups.get(key)!.lines.push({
-          denumire_articol: String(r.DenumireArticol ?? r.denumire_articol ?? "").trim(),
+          cod_articol: String(r.CodArticol ?? r.codArticol ?? r.cod_articol ?? r.NrArticol ?? r.nr_articol ?? r["Nr articol"] ?? r["Cod articol"] ?? "").trim() || null,
+          denumire_articol: String(r.DenumireArticol ?? r.denumire_articol ?? r["Denumire articol"] ?? "").trim(),
           descriere_articol: String(r.DescriereArticol ?? r.descriere_articol ?? "").trim() || null,
-          cantitate: num(r.CantitateArticol ?? r.cantitate),
+          cantitate: num(r.CantitateArticol ?? r.cantitate ?? r.Cantitate),
           pret_final: num(r.PretFinal ?? r.pret_final),
           palet: num(r.palet ?? r.Palet),
           valoare_neta: num(r.ValoareNeta ?? r.valoare_neta),
+          unit: String(r.UM ?? r.um ?? r.unit ?? "").trim() || null,
         });
       }
 
