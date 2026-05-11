@@ -754,6 +754,59 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* DIALOG ARTICOLE NECUNOSCUTE */}
+      <Dialog open={unknownArticles.length > 0} onOpenChange={(o) => { if (!o) setUnknownArticles([]); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {unknownArticles.length} {unknownArticles.length === 1 ? "articol nou" : "articole noi"} — le creăm în nomenclator?
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Aceste coduri din Excel nu există în {productsTable === "products" ? "Materii Prime" : productsTable === "ambalaje_products" ? "Ambalaje" : "Etichete"}. Verifică numele și UM, apoi salvează.
+            </p>
+          </DialogHeader>
+          <div className="overflow-auto pr-2">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-32">Cod produs</TableHead>
+                  <TableHead>Denumire</TableHead>
+                  <TableHead className="w-24">UM</TableHead>
+                  <TableHead className="w-10"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {unknownArticles.map((u, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Input value={u.cod_produs} onChange={(e) => updateUnknown(i, { cod_produs: e.target.value })} />
+                    </TableCell>
+                    <TableCell>
+                      <Input value={u.name} onChange={(e) => updateUnknown(i, { name: e.target.value })} />
+                    </TableCell>
+                    <TableCell>
+                      <Input value={u.default_unit} onChange={(e) => updateUnknown(i, { default_unit: e.target.value })} />
+                    </TableCell>
+                    <TableCell>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" onClick={() => removeUnknown(i)} title="Sari peste">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUnknownArticles([])}>Mai târziu</Button>
+            <Button onClick={createMissingProducts} disabled={creatingProducts}>
+              {creatingProducts ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+              Creează și leagă
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
