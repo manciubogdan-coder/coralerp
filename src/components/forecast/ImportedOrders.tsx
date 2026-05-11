@@ -124,6 +124,30 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
   const [unknownArticles, setUnknownArticles] = useState<UnknownArticle[]>([]);
   const [creatingProducts, setCreatingProducts] = useState(false);
 
+  // Preview import (popup de verificare înainte de salvare)
+  type InvType = "materii-prime" | "ambalaje" | "etichete";
+  interface PreviewLine {
+    cod_articol: string | null;
+    denumire_articol: string;
+    descriere_articol: string | null;
+    cantitate: number;
+    pret_final: number;
+    palet: number;
+    valoare_neta: number;
+    unit: string | null;
+    product_id: string | null;
+    matched_inv: InvType | null; // null = necunoscut
+    target_inv: InvType; // editabil de user
+    partener: string;
+    data: string;
+    serie: string | null;
+    numar: string | null;
+    tip_document: string | null;
+  }
+  const [previewLines, setPreviewLines] = useState<PreviewLine[]>([]);
+  const [previewTab, setPreviewTab] = useState<InvType>("materii-prime");
+  const [confirming, setConfirming] = useState(false);
+
   const productsTable = inventoryType === "ambalaje"
     ? "ambalaje_products"
     : inventoryType === "etichete"
