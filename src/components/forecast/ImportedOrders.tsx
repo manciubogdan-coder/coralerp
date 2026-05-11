@@ -334,21 +334,51 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
     });
   }, [orders, partnerFilter, dateRange, search]);
 
+  // Group by partener + data → un card = 1 furnizor pe 1 zi
   const grouped = useMemo(() => {
-    const m = new Map<string, OrderRow[]>();
+    const m = new Map<string, { partener: string; data: string; items: OrderRow[] }>();
     filtered.forEach(o => {
-      if (!m.has(o.partener)) m.set(o.partener, []);
-      m.get(o.partener)!.push(o);
+      const key = `${o.partener}||${o.data}`;
+      if (!m.has(key)) m.set(key, { partener: o.partener, data: o.data, items: [] });
+      m.get(key)!.items.push(o);
     });
-    return Array.from(m.entries())
-      .map(([partener, items]) => ({
-        partener,
-        items,
-        total: items.reduce((s, i) => s + (Number(i.total_value) || 0), 0),
-        count: items.length,
+    return Array.from(m.values())
+      .map(g => ({
+        ...g,
+        total: g.items.reduce((s, i) => s + (Number(i.total_value) || 0), 0),
+        count: g.items.length,
       }))
-      .sort((a, b) => b.total - a.total);
+      .sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : a.partener.localeCompare(b.partener)));
   }, [filtered]);
+
+  // Auto-fetch items pentru toate comenzile vizibile (afișare directă, fără click)
+  useEffect(() => {
+    const missing = filtered.filter(o => !itemsByOrder[o.id]).map(o => o.id);
+    if (missing.length === 0) return;
+    (async () => {
+      const { data, error } = await (supabase as any)
+        .from("purchase_orders_imported_items")
+        .select("*")
+        .in("order_id", missing)
+        .order("created_at", { ascending: true });
+      if (error) { console.error(error); return; }
+      const byOrder: Record<string, ItemRow[]> = {};
+      (data || []).forEach((it: any) => {
+        if (!byOrder[it.order_id]) byOrder[it.order_id] = [];
+        byOrder[it.order_id].push(it);
+      });
+      setItemsByOrder(prev => ({ ...prev, ...byOrder }));
+    })();
+  }, [filtered]);
+
+  const deleteGroup = async (items: OrderRow[]) => {
+    if (!confirm(`Ștergi toate cele ${items.length} comenzi pentru ${items[0].partener} din ${format(new Date(items[0].data), "dd MMM yyyy", { locale: ro })}?`)) return;
+    const ids = items.map(i => i.id);
+    const { error } = await (supabase as any).from("purchase_orders_imported").delete().in("id", ids);
+    if (error) { toast({ title: "Eroare la ștergere", variant: "destructive" }); return; }
+    toast({ title: `${items.length} comenzi șterse` });
+    setOrders(prev => prev.filter(o => !ids.includes(o.id)));
+  };
 
   return (
     <div className="space-y-4">
