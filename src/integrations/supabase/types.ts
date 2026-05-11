@@ -375,6 +375,7 @@ export type Database = {
       purchase_orders_imported_items: {
         Row: {
           cantitate: number
+          cod_articol: string | null
           created_at: string
           denumire_articol: string
           descriere_articol: string | null
@@ -382,11 +383,13 @@ export type Database = {
           order_id: string
           palet: number
           pret_final: number
+          product_id: string | null
           unit: string | null
           valoare_neta: number
         }
         Insert: {
           cantitate?: number
+          cod_articol?: string | null
           created_at?: string
           denumire_articol: string
           descriere_articol?: string | null
@@ -394,11 +397,13 @@ export type Database = {
           order_id: string
           palet?: number
           pret_final?: number
+          product_id?: string | null
           unit?: string | null
           valoare_neta?: number
         }
         Update: {
           cantitate?: number
+          cod_articol?: string | null
           created_at?: string
           denumire_articol?: string
           descriere_articol?: string | null
@@ -406,6 +411,7 @@ export type Database = {
           order_id?: string
           palet?: number
           pret_final?: number
+          product_id?: string | null
           unit?: string | null
           valoare_neta?: number
         }
