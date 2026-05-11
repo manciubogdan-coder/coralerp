@@ -849,7 +849,121 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG ARTICOLE NECUNOSCUTE */}
+      {/* DIALOG PREVIEW IMPORT — verificare înainte de salvare */}
+      <Dialog open={previewLines.length > 0} onOpenChange={(o) => { if (!o && !confirming) setPreviewLines([]); }}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Verifică importul — fiecare linie e atribuită unui depozit</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Codurile găsite în nomenclator sunt rutate automat. Schimbă depozitul (MP / Ambalaje / Etichete) dacă e greșit. Necunoscutele sunt marcate.
+            </p>
+          </DialogHeader>
+
+          {(() => {
+            const counts: Record<InvType, number> = { "materii-prime": 0, "ambalaje": 0, "etichete": 0 };
+            const unknown = previewLines.filter(l => !l.matched_inv && l.cod_articol).length;
+            previewLines.forEach(l => counts[l.target_inv]++);
+            const tabs: { key: InvType; label: string }[] = [
+              { key: "materii-prime", label: "Materii Prime" },
+              { key: "ambalaje", label: "Ambalaje" },
+              { key: "etichete", label: "Etichete" },
+            ];
+            const visible = previewLines
+              .map((l, idx) => ({ l, idx }))
+              .filter(({ l }) => l.target_inv === previewTab);
+            return (
+              <>
+                <div className="flex gap-2 border-b pb-2">
+                  {tabs.map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => setPreviewTab(t.key)}
+                      className={cn(
+                        "px-3 py-1.5 text-sm rounded-md transition",
+                        previewTab === t.key ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                      )}
+                    >
+                      {t.label} <Badge variant="secondary" className="ml-1">{counts[t.key]}</Badge>
+                    </button>
+                  ))}
+                  {unknown > 0 && (
+                    <div className="ml-auto text-xs text-destructive flex items-center gap-1">
+                      ⚠ {unknown} {unknown === 1 ? "cod necunoscut" : "coduri necunoscute"}
+                    </div>
+                  )}
+                </div>
+
+                <div className="overflow-auto flex-1">
+                  {visible.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-8 text-sm">
+                      Nicio linie pentru acest depozit.
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-background">
+                        <TableRow>
+                          <TableHead className="w-24">Cod</TableHead>
+                          <TableHead>Articol</TableHead>
+                          <TableHead>Partener</TableHead>
+                          <TableHead className="text-right w-24">Cant.</TableHead>
+                          <TableHead className="w-16">UM</TableHead>
+                          <TableHead className="w-36">Depozit</TableHead>
+                          <TableHead className="w-10"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {visible.map(({ l, idx }) => (
+                          <TableRow key={idx} className={!l.matched_inv && l.cod_articol ? "bg-destructive/5" : ""}>
+                            <TableCell className="text-xs font-mono">
+                              {l.cod_articol || "—"}
+                              {!l.matched_inv && l.cod_articol && (
+                                <Badge variant="destructive" className="ml-1 text-[10px] px-1 py-0">nou</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">{l.denumire_articol}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{l.partener}</TableCell>
+                            <TableCell className="text-right text-sm">
+                              {Number(l.cantitate).toLocaleString("ro-RO", { maximumFractionDigits: 3 })}
+                            </TableCell>
+                            <TableCell className="text-xs">{l.unit || "—"}</TableCell>
+                            <TableCell>
+                              <Select
+                                value={l.target_inv}
+                                onValueChange={(v: InvType) => updatePreviewLine(idx, { target_inv: v })}
+                              >
+                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="materii-prime">Materii Prime</SelectItem>
+                                  <SelectItem value="ambalaje">Ambalaje</SelectItem>
+                                  <SelectItem value="etichete">Etichete</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removePreviewLine(idx)} title="Sari peste">
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewLines([])} disabled={confirming}>Anulează</Button>
+            <Button onClick={confirmImport} disabled={confirming}>
+              {confirming ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
+              Importă {previewLines.length} {previewLines.length === 1 ? "linie" : "linii"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={unknownArticles.length > 0} onOpenChange={(o) => { if (!o) setUnknownArticles([]); }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
