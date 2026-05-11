@@ -224,58 +224,42 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
         return;
       }
 
-      // Group by Numar+Partener+Data
-      const groups = new Map<string, { header: any; lines: any[] }>();
+      // Parse toate liniile
+      const parsedLines: Omit<PreviewLine, "matched_inv" | "target_inv" | "product_id">[] = [];
       for (const r of rows) {
         const partener = String(r.Partener ?? r.partener ?? "").trim();
-        const numar = String(r.Numar ?? r.numar ?? "").trim();
         const data = parseDateCell(r.Data ?? r.data);
         if (!partener || !data) continue;
-        const key = `${numar}||${partener}||${data}`;
-        if (!groups.has(key)) {
-          groups.set(key, {
-            header: {
-              tip_document: String(r.TipDocument ?? r.tip_document ?? "").trim() || null,
-              serie: String(r.Serie ?? r.serie ?? "").trim() || null,
-              numar: numar || null,
-              data,
-              partener,
-            },
-            lines: []
-          });
-        }
-        groups.get(key)!.lines.push({
+        const denumire = String(r.DenumireArticol ?? r.denumire_articol ?? r["Denumire articol"] ?? "").trim();
+        if (!denumire) continue;
+        parsedLines.push({
           cod_articol: String(r.CodArticol ?? r.codArticol ?? r.cod_articol ?? r.NrArticol ?? r.nr_articol ?? r["Nr articol"] ?? r["Cod articol"] ?? "").trim() || null,
-          denumire_articol: String(r.DenumireArticol ?? r.denumire_articol ?? r["Denumire articol"] ?? "").trim(),
+          denumire_articol: denumire,
           descriere_articol: String(r.DescriereArticol ?? r.descriere_articol ?? "").trim() || null,
           cantitate: num(r.CantitateArticol ?? r.cantitate ?? r.Cantitate),
           pret_final: num(r.PretFinal ?? r.pret_final),
           palet: num(r.palet ?? r.Palet),
           valoare_neta: num(r.ValoareNeta ?? r.valoare_neta),
           unit: String(r.UM ?? r.um ?? r.unit ?? "").trim() || null,
+          partener,
+          data,
+          serie: String(r.Serie ?? r.serie ?? "").trim() || null,
+          numar: String(r.Numar ?? r.numar ?? "").trim() || null,
+          tip_document: String(r.TipDocument ?? r.tip_document ?? "").trim() || null,
         });
       }
 
-      // Collect all unique cod_articol from lines
-      const allCodes = new Set<string>();
-      for (const [, g] of groups) {
-        for (const l of g.lines) {
-          if (l.cod_articol) allCodes.add(l.cod_articol);
-        }
-      }
-
-      // Bulk-fetch products din TOATE 3 tabelele → routing automat per cod_produs
-      type InvType = "materii-prime" | "ambalaje" | "etichete";
+      // Lookup în toate 3 nomenclatoarele
+      const allCodes = Array.from(new Set(parsedLines.map(l => l.cod_articol).filter(Boolean) as string[]));
       const codeMap = new Map<string, { product_id: string; inv: InvType }>();
-      const codesArr = Array.from(allCodes);
       const tableMap: { table: string; inv: InvType }[] = [
         { table: "products", inv: "materii-prime" },
         { table: "ambalaje_products", inv: "ambalaje" },
         { table: "etichete_products", inv: "etichete" },
       ];
       for (const { table, inv } of tableMap) {
-        for (let i = 0; i < codesArr.length; i += 50) {
-          const chunk = codesArr.slice(i, i + 50);
+        for (let i = 0; i < allCodes.length; i += 50) {
+          const chunk = allCodes.slice(i, i + 50);
           const { data: prods } = await (supabase as any)
             .from(table)
             .select("id,cod_produs")
@@ -288,65 +272,28 @@ const ImportedOrders: React.FC<Props> = ({ inventoryType }) => {
         }
       }
 
-      let inserted = 0;
-      const unknownMap = new Map<string, UnknownArticle>();
-      // O comandă (numar+partener+data) poate avea articole din 2-3 depozite
-      // → o spargem în câte o sub-comandă per inventory_type
-      for (const [, g] of groups) {
-        // Grupează liniile per inventory_type (necunoscutele → inventoryType curent)
-        const byInv = new Map<InvType, any[]>();
-        for (const l of g.lines) {
-          if (!l.denumire_articol) continue;
-          const matched = l.cod_articol ? codeMap.get(l.cod_articol) : undefined;
-          const inv: InvType = matched ? matched.inv : (inventoryType as InvType);
-          if (!byInv.has(inv)) byInv.set(inv, []);
-          byInv.get(inv)!.push({ ...l, product_id: matched?.product_id || null });
-          if (l.cod_articol && !matched && !unknownMap.has(l.cod_articol)) {
-            unknownMap.set(l.cod_articol, {
-              cod_articol: l.cod_articol,
-              denumire_articol: l.denumire_articol,
-              unit: l.unit || null,
-              name: l.denumire_articol,
-              cod_produs: l.cod_articol,
-              default_unit: l.unit || "kg",
-            });
-          }
-        }
+      // Construiește preview cu target_inv editabil
+      const preview: PreviewLine[] = parsedLines.map(l => {
+        const m = l.cod_articol ? codeMap.get(l.cod_articol) : undefined;
+        return {
+          ...l,
+          product_id: m?.product_id || null,
+          matched_inv: m?.inv || null,
+          target_inv: m?.inv || (inventoryType as InvType),
+        };
+      });
 
-        for (const [inv, lines] of byInv) {
-          const totalValue = lines.reduce((s, l) => s + (l.valoare_neta || l.cantitate * l.pret_final), 0);
-          const { data: orderData, error: orderErr } = await (supabase as any)
-            .from("purchase_orders_imported")
-            .insert({
-              inventory_type: inv,
-              source: "excel",
-              ...g.header,
-              total_value: totalValue,
-              total_lines: lines.length,
-            })
-            .select("id")
-            .single();
-          if (orderErr) { console.error(orderErr); continue; }
-          const itemsToInsert = lines.map(l => ({ ...l, order_id: orderData.id }));
-          const { error: itErr } = await (supabase as any)
-            .from("purchase_orders_imported_items")
-            .insert(itemsToInsert);
-          if (itErr) console.error(itErr);
-          inserted++;
-        }
+      if (preview.length === 0) {
+        toast({ title: "Nicio linie validă în fișier", variant: "destructive" });
+        return;
       }
 
-      const unknownList = Array.from(unknownMap.values());
-      if (unknownList.length > 0) {
-        setUnknownArticles(unknownList);
-        toast({
-          title: `${inserted} comenzi importate (rutate automat per depozit)`,
-          description: `${unknownList.length} articole noi — codurile nu există în nici un nomenclator`,
-        });
-      } else {
-        toast({ title: `Import reușit`, description: `${inserted} comenzi rutate automat per depozit` });
-      }
-      await fetchOrders();
+      setPreviewLines(preview);
+      // Tab inițial = primul depozit cu linii
+      const counts: Record<InvType, number> = { "materii-prime": 0, "ambalaje": 0, "etichete": 0 };
+      preview.forEach(p => { counts[p.target_inv]++; });
+      const firstTab = (["materii-prime", "ambalaje", "etichete"] as InvType[]).find(t => counts[t] > 0) || "materii-prime";
+      setPreviewTab(firstTab);
     } catch (e: any) {
       console.error(e);
       toast({ title: "Eroare la import", description: e.message, variant: "destructive" });
