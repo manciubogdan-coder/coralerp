@@ -1686,7 +1686,7 @@ const ReceptionReport: React.FC = () => {
                 {photos.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium">
-                      Poze atașate ({photos.length}) — link-urile se adaugă automat la sfârșitul email-ului
+                      Poze atașate ({photos.length}) — link-urile sunt incluse automat în textul email-ului
                     </p>
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-[200px] overflow-y-auto p-2 border rounded">
                       {photos.map((p, i) => (
