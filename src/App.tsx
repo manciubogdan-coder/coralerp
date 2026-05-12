@@ -81,7 +81,7 @@ const queryClient = new QueryClient({
 
 const AppShell = () => {
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
         <SidebarInset>
