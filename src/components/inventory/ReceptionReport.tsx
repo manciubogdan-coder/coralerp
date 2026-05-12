@@ -1660,19 +1660,25 @@ const ReceptionReport: React.FC = () => {
                   </div>
                 </div>
 
-                <Tabs value={emailLang} onValueChange={(v) => setEmailLang(v as "ro" | "en")}>
-                  <TabsList className="grid grid-cols-2 w-full sm:w-[280px]">
+                <Tabs value={emailLang} onValueChange={(v) => setEmailLang(v as EmailLang)}>
+                  <TabsList className="grid grid-cols-3 w-full sm:w-[420px]">
                     <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
                     <TabsTrigger value="ro">🇷🇴 Română</TabsTrigger>
+                    <TabsTrigger value="it">🇮🇹 Italiano</TabsTrigger>
                   </TabsList>
                   <TabsContent value="en" className="mt-3">
                     <Textarea rows={18} value={emailBodyEn}
-                      onChange={(e) => setEmailBodyEn(e.target.value)}
+                      onChange={(e) => syncEmailTranslations("en", e.target.value)}
                       className="font-mono text-xs" />
                   </TabsContent>
                   <TabsContent value="ro" className="mt-3">
                     <Textarea rows={18} value={emailBodyRo}
-                      onChange={(e) => setEmailBodyRo(e.target.value)}
+                      onChange={(e) => syncEmailTranslations("ro", e.target.value)}
+                      className="font-mono text-xs" />
+                  </TabsContent>
+                  <TabsContent value="it" className="mt-3">
+                    <Textarea rows={18} value={emailBodyIt}
+                      onChange={(e) => syncEmailTranslations("it", e.target.value)}
                       className="font-mono text-xs" />
                   </TabsContent>
                 </Tabs>
