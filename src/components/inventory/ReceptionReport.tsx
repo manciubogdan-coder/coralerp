@@ -196,6 +196,43 @@ const translateKnownTerms = (text: string, lang: EmailLang) => {
   return out;
 };
 
+const translateEmailDraft = (text: string, target: EmailLang) => {
+  const phraseMap: Record<EmailLang, Record<string, string>> = {
+    en: {
+      "Bună ziua": "Good afternoon", "Buon pomeriggio": "Good afternoon", "am constatat următoarele probleme calitative": "we found the following quality problems",
+      "abbiamo riscontrato i seguenti problemi qualitativi": "we found the following quality problems", "Solicităm notă de credit pentru": "We want a credit note for",
+      "Chiediamo una nota di credito per": "We want a credit note for", "Vă transmit diferențele": "I send you the differences", "Vi inviamo le differenze": "I send you the differences",
+      "Nu avem diferențe cantitative": "We do not have quantitative differences", "Non abbiamo differenze quantitative": "We do not have quantitative differences",
+      "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile": "Please send us your credit notes within 30 days",
+      "Vi preghiamo di inviarci le note di credito entro 30 giorni": "Please send us your credit notes within 30 days", "Mulțumim, o zi bună": "Thank you, have a good day", "Grazie, buona giornata": "Thank you, have a good day",
+      "Tabel recepție": "Reception table", "Tabella ricevimento": "Reception table", "Poze": "Photos", "Foto": "Photos", "lipsă": "less", "mai puțin": "less", "in meno": "less",
+    },
+    ro: {
+      "Good afternoon": "Bună ziua", "Buon pomeriggio": "Bună ziua", "we found the following quality problems": "am constatat următoarele probleme calitative",
+      "abbiamo riscontrato i seguenti problemi qualitativi": "am constatat următoarele probleme calitative", "We want a credit note for": "Solicităm notă de credit pentru",
+      "Chiediamo una nota di credito per": "Solicităm notă de credit pentru", "I send you the differences": "Vă transmit diferențele", "Vi inviamo le differenze": "Vă transmit diferențele",
+      "We do not have quantitative differences": "Nu avem diferențe cantitative", "Non abbiamo differenze quantitative": "Nu avem diferențe cantitative",
+      "Please send us your credit notes within 30 days": "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile",
+      "Vi preghiamo di inviarci le note di credito entro 30 giorni": "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile", "Thank you, have a good day": "Mulțumim, o zi bună", "Grazie, buona giornata": "Mulțumim, o zi bună",
+      "Reception table": "Tabel recepție", "Tabella ricevimento": "Tabel recepție", "Photos": "Poze", "Foto": "Poze", "less": "mai puțin", "in meno": "mai puțin",
+    },
+    it: {
+      "Good afternoon": "Buon pomeriggio", "Bună ziua": "Buon pomeriggio", "we found the following quality problems": "abbiamo riscontrato i seguenti problemi qualitativi",
+      "am constatat următoarele probleme calitative": "abbiamo riscontrato i seguenti problemi qualitativi", "We want a credit note for": "Chiediamo una nota di credito per",
+      "Solicităm notă de credit pentru": "Chiediamo una nota di credito per", "I send you the differences": "Vi inviamo le differenze", "Vă transmit diferențele": "Vi inviamo le differenze",
+      "We do not have quantitative differences": "Non abbiamo differenze quantitative", "Nu avem diferențe cantitative": "Non abbiamo differenze quantitative",
+      "Please send us your credit notes within 30 days": "Vi preghiamo di inviarci le note di credito entro 30 giorni",
+      "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile": "Vi preghiamo di inviarci le note di credito entro 30 giorni", "Thank you, have a good day": "Grazie, buona giornata", "Mulțumim, o zi bună": "Grazie, buona giornata",
+      "Reception table": "Tabella ricevimento", "Tabel recepție": "Tabella ricevimento", "Photos": "Foto", "Poze": "Foto", "less": "in meno", "mai puțin": "in meno", "lipsă": "in meno",
+    },
+  };
+  let out = text;
+  Object.entries(phraseMap[target]).forEach(([from, to]) => {
+    out = out.replace(new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), to);
+  });
+  return translateKnownTerms(out, target);
+};
+
 const ReceptionReport: React.FC = () => {
   const { inventoryType } = useInventoryType();
   const { toast } = useToast();
