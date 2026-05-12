@@ -475,18 +475,18 @@ const DefectiuneDialog: React.FC<{
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="p-6 pb-3 border-b">
-          <DialogTitle>
+      <DialogContent className="max-w-2xl w-screen h-[100dvh] sm:w-full sm:h-auto sm:max-h-[90vh] flex flex-col p-0 rounded-none sm:rounded-lg gap-0">
+        <DialogHeader className="p-4 sm:p-6 pb-3 border-b shrink-0">
+          <DialogTitle className="text-base sm:text-lg">
             {editing ? "Editare defecțiune" : "Defecțiune nouă"}
           </DialogTitle>
         </DialogHeader>
-        <div className="overflow-y-auto p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+        <div className="overflow-y-auto p-4 sm:p-6 space-y-3 flex-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
               <Label>Linie *</Label>
               <Select value={linieId} onValueChange={setLinieId}>
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue placeholder="Alege linia" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72 overflow-y-auto">
@@ -504,7 +504,7 @@ const DefectiuneDialog: React.FC<{
                 value={severitate}
                 onValueChange={(v) => setSeveritate(v as any)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -515,74 +515,9 @@ const DefectiuneDialog: React.FC<{
               </Select>
             </div>
             <div>
-              <Label>Data/ora start *</Label>
-              <Input
-                type="datetime-local"
-                value={dataStart}
-                onChange={(e) => setDataStart(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Data/ora final</Label>
-              <Input
-                type="datetime-local"
-                value={dataFinal}
-                onChange={(e) => setDataFinal(e.target.value)}
-              />
-            </div>
-            <div className="col-span-2">
-              <Label>Componentă defectă *</Label>
-              <Input
-                value={componenta}
-                onChange={(e) => setComponenta(e.target.value)}
-                placeholder="Ex: Motor banda transportoare"
-              />
-            </div>
-            <div className="col-span-2">
-              <Label>Descriere problemă</Label>
-              <Textarea
-                value={descriere}
-                onChange={(e) => setDescriere(e.target.value)}
-                rows={2}
-              />
-            </div>
-            <div>
-              <Label>Linia a funcționat cu defecțiune?</Label>
-              <Select value={aFunctionat} onValueChange={setAFunctionat}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="da">Da</SelectItem>
-                  <SelectItem value="nu">Nu</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>
-                Ore oprire efectivă
-                {aFunctionat === "nu" && (
-                  <span className="ml-2 text-xs text-muted-foreground">(auto)</span>
-                )}
-              </Label>
-              <Input
-                type="number"
-                step="0.25"
-                value={oreOprire}
-                onChange={(e) => setOreOprire(e.target.value)}
-                readOnly={aFunctionat === "nu"}
-                className={aFunctionat === "nu" ? "bg-muted cursor-not-allowed" : ""}
-                title={
-                  aFunctionat === "nu"
-                    ? "Calculat automat din data start → data final (linia nu a funcționat)"
-                    : ""
-                }
-              />
-            </div>
-            <div>
               <Label>Status</Label>
               <Select value={status} onValueChange={(v) => setStatus(v as any)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -593,13 +528,86 @@ const DefectiuneDialog: React.FC<{
               </Select>
             </div>
             <div>
+              <Label>Data/ora start *</Label>
+              <Input
+                type="datetime-local"
+                className="h-11"
+                value={dataStart}
+                onChange={(e) => setDataStart(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Data/ora final</Label>
+              <Input
+                type="datetime-local"
+                className="h-11"
+                value={dataFinal}
+                onChange={(e) => setDataFinal(e.target.value)}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Componentă defectă *</Label>
+              <Input
+                className="h-11"
+                value={componenta}
+                onChange={(e) => setComponenta(e.target.value)}
+                placeholder="Ex: Motor banda transportoare"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Descriere problemă</Label>
+              <Textarea
+                value={descriere}
+                onChange={(e) => setDescriere(e.target.value)}
+                rows={2}
+              />
+            </div>
+            <div>
+              <Label>Linia a funcționat?</Label>
+              <Select value={aFunctionat} onValueChange={setAFunctionat}>
+                <SelectTrigger className="h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="da">Da</SelectItem>
+                  <SelectItem value="nu">Nu</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>
+                Ore oprire
+                {aFunctionat === "nu" && (
+                  <span className="ml-2 text-xs text-muted-foreground">(auto)</span>
+                )}
+              </Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.25"
+                className="h-11"
+                value={oreOprire}
+                onChange={(e) => setOreOprire(e.target.value)}
+                readOnly={aFunctionat === "nu"}
+              />
+            </div>
+            <div>
               <Label>Raportat de</Label>
               <Input
+                className="h-11"
                 value={raportatDe}
                 onChange={(e) => setRaportatDe(e.target.value)}
               />
             </div>
-            <div className="col-span-2">
+            <div>
+              <Label>Reparat de</Label>
+              <Input
+                className="h-11"
+                value={reparatDe}
+                onChange={(e) => setReparatDe(e.target.value)}
+              />
+            </div>
+            <div className="sm:col-span-2">
               <Label>Ce s-a reparat</Label>
               <Textarea
                 value={ceReparat}
@@ -607,27 +615,23 @@ const DefectiuneDialog: React.FC<{
                 rows={2}
               />
             </div>
-            <div>
-              <Label>Reparat de</Label>
-              <Input
-                value={reparatDe}
-                onChange={(e) => setReparatDe(e.target.value)}
-              />
-            </div>
-            <div>
+            <div className="sm:col-span-2">
               <Label>Piese folosite</Label>
               <Input
+                className="h-11"
                 value={piese}
                 onChange={(e) => setPiese(e.target.value)}
               />
             </div>
           </div>
         </div>
-        <DialogFooter className="p-6 pt-3 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="p-4 sm:p-6 pt-3 border-t shrink-0 flex-row gap-2 sm:gap-2">
+          <Button variant="outline" className="flex-1 sm:flex-none h-11" onClick={() => onOpenChange(false)}>
             Anulează
           </Button>
-          <Button onClick={save}>Salvează</Button>
+          <Button className="flex-1 sm:flex-none h-11" onClick={save}>
+            Salvează
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
