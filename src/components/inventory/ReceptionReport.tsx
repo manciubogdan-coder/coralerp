@@ -889,6 +889,12 @@ const ReceptionReport: React.FC = () => {
         ].join(" | ");
       })];
     };
+    const photoLines = (lang: EmailLang) => {
+      const photos = allPhotosForGroup(group);
+      if (photos.length === 0) return [];
+      const title = lang === "ro" ? "Poze:" : lang === "it" ? "Foto:" : "Photos:";
+      return [title, ...photos.map((p) => `${p.row.denumire_produs}: ${p.photo.url}`)];
+    };
 
     const render = (lang: EmailLang) => {
       const lines: string[] = [lang === "ro" ? "Bună ziua," : lang === "it" ? "Buon pomeriggio," : "Good afternoon,", ""];
@@ -938,6 +944,8 @@ const ReceptionReport: React.FC = () => {
         lines.push(lang === "ro" ? "Nu avem diferențe cantitative." : lang === "it" ? "Non abbiamo differenze quantitative." : "We do not have quantitative differences.", "");
       }
       lines.push(...tableLines(lang), "");
+      const photos = photoLines(lang);
+      if (photos.length > 0) lines.push(...photos, "");
       lines.push(
         lang === "ro" ? "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile."
           : lang === "it" ? "Vi preghiamo di inviarci le note di credito entro 30 giorni."
