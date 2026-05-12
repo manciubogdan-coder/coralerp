@@ -289,6 +289,7 @@ const ReceptionReport: React.FC = () => {
   const [emailBodyIt, setEmailBodyIt] = useState("");
   const [emailCopied, setEmailCopied] = useState(false);
   const [emailTranslating, setEmailTranslating] = useState(false);
+  const [emailDefectTranslations, setEmailDefectTranslations] = useState<Record<string, Partial<Record<EmailLang, string>>>>({});
   const translateSeqRef = useRef(0);
 
   // Missing item form
@@ -1001,12 +1002,36 @@ const ReceptionReport: React.FC = () => {
 
   const openEmailDialog = (groupIdx: number) => {
     const { en, ro, it } = buildEmailContent(groups[groupIdx]);
+    const defectTexts = Array.from(new Set(groups[groupIdx].rows
+      .map((r) => [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim())
+      .filter(Boolean)));
     setEmailBodyEn(en);
     setEmailBodyRo(ro);
     setEmailBodyIt(it);
     setEmailLang("en");
     setEmailCopied(false);
+    setEmailDefectTranslations({});
     setEmailDialog({ groupIdx });
+
+    const seq = ++translateSeqRef.current;
+    setEmailTranslating(true);
+    Promise.all([
+      translateEmailText(ro, "en"),
+      translateEmailText(ro, "it"),
+      Promise.all(defectTexts.map(async (text) => {
+        const [enDef, itDef] = await Promise.all([translateEmailText(text, "en"), translateEmailText(text, "it")]);
+        return [text, { ro: text, en: enDef || translateKnownTerms(text, "en"), it: itDef || translateKnownTerms(text, "it") }] as const;
+      })),
+    ]).then(([enText, itText, defectEntries]) => {
+      if (translateSeqRef.current !== seq) return;
+      setEmailBodyEn(enText || en);
+      setEmailBodyIt(itText || it);
+      setEmailDefectTranslations(Object.fromEntries(defectEntries));
+      setEmailTranslating(false);
+    }).catch(() => {
+      if (translateSeqRef.current !== seq) return;
+      setEmailTranslating(false);
+    });
   };
 
   const buildBodyWithPhotos = () => {
@@ -1018,25 +1043,43 @@ const ReceptionReport: React.FC = () => {
   const getEmailTableRows = (group: SupplierGroup, lang: EmailLang) => group.rows.map((r) => {
     const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : calcDiferenta(r);
     const lossKg = r.is_missing ? null : calcPierdereKg(r);
+    const shortageKg = dif != null && dif < 0 ? Math.abs(dif) : 0;
+    const creditKg = shortageKg + (lossKg != null && lossKg > 0 ? lossKg : 0);
+    const lossPercent = parseFloat(r.pierdere_calitativa_procent);
     const unit = r.unit || "kg";
+    const rawDefects = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim();
+    const differenceText = dif == null
+      ? "—"
+      : dif < 0
+        ? lang === "ro" ? `${fmtKg(Math.abs(dif))}${unit} mai puțin`
+          : lang === "it" ? `${fmtKg(Math.abs(dif))}${unit} in meno`
+            : `${fmtKg(Math.abs(dif))}${unit} less`
+        : dif > 0
+          ? lang === "ro" ? `${fmtKg(dif)}${unit} în plus`
+            : lang === "it" ? `${fmtKg(dif)}${unit} in più`
+              : `${fmtKg(dif)}${unit} extra`
+          : `0${unit}`;
+    const qualityLossText = !isNaN(lossPercent) && lossPercent > 0 && lossKg != null
+      ? `${fmtKg(lossPercent)}% = ${fmtKg(lossKg)}${unit}`
+      : "—";
     return {
       product: r.denumire_produs,
       producer: r.producator || group.supplierName || "—",
       document: r.cantitate_document ? `${fmtKg(parseFloat(r.cantitate_document) || 0)}${unit}` : "—",
       received: `${fmtKg(r.cantitate_receptionata)}${unit}`,
-      difference: dif != null ? `${fmtKg(dif)}${unit}` : "—",
-      loss: r.pierdere_calitativa_procent || "—",
-      credit: lossKg != null && lossKg > 0 ? `${fmtKg(lossKg)}${unit}` : "—",
-      defects: translateKnownTerms([(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim(), lang) || "—",
+      difference: differenceText,
+      loss: qualityLossText,
+      credit: creditKg > 0 ? `${fmtKg(creditKg)}${unit}` : "—",
+      defects: emailDefectTranslations[rawDefects]?.[lang] || translateKnownTerms(rawDefects, lang) || "—",
       photos: (r.photos || []).length > 0 ? `${r.photos.length} link` : "—",
     };
   });
 
   const emailHeaders = (lang: EmailLang) => lang === "ro"
-    ? ["Produs", "Producător", "Doc", "Recepționat", "Diferență", "Pierdere %", "Credit", "Defecte", "Poze"]
+    ? ["Produs", "Producător", "Cantitate document", "Cantitate recepționată", "Diferență cantitativă", "Pierdere calitativă", "Notă de credit", "Defecte", "Poze"]
     : lang === "it"
-      ? ["Prodotto", "Produttore", "Documento", "Ricevuto", "Differenza", "Perdita %", "Credito", "Difetti", "Foto"]
-      : ["Product", "Producer", "Document", "Received", "Difference", "Loss %", "Credit", "Defects", "Photos"];
+      ? ["Prodotto", "Produttore", "Quantità documento", "Quantità ricevuta", "Differenza quantitativa", "Perdita qualitativa", "Nota di credito", "Difetti", "Foto"]
+      : ["Product", "Producer", "Document quantity", "Received quantity", "Quantitative difference", "Quality loss", "Credit note", "Defects", "Photos"];
 
   const buildEmailPlainText = (group: SupplierGroup) => {
     const headers = emailHeaders(emailLang);
@@ -1124,6 +1167,62 @@ const ReceptionReport: React.FC = () => {
     }
   };
 
+  const renderMobileInfo = (label: string, value: React.ReactNode, className?: string) => (
+    <div className={cn("rounded-md border bg-muted/30 p-2", className)}>
+      <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+      <div className="mt-1 text-sm font-semibold break-words">{value === null || value === undefined || value === "" ? "—" : value}</div>
+    </div>
+  );
+
+  const renderDocPalletInput = (gIdx: number, rIdx: number, r: ReportRow) => {
+    const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+    if (bd.doc_pallets.length > 1) {
+      return (
+        <button type="button" className="text-left text-sm font-semibold underline-offset-2 hover:underline"
+          onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+          {summarizeBreakdown(bd.doc_pallets)}
+        </button>
+      );
+    }
+    return (
+      <Input type="number" min="0" step="1" placeholder="0" value={p ?? ""} disabled={r.is_missing}
+        onChange={(e) => updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(e.target.value === "" ? null : parseInt(e.target.value, 10), l, tip, bd))}
+        className="h-11 text-base" />
+    );
+  };
+
+  const renderDocCrateInput = (gIdx: number, rIdx: number, r: ReportRow) => {
+    const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+    if (bd.doc_crates.length > 1) {
+      return (
+        <button type="button" className="text-left text-sm font-semibold underline-offset-2 hover:underline"
+          onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+          {summarizeBreakdown(bd.doc_crates)}
+        </button>
+      );
+    }
+    return (
+      <Input type="number" min="0" step="1" placeholder="0" value={l ?? ""} disabled={r.is_missing}
+        onChange={(e) => updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, e.target.value === "" ? null : parseInt(e.target.value, 10), tip, bd))}
+        className="h-11 text-base" />
+    );
+  };
+
+  const renderDocCrateTypeInput = (gIdx: number, rIdx: number, r: ReportRow) => {
+    const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+    if (bd.doc_crates.length > 1) return <span className="text-sm text-muted-foreground">multi</span>;
+    return (
+      <Select value={tip || "__none__"} disabled={r.is_missing}
+        onValueChange={(v) => updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, l, v === "__none__" ? "" : v, bd))}>
+        <SelectTrigger className="h-11 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
+        <SelectContent className="max-h-[300px] overflow-y-auto">
+          <SelectItem value="__none__">—</SelectItem>
+          {crateTypesList.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -1159,34 +1258,130 @@ const ReceptionReport: React.FC = () => {
         const totals = groupTotals(group);
         return (
           <Card key={`${group.supplierName}-${group.documentNumber}-${gIdx}`}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
+            <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0">
                 <CardTitle className="text-lg">Furnizor: {group.supplierName}</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
                   Nr document: {group.documentNumber || "—"} • {group.rows.length} produse
                 </p>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                <Button size="sm" variant="outline" onClick={() => openMissingDialog(gIdx)}>
+              <div className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:flex-wrap">
+                <Button size="sm" variant="outline" className="h-11 md:h-9" onClick={() => openMissingDialog(gIdx)}>
                   <AlertTriangle className="h-4 w-4 mr-2 text-amber-500" />
-                  Adaugă articol lipsă
+                  <span className="truncate">Articol lipsă</span>
                 </Button>
-                <Button size="sm" onClick={() => handleSaveGroup(group)}
+                <Button size="sm" className="h-11 md:h-9" onClick={() => handleSaveGroup(group)}
                   disabled={savingKey === `${group.supplierName}__${group.documentNumber}`}>
                   {savingKey === `${group.supplierName}__${group.documentNumber}`
                     ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     : <Save className="h-4 w-4 mr-2" />}
                   Salvează
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => exportSupplierReport(group)}>
+                <Button size="sm" variant="outline" className="h-11 md:h-9" onClick={() => exportSupplierReport(group)}>
                   <Download className="h-4 w-4 mr-2" />Exportă Excel
                 </Button>
-                <Button size="sm" variant="default" onClick={() => openEmailDialog(gIdx)}>
+                <Button size="sm" variant="default" className="h-11 md:h-9" onClick={() => openEmailDialog(gIdx)}>
                   <Mail className="h-4 w-4 mr-2" />Email furnizor
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto px-2">
+            <CardContent className="px-3 md:px-2">
+              <div className="space-y-3 md:hidden">
+                {group.rows.map((r, rIdx) => {
+                  const dif = r.is_missing ? null : calcDiferenta(r);
+                  const pkg = r.is_missing ? null : calcPierdereKg(r);
+                  const { bd } = parsePalDoc(r.paleti_lazi_document || "");
+                  const recC = bd.rec_crates;
+                  const recP = bd.rec_pallets;
+                  const tipLada = recC.length > 0 ? summarizeBreakdown(recC) : (r.tip_lada_culoare || "—");
+                  const tipPalet = recP.length > 0 ? summarizeBreakdown(recP) : (r.tip_palet || "—");
+                  const totalRecP = recP.length > 0 ? recP.reduce((s, x) => s + (x.count || 0), 0) : (r.nr_paleti_rec ?? null);
+                  const totalRecL = recC.length > 0 ? recC.reduce((s, x) => s + (x.count || 0), 0) : (r.nr_lazi ?? null);
+                  return (
+                    <div key={r.inventory_id} className={cn("rounded-lg border bg-card p-3 shadow-sm", r.is_missing && "border-destructive/40 bg-destructive/5")}>
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-muted-foreground">#{rIdx + 1}</span>
+                            {r.is_missing && <span className="rounded bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">LIPSĂ</span>}
+                          </div>
+                          <h3 className="mt-1 text-base font-bold leading-tight">{r.denumire_produs}</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">Producător: {r.producator || "—"}</p>
+                        </div>
+                        {r.is_missing && r.missing_id && (
+                          <Button size="sm" variant="ghost" className="h-9 w-9 shrink-0 p-0" onClick={() => handleRemoveMissing(r.missing_id!)}>
+                            <X className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-medium uppercase text-muted-foreground">Paleți doc</p>
+                          {renderDocPalletInput(gIdx, rIdx, r)}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-medium uppercase text-muted-foreground">Lăzi doc</p>
+                          {renderDocCrateInput(gIdx, rIdx, r)}
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                          <p className="text-[11px] font-medium uppercase text-muted-foreground">Tip lăzi doc</p>
+                          {renderDocCrateTypeInput(gIdx, rIdx, r)}
+                        </div>
+                        <div className="space-y-1 rounded-md border bg-muted/30 p-2">
+                          <p className="text-[11px] font-medium uppercase text-muted-foreground">Cantitate document</p>
+                          <Input type="number" step="0.01" placeholder="kg" value={r.cantitate_document} disabled={r.is_missing}
+                            onChange={(e) => updateRow(gIdx, rIdx, "cantitate_document", e.target.value)} className="h-11 text-base" />
+                        </div>
+                        {renderMobileInfo("Cantitate recepționată", r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`, r.is_missing ? "text-destructive" : "")}
+                        {renderMobileInfo("Tip ladă/culoare", tipLada)}
+                        {renderMobileInfo("Tip palet", tipPalet)}
+                        {renderMobileInfo("Nr paleți rec", totalRecP ?? "—")}
+                        {renderMobileInfo("Nr lăzi", totalRecL ?? "—")}
+                        {renderMobileInfo("Diferență", dif != null ? dif.toFixed(2) : "—", cn(dif != null && dif < 0 && "text-destructive", dif != null && dif > 0 && "text-primary"))}
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-medium uppercase text-muted-foreground">Pierd. %</p>
+                          <Input type="number" step="0.01" disabled={r.is_missing} value={r.pierdere_calitativa_procent}
+                            onChange={(e) => updateRow(gIdx, rIdx, "pierdere_calitativa_procent", e.target.value)} className="h-11 text-base" />
+                        </div>
+                        {renderMobileInfo("Pierdere kg", pkg != null ? pkg.toFixed(2) : "—")}
+                        {renderMobileInfo("Kg considerate", r.is_missing ? "—" : calcKgConsiderate(r).toFixed(2), "text-primary")}
+                        <label className="col-span-2 flex h-11 items-center justify-between rounded-md border bg-muted/30 px-3">
+                          <span className="text-sm font-medium">Transmis furnizor</span>
+                          <Checkbox checked={r.transmis_la_furnizor} disabled={r.is_missing} onCheckedChange={(v) => updateRow(gIdx, rIdx, "transmis_la_furnizor", Boolean(v))} />
+                        </label>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <Button size="sm" variant="outline" className="h-11" disabled={r.is_missing} onClick={() => setDefectsDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+                          Defecte {r.defects.length > 0 ? `${r.defects.length} ✓` : ""}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-11" disabled={r.is_missing} onClick={() => setPhotoDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+                          <Camera className="mr-1 h-4 w-4" />{r.photos.length || "Poze"}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-11" disabled={r.is_missing} onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+                          <Layers className="mr-1 h-4 w-4" />Detalii
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="rounded-lg border bg-muted/40 p-3 text-sm font-semibold">
+                  <div className="grid grid-cols-2 gap-2">
+                    <span>Total paleți doc: {totals.totalPaletiDoc || "—"}</span>
+                    <span>Total lăzi doc: {totals.totalLaziDoc || "—"}</span>
+                    <span>Total cant. doc: {totals.totalCantDoc > 0 ? totals.totalCantDoc.toFixed(2) : "—"}</span>
+                    <span>Paleți rec: {totals.totalPaleti}</span>
+                  </div>
+                  {totals.ladiByType.size > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                      {Array.from(totals.ladiByType.entries()).map(([tip, cnt]) => <span key={tip} className="rounded border bg-background px-2 py-1">{tip}: <strong>{cnt}</strong> lăzi</span>)}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
               <Table className="text-xs [&_th]:px-1 [&_th]:h-9 [&_td]:px-1 [&_td]:py-1.5 [&_th]:text-[11px] [&_th]:font-medium [&_th]:whitespace-normal [&_th]:leading-tight">
                 <TableHeader>
                   <TableRow>
@@ -1422,6 +1617,7 @@ const ReceptionReport: React.FC = () => {
                   </TableRow>
                 </TableFooter>
               </Table>
+              </div>
             </CardContent>
           </Card>
         );
