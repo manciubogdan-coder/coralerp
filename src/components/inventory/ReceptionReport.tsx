@@ -844,7 +844,7 @@ const ReceptionReport: React.FC = () => {
     return s;
   };
 
-  const buildEmailContent = (group: SupplierGroup) => {
+  const buildEmailContent = (group: SupplierGroup): EmailContent => {
     const dateStr = format(date, "dd.MM.yyyy");
     const doc = group.documentNumber || "—";
     const partner = group.supplierName;
@@ -863,62 +863,92 @@ const ReceptionReport: React.FC = () => {
     });
 
     const sub = (r: ReportRow) => r.producator || partner;
+    const desc = (r: ReportRow, lang: EmailLang) => translateKnownTerms([(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim(), lang);
+    const tableLines = (lang: EmailLang) => {
+      const title = lang === "ro" ? "Tabel recepție:" : lang === "it" ? "Tabella ricevimento:" : "Reception table:";
+      const head = lang === "ro"
+        ? "Produs | Producător | Doc | Recepționat | Diferență | Pierdere % | Credit | Defecte | Poze"
+        : lang === "it"
+          ? "Prodotto | Produttore | Documento | Ricevuto | Differenza | Perdita % | Credito | Difetti | Foto"
+          : "Product | Producer | Document | Received | Difference | Loss % | Credit | Defects | Photos";
+      return [title, head, ...group.rows.map((r) => {
+        const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : calcDiferenta(r);
+        const lossKg = r.is_missing ? null : calcPierdereKg(r);
+        const defects = desc(r, lang) || "—";
+        const photos = (r.photos || []).length > 0 ? `${r.photos.length} link` : "—";
+        return [
+          r.denumire_produs,
+          sub(r) || "—",
+          r.cantitate_document ? `${fmtKg(parseFloat(r.cantitate_document) || 0)}${r.unit || "kg"}` : "—",
+          `${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"}`,
+          dif != null ? `${fmtKg(dif)}${r.unit || "kg"}` : "—",
+          r.pierdere_calitativa_procent || "—",
+          lossKg != null && lossKg > 0 ? `${fmtKg(lossKg)}${r.unit || "kg"}` : "—",
+          defects,
+          photos,
+        ].join(" | ");
+      })];
+    };
 
-    const en: string[] = ["Good afternoon,", ""];
-    if (qualityRows.length > 0) {
-      en.push(`At the reception on ${dateStr}, ${partner} with document number ${doc}:`, "");
-      qualityRows.forEach((r) => {
-        const desc = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(" ").trim();
-        const lossKg = calcPierdereKg(r);
-        const lossTxt = lossKg != null && lossKg > 0 ? ` We want a credit note for ${fmtKg(lossKg)}${r.unit || "kg"}.` : "";
-        en.push(`${r.denumire_produs} from the supplier ${sub(r)} we recived ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} - ${desc || "quality issues"}.${lossTxt}`, "");
-      });
-    }
-    if (diffRows.length > 0) {
-      en.push(`I send you the differences from today's receipt with document number ${doc}:`, "");
-      diffRows.forEach((r) => {
-        if (r.is_missing) {
-          const exp = parseFloat(r.cantitate_document) || 0;
-          en.push(`${r.denumire_produs} from the supplier ${sub(r)} – ${fmtKg(exp)}${r.unit || "kg"} less (not delivered)`);
-        } else {
-          const dif = calcDiferenta(r) || 0;
-          en.push(`${r.denumire_produs} from the supplier ${sub(r)} – ${fmtKg(Math.abs(dif))}${r.unit || "kg"} less`);
-        }
-      });
-      en.push("");
-    } else if (qualityRows.length > 0) {
-      en.push("We do not have quantitative differences.", "");
-    }
-    en.push("Please send us your credit notes within 30 days.", "", "Thank you, have a good day!");
+    const render = (lang: EmailLang) => {
+      const lines: string[] = [lang === "ro" ? "Bună ziua," : lang === "it" ? "Buon pomeriggio," : "Good afternoon,", ""];
+      if (qualityRows.length > 0) {
+        lines.push(
+          lang === "ro"
+            ? `La recepția din ${dateStr}, ${partner} cu numărul de document ${doc} am constatat următoarele probleme calitative:`
+            : lang === "it"
+              ? `Al ricevimento del ${dateStr}, ${partner} con numero documento ${doc}, abbiamo riscontrato i seguenti problemi qualitativi:`
+              : `At the reception on ${dateStr}, ${partner} with document number ${doc}, we found the following quality problems:`,
+          ""
+        );
+        qualityRows.forEach((r) => {
+          const lossKg = calcPierdereKg(r);
+          const lossTxt = lossKg != null && lossKg > 0
+            ? lang === "ro" ? ` Solicităm notă de credit pentru ${fmtKg(lossKg)}${r.unit || "kg"}.`
+              : lang === "it" ? ` Chiediamo una nota di credito per ${fmtKg(lossKg)}${r.unit || "kg"}.`
+                : ` We want a credit note for ${fmtKg(lossKg)}${r.unit || "kg"}.`
+            : "";
+          lines.push(
+            lang === "ro"
+              ? `${r.denumire_produs} de la furnizorul ${sub(r)} am recepționat ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} – ${desc(r, lang) || "probleme calitative"}.${lossTxt}`
+              : lang === "it"
+                ? `${r.denumire_produs} dal fornitore ${sub(r)} abbiamo ricevuto ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} – ${desc(r, lang) || "problemi qualitativi"}.${lossTxt}`
+                : `${r.denumire_produs} from the supplier ${sub(r)} we received ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} – ${desc(r, lang) || "quality issues"}.${lossTxt}`,
+            ""
+          );
+        });
+      }
+      if (diffRows.length > 0) {
+        lines.push(
+          lang === "ro" ? `Vă transmit diferențele de la recepția de astăzi cu numărul de document ${doc}:`
+            : lang === "it" ? `Vi inviamo le differenze dal ricevimento di oggi con numero documento ${doc}:`
+              : `I send you the differences from today's receipt with document number ${doc}:`,
+          ""
+        );
+        diffRows.forEach((r) => {
+          const qty = r.is_missing ? (parseFloat(r.cantitate_document) || 0) : Math.abs(calcDiferenta(r) || 0);
+          lines.push(
+            lang === "ro" ? `${r.denumire_produs} de la furnizorul ${sub(r)} – ${fmtKg(qty)}${r.unit || "kg"} ${r.is_missing ? "lipsă (nu a fost livrat)" : "mai puțin"}`
+              : lang === "it" ? `${r.denumire_produs} dal fornitore ${sub(r)} – ${fmtKg(qty)}${r.unit || "kg"} in meno${r.is_missing ? " (non consegnato)" : ""}`
+                : `${r.denumire_produs} from the supplier ${sub(r)} – ${fmtKg(qty)}${r.unit || "kg"} less${r.is_missing ? " (not delivered)" : ""}`
+          );
+        });
+        lines.push("");
+      } else if (qualityRows.length > 0) {
+        lines.push(lang === "ro" ? "Nu avem diferențe cantitative." : lang === "it" ? "Non abbiamo differenze quantitative." : "We do not have quantitative differences.", "");
+      }
+      lines.push(...tableLines(lang), "");
+      lines.push(
+        lang === "ro" ? "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile."
+          : lang === "it" ? "Vi preghiamo di inviarci le note di credito entro 30 giorni."
+            : "Please send us your credit notes within 30 days.",
+        "",
+        lang === "ro" ? "Mulțumim, o zi bună!" : lang === "it" ? "Grazie, buona giornata!" : "Thank you, have a good day!"
+      );
+      return lines.join("\n");
+    };
 
-    const ro: string[] = ["Bună ziua,", ""];
-    if (qualityRows.length > 0) {
-      ro.push(`La recepția din ${dateStr}, ${partner} cu numărul de document ${doc}:`, "");
-      qualityRows.forEach((r) => {
-        const desc = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(" ").trim();
-        const lossKg = calcPierdereKg(r);
-        const lossTxt = lossKg != null && lossKg > 0 ? ` Solicităm notă de credit pentru ${fmtKg(lossKg)}${r.unit || "kg"}.` : "";
-        ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} am recepționat ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} - ${desc || "probleme calitative"}.${lossTxt}`, "");
-      });
-    }
-    if (diffRows.length > 0) {
-      ro.push(`Vă transmit diferențele de la recepția de astăzi cu numărul de document ${doc}:`, "");
-      diffRows.forEach((r) => {
-        if (r.is_missing) {
-          const exp = parseFloat(r.cantitate_document) || 0;
-          ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} – ${fmtKg(exp)}${r.unit || "kg"} lipsă (nu a fost livrat)`);
-        } else {
-          const dif = calcDiferenta(r) || 0;
-          ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} – ${fmtKg(Math.abs(dif))}${r.unit || "kg"} mai puțin`);
-        }
-      });
-      ro.push("");
-    } else if (qualityRows.length > 0) {
-      ro.push("Nu avem diferențe cantitative.", "");
-    }
-    ro.push("Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile.", "", "Mulțumim, o zi bună!");
-
-    return { en: en.join("\n"), ro: ro.join("\n"), subject: `Reception ${dateStr} – ${partner} – doc ${doc}` };
+    return { en: render("en"), ro: render("ro"), it: render("it"), subject: `Reception ${dateStr} – ${partner} – doc ${doc}` };
   };
 
   const allPhotosForGroup = (group: SupplierGroup) => {
