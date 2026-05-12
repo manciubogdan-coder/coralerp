@@ -919,38 +919,6 @@ const ReceptionReport: React.FC = () => {
 
     const sub = (r: ReportRow) => r.producator || partner;
     const desc = (r: ReportRow, lang: EmailLang) => translateKnownTerms([(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim(), lang);
-    const tableLines = (lang: EmailLang) => {
-      const title = lang === "ro" ? "Tabel recepție:" : lang === "it" ? "Tabella ricevimento:" : "Reception table:";
-      const head = lang === "ro"
-        ? "Produs | Producător | Doc | Recepționat | Diferență | Pierdere % | Credit | Defecte | Poze"
-        : lang === "it"
-          ? "Prodotto | Produttore | Documento | Ricevuto | Differenza | Perdita % | Credito | Difetti | Foto"
-          : "Product | Producer | Document | Received | Difference | Loss % | Credit | Defects | Photos";
-      return [title, head, ...group.rows.map((r) => {
-        const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : calcDiferenta(r);
-        const lossKg = r.is_missing ? null : calcPierdereKg(r);
-        const defects = desc(r, lang) || "—";
-        const photos = (r.photos || []).length > 0 ? `${r.photos.length} link` : "—";
-        return [
-          r.denumire_produs,
-          sub(r) || "—",
-          r.cantitate_document ? `${fmtKg(parseFloat(r.cantitate_document) || 0)}${r.unit || "kg"}` : "—",
-          `${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"}`,
-          dif != null ? `${fmtKg(dif)}${r.unit || "kg"}` : "—",
-          r.pierdere_calitativa_procent || "—",
-          lossKg != null && lossKg > 0 ? `${fmtKg(lossKg)}${r.unit || "kg"}` : "—",
-          defects,
-          photos,
-        ].join(" | ");
-      })];
-    };
-    const photoLines = (lang: EmailLang) => {
-      const photos = allPhotosForGroup(group);
-      if (photos.length === 0) return [];
-      const title = lang === "ro" ? "Poze:" : lang === "it" ? "Foto:" : "Photos:";
-      return [title, ...photos.map((p) => `${p.row.denumire_produs}: ${p.photo.url}`)];
-    };
-
     const render = (lang: EmailLang) => {
       const lines: string[] = [lang === "ro" ? "Bună ziua," : lang === "it" ? "Buon pomeriggio," : "Good afternoon,", ""];
       if (qualityRows.length > 0) {
@@ -998,9 +966,6 @@ const ReceptionReport: React.FC = () => {
       } else if (qualityRows.length > 0) {
         lines.push(lang === "ro" ? "Nu avem diferențe cantitative." : lang === "it" ? "Non abbiamo differenze quantitative." : "We do not have quantitative differences.", "");
       }
-      lines.push(...tableLines(lang), "");
-      const photos = photoLines(lang);
-      if (photos.length > 0) lines.push(...photos, "");
       lines.push(
         lang === "ro" ? "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile."
           : lang === "it" ? "Vi preghiamo di inviarci le note di credito entro 30 giorni."
@@ -1011,7 +976,7 @@ const ReceptionReport: React.FC = () => {
       return lines.join("\n");
     };
 
-    return { en: render("en"), ro: render("ro"), it: render("it"), subject: `Reception ${dateStr} – ${partner} – doc ${doc}` };
+    return { en: render("en"), ro: render("ro"), it: render("it") };
   };
 
   const allPhotosForGroup = (group: SupplierGroup) => {
@@ -1021,12 +986,10 @@ const ReceptionReport: React.FC = () => {
   };
 
   const openEmailDialog = (groupIdx: number) => {
-    const { en, ro, it, subject } = buildEmailContent(groups[groupIdx]);
+    const { en, ro, it } = buildEmailContent(groups[groupIdx]);
     setEmailBodyEn(en);
     setEmailBodyRo(ro);
     setEmailBodyIt(it);
-    setEmailSubject(subject);
-    setEmailToAddr("");
     setEmailLang("en");
     setEmailCopied(false);
     setEmailDialog({ groupIdx });
