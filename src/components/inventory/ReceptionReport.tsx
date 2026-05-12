@@ -1016,18 +1016,34 @@ const ReceptionReport: React.FC = () => {
   };
 
   const syncEmailTranslations = (source: EmailLang, value: string) => {
+    const seq = ++translateSeqRef.current;
     if (source === "en") {
       setEmailBodyEn(value);
-      setEmailBodyRo(translateEmailDraft(value, "ro"));
-      setEmailBodyIt(translateEmailDraft(value, "it"));
+      setEmailTranslating(true);
+      Promise.all([translateEmailText(value, "ro"), translateEmailText(value, "it")]).then(([roText, itText]) => {
+        if (translateSeqRef.current !== seq) return;
+        setEmailBodyRo(roText);
+        setEmailBodyIt(itText);
+        setEmailTranslating(false);
+      });
     } else if (source === "ro") {
       setEmailBodyRo(value);
-      setEmailBodyEn(translateEmailDraft(value, "en"));
-      setEmailBodyIt(translateEmailDraft(value, "it"));
+      setEmailTranslating(true);
+      Promise.all([translateEmailText(value, "en"), translateEmailText(value, "it")]).then(([enText, itText]) => {
+        if (translateSeqRef.current !== seq) return;
+        setEmailBodyEn(enText);
+        setEmailBodyIt(itText);
+        setEmailTranslating(false);
+      });
     } else {
       setEmailBodyIt(value);
-      setEmailBodyEn(translateEmailDraft(value, "en"));
-      setEmailBodyRo(translateEmailDraft(value, "ro"));
+      setEmailTranslating(true);
+      Promise.all([translateEmailText(value, "en"), translateEmailText(value, "ro")]).then(([enText, roText]) => {
+        if (translateSeqRef.current !== seq) return;
+        setEmailBodyEn(enText);
+        setEmailBodyRo(roText);
+        setEmailTranslating(false);
+      });
     }
   };
 
