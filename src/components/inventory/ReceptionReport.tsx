@@ -1007,6 +1007,18 @@ const ReceptionReport: React.FC = () => {
     setEmailLang("en");
     setEmailCopied(false);
     setEmailDialog({ groupIdx });
+
+    const seq = ++translateSeqRef.current;
+    setEmailTranslating(true);
+    Promise.all([translateEmailText(ro, "en"), translateEmailText(ro, "it")]).then(([enText, itText]) => {
+      if (translateSeqRef.current !== seq) return;
+      setEmailBodyEn(enText || en);
+      setEmailBodyIt(itText || it);
+      setEmailTranslating(false);
+    }).catch(() => {
+      if (translateSeqRef.current !== seq) return;
+      setEmailTranslating(false);
+    });
   };
 
   const buildBodyWithPhotos = () => {
@@ -1018,25 +1030,42 @@ const ReceptionReport: React.FC = () => {
   const getEmailTableRows = (group: SupplierGroup, lang: EmailLang) => group.rows.map((r) => {
     const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : calcDiferenta(r);
     const lossKg = r.is_missing ? null : calcPierdereKg(r);
+    const shortageKg = dif != null && dif < 0 ? Math.abs(dif) : 0;
+    const creditKg = shortageKg + (lossKg != null && lossKg > 0 ? lossKg : 0);
+    const lossPercent = parseFloat(r.pierdere_calitativa_procent);
     const unit = r.unit || "kg";
+    const differenceText = dif == null
+      ? "—"
+      : dif < 0
+        ? lang === "ro" ? `${fmtKg(Math.abs(dif))}${unit} mai puțin`
+          : lang === "it" ? `${fmtKg(Math.abs(dif))}${unit} in meno`
+            : `${fmtKg(Math.abs(dif))}${unit} less`
+        : dif > 0
+          ? lang === "ro" ? `${fmtKg(dif)}${unit} în plus`
+            : lang === "it" ? `${fmtKg(dif)}${unit} in più`
+              : `${fmtKg(dif)}${unit} extra`
+          : `0${unit}`;
+    const qualityLossText = !isNaN(lossPercent) && lossPercent > 0 && lossKg != null
+      ? `${fmtKg(lossPercent)}% = ${fmtKg(lossKg)}${unit}`
+      : "—";
     return {
       product: r.denumire_produs,
       producer: r.producator || group.supplierName || "—",
       document: r.cantitate_document ? `${fmtKg(parseFloat(r.cantitate_document) || 0)}${unit}` : "—",
       received: `${fmtKg(r.cantitate_receptionata)}${unit}`,
-      difference: dif != null ? `${fmtKg(dif)}${unit}` : "—",
-      loss: r.pierdere_calitativa_procent || "—",
-      credit: lossKg != null && lossKg > 0 ? `${fmtKg(lossKg)}${unit}` : "—",
+      difference: differenceText,
+      loss: qualityLossText,
+      credit: creditKg > 0 ? `${fmtKg(creditKg)}${unit}` : "—",
       defects: translateKnownTerms([(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim(), lang) || "—",
       photos: (r.photos || []).length > 0 ? `${r.photos.length} link` : "—",
     };
   });
 
   const emailHeaders = (lang: EmailLang) => lang === "ro"
-    ? ["Produs", "Producător", "Doc", "Recepționat", "Diferență", "Pierdere %", "Credit", "Defecte", "Poze"]
+    ? ["Produs", "Producător", "Cantitate document", "Cantitate recepționată", "Diferență cantitativă", "Pierdere calitativă", "Notă de credit", "Defecte", "Poze"]
     : lang === "it"
-      ? ["Prodotto", "Produttore", "Documento", "Ricevuto", "Differenza", "Perdita %", "Credito", "Difetti", "Foto"]
-      : ["Product", "Producer", "Document", "Received", "Difference", "Loss %", "Credit", "Defects", "Photos"];
+      ? ["Prodotto", "Produttore", "Quantità documento", "Quantità ricevuta", "Differenza quantitativa", "Perdita qualitativa", "Nota di credito", "Difetti", "Foto"]
+      : ["Product", "Producer", "Document quantity", "Received quantity", "Quantitative difference", "Quality loss", "Credit note", "Defects", "Photos"];
 
   const buildEmailPlainText = (group: SupplierGroup) => {
     const headers = emailHeaders(emailLang);
