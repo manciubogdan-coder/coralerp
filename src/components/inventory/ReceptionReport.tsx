@@ -270,12 +270,12 @@ const ReceptionReport: React.FC = () => {
   const [detailsDialog, setDetailsDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
   const [emailDialog, setEmailDialog] = useState<{ groupIdx: number } | null>(null);
   const [emailLang, setEmailLang] = useState<EmailLang>("en");
-  const [emailToAddr, setEmailToAddr] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
   const [emailBodyRo, setEmailBodyRo] = useState("");
   const [emailBodyEn, setEmailBodyEn] = useState("");
   const [emailBodyIt, setEmailBodyIt] = useState("");
   const [emailCopied, setEmailCopied] = useState(false);
+  const [emailTranslating, setEmailTranslating] = useState(false);
+  const translateSeqRef = useRef(0);
 
   // Missing item form
   const [missingForm, setMissingForm] = useState<{
