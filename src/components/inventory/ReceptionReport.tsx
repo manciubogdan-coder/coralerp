@@ -1603,6 +1603,7 @@ const ReceptionReport: React.FC = () => {
                   </TableRow>
                 </TableFooter>
               </Table>
+              </div>
             </CardContent>
           </Card>
         );
