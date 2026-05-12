@@ -1156,7 +1156,7 @@ const ReceptionReport: React.FC = () => {
   const renderMobileInfo = (label: string, value: React.ReactNode, className?: string) => (
     <div className={cn("rounded-md border bg-muted/30 p-2", className)}>
       <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
-      <div className="mt-1 text-sm font-semibold break-words">{value || "—"}</div>
+      <div className="mt-1 text-sm font-semibold break-words">{value === null || value === undefined || value === "" ? "—" : value}</div>
     </div>
   );
 
