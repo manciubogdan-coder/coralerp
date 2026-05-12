@@ -251,6 +251,20 @@ const translateEmailDraft = (text: string, target: EmailLang) => {
   return translateKnownTerms(out, target);
 };
 
+const translateEmailText = async (text: string, target: EmailLang) => {
+  if (!text.trim()) return "";
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("translate failed");
+    const data = await res.json();
+    const translated = Array.isArray(data?.[0]) ? data[0].map((x: any[]) => x?.[0] || "").join("") : "";
+    return translated || translateEmailDraft(text, target);
+  } catch {
+    return translateEmailDraft(text, target);
+  }
+};
+
 const ReceptionReport: React.FC = () => {
   const { inventoryType } = useInventoryType();
   const { toast } = useToast();
