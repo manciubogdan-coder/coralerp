@@ -1003,9 +1003,10 @@ const ReceptionReport: React.FC = () => {
   };
 
   const openEmailDialog = (groupIdx: number) => {
-    const { en, ro, subject } = buildEmailContent(groups[groupIdx]);
+    const { en, ro, it, subject } = buildEmailContent(groups[groupIdx]);
     setEmailBodyEn(en);
     setEmailBodyRo(ro);
+    setEmailBodyIt(it);
     setEmailSubject(subject);
     setEmailToAddr("");
     setEmailLang("en");
@@ -1014,12 +1015,25 @@ const ReceptionReport: React.FC = () => {
   };
 
   const buildBodyWithPhotos = () => {
-    const body = emailLang === "en" ? emailBodyEn : emailBodyRo;
-    const group = emailDialog ? groups[emailDialog.groupIdx] : null;
-    const photos = group ? allPhotosForGroup(group) : [];
-    if (photos.length === 0) return body;
-    const header = emailLang === "en" ? "Photos:" : "Poze:";
-    return body + "\n\n---\n" + header + "\n" + photos.map((p) => `${p.row.denumire_produs}: ${p.photo.url}`).join("\n");
+    if (emailLang === "ro") return emailBodyRo;
+    if (emailLang === "it") return emailBodyIt;
+    return emailBodyEn;
+  };
+
+  const syncEmailTranslations = (source: EmailLang, value: string) => {
+    if (source === "en") {
+      setEmailBodyEn(value);
+      setEmailBodyRo(translateEmailDraft(value, "ro"));
+      setEmailBodyIt(translateEmailDraft(value, "it"));
+    } else if (source === "ro") {
+      setEmailBodyRo(value);
+      setEmailBodyEn(translateEmailDraft(value, "en"));
+      setEmailBodyIt(translateEmailDraft(value, "it"));
+    } else {
+      setEmailBodyIt(value);
+      setEmailBodyEn(translateEmailDraft(value, "en"));
+      setEmailBodyRo(translateEmailDraft(value, "ro"));
+    }
   };
 
   const copyEmailToClipboard = async () => {
