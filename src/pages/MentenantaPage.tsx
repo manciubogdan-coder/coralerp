@@ -1370,40 +1370,42 @@ const MentenantaPage: React.FC = () => {
   const openCount = defects.filter((d) => d.status !== "rezolvata").length;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Wrench /> Mentenanță
+    <div className="space-y-3 sm:space-y-4 p-3 sm:p-0">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+            <Wrench className="h-5 w-5 sm:h-6 sm:w-6 shrink-0" />
+            <span className="truncate">Mentenanță</span>
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Defecțiuni, reparații și disponibilitate linii.
-          </p>
-        </div>
-        <div className="flex gap-2 items-center">
           {openCount > 0 ? (
-            <Badge className="bg-red-500 text-white">
-              <AlertTriangle size={14} className="mr-1" /> {openCount} active
+            <Badge className="bg-red-500 text-white mt-1">
+              <AlertTriangle size={12} className="mr-1" /> {openCount} active
             </Badge>
           ) : (
-            <Badge className="bg-green-500 text-white">
-              <CheckCircle2 size={14} className="mr-1" /> Toate rezolvate
+            <Badge className="bg-green-500 text-white mt-1">
+              <CheckCircle2 size={12} className="mr-1" /> Toate rezolvate
             </Badge>
           )}
-          <BackToHubButton />
         </div>
+        <BackToHubButton />
       </div>
 
       {loading ? (
         <div className="text-center py-8 text-muted-foreground">Se încarcă...</div>
       ) : (
         <Tabs defaultValue="defectiuni">
-          <TabsList>
-            <TabsTrigger value="defectiuni">Defecțiuni</TabsTrigger>
-            <TabsTrigger value="raport">Raport & Grafic</TabsTrigger>
-            <TabsTrigger value="linii">Linii</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 h-auto">
+            <TabsTrigger value="defectiuni" className="py-2 text-xs sm:text-sm">
+              Defecțiuni
+            </TabsTrigger>
+            <TabsTrigger value="raport" className="py-2 text-xs sm:text-sm">
+              Raport
+            </TabsTrigger>
+            <TabsTrigger value="linii" className="py-2 text-xs sm:text-sm">
+              Linii
+            </TabsTrigger>
           </TabsList>
-          <TabsContent value="defectiuni" className="mt-4">
+          <TabsContent value="defectiuni" className="mt-3 sm:mt-4">
             <DefectiuniTab
               defects={defects}
               lines={lines}
@@ -1411,10 +1413,10 @@ const MentenantaPage: React.FC = () => {
               refresh={refresh}
             />
           </TabsContent>
-          <TabsContent value="raport" className="mt-4">
+          <TabsContent value="raport" className="mt-3 sm:mt-4">
             <RaportTab defects={defects} lines={lines} />
           </TabsContent>
-          <TabsContent value="linii" className="mt-4">
+          <TabsContent value="linii" className="mt-3 sm:mt-4">
             <LinesTab lines={lines} refresh={refresh} />
           </TabsContent>
         </Tabs>
