@@ -1718,20 +1718,10 @@ const ReceptionReport: React.FC = () => {
           {emailDialog && (() => {
             const group = groups[emailDialog.groupIdx];
             const photos = allPhotosForGroup(group);
+            const previewHeaders = emailHeaders(emailLang);
+            const previewRows = getEmailTableRows(group, emailLang);
             return (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr,2fr] gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">Către (email)</label>
-                    <Input type="email" placeholder="furnizor@example.com"
-                      value={emailToAddr} onChange={(e) => setEmailToAddr(e.target.value)} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">Subiect</label>
-                    <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} />
-                  </div>
-                </div>
-
                 <Tabs value={emailLang} onValueChange={(v) => setEmailLang(v as EmailLang)}>
                   <TabsList className="grid grid-cols-3 w-full sm:w-[420px]">
                     <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
@@ -1755,21 +1745,46 @@ const ReceptionReport: React.FC = () => {
                   </TabsContent>
                 </Tabs>
 
+                {emailTranslating && <p className="text-xs text-muted-foreground">Se actualizează traducerile...</p>}
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Tabel recepție formatat</p>
+                  <div className="overflow-x-auto rounded-md border">
+                    <table className="w-full border-collapse text-xs">
+                      <thead className="bg-muted">
+                        <tr>{previewHeaders.map((h) => <th key={h} className="border px-2 py-2 text-left font-semibold">{h}</th>)}</tr>
+                      </thead>
+                      <tbody>
+                        {previewRows.map((r, i) => (
+                          <tr key={`${r.product}-${i}`}>
+                            {[r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos].map((v, j) => (
+                              <td key={j} className="border px-2 py-2 align-top">{v}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 {photos.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium">
                       Poze atașate ({photos.length}) — link-urile sunt incluse automat în textul email-ului
                     </p>
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-[200px] overflow-y-auto p-2 border rounded">
-                      {photos.map((p, i) => (
-                        <a key={i} href={p.photo.url} target="_blank" rel="noreferrer" className="block">
-                          <img src={p.photo.url} alt={p.row.denumire_produs}
-                            className="w-full h-20 object-cover rounded border" />
-                          <p className="text-[10px] mt-1 truncate" title={p.row.denumire_produs}>
-                            {p.row.denumire_produs}
-                          </p>
-                        </a>
-                      ))}
+                      {photos.map((p, i) => {
+                        const url = getReceptionPhotoUrl(p.photo);
+                        return (
+                          <a key={i} href={url} target="_blank" rel="noreferrer" className="block">
+                            <img src={url} alt={p.row.denumire_produs}
+                              className="w-full h-20 object-cover rounded border" />
+                            <p className="text-[10px] mt-1 truncate" title={p.row.denumire_produs}>
+                              {p.row.denumire_produs}
+                            </p>
+                          </a>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
