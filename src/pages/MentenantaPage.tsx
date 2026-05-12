@@ -718,118 +718,157 @@ const DefectiuniTab: React.FC<{
     refresh();
   };
 
+  const activeFilters =
+    (filterLine !== "toate" ? 1 : 0) +
+    (filterStatus !== "toate" ? 1 : 0) +
+    (filterSev !== "toate" ? 1 : 0) +
+    (filterReparator !== "toate" ? 1 : 0) +
+    (dateFrom ? 1 : 0) +
+    (dateTo ? 1 : 0);
+
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <CardTitle>Registru defecțiuni</CardTitle>
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-          >
-            <Plus size={16} className="mr-1" /> Înregistrează
-          </Button>
+    <Card className="relative">
+      <CardHeader className="flex flex-col gap-3 p-4 sm:p-6">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-base sm:text-lg">Registru defecțiuni</CardTitle>
+          <span className="text-xs sm:text-sm text-muted-foreground">
+            {filtered.length}/{defects.length}
+          </span>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs text-muted-foreground">Linie</Label>
-            <Select value={filterLine} onValueChange={setFilterLine}>
-              <SelectTrigger className="w-44 h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-72 overflow-y-auto">
-                <SelectItem value="toate">Toate liniile</SelectItem>
-                {lines.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
-                    {l.nume}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs text-muted-foreground">Status</Label>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-40 h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="toate">Toate statusurile</SelectItem>
-                <SelectItem value="deschisa">Deschisă</SelectItem>
-                <SelectItem value="in_lucru">În lucru</SelectItem>
-                <SelectItem value="rezolvata">Rezolvată</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs text-muted-foreground">Severitate</Label>
-            <Select value={filterSev} onValueChange={setFilterSev}>
-              <SelectTrigger className="w-36 h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="toate">Toate</SelectItem>
-                <SelectItem value="minora">Minoră</SelectItem>
-                <SelectItem value="medie">Medie</SelectItem>
-                <SelectItem value="critica">Critică</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs text-muted-foreground">Reparator</Label>
-            <Select value={filterReparator} onValueChange={setFilterReparator}>
-              <SelectTrigger className="w-44 h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-72 overflow-y-auto">
-                <SelectItem value="toate">Toți reparatorii</SelectItem>
-                <SelectItem value="__none__">Fără reparator</SelectItem>
-                {reparatori.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {r}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs text-muted-foreground">De la (data start)</Label>
-            <Input
-              type="date"
-              className="h-9 w-40"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs text-muted-foreground">Până la</Label>
-            <Input
-              type="date"
-              className="h-9 w-40"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
-          </div>
-          {(filterLine !== "toate" ||
-            filterStatus !== "toate" ||
-            filterSev !== "toate" ||
-            filterReparator !== "toate" ||
-            dateFrom ||
-            dateTo) && (
-            <Button variant="ghost" size="sm" className="h-9" onClick={resetFilters}>
-              Resetează filtre
+
+        {/* Filters: collapsible on mobile, always visible on desktop */}
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="md:hidden">
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full justify-between h-10">
+              <span className="flex items-center gap-2">
+                <Filter size={14} />
+                Filtre
+                {activeFilters > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5">
+                    {activeFilters}
+                  </Badge>
+                )}
+              </span>
+              <ChevronDown
+                size={16}
+                className={`transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+              />
             </Button>
-          )}
-          <div className="ml-auto text-sm text-muted-foreground self-center">
-            {filtered.length} / {defects.length} defecțiuni
-          </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2">
+            <FiltersBlock
+              lines={lines}
+              reparatori={reparatori}
+              filterLine={filterLine} setFilterLine={setFilterLine}
+              filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+              filterSev={filterSev} setFilterSev={setFilterSev}
+              filterReparator={filterReparator} setFilterReparator={setFilterReparator}
+              dateFrom={dateFrom} setDateFrom={setDateFrom}
+              dateTo={dateTo} setDateTo={setDateTo}
+              onReset={resetFilters}
+              showReset={activeFilters > 0}
+              compact
+            />
+          </CollapsibleContent>
+        </Collapsible>
+
+        <div className="hidden md:block">
+          <FiltersBlock
+            lines={lines}
+            reparatori={reparatori}
+            filterLine={filterLine} setFilterLine={setFilterLine}
+            filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+            filterSev={filterSev} setFilterSev={setFilterSev}
+            filterReparator={filterReparator} setFilterReparator={setFilterReparator}
+            dateFrom={dateFrom} setDateFrom={setDateFrom}
+            dateTo={dateTo} setDateTo={setDateTo}
+            onReset={resetFilters}
+            showReset={activeFilters > 0}
+          />
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
+
+      <CardContent className="p-3 sm:p-6 pt-0 pb-20 md:pb-6">
+        {/* Mobile: card list */}
+        <div className="space-y-2 md:hidden">
+          {filtered.length === 0 && (
+            <div className="text-center text-muted-foreground text-sm py-8">
+              Nicio defecțiune înregistrată.
+            </div>
+          )}
+          {filtered.map((d) => (
+            <div key={d.id} className="border rounded-lg p-3 space-y-2 bg-card">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-sm truncate">
+                    {lineMap[d.linie_id] ?? "?"}
+                  </div>
+                  <div className="text-sm text-muted-foreground truncate">
+                    {d.componenta}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <Badge className={`${sevColor(d.severitate)} text-white text-[10px] py-0 px-1.5`}>
+                    {SEV_LABEL[d.severitate]}
+                  </Badge>
+                  <Badge className={`${statusColor(d.status)} text-white text-[10px] py-0 px-1.5`}>
+                    {STATUS_LABEL[d.status]}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+                <div className="text-muted-foreground">Start</div>
+                <div className="text-right">
+                  {format(new Date(d.data_start), "dd.MM HH:mm")}
+                </div>
+                <div className="text-muted-foreground">Final</div>
+                <div className="text-right">
+                  {d.data_final ? format(new Date(d.data_final), "dd.MM HH:mm") : "—"}
+                </div>
+                <div className="text-muted-foreground">Ore oprire</div>
+                <div className="text-right font-medium">
+                  {Number(d.ore_oprire_efectiva ?? 0).toFixed(2)} h
+                </div>
+                <div className="text-muted-foreground">A funcționat</div>
+                <div className="text-right">{d.linia_a_functionat ? "Da" : "Nu"}</div>
+                {d.reparat_de && (
+                  <>
+                    <div className="text-muted-foreground">Reparat de</div>
+                    <div className="text-right truncate">{d.reparat_de}</div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 h-9"
+                  onClick={() => {
+                    setEditing(d);
+                    setOpen(true);
+                  }}
+                >
+                  <Pencil size={14} className="mr-1" /> Editează
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-destructive"
+                  onClick={() => remove(d)}
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop: table */}
+        <div className="hidden md:block overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -910,6 +949,31 @@ const DefectiuniTab: React.FC<{
         </div>
       </CardContent>
 
+      {/* Floating action button — mobile only */}
+      <Button
+        size="lg"
+        className="md:hidden fixed bottom-4 right-4 h-14 w-14 rounded-full shadow-lg z-40 p-0"
+        onClick={() => {
+          setEditing(null);
+          setOpen(true);
+        }}
+        aria-label="Înregistrează defecțiune"
+      >
+        <Plus size={24} />
+      </Button>
+
+      {/* Desktop button at top */}
+      <Button
+        size="sm"
+        className="hidden md:inline-flex absolute top-4 right-6"
+        onClick={() => {
+          setEditing(null);
+          setOpen(true);
+        }}
+      >
+        <Plus size={16} className="mr-1" /> Înregistrează
+      </Button>
+
       <DefectiuneDialog
         open={open}
         onOpenChange={setOpen}
@@ -919,6 +983,125 @@ const DefectiuniTab: React.FC<{
         onSaved={refresh}
       />
     </Card>
+  );
+};
+
+// Filters block reused for mobile/desktop
+const FiltersBlock: React.FC<{
+  lines: Linie[];
+  reparatori: string[];
+  filterLine: string; setFilterLine: (v: string) => void;
+  filterStatus: string; setFilterStatus: (v: string) => void;
+  filterSev: string; setFilterSev: (v: string) => void;
+  filterReparator: string; setFilterReparator: (v: string) => void;
+  dateFrom: string; setDateFrom: (v: string) => void;
+  dateTo: string; setDateTo: (v: string) => void;
+  onReset: () => void;
+  showReset: boolean;
+  compact?: boolean;
+}> = ({
+  lines, reparatori,
+  filterLine, setFilterLine,
+  filterStatus, setFilterStatus,
+  filterSev, setFilterSev,
+  filterReparator, setFilterReparator,
+  dateFrom, setDateFrom,
+  dateTo, setDateTo,
+  onReset, showReset, compact,
+}) => {
+  const triggerH = compact ? "h-10" : "h-9";
+  return (
+    <div className={compact ? "grid grid-cols-2 gap-2" : "flex flex-wrap items-end gap-2"}>
+      <div className="flex flex-col gap-1">
+        <Label className="text-xs text-muted-foreground">Linie</Label>
+        <Select value={filterLine} onValueChange={setFilterLine}>
+          <SelectTrigger className={`${compact ? "" : "w-44"} ${triggerH}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="max-h-72 overflow-y-auto">
+            <SelectItem value="toate">Toate liniile</SelectItem>
+            {lines.map((l) => (
+              <SelectItem key={l.id} value={l.id}>
+                {l.nume}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label className="text-xs text-muted-foreground">Status</Label>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className={`${compact ? "" : "w-40"} ${triggerH}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="toate">Toate</SelectItem>
+            <SelectItem value="deschisa">Deschisă</SelectItem>
+            <SelectItem value="in_lucru">În lucru</SelectItem>
+            <SelectItem value="rezolvata">Rezolvată</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label className="text-xs text-muted-foreground">Severitate</Label>
+        <Select value={filterSev} onValueChange={setFilterSev}>
+          <SelectTrigger className={`${compact ? "" : "w-36"} ${triggerH}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="toate">Toate</SelectItem>
+            <SelectItem value="minora">Minoră</SelectItem>
+            <SelectItem value="medie">Medie</SelectItem>
+            <SelectItem value="critica">Critică</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label className="text-xs text-muted-foreground">Reparator</Label>
+        <Select value={filterReparator} onValueChange={setFilterReparator}>
+          <SelectTrigger className={`${compact ? "" : "w-44"} ${triggerH}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="max-h-72 overflow-y-auto">
+            <SelectItem value="toate">Toți</SelectItem>
+            <SelectItem value="__none__">Fără reparator</SelectItem>
+            {reparatori.map((r) => (
+              <SelectItem key={r} value={r}>
+                {r}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label className="text-xs text-muted-foreground">De la</Label>
+        <Input
+          type="date"
+          className={`${triggerH} ${compact ? "" : "w-40"}`}
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label className="text-xs text-muted-foreground">Până la</Label>
+        <Input
+          type="date"
+          className={`${triggerH} ${compact ? "" : "w-40"}`}
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+        />
+      </div>
+      {showReset && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`${triggerH} ${compact ? "col-span-2" : ""}`}
+          onClick={onReset}
+        >
+          Resetează filtre
+        </Button>
+      )}
+    </div>
   );
 };
 
