@@ -1101,19 +1101,27 @@ const ReceptionReport: React.FC = () => {
   };
 
   const copyEmailToClipboard = async () => {
+    if (!emailDialog) return;
+    const group = groups[emailDialog.groupIdx];
     try {
-      await navigator.clipboard.writeText(buildBodyWithPhotos());
+      const html = buildEmailHtml(group);
+      const text = buildEmailPlainText(group);
+      if ("ClipboardItem" in window) {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([text], { type: "text/plain" }),
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(text);
+      }
       setEmailCopied(true);
       setTimeout(() => setEmailCopied(false), 2000);
-      toast({ title: "Copiat în clipboard" });
+      toast({ title: "Email copiat", description: "Tabelul se lipește formatat în Gmail/Outlook." });
     } catch {
       toast({ title: "Nu s-a putut copia", variant: "destructive" });
     }
-  };
-
-  const openInMailClient = () => {
-    const url = `mailto:${encodeURIComponent(emailToAddr)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(buildBodyWithPhotos())}`;
-    window.location.href = url;
   };
 
   return (
