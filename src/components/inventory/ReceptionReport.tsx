@@ -1002,6 +1002,9 @@ const ReceptionReport: React.FC = () => {
 
   const openEmailDialog = (groupIdx: number) => {
     const { en, ro, it } = buildEmailContent(groups[groupIdx]);
+    const defectTexts = Array.from(new Set(groups[groupIdx].rows
+      .map((r) => [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim())
+      .filter(Boolean)));
     setEmailBodyEn(en);
     setEmailBodyRo(ro);
     setEmailBodyIt(it);
@@ -1011,10 +1014,18 @@ const ReceptionReport: React.FC = () => {
 
     const seq = ++translateSeqRef.current;
     setEmailTranslating(true);
-    Promise.all([translateEmailText(ro, "en"), translateEmailText(ro, "it")]).then(([enText, itText]) => {
+    Promise.all([
+      translateEmailText(ro, "en"),
+      translateEmailText(ro, "it"),
+      Promise.all(defectTexts.map(async (text) => {
+        const [enDef, itDef] = await Promise.all([translateEmailText(text, "en"), translateEmailText(text, "it")]);
+        return [text, { ro: text, en: enDef || translateKnownTerms(text, "en"), it: itDef || translateKnownTerms(text, "it") }] as const;
+      })),
+    ]).then(([enText, itText, defectEntries]) => {
       if (translateSeqRef.current !== seq) return;
       setEmailBodyEn(enText || en);
       setEmailBodyIt(itText || it);
+      setEmailDefectTranslations(Object.fromEntries(defectEntries));
       setEmailTranslating(false);
     }).catch(() => {
       if (translateSeqRef.current !== seq) return;
