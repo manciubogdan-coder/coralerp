@@ -1328,7 +1328,7 @@ const ReceptionReport: React.FC = () => {
                           <p className="text-[11px] font-medium uppercase text-muted-foreground">Tip lăzi doc</p>
                           {renderDocCrateTypeInput(gIdx, rIdx, r)}
                         </div>
-                        <div className="space-y-1 rounded-md border bg-amber-50/50 p-2 dark:bg-amber-950/10">
+                        <div className="space-y-1 rounded-md border bg-muted/30 p-2">
                           <p className="text-[11px] font-medium uppercase text-muted-foreground">Cantitate document</p>
                           <Input type="number" step="0.01" placeholder="kg" value={r.cantitate_document} disabled={r.is_missing}
                             onChange={(e) => updateRow(gIdx, rIdx, "cantitate_document", e.target.value)} className="h-11 text-base" />
@@ -1338,14 +1338,14 @@ const ReceptionReport: React.FC = () => {
                         {renderMobileInfo("Tip palet", tipPalet)}
                         {renderMobileInfo("Nr paleți rec", totalRecP ?? "—")}
                         {renderMobileInfo("Nr lăzi", totalRecL ?? "—")}
-                        {renderMobileInfo("Diferență", dif != null ? dif.toFixed(2) : "—", cn(dif != null && dif < 0 && "text-destructive", dif != null && dif > 0 && "text-green-600"))}
+                        {renderMobileInfo("Diferență", dif != null ? dif.toFixed(2) : "—", cn(dif != null && dif < 0 && "text-destructive", dif != null && dif > 0 && "text-primary"))}
                         <div className="space-y-1">
                           <p className="text-[11px] font-medium uppercase text-muted-foreground">Pierd. %</p>
                           <Input type="number" step="0.01" disabled={r.is_missing} value={r.pierdere_calitativa_procent}
                             onChange={(e) => updateRow(gIdx, rIdx, "pierdere_calitativa_procent", e.target.value)} className="h-11 text-base" />
                         </div>
                         {renderMobileInfo("Pierdere kg", pkg != null ? pkg.toFixed(2) : "—")}
-                        {renderMobileInfo("Kg considerate", r.is_missing ? "—" : calcKgConsiderate(r).toFixed(2), "text-green-700 dark:text-green-500")}
+                        {renderMobileInfo("Kg considerate", r.is_missing ? "—" : calcKgConsiderate(r).toFixed(2), "text-primary")}
                         <label className="col-span-2 flex h-11 items-center justify-between rounded-md border bg-muted/30 px-3">
                           <span className="text-sm font-medium">Transmis furnizor</span>
                           <Checkbox checked={r.transmis_la_furnizor} disabled={r.is_missing} onCheckedChange={(v) => updateRow(gIdx, rIdx, "transmis_la_furnizor", Boolean(v))} />
