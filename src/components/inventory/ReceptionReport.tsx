@@ -104,6 +104,8 @@ type ReportDataRow = {
 };
 
 type LookupRow = { id: string; name: string };
+type EmailLang = "en" | "ro" | "it";
+type EmailContent = Record<EmailLang, string> & { subject: string };
 
 const getErrorMessage = (e: unknown) =>
   e instanceof Error ? e.message : "A apărut o eroare neașteptată.";
@@ -159,6 +161,39 @@ const getRomaniaDayRange = (date: Date) => {
   const startUtc = new Date(Date.UTC(y, m, d, 0 - offsetHours, 0, 0, 0));
   const endUtc = new Date(Date.UTC(y, m, d, 23 - offsetHours, 59, 59, 999));
   return { start: startUtc.toISOString(), end: endUtc.toISOString() };
+};
+
+const QUALITY_TRANSLATIONS: Record<EmailLang, Record<string, string>> = {
+  en: {
+    impuritati: "impurities", "impurități": "impurities", "varfuri arse": "burnt tips", "vârfuri arse": "burnt tips",
+    "frunze galbene": "yellow leaves", "frunze arse": "burnt leaves", "frunze negre": "black leaves", "frunze putrede": "rotten leaves",
+    putred: "rotten", mucegai: "mold", umed: "wet", "usor umed": "slightly damp", "ușor umed": "slightly damp",
+    deshidratat: "dehydrated", "tije lungi": "long stems", "cozi lungi": "long tails", seminte: "seeds", semințe: "seeds",
+    flori: "flowers", crengi: "branches", neuniform: "uneven", "capete nedezvoltate": "undeveloped heads",
+  },
+  ro: {
+    impurities: "impurități", "burnt tips": "vârfuri arse", "yellow leaves": "frunze galbene", "burnt leaves": "frunze arse",
+    "black leaves": "frunze negre", "rotten leaves": "frunze putrede", rotten: "putred", mold: "mucegai", wet: "umed",
+    "slightly damp": "ușor umed", dehydrated: "deshidratat", "long stems": "tije lungi", "long tails": "cozi lungi",
+    seeds: "semințe", flowers: "flori", branches: "crengi", uneven: "neuniform", "undeveloped heads": "capete nedezvoltate",
+  },
+  it: {
+    impurities: "impurità", impuritati: "impurità", "impurități": "impurità", "burnt tips": "punte bruciate", "vârfuri arse": "punte bruciate",
+    "yellow leaves": "foglie gialle", "frunze galbene": "foglie gialle", "burnt leaves": "foglie bruciate", "frunze arse": "foglie bruciate",
+    "black leaves": "foglie nere", "rotten leaves": "foglie marce", putred: "marcio", rotten: "marcio", mold: "muffa", mucegai: "muffa",
+    wet: "bagnato", umed: "bagnato", "slightly damp": "leggermente umido", "ușor umed": "leggermente umido",
+    dehydrated: "disidratato", deshidratat: "disidratato", "long stems": "gambi lunghi", "tije lungi": "gambi lunghi",
+    "long tails": "code lunghe", "cozi lungi": "code lunghe", seeds: "semi", seminte: "semi", semințe: "semi", flowers: "fiori", flori: "fiori",
+    branches: "rami", crengi: "rami", uneven: "non uniforme", neuniform: "non uniforme", "undeveloped heads": "cespi non sviluppati",
+  },
+};
+
+const translateKnownTerms = (text: string, lang: EmailLang) => {
+  let out = text;
+  Object.entries(QUALITY_TRANSLATIONS[lang]).forEach(([from, to]) => {
+    out = out.replace(new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), to);
+  });
+  return out;
 };
 
 const ReceptionReport: React.FC = () => {
