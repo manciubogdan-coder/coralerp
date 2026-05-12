@@ -1905,7 +1905,7 @@ const ReceptionReport: React.FC = () => {
 
       {/* Email furnizor dialog */}
       <Dialog open={!!emailDialog} onOpenChange={(o) => !o && setEmailDialog(null)}>
-        <DialogContent className="w-[95vw] max-w-3xl max-h-[95vh] overflow-y-auto p-4 sm:p-6">
+        <DialogContent className="w-screen h-[100dvh] max-w-none sm:w-[95vw] sm:max-w-3xl sm:h-auto sm:max-h-[95vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6 rounded-none sm:rounded-lg">
           <DialogHeader>
             <DialogTitle className="text-base sm:text-lg pr-8 break-words">
               Email furnizor: {emailDialog && groups[emailDialog.groupIdx]?.supplierName}
@@ -1917,7 +1917,7 @@ const ReceptionReport: React.FC = () => {
             const previewHeaders = emailHeaders(emailLang);
             const previewRows = getEmailTableRows(group, emailLang);
             return (
-              <div className="space-y-4">
+              <div className="space-y-4 min-w-0">
                 <Tabs value={emailLang} onValueChange={(v) => setEmailLang(v as EmailLang)}>
                   <TabsList className="grid grid-cols-3 w-full">
                     <TabsTrigger value="en" className="text-xs sm:text-sm">🇬🇧 EN</TabsTrigger>
@@ -1925,19 +1925,19 @@ const ReceptionReport: React.FC = () => {
                     <TabsTrigger value="it" className="text-xs sm:text-sm">🇮🇹 IT</TabsTrigger>
                   </TabsList>
                   <TabsContent value="en" className="mt-3">
-                    <Textarea rows={18} value={emailBodyEn}
+                    <Textarea rows={14} value={emailBodyEn}
                       onChange={(e) => syncEmailTranslations("en", e.target.value)}
-                      className="font-mono text-xs" />
+                      className="font-mono text-xs w-full" />
                   </TabsContent>
                   <TabsContent value="ro" className="mt-3">
-                    <Textarea rows={18} value={emailBodyRo}
+                    <Textarea rows={14} value={emailBodyRo}
                       onChange={(e) => syncEmailTranslations("ro", e.target.value)}
-                      className="font-mono text-xs" />
+                      className="font-mono text-xs w-full" />
                   </TabsContent>
                   <TabsContent value="it" className="mt-3">
-                    <Textarea rows={18} value={emailBodyIt}
+                    <Textarea rows={14} value={emailBodyIt}
                       onChange={(e) => syncEmailTranslations("it", e.target.value)}
-                      className="font-mono text-xs" />
+                      className="font-mono text-xs w-full" />
                   </TabsContent>
                 </Tabs>
 
