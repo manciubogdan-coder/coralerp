@@ -1010,6 +1010,7 @@ const ReceptionReport: React.FC = () => {
     setEmailBodyIt(it);
     setEmailLang("en");
     setEmailCopied(false);
+    setEmailDefectTranslations({});
     setEmailDialog({ groupIdx });
 
     const seq = ++translateSeqRef.current;
