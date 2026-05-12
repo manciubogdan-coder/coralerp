@@ -1509,6 +1509,82 @@ const ReceptionReport: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Email furnizor dialog */}
+      <Dialog open={!!emailDialog} onOpenChange={(o) => !o && setEmailDialog(null)}>
+        <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Email furnizor: {emailDialog && groups[emailDialog.groupIdx]?.supplierName}
+            </DialogTitle>
+          </DialogHeader>
+          {emailDialog && (() => {
+            const group = groups[emailDialog.groupIdx];
+            const photos = allPhotosForGroup(group);
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr,2fr] gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Către (email)</label>
+                    <Input type="email" placeholder="furnizor@example.com"
+                      value={emailToAddr} onChange={(e) => setEmailToAddr(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Subiect</label>
+                    <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} />
+                  </div>
+                </div>
+
+                <Tabs value={emailLang} onValueChange={(v) => setEmailLang(v as "ro" | "en")}>
+                  <TabsList className="grid grid-cols-2 w-full sm:w-[280px]">
+                    <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
+                    <TabsTrigger value="ro">🇷🇴 Română</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="en" className="mt-3">
+                    <Textarea rows={18} value={emailBodyEn}
+                      onChange={(e) => setEmailBodyEn(e.target.value)}
+                      className="font-mono text-xs" />
+                  </TabsContent>
+                  <TabsContent value="ro" className="mt-3">
+                    <Textarea rows={18} value={emailBodyRo}
+                      onChange={(e) => setEmailBodyRo(e.target.value)}
+                      className="font-mono text-xs" />
+                  </TabsContent>
+                </Tabs>
+
+                {photos.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">
+                      Poze atașate ({photos.length}) — link-urile se adaugă automat la sfârșitul email-ului
+                    </p>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-[200px] overflow-y-auto p-2 border rounded">
+                      {photos.map((p, i) => (
+                        <a key={i} href={p.photo.url} target="_blank" rel="noreferrer" className="block">
+                          <img src={p.photo.url} alt={p.row.denumire_produs}
+                            className="w-full h-20 object-cover rounded border" />
+                          <p className="text-[10px] mt-1 truncate" title={p.row.denumire_produs}>
+                            {p.row.denumire_produs}
+                          </p>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={copyEmailToClipboard} className="w-full sm:w-auto">
+              {emailCopied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+              {emailCopied ? "Copiat!" : "Copiază text + link-uri poze"}
+            </Button>
+            <Button onClick={openInMailClient} className="w-full sm:w-auto">
+              <Mail className="h-4 w-4 mr-2" />
+              Deschide în client email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
