@@ -1905,9 +1905,9 @@ const ReceptionReport: React.FC = () => {
 
       {/* Email furnizor dialog */}
       <Dialog open={!!emailDialog} onOpenChange={(o) => !o && setEmailDialog(null)}>
-        <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-3xl max-h-[95vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-base sm:text-lg pr-8 break-words">
               Email furnizor: {emailDialog && groups[emailDialog.groupIdx]?.supplierName}
             </DialogTitle>
           </DialogHeader>
@@ -1919,10 +1919,10 @@ const ReceptionReport: React.FC = () => {
             return (
               <div className="space-y-4">
                 <Tabs value={emailLang} onValueChange={(v) => setEmailLang(v as EmailLang)}>
-                  <TabsList className="grid grid-cols-3 w-full sm:w-[420px]">
-                    <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
-                    <TabsTrigger value="ro">🇷🇴 Română</TabsTrigger>
-                    <TabsTrigger value="it">🇮🇹 Italiano</TabsTrigger>
+                  <TabsList className="grid grid-cols-3 w-full">
+                    <TabsTrigger value="en" className="text-xs sm:text-sm">🇬🇧 EN</TabsTrigger>
+                    <TabsTrigger value="ro" className="text-xs sm:text-sm">🇷🇴 RO</TabsTrigger>
+                    <TabsTrigger value="it" className="text-xs sm:text-sm">🇮🇹 IT</TabsTrigger>
                   </TabsList>
                   <TabsContent value="en" className="mt-3">
                     <Textarea rows={18} value={emailBodyEn}
