@@ -984,6 +984,9 @@ const ReceptionReport: React.FC = () => {
                 <Button size="sm" variant="outline" onClick={() => exportSupplierReport(group)}>
                   <Download className="h-4 w-4 mr-2" />Exportă Excel
                 </Button>
+                <Button size="sm" variant="default" onClick={() => openEmailDialog(gIdx)}>
+                  <Mail className="h-4 w-4 mr-2" />Email furnizor
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto px-2">
