@@ -1015,6 +1015,59 @@ const ReceptionReport: React.FC = () => {
     return emailBodyEn;
   };
 
+  const getEmailTableRows = (group: SupplierGroup, lang: EmailLang) => group.rows.map((r) => {
+    const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : calcDiferenta(r);
+    const lossKg = r.is_missing ? null : calcPierdereKg(r);
+    const unit = r.unit || "kg";
+    return {
+      product: r.denumire_produs,
+      producer: r.producator || group.supplierName || "—",
+      document: r.cantitate_document ? `${fmtKg(parseFloat(r.cantitate_document) || 0)}${unit}` : "—",
+      received: `${fmtKg(r.cantitate_receptionata)}${unit}`,
+      difference: dif != null ? `${fmtKg(dif)}${unit}` : "—",
+      loss: r.pierdere_calitativa_procent || "—",
+      credit: lossKg != null && lossKg > 0 ? `${fmtKg(lossKg)}${unit}` : "—",
+      defects: translateKnownTerms([(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim(), lang) || "—",
+      photos: (r.photos || []).length > 0 ? `${r.photos.length} link` : "—",
+    };
+  });
+
+  const emailHeaders = (lang: EmailLang) => lang === "ro"
+    ? ["Produs", "Producător", "Doc", "Recepționat", "Diferență", "Pierdere %", "Credit", "Defecte", "Poze"]
+    : lang === "it"
+      ? ["Prodotto", "Produttore", "Documento", "Ricevuto", "Differenza", "Perdita %", "Credito", "Difetti", "Foto"]
+      : ["Product", "Producer", "Document", "Received", "Difference", "Loss %", "Credit", "Defects", "Photos"];
+
+  const buildEmailPlainText = (group: SupplierGroup) => {
+    const headers = emailHeaders(emailLang);
+    const rows = getEmailTableRows(group, emailLang);
+    const photoLines = allPhotosForGroup(group).map((p) => `${p.row.denumire_produs}: ${getReceptionPhotoUrl(p.photo)}`);
+    return [
+      buildBodyWithPhotos(),
+      "",
+      emailLang === "ro" ? "Tabel recepție:" : emailLang === "it" ? "Tabella ricevimento:" : "Reception table:",
+      headers.join(" | "),
+      ...rows.map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos].join(" | ")),
+      ...(photoLines.length ? ["", emailLang === "ro" ? "Poze:" : emailLang === "it" ? "Foto:" : "Photos:", ...photoLines] : []),
+    ].join("\n");
+  };
+
+  const buildEmailHtml = (group: SupplierGroup) => {
+    const headers = emailHeaders(emailLang);
+    const rows = getEmailTableRows(group, emailLang);
+    const photos = allPhotosForGroup(group);
+    return `
+      <div style="font-family: Arial, sans-serif; color:#111827; font-size:14px; line-height:1.45;">
+        ${buildBodyWithPhotos().split("\n").map((line) => line.trim() ? `<p style="margin:0 0 12px;">${escapeHtml(line)}</p>` : `<br />`).join("")}
+        <h3 style="margin:18px 0 8px; font-size:16px;">${emailLang === "ro" ? "Tabel recepție" : emailLang === "it" ? "Tabella ricevimento" : "Reception table"}</h3>
+        <table style="border-collapse:collapse; width:100%; font-size:13px;">
+          <thead><tr>${headers.map((h) => `<th style="border:1px solid #d1d5db; padding:8px; background:#f3f4f6; text-align:left;">${escapeHtml(h)}</th>`).join("")}</tr></thead>
+          <tbody>${rows.map((r) => `<tr>${[r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos].map((v) => `<td style="border:1px solid #d1d5db; padding:8px; vertical-align:top;">${escapeHtml(v)}</td>`).join("")}</tr>`).join("")}</tbody>
+        </table>
+        ${photos.length ? `<h3 style="margin:18px 0 8px; font-size:16px;">${emailLang === "ro" ? "Poze" : emailLang === "it" ? "Foto" : "Photos"}</h3><ul style="padding-left:18px;">${photos.map((p) => `<li><a href="${escapeHtml(getReceptionPhotoUrl(p.photo))}">${escapeHtml(p.row.denumire_produs)}</a></li>`).join("")}</ul>` : ""}
+      </div>`;
+  };
+
   const syncEmailTranslations = (source: EmailLang, value: string) => {
     const seq = ++translateSeqRef.current;
     if (source === "en") {
