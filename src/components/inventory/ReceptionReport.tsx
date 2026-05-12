@@ -1153,6 +1153,62 @@ const ReceptionReport: React.FC = () => {
     }
   };
 
+  const renderMobileInfo = (label: string, value: React.ReactNode, className?: string) => (
+    <div className={cn("rounded-md border bg-muted/30 p-2", className)}>
+      <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+      <div className="mt-1 text-sm font-semibold break-words">{value || "—"}</div>
+    </div>
+  );
+
+  const renderDocPalletInput = (gIdx: number, rIdx: number, r: ReportRow) => {
+    const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+    if (bd.doc_pallets.length > 1) {
+      return (
+        <button type="button" className="text-left text-sm font-semibold underline-offset-2 hover:underline"
+          onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+          {summarizeBreakdown(bd.doc_pallets)}
+        </button>
+      );
+    }
+    return (
+      <Input type="number" min="0" step="1" placeholder="0" value={p ?? ""} disabled={r.is_missing}
+        onChange={(e) => updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(e.target.value === "" ? null : parseInt(e.target.value, 10), l, tip, bd))}
+        className="h-11 text-base" />
+    );
+  };
+
+  const renderDocCrateInput = (gIdx: number, rIdx: number, r: ReportRow) => {
+    const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+    if (bd.doc_crates.length > 1) {
+      return (
+        <button type="button" className="text-left text-sm font-semibold underline-offset-2 hover:underline"
+          onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+          {summarizeBreakdown(bd.doc_crates)}
+        </button>
+      );
+    }
+    return (
+      <Input type="number" min="0" step="1" placeholder="0" value={l ?? ""} disabled={r.is_missing}
+        onChange={(e) => updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, e.target.value === "" ? null : parseInt(e.target.value, 10), tip, bd))}
+        className="h-11 text-base" />
+    );
+  };
+
+  const renderDocCrateTypeInput = (gIdx: number, rIdx: number, r: ReportRow) => {
+    const { p, l, tip, bd } = parsePalDoc(r.paleti_lazi_document || "");
+    if (bd.doc_crates.length > 1) return <span className="text-sm text-muted-foreground">multi</span>;
+    return (
+      <Select value={tip || "__none__"} disabled={r.is_missing}
+        onValueChange={(v) => updateRow(gIdx, rIdx, "paleti_lazi_document", formatPalDoc(p, l, v === "__none__" ? "" : v, bd))}>
+        <SelectTrigger className="h-11 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
+        <SelectContent className="max-h-[300px] overflow-y-auto">
+          <SelectItem value="__none__">—</SelectItem>
+          {crateTypesList.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <Card>
