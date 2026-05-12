@@ -1794,11 +1794,7 @@ const ReceptionReport: React.FC = () => {
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={copyEmailToClipboard} className="w-full sm:w-auto">
               {emailCopied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
-              {emailCopied ? "Copiat!" : "Copiază text + link-uri poze"}
-            </Button>
-            <Button onClick={openInMailClient} className="w-full sm:w-auto">
-              <Mail className="h-4 w-4 mr-2" />
-              Deschide în client email
+              {emailCopied ? "Copiat!" : "Copiază emailul formatat"}
             </Button>
           </DialogFooter>
         </DialogContent>
