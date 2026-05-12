@@ -204,53 +204,89 @@ const LinesTab: React.FC<{
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Linii de producție</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 p-4 sm:p-6">
+        <CardTitle className="text-base sm:text-lg">Linii de producție</CardTitle>
         <Button size="sm" onClick={openNew}>
-          <Plus size={16} className="mr-1" /> Linie nouă
+          <Plus size={16} className="mr-1" /> Linie
         </Button>
       </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nume</TableHead>
-              <TableHead>Capacitate/oră</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Acțiuni</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {lines.length === 0 && (
+      <CardContent className="p-3 sm:p-6 pt-0">
+        {/* Mobile: cards */}
+        <div className="space-y-2 md:hidden">
+          {lines.length === 0 && (
+            <div className="text-center text-muted-foreground text-sm py-6">
+              Nicio linie definită.
+            </div>
+          )}
+          {lines.map((l) => (
+            <div
+              key={l.id}
+              className="border rounded-lg p-3 flex items-center justify-between gap-2"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="font-medium truncate">{l.nume}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {l.capacitate_ora ? `${l.capacitate_ora}/oră` : "Fără capacitate"} ·{" "}
+                  <Badge variant="outline" className="text-[10px] py-0">
+                    {l.status ?? "-"}
+                  </Badge>
+                </div>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => openEdit(l)}>
+                  <Pencil size={16} />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => remove(l)}>
+                  <Trash2 size={16} />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop: table */}
+        <div className="hidden md:block">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
-                  Nicio linie definită.
-                </TableCell>
+                <TableHead>Nume</TableHead>
+                <TableHead>Capacitate/oră</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Acțiuni</TableHead>
               </TableRow>
-            )}
-            {lines.map((l) => (
-              <TableRow key={l.id}>
-                <TableCell className="font-medium">{l.nume}</TableCell>
-                <TableCell>{l.capacitate_ora ?? "-"}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{l.status ?? "-"}</Badge>
-                </TableCell>
-                <TableCell className="text-right space-x-2">
-                  <Button size="icon" variant="ghost" onClick={() => openEdit(l)}>
-                    <Pencil size={14} />
-                  </Button>
-                  <Button size="icon" variant="ghost" onClick={() => remove(l)}>
-                    <Trash2 size={14} />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {lines.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    Nicio linie definită.
+                  </TableCell>
+                </TableRow>
+              )}
+              {lines.map((l) => (
+                <TableRow key={l.id}>
+                  <TableCell className="font-medium">{l.nume}</TableCell>
+                  <TableCell>{l.capacitate_ora ?? "-"}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{l.status ?? "-"}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right space-x-2">
+                    <Button size="icon" variant="ghost" onClick={() => openEdit(l)}>
+                      <Pencil size={14} />
+                    </Button>
+                    <Button size="icon" variant="ghost" onClick={() => remove(l)}>
+                      <Trash2 size={14} />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md w-[calc(100vw-1rem)] sm:w-full rounded-lg p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{editing ? "Editare linie" : "Linie nouă"}</DialogTitle>
           </DialogHeader>
@@ -263,6 +299,7 @@ const LinesTab: React.FC<{
               <Label>Capacitate/oră</Label>
               <Input
                 type="number"
+                inputMode="numeric"
                 value={cap}
                 onChange={(e) => setCap(e.target.value)}
               />
@@ -281,11 +318,11 @@ const LinesTab: React.FC<{
               </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+          <DialogFooter className="flex-row gap-2 sm:gap-2">
+            <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setOpen(false)}>
               Anulează
             </Button>
-            <Button onClick={save}>Salvează</Button>
+            <Button className="flex-1 sm:flex-none" onClick={save}>Salvează</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
