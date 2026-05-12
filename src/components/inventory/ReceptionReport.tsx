@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import {
@@ -105,7 +105,25 @@ type ReportDataRow = {
 
 type LookupRow = { id: string; name: string };
 type EmailLang = "en" | "ro" | "it";
-type EmailContent = Record<EmailLang, string> & { subject: string };
+type EmailContent = Record<EmailLang, string>;
+
+const PHOTO_BUCKET = "reception-photos";
+
+const getReceptionPhotoUrl = (photo: PhotoRef) => {
+  if (photo.path) {
+    const { data } = (supabase as any).storage.from(PHOTO_BUCKET).getPublicUrl(photo.path);
+    return data.publicUrl as string;
+  }
+  return (photo.url || "").replace(/\/object\/public\/reception-(Foto|foto|Poze|poze)\//, `/object/public/${PHOTO_BUCKET}/`);
+};
+
+const escapeHtml = (value: string | number | null | undefined) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 
 const getErrorMessage = (e: unknown) =>
   e instanceof Error ? e.message : "A apărut o eroare neașteptată.";
