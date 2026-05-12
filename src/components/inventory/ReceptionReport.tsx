@@ -1244,34 +1244,130 @@ const ReceptionReport: React.FC = () => {
         const totals = groupTotals(group);
         return (
           <Card key={`${group.supplierName}-${group.documentNumber}-${gIdx}`}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
+            <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0">
                 <CardTitle className="text-lg">Furnizor: {group.supplierName}</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
                   Nr document: {group.documentNumber || "—"} • {group.rows.length} produse
                 </p>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                <Button size="sm" variant="outline" onClick={() => openMissingDialog(gIdx)}>
+              <div className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:flex-wrap">
+                <Button size="sm" variant="outline" className="h-11 md:h-9" onClick={() => openMissingDialog(gIdx)}>
                   <AlertTriangle className="h-4 w-4 mr-2 text-amber-500" />
-                  Adaugă articol lipsă
+                  <span className="truncate">Articol lipsă</span>
                 </Button>
-                <Button size="sm" onClick={() => handleSaveGroup(group)}
+                <Button size="sm" className="h-11 md:h-9" onClick={() => handleSaveGroup(group)}
                   disabled={savingKey === `${group.supplierName}__${group.documentNumber}`}>
                   {savingKey === `${group.supplierName}__${group.documentNumber}`
                     ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     : <Save className="h-4 w-4 mr-2" />}
                   Salvează
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => exportSupplierReport(group)}>
+                <Button size="sm" variant="outline" className="h-11 md:h-9" onClick={() => exportSupplierReport(group)}>
                   <Download className="h-4 w-4 mr-2" />Exportă Excel
                 </Button>
-                <Button size="sm" variant="default" onClick={() => openEmailDialog(gIdx)}>
+                <Button size="sm" variant="default" className="h-11 md:h-9" onClick={() => openEmailDialog(gIdx)}>
                   <Mail className="h-4 w-4 mr-2" />Email furnizor
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto px-2">
+            <CardContent className="px-3 md:px-2">
+              <div className="space-y-3 md:hidden">
+                {group.rows.map((r, rIdx) => {
+                  const dif = r.is_missing ? null : calcDiferenta(r);
+                  const pkg = r.is_missing ? null : calcPierdereKg(r);
+                  const { bd } = parsePalDoc(r.paleti_lazi_document || "");
+                  const recC = bd.rec_crates;
+                  const recP = bd.rec_pallets;
+                  const tipLada = recC.length > 0 ? summarizeBreakdown(recC) : (r.tip_lada_culoare || "—");
+                  const tipPalet = recP.length > 0 ? summarizeBreakdown(recP) : (r.tip_palet || "—");
+                  const totalRecP = recP.length > 0 ? recP.reduce((s, x) => s + (x.count || 0), 0) : (r.nr_paleti_rec ?? null);
+                  const totalRecL = recC.length > 0 ? recC.reduce((s, x) => s + (x.count || 0), 0) : (r.nr_lazi ?? null);
+                  return (
+                    <div key={r.inventory_id} className={cn("rounded-lg border bg-card p-3 shadow-sm", r.is_missing && "border-destructive/40 bg-destructive/5")}>
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-muted-foreground">#{rIdx + 1}</span>
+                            {r.is_missing && <span className="rounded bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">LIPSĂ</span>}
+                          </div>
+                          <h3 className="mt-1 text-base font-bold leading-tight">{r.denumire_produs}</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">Producător: {r.producator || "—"}</p>
+                        </div>
+                        {r.is_missing && r.missing_id && (
+                          <Button size="sm" variant="ghost" className="h-9 w-9 shrink-0 p-0" onClick={() => handleRemoveMissing(r.missing_id!)}>
+                            <X className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-medium uppercase text-muted-foreground">Paleți doc</p>
+                          {renderDocPalletInput(gIdx, rIdx, r)}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-medium uppercase text-muted-foreground">Lăzi doc</p>
+                          {renderDocCrateInput(gIdx, rIdx, r)}
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                          <p className="text-[11px] font-medium uppercase text-muted-foreground">Tip lăzi doc</p>
+                          {renderDocCrateTypeInput(gIdx, rIdx, r)}
+                        </div>
+                        <div className="space-y-1 rounded-md border bg-amber-50/50 p-2 dark:bg-amber-950/10">
+                          <p className="text-[11px] font-medium uppercase text-muted-foreground">Cantitate document</p>
+                          <Input type="number" step="0.01" placeholder="kg" value={r.cantitate_document} disabled={r.is_missing}
+                            onChange={(e) => updateRow(gIdx, rIdx, "cantitate_document", e.target.value)} className="h-11 text-base" />
+                        </div>
+                        {renderMobileInfo("Cantitate recepționată", r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`, r.is_missing ? "text-destructive" : "")}
+                        {renderMobileInfo("Tip ladă/culoare", tipLada)}
+                        {renderMobileInfo("Tip palet", tipPalet)}
+                        {renderMobileInfo("Nr paleți rec", totalRecP ?? "—")}
+                        {renderMobileInfo("Nr lăzi", totalRecL ?? "—")}
+                        {renderMobileInfo("Diferență", dif != null ? dif.toFixed(2) : "—", cn(dif != null && dif < 0 && "text-destructive", dif != null && dif > 0 && "text-green-600"))}
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-medium uppercase text-muted-foreground">Pierd. %</p>
+                          <Input type="number" step="0.01" disabled={r.is_missing} value={r.pierdere_calitativa_procent}
+                            onChange={(e) => updateRow(gIdx, rIdx, "pierdere_calitativa_procent", e.target.value)} className="h-11 text-base" />
+                        </div>
+                        {renderMobileInfo("Pierdere kg", pkg != null ? pkg.toFixed(2) : "—")}
+                        {renderMobileInfo("Kg considerate", r.is_missing ? "—" : calcKgConsiderate(r).toFixed(2), "text-green-700 dark:text-green-500")}
+                        <label className="col-span-2 flex h-11 items-center justify-between rounded-md border bg-muted/30 px-3">
+                          <span className="text-sm font-medium">Transmis furnizor</span>
+                          <Checkbox checked={r.transmis_la_furnizor} disabled={r.is_missing} onCheckedChange={(v) => updateRow(gIdx, rIdx, "transmis_la_furnizor", Boolean(v))} />
+                        </label>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <Button size="sm" variant="outline" className="h-11" disabled={r.is_missing} onClick={() => setDefectsDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+                          Defecte {r.defects.length > 0 ? `${r.defects.length} ✓` : ""}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-11" disabled={r.is_missing} onClick={() => setPhotoDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+                          <Camera className="mr-1 h-4 w-4" />{r.photos.length || "Poze"}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-11" disabled={r.is_missing} onClick={() => setDetailsDialog({ groupIdx: gIdx, rowIdx: rIdx })}>
+                          <Layers className="mr-1 h-4 w-4" />Detalii
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="rounded-lg border bg-muted/40 p-3 text-sm font-semibold">
+                  <div className="grid grid-cols-2 gap-2">
+                    <span>Total paleți doc: {totals.totalPaletiDoc || "—"}</span>
+                    <span>Total lăzi doc: {totals.totalLaziDoc || "—"}</span>
+                    <span>Total cant. doc: {totals.totalCantDoc > 0 ? totals.totalCantDoc.toFixed(2) : "—"}</span>
+                    <span>Paleți rec: {totals.totalPaleti}</span>
+                  </div>
+                  {totals.ladiByType.size > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                      {Array.from(totals.ladiByType.entries()).map(([tip, cnt]) => <span key={tip} className="rounded border bg-background px-2 py-1">{tip}: <strong>{cnt}</strong> lăzi</span>)}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
               <Table className="text-xs [&_th]:px-1 [&_th]:h-9 [&_td]:px-1 [&_td]:py-1.5 [&_th]:text-[11px] [&_th]:font-medium [&_th]:whitespace-normal [&_th]:leading-tight">
                 <TableHeader>
                   <TableRow>
