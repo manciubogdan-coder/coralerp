@@ -104,6 +104,8 @@ type ReportDataRow = {
 };
 
 type LookupRow = { id: string; name: string };
+type EmailLang = "en" | "ro" | "it";
+type EmailContent = Record<EmailLang, string> & { subject: string };
 
 const getErrorMessage = (e: unknown) =>
   e instanceof Error ? e.message : "A apărut o eroare neașteptată.";
@@ -161,6 +163,76 @@ const getRomaniaDayRange = (date: Date) => {
   return { start: startUtc.toISOString(), end: endUtc.toISOString() };
 };
 
+const QUALITY_TRANSLATIONS: Record<EmailLang, Record<string, string>> = {
+  en: {
+    impuritati: "impurities", "impurități": "impurities", "varfuri arse": "burnt tips", "vârfuri arse": "burnt tips",
+    "frunze galbene": "yellow leaves", "frunze arse": "burnt leaves", "frunze negre": "black leaves", "frunze putrede": "rotten leaves",
+    putred: "rotten", mucegai: "mold", umed: "wet", "usor umed": "slightly damp", "ușor umed": "slightly damp",
+    deshidratat: "dehydrated", "tije lungi": "long stems", "cozi lungi": "long tails", seminte: "seeds", semințe: "seeds",
+    flori: "flowers", crengi: "branches", neuniform: "uneven", "capete nedezvoltate": "undeveloped heads",
+  },
+  ro: {
+    impurities: "impurități", "burnt tips": "vârfuri arse", "yellow leaves": "frunze galbene", "burnt leaves": "frunze arse",
+    "black leaves": "frunze negre", "rotten leaves": "frunze putrede", rotten: "putred", mold: "mucegai", wet: "umed",
+    "slightly damp": "ușor umed", dehydrated: "deshidratat", "long stems": "tije lungi", "long tails": "cozi lungi",
+    seeds: "semințe", flowers: "flori", branches: "crengi", uneven: "neuniform", "undeveloped heads": "capete nedezvoltate",
+  },
+  it: {
+    impurities: "impurità", impuritati: "impurità", "impurități": "impurità", "burnt tips": "punte bruciate", "vârfuri arse": "punte bruciate",
+    "yellow leaves": "foglie gialle", "frunze galbene": "foglie gialle", "burnt leaves": "foglie bruciate", "frunze arse": "foglie bruciate",
+    "black leaves": "foglie nere", "rotten leaves": "foglie marce", putred: "marcio", rotten: "marcio", mold: "muffa", mucegai: "muffa",
+    wet: "bagnato", umed: "bagnato", "slightly damp": "leggermente umido", "ușor umed": "leggermente umido",
+    dehydrated: "disidratato", deshidratat: "disidratato", "long stems": "gambi lunghi", "tije lungi": "gambi lunghi",
+    "long tails": "code lunghe", "cozi lungi": "code lunghe", seeds: "semi", seminte: "semi", semințe: "semi", flowers: "fiori", flori: "fiori",
+    branches: "rami", crengi: "rami", uneven: "non uniforme", neuniform: "non uniforme", "undeveloped heads": "cespi non sviluppati",
+  },
+};
+
+const translateKnownTerms = (text: string, lang: EmailLang) => {
+  let out = text;
+  Object.entries(QUALITY_TRANSLATIONS[lang]).forEach(([from, to]) => {
+    out = out.replace(new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), to);
+  });
+  return out;
+};
+
+const translateEmailDraft = (text: string, target: EmailLang) => {
+  const phraseMap: Record<EmailLang, Record<string, string>> = {
+    en: {
+      "Bună ziua": "Good afternoon", "Buon pomeriggio": "Good afternoon", "am constatat următoarele probleme calitative": "we found the following quality problems",
+      "abbiamo riscontrato i seguenti problemi qualitativi": "we found the following quality problems", "Solicităm notă de credit pentru": "We want a credit note for",
+      "Chiediamo una nota di credito per": "We want a credit note for", "Vă transmit diferențele": "I send you the differences", "Vi inviamo le differenze": "I send you the differences",
+      "Nu avem diferențe cantitative": "We do not have quantitative differences", "Non abbiamo differenze quantitative": "We do not have quantitative differences",
+      "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile": "Please send us your credit notes within 30 days",
+      "Vi preghiamo di inviarci le note di credito entro 30 giorni": "Please send us your credit notes within 30 days", "Mulțumim, o zi bună": "Thank you, have a good day", "Grazie, buona giornata": "Thank you, have a good day",
+      "Tabel recepție": "Reception table", "Tabella ricevimento": "Reception table", "Poze": "Photos", "Foto": "Photos", "lipsă": "less", "mai puțin": "less", "in meno": "less",
+    },
+    ro: {
+      "Good afternoon": "Bună ziua", "Buon pomeriggio": "Bună ziua", "we found the following quality problems": "am constatat următoarele probleme calitative",
+      "abbiamo riscontrato i seguenti problemi qualitativi": "am constatat următoarele probleme calitative", "We want a credit note for": "Solicităm notă de credit pentru",
+      "Chiediamo una nota di credito per": "Solicităm notă de credit pentru", "I send you the differences": "Vă transmit diferențele", "Vi inviamo le differenze": "Vă transmit diferențele",
+      "We do not have quantitative differences": "Nu avem diferențe cantitative", "Non abbiamo differenze quantitative": "Nu avem diferențe cantitative",
+      "Please send us your credit notes within 30 days": "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile",
+      "Vi preghiamo di inviarci le note di credito entro 30 giorni": "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile", "Thank you, have a good day": "Mulțumim, o zi bună", "Grazie, buona giornata": "Mulțumim, o zi bună",
+      "Reception table": "Tabel recepție", "Tabella ricevimento": "Tabel recepție", "Photos": "Poze", "Foto": "Poze", "less": "mai puțin", "in meno": "mai puțin",
+    },
+    it: {
+      "Good afternoon": "Buon pomeriggio", "Bună ziua": "Buon pomeriggio", "we found the following quality problems": "abbiamo riscontrato i seguenti problemi qualitativi",
+      "am constatat următoarele probleme calitative": "abbiamo riscontrato i seguenti problemi qualitativi", "We want a credit note for": "Chiediamo una nota di credito per",
+      "Solicităm notă de credit pentru": "Chiediamo una nota di credito per", "I send you the differences": "Vi inviamo le differenze", "Vă transmit diferențele": "Vi inviamo le differenze",
+      "We do not have quantitative differences": "Non abbiamo differenze quantitative", "Nu avem diferențe cantitative": "Non abbiamo differenze quantitative",
+      "Please send us your credit notes within 30 days": "Vi preghiamo di inviarci le note di credito entro 30 giorni",
+      "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile": "Vi preghiamo di inviarci le note di credito entro 30 giorni", "Thank you, have a good day": "Grazie, buona giornata", "Mulțumim, o zi bună": "Grazie, buona giornata",
+      "Reception table": "Tabella ricevimento", "Tabel recepție": "Tabella ricevimento", "Photos": "Foto", "Poze": "Foto", "less": "in meno", "mai puțin": "in meno", "lipsă": "in meno",
+    },
+  };
+  let out = text;
+  Object.entries(phraseMap[target]).forEach(([from, to]) => {
+    out = out.replace(new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), to);
+  });
+  return translateKnownTerms(out, target);
+};
+
 const ReceptionReport: React.FC = () => {
   const { inventoryType } = useInventoryType();
   const { toast } = useToast();
@@ -179,11 +251,12 @@ const ReceptionReport: React.FC = () => {
   const [missingDialog, setMissingDialog] = useState<{ groupIdx: number } | null>(null);
   const [detailsDialog, setDetailsDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
   const [emailDialog, setEmailDialog] = useState<{ groupIdx: number } | null>(null);
-  const [emailLang, setEmailLang] = useState<"ro" | "en">("en");
+  const [emailLang, setEmailLang] = useState<EmailLang>("en");
   const [emailToAddr, setEmailToAddr] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBodyRo, setEmailBodyRo] = useState("");
   const [emailBodyEn, setEmailBodyEn] = useState("");
+  const [emailBodyIt, setEmailBodyIt] = useState("");
   const [emailCopied, setEmailCopied] = useState(false);
 
   // Missing item form
@@ -808,7 +881,7 @@ const ReceptionReport: React.FC = () => {
     return s;
   };
 
-  const buildEmailContent = (group: SupplierGroup) => {
+  const buildEmailContent = (group: SupplierGroup): EmailContent => {
     const dateStr = format(date, "dd.MM.yyyy");
     const doc = group.documentNumber || "—";
     const partner = group.supplierName;
@@ -827,62 +900,100 @@ const ReceptionReport: React.FC = () => {
     });
 
     const sub = (r: ReportRow) => r.producator || partner;
+    const desc = (r: ReportRow, lang: EmailLang) => translateKnownTerms([(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim(), lang);
+    const tableLines = (lang: EmailLang) => {
+      const title = lang === "ro" ? "Tabel recepție:" : lang === "it" ? "Tabella ricevimento:" : "Reception table:";
+      const head = lang === "ro"
+        ? "Produs | Producător | Doc | Recepționat | Diferență | Pierdere % | Credit | Defecte | Poze"
+        : lang === "it"
+          ? "Prodotto | Produttore | Documento | Ricevuto | Differenza | Perdita % | Credito | Difetti | Foto"
+          : "Product | Producer | Document | Received | Difference | Loss % | Credit | Defects | Photos";
+      return [title, head, ...group.rows.map((r) => {
+        const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : calcDiferenta(r);
+        const lossKg = r.is_missing ? null : calcPierdereKg(r);
+        const defects = desc(r, lang) || "—";
+        const photos = (r.photos || []).length > 0 ? `${r.photos.length} link` : "—";
+        return [
+          r.denumire_produs,
+          sub(r) || "—",
+          r.cantitate_document ? `${fmtKg(parseFloat(r.cantitate_document) || 0)}${r.unit || "kg"}` : "—",
+          `${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"}`,
+          dif != null ? `${fmtKg(dif)}${r.unit || "kg"}` : "—",
+          r.pierdere_calitativa_procent || "—",
+          lossKg != null && lossKg > 0 ? `${fmtKg(lossKg)}${r.unit || "kg"}` : "—",
+          defects,
+          photos,
+        ].join(" | ");
+      })];
+    };
+    const photoLines = (lang: EmailLang) => {
+      const photos = allPhotosForGroup(group);
+      if (photos.length === 0) return [];
+      const title = lang === "ro" ? "Poze:" : lang === "it" ? "Foto:" : "Photos:";
+      return [title, ...photos.map((p) => `${p.row.denumire_produs}: ${p.photo.url}`)];
+    };
 
-    const en: string[] = ["Good afternoon,", ""];
-    if (qualityRows.length > 0) {
-      en.push(`At the reception on ${dateStr}, ${partner} with document number ${doc}:`, "");
-      qualityRows.forEach((r) => {
-        const desc = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(" ").trim();
-        const lossKg = calcPierdereKg(r);
-        const lossTxt = lossKg != null && lossKg > 0 ? ` We want a credit note for ${fmtKg(lossKg)}${r.unit || "kg"}.` : "";
-        en.push(`${r.denumire_produs} from the supplier ${sub(r)} we recived ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} - ${desc || "quality issues"}.${lossTxt}`, "");
-      });
-    }
-    if (diffRows.length > 0) {
-      en.push(`I send you the differences from today's receipt with document number ${doc}:`, "");
-      diffRows.forEach((r) => {
-        if (r.is_missing) {
-          const exp = parseFloat(r.cantitate_document) || 0;
-          en.push(`${r.denumire_produs} from the supplier ${sub(r)} – ${fmtKg(exp)}${r.unit || "kg"} less (not delivered)`);
-        } else {
-          const dif = calcDiferenta(r) || 0;
-          en.push(`${r.denumire_produs} from the supplier ${sub(r)} – ${fmtKg(Math.abs(dif))}${r.unit || "kg"} less`);
-        }
-      });
-      en.push("");
-    } else if (qualityRows.length > 0) {
-      en.push("We do not have quantitative differences.", "");
-    }
-    en.push("Please send us your credit notes within 30 days.", "", "Thank you, have a good day!");
+    const render = (lang: EmailLang) => {
+      const lines: string[] = [lang === "ro" ? "Bună ziua," : lang === "it" ? "Buon pomeriggio," : "Good afternoon,", ""];
+      if (qualityRows.length > 0) {
+        lines.push(
+          lang === "ro"
+            ? `La recepția din ${dateStr}, ${partner} cu numărul de document ${doc} am constatat următoarele probleme calitative:`
+            : lang === "it"
+              ? `Al ricevimento del ${dateStr}, ${partner} con numero documento ${doc}, abbiamo riscontrato i seguenti problemi qualitativi:`
+              : `At the reception on ${dateStr}, ${partner} with document number ${doc}, we found the following quality problems:`,
+          ""
+        );
+        qualityRows.forEach((r) => {
+          const lossKg = calcPierdereKg(r);
+          const lossTxt = lossKg != null && lossKg > 0
+            ? lang === "ro" ? ` Solicităm notă de credit pentru ${fmtKg(lossKg)}${r.unit || "kg"}.`
+              : lang === "it" ? ` Chiediamo una nota di credito per ${fmtKg(lossKg)}${r.unit || "kg"}.`
+                : ` We want a credit note for ${fmtKg(lossKg)}${r.unit || "kg"}.`
+            : "";
+          lines.push(
+            lang === "ro"
+              ? `${r.denumire_produs} de la furnizorul ${sub(r)} am recepționat ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} – ${desc(r, lang) || "probleme calitative"}.${lossTxt}`
+              : lang === "it"
+                ? `${r.denumire_produs} dal fornitore ${sub(r)} abbiamo ricevuto ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} – ${desc(r, lang) || "problemi qualitativi"}.${lossTxt}`
+                : `${r.denumire_produs} from the supplier ${sub(r)} we received ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} – ${desc(r, lang) || "quality issues"}.${lossTxt}`,
+            ""
+          );
+        });
+      }
+      if (diffRows.length > 0) {
+        lines.push(
+          lang === "ro" ? `Vă transmit diferențele de la recepția de astăzi cu numărul de document ${doc}:`
+            : lang === "it" ? `Vi inviamo le differenze dal ricevimento di oggi con numero documento ${doc}:`
+              : `I send you the differences from today's receipt with document number ${doc}:`,
+          ""
+        );
+        diffRows.forEach((r) => {
+          const qty = r.is_missing ? (parseFloat(r.cantitate_document) || 0) : Math.abs(calcDiferenta(r) || 0);
+          lines.push(
+            lang === "ro" ? `${r.denumire_produs} de la furnizorul ${sub(r)} – ${fmtKg(qty)}${r.unit || "kg"} ${r.is_missing ? "lipsă (nu a fost livrat)" : "mai puțin"}`
+              : lang === "it" ? `${r.denumire_produs} dal fornitore ${sub(r)} – ${fmtKg(qty)}${r.unit || "kg"} in meno${r.is_missing ? " (non consegnato)" : ""}`
+                : `${r.denumire_produs} from the supplier ${sub(r)} – ${fmtKg(qty)}${r.unit || "kg"} less${r.is_missing ? " (not delivered)" : ""}`
+          );
+        });
+        lines.push("");
+      } else if (qualityRows.length > 0) {
+        lines.push(lang === "ro" ? "Nu avem diferențe cantitative." : lang === "it" ? "Non abbiamo differenze quantitative." : "We do not have quantitative differences.", "");
+      }
+      lines.push(...tableLines(lang), "");
+      const photos = photoLines(lang);
+      if (photos.length > 0) lines.push(...photos, "");
+      lines.push(
+        lang === "ro" ? "Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile."
+          : lang === "it" ? "Vi preghiamo di inviarci le note di credito entro 30 giorni."
+            : "Please send us your credit notes within 30 days.",
+        "",
+        lang === "ro" ? "Mulțumim, o zi bună!" : lang === "it" ? "Grazie, buona giornata!" : "Thank you, have a good day!"
+      );
+      return lines.join("\n");
+    };
 
-    const ro: string[] = ["Bună ziua,", ""];
-    if (qualityRows.length > 0) {
-      ro.push(`La recepția din ${dateStr}, ${partner} cu numărul de document ${doc}:`, "");
-      qualityRows.forEach((r) => {
-        const desc = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(" ").trim();
-        const lossKg = calcPierdereKg(r);
-        const lossTxt = lossKg != null && lossKg > 0 ? ` Solicităm notă de credit pentru ${fmtKg(lossKg)}${r.unit || "kg"}.` : "";
-        ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} am recepționat ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} - ${desc || "probleme calitative"}.${lossTxt}`, "");
-      });
-    }
-    if (diffRows.length > 0) {
-      ro.push(`Vă transmit diferențele de la recepția de astăzi cu numărul de document ${doc}:`, "");
-      diffRows.forEach((r) => {
-        if (r.is_missing) {
-          const exp = parseFloat(r.cantitate_document) || 0;
-          ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} – ${fmtKg(exp)}${r.unit || "kg"} lipsă (nu a fost livrat)`);
-        } else {
-          const dif = calcDiferenta(r) || 0;
-          ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} – ${fmtKg(Math.abs(dif))}${r.unit || "kg"} mai puțin`);
-        }
-      });
-      ro.push("");
-    } else if (qualityRows.length > 0) {
-      ro.push("Nu avem diferențe cantitative.", "");
-    }
-    ro.push("Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile.", "", "Mulțumim, o zi bună!");
-
-    return { en: en.join("\n"), ro: ro.join("\n"), subject: `Reception ${dateStr} – ${partner} – doc ${doc}` };
+    return { en: render("en"), ro: render("ro"), it: render("it"), subject: `Reception ${dateStr} – ${partner} – doc ${doc}` };
   };
 
   const allPhotosForGroup = (group: SupplierGroup) => {
@@ -892,9 +1003,10 @@ const ReceptionReport: React.FC = () => {
   };
 
   const openEmailDialog = (groupIdx: number) => {
-    const { en, ro, subject } = buildEmailContent(groups[groupIdx]);
+    const { en, ro, it, subject } = buildEmailContent(groups[groupIdx]);
     setEmailBodyEn(en);
     setEmailBodyRo(ro);
+    setEmailBodyIt(it);
     setEmailSubject(subject);
     setEmailToAddr("");
     setEmailLang("en");
@@ -903,12 +1015,25 @@ const ReceptionReport: React.FC = () => {
   };
 
   const buildBodyWithPhotos = () => {
-    const body = emailLang === "en" ? emailBodyEn : emailBodyRo;
-    const group = emailDialog ? groups[emailDialog.groupIdx] : null;
-    const photos = group ? allPhotosForGroup(group) : [];
-    if (photos.length === 0) return body;
-    const header = emailLang === "en" ? "Photos:" : "Poze:";
-    return body + "\n\n---\n" + header + "\n" + photos.map((p) => `${p.row.denumire_produs}: ${p.photo.url}`).join("\n");
+    if (emailLang === "ro") return emailBodyRo;
+    if (emailLang === "it") return emailBodyIt;
+    return emailBodyEn;
+  };
+
+  const syncEmailTranslations = (source: EmailLang, value: string) => {
+    if (source === "en") {
+      setEmailBodyEn(value);
+      setEmailBodyRo(translateEmailDraft(value, "ro"));
+      setEmailBodyIt(translateEmailDraft(value, "it"));
+    } else if (source === "ro") {
+      setEmailBodyRo(value);
+      setEmailBodyEn(translateEmailDraft(value, "en"));
+      setEmailBodyIt(translateEmailDraft(value, "it"));
+    } else {
+      setEmailBodyIt(value);
+      setEmailBodyEn(translateEmailDraft(value, "en"));
+      setEmailBodyRo(translateEmailDraft(value, "ro"));
+    }
   };
 
   const copyEmailToClipboard = async () => {
@@ -1535,19 +1660,25 @@ const ReceptionReport: React.FC = () => {
                   </div>
                 </div>
 
-                <Tabs value={emailLang} onValueChange={(v) => setEmailLang(v as "ro" | "en")}>
-                  <TabsList className="grid grid-cols-2 w-full sm:w-[280px]">
+                <Tabs value={emailLang} onValueChange={(v) => setEmailLang(v as EmailLang)}>
+                  <TabsList className="grid grid-cols-3 w-full sm:w-[420px]">
                     <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
                     <TabsTrigger value="ro">🇷🇴 Română</TabsTrigger>
+                    <TabsTrigger value="it">🇮🇹 Italiano</TabsTrigger>
                   </TabsList>
                   <TabsContent value="en" className="mt-3">
                     <Textarea rows={18} value={emailBodyEn}
-                      onChange={(e) => setEmailBodyEn(e.target.value)}
+                      onChange={(e) => syncEmailTranslations("en", e.target.value)}
                       className="font-mono text-xs" />
                   </TabsContent>
                   <TabsContent value="ro" className="mt-3">
                     <Textarea rows={18} value={emailBodyRo}
-                      onChange={(e) => setEmailBodyRo(e.target.value)}
+                      onChange={(e) => syncEmailTranslations("ro", e.target.value)}
+                      className="font-mono text-xs" />
+                  </TabsContent>
+                  <TabsContent value="it" className="mt-3">
+                    <Textarea rows={18} value={emailBodyIt}
+                      onChange={(e) => syncEmailTranslations("it", e.target.value)}
                       className="font-mono text-xs" />
                   </TabsContent>
                 </Tabs>
@@ -1555,7 +1686,7 @@ const ReceptionReport: React.FC = () => {
                 {photos.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium">
-                      Poze atașate ({photos.length}) — link-urile se adaugă automat la sfârșitul email-ului
+                      Poze atașate ({photos.length}) — link-urile sunt incluse automat în textul email-ului
                     </p>
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-[200px] overflow-y-auto p-2 border rounded">
                       {photos.map((p, i) => (
