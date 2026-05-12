@@ -1046,6 +1046,7 @@ const ReceptionReport: React.FC = () => {
     const creditKg = shortageKg + (lossKg != null && lossKg > 0 ? lossKg : 0);
     const lossPercent = parseFloat(r.pierdere_calitativa_procent);
     const unit = r.unit || "kg";
+    const rawDefects = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim();
     const differenceText = dif == null
       ? "—"
       : dif < 0
@@ -1068,7 +1069,7 @@ const ReceptionReport: React.FC = () => {
       difference: differenceText,
       loss: qualityLossText,
       credit: creditKg > 0 ? `${fmtKg(creditKg)}${unit}` : "—",
-      defects: translateKnownTerms([(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim(), lang) || "—",
+      defects: emailDefectTranslations[rawDefects]?.[lang] || translateKnownTerms(rawDefects, lang) || "—",
       photos: (r.photos || []).length > 0 ? `${r.photos.length} link` : "—",
     };
   });
