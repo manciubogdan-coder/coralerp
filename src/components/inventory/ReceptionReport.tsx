@@ -800,6 +800,133 @@ const ReceptionReport: React.FC = () => {
     XLSX.writeFile(wb, `Receptie_${safe}_${format(date, "yyyy-MM-dd")}.xlsx`);
   };
 
+  // ============ EMAIL FURNIZOR (RO + EN) ============
+  const fmtKg = (n: number) => {
+    const s = n.toFixed(2);
+    if (s.endsWith(".00")) return s.slice(0, -3);
+    if (s.endsWith("0")) return s.slice(0, -1);
+    return s;
+  };
+
+  const buildEmailContent = (group: SupplierGroup) => {
+    const dateStr = format(date, "dd.MM.yyyy");
+    const doc = group.documentNumber || "—";
+    const partner = group.supplierName;
+
+    const qualityRows = group.rows.filter((r) => {
+      if (r.is_missing) return false;
+      const proc = parseFloat(r.pierdere_calitativa_procent);
+      const hasLoss = !isNaN(proc) && proc > 0;
+      const hasDefects = (r.defects && r.defects.length > 0) || (r.observations && r.observations.trim() !== "");
+      return hasLoss || hasDefects;
+    });
+    const diffRows = group.rows.filter((r) => {
+      if (r.is_missing) return true;
+      const dif = calcDiferenta(r);
+      return dif != null && dif < 0;
+    });
+
+    const sub = (r: ReportRow) => r.producator || partner;
+
+    const en: string[] = ["Good afternoon,", ""];
+    if (qualityRows.length > 0) {
+      en.push(`At the reception on ${dateStr}, ${partner} with document number ${doc}:`, "");
+      qualityRows.forEach((r) => {
+        const desc = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(" ").trim();
+        const lossKg = calcPierdereKg(r);
+        const lossTxt = lossKg != null && lossKg > 0 ? ` We want a credit note for ${fmtKg(lossKg)}${r.unit || "kg"}.` : "";
+        en.push(`${r.denumire_produs} from the supplier ${sub(r)} we recived ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} - ${desc || "quality issues"}.${lossTxt}`, "");
+      });
+    }
+    if (diffRows.length > 0) {
+      en.push(`I send you the differences from today's receipt with document number ${doc}:`, "");
+      diffRows.forEach((r) => {
+        if (r.is_missing) {
+          const exp = parseFloat(r.cantitate_document) || 0;
+          en.push(`${r.denumire_produs} from the supplier ${sub(r)} – ${fmtKg(exp)}${r.unit || "kg"} less (not delivered)`);
+        } else {
+          const dif = calcDiferenta(r) || 0;
+          en.push(`${r.denumire_produs} from the supplier ${sub(r)} – ${fmtKg(Math.abs(dif))}${r.unit || "kg"} less`);
+        }
+      });
+      en.push("");
+    } else if (qualityRows.length > 0) {
+      en.push("We do not have quantitative differences.", "");
+    }
+    en.push("Please send us your credit notes within 30 days.", "", "Thank you, have a good day!");
+
+    const ro: string[] = ["Bună ziua,", ""];
+    if (qualityRows.length > 0) {
+      ro.push(`La recepția din ${dateStr}, ${partner} cu numărul de document ${doc}:`, "");
+      qualityRows.forEach((r) => {
+        const desc = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(" ").trim();
+        const lossKg = calcPierdereKg(r);
+        const lossTxt = lossKg != null && lossKg > 0 ? ` Solicităm notă de credit pentru ${fmtKg(lossKg)}${r.unit || "kg"}.` : "";
+        ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} am recepționat ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} - ${desc || "probleme calitative"}.${lossTxt}`, "");
+      });
+    }
+    if (diffRows.length > 0) {
+      ro.push(`Vă transmit diferențele de la recepția de astăzi cu numărul de document ${doc}:`, "");
+      diffRows.forEach((r) => {
+        if (r.is_missing) {
+          const exp = parseFloat(r.cantitate_document) || 0;
+          ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} – ${fmtKg(exp)}${r.unit || "kg"} lipsă (nu a fost livrat)`);
+        } else {
+          const dif = calcDiferenta(r) || 0;
+          ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} – ${fmtKg(Math.abs(dif))}${r.unit || "kg"} mai puțin`);
+        }
+      });
+      ro.push("");
+    } else if (qualityRows.length > 0) {
+      ro.push("Nu avem diferențe cantitative.", "");
+    }
+    ro.push("Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile.", "", "Mulțumim, o zi bună!");
+
+    return { en: en.join("\n"), ro: ro.join("\n"), subject: `Reception ${dateStr} – ${partner} – doc ${doc}` };
+  };
+
+  const allPhotosForGroup = (group: SupplierGroup) => {
+    const out: { row: ReportRow; photo: PhotoRef }[] = [];
+    group.rows.forEach((r) => (r.photos || []).forEach((p) => out.push({ row: r, photo: p })));
+    return out;
+  };
+
+  const openEmailDialog = (groupIdx: number) => {
+    const { en, ro, subject } = buildEmailContent(groups[groupIdx]);
+    setEmailBodyEn(en);
+    setEmailBodyRo(ro);
+    setEmailSubject(subject);
+    setEmailToAddr("");
+    setEmailLang("en");
+    setEmailCopied(false);
+    setEmailDialog({ groupIdx });
+  };
+
+  const buildBodyWithPhotos = () => {
+    const body = emailLang === "en" ? emailBodyEn : emailBodyRo;
+    const group = emailDialog ? groups[emailDialog.groupIdx] : null;
+    const photos = group ? allPhotosForGroup(group) : [];
+    if (photos.length === 0) return body;
+    const header = emailLang === "en" ? "Photos:" : "Poze:";
+    return body + "\n\n---\n" + header + "\n" + photos.map((p) => `${p.row.denumire_produs}: ${p.photo.url}`).join("\n");
+  };
+
+  const copyEmailToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(buildBodyWithPhotos());
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 2000);
+      toast({ title: "Copiat în clipboard" });
+    } catch {
+      toast({ title: "Nu s-a putut copia", variant: "destructive" });
+    }
+  };
+
+  const openInMailClient = () => {
+    const url = `mailto:${encodeURIComponent(emailToAddr)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(buildBodyWithPhotos())}`;
+    window.location.href = url;
+  };
+
   return (
     <div className="space-y-4">
       <Card>
