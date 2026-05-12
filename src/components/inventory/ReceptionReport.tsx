@@ -2,8 +2,10 @@ import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import {
-  CalendarIcon, Download, Save, Loader2, Plus, Camera, Trash2, X, AlertTriangle, Layers,
+  CalendarIcon, Download, Save, Loader2, Plus, Camera, Trash2, X, AlertTriangle, Layers, Mail, Copy, Check,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import * as XLSX from "xlsx";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -176,6 +178,13 @@ const ReceptionReport: React.FC = () => {
   const [defectsDialog, setDefectsDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
   const [missingDialog, setMissingDialog] = useState<{ groupIdx: number } | null>(null);
   const [detailsDialog, setDetailsDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
+  const [emailDialog, setEmailDialog] = useState<{ groupIdx: number } | null>(null);
+  const [emailLang, setEmailLang] = useState<"ro" | "en">("en");
+  const [emailToAddr, setEmailToAddr] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBodyRo, setEmailBodyRo] = useState("");
+  const [emailBodyEn, setEmailBodyEn] = useState("");
+  const [emailCopied, setEmailCopied] = useState(false);
 
   // Missing item form
   const [missingForm, setMissingForm] = useState<{
@@ -791,6 +800,133 @@ const ReceptionReport: React.FC = () => {
     XLSX.writeFile(wb, `Receptie_${safe}_${format(date, "yyyy-MM-dd")}.xlsx`);
   };
 
+  // ============ EMAIL FURNIZOR (RO + EN) ============
+  const fmtKg = (n: number) => {
+    const s = n.toFixed(2);
+    if (s.endsWith(".00")) return s.slice(0, -3);
+    if (s.endsWith("0")) return s.slice(0, -1);
+    return s;
+  };
+
+  const buildEmailContent = (group: SupplierGroup) => {
+    const dateStr = format(date, "dd.MM.yyyy");
+    const doc = group.documentNumber || "—";
+    const partner = group.supplierName;
+
+    const qualityRows = group.rows.filter((r) => {
+      if (r.is_missing) return false;
+      const proc = parseFloat(r.pierdere_calitativa_procent);
+      const hasLoss = !isNaN(proc) && proc > 0;
+      const hasDefects = (r.defects && r.defects.length > 0) || (r.observations && r.observations.trim() !== "");
+      return hasLoss || hasDefects;
+    });
+    const diffRows = group.rows.filter((r) => {
+      if (r.is_missing) return true;
+      const dif = calcDiferenta(r);
+      return dif != null && dif < 0;
+    });
+
+    const sub = (r: ReportRow) => r.producator || partner;
+
+    const en: string[] = ["Good afternoon,", ""];
+    if (qualityRows.length > 0) {
+      en.push(`At the reception on ${dateStr}, ${partner} with document number ${doc}:`, "");
+      qualityRows.forEach((r) => {
+        const desc = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(" ").trim();
+        const lossKg = calcPierdereKg(r);
+        const lossTxt = lossKg != null && lossKg > 0 ? ` We want a credit note for ${fmtKg(lossKg)}${r.unit || "kg"}.` : "";
+        en.push(`${r.denumire_produs} from the supplier ${sub(r)} we recived ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} - ${desc || "quality issues"}.${lossTxt}`, "");
+      });
+    }
+    if (diffRows.length > 0) {
+      en.push(`I send you the differences from today's receipt with document number ${doc}:`, "");
+      diffRows.forEach((r) => {
+        if (r.is_missing) {
+          const exp = parseFloat(r.cantitate_document) || 0;
+          en.push(`${r.denumire_produs} from the supplier ${sub(r)} – ${fmtKg(exp)}${r.unit || "kg"} less (not delivered)`);
+        } else {
+          const dif = calcDiferenta(r) || 0;
+          en.push(`${r.denumire_produs} from the supplier ${sub(r)} – ${fmtKg(Math.abs(dif))}${r.unit || "kg"} less`);
+        }
+      });
+      en.push("");
+    } else if (qualityRows.length > 0) {
+      en.push("We do not have quantitative differences.", "");
+    }
+    en.push("Please send us your credit notes within 30 days.", "", "Thank you, have a good day!");
+
+    const ro: string[] = ["Bună ziua,", ""];
+    if (qualityRows.length > 0) {
+      ro.push(`La recepția din ${dateStr}, ${partner} cu numărul de document ${doc}:`, "");
+      qualityRows.forEach((r) => {
+        const desc = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(" ").trim();
+        const lossKg = calcPierdereKg(r);
+        const lossTxt = lossKg != null && lossKg > 0 ? ` Solicităm notă de credit pentru ${fmtKg(lossKg)}${r.unit || "kg"}.` : "";
+        ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} am recepționat ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} - ${desc || "probleme calitative"}.${lossTxt}`, "");
+      });
+    }
+    if (diffRows.length > 0) {
+      ro.push(`Vă transmit diferențele de la recepția de astăzi cu numărul de document ${doc}:`, "");
+      diffRows.forEach((r) => {
+        if (r.is_missing) {
+          const exp = parseFloat(r.cantitate_document) || 0;
+          ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} – ${fmtKg(exp)}${r.unit || "kg"} lipsă (nu a fost livrat)`);
+        } else {
+          const dif = calcDiferenta(r) || 0;
+          ro.push(`${r.denumire_produs} de la furnizorul ${sub(r)} – ${fmtKg(Math.abs(dif))}${r.unit || "kg"} mai puțin`);
+        }
+      });
+      ro.push("");
+    } else if (qualityRows.length > 0) {
+      ro.push("Nu avem diferențe cantitative.", "");
+    }
+    ro.push("Vă rugăm să ne transmiteți notele de credit în termen de 30 de zile.", "", "Mulțumim, o zi bună!");
+
+    return { en: en.join("\n"), ro: ro.join("\n"), subject: `Reception ${dateStr} – ${partner} – doc ${doc}` };
+  };
+
+  const allPhotosForGroup = (group: SupplierGroup) => {
+    const out: { row: ReportRow; photo: PhotoRef }[] = [];
+    group.rows.forEach((r) => (r.photos || []).forEach((p) => out.push({ row: r, photo: p })));
+    return out;
+  };
+
+  const openEmailDialog = (groupIdx: number) => {
+    const { en, ro, subject } = buildEmailContent(groups[groupIdx]);
+    setEmailBodyEn(en);
+    setEmailBodyRo(ro);
+    setEmailSubject(subject);
+    setEmailToAddr("");
+    setEmailLang("en");
+    setEmailCopied(false);
+    setEmailDialog({ groupIdx });
+  };
+
+  const buildBodyWithPhotos = () => {
+    const body = emailLang === "en" ? emailBodyEn : emailBodyRo;
+    const group = emailDialog ? groups[emailDialog.groupIdx] : null;
+    const photos = group ? allPhotosForGroup(group) : [];
+    if (photos.length === 0) return body;
+    const header = emailLang === "en" ? "Photos:" : "Poze:";
+    return body + "\n\n---\n" + header + "\n" + photos.map((p) => `${p.row.denumire_produs}: ${p.photo.url}`).join("\n");
+  };
+
+  const copyEmailToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(buildBodyWithPhotos());
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 2000);
+      toast({ title: "Copiat în clipboard" });
+    } catch {
+      toast({ title: "Nu s-a putut copia", variant: "destructive" });
+    }
+  };
+
+  const openInMailClient = () => {
+    const url = `mailto:${encodeURIComponent(emailToAddr)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(buildBodyWithPhotos())}`;
+    window.location.href = url;
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -848,6 +984,9 @@ const ReceptionReport: React.FC = () => {
                 <Button size="sm" variant="outline" onClick={() => exportSupplierReport(group)}>
                   <Download className="h-4 w-4 mr-2" />Exportă Excel
                 </Button>
+                <Button size="sm" variant="default" onClick={() => openEmailDialog(gIdx)}>
+                  <Mail className="h-4 w-4 mr-2" />Email furnizor
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto px-2">
@@ -867,7 +1006,7 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="w-[60px]">Nr paleti rec</TableHead>
                     <TableHead className="w-[50px]">Nr Lazi</TableHead>
                     <TableHead className="w-[60px]">Diferență</TableHead>
-                    <TableHead className="w-[60px]">Pierd. %</TableHead>
+                    <TableHead className="w-[90px]">Pierd. %</TableHead>
                     <TableHead className="w-[55px] text-center">Transmis</TableHead>
                     <TableHead className="w-[70px]">Pierd. (kg)</TableHead>
                     <TableHead className="w-[70px]">Kg consid.</TableHead>
@@ -1367,6 +1506,82 @@ const ReceptionReport: React.FC = () => {
           })()}
           <DialogFooter>
             <Button onClick={() => setDetailsDialog(null)}>Gata</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email furnizor dialog */}
+      <Dialog open={!!emailDialog} onOpenChange={(o) => !o && setEmailDialog(null)}>
+        <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Email furnizor: {emailDialog && groups[emailDialog.groupIdx]?.supplierName}
+            </DialogTitle>
+          </DialogHeader>
+          {emailDialog && (() => {
+            const group = groups[emailDialog.groupIdx];
+            const photos = allPhotosForGroup(group);
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr,2fr] gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Către (email)</label>
+                    <Input type="email" placeholder="furnizor@example.com"
+                      value={emailToAddr} onChange={(e) => setEmailToAddr(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Subiect</label>
+                    <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} />
+                  </div>
+                </div>
+
+                <Tabs value={emailLang} onValueChange={(v) => setEmailLang(v as "ro" | "en")}>
+                  <TabsList className="grid grid-cols-2 w-full sm:w-[280px]">
+                    <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
+                    <TabsTrigger value="ro">🇷🇴 Română</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="en" className="mt-3">
+                    <Textarea rows={18} value={emailBodyEn}
+                      onChange={(e) => setEmailBodyEn(e.target.value)}
+                      className="font-mono text-xs" />
+                  </TabsContent>
+                  <TabsContent value="ro" className="mt-3">
+                    <Textarea rows={18} value={emailBodyRo}
+                      onChange={(e) => setEmailBodyRo(e.target.value)}
+                      className="font-mono text-xs" />
+                  </TabsContent>
+                </Tabs>
+
+                {photos.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">
+                      Poze atașate ({photos.length}) — link-urile se adaugă automat la sfârșitul email-ului
+                    </p>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-[200px] overflow-y-auto p-2 border rounded">
+                      {photos.map((p, i) => (
+                        <a key={i} href={p.photo.url} target="_blank" rel="noreferrer" className="block">
+                          <img src={p.photo.url} alt={p.row.denumire_produs}
+                            className="w-full h-20 object-cover rounded border" />
+                          <p className="text-[10px] mt-1 truncate" title={p.row.denumire_produs}>
+                            {p.row.denumire_produs}
+                          </p>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={copyEmailToClipboard} className="w-full sm:w-auto">
+              {emailCopied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+              {emailCopied ? "Copiat!" : "Copiază text + link-uri poze"}
+            </Button>
+            <Button onClick={openInMailClient} className="w-full sm:w-auto">
+              <Mail className="h-4 w-4 mr-2" />
+              Deschide în client email
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
