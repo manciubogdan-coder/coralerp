@@ -1905,9 +1905,9 @@ const ReceptionReport: React.FC = () => {
 
       {/* Email furnizor dialog */}
       <Dialog open={!!emailDialog} onOpenChange={(o) => !o && setEmailDialog(null)}>
-        <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-3xl max-h-[95vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-base sm:text-lg pr-8 break-words">
               Email furnizor: {emailDialog && groups[emailDialog.groupIdx]?.supplierName}
             </DialogTitle>
           </DialogHeader>
