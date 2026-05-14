@@ -989,8 +989,8 @@ const ReceptionReport: React.FC = () => {
     // Lățimi coloane optimizate pentru A4 landscape (legibile)
     ws["!cols"] = [
       { wch: 4 },   // Nr crt
-      { wch: 16 },  // Denumire produs
-      { wch: 13 },  // Producator
+      { wch: 11 },  // Denumire produs
+      { wch: 10 },  // Producator
       { wch: 5 },   // Paleți doc
       { wch: 5 },   // Lăzi doc
       { wch: 8 },   // Tip lăzi doc
@@ -1006,7 +1006,7 @@ const ReceptionReport: React.FC = () => {
       { wch: 8 },   // Pierdere (kg)
       { wch: 9 },   // Kg considerate
       { wch: 20 },  // Defecte
-      { wch: 16 },  // Observatii
+      { wch: 11 },  // Observatii
       { wch: 7 },   // Status
     ];
 
@@ -1079,8 +1079,8 @@ const ReceptionReport: React.FC = () => {
       const obs = r.observations || "";
       const den = r.denumire_produs || "";
       const linesDef = wrapLines(def, 20);
-      const linesObs = wrapLines(obs, 16);
-      const linesDen = wrapLines(den, 16);
+      const linesObs = wrapLines(obs, 11);
+      const linesDen = wrapLines(den, 11);
       const lines = Math.max(linesDef, linesObs, linesDen, 2);
       rows[dataStart + idx] = { hpt: Math.min(120, 14 + lines * 13) };
     });
