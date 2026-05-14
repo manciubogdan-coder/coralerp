@@ -1401,6 +1401,13 @@ const ReceptionReport: React.FC = () => {
                             onChange={(e) => updateRow(gIdx, rIdx, "cantitate_document", e.target.value)} className="h-11 text-base" />
                         </div>
                         {renderMobileInfo("Cantitate recepționată", r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`, r.is_missing ? "text-destructive" : "")}
+                        {isOverThreshold(r) && !r.is_missing && (
+                          <div className="col-span-2 space-y-1 rounded-md border border-blue-300 bg-blue-50/50 dark:bg-blue-950/20 p-2">
+                            <p className="text-[11px] font-medium uppercase text-blue-700 dark:text-blue-400">Cant. declarată (≤ {r.cantitate_receptionata})</p>
+                            <Input type="number" step="0.01" placeholder="kg declarați" value={r.declared_quantity}
+                              onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)} className="h-11 text-base" />
+                          </div>
+                        )}
                         {renderMobileInfo("Tip ladă/culoare", tipLada)}
                         {renderMobileInfo("Tip palet", tipPalet)}
                         {renderMobileInfo("Nr paleți rec", totalRecP ?? "—")}
