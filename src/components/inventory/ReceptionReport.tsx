@@ -282,6 +282,10 @@ const ReceptionReport: React.FC = () => {
   const [crateTypeMap, setCrateTypeMap] = useState<Map<string, string>>(new Map());
   const [crateTypesList, setCrateTypesList] = useState<LookupRow[]>([]);
   const [palletTypesList, setPalletTypesList] = useState<LookupRow[]>([]);
+  const [tolerancesMap, setTolerancesMap] = useState<Map<string, ToleranceCfg>>(new Map());
+
+  const getTol = (productId: string | null | undefined): ToleranceCfg =>
+    (productId && tolerancesMap.get(productId)) || DEFAULT_TOLERANCE;
 
   // Dialogs
   const [photoDialog, setPhotoDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
