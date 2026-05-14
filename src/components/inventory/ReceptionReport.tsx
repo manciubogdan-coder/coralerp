@@ -437,6 +437,7 @@ const ReceptionReport: React.FC = () => {
         const existing = reportMap.get(row.id);
         grp.rows.push({
           inventory_id: row.id,
+          product_id: row.product_id ?? null,
           denumire_produs: row.name,
           producator: row.manufacturer_id ? manufacturerMap.get(row.manufacturer_id) || "" : "",
           cantitate_receptionata: Number(row.original_quantity ?? row.net_quantity ?? 0),
@@ -447,6 +448,7 @@ const ReceptionReport: React.FC = () => {
           nr_paleti_rec: row.pallet_count ?? null,
           paleti_lazi_document: existing?.paleti_lazi_document ?? "",
           cantitate_document: existing?.cantitate_document != null ? String(existing.cantitate_document) : "",
+          declared_quantity: existing?.declared_quantity != null ? String(existing.declared_quantity) : "",
           pierdere_calitativa_procent:
             existing?.pierdere_calitativa_procent != null
               ? String(existing.pierdere_calitativa_procent)
