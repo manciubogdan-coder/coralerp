@@ -590,10 +590,15 @@ const ReceptionReport: React.FC = () => {
     });
   };
 
-  // Cantitatea efectivă folosită în calcule (declarată dacă există surplus, altfel recepționată)
+  // Cantitatea efectivă folosită în calcule.
+  // declared_quantity = surplus în kg pe care îl DECLARĂM peste cantitatea de pe document
+  // (ex.: a venit 837.5 kg cu doc 637.5 → surplus real 200 kg, dar declarăm doar 70 kg → effective = 707.5).
   const effectiveReceived = (r: ReportRow): number => {
+    const doc = parseFloat(r.cantitate_document);
     const declared = parseFloat(r.declared_quantity);
-    if (!isNaN(declared) && declared > 0) return declared;
+    if (!isNaN(declared) && declared >= 0 && !isNaN(doc) && isOverThreshold(r)) {
+      return doc + declared;
+    }
     return r.cantitate_receptionata;
   };
 
@@ -1401,13 +1406,23 @@ const ReceptionReport: React.FC = () => {
                             onChange={(e) => updateRow(gIdx, rIdx, "cantitate_document", e.target.value)} className="h-11 text-base" />
                         </div>
                         {renderMobileInfo("Cantitate recepționată", r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`, r.is_missing ? "text-destructive" : "")}
-                        {isOverThreshold(r) && !r.is_missing && (
-                          <div className="col-span-2 space-y-1 rounded-md border border-blue-300 bg-blue-50/50 dark:bg-blue-950/20 p-2">
-                            <p className="text-[11px] font-medium uppercase text-blue-700 dark:text-blue-400">Cant. declarată (≤ {r.cantitate_receptionata})</p>
-                            <Input type="number" step="0.01" placeholder="kg declarați" value={r.declared_quantity}
-                              onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)} className="h-11 text-base" />
-                          </div>
-                        )}
+                        {isOverThreshold(r) && !r.is_missing && (() => {
+                          const doc = parseFloat(r.cantitate_document) || 0;
+                          const surplusReal = Math.max(0, r.cantitate_receptionata - doc);
+                          return (
+                            <div className="col-span-2 space-y-1 rounded-md border border-blue-300 bg-blue-50/50 dark:bg-blue-950/20 p-2">
+                              <p className="text-[11px] font-medium uppercase text-blue-700 dark:text-blue-400">
+                                Surplus declarat (kg) — max {surplusReal.toFixed(2)}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                Cât din surplus declari oficial peste cantitatea de pe document.
+                              </p>
+                              <Input type="number" step="0.01" min="0" max={surplusReal}
+                                placeholder="kg surplus declarat" value={r.declared_quantity}
+                                onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)} className="h-11 text-base" />
+                            </div>
+                          );
+                        })()}
                         {renderMobileInfo("Tip ladă/culoare", tipLada)}
                         {renderMobileInfo("Tip palet", tipPalet)}
                         {renderMobileInfo("Nr paleți rec", totalRecP ?? "—")}
@@ -1467,7 +1482,7 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="min-w-[120px]">Tip lăzi doc</TableHead>
                     <TableHead className="bg-amber-50 dark:bg-amber-950/30 min-w-[110px]">Cant. doc</TableHead>
                     <TableHead className="w-[80px]">Cant. recep.</TableHead>
-                    <TableHead className="bg-blue-50 dark:bg-blue-950/30 w-[110px]">Cant. declarată</TableHead>
+                    <TableHead className="bg-blue-50 dark:bg-blue-950/30 w-[120px]" title="Surplus declarat în kg, peste cantitatea de pe document">Surplus decl. (kg)</TableHead>
                     <TableHead className="min-w-[110px]">Tip lada/culoare</TableHead>
                     <TableHead className="min-w-[100px]">Tip palet</TableHead>
                     <TableHead className="w-[60px]">Nr paleti rec</TableHead>
@@ -1585,12 +1600,18 @@ const ReceptionReport: React.FC = () => {
                           {r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`}
                         </TableCell>
                         <TableCell className={cn("bg-blue-50/50 dark:bg-blue-950/10", isOverThreshold(r) && !r.is_missing && "ring-1 ring-blue-400")}>
-                          {isOverThreshold(r) && !r.is_missing ? (
-                            <Input type="number" step="0.01" placeholder={`≤ ${r.cantitate_receptionata}`}
-                              value={r.declared_quantity}
-                              onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)}
-                              className="h-7 text-xs px-1 w-full" />
-                          ) : (
+                          {isOverThreshold(r) && !r.is_missing ? (() => {
+                            const doc = parseFloat(r.cantitate_document) || 0;
+                            const surplusReal = Math.max(0, r.cantitate_receptionata - doc);
+                            return (
+                              <Input type="number" step="0.01" min="0" max={surplusReal}
+                                placeholder={`≤ ${surplusReal.toFixed(2)}`}
+                                title={`Surplus real ${surplusReal.toFixed(2)} kg. Declară doar cât vrei să recunoști oficial peste document.`}
+                                value={r.declared_quantity}
+                                onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)}
+                                className="h-7 text-xs px-1 w-full" />
+                            );
+                          })() : (
                             <span className="text-[11px] text-muted-foreground">—</span>
                           )}
                         </TableCell>
