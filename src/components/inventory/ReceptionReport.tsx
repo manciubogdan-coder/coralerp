@@ -1119,7 +1119,7 @@ const ReceptionReport: React.FC = () => {
           },
           font: {
             name: "Calibri",
-            sz: isTitle ? 14 : (isSubtitle ? 11 : (isHeader ? 9 : (isTotalsHeader ? 11 : (isTotalsLabel ? 10 : 9)))),
+            sz: isTitle ? 15 : (isSubtitle ? 12 : (isHeader ? 10 : (isTotalsHeader ? 12 : (isTotalsLabel ? 11 : 10)))),
             bold: isTitle || isSubtitle || isHeader || isTotalsHeader || isTotalsLabel,
           },
         };
