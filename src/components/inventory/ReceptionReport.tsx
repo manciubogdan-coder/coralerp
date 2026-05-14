@@ -1001,7 +1001,7 @@ const ReceptionReport: React.FC = () => {
     const diffRows = group.rows.filter((r) => {
       if (r.is_missing) return true;
       const dif = calcDiferenta(r);
-      return dif != null && dif < 0;
+      return dif != null && dif !== 0;
     });
 
     const sub = (r: ReportRow) => r.producator || partner;
@@ -1043,12 +1043,15 @@ const ReceptionReport: React.FC = () => {
           ""
         );
         diffRows.forEach((r) => {
-          const qty = r.is_missing ? (parseFloat(r.cantitate_document) || 0) : Math.abs(calcDiferenta(r) || 0);
-          lines.push(
-            lang === "ro" ? `${r.denumire_produs} de la furnizorul ${sub(r)} – ${fmtKg(qty)}${r.unit || "kg"} ${r.is_missing ? "lipsă (nu a fost livrat)" : "mai puțin"}`
-              : lang === "it" ? `${r.denumire_produs} dal fornitore ${sub(r)} – ${fmtKg(qty)}${r.unit || "kg"} in meno${r.is_missing ? " (non consegnato)" : ""}`
-                : `${r.denumire_produs} from the supplier ${sub(r)} – ${fmtKg(qty)}${r.unit || "kg"} less${r.is_missing ? " (not delivered)" : ""}`
-          );
+          const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : (calcDiferenta(r) || 0);
+          const qty = Math.abs(dif);
+          const unit = r.unit || "kg";
+          const suffix = r.is_missing
+            ? (lang === "ro" ? "lipsă (nu a fost livrat)" : lang === "it" ? "in meno (non consegnato)" : "less (not delivered)")
+            : dif < 0
+              ? (lang === "ro" ? "mai puțin" : lang === "it" ? "in meno" : "less")
+              : (lang === "ro" ? "în plus" : lang === "it" ? "in più" : "extra");
+          lines.push(`${r.denumire_produs} – ${fmtKg(qty)}${unit} ${suffix}`);
         });
         lines.push("");
       } else if (qualityRows.length > 0) {
