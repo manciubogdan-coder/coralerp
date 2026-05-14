@@ -909,16 +909,23 @@ const ReceptionReport: React.FC = () => {
   // ============ EXPORT EXCEL ============
   const exportSupplierReport = (group: SupplierGroup) => {
     const dateStr = format(date, "dd.MM.yyyy");
+    const NCOLS = 20;
+    const pad = (arr: (string | number | null)[]) => {
+      const out = arr.slice();
+      while (out.length < NCOLS) out.push(null);
+      return out;
+    };
     const aoa: (string | number | null)[][] = [];
-    aoa.push(["CORAL BIOGREENS SRL"]);
-    aoa.push([]);
-    aoa.push(["Data receptie:", dateStr, null, null, null, null, null, null, null, "Nr document", null, group.documentNumber || ""]);
-    aoa.push([]);
-    aoa.push(["Furnizor:", group.supplierName]);
-    aoa.push([]);
-    aoa.push(["Document Receptie"]);
-    aoa.push([]);
-    aoa.push([]);
+    // Row 0: title (merged across all cols)
+    aoa.push(pad(["CORAL BIOGREENS SRL"]));
+    // Row 1: Data + Nr document
+    aoa.push(pad(["Data receptie:", dateStr, null, null, null, null, null, null, null, null, "Nr document:", group.documentNumber || ""]));
+    // Row 2: Furnizor
+    aoa.push(pad(["Furnizor:", group.supplierName]));
+    // Row 3: subtitle
+    aoa.push(pad(["Document Receptie"]));
+    aoa.push(pad([])); // spacer row 4
+    // Row 5: column headers
     aoa.push([
       "Nr crt", "Denumire produs", "Producator",
       "Paleți doc", "Lăzi doc", "Tip lăzi doc", "Cantitate document", "Cantitate receptionata",
@@ -955,60 +962,72 @@ const ReceptionReport: React.FC = () => {
       ]);
     });
 
+    const dataStart = 6;
+    const dataEnd = dataStart + group.rows.length - 1;
+
     // Totaluri
     const totals = groupTotals(group);
-    aoa.push([]);
-    aoa.push(["TOTALURI"]);
-    aoa.push(["Nr total paleți recepționați", totals.totalPaleti]);
+    const totalsStart = dataEnd + 2;
+    aoa.push(pad([]));
+    aoa.push(pad(["TOTALURI"]));
+    aoa.push(pad(["Nr total paleți recepționați", totals.totalPaleti]));
     Array.from(totals.ladiByType.entries()).forEach(([tip, cnt]) => {
-      aoa.push([`Nr lăzi (${tip})`, cnt]);
+      aoa.push(pad([`Nr lăzi (${tip})`, cnt]));
     });
 
-    aoa.push([]);
-    aoa.push([null, "Nume Prenume receptioner", "_____________________________________________",
-      null, null, null, null, null, null, "Semnatura", "_____________________"]);
-    aoa.push([]);
-    aoa.push([null, "Nume Prenume calitate", "_____________________________________________",
-      null, null, null, null, null, null, "Semnatura", "_____________________"]);
+    aoa.push(pad([]));
+    aoa.push(pad([null, "Nume Prenume receptioner", "_____________________________________________",
+      null, null, null, null, null, null, "Semnatura", "_____________________"]));
+    aoa.push(pad([]));
+    aoa.push(pad([null, "Nume Prenume calitate", "_____________________________________________",
+      null, null, null, null, null, null, "Semnatura", "_____________________"]));
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-    // Lățimi coloane optimizate pentru A4 landscape
+    // Lățimi coloane optimizate pentru A4 landscape - reduse pentru fit-to-1-page
     ws["!cols"] = [
       { wch: 4 },   // Nr crt
-      { wch: 22 },  // Denumire produs
-      { wch: 14 },  // Producator
-      { wch: 6 },   // Paleți doc
-      { wch: 6 },   // Lăzi doc
-      { wch: 8 },   // Tip lăzi doc
-      { wch: 9 },   // Cantitate document
-      { wch: 10 },  // Cantitate receptionata
-      { wch: 10 },  // Tip lada/culoare
-      { wch: 9 },   // Tip palet
-      { wch: 7 },   // Nr paleti rec
-      { wch: 6 },   // Nr Lazi
-      { wch: 8 },   // Diferenta
-      { wch: 8 },   // Pierdere calit. (%)
-      { wch: 9 },   // Transmis furnizor
-      { wch: 8 },   // Pierdere (kg)
-      { wch: 9 },   // Kg considerate
-      { wch: 14 },  // Defecte
-      { wch: 16 },  // Observatii
-      { wch: 7 },   // Status
+      { wch: 18 },  // Denumire produs
+      { wch: 12 },  // Producator
+      { wch: 5 },   // Paleți doc
+      { wch: 5 },   // Lăzi doc
+      { wch: 7 },   // Tip lăzi doc
+      { wch: 8 },   // Cantitate document
+      { wch: 9 },   // Cantitate receptionata
+      { wch: 9 },   // Tip lada/culoare
+      { wch: 8 },   // Tip palet
+      { wch: 6 },   // Nr paleti rec
+      { wch: 5 },   // Nr Lazi
+      { wch: 7 },   // Diferenta
+      { wch: 7 },   // Pierdere calit. (%)
+      { wch: 8 },   // Transmis furnizor
+      { wch: 7 },   // Pierdere (kg)
+      { wch: 8 },   // Kg considerate
+      { wch: 12 },  // Defecte
+      { wch: 14 },  // Observatii
+      { wch: 6 },   // Status
     ];
 
-    // Indecșii rândurilor speciale (0-based)
-    const headerRowIdx = 9; // rândul cu denumirile coloanelor
-    const dataStart = 10;
-    const dataEnd = dataStart + group.rows.length - 1;
+    // Merge titlu și meta (ca să nu se rupă vertical pe col A)
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: NCOLS - 1 } },           // titlu
+      { s: { r: 1, c: 1 }, e: { r: 1, c: 4 } },                    // data value
+      { s: { r: 1, c: 11 }, e: { r: 1, c: 13 } },                  // nr doc value
+      { s: { r: 2, c: 1 }, e: { r: 2, c: 8 } },                    // furnizor value
+      { s: { r: 3, c: 0 }, e: { r: 3, c: NCOLS - 1 } },            // subtitle
+    ];
 
-    // Înălțime mai mare pe rândul de antet și pe rândurile de date pt wrap
+    const headerRowIdx = 5;
+
+    // Înălțimi rânduri
     const rows: any[] = [];
-    rows[headerRowIdx] = { hpt: 36 };
-    for (let i = dataStart; i <= dataEnd; i++) rows[i] = { hpt: 30 };
+    rows[0] = { hpt: 22 };
+    rows[3] = { hpt: 18 };
+    rows[headerRowIdx] = { hpt: 38 };
+    for (let i = dataStart; i <= dataEnd; i++) rows[i] = { hpt: 28 };
     ws["!rows"] = rows;
 
-    // Aplică stiluri pe toate celulele (wrap text, border, aliniere)
+    // Aplică stiluri
     const range = XLSX.utils.decode_range(ws["!ref"] as string);
     const thinBorder = { style: "thin", color: { rgb: "BFBFBF" } } as any;
     const border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
@@ -1022,10 +1041,19 @@ const ReceptionReport: React.FC = () => {
         const isHeader = R === headerRowIdx;
         const isData = R >= dataStart && R <= dataEnd;
         const isTitle = R === 0;
+        const isSubtitle = R === 3;
 
         const base: any = {
-          alignment: { wrapText: true, vertical: "center", horizontal: isHeader ? "center" : (typeof cell.v === "number" ? "right" : "left") },
-          font: { name: "Calibri", sz: isTitle ? 13 : (isHeader ? 9 : 9), bold: isTitle || isHeader },
+          alignment: {
+            wrapText: true,
+            vertical: "center",
+            horizontal: isTitle || isSubtitle ? "center" : (isHeader ? "center" : (typeof cell.v === "number" ? "right" : "left")),
+          },
+          font: {
+            name: "Calibri",
+            sz: isTitle ? 14 : (isSubtitle ? 11 : (isHeader ? 8 : 8)),
+            bold: isTitle || isSubtitle || isHeader,
+          },
         };
 
         if (isHeader) {
@@ -1043,18 +1071,18 @@ const ReceptionReport: React.FC = () => {
       }
     }
 
-    // Setări pagină: A4 landscape, fit to 1 page wide, margini mici
+    // Setări pagină: A4 landscape, force fit pe 1 pagină lățime + scale forțat
     (ws as any)["!pageSetup"] = {
       orientation: "landscape",
       paperSize: 9, // A4
       fitToWidth: 1,
       fitToHeight: 0,
+      scale: 70,
     };
     (ws as any)["!printOptions"] = { horizontalCentered: true };
-    (ws as any)["!margins"] = { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
-    // Repetă rândul de antet pe fiecare pagină printată
-    (ws as any)["!print"] = { area: undefined };
-    ws["!sheetView"] = [{ showGridLines: true }] as any;
+    (ws as any)["!margins"] = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
+    // Repetă rândul de antet pe fiecare pagină
+    (ws as any)["!sheetPr"] = { pageSetUpPr: { fitToPage: true } };
 
     const wb = XLSX.utils.book_new();
     (wb as any).Workbook = {
