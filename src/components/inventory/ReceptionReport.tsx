@@ -1482,7 +1482,7 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="min-w-[120px]">Tip lăzi doc</TableHead>
                     <TableHead className="bg-amber-50 dark:bg-amber-950/30 min-w-[110px]">Cant. doc</TableHead>
                     <TableHead className="w-[80px]">Cant. recep.</TableHead>
-                    <TableHead className="bg-blue-50 dark:bg-blue-950/30 w-[120px]" title="Surplus declarat în kg, peste cantitatea de pe document">Surplus decl. (kg)</TableHead>
+                    <TableHead className="bg-blue-50 dark:bg-blue-950/30 min-w-[170px] w-[170px]" title="Surplus declarat în kg, peste cantitatea de pe document">Surplus decl. (kg)</TableHead>
                     <TableHead className="min-w-[110px]">Tip lada/culoare</TableHead>
                     <TableHead className="min-w-[100px]">Tip palet</TableHead>
                     <TableHead className="w-[60px]">Nr paleti rec</TableHead>
