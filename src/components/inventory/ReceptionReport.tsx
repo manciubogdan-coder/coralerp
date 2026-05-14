@@ -987,8 +987,8 @@ const ReceptionReport: React.FC = () => {
     // Lățimi coloane optimizate pentru A4 landscape - reduse pentru fit-to-1-page
     ws["!cols"] = [
       { wch: 4 },   // Nr crt
-      { wch: 18 },  // Denumire produs
-      { wch: 12 },  // Producator
+      { wch: 14 },  // Denumire produs
+      { wch: 11 },  // Producator
       { wch: 5 },   // Paleți doc
       { wch: 5 },   // Lăzi doc
       { wch: 7 },   // Tip lăzi doc
@@ -1003,31 +1003,53 @@ const ReceptionReport: React.FC = () => {
       { wch: 8 },   // Transmis furnizor
       { wch: 7 },   // Pierdere (kg)
       { wch: 8 },   // Kg considerate
-      { wch: 12 },  // Defecte
-      { wch: 14 },  // Observatii
+      { wch: 11 },  // Defecte
+      { wch: 12 },  // Observatii
       { wch: 6 },   // Status
     ];
 
-    // Merge titlu și meta (ca să nu se rupă vertical pe col A)
+    // Pune labels în B (col 0 e prea îngustă) – mutăm conținutul meta
+    // Row 1: A="Data receptie:" merge cu B; valoare în C..F; "Nr document:" în L; valoare în M..N
+    // Row 2: A="Furnizor:" merge cu B; valoare în C..J
+    // Refacem rândurile de meta aici (suprascriem celulele)
+    const setCell = (addr: string, v: any) => { ws[addr] = { v, t: typeof v === "number" ? "n" : "s" }; };
+    // clear row 1 (B2..) and row 2
+    for (let c = 0; c < NCOLS; c++) {
+      const a1 = XLSX.utils.encode_cell({ r: 1, c });
+      const a2 = XLSX.utils.encode_cell({ r: 2, c });
+      delete ws[a1];
+      delete ws[a2];
+    }
+    setCell("A2", "Data receptie:");
+    setCell("C2", dateStr);
+    setCell("L2", "Nr document:");
+    setCell("N2", group.documentNumber || "");
+    setCell("A3", "Furnizor:");
+    setCell("C3", group.supplierName);
+
     ws["!merges"] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: NCOLS - 1 } },           // titlu
-      { s: { r: 1, c: 1 }, e: { r: 1, c: 4 } },                    // data value
-      { s: { r: 1, c: 11 }, e: { r: 1, c: 13 } },                  // nr doc value
-      { s: { r: 2, c: 1 }, e: { r: 2, c: 8 } },                    // furnizor value
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },                    // "Data receptie:"
+      { s: { r: 1, c: 2 }, e: { r: 1, c: 5 } },                    // valoare data
+      { s: { r: 1, c: 11 }, e: { r: 1, c: 12 } },                  // "Nr document:"
+      { s: { r: 1, c: 13 }, e: { r: 1, c: NCOLS - 1 } },           // valoare nr doc
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 1 } },                    // "Furnizor:"
+      { s: { r: 2, c: 2 }, e: { r: 2, c: 9 } },                    // valoare furnizor
       { s: { r: 3, c: 0 }, e: { r: 3, c: NCOLS - 1 } },            // subtitle
     ];
 
     const headerRowIdx = 5;
 
-    // Înălțimi rânduri
     const rows: any[] = [];
     rows[0] = { hpt: 22 };
+    rows[1] = { hpt: 16 };
+    rows[2] = { hpt: 16 };
     rows[3] = { hpt: 18 };
-    rows[headerRowIdx] = { hpt: 38 };
-    for (let i = dataStart; i <= dataEnd; i++) rows[i] = { hpt: 28 };
+    rows[4] = { hpt: 6 };
+    rows[headerRowIdx] = { hpt: 36 };
+    for (let i = dataStart; i <= dataEnd; i++) rows[i] = { hpt: 24 };
     ws["!rows"] = rows;
 
-    // Aplică stiluri
     const range = XLSX.utils.decode_range(ws["!ref"] as string);
     const thinBorder = { style: "thin", color: { rgb: "BFBFBF" } } as any;
     const border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
@@ -1051,7 +1073,7 @@ const ReceptionReport: React.FC = () => {
           },
           font: {
             name: "Calibri",
-            sz: isTitle ? 14 : (isSubtitle ? 11 : (isHeader ? 8 : 8)),
+            sz: isTitle ? 13 : (isSubtitle ? 10 : (isHeader ? 8 : 8)),
             bold: isTitle || isSubtitle || isHeader,
           },
         };
@@ -1071,17 +1093,16 @@ const ReceptionReport: React.FC = () => {
       }
     }
 
-    // Setări pagină: A4 landscape, force fit pe 1 pagină lățime + scale forțat
+    // Forțăm tot pe o singură pagină
     (ws as any)["!pageSetup"] = {
       orientation: "landscape",
       paperSize: 9, // A4
       fitToWidth: 1,
-      fitToHeight: 0,
-      scale: 70,
+      fitToHeight: 1,
+      scale: 60,
     };
     (ws as any)["!printOptions"] = { horizontalCentered: true };
-    (ws as any)["!margins"] = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
-    // Repetă rândul de antet pe fiecare pagină
+    (ws as any)["!margins"] = { left: 0.2, right: 0.2, top: 0.3, bottom: 0.3, header: 0.15, footer: 0.15 };
     (ws as any)["!sheetPr"] = { pageSetUpPr: { fitToPage: true } };
 
     const wb = XLSX.utils.book_new();
