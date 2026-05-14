@@ -1398,7 +1398,7 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="w-[60px]">Nr paleti rec</TableHead>
                     <TableHead className="w-[50px]">Nr Lazi</TableHead>
                     <TableHead className="w-[60px]">Diferență</TableHead>
-                    <TableHead className="w-[90px]">Pierd. %</TableHead>
+                    <TableHead className="w-[120px]">Pierd. %</TableHead>
                     <TableHead className="w-[55px] text-center">Transmis</TableHead>
                     <TableHead className="w-[70px]">Pierd. (kg)</TableHead>
                     <TableHead className="w-[70px]">Kg consid.</TableHead>
@@ -1535,7 +1535,7 @@ const ReceptionReport: React.FC = () => {
                           <Input type="number" step="0.01" disabled={r.is_missing}
                             value={r.pierdere_calitativa_procent}
                             onChange={(e) => updateRow(gIdx, rIdx, "pierdere_calitativa_procent", e.target.value)}
-                            className="h-7 text-xs px-1 w-full" />
+                            className="h-8 text-sm px-2 w-full min-w-[90px]" />
                         </TableCell>
                         <TableCell className="text-center">
                           <Checkbox checked={r.transmis_la_furnizor} disabled={r.is_missing}
