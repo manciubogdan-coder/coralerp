@@ -100,6 +100,7 @@ type ReportDataRow = {
   inventory_id: string;
   paleti_lazi_document: string | null;
   cantitate_document: number | null;
+  declared_quantity: number | null;
   tip_palet: string | null;
   pierdere_calitativa_procent: number | null;
   transmis_la_furnizor: boolean | null;
