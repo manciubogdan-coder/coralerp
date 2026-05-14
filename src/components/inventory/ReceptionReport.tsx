@@ -493,6 +493,27 @@ const ReceptionReport: React.FC = () => {
       });
 
       setGroups(Array.from(grouped.values()));
+
+      // Load tolerances for all involved product_ids
+      const productIds = Array.from(new Set(inv.map((r) => r.product_id).filter(Boolean))) as string[];
+      const tolMap = new Map<string, ToleranceCfg>();
+      if (productIds.length > 0) {
+        for (let i = 0; i < productIds.length; i += 50) {
+          const slice = productIds.slice(i, i + 50);
+          const { data: tolData } = await (supabase as any)
+            .from("product_reception_tolerances")
+            .select("product_id, tolerance_under_percent, tolerance_over_kg")
+            .eq("inventory_type", inventoryType)
+            .in("product_id", slice);
+          ((tolData || []) as any[]).forEach((t) => {
+            tolMap.set(t.product_id, {
+              under: Number(t.tolerance_under_percent ?? 3),
+              over: Number(t.tolerance_over_kg ?? 105),
+            });
+          });
+        }
+      }
+      setTolerancesMap(tolMap);
     } catch (e: unknown) {
       console.error(e);
       toast({ title: "Eroare la încărcare", description: getErrorMessage(e), variant: "destructive" });
