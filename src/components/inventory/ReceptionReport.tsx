@@ -986,28 +986,28 @@ const ReceptionReport: React.FC = () => {
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-    // Lățimi coloane optimizate pentru A4 landscape - reduse pentru fit-to-1-page
+    // Lățimi coloane optimizate pentru A4 landscape (legibile)
     ws["!cols"] = [
       { wch: 4 },   // Nr crt
-      { wch: 14 },  // Denumire produs
-      { wch: 11 },  // Producator
+      { wch: 16 },  // Denumire produs
+      { wch: 13 },  // Producator
       { wch: 5 },   // Paleți doc
       { wch: 5 },   // Lăzi doc
-      { wch: 7 },   // Tip lăzi doc
-      { wch: 8 },   // Cantitate document
+      { wch: 8 },   // Tip lăzi doc
+      { wch: 9 },   // Cantitate document
       { wch: 9 },   // Cantitate receptionata
-      { wch: 9 },   // Tip lada/culoare
-      { wch: 8 },   // Tip palet
+      { wch: 10 },  // Tip lada/culoare
+      { wch: 9 },   // Tip palet
       { wch: 6 },   // Nr paleti rec
       { wch: 5 },   // Nr Lazi
       { wch: 7 },   // Diferenta
-      { wch: 7 },   // Pierdere calit. (%)
+      { wch: 8 },   // Pierdere calit. (%)
       { wch: 8 },   // Transmis furnizor
-      { wch: 7 },   // Pierdere (kg)
-      { wch: 8 },   // Kg considerate
-      { wch: 11 },  // Defecte
-      { wch: 12 },  // Observatii
-      { wch: 6 },   // Status
+      { wch: 8 },   // Pierdere (kg)
+      { wch: 9 },   // Kg considerate
+      { wch: 20 },  // Defecte
+      { wch: 16 },  // Observatii
+      { wch: 7 },   // Status
     ];
 
     // Pune labels în B (col 0 e prea îngustă) – mutăm conținutul meta
