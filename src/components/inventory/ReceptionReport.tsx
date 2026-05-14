@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -972,8 +972,95 @@ const ReceptionReport: React.FC = () => {
       null, null, null, null, null, null, "Semnatura", "_____________________"]);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = Array(20).fill({ wch: 16 });
+
+    // Lățimi coloane optimizate pentru A4 landscape
+    ws["!cols"] = [
+      { wch: 4 },   // Nr crt
+      { wch: 22 },  // Denumire produs
+      { wch: 14 },  // Producator
+      { wch: 6 },   // Paleți doc
+      { wch: 6 },   // Lăzi doc
+      { wch: 8 },   // Tip lăzi doc
+      { wch: 9 },   // Cantitate document
+      { wch: 10 },  // Cantitate receptionata
+      { wch: 10 },  // Tip lada/culoare
+      { wch: 9 },   // Tip palet
+      { wch: 7 },   // Nr paleti rec
+      { wch: 6 },   // Nr Lazi
+      { wch: 8 },   // Diferenta
+      { wch: 8 },   // Pierdere calit. (%)
+      { wch: 9 },   // Transmis furnizor
+      { wch: 8 },   // Pierdere (kg)
+      { wch: 9 },   // Kg considerate
+      { wch: 14 },  // Defecte
+      { wch: 16 },  // Observatii
+      { wch: 7 },   // Status
+    ];
+
+    // Indecșii rândurilor speciale (0-based)
+    const headerRowIdx = 9; // rândul cu denumirile coloanelor
+    const dataStart = 10;
+    const dataEnd = dataStart + group.rows.length - 1;
+
+    // Înălțime mai mare pe rândul de antet și pe rândurile de date pt wrap
+    const rows: any[] = [];
+    rows[headerRowIdx] = { hpt: 36 };
+    for (let i = dataStart; i <= dataEnd; i++) rows[i] = { hpt: 30 };
+    ws["!rows"] = rows;
+
+    // Aplică stiluri pe toate celulele (wrap text, border, aliniere)
+    const range = XLSX.utils.decode_range(ws["!ref"] as string);
+    const thinBorder = { style: "thin", color: { rgb: "BFBFBF" } } as any;
+    const border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+
+    for (let R = range.s.r; R <= range.e.r; R++) {
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+        const cell = ws[addr];
+        if (!cell) continue;
+
+        const isHeader = R === headerRowIdx;
+        const isData = R >= dataStart && R <= dataEnd;
+        const isTitle = R === 0;
+
+        const base: any = {
+          alignment: { wrapText: true, vertical: "center", horizontal: isHeader ? "center" : (typeof cell.v === "number" ? "right" : "left") },
+          font: { name: "Calibri", sz: isTitle ? 13 : (isHeader ? 9 : 9), bold: isTitle || isHeader },
+        };
+
+        if (isHeader) {
+          base.fill = { patternType: "solid", fgColor: { rgb: "2E7D32" } };
+          base.font.color = { rgb: "FFFFFF" };
+          base.border = border;
+        } else if (isData) {
+          base.border = border;
+        }
+
+        cell.s = base;
+        if (typeof cell.v === "number" && isData) {
+          cell.z = "0.00";
+        }
+      }
+    }
+
+    // Setări pagină: A4 landscape, fit to 1 page wide, margini mici
+    (ws as any)["!pageSetup"] = {
+      orientation: "landscape",
+      paperSize: 9, // A4
+      fitToWidth: 1,
+      fitToHeight: 0,
+    };
+    (ws as any)["!printOptions"] = { horizontalCentered: true };
+    (ws as any)["!margins"] = { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
+    // Repetă rândul de antet pe fiecare pagină printată
+    (ws as any)["!print"] = { area: undefined };
+    ws["!sheetView"] = [{ showGridLines: true }] as any;
+
     const wb = XLSX.utils.book_new();
+    (wb as any).Workbook = {
+      Views: [{ RTL: false }],
+      Sheets: [{ Hidden: 0 }],
+    };
     XLSX.utils.book_append_sheet(wb, ws, "Receptie");
     const safe = group.supplierName.replace(/[^a-z0-9]/gi, "_");
     XLSX.writeFile(wb, `Receptie_${safe}_${format(date, "yyyy-MM-dd")}.xlsx`);
