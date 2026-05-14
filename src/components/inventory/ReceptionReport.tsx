@@ -590,10 +590,15 @@ const ReceptionReport: React.FC = () => {
     });
   };
 
-  // Cantitatea efectivă folosită în calcule (declarată dacă există surplus, altfel recepționată)
+  // Cantitatea efectivă folosită în calcule.
+  // declared_quantity = surplus în kg pe care îl DECLARĂM peste cantitatea de pe document
+  // (ex.: a venit 837.5 kg cu doc 637.5 → surplus real 200 kg, dar declarăm doar 70 kg → effective = 707.5).
   const effectiveReceived = (r: ReportRow): number => {
+    const doc = parseFloat(r.cantitate_document);
     const declared = parseFloat(r.declared_quantity);
-    if (!isNaN(declared) && declared > 0) return declared;
+    if (!isNaN(declared) && declared >= 0 && !isNaN(doc) && isOverThreshold(r)) {
+      return doc + declared;
+    }
     return r.cantitate_receptionata;
   };
 
