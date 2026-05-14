@@ -1406,13 +1406,23 @@ const ReceptionReport: React.FC = () => {
                             onChange={(e) => updateRow(gIdx, rIdx, "cantitate_document", e.target.value)} className="h-11 text-base" />
                         </div>
                         {renderMobileInfo("Cantitate recepționată", r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`, r.is_missing ? "text-destructive" : "")}
-                        {isOverThreshold(r) && !r.is_missing && (
-                          <div className="col-span-2 space-y-1 rounded-md border border-blue-300 bg-blue-50/50 dark:bg-blue-950/20 p-2">
-                            <p className="text-[11px] font-medium uppercase text-blue-700 dark:text-blue-400">Cant. declarată (≤ {r.cantitate_receptionata})</p>
-                            <Input type="number" step="0.01" placeholder="kg declarați" value={r.declared_quantity}
-                              onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)} className="h-11 text-base" />
-                          </div>
-                        )}
+                        {isOverThreshold(r) && !r.is_missing && (() => {
+                          const doc = parseFloat(r.cantitate_document) || 0;
+                          const surplusReal = Math.max(0, r.cantitate_receptionata - doc);
+                          return (
+                            <div className="col-span-2 space-y-1 rounded-md border border-blue-300 bg-blue-50/50 dark:bg-blue-950/20 p-2">
+                              <p className="text-[11px] font-medium uppercase text-blue-700 dark:text-blue-400">
+                                Surplus declarat (kg) — max {surplusReal.toFixed(2)}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                Cât din surplus declari oficial peste cantitatea de pe document.
+                              </p>
+                              <Input type="number" step="0.01" min="0" max={surplusReal}
+                                placeholder="kg surplus declarat" value={r.declared_quantity}
+                                onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)} className="h-11 text-base" />
+                            </div>
+                          );
+                        })()}
                         {renderMobileInfo("Tip ladă/culoare", tipLada)}
                         {renderMobileInfo("Tip palet", tipPalet)}
                         {renderMobileInfo("Nr paleți rec", totalRecP ?? "—")}
