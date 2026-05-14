@@ -590,20 +590,50 @@ const ReceptionReport: React.FC = () => {
     });
   };
 
+  // Cantitatea efectivă folosită în calcule (declarată dacă există surplus, altfel recepționată)
+  const effectiveReceived = (r: ReportRow): number => {
+    const declared = parseFloat(r.declared_quantity);
+    if (!isNaN(declared) && declared > 0) return declared;
+    return r.cantitate_receptionata;
+  };
+
+  // True dacă recepția e sub document, dar diferența e în limita toleranței (%).
+  const isUnderTolerance = (r: ReportRow): boolean => {
+    const doc = parseFloat(r.cantitate_document);
+    if (isNaN(doc) || doc <= 0) return false;
+    const rec = r.cantitate_receptionata;
+    if (rec >= doc) return false;
+    const tol = getTol(r.product_id).under;
+    return ((doc - rec) / doc) * 100 <= tol;
+  };
+
+  // True dacă recepția depășește documentul cu cel puțin tolOverKg → cere „Cant. declarată".
+  const isOverThreshold = (r: ReportRow): boolean => {
+    const doc = parseFloat(r.cantitate_document);
+    if (isNaN(doc) || doc <= 0) return false;
+    const tol = getTol(r.product_id).over;
+    return r.cantitate_receptionata >= doc + tol;
+  };
+
   const calcDiferenta = (r: ReportRow) => {
     const doc = parseFloat(r.cantitate_document);
     if (isNaN(doc)) return null;
-    return r.cantitate_receptionata - doc;
+    if (isUnderTolerance(r)) return 0;
+    return effectiveReceived(r) - doc;
   };
   const calcPierdereKg = (r: ReportRow) => {
     const proc = parseFloat(r.pierdere_calitativa_procent);
     if (isNaN(proc)) return null;
-    return (r.cantitate_receptionata * proc) / 100;
+    // În cazul „sub toleranță", pierderea se calculează pe cantitatea de pe document
+    const doc = parseFloat(r.cantitate_document);
+    const base = isUnderTolerance(r) && !isNaN(doc) ? doc : effectiveReceived(r);
+    return (base * proc) / 100;
   };
   const calcKgConsiderate = (r: ReportRow) => {
+    const base = effectiveReceived(r);
     const pkg = calcPierdereKg(r);
-    if (pkg == null) return r.cantitate_receptionata;
-    return r.cantitate_receptionata - pkg;
+    if (pkg == null) return base;
+    return base - pkg;
   };
 
   const handleSaveGroup = async (group: SupplierGroup) => {
