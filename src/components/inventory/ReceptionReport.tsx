@@ -466,6 +466,8 @@ const ReceptionReport: React.FC = () => {
         const grp = ensureGroup(m.supplier_id, supplierName, m.document_number || "");
         grp.rows.push({
           inventory_id: `missing-${m.id}`,
+          product_id: m.product_id ?? null,
+          declared_quantity: "",
           denumire_produs: m.product_name,
           producator: "",
           cantitate_receptionata: 0,
