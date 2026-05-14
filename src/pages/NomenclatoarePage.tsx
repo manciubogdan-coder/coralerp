@@ -9,6 +9,7 @@ import ManufacturersTable from "@/components/dashboard/ManufacturersTable";
 import CrateTypesTable from "@/components/dashboard/CrateTypesTable";
 import PalletTypesTable from "@/components/dashboard/PalletTypesTable";
 import QualityDefectsTable from "@/components/dashboard/QualityDefectsTable";
+import ReceptionTolerancesTable from "@/components/dashboard/ReceptionTolerancesTable";
 import { useInventoryType } from "@/context/inventory-type";
 
 const LABELS: Record<string, { title: string; back: string; backLabel: string }> = {
