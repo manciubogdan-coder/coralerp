@@ -1024,12 +1024,13 @@ const ReceptionReport: React.FC = () => {
               : lang === "it" ? ` Chiediamo una nota di credito per ${fmtKg(lossKg)}${r.unit || "kg"}.`
                 : ` We want a credit note for ${fmtKg(lossKg)}${r.unit || "kg"}.`
             : "";
+          const recvForEmail = effectiveReceived(r);
           lines.push(
             lang === "ro"
-              ? `${r.denumire_produs} de la furnizorul ${sub(r)} am recepționat ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} – ${desc(r, lang) || "probleme calitative"}.${lossTxt}`
+              ? `${r.denumire_produs} de la furnizorul ${sub(r)} am recepționat ${fmtKg(recvForEmail)}${r.unit || "kg"} – ${desc(r, lang) || "probleme calitative"}.${lossTxt}`
               : lang === "it"
-                ? `${r.denumire_produs} dal fornitore ${sub(r)} abbiamo ricevuto ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} – ${desc(r, lang) || "problemi qualitativi"}.${lossTxt}`
-                : `${r.denumire_produs} from the supplier ${sub(r)} we received ${fmtKg(r.cantitate_receptionata)}${r.unit || "kg"} – ${desc(r, lang) || "quality issues"}.${lossTxt}`,
+                ? `${r.denumire_produs} dal fornitore ${sub(r)} abbiamo ricevuto ${fmtKg(recvForEmail)}${r.unit || "kg"} – ${desc(r, lang) || "problemi qualitativi"}.${lossTxt}`
+                : `${r.denumire_produs} from the supplier ${sub(r)} we received ${fmtKg(recvForEmail)}${r.unit || "kg"} – ${desc(r, lang) || "quality issues"}.${lossTxt}`,
             ""
           );
         });
@@ -1138,7 +1139,7 @@ const ReceptionReport: React.FC = () => {
       product: r.denumire_produs,
       producer: r.producator || group.supplierName || "—",
       document: r.cantitate_document ? `${fmtKg(parseFloat(r.cantitate_document) || 0)}${unit}` : "—",
-      received: `${fmtKg(r.cantitate_receptionata)}${unit}`,
+      received: `${fmtKg(effectiveReceived(r))}${unit}`,
       difference: differenceText,
       loss: qualityLossText,
       credit: creditKg > 0 ? `${fmtKg(creditKg)}${unit}` : "—",
