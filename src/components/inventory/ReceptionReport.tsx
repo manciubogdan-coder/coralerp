@@ -1062,8 +1062,28 @@ const ReceptionReport: React.FC = () => {
     rows[2] = { hpt: 18 };
     rows[3] = { hpt: 20 };
     rows[4] = { hpt: 6 };
-    rows[headerRowIdx] = { hpt: 42 };
-    for (let i = dataStart; i <= dataEnd; i++) rows[i] = { hpt: 38 };
+    rows[headerRowIdx] = { hpt: 46 };
+    // Înălțime dinamică pe baza textului din Defecte / Observatii / Denumire (pt 10, ~13pt per linie)
+    const wrapLines = (text: string, width: number) => {
+      if (!text) return 1;
+      const words = String(text).split(/\s+/);
+      let lines = 1, cur = 0;
+      for (const w of words) {
+        const len = w.length + (cur > 0 ? 1 : 0);
+        if (cur + len > width) { lines++; cur = w.length; } else { cur += len; }
+      }
+      return Math.max(1, lines);
+    };
+    group.rows.forEach((r, idx) => {
+      const def = (r.defects || []).join(", ");
+      const obs = r.observations || "";
+      const den = r.denumire_produs || "";
+      const linesDef = wrapLines(def, 20);
+      const linesObs = wrapLines(obs, 16);
+      const linesDen = wrapLines(den, 16);
+      const lines = Math.max(linesDef, linesObs, linesDen, 2);
+      rows[dataStart + idx] = { hpt: Math.min(120, 14 + lines * 13) };
+    });
     rows[totalsHeaderRowIdx] = { hpt: 22 };
     totalsLabelRows.forEach((r) => { rows[r] = { hpt: 20 }; });
     rows[sigRow1] = { hpt: 24 };
@@ -1099,7 +1119,7 @@ const ReceptionReport: React.FC = () => {
           },
           font: {
             name: "Calibri",
-            sz: isTitle ? 14 : (isSubtitle ? 11 : (isHeader ? 9 : (isTotalsHeader ? 11 : (isTotalsLabel ? 10 : 9)))),
+            sz: isTitle ? 15 : (isSubtitle ? 12 : (isHeader ? 10 : (isTotalsHeader ? 12 : (isTotalsLabel ? 11 : 10)))),
             bold: isTitle || isSubtitle || isHeader || isTotalsHeader || isTotalsLabel,
           },
         };
