@@ -635,10 +635,11 @@ const ReceptionReport: React.FC = () => {
     return (base * proc) / 100;
   };
   const calcKgConsiderate = (r: ReportRow) => {
-    const base = effectiveReceived(r);
-    const pkg = calcPierdereKg(r);
-    if (pkg == null) return base;
-    return base - pkg;
+    // Folosim cantitatea recepționată brută (fără surplus declarat) și aplicăm pierderea în procente
+    const base = r.cantitate_receptionata;
+    const proc = parseFloat(r.pierdere_calitativa_procent);
+    if (isNaN(proc)) return base;
+    return base - (base * proc) / 100;
   };
 
   const handleSaveGroup = async (group: SupplierGroup) => {
