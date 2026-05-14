@@ -1600,12 +1600,18 @@ const ReceptionReport: React.FC = () => {
                           {r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`}
                         </TableCell>
                         <TableCell className={cn("bg-blue-50/50 dark:bg-blue-950/10", isOverThreshold(r) && !r.is_missing && "ring-1 ring-blue-400")}>
-                          {isOverThreshold(r) && !r.is_missing ? (
-                            <Input type="number" step="0.01" placeholder={`≤ ${r.cantitate_receptionata}`}
-                              value={r.declared_quantity}
-                              onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)}
-                              className="h-7 text-xs px-1 w-full" />
-                          ) : (
+                          {isOverThreshold(r) && !r.is_missing ? (() => {
+                            const doc = parseFloat(r.cantitate_document) || 0;
+                            const surplusReal = Math.max(0, r.cantitate_receptionata - doc);
+                            return (
+                              <Input type="number" step="0.01" min="0" max={surplusReal}
+                                placeholder={`≤ ${surplusReal.toFixed(2)}`}
+                                title={`Surplus real ${surplusReal.toFixed(2)} kg. Declară doar cât vrei să recunoști oficial peste document.`}
+                                value={r.declared_quantity}
+                                onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)}
+                                className="h-7 text-xs px-1 w-full" />
+                            );
+                          })() : (
                             <span className="text-[11px] text-muted-foreground">—</span>
                           )}
                         </TableCell>
