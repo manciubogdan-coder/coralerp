@@ -62,6 +62,7 @@ type PhotoRef = { path: string; url: string };
 
 type ReportRow = {
   inventory_id: string;
+  product_id: string | null;
   // AUTO din recepție (read-only)
   denumire_produs: string;
   producator: string;
@@ -74,6 +75,7 @@ type ReportRow = {
   // MANUALE (persistente)
   paleti_lazi_document: string;
   cantitate_document: string;
+  declared_quantity: string;  // pt. cazul cu surplus peste prag
   pierdere_calitativa_procent: string;
   transmis_la_furnizor: boolean;
   defects: string[];
@@ -83,6 +85,9 @@ type ReportRow = {
   is_missing?: boolean;
   missing_id?: string;
 };
+
+type ToleranceCfg = { under: number; over: number };
+const DEFAULT_TOLERANCE: ToleranceCfg = { under: 3, over: 105 };
 
 type SupplierGroup = {
   supplierName: string;
@@ -95,6 +100,7 @@ type ReportDataRow = {
   inventory_id: string;
   paleti_lazi_document: string | null;
   cantitate_document: number | null;
+  declared_quantity: number | null;
   tip_palet: string | null;
   pierdere_calitativa_procent: number | null;
   transmis_la_furnizor: boolean | null;
@@ -276,6 +282,10 @@ const ReceptionReport: React.FC = () => {
   const [crateTypeMap, setCrateTypeMap] = useState<Map<string, string>>(new Map());
   const [crateTypesList, setCrateTypesList] = useState<LookupRow[]>([]);
   const [palletTypesList, setPalletTypesList] = useState<LookupRow[]>([]);
+  const [tolerancesMap, setTolerancesMap] = useState<Map<string, ToleranceCfg>>(new Map());
+
+  const getTol = (productId: string | null | undefined): ToleranceCfg =>
+    (productId && tolerancesMap.get(productId)) || DEFAULT_TOLERANCE;
 
   // Dialogs
   const [photoDialog, setPhotoDialog] = useState<{ groupIdx: number; rowIdx: number } | null>(null);
@@ -431,6 +441,7 @@ const ReceptionReport: React.FC = () => {
         const existing = reportMap.get(row.id);
         grp.rows.push({
           inventory_id: row.id,
+          product_id: row.product_id ?? null,
           denumire_produs: row.name,
           producator: row.manufacturer_id ? manufacturerMap.get(row.manufacturer_id) || "" : "",
           cantitate_receptionata: Number(row.original_quantity ?? row.net_quantity ?? 0),
@@ -441,6 +452,7 @@ const ReceptionReport: React.FC = () => {
           nr_paleti_rec: row.pallet_count ?? null,
           paleti_lazi_document: existing?.paleti_lazi_document ?? "",
           cantitate_document: existing?.cantitate_document != null ? String(existing.cantitate_document) : "",
+          declared_quantity: existing?.declared_quantity != null ? String(existing.declared_quantity) : "",
           pierdere_calitativa_procent:
             existing?.pierdere_calitativa_procent != null
               ? String(existing.pierdere_calitativa_procent)
@@ -458,6 +470,8 @@ const ReceptionReport: React.FC = () => {
         const grp = ensureGroup(m.supplier_id, supplierName, m.document_number || "");
         grp.rows.push({
           inventory_id: `missing-${m.id}`,
+          product_id: m.product_id ?? null,
+          declared_quantity: "",
           denumire_produs: m.product_name,
           producator: "",
           cantitate_receptionata: 0,
@@ -479,6 +493,27 @@ const ReceptionReport: React.FC = () => {
       });
 
       setGroups(Array.from(grouped.values()));
+
+      // Load tolerances for all involved product_ids
+      const productIds = Array.from(new Set(inv.map((r) => r.product_id).filter(Boolean))) as string[];
+      const tolMap = new Map<string, ToleranceCfg>();
+      if (productIds.length > 0) {
+        for (let i = 0; i < productIds.length; i += 50) {
+          const slice = productIds.slice(i, i + 50);
+          const { data: tolData } = await (supabase as any)
+            .from("product_reception_tolerances")
+            .select("product_id, tolerance_under_percent, tolerance_over_kg")
+            .eq("inventory_type", inventoryType)
+            .in("product_id", slice);
+          ((tolData || []) as any[]).forEach((t) => {
+            tolMap.set(t.product_id, {
+              under: Number(t.tolerance_under_percent ?? 3),
+              over: Number(t.tolerance_over_kg ?? 105),
+            });
+          });
+        }
+      }
+      setTolerancesMap(tolMap);
     } catch (e: unknown) {
       console.error(e);
       toast({ title: "Eroare la încărcare", description: getErrorMessage(e), variant: "destructive" });
@@ -507,6 +542,7 @@ const ReceptionReport: React.FC = () => {
           inventory_type: inventoryType,
           paleti_lazi_document: row.paleti_lazi_document || null,
           cantitate_document: row.cantitate_document !== "" ? parseFloat(row.cantitate_document) : null,
+          declared_quantity: row.declared_quantity !== "" ? parseFloat(row.declared_quantity) : null,
           cantitate_receptionata: row.cantitate_receptionata,
           tip_lada_culoare: row.tip_lada_culoare || null,
           tip_palet: row.tip_palet || null,
@@ -554,20 +590,50 @@ const ReceptionReport: React.FC = () => {
     });
   };
 
+  // Cantitatea efectivă folosită în calcule (declarată dacă există surplus, altfel recepționată)
+  const effectiveReceived = (r: ReportRow): number => {
+    const declared = parseFloat(r.declared_quantity);
+    if (!isNaN(declared) && declared > 0) return declared;
+    return r.cantitate_receptionata;
+  };
+
+  // True dacă recepția e sub document, dar diferența e în limita toleranței (%).
+  const isUnderTolerance = (r: ReportRow): boolean => {
+    const doc = parseFloat(r.cantitate_document);
+    if (isNaN(doc) || doc <= 0) return false;
+    const rec = r.cantitate_receptionata;
+    if (rec >= doc) return false;
+    const tol = getTol(r.product_id).under;
+    return ((doc - rec) / doc) * 100 <= tol;
+  };
+
+  // True dacă recepția depășește documentul cu cel puțin tolOverKg → cere „Cant. declarată".
+  const isOverThreshold = (r: ReportRow): boolean => {
+    const doc = parseFloat(r.cantitate_document);
+    if (isNaN(doc) || doc <= 0) return false;
+    const tol = getTol(r.product_id).over;
+    return r.cantitate_receptionata >= doc + tol;
+  };
+
   const calcDiferenta = (r: ReportRow) => {
     const doc = parseFloat(r.cantitate_document);
     if (isNaN(doc)) return null;
-    return r.cantitate_receptionata - doc;
+    if (isUnderTolerance(r)) return 0;
+    return effectiveReceived(r) - doc;
   };
   const calcPierdereKg = (r: ReportRow) => {
     const proc = parseFloat(r.pierdere_calitativa_procent);
     if (isNaN(proc)) return null;
-    return (r.cantitate_receptionata * proc) / 100;
+    // În cazul „sub toleranță", pierderea se calculează pe cantitatea de pe document
+    const doc = parseFloat(r.cantitate_document);
+    const base = isUnderTolerance(r) && !isNaN(doc) ? doc : effectiveReceived(r);
+    return (base * proc) / 100;
   };
   const calcKgConsiderate = (r: ReportRow) => {
+    const base = effectiveReceived(r);
     const pkg = calcPierdereKg(r);
-    if (pkg == null) return r.cantitate_receptionata;
-    return r.cantitate_receptionata - pkg;
+    if (pkg == null) return base;
+    return base - pkg;
   };
 
   const handleSaveGroup = async (group: SupplierGroup) => {
@@ -581,6 +647,7 @@ const ReceptionReport: React.FC = () => {
           inventory_type: inventoryType,
           paleti_lazi_document: r.paleti_lazi_document || null,
           cantitate_document: r.cantitate_document !== "" ? parseFloat(r.cantitate_document) : null,
+          declared_quantity: r.declared_quantity !== "" ? parseFloat(r.declared_quantity) : null,
           cantitate_receptionata: r.cantitate_receptionata,
           tip_lada_culoare: r.tip_lada_culoare || null,
           tip_palet: r.tip_palet || null,
@@ -1334,6 +1401,13 @@ const ReceptionReport: React.FC = () => {
                             onChange={(e) => updateRow(gIdx, rIdx, "cantitate_document", e.target.value)} className="h-11 text-base" />
                         </div>
                         {renderMobileInfo("Cantitate recepționată", r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`, r.is_missing ? "text-destructive" : "")}
+                        {isOverThreshold(r) && !r.is_missing && (
+                          <div className="col-span-2 space-y-1 rounded-md border border-blue-300 bg-blue-50/50 dark:bg-blue-950/20 p-2">
+                            <p className="text-[11px] font-medium uppercase text-blue-700 dark:text-blue-400">Cant. declarată (≤ {r.cantitate_receptionata})</p>
+                            <Input type="number" step="0.01" placeholder="kg declarați" value={r.declared_quantity}
+                              onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)} className="h-11 text-base" />
+                          </div>
+                        )}
                         {renderMobileInfo("Tip ladă/culoare", tipLada)}
                         {renderMobileInfo("Tip palet", tipPalet)}
                         {renderMobileInfo("Nr paleți rec", totalRecP ?? "—")}
@@ -1393,6 +1467,7 @@ const ReceptionReport: React.FC = () => {
                     <TableHead className="min-w-[120px]">Tip lăzi doc</TableHead>
                     <TableHead className="bg-amber-50 dark:bg-amber-950/30 min-w-[110px]">Cant. doc</TableHead>
                     <TableHead className="w-[80px]">Cant. recep.</TableHead>
+                    <TableHead className="bg-blue-50 dark:bg-blue-950/30 w-[110px]">Cant. declarată</TableHead>
                     <TableHead className="min-w-[110px]">Tip lada/culoare</TableHead>
                     <TableHead className="min-w-[100px]">Tip palet</TableHead>
                     <TableHead className="w-[60px]">Nr paleti rec</TableHead>
@@ -1509,6 +1584,16 @@ const ReceptionReport: React.FC = () => {
                         <TableCell className={cn("font-semibold", r.is_missing && "text-red-600")}>
                           {r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`}
                         </TableCell>
+                        <TableCell className={cn("bg-blue-50/50 dark:bg-blue-950/10", isOverThreshold(r) && !r.is_missing && "ring-1 ring-blue-400")}>
+                          {isOverThreshold(r) && !r.is_missing ? (
+                            <Input type="number" step="0.01" placeholder={`≤ ${r.cantitate_receptionata}`}
+                              value={r.declared_quantity}
+                              onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)}
+                              className="h-7 text-xs px-1 w-full" />
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         {(() => {
                           const { bd } = parsePalDoc(r.paleti_lazi_document || "");
                           const recC = bd.rec_crates;
@@ -1603,7 +1688,7 @@ const ReceptionReport: React.FC = () => {
                     </TableCell>
                     <TableCell colSpan={3} className="text-right">Paleți rec:</TableCell>
                     <TableCell className="text-base">{totals.totalPaleti}</TableCell>
-                    <TableCell colSpan={10}>
+                    <TableCell colSpan={11}>
                       {totals.ladiByType.size > 0 && (
                         <div className="flex flex-wrap gap-3 text-xs">
                           {Array.from(totals.ladiByType.entries()).map(([tip, cnt]) => (
