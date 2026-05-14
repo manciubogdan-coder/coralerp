@@ -965,47 +965,49 @@ const ReceptionReport: React.FC = () => {
     const dataStart = 6;
     const dataEnd = dataStart + group.rows.length - 1;
 
-    // Totaluri
+    // Totaluri – pun label în col 0 (va fi merge-uit cu următoarele coloane ca să nu se înfășoare vertical)
     const totals = groupTotals(group);
-    const totalsStart = dataEnd + 2;
-    aoa.push(pad([]));
-    aoa.push(pad(["TOTALURI"]));
-    aoa.push(pad(["Nr total paleți recepționați", totals.totalPaleti]));
+    aoa.push(pad([])); // spacer
+    const totalsHeaderRow = aoa.length; aoa.push(pad(["TOTALURI"]));
+    const totalsLabelRows: number[] = [];
+    totalsLabelRows.push(aoa.length);
+    aoa.push(pad(["Nr total paleți recepționați", null, null, null, null, totals.totalPaleti]));
     Array.from(totals.ladiByType.entries()).forEach(([tip, cnt]) => {
-      aoa.push(pad([`Nr lăzi (${tip})`, cnt]));
+      totalsLabelRows.push(aoa.length);
+      aoa.push(pad([`Nr lăzi (${tip})`, null, null, null, null, cnt]));
     });
 
+    aoa.push(pad([])); // spacer
+    const sigRow1 = aoa.length;
+    aoa.push(pad(["Nume Prenume receptioner", null, null, null, "_____________________________", null, null, null, null, null, "Semnatura", null, "_____________________"]));
     aoa.push(pad([]));
-    aoa.push(pad([null, "Nume Prenume receptioner", "_____________________________________________",
-      null, null, null, null, null, null, "Semnatura", "_____________________"]));
-    aoa.push(pad([]));
-    aoa.push(pad([null, "Nume Prenume calitate", "_____________________________________________",
-      null, null, null, null, null, null, "Semnatura", "_____________________"]));
+    const sigRow2 = aoa.length;
+    aoa.push(pad(["Nume Prenume calitate", null, null, null, "_____________________________", null, null, null, null, null, "Semnatura", null, "_____________________"]));
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-    // Lățimi coloane optimizate pentru A4 landscape - reduse pentru fit-to-1-page
+    // Lățimi coloane optimizate pentru A4 landscape (legibile)
     ws["!cols"] = [
       { wch: 4 },   // Nr crt
-      { wch: 14 },  // Denumire produs
-      { wch: 11 },  // Producator
+      { wch: 16 },  // Denumire produs
+      { wch: 13 },  // Producator
       { wch: 5 },   // Paleți doc
       { wch: 5 },   // Lăzi doc
-      { wch: 7 },   // Tip lăzi doc
-      { wch: 8 },   // Cantitate document
+      { wch: 8 },   // Tip lăzi doc
+      { wch: 9 },   // Cantitate document
       { wch: 9 },   // Cantitate receptionata
-      { wch: 9 },   // Tip lada/culoare
-      { wch: 8 },   // Tip palet
+      { wch: 10 },  // Tip lada/culoare
+      { wch: 9 },   // Tip palet
       { wch: 6 },   // Nr paleti rec
       { wch: 5 },   // Nr Lazi
       { wch: 7 },   // Diferenta
-      { wch: 7 },   // Pierdere calit. (%)
+      { wch: 8 },   // Pierdere calit. (%)
       { wch: 8 },   // Transmis furnizor
-      { wch: 7 },   // Pierdere (kg)
-      { wch: 8 },   // Kg considerate
-      { wch: 11 },  // Defecte
-      { wch: 12 },  // Observatii
-      { wch: 6 },   // Status
+      { wch: 8 },   // Pierdere (kg)
+      { wch: 9 },   // Kg considerate
+      { wch: 20 },  // Defecte
+      { wch: 16 },  // Observatii
+      { wch: 7 },   // Status
     ];
 
     // Pune labels în B (col 0 e prea îngustă) – mutăm conținutul meta
@@ -1027,6 +1029,9 @@ const ReceptionReport: React.FC = () => {
     setCell("A3", "Furnizor:");
     setCell("C3", group.supplierName);
 
+    const headerRowIdx = 5;
+    const totalsHeaderRowIdx = totalsHeaderRow;
+
     ws["!merges"] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: NCOLS - 1 } },           // titlu
       { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },                    // "Data receptie:"
@@ -1036,23 +1041,40 @@ const ReceptionReport: React.FC = () => {
       { s: { r: 2, c: 0 }, e: { r: 2, c: 1 } },                    // "Furnizor:"
       { s: { r: 2, c: 2 }, e: { r: 2, c: 9 } },                    // valoare furnizor
       { s: { r: 3, c: 0 }, e: { r: 3, c: NCOLS - 1 } },            // subtitle
+      // Totaluri
+      { s: { r: totalsHeaderRowIdx, c: 0 }, e: { r: totalsHeaderRowIdx, c: NCOLS - 1 } },
+      ...totalsLabelRows.map((r) => ({ s: { r, c: 0 }, e: { r, c: 4 } })),
+      ...totalsLabelRows.map((r) => ({ s: { r, c: 5 }, e: { r, c: 7 } })),
+      // Semnături
+      { s: { r: sigRow1, c: 0 }, e: { r: sigRow1, c: 3 } },
+      { s: { r: sigRow1, c: 4 }, e: { r: sigRow1, c: 9 } },
+      { s: { r: sigRow1, c: 10 }, e: { r: sigRow1, c: 11 } },
+      { s: { r: sigRow1, c: 12 }, e: { r: sigRow1, c: NCOLS - 1 } },
+      { s: { r: sigRow2, c: 0 }, e: { r: sigRow2, c: 3 } },
+      { s: { r: sigRow2, c: 4 }, e: { r: sigRow2, c: 9 } },
+      { s: { r: sigRow2, c: 10 }, e: { r: sigRow2, c: 11 } },
+      { s: { r: sigRow2, c: 12 }, e: { r: sigRow2, c: NCOLS - 1 } },
     ];
 
-    const headerRowIdx = 5;
-
     const rows: any[] = [];
-    rows[0] = { hpt: 22 };
-    rows[1] = { hpt: 16 };
-    rows[2] = { hpt: 16 };
-    rows[3] = { hpt: 18 };
+    rows[0] = { hpt: 24 };
+    rows[1] = { hpt: 18 };
+    rows[2] = { hpt: 18 };
+    rows[3] = { hpt: 20 };
     rows[4] = { hpt: 6 };
-    rows[headerRowIdx] = { hpt: 36 };
-    for (let i = dataStart; i <= dataEnd; i++) rows[i] = { hpt: 24 };
+    rows[headerRowIdx] = { hpt: 42 };
+    for (let i = dataStart; i <= dataEnd; i++) rows[i] = { hpt: 38 };
+    rows[totalsHeaderRowIdx] = { hpt: 22 };
+    totalsLabelRows.forEach((r) => { rows[r] = { hpt: 20 }; });
+    rows[sigRow1] = { hpt: 24 };
+    rows[sigRow2] = { hpt: 24 };
     ws["!rows"] = rows;
 
     const range = XLSX.utils.decode_range(ws["!ref"] as string);
     const thinBorder = { style: "thin", color: { rgb: "BFBFBF" } } as any;
     const border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+
+    const totalsLabelSet = new Set(totalsLabelRows);
 
     for (let R = range.s.r; R <= range.e.r; R++) {
       for (let C = range.s.c; C <= range.e.c; C++) {
@@ -1064,17 +1086,21 @@ const ReceptionReport: React.FC = () => {
         const isData = R >= dataStart && R <= dataEnd;
         const isTitle = R === 0;
         const isSubtitle = R === 3;
+        const isTotalsHeader = R === totalsHeaderRowIdx;
+        const isTotalsLabel = totalsLabelSet.has(R);
 
         const base: any = {
           alignment: {
             wrapText: true,
             vertical: "center",
-            horizontal: isTitle || isSubtitle ? "center" : (isHeader ? "center" : (typeof cell.v === "number" ? "right" : "left")),
+            horizontal: isTitle || isSubtitle || isTotalsHeader
+              ? "center"
+              : (isHeader ? "center" : (typeof cell.v === "number" ? "right" : "left")),
           },
           font: {
             name: "Calibri",
-            sz: isTitle ? 13 : (isSubtitle ? 10 : (isHeader ? 8 : 8)),
-            bold: isTitle || isSubtitle || isHeader,
+            sz: isTitle ? 14 : (isSubtitle ? 11 : (isHeader ? 9 : (isTotalsHeader ? 11 : (isTotalsLabel ? 10 : 9)))),
+            bold: isTitle || isSubtitle || isHeader || isTotalsHeader || isTotalsLabel,
           },
         };
 
@@ -1083,6 +1109,8 @@ const ReceptionReport: React.FC = () => {
           base.font.color = { rgb: "FFFFFF" };
           base.border = border;
         } else if (isData) {
+          base.border = border;
+        } else if (isTotalsLabel) {
           base.border = border;
         }
 
@@ -1099,7 +1127,7 @@ const ReceptionReport: React.FC = () => {
       paperSize: 9, // A4
       fitToWidth: 1,
       fitToHeight: 1,
-      scale: 60,
+      scale: 75,
     };
     (ws as any)["!printOptions"] = { horizontalCentered: true };
     (ws as any)["!margins"] = { left: 0.2, right: 0.2, top: 0.3, bottom: 0.3, header: 0.15, footer: 0.15 };
