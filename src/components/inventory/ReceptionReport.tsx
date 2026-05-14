@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
