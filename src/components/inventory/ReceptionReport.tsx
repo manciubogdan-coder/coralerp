@@ -1006,7 +1006,7 @@ const ReceptionReport: React.FC = () => {
       { wch: 8 },   // Pierdere (kg)
       { wch: 9 },   // Kg considerate
       { wch: 20 },  // Defecte
-      { wch: 16 },  // Observatii
+      { wch: 11 },  // Observatii
       { wch: 7 },   // Status
     ];
 
