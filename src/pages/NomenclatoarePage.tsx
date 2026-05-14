@@ -42,6 +42,7 @@ const NomenclatoarePage: React.FC = () => {
           {showCrates && <TabsTrigger value="laditе">Lădițe</TabsTrigger>}
           <TabsTrigger value="paleti">Tip paleți</TabsTrigger>
           <TabsTrigger value="defecte">Defecte calitate</TabsTrigger>
+          <TabsTrigger value="tolerante">Toleranțe recepție</TabsTrigger>
         </TabsList>
 
         <TabsContent value="furnizori">
