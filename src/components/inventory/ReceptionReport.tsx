@@ -965,22 +965,24 @@ const ReceptionReport: React.FC = () => {
     const dataStart = 6;
     const dataEnd = dataStart + group.rows.length - 1;
 
-    // Totaluri
+    // Totaluri – pun label în col 0 (va fi merge-uit cu următoarele coloane ca să nu se înfășoare vertical)
     const totals = groupTotals(group);
-    const totalsStart = dataEnd + 2;
-    aoa.push(pad([]));
-    aoa.push(pad(["TOTALURI"]));
-    aoa.push(pad(["Nr total paleți recepționați", totals.totalPaleti]));
+    aoa.push(pad([])); // spacer
+    const totalsHeaderRow = aoa.length; aoa.push(pad(["TOTALURI"]));
+    const totalsLabelRows: number[] = [];
+    totalsLabelRows.push(aoa.length);
+    aoa.push(pad(["Nr total paleți recepționați", null, null, null, null, totals.totalPaleti]));
     Array.from(totals.ladiByType.entries()).forEach(([tip, cnt]) => {
-      aoa.push(pad([`Nr lăzi (${tip})`, cnt]));
+      totalsLabelRows.push(aoa.length);
+      aoa.push(pad([`Nr lăzi (${tip})`, null, null, null, null, cnt]));
     });
 
+    aoa.push(pad([])); // spacer
+    const sigRow1 = aoa.length;
+    aoa.push(pad(["Nume Prenume receptioner", null, null, null, "_____________________________", null, null, null, null, null, "Semnatura", null, "_____________________"]));
     aoa.push(pad([]));
-    aoa.push(pad([null, "Nume Prenume receptioner", "_____________________________________________",
-      null, null, null, null, null, null, "Semnatura", "_____________________"]));
-    aoa.push(pad([]));
-    aoa.push(pad([null, "Nume Prenume calitate", "_____________________________________________",
-      null, null, null, null, null, null, "Semnatura", "_____________________"]));
+    const sigRow2 = aoa.length;
+    aoa.push(pad(["Nume Prenume calitate", null, null, null, "_____________________________", null, null, null, null, null, "Semnatura", null, "_____________________"]));
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
