@@ -62,6 +62,7 @@ type PhotoRef = { path: string; url: string };
 
 type ReportRow = {
   inventory_id: string;
+  product_id: string | null;
   // AUTO din recepție (read-only)
   denumire_produs: string;
   producator: string;
@@ -74,6 +75,7 @@ type ReportRow = {
   // MANUALE (persistente)
   paleti_lazi_document: string;
   cantitate_document: string;
+  declared_quantity: string;  // pt. cazul cu surplus peste prag
   pierdere_calitativa_procent: string;
   transmis_la_furnizor: boolean;
   defects: string[];
@@ -83,6 +85,9 @@ type ReportRow = {
   is_missing?: boolean;
   missing_id?: string;
 };
+
+type ToleranceCfg = { under: number; over: number };
+const DEFAULT_TOLERANCE: ToleranceCfg = { under: 3, over: 105 };
 
 type SupplierGroup = {
   supplierName: string;
