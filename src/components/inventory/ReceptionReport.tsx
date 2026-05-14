@@ -909,16 +909,23 @@ const ReceptionReport: React.FC = () => {
   // ============ EXPORT EXCEL ============
   const exportSupplierReport = (group: SupplierGroup) => {
     const dateStr = format(date, "dd.MM.yyyy");
+    const NCOLS = 20;
+    const pad = (arr: (string | number | null)[]) => {
+      const out = arr.slice();
+      while (out.length < NCOLS) out.push(null);
+      return out;
+    };
     const aoa: (string | number | null)[][] = [];
-    aoa.push(["CORAL BIOGREENS SRL"]);
-    aoa.push([]);
-    aoa.push(["Data receptie:", dateStr, null, null, null, null, null, null, null, "Nr document", null, group.documentNumber || ""]);
-    aoa.push([]);
-    aoa.push(["Furnizor:", group.supplierName]);
-    aoa.push([]);
-    aoa.push(["Document Receptie"]);
-    aoa.push([]);
-    aoa.push([]);
+    // Row 0: title (merged across all cols)
+    aoa.push(pad(["CORAL BIOGREENS SRL"]));
+    // Row 1: Data + Nr document
+    aoa.push(pad(["Data receptie:", dateStr, null, null, null, null, null, null, null, null, "Nr document:", group.documentNumber || ""]));
+    // Row 2: Furnizor
+    aoa.push(pad(["Furnizor:", group.supplierName]));
+    // Row 3: subtitle
+    aoa.push(pad(["Document Receptie"]));
+    aoa.push(pad([])); // spacer row 4
+    // Row 5: column headers
     aoa.push([
       "Nr crt", "Denumire produs", "Producator",
       "Paleți doc", "Lăzi doc", "Tip lăzi doc", "Cantitate document", "Cantitate receptionata",
