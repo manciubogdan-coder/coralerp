@@ -77,6 +77,11 @@ const NomenclatoarePage: React.FC = () => {
             <QualityDefectsTable />
           </div>
         </TabsContent>
+        <TabsContent value="tolerante">
+          <div className="bg-card rounded-lg shadow-sm border">
+            <ReceptionTolerancesTable />
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );
