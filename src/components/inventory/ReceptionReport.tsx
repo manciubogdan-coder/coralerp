@@ -1079,8 +1079,8 @@ const ReceptionReport: React.FC = () => {
       const obs = r.observations || "";
       const den = r.denumire_produs || "";
       const linesDef = wrapLines(def, 20);
-      const linesObs = wrapLines(obs, 16);
-      const linesDen = wrapLines(den, 16);
+      const linesObs = wrapLines(obs, 11);
+      const linesDen = wrapLines(den, 11);
       const lines = Math.max(linesDef, linesObs, linesDen, 2);
       rows[dataStart + idx] = { hpt: Math.min(120, 14 + lines * 13) };
     });
