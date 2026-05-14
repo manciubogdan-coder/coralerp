@@ -647,6 +647,7 @@ const ReceptionReport: React.FC = () => {
           inventory_type: inventoryType,
           paleti_lazi_document: r.paleti_lazi_document || null,
           cantitate_document: r.cantitate_document !== "" ? parseFloat(r.cantitate_document) : null,
+          declared_quantity: r.declared_quantity !== "" ? parseFloat(r.declared_quantity) : null,
           cantitate_receptionata: r.cantitate_receptionata,
           tip_lada_culoare: r.tip_lada_culoare || null,
           tip_palet: r.tip_palet || null,
