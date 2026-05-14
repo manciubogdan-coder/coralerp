@@ -989,8 +989,8 @@ const ReceptionReport: React.FC = () => {
     // Lățimi coloane optimizate pentru A4 landscape (legibile)
     ws["!cols"] = [
       { wch: 4 },   // Nr crt
-      { wch: 16 },  // Denumire produs
-      { wch: 13 },  // Producator
+      { wch: 11 },  // Denumire produs
+      { wch: 10 },  // Producator
       { wch: 5 },   // Paleți doc
       { wch: 5 },   // Lăzi doc
       { wch: 8 },   // Tip lăzi doc
