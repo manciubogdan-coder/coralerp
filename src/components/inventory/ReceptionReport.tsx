@@ -1001,7 +1001,7 @@ const ReceptionReport: React.FC = () => {
     const diffRows = group.rows.filter((r) => {
       if (r.is_missing) return true;
       const dif = calcDiferenta(r);
-      return dif != null && dif < 0;
+      return dif != null && dif !== 0;
     });
 
     const sub = (r: ReportRow) => r.producator || partner;
