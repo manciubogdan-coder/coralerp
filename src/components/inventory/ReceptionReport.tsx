@@ -1577,6 +1577,16 @@ const ReceptionReport: React.FC = () => {
                         <TableCell className={cn("font-semibold", r.is_missing && "text-red-600")}>
                           {r.is_missing ? `0 ${r.unit}` : `${r.cantitate_receptionata} ${r.unit}`}
                         </TableCell>
+                        <TableCell className={cn("bg-blue-50/50 dark:bg-blue-950/10", isOverThreshold(r) && !r.is_missing && "ring-1 ring-blue-400")}>
+                          {isOverThreshold(r) && !r.is_missing ? (
+                            <Input type="number" step="0.01" placeholder={`≤ ${r.cantitate_receptionata}`}
+                              value={r.declared_quantity}
+                              onChange={(e) => updateRow(gIdx, rIdx, "declared_quantity", e.target.value)}
+                              className="h-7 text-xs px-1 w-full" />
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         {(() => {
                           const { bd } = parsePalDoc(r.paleti_lazi_document || "");
                           const recC = bd.rec_crates;
