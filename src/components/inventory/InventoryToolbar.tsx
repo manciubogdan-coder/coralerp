@@ -21,7 +21,7 @@ export const InventoryToolbar = ({
 }: InventoryToolbarProps) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      if (!(e.ctrlKey || e.metaKey) || !e.altKey || e.shiftKey) return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
