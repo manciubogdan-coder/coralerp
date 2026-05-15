@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -61,6 +61,7 @@ export function ReceptionRegistration({
   const [netQuantity, setNetQuantity] = useState<number>(0);
 
   const [palletTypes, setPalletTypes] = useState<{ id: string; name: string }[]>([]);
+  const productSelectTriggerRef = useRef<HTMLButtonElement>(null);
 
   const palletTypesTable = inventoryType === "ambalaje"
     ? "ambalaje_pallet_types"
@@ -83,6 +84,16 @@ export function ReceptionRegistration({
     window.addEventListener("open-reception-form", handler);
     return () => window.removeEventListener("open-reception-form", handler);
   }, []);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const timer = window.setTimeout(() => {
+      productSelectTriggerRef.current?.focus();
+      productSelectTriggerRef.current?.click();
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [isOpen]);
 
   const selectedProduct = products.find(p => p.id === productId);
 
@@ -324,7 +335,7 @@ export function ReceptionRegistration({
           <div className="space-y-2">
             <label className="font-medium">Produs</label>
             <Select value={productId || ''} onValueChange={setProductId}>
-              <SelectTrigger>
+              <SelectTrigger ref={productSelectTriggerRef}>
                 <SelectValue placeholder="Selectează produsul" />
               </SelectTrigger>
               <SelectContent>
