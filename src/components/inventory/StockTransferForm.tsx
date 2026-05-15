@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -71,6 +71,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [crateTypes, setCrateTypes] = useState<any[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
   const isMobile = useIsMobile();
+  const productSelectTriggerRef = useRef<HTMLButtonElement>(null);
 
   const form = useForm<TransferFormValues>({
     defaultValues: {
@@ -92,6 +93,16 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     window.addEventListener("open-transfer-form", handler);
     return () => window.removeEventListener("open-transfer-form", handler);
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || isMobile) return;
+    const timer = window.setTimeout(() => {
+      productSelectTriggerRef.current?.focus();
+      productSelectTriggerRef.current?.click();
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [isOpen, isMobile]);
 
   const fetchCrateTypes = async () => {
     try {
@@ -598,7 +609,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                         }
                       }}
                     >
-                      <SelectTrigger className={`w-full sm:w-[400px] ${isMobile ? "h-12" : ""}`}>
+                      <SelectTrigger ref={productSelectTriggerRef} className={`w-full sm:w-[400px] ${isMobile ? "h-12" : ""}`}>
                         <SelectValue placeholder="Adăugați un produs" />
                       </SelectTrigger>
                       <SelectContent disablePortal={true} className="bg-popover max-h-[40vh] overflow-y-auto z-50">
