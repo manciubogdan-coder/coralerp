@@ -87,6 +87,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     }
   }, [isOpen, inventoryType]);
 
+  useEffect(() => {
+    const handler = () => setIsOpen(true);
+    window.addEventListener("open-transfer-form", handler);
+    return () => window.removeEventListener("open-transfer-form", handler);
+  }, []);
+
   const fetchCrateTypes = async () => {
     try {
       const crateTypesTable =
