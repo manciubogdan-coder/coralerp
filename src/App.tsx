@@ -80,6 +80,44 @@ const queryClient = new QueryClient({
 });
 
 const AppShell = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || !e.altKey || e.shiftKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+
+      const code = e.code;
+      const key = e.key.toLowerCase();
+      let evtName: string | null = null;
+      if (code === "KeyB" || key === "b") evtName = "open-transfer-form";
+      else if (code === "KeyN" || key === "n") evtName = "open-reception-form";
+      if (!evtName) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const path = location.pathname;
+      const onWarehouse =
+        path.startsWith("/depozit-mp") ||
+        path.startsWith("/depozit-ambalaje") ||
+        path.startsWith("/etichete");
+
+      if (onWarehouse) {
+        window.dispatchEvent(new Event(evtName));
+      } else {
+        // navighează la depozit MP și deschide formularul după montare
+        navigate("/depozit-mp");
+        setTimeout(() => window.dispatchEvent(new Event(evtName!)), 400);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [navigate, location.pathname]);
+
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="flex min-h-screen w-full">
