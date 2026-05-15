@@ -78,6 +78,12 @@ export function ReceptionRegistration({
     })();
   }, [palletTypesTable, isOpen]);
 
+  React.useEffect(() => {
+    const handler = () => setIsOpen(true);
+    window.addEventListener("open-reception-form", handler);
+    return () => window.removeEventListener("open-reception-form", handler);
+  }, []);
+
   const selectedProduct = products.find(p => p.id === productId);
 
   // Recalculez cantitatea netă pe baza tuturor tipurilor de lăzi alese
