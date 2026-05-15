@@ -26,12 +26,15 @@ export const InventoryToolbar = ({
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
 
+      const code = e.code;
       const key = e.key.toLowerCase();
-      if (key === "b") {
+      if (code === "KeyB" || key === "b") {
         e.preventDefault();
+        e.stopPropagation();
         window.dispatchEvent(new Event("open-transfer-form"));
-      } else if (key === "r") {
+      } else if (code === "KeyN" || key === "n") {
         e.preventDefault();
+        e.stopPropagation();
         window.dispatchEvent(new Event("open-reception-form"));
       }
     };
