@@ -331,96 +331,34 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
           
           <div className="space-y-2">
             <div className="font-medium text-sm text-muted-foreground">
-              Cantitate transferată inițial: {transfer.quantity} {transfer.unit}
+              Cantitate transferată inițial: {originalNet} {transfer.unit}
             </div>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="grossQuantity" className="font-medium">
-              Cantitate brută returnată ({transfer.unit})
+            <label htmlFor="netQuantity" className="font-medium">
+              Cantitate netă returnată ({transfer.unit})
             </label>
             <Input
-              id="grossQuantity"
+              id="netQuantity"
               type="number"
+              inputMode="decimal"
               min="0.01"
-              max={transfer.quantity}
+              max={originalNet}
               step="0.01"
-              value={grossQuantity}
-              onChange={(e) => setGrossQuantity(parseFloat(e.target.value) || 0)}
+              value={netQuantity || ""}
+              onChange={(e) => setNetQuantity(parseFloat(e.target.value) || 0)}
+              className="h-12 text-lg"
               required
             />
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="crateCount" className="font-medium">Număr lădițe returnate</label>
-            <Input
-              id="crateCount"
-              type="number"
-              min="0"
-              value={crateCount}
-              onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
-            />
-          </div>
-
-          {crateCount > 0 && (
-            <div className="space-y-2">
-              <label htmlFor="crateType" className="font-medium">Tip lădiță</label>
-              <Select value={selectedCrateTypeId} onValueChange={setSelectedCrateTypeId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Alege tipul de lădiță" />
-                </SelectTrigger>
-                <SelectContent>
-                  {crateTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name} ({type.weight} kg)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedCrateTypeId && (
-                <div className="text-sm text-muted-foreground">
-                  Greutate totală lădițe: {(crateWeight * crateCount).toFixed(2)} kg
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label htmlFor="palletCount" className="font-medium">Număr paleți returnați</label>
-            <Input
-              id="palletCount"
-              type="number"
-              min="0"
-              value={palletCount}
-              onChange={(e) => setPalletCount(parseInt(e.target.value) || 0)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="palletWeight" className="font-medium">Greutate totală paleți (kg)</label>
-            <Input
-              id="palletWeight"
-              type="number"
-              min="0"
-              step="0.01"
-              value={palletWeight}
-              onChange={(e) => setPalletWeight(parseFloat(e.target.value) || 0)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="font-medium">Cantitate netă calculată</div>
-            <div className="px-4 py-2 bg-gray-100 rounded border">
-              {netQuantity.toFixed(2)} {transfer.unit}
-            </div>
-          </div>
-
-          <div className="space-y-2">
             <div className="font-medium text-sm text-muted-foreground">
-              Cantitate rămasă la destinație: {(transfer.quantity - netQuantity).toFixed(2)} {transfer.unit}
+              Cantitate rămasă la destinație: {Math.max(0, originalNet - netQuantity).toFixed(2)} {transfer.unit}
             </div>
           </div>
-          
+
           
           <div className="space-y-2">
             <label htmlFor="notes" className="font-medium">
