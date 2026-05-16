@@ -597,15 +597,20 @@ export function ReceptionRegistration({
             </p>
           </div>
 
-          <div className="flex justify-end pt-4">
-            <Button 
-              onClick={handleSubmit} 
-              disabled={!productId || !supplierId || (inventoryType === 'materii-prime' && !manufacturerId) || !documentNumber || (isEtichete ? grossQuantity <= 0 : netQuantity <= 0)}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {isEtichete ? 'Salvează recepția' : 'Salvează recepția (cantitate netă)'}
-            </Button>
-          </div>
+        </div>
+
+        <div className="p-4 sm:p-6 border-t shrink-0 bg-background flex flex-row gap-2 justify-end">
+          <Button variant="outline" onClick={() => setIsOpen(false)} className="flex-1 sm:flex-none h-12 sm:h-10">
+            Anulează
+          </Button>
+          <Button 
+            onClick={handleSubmit} 
+            disabled={!productId || !supplierId || (inventoryType === 'materii-prime' && !manufacturerId) || !documentNumber || (isEtichete ? grossQuantity <= 0 : netQuantity <= 0)}
+            className="flex-1 sm:flex-none h-12 sm:h-10"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {isEtichete ? 'Salvează' : 'Salvează (net)'}
+          </Button>
         </div>
       </DialogContent>
 
