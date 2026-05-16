@@ -745,6 +745,13 @@ export const ReceptionHistory = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <LotQRDialog
+        open={qrOpen}
+        onOpenChange={setQrOpen}
+        inventoryId={qrLotId}
+        inventoryType={inventoryType}
+      />
     </div>
   );
 };
