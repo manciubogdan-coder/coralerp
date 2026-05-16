@@ -7,6 +7,9 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import NotificationBell from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
+import { Button } from "@/components/ui/button";
+import { ScanLine } from "lucide-react";
+import { QRScannerDialog } from "@/components/inventory/QRScannerDialog";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import ProfilePage from "./pages/ProfilePage";
 
