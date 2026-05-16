@@ -34,6 +34,7 @@ import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
 import InventoryOverviewPage from "./pages/InventoryPage";
 import ReceptionReportPage from "./pages/ReceptionReportPage";
+import LotDetailPage from "./pages/LotDetailPage";
 import PickingPage from "./pages/PickingPage";
 import OperatorHub from "./pages/OperatorHub";
 import AuthPage from "./pages/AuthPage";
