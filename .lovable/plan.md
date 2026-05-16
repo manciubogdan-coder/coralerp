@@ -1,78 +1,48 @@
 ## Obiectiv
 
-Permite mai multe tipuri de paleți și lăzi pe același articol, atât la **înregistrarea recepției** (`ReceptionRegistration`) cât și la **raportul de calitate** (`ReceptionReport`), cu perechi recepționat ↔ document defalcate pe fiecare tip și totalizare pe tip.
+La finalul unei recepții, utilizatorul să poată genera și printa o etichetă cu cod QR pentru lotul recepționat. Scanarea QR-ului (din aplicație sau de pe telefon) deschide o pagină dedicată cu toate datele lotului și acțiuni rapide: **Bon transfer** și **Returnare în stoc**.
 
-## Constrângere tehnică
+## Flux utilizator
 
-DB-ul folosit este cel legacy (`mfcdlifjxxdrekzdatfb`) — nu putem rula migrări prin Lovable Cloud pe el. Folosim aceeași strategie de encoding string pe care o folosim deja la `paleti_lazi_document` (`2P/10L||TipLada`), extinsă cu un sufix `||BD:<base64-json>` pentru breakdown-ul detaliat. Tabelele rămân neschimbate.
+1. La salvarea unei recepții (Materii Prime / Ambalaje / Etichete), apare un buton **"Printează QR lot"** (și automat un dialog cu preview).
+2. Dialogul afișează eticheta 50×30 mm (sau 80mm rolă termică) cu:
+   - QR code (link către `/lot/{inventory_id}`)
+   - Denumire produs, Furnizor, Producător
+   - Cantitate + unitate, Lot, Data recepție, Nr. intrare
+3. Buton **"Printează"** → `window.print()` cu CSS dedicat (compatibil imprimante termice ESC/POS prin driver Windows/Mac standard).
+4. Scanarea QR-ului deschide `/lot/{id}` în browser:
+   - Sus: toate datele lotului + cantitate curentă în stoc (live din DB)
+   - Istoric scurt (recepție, transferuri, returnări)
+   - Acțiuni: **Bon transfer din acest lot** și **Returnare în stoc** (dacă există transfer activ pentru acest lot)
+5. Pagina `/lot/{id}` funcționează și pe mobil (scanare cu camera telefonului) — necesită autentificare.
 
-## Format encoding `paleti_lazi_document`
+## Modificări tehnice
 
-```
-{nrPaletiTotal}P/{nrLaziTotal}L||{tipLadaPrincipal}||BD:{base64(JSON)}
-```
+**Pachete noi:**
+- `qrcode.react` — pentru generarea QR în React (mic, fără dependențe native)
 
-JSON-ul conține breakdown-ul complet:
-```json
-{
-  "rec_pallets": [{"id":"uuid","name":"EUR","count":2}, {"id":"uuid","name":"IND","count":1}],
-  "rec_crates":  [{"id":"uuid","name":"Neagra","count":10}, {"id":"uuid","name":"Verde","count":5}],
-  "doc_pallets": [{"id":"uuid","name":"EUR","count":2}],
-  "doc_crates":  [{"id":"uuid","name":"Neagra","count":10}]
-}
-```
+**Componente noi:**
+- `src/components/inventory/LotQRLabel.tsx` — eticheta printabilă (QR + text), cu CSS `@media print` pentru format termic 50×30mm
+- `src/components/inventory/LotQRDialog.tsx` — dialog cu preview + buton Printează
+- `src/pages/LotDetailPage.tsx` — pagina deschisă la scanare; afișează datele + acțiunile
 
-`nrPaletiTotal` / `nrLaziTotal` rămân suma breakdown-ului, ca să nu strice exporturile/footerele actuale.
+**Integrare:**
+- `ReceptionRegistration.tsx`: după salvare reușită, deschide automat `LotQRDialog` cu `inventoryId` nou creat (în loc să închidă direct dialogul). Adaug și buton "QR" în `ReceptionHistory` pentru reprintare.
+- `App.tsx`: rută nouă `/lot/:id` (în interiorul `ProtectedRoute`).
+- QR-ul conține URL-ul absolut: `${window.location.origin}/lot/${id}` — funcționează din orice cititor QR.
 
-## Modificări UI
+**Acțiuni din pagina lotului:**
+- **Bon transfer**: deschide `StockTransferForm` pre-completat cu produsul/lotul respectiv (refolosesc componenta existentă, adaug prop `prefillLotId`).
+- **Returnare**: caută ultimul transfer activ pentru acest `inventory_item_id` și deschide `TransferReturnForm` pre-completat.
 
-### 1. `ReceptionRegistration.tsx`
-Înlocuim secțiunea „Paleți recepționați" (un singur tip palet + un singur tip lădiță) cu două blocuri cu rânduri dinamice:
+**Tip inventar:** detectez automat tipul (MP / Ambalaje / Etichete) căutând `id`-ul în cele 3 tabele (`inventory`, `ambalaje_inventory`, `etichete_inventory`) și setez contextul corespunzător.
 
-- **Paleți recepționați (multi-tip)** — listă de `{tipPaletId, count}` cu butoane Adaugă rând / Șterge rând. Primul rând e cel implicit. Total paleți afișat dedesubt.
-- **Lădițe recepționate (multi-tip)** — la fel pentru lăzi: `{tipLadaId, count}`. Greutatea lădițelor pentru calculul cantității nete devine suma `count * weight` pe toate rândurile.
+## Imprimantă termică
 
-La salvare:
-- în `reception_records` scriem totalurile (primul tip rămâne în `pallet_type_id`/`crate_type_id` ca „dominant" pentru compatibilitate; sumele în `pallet_count`/`crate_count`).
-- după insert, scriem un rând în `reception_report_data` cu `paleti_lazi_document` deja codat cu breakdown-ul recepție (doc rămâne gol — se completează în raport).
+Nu e nevoie de driver special — folosesc `window.print()` cu `@page { size: 50mm 30mm; margin: 0 }` și CSS care ascunde restul UI-ului. Funcționează cu orice imprimantă termică instalată ca printer Windows/Mac (Zebra, Brother QL, Xprinter etc.). Utilizatorul setează imprimanta default pe cea termică sau o alege la dialog print.
 
-### 2. `ReceptionReport.tsx`
-- Înlocuim cele 3 coloane curente (Paleți doc / Lăzi doc / Tip lăzi doc) și inputurile pentru paleți doc / lăzi doc cu un **buton „Detalii"** într-o singură coloană care deschide un dialog.
-- **Dialogul „Detalii paleți & lăzi"** are 4 tabele cu rânduri dinamice:
-  - Paleți recepționați (tip + cant)
-  - Paleți document (tip + cant)
-  - Lăzi recepționate (tip + cant)
-  - Lăzi document (tip + cant)
-- În rândul tabelului afișăm un sumar compact: `2 EUR + 1 IND` / `10 Neagră + 5 Verde` (recepționat sus, document jos sau cu badge culoare diferită).
-- Footerul tabelului totalizează pe tip pentru toate cele 4 sub-categorii (extindem `groupTotals.ladiDocByType` cu `paletiRecByType`, `paletiDocByType`, `laziRecByType`, `laziDocByType`).
-- Encoding/decoding centralizat în 2 funcții `encodePalDoc(state)` / `decodePalDoc(text)`.
+## În afara scope-ului (pentru iterații viitoare)
 
-### 3. Excel export (`ReceptionReport`)
-Înlocuim coloanele „Paleți doc / Lăzi doc / Tip lăzi doc" cu 4 coloane text descriptive:
-- `Paleți rec` (ex: `2 EUR + 1 IND`)
-- `Paleți doc` (ex: `2 EUR + 1 IND`)
-- `Lăzi rec` (ex: `10 Neagră + 5 Verde`)
-- `Lăzi doc` (ex: `10 Neagră + 5 Verde`)
-
-Footer cu totaluri pe tip pentru fiecare categorie.
-
-### 4. Compatibilitate înapoi
-`decodePalDoc` detectează formatul vechi (`2P/10L||TipLada` fără `BD:`) și îl mapează la breakdown cu un singur rând per categorie, folosind `pallet_type_id`/`crate_type_id` din recepție pentru tipuri.
-
-## Detalii tehnice
-
-- **Tipuri noi**: `BreakdownEntry = { id: string|null; name: string; count: number }` și `BreakdownPayload = { rec_pallets, rec_crates, doc_pallets, doc_crates }`.
-- **Helpers** într-un fișier nou `src/lib/receptionBreakdown.ts` (encode/decode + sumar text).
-- **Fără modificări la `inventory` / `reception_records`** — totalurile pe care le folosesc deja alte ecrane rămân corecte.
-
-## Fișiere afectate
-
-- `src/components/inventory/ReceptionRegistration.tsx` (multi-tip la înregistrare)
-- `src/components/inventory/ReceptionReport.tsx` (dialog Detalii + footer extins + export)
-- `src/lib/receptionBreakdown.ts` (nou — helpers encode/decode)
-
-## În afara scopului
-
-- Nu modificăm schema DB.
-- Nu schimbăm restul coloanelor din raport (defecte, poze, observații, % pierdere etc.).
-- Nu atingem alte ecrane care citesc `pallet_count`/`crate_count` — ele continuă să vadă totalurile corecte.
+- Print direct ESC/POS via USB/Bluetooth (nu funcționează din browser fără extensii)
+- Generare bulk QR pentru loturi vechi
+- Stocare istoric printări
