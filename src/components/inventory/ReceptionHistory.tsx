@@ -6,12 +6,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Calendar, FileSpreadsheet, Edit, Trash2, Printer } from "lucide-react";
+import { Calendar, FileSpreadsheet, Edit, Trash2, Printer, QrCode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useGroupedReceptions } from "@/hooks/use-grouped-receptions";
 import { useInventoryType } from "@/context/inventory-type";
+import { LotQRDialog } from "./LotQRDialog";
 
 interface ReceptionItem {
   id: string;
