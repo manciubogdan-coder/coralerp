@@ -4,16 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Printer, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { LotQRLabel, type LotLabelData } from "./LotQRLabel";
-import type { InventoryTypeValue } from "@/context/inventory-type";
+import type { InventoryType } from "@/context/inventory-type";
 
 interface LotQRDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   inventoryId: string | null;
-  inventoryType: InventoryTypeValue;
+  inventoryType: InventoryType;
 }
 
-const tableFor = (t: InventoryTypeValue) =>
+const tableFor = (t: InventoryType) =>
   t === "ambalaje" ? "ambalaje_inventory" : t === "etichete" ? "etichete_inventory" : "inventory";
 
 export const LotQRDialog: React.FC<LotQRDialogProps> = ({
