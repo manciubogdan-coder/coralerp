@@ -85,8 +85,52 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     if (isOpen) {
       fetchInventory();
       fetchCrateTypes();
+    } else {
+      // Reset preselect when dialog closes
+      pendingPreselectRef.current = null;
     }
   }, [isOpen, inventoryType]);
+
+  // Auto-add the scanned lot once inventory is loaded
+  useEffect(() => {
+    const targetId = pendingPreselectRef.current;
+    if (!isOpen || !targetId || inventory.length === 0) return;
+    const match = inventory.find((it) => it.id === targetId);
+    if (!match) return;
+    const productName = match.products?.name || match.name || "Produs necunoscut";
+    const lotKey = `${productName}-${match.lot_number || "fara-lot"}`;
+    // Skip if already added
+    if (selectedItems.some((s) => s.lotKey === lotKey)) {
+      pendingPreselectRef.current = null;
+      return;
+    }
+    // Aggregate all inventory entries sharing the same product+lot
+    const sameLot = inventory.filter((it) => {
+      const pn = it.products?.name || it.name || "";
+      return pn === productName && (it.lot_number || "") === (match.lot_number || "");
+    });
+    const total = sameLot.reduce((s, it) => s + Number(it.quantity || 0), 0);
+    const transferItem: TransferItem = {
+      lotKey,
+      productName,
+      lot_number: match.lot_number || "",
+      quantity: total,
+      unit: match.unit,
+      maxQuantity: total,
+      items: sameLot,
+      supplier: match.supplier || match.suppliers?.name,
+      manufacturer: match.manufacturer || match.manufacturers?.name,
+      product_id: match.product_id,
+      supplier_id: match.supplier_id,
+      manufacturer_id: match.manufacturer_id,
+    };
+    setSelectedItems((prev) => [...prev, transferItem]);
+    pendingPreselectRef.current = null;
+    toast({
+      title: "Lot preselectat din scanare",
+      description: `${productName} • Lot ${match.lot_number || "N/A"} • ${total.toFixed(2)} ${match.unit}`,
+    });
+  }, [inventory, isOpen]);
 
   const pendingPreselectRef = useRef<string | null>(null);
 
