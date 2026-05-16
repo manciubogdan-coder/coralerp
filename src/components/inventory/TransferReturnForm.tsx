@@ -50,49 +50,11 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
   const { inventoryType } = useInventoryType();
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [grossQuantity, setGrossQuantity] = useState<number>(transfer.quantity);
-  const [crateCount, setCrateCount] = useState<number>(transfer.crate_count || 0);
-  const [selectedCrateTypeId, setSelectedCrateTypeId] = useState<string>(transfer.crate_type_id || '');
-  const [crateWeight, setCrateWeight] = useState<number>(transfer.crate_weight || 0);
-  const [palletCount, setPalletCount] = useState<number>(0);
-  const [palletWeight, setPalletWeight] = useState<number>(0);
+  const originalNet = transfer.net_quantity ?? transfer.quantity;
+  const [netQuantity, setNetQuantity] = useState<number>(originalNet);
   const [notes, setNotes] = useState<string>("");
-  const [crateTypes, setCrateTypes] = useState<CrateType[]>([]);
-
-  useEffect(() => {
-    const fetchCrateTypes = async () => {
-      const crateTypesTable = inventoryType === 'ambalaje'
-        ? 'ambalaje_crate_types'
-        : inventoryType === 'etichete'
-          ? 'etichete_crate_types'
-          : 'crate_types';
-      const { data, error } = await supabase
-        .from(crateTypesTable)
-        .select('*')
-        .order('name');
-      if (error) {
-        console.error("Error fetching crate types:", error);
-        return;
-      }
-      setCrateTypes(data || []);
-    };
-    fetchCrateTypes();
-  }, [inventoryType]);
-
-  useEffect(() => {
-    if (selectedCrateTypeId) {
-      const selectedType = crateTypes.find(type => type.id === selectedCrateTypeId);
-      if (selectedType) setCrateWeight(selectedType.weight);
-    }
-  }, [selectedCrateTypeId, crateTypes]);
-
-  const calculateNetQuantity = () => {
-    const totalCrateWeight = crateWeight * crateCount;
-    const totalPalletWeight = palletWeight;
-    return Math.max(0, grossQuantity - totalCrateWeight - totalPalletWeight);
-  };
-
-  const netQuantity = calculateNetQuantity();
+  // Tratăm cantitatea introdusă ca NET (fără lădițe/paleți)
+  const grossQuantity = netQuantity;
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
