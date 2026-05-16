@@ -575,7 +575,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           Bon de Transfer
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] overflow-hidden">
+      <DialogContent
+        className="max-w-3xl w-[95vw] max-h-[90vh] overflow-hidden"
+        onPointerDownOutside={(e) => { if (isMobile) e.preventDefault(); }}
+        onInteractOutside={(e) => { if (isMobile) e.preventDefault(); }}
+      >
         <div className="flex flex-col h-full max-h-[90vh]">
           <div className="p-6 border-b shrink-0">
             <DialogHeader>
