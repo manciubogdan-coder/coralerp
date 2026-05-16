@@ -32,7 +32,9 @@ const formatDate = (d?: string | null) => {
  */
 export const LotQRLabel: React.FC<{ data: LotLabelData }> = ({ data }) => {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const url = `${origin}/lot/${data.id}`;
+  // Includem și un query param `?lot=<id>` ca să fie 100% lipsit de ambiguitate
+  // la scanare (host-ul preview-ului Lovable conține și el un UUID — project id).
+  const url = `${origin}/lot/${data.id}?lot=${data.id}`;
 
   const labelMarkup = (
     <div className="lot-label">

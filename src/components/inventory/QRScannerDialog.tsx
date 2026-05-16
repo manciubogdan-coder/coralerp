@@ -15,24 +15,22 @@ const UUID_RE =
 
 const extractLotId = (raw: string): string | null => {
   if (!raw) return null;
-  // Preferă UUID-ul din segmentul /lot/<uuid> (host-ul preview-ului
-  // Lovable conține și el un UUID — project id — care nu trebuie folosit).
+  // 1) Preferă query param `?lot=<uuid>` — sursa cea mai sigură.
+  const qp = raw.match(/[?&]lot=([0-9a-f-]{36})/i);
+  if (qp) return qp[1];
+  // 2) Segment `/lot/<uuid>` din path.
   const afterLot = raw.match(/\/lot\/([0-9a-f-]{36})/i);
   if (afterLot) return afterLot[1];
-  try {
-    const u = new URL(raw);
-    const parts = u.pathname.split("/").filter(Boolean);
-    const idx = parts.indexOf("lot");
-    if (idx >= 0 && parts[idx + 1] && UUID_RE.test(parts[idx + 1])) {
-      return parts[idx + 1].match(UUID_RE)![0];
-    }
-    // ultimul UUID din path (evită host-ul)
-    const pathMatches = u.pathname.match(new RegExp(UUID_RE, "gi"));
-    if (pathMatches && pathMatches.length) return pathMatches[pathMatches.length - 1];
-  } catch {}
-  // fallback: ultimul UUID din string
+  // 3) Ca fallback, ultimul UUID din string (evită host-ul preview-ului Lovable
+  //    care conține și el un UUID — project id).
   const all = raw.match(new RegExp(UUID_RE, "gi"));
   return all && all.length ? all[all.length - 1] : null;
+};
+
+// Pentru debug — afișează în consolă ce a citit scanner-ul.
+const debugScan = (raw: string, id: string | null) => {
+  // eslint-disable-next-line no-console
+  console.info("[qr-scan] decoded:", raw, "→ lotId:", id);
 };
 
 export const QRScannerDialog: React.FC<QRScannerDialogProps> = ({
@@ -98,6 +96,7 @@ export const QRScannerDialog: React.FC<QRScannerDialogProps> = ({
             { fps: 10, qrbox: { width: 240, height: 240 } },
             (decodedText) => {
               const id = extractLotId(decodedText);
+              debugScan(decodedText, id);
               if (!id) return;
               stopScanner().finally(() => {
                 onOpenChange(false);
