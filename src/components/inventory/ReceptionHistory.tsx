@@ -50,6 +50,8 @@ export const ReceptionHistory = () => {
   const [groupBy, setGroupBy] = useState<GroupingMode>('none');
   const [editingItem, setEditingItem] = useState<ReceptionItem | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [qrLotId, setQrLotId] = useState<string | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
   const [editFormData, setEditFormData] = useState({
