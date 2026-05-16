@@ -15,8 +15,24 @@ const UUID_RE =
 
 const extractLotId = (raw: string): string | null => {
   if (!raw) return null;
-  const m = raw.match(UUID_RE);
-  return m ? m[0] : null;
+  // Preferă UUID-ul din segmentul /lot/<uuid> (host-ul preview-ului
+  // Lovable conține și el un UUID — project id — care nu trebuie folosit).
+  const afterLot = raw.match(/\/lot\/([0-9a-f-]{36})/i);
+  if (afterLot) return afterLot[1];
+  try {
+    const u = new URL(raw);
+    const parts = u.pathname.split("/").filter(Boolean);
+    const idx = parts.indexOf("lot");
+    if (idx >= 0 && parts[idx + 1] && UUID_RE.test(parts[idx + 1])) {
+      return parts[idx + 1].match(UUID_RE)![0];
+    }
+    // ultimul UUID din path (evită host-ul)
+    const pathMatches = u.pathname.match(new RegExp(UUID_RE, "gi"));
+    if (pathMatches && pathMatches.length) return pathMatches[pathMatches.length - 1];
+  } catch {}
+  // fallback: ultimul UUID din string
+  const all = raw.match(new RegExp(UUID_RE, "gi"));
+  return all && all.length ? all[all.length - 1] : null;
 };
 
 export const QRScannerDialog: React.FC<QRScannerDialogProps> = ({
