@@ -326,6 +326,7 @@ export function ReceptionRegistration({
   };
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button>
