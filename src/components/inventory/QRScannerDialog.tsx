@@ -68,7 +68,10 @@ export const QRScannerDialog: React.FC<QRScannerDialogProps> = ({
           // închidem probe-ul — html5-qrcode va deschide propriul stream
           probe.getTracks().forEach((t) => t.stop());
 
-          const scanner = new Html5Qrcode(node, {
+          // html5-qrcode acceptă HTMLElement la runtime, dar typing-ul cere
+          // string id → asigurăm un id unic și îl pasăm.
+          if (!node.id) node.id = `qr-scanner-${Math.random().toString(36).slice(2)}`;
+          const scanner = new Html5Qrcode(node.id, {
             verbose: false,
             formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
           } as any);
