@@ -298,6 +298,12 @@ export function ReceptionRegistration({
       setIsOpen(false);
       onRegistrationComplete();
 
+      // Open QR label dialog for the newly created lot
+      if (inventoryRowId) {
+        setQrLotId(inventoryRowId);
+        setQrDialogOpen(true);
+      }
+
       // Reset form
       setProductId(null);
       setSupplierId(null);
