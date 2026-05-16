@@ -98,7 +98,10 @@ export const LotQRLabel: React.FC<{ data: LotLabelData }> = ({ data }) => {
       .lot-label-print-portal { display: none; }
 
       @media print {
-        @page { size: 50mm 30mm; margin: 0; }
+        /* Lăsăm browser-ul să folosească formatul ales de utilizator în dialogul
+           de print (A4, A5, sau termică 50×30mm). Nu mai forțăm @page size, ca să
+           nu mai apară 16 pagini sau o etichetă minusculă într-un colț. */
+        @page { margin: 6mm; }
         html, body {
           margin: 0 !important; padding: 0 !important;
           background: #fff !important;
@@ -106,10 +109,21 @@ export const LotQRLabel: React.FC<{ data: LotLabelData }> = ({ data }) => {
         /* Ascunde TOATĂ aplicația, mai puțin portalul nostru */
         body > *:not(.lot-label-print-portal) { display: none !important; }
         .lot-label-print-portal {
-          display: block !important;
+          display: flex !important;
+          align-items: center;
+          justify-content: center;
           position: static !important;
+          width: 100%;
+          min-height: 100vh;
         }
-        .lot-label-print-portal .lot-label { border: none !important; }
+        /* Pe A4 / coală mare → scalăm eticheta x4 ca să umple frumos pagina.
+           Pe rolă termică 50×30mm utilizatorul setează "Fit to page" și iese
+           tot la dimensiunea corectă. */
+        .lot-label-print-portal .lot-label {
+          border: none !important;
+          transform: scale(4);
+          transform-origin: center center;
+        }
       }
     `}</style>
   );
