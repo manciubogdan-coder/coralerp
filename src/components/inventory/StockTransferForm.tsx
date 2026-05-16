@@ -699,6 +699,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                                   <span className="text-sm text-blue-600 font-medium">
                                     Total disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
                                   </span>
+                                  {(group.supplier || group.manufacturer) && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {group.supplier && <>Furnizor: {group.supplier}</>}
+                                      {group.supplier && group.manufacturer && " • "}
+                                      {group.manufacturer && <>Producător: {group.manufacturer}</>}
+                                    </span>
+                                  )}
                                 </div>
                               </SelectItem>
                             ))
