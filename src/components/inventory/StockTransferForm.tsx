@@ -792,13 +792,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             </Form>
           </div>
 
-          <div className="p-6 border-t shrink-0">
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+          <div className="p-4 sm:p-6 border-t shrink-0 bg-background">
+            <DialogFooter className="flex-row gap-2 sm:gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsOpen(false)} className="flex-1 sm:flex-none h-12 sm:h-10">
                 Anulează
               </Button>
-              <Button type="submit" form="transfer-form" disabled={selectedItems.length === 0 || isSubmitting}>
-                {isSubmitting ? "Se procesează..." : "Creare bon de transfer"}
+              <Button type="submit" form="transfer-form" disabled={selectedItems.length === 0 || isSubmitting} className="flex-1 sm:flex-none h-12 sm:h-10">
+                {isSubmitting ? "Se procesează..." : "Creare bon"}
               </Button>
             </DialogFooter>
           </div>
