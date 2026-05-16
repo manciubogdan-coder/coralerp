@@ -6,12 +6,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Calendar, FileSpreadsheet, Edit, Trash2, Printer } from "lucide-react";
+import { Calendar, FileSpreadsheet, Edit, Trash2, Printer, QrCode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useGroupedReceptions } from "@/hooks/use-grouped-receptions";
 import { useInventoryType } from "@/context/inventory-type";
+import { LotQRDialog } from "./LotQRDialog";
 
 interface ReceptionItem {
   id: string;
@@ -49,6 +50,8 @@ export const ReceptionHistory = () => {
   const [groupBy, setGroupBy] = useState<GroupingMode>('none');
   const [editingItem, setEditingItem] = useState<ReceptionItem | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [qrLotId, setQrLotId] = useState<string | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
   const [editFormData, setEditFormData] = useState({
@@ -367,6 +370,34 @@ export const ReceptionHistory = () => {
     window.print();
   };
 
+  const handleOpenQR = async (item: ReceptionItem) => {
+    try {
+      const inventoryTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_inventory'
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory'
+          : 'inventory';
+      const { data, error } = await (supabase as any)
+        .from(inventoryTable)
+        .select('id')
+        .eq('entry_number', item.entry_number)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data?.id) {
+        toast({
+          title: 'Lot indisponibil',
+          description: 'Lotul a fost șters din stocul curent — nu pot regenera QR-ul.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setQrLotId(data.id);
+      setQrOpen(true);
+    } catch (e: any) {
+      toast({ title: 'Eroare', description: e.message, variant: 'destructive' });
+    }
+  };
+
   // Calculate pagination
   const totalPages = Math.ceil(groupedData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -504,6 +535,15 @@ export const ReceptionHistory = () => {
                     <TableCell className="px-2 py-3 text-center print:hidden">
                       {!isGroupHeader && (
                         <div className="flex gap-1 justify-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenQR(item)}
+                            className="h-6 w-6 p-0"
+                            title="Printează QR lot"
+                          >
+                            <QrCode className="h-3 w-3" />
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
@@ -705,6 +745,13 @@ export const ReceptionHistory = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <LotQRDialog
+        open={qrOpen}
+        onOpenChange={setQrOpen}
+        inventoryId={qrLotId}
+        inventoryType={inventoryType}
+      />
     </div>
   );
 };

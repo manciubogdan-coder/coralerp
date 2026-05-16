@@ -7,6 +7,9 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import NotificationBell from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
+import { Button } from "@/components/ui/button";
+import { ScanLine } from "lucide-react";
+import { QRScannerDialog } from "@/components/inventory/QRScannerDialog";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import ProfilePage from "./pages/ProfilePage";
 
@@ -83,6 +86,7 @@ const queryClient = new QueryClient({
 const AppShell = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [scanOpen, setScanOpen] = React.useState(false);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -93,6 +97,15 @@ const AppShell = () => {
 
       const code = e.code;
       const key = e.key.toLowerCase();
+
+      // Ctrl+Alt+S = scan QR (works from anywhere)
+      if (code === "KeyS" || key === "s") {
+        e.preventDefault();
+        e.stopPropagation();
+        setScanOpen(true);
+        return;
+      }
+
       let evtName: string | null = null;
       if (code === "KeyB" || key === "b") evtName = "open-transfer-form";
       else if (code === "KeyN" || key === "n") evtName = "open-reception-form";
@@ -110,13 +123,19 @@ const AppShell = () => {
       if (onWarehouse) {
         window.dispatchEvent(new Event(evtName));
       } else {
-        // navighează la depozit MP și deschide formularul după montare
         navigate("/depozit-mp");
         setTimeout(() => window.dispatchEvent(new Event(evtName!)), 400);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+
+    const openScan = () => setScanOpen(true);
+    window.addEventListener("open-qr-scanner", openScan);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("open-qr-scanner", openScan);
+    };
   }, [navigate, location.pathname]);
 
   return (
@@ -128,6 +147,15 @@ const AppShell = () => {
             <div className="flex items-center justify-between p-2 sm:p-4 border-b">
               <SidebarTrigger className="mr-2 sm:mr-4" />
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setScanOpen(true)}
+                  title="Scanează cod QR lot (Ctrl+Alt+S)"
+                >
+                  <ScanLine className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Scan QR</span>
+                </Button>
                 <CollaborationAlertBadges />
                 <NotificationBell />
                 <UserMenu />
@@ -384,6 +412,7 @@ const AppShell = () => {
           </div>
         </SidebarInset>
       </div>
+      <QRScannerDialog open={scanOpen} onOpenChange={setScanOpen} />
     </SidebarProvider>
   );
 };
