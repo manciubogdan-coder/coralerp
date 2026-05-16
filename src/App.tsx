@@ -138,6 +138,9 @@ const AppShell = () => {
                 {/* Hub principal */}
                 <Route path="/" element={<DepartmentHub />} />
 
+                {/* ========== LOT (scan QR) ========== */}
+                <Route path="/lot/:id" element={<LotDetailPage />} />
+
                 {/* ========== PROFIL ========== */}
                 <Route path="/profil" element={<ProfilePage />} />
 
