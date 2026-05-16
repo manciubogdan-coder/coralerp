@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { QRCodeSVG } from "qrcode.react";
 
 export interface LotLabelData {
@@ -20,111 +21,112 @@ const typeLabel = (t: string) =>
 
 const formatDate = (d?: string | null) => {
   if (!d) return "—";
-  try {
-    return new Date(d).toLocaleDateString("ro-RO");
-  } catch {
-    return d;
-  }
+  try { return new Date(d).toLocaleDateString("ro-RO"); } catch { return d; }
 };
 
 /**
  * Etichetă printabilă (~50×30mm) pentru rolă termică.
- * Are clasa `lot-label` și este înconjurată într-un wrapper print-only.
+ * Folosim un PORTAL direct pe <body> + `display:none` pe toți ceilalți copii
+ * ai body-ului în print, ca să nu se mai pagineze conținutul real
+ * (altfel imprimă ~16 pagini pentru că restul UI-ului rămâne în layout).
  */
 export const LotQRLabel: React.FC<{ data: LotLabelData }> = ({ data }) => {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const url = `${origin}/lot/${data.id}`;
 
-  return (
-    <div className="lot-label-wrapper">
-      <style>{`
-        .lot-label {
-          width: 50mm;
-          height: 30mm;
-          padding: 1.5mm;
-          display: flex;
-          gap: 2mm;
-          font-family: ui-sans-serif, system-ui, sans-serif;
-          color: #000;
-          background: #fff;
-          box-sizing: border-box;
-          overflow: hidden;
-          border: 1px dashed #ccc;
-        }
-        .lot-label .qr { flex-shrink: 0; display:flex; align-items:center; }
-        .lot-label .info {
-          flex: 1;
-          min-width: 0;
-          font-size: 6.5pt;
-          line-height: 1.15;
-          display: flex;
-          flex-direction: column;
-          gap: 0.4mm;
-        }
-        .lot-label .info .name {
-          font-size: 8pt;
-          font-weight: 700;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .lot-label .info .qty {
-          font-size: 9pt;
-          font-weight: 700;
-        }
-        .lot-label .info .row {
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .lot-label .info .badge {
-          display: inline-block;
-          font-size: 5.5pt;
-          font-weight: 700;
-          padding: 0.2mm 0.8mm;
-          border: 0.3mm solid #000;
-          border-radius: 0.6mm;
-          margin-right: 1mm;
-        }
-        @media print {
-          @page { size: 50mm 30mm; margin: 0; }
-          html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
-          body * { visibility: hidden !important; }
-          .lot-label-wrapper, .lot-label-wrapper * { visibility: visible !important; }
-          .lot-label-wrapper {
-            position: fixed !important;
-            inset: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #fff !important;
-          }
-          .lot-label { border: none !important; }
-        }
-      `}</style>
-      <div className="lot-label">
-        <div className="qr">
-          <QRCodeSVG value={url} size={96} level="M" includeMargin={false} />
+  const labelMarkup = (
+    <div className="lot-label">
+      <div className="qr">
+        <QRCodeSVG value={url} size={96} level="M" includeMargin={false} />
+      </div>
+      <div className="info">
+        <div className="name" title={data.name}>{data.name}</div>
+        <div className="qty">
+          {Number(data.quantity).toLocaleString("ro-RO", { maximumFractionDigits: 2 })} {data.unit}
         </div>
-        <div className="info">
-          <div className="name" title={data.name}>{data.name}</div>
-          <div className="qty">
-            {Number(data.quantity).toLocaleString("ro-RO", {
-              maximumFractionDigits: 2,
-            })} {data.unit}
-          </div>
-          <div className="row">
-            <span className="badge">{typeLabel(data.inventory_type)}</span>
-            Lot: {data.lot_number || "—"}
-          </div>
-          {data.supplier && <div className="row">F: {data.supplier}</div>}
-          {data.manufacturer && <div className="row">P: {data.manufacturer}</div>}
-          <div className="row">
-            {formatDate(data.receipt_date)}
-            {data.entry_number ? ` · #${data.entry_number}` : ""}
-          </div>
+        <div className="row">
+          <span className="badge">{typeLabel(data.inventory_type)}</span>
+          Lot: {data.lot_number || "—"}
+        </div>
+        {data.supplier && <div className="row">F: {data.supplier}</div>}
+        {data.manufacturer && <div className="row">P: {data.manufacturer}</div>}
+        <div className="row">
+          {formatDate(data.receipt_date)}
+          {data.entry_number ? ` · #${data.entry_number}` : ""}
         </div>
       </div>
     </div>
+  );
+
+  const styleTag = (
+    <style>{`
+      .lot-label {
+        width: 50mm;
+        height: 30mm;
+        padding: 1.5mm;
+        display: flex;
+        gap: 2mm;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        color: #000;
+        background: #fff;
+        box-sizing: border-box;
+        overflow: hidden;
+        border: 1px dashed #ccc;
+      }
+      .lot-label .qr { flex-shrink: 0; display:flex; align-items:center; }
+      .lot-label .info {
+        flex: 1; min-width: 0; font-size: 6.5pt; line-height: 1.15;
+        display: flex; flex-direction: column; gap: 0.4mm;
+      }
+      .lot-label .info .name {
+        font-size: 8pt; font-weight: 700;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .lot-label .info .qty { font-size: 9pt; font-weight: 700; }
+      .lot-label .info .row {
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .lot-label .info .badge {
+        display: inline-block; font-size: 5.5pt; font-weight: 700;
+        padding: 0.2mm 0.8mm; border: 0.3mm solid #000;
+        border-radius: 0.6mm; margin-right: 1mm;
+      }
+
+      /* Portal-ul nu se vede pe ecran — doar la print */
+      .lot-label-print-portal { display: none; }
+
+      @media print {
+        @page { size: 50mm 30mm; margin: 0; }
+        html, body {
+          margin: 0 !important; padding: 0 !important;
+          background: #fff !important;
+        }
+        /* Ascunde TOATĂ aplicația, mai puțin portalul nostru */
+        body > *:not(.lot-label-print-portal) { display: none !important; }
+        .lot-label-print-portal {
+          display: block !important;
+          position: static !important;
+        }
+        .lot-label-print-portal .lot-label { border: none !important; }
+      }
+    `}</style>
+  );
+
+  // Pe ecran: arătăm preview-ul direct (pentru dialog).
+  // În același timp montăm un PORTAL pe body care e ascuns pe ecran
+  // și care la print devine singurul conținut vizibil → 1 pagină 50×30mm.
+  const portalTarget = typeof document !== "undefined" ? document.body : null;
+
+  return (
+    <>
+      {styleTag}
+      <div className="lot-label-onscreen">{labelMarkup}</div>
+      {portalTarget &&
+        createPortal(
+          <div className="lot-label-print-portal">{labelMarkup}</div>,
+          portalTarget
+        )}
+    </>
   );
 };
 
