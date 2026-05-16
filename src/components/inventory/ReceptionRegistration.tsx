@@ -39,6 +39,8 @@ export function ReceptionRegistration({
   const [isOpen, setIsOpen] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [qrLotId, setQrLotId] = useState<string | null>(null);
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [productId, setProductId] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [manufacturerId, setManufacturerId] = useState<string | null>(null);
