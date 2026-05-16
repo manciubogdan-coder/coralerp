@@ -50,49 +50,11 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
   const { inventoryType } = useInventoryType();
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [grossQuantity, setGrossQuantity] = useState<number>(transfer.quantity);
-  const [crateCount, setCrateCount] = useState<number>(transfer.crate_count || 0);
-  const [selectedCrateTypeId, setSelectedCrateTypeId] = useState<string>(transfer.crate_type_id || '');
-  const [crateWeight, setCrateWeight] = useState<number>(transfer.crate_weight || 0);
-  const [palletCount, setPalletCount] = useState<number>(0);
-  const [palletWeight, setPalletWeight] = useState<number>(0);
+  const originalNet = transfer.net_quantity ?? transfer.quantity;
+  const [netQuantity, setNetQuantity] = useState<number>(originalNet);
   const [notes, setNotes] = useState<string>("");
-  const [crateTypes, setCrateTypes] = useState<CrateType[]>([]);
-
-  useEffect(() => {
-    const fetchCrateTypes = async () => {
-      const crateTypesTable = inventoryType === 'ambalaje'
-        ? 'ambalaje_crate_types'
-        : inventoryType === 'etichete'
-          ? 'etichete_crate_types'
-          : 'crate_types';
-      const { data, error } = await supabase
-        .from(crateTypesTable)
-        .select('*')
-        .order('name');
-      if (error) {
-        console.error("Error fetching crate types:", error);
-        return;
-      }
-      setCrateTypes(data || []);
-    };
-    fetchCrateTypes();
-  }, [inventoryType]);
-
-  useEffect(() => {
-    if (selectedCrateTypeId) {
-      const selectedType = crateTypes.find(type => type.id === selectedCrateTypeId);
-      if (selectedType) setCrateWeight(selectedType.weight);
-    }
-  }, [selectedCrateTypeId, crateTypes]);
-
-  const calculateNetQuantity = () => {
-    const totalCrateWeight = crateWeight * crateCount;
-    const totalPalletWeight = palletWeight;
-    return Math.max(0, grossQuantity - totalCrateWeight - totalPalletWeight);
-  };
-
-  const netQuantity = calculateNetQuantity();
+  // Tratăm cantitatea introdusă ca NET (fără lădițe/paleți)
+  const grossQuantity = netQuantity;
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -369,96 +331,34 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
           
           <div className="space-y-2">
             <div className="font-medium text-sm text-muted-foreground">
-              Cantitate transferată inițial: {transfer.quantity} {transfer.unit}
+              Cantitate transferată inițial: {originalNet} {transfer.unit}
             </div>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="grossQuantity" className="font-medium">
-              Cantitate brută returnată ({transfer.unit})
+            <label htmlFor="netQuantity" className="font-medium">
+              Cantitate netă returnată ({transfer.unit})
             </label>
             <Input
-              id="grossQuantity"
+              id="netQuantity"
               type="number"
+              inputMode="decimal"
               min="0.01"
-              max={transfer.quantity}
+              max={originalNet}
               step="0.01"
-              value={grossQuantity}
-              onChange={(e) => setGrossQuantity(parseFloat(e.target.value) || 0)}
+              value={netQuantity || ""}
+              onChange={(e) => setNetQuantity(parseFloat(e.target.value) || 0)}
+              className="h-12 text-lg"
               required
             />
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="crateCount" className="font-medium">Număr lădițe returnate</label>
-            <Input
-              id="crateCount"
-              type="number"
-              min="0"
-              value={crateCount}
-              onChange={(e) => setCrateCount(parseInt(e.target.value) || 0)}
-            />
-          </div>
-
-          {crateCount > 0 && (
-            <div className="space-y-2">
-              <label htmlFor="crateType" className="font-medium">Tip lădiță</label>
-              <Select value={selectedCrateTypeId} onValueChange={setSelectedCrateTypeId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Alege tipul de lădiță" />
-                </SelectTrigger>
-                <SelectContent>
-                  {crateTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name} ({type.weight} kg)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedCrateTypeId && (
-                <div className="text-sm text-muted-foreground">
-                  Greutate totală lădițe: {(crateWeight * crateCount).toFixed(2)} kg
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label htmlFor="palletCount" className="font-medium">Număr paleți returnați</label>
-            <Input
-              id="palletCount"
-              type="number"
-              min="0"
-              value={palletCount}
-              onChange={(e) => setPalletCount(parseInt(e.target.value) || 0)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="palletWeight" className="font-medium">Greutate totală paleți (kg)</label>
-            <Input
-              id="palletWeight"
-              type="number"
-              min="0"
-              step="0.01"
-              value={palletWeight}
-              onChange={(e) => setPalletWeight(parseFloat(e.target.value) || 0)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="font-medium">Cantitate netă calculată</div>
-            <div className="px-4 py-2 bg-gray-100 rounded border">
-              {netQuantity.toFixed(2)} {transfer.unit}
-            </div>
-          </div>
-
-          <div className="space-y-2">
             <div className="font-medium text-sm text-muted-foreground">
-              Cantitate rămasă la destinație: {(transfer.quantity - netQuantity).toFixed(2)} {transfer.unit}
+              Cantitate rămasă la destinație: {Math.max(0, originalNet - netQuantity).toFixed(2)} {transfer.unit}
             </div>
           </div>
-          
+
           
           <div className="space-y-2">
             <label htmlFor="notes" className="font-medium">
