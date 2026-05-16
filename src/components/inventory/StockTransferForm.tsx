@@ -85,17 +85,70 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     if (isOpen) {
       fetchInventory();
       fetchCrateTypes();
+    } else {
+      // Reset preselect when dialog closes
+      pendingPreselectRef.current = null;
     }
   }, [isOpen, inventoryType]);
 
+  // Auto-add the scanned lot once inventory is loaded
   useEffect(() => {
-    const handler = () => setIsOpen(true);
-    window.addEventListener("open-transfer-form", handler);
-    return () => window.removeEventListener("open-transfer-form", handler);
+    const targetId = pendingPreselectRef.current;
+    if (!isOpen || !targetId || inventory.length === 0) return;
+    const match = inventory.find((it) => it.id === targetId);
+    if (!match) return;
+    const productName = match.products?.name || match.name || "Produs necunoscut";
+    const lotKey = `${productName}-${match.lot_number || "fara-lot"}`;
+    // Skip if already added
+    if (selectedItems.some((s) => s.lotKey === lotKey)) {
+      pendingPreselectRef.current = null;
+      return;
+    }
+    // Aggregate all inventory entries sharing the same product+lot
+    const sameLot = inventory.filter((it) => {
+      const pn = it.products?.name || it.name || "";
+      return pn === productName && (it.lot_number || "") === (match.lot_number || "");
+    });
+    const total = sameLot.reduce((s, it) => s + Number(it.quantity || 0), 0);
+    const transferItem: TransferItem = {
+      lotKey,
+      productName,
+      lot_number: match.lot_number || "",
+      quantity: total,
+      unit: match.unit,
+      maxQuantity: total,
+      items: sameLot,
+      supplier: match.supplier || match.suppliers?.name,
+      manufacturer: match.manufacturer || match.manufacturers?.name,
+      product_id: match.product_id,
+      supplier_id: match.supplier_id,
+      manufacturer_id: match.manufacturer_id,
+    };
+    setSelectedItems((prev) => [...prev, transferItem]);
+    pendingPreselectRef.current = null;
+    toast({
+      title: "Lot preselectat din scanare",
+      description: `${productName} • Lot ${match.lot_number || "N/A"} • ${total.toFixed(2)} ${match.unit}`,
+    });
+  }, [inventory, isOpen]);
+
+  const pendingPreselectRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { inventoryItemId?: string } | undefined;
+      if (detail?.inventoryItemId) {
+        pendingPreselectRef.current = detail.inventoryItemId;
+      }
+      setIsOpen(true);
+    };
+    window.addEventListener("open-transfer-form", handler as EventListener);
+    return () => window.removeEventListener("open-transfer-form", handler as EventListener);
   }, []);
 
   useEffect(() => {
     if (!isOpen || isMobile) return;
+    if (pendingPreselectRef.current) return; // skip auto-open when lot pre-selected
     const timer = window.setTimeout(() => {
       productSelectTriggerRef.current?.focus();
       productSelectTriggerRef.current?.click();
@@ -522,7 +575,11 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           Bon de Transfer
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] overflow-hidden">
+      <DialogContent
+        className="max-w-3xl w-[95vw] max-h-[90vh] overflow-hidden"
+        onPointerDownOutside={(e) => { if (isMobile) e.preventDefault(); }}
+        onInteractOutside={(e) => { if (isMobile) e.preventDefault(); }}
+      >
         <div className="flex flex-col h-full max-h-[90vh]">
           <div className="p-6 border-b shrink-0">
             <DialogHeader>

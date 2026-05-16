@@ -289,3 +289,14 @@
     width: 100% !important;
   }
 }
+
+/* Prevent iOS Safari from auto-zooming when focusing inputs in dialogs.
+   iOS triggers zoom when input font-size is < 16px. */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea,
+  [role="combobox"] {
+    font-size: 16px !important;
+  }
+}

@@ -334,7 +334,15 @@ export function ReceptionRegistration({
           Înregistrare recepție
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => {
+          if (typeof window !== "undefined" && window.innerWidth < 768) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (typeof window !== "undefined" && window.innerWidth < 768) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {isEtichete ? 'Înregistrare recepție etichete' : 'Înregistrare recepție nouă (cantitate netă)'}

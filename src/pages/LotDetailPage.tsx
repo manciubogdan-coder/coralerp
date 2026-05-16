@@ -143,7 +143,13 @@ const LotDetailPage: React.FC = () => {
   const openTransferForm = () => {
     if (!info) return;
     navigate(TYPE_PATH[info.inventory_type]);
-    setTimeout(() => window.dispatchEvent(new Event("open-transfer-form")), 400);
+    setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("open-transfer-form", {
+          detail: { inventoryItemId: info.id },
+        })
+      );
+    }, 400);
   };
 
   if (loading) {
