@@ -650,5 +650,12 @@ export function ReceptionRegistration({
         </div>
       </ConfirmationDialog>
     </Dialog>
+    <LotQRDialog
+      open={qrDialogOpen}
+      onOpenChange={setQrDialogOpen}
+      inventoryId={qrLotId}
+      inventoryType={inventoryType}
+    />
+    </>
   );
 }
