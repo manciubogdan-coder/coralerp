@@ -96,6 +96,7 @@ export const QRScannerDialog: React.FC<QRScannerDialogProps> = ({
             { fps: 10, qrbox: { width: 240, height: 240 } },
             (decodedText) => {
               const id = extractLotId(decodedText);
+              debugScan(decodedText, id);
               if (!id) return;
               stopScanner().finally(() => {
                 onOpenChange(false);
