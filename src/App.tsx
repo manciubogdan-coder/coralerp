@@ -412,6 +412,7 @@ const AppShell = () => {
           </div>
         </SidebarInset>
       </div>
+      <QRScannerDialog open={scanOpen} onOpenChange={setScanOpen} />
     </SidebarProvider>
   );
 };
