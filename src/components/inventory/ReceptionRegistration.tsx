@@ -335,7 +335,7 @@ export function ReceptionRegistration({
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="max-w-2xl max-h-[90vh] overflow-hidden p-0 gap-0 flex flex-col max-sm:inset-0 max-sm:w-screen max-sm:h-[100dvh] max-sm:max-w-none max-sm:max-h-none max-sm:rounded-none max-sm:border-0 max-sm:left-0 max-sm:top-0 max-sm:translate-x-0 max-sm:translate-y-0"
         onPointerDownOutside={(e) => {
           if (typeof window !== "undefined" && window.innerWidth < 768) e.preventDefault();
         }}
@@ -343,13 +343,13 @@ export function ReceptionRegistration({
           if (typeof window !== "undefined" && window.innerWidth < 768) e.preventDefault();
         }}
       >
-        <DialogHeader>
-          <DialogTitle>
+        <DialogHeader className="p-4 sm:p-6 border-b shrink-0">
+          <DialogTitle className="text-base sm:text-lg pr-8">
             {isEtichete ? 'Înregistrare recepție etichete' : 'Înregistrare recepție nouă (cantitate netă)'}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6">
           <div className="space-y-2">
             <label className="font-medium">Produs</label>
             <Select value={productId || ''} onValueChange={setProductId}>
