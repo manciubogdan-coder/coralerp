@@ -699,6 +699,13 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                                   <span className="text-sm text-blue-600 font-medium">
                                     Total disponibil: {group.totalQuantity.toFixed(2)} {group.unit}
                                   </span>
+                                  {(group.supplier || group.manufacturer) && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {group.supplier && <>Furnizor: {group.supplier}</>}
+                                      {group.supplier && group.manufacturer && " • "}
+                                      {group.manufacturer && <>Producător: {group.manufacturer}</>}
+                                    </span>
+                                  )}
                                 </div>
                               </SelectItem>
                             ))
@@ -718,6 +725,16 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           <div className="flex items-center justify-between">
                             <div>
                               <h4 className="font-medium">{item.productName}</h4>
+                              {item.lot_number && (
+                                <p className="text-xs text-muted-foreground">Lot: {item.lot_number}</p>
+                              )}
+                              {(item.supplier || item.manufacturer) && (
+                                <p className="text-xs text-muted-foreground">
+                                  {item.supplier && <>Furnizor: {item.supplier}</>}
+                                  {item.supplier && item.manufacturer && " • "}
+                                  {item.manufacturer && <>Producător: {item.manufacturer}</>}
+                                </p>
+                              )}
                               <p className="text-sm text-blue-600">
                                 Disponibil: {item.maxQuantity} {item.unit}
                               </p>
@@ -733,55 +750,19 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                           </div>
 
                           <div className="space-y-3">
-                            {inventoryType === "etichete" ? (
-                              <div>
-                                <label className="text-sm">Cantitate ({item.unit})</label>
-                                <Input
-                                  type="number"
-                                  value={item.quantity}
-                                  onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
-                                  className={isMobile ? "h-12" : ""}
-                                />
-                              </div>
-                            ) : (
-                              <>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-sm">Brut {item.unit}</label>
-                                    <Input
-                                      type="number"
-                                      value={item.grossQuantity || ""}
-                                      onChange={(e) =>
-                                        handleGrossQuantityChange(index, parseFloat(e.target.value) || 0)
-                                      }
-                                      className={isMobile ? "h-12" : ""}
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-sm">Tip lădiță</label>
-                                    <Select
-                                      value={item.crateTypeId || "no-crate"}
-                                      onValueChange={(value) => handleCrateTypeChange(index, value)}
-                                    >
-                                      <SelectTrigger className={isMobile ? "h-12" : ""}>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent disablePortal={true}>
-                                        <SelectItem value="no-crate">Fără lăzi</SelectItem>
-                                        {crateTypes.map((ct) => (
-                                          <SelectItem key={ct.id} value={ct.id}>
-                                            {ct.name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-                                <div className="font-bold text-blue-600">
-                                  Net final: {item.quantity.toFixed(2)} {item.unit}
-                                </div>
-                              </>
-                            )}
+                            <div>
+                              <label className="text-sm font-medium">Cantitate netă ({item.unit})</label>
+                              <Input
+                                type="number"
+                                inputMode="decimal"
+                                step="0.01"
+                                min="0"
+                                value={item.quantity || ""}
+                                onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
+                                className={isMobile ? "h-12 text-lg" : ""}
+                                placeholder={`Net în ${item.unit}`}
+                              />
+                            </div>
                           </div>
                         </div>
                       ))}
