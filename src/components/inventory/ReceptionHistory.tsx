@@ -370,6 +370,34 @@ export const ReceptionHistory = () => {
     window.print();
   };
 
+  const handleOpenQR = async (item: ReceptionItem) => {
+    try {
+      const inventoryTable = inventoryType === 'ambalaje'
+        ? 'ambalaje_inventory'
+        : inventoryType === 'etichete'
+          ? 'etichete_inventory'
+          : 'inventory';
+      const { data, error } = await (supabase as any)
+        .from(inventoryTable)
+        .select('id')
+        .eq('entry_number', item.entry_number)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data?.id) {
+        toast({
+          title: 'Lot indisponibil',
+          description: 'Lotul a fost șters din stocul curent — nu pot regenera QR-ul.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setQrLotId(data.id);
+      setQrOpen(true);
+    } catch (e: any) {
+      toast({ title: 'Eroare', description: e.message, variant: 'destructive' });
+    }
+  };
+
   // Calculate pagination
   const totalPages = Math.ceil(groupedData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
