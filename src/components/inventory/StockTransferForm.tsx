@@ -148,6 +148,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
   useEffect(() => {
     if (!isOpen || isMobile) return;
+    if (pendingPreselectRef.current) return; // skip auto-open when lot pre-selected
     const timer = window.setTimeout(() => {
       productSelectTriggerRef.current?.focus();
       productSelectTriggerRef.current?.click();
