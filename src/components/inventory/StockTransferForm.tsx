@@ -88,10 +88,18 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     }
   }, [isOpen, inventoryType]);
 
+  const pendingPreselectRef = useRef<string | null>(null);
+
   useEffect(() => {
-    const handler = () => setIsOpen(true);
-    window.addEventListener("open-transfer-form", handler);
-    return () => window.removeEventListener("open-transfer-form", handler);
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { inventoryItemId?: string } | undefined;
+      if (detail?.inventoryItemId) {
+        pendingPreselectRef.current = detail.inventoryItemId;
+      }
+      setIsOpen(true);
+    };
+    window.addEventListener("open-transfer-form", handler as EventListener);
+    return () => window.removeEventListener("open-transfer-form", handler as EventListener);
   }, []);
 
   useEffect(() => {
