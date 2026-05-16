@@ -11,6 +11,7 @@ import { useInventoryType } from "@/context/inventory-type";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
 import { emitNotification } from "@/lib/notifications";
+import { LotQRDialog } from "./LotQRDialog";
 import {
   type BreakdownEntry,
   encodePalDoc,
