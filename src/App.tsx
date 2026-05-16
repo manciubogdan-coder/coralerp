@@ -83,6 +83,7 @@ const queryClient = new QueryClient({
 const AppShell = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [scanOpen, setScanOpen] = React.useState(false);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -93,6 +94,15 @@ const AppShell = () => {
 
       const code = e.code;
       const key = e.key.toLowerCase();
+
+      // Ctrl+Alt+S = scan QR (works from anywhere)
+      if (code === "KeyS" || key === "s") {
+        e.preventDefault();
+        e.stopPropagation();
+        setScanOpen(true);
+        return;
+      }
+
       let evtName: string | null = null;
       if (code === "KeyB" || key === "b") evtName = "open-transfer-form";
       else if (code === "KeyN" || key === "n") evtName = "open-reception-form";
@@ -110,13 +120,19 @@ const AppShell = () => {
       if (onWarehouse) {
         window.dispatchEvent(new Event(evtName));
       } else {
-        // navighează la depozit MP și deschide formularul după montare
         navigate("/depozit-mp");
         setTimeout(() => window.dispatchEvent(new Event(evtName!)), 400);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+
+    const openScan = () => setScanOpen(true);
+    window.addEventListener("open-qr-scanner", openScan);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("open-qr-scanner", openScan);
+    };
   }, [navigate, location.pathname]);
 
   return (
