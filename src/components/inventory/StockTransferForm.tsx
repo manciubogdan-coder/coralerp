@@ -576,21 +576,21 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="max-w-3xl w-[95vw] max-h-[90vh] overflow-hidden"
+        className="max-w-3xl w-[95vw] max-h-[90vh] overflow-hidden p-0 gap-0 max-sm:inset-0 max-sm:w-screen max-sm:h-[100dvh] max-sm:max-w-none max-sm:max-h-none max-sm:rounded-none max-sm:border-0 max-sm:left-0 max-sm:top-0 max-sm:translate-x-0 max-sm:translate-y-0"
         onPointerDownOutside={(e) => { if (isMobile) e.preventDefault(); }}
         onInteractOutside={(e) => { if (isMobile) e.preventDefault(); }}
       >
-        <div className="flex flex-col h-full max-h-[90vh]">
-          <div className="p-6 border-b shrink-0">
+        <div className="flex flex-col h-full max-h-[100dvh] sm:max-h-[90vh]">
+          <div className="p-4 sm:p-6 border-b shrink-0">
             <DialogHeader>
-              <DialogTitle>Creare Bon de Transfer Gestiune</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-base sm:text-lg">Creare Bon de Transfer Gestiune</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">
                 Transferați produse din stocul depozit către producție sau alte departamente.
               </DialogDescription>
             </DialogHeader>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto p-6">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
             <Form {...form}>
               <form id="transfer-form" className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
