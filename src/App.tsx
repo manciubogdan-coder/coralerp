@@ -147,6 +147,15 @@ const AppShell = () => {
             <div className="flex items-center justify-between p-2 sm:p-4 border-b">
               <SidebarTrigger className="mr-2 sm:mr-4" />
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setScanOpen(true)}
+                  title="Scanează cod QR lot (Ctrl+Alt+S)"
+                >
+                  <ScanLine className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Scan QR</span>
+                </Button>
                 <CollaborationAlertBadges />
                 <NotificationBell />
                 <UserMenu />
