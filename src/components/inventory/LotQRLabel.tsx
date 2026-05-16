@@ -98,32 +98,35 @@ export const LotQRLabel: React.FC<{ data: LotLabelData }> = ({ data }) => {
       .lot-label-print-portal { display: none; }
 
       @media print {
-        /* Lăsăm browser-ul să folosească formatul ales de utilizator în dialogul
-           de print (A4, A5, sau termică 50×30mm). Nu mai forțăm @page size, ca să
-           nu mai apară 16 pagini sau o etichetă minusculă într-un colț. */
-        @page { margin: 6mm; }
+        @page { margin: 0; }
         html, body {
           margin: 0 !important; padding: 0 !important;
           background: #fff !important;
+          width: 100% !important; height: 100% !important;
         }
-        /* Ascunde TOATĂ aplicația, mai puțin portalul nostru */
         body > *:not(.lot-label-print-portal) { display: none !important; }
         .lot-label-print-portal {
-          display: flex !important;
-          align-items: center;
-          justify-content: center;
-          position: static !important;
-          width: 100%;
-          min-height: 100vh;
+          display: block !important;
+          position: fixed !important;
+          inset: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
         }
-        /* Pe A4 / coală mare → scalăm eticheta x4 ca să umple frumos pagina.
-           Pe rolă termică 50×30mm utilizatorul setează "Fit to page" și iese
-           tot la dimensiunea corectă. */
+        /* Eticheta umple TOATĂ foaia, indiferent de format (A4/A5/termică) */
         .lot-label-print-portal .lot-label {
+          width: 100vw !important;
+          height: 100vh !important;
+          padding: 4vmin !important;
+          gap: 4vmin !important;
           border: none !important;
-          transform: scale(4);
-          transform-origin: center center;
+          box-sizing: border-box !important;
         }
+        .lot-label-print-portal .lot-label .qr { width: 45vmin; height: 45vmin; }
+        .lot-label-print-portal .lot-label .qr svg { width: 100% !important; height: 100% !important; }
+        .lot-label-print-portal .lot-label .info { font-size: 4.5vmin !important; line-height: 1.25 !important; gap: 1.2vmin !important; }
+        .lot-label-print-portal .lot-label .info .name { font-size: 6vmin !important; }
+        .lot-label-print-portal .lot-label .info .qty  { font-size: 7vmin !important; }
+        .lot-label-print-portal .lot-label .info .badge { font-size: 3.5vmin !important; padding: 0.4vmin 1.2vmin !important; border-width: 0.4vmin !important; border-radius: 1vmin !important; }
       }
     `}</style>
   );
