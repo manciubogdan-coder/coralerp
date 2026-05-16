@@ -34,6 +34,7 @@ import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
 import InventoryOverviewPage from "./pages/InventoryPage";
 import ReceptionReportPage from "./pages/ReceptionReportPage";
+import LotDetailPage from "./pages/LotDetailPage";
 import PickingPage from "./pages/PickingPage";
 import OperatorHub from "./pages/OperatorHub";
 import AuthPage from "./pages/AuthPage";
@@ -136,6 +137,9 @@ const AppShell = () => {
               <Routes>
                 {/* Hub principal */}
                 <Route path="/" element={<DepartmentHub />} />
+
+                {/* ========== LOT (scan QR) ========== */}
+                <Route path="/lot/:id" element={<LotDetailPage />} />
 
                 {/* ========== PROFIL ========== */}
                 <Route path="/profil" element={<ProfilePage />} />

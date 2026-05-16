@@ -11,6 +11,7 @@ import { useInventoryType } from "@/context/inventory-type";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
 import { emitNotification } from "@/lib/notifications";
+import { LotQRDialog } from "./LotQRDialog";
 import {
   type BreakdownEntry,
   encodePalDoc,
@@ -38,6 +39,8 @@ export function ReceptionRegistration({
   const [isOpen, setIsOpen] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [qrLotId, setQrLotId] = useState<string | null>(null);
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [productId, setProductId] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [manufacturerId, setManufacturerId] = useState<string | null>(null);
@@ -295,6 +298,12 @@ export function ReceptionRegistration({
       setIsOpen(false);
       onRegistrationComplete();
 
+      // Open QR label dialog for the newly created lot
+      if (inventoryRowId) {
+        setQrLotId(inventoryRowId);
+        setQrDialogOpen(true);
+      }
+
       // Reset form
       setProductId(null);
       setSupplierId(null);
@@ -317,6 +326,7 @@ export function ReceptionRegistration({
   };
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button>
@@ -640,5 +650,12 @@ export function ReceptionRegistration({
         </div>
       </ConfirmationDialog>
     </Dialog>
+    <LotQRDialog
+      open={qrDialogOpen}
+      onOpenChange={setQrDialogOpen}
+      inventoryId={qrLotId}
+      inventoryType={inventoryType}
+    />
+    </>
   );
 }
