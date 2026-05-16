@@ -538,6 +538,15 @@ export const ReceptionHistory = () => {
                           <Button
                             size="sm"
                             variant="outline"
+                            onClick={() => handleOpenQR(item)}
+                            className="h-6 w-6 p-0"
+                            title="Printează QR lot"
+                          >
+                            <QrCode className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => handleEdit(item)}
                             className="h-6 w-6 p-0"
                           >
