@@ -1320,6 +1320,67 @@ const RaportTab: React.FC<{
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Indicatori de fiabilitate (MTTR & MTBF)</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            MTTR = timp mediu de reparație per defecțiune rezolvată. MTBF = timp mediu de funcționare între defecțiuni (interval total − ore oprire) / nr defecțiuni.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="border rounded-lg p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Wrench size={16} /> MTTR global
+              </div>
+              <div className="text-3xl font-bold mt-1">{mttrMtbf.mttr.toFixed(2)} <span className="text-base font-normal text-muted-foreground">ore</span></div>
+              <div className="text-xs text-muted-foreground mt-1">{mttrMtbf.resolvedCount} reparații rezolvate</div>
+            </div>
+            <div className="border rounded-lg p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Clock size={16} /> MTBF global
+              </div>
+              <div className="text-3xl font-bold mt-1">{mttrMtbf.mtbf.toFixed(2)} <span className="text-base font-normal text-muted-foreground">ore</span></div>
+              <div className="text-xs text-muted-foreground mt-1">interval analizat: {periodHours.toFixed(0)}h</div>
+            </div>
+          </div>
+
+          {perLineKpi.length === 0 ? (
+            <div className="text-center text-muted-foreground py-4 text-sm">Fără date pe linii.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Linie / utilaj</TableHead>
+                    <TableHead className="text-right">Nr. defecțiuni</TableHead>
+                    <TableHead className="text-right">MTTR (ore)</TableHead>
+                    <TableHead className="text-right">MTBF (ore)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {perLineKpi.map((r, i) => {
+                    const worst = i === 0 && r.nr > 1;
+                    return (
+                      <TableRow key={r.linie} className={worst ? "bg-red-50 dark:bg-red-950/20" : ""}>
+                        <TableCell className="font-medium">
+                          {r.linie}
+                          {worst && (
+                            <Badge className="ml-2 bg-red-500 text-white">Gaură neagră</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">{r.nr}</TableCell>
+                        <TableCell className="text-right">{r.mttr.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{r.mtbf.toFixed(2)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+        <CardHeader>
           <CardTitle>Defecțiuni pe linie</CardTitle>
         </CardHeader>
         <CardContent>
