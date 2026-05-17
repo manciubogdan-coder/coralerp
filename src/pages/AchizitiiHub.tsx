@@ -63,7 +63,7 @@ const AchizitiiHub: React.FC = () => {
   const [forecastWarehouse, setForecastWarehouse] = useState<WarehouseTab>("materii-prime");
 
   return (
-    <div className="container mx-auto py-4 md:py-6 space-y-4 md:space-y-6">
+    <div className="container mx-auto px-2 md:px-6 py-3 md:py-6 space-y-3 md:space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
