@@ -47,9 +47,9 @@ const WarehouseSelector: React.FC<{
       {WAREHOUSES.map((w) => {
         const Icon = w.icon;
         return (
-          <TabsTrigger key={w.id} value={w.id} className="flex items-center gap-2">
-            <Icon className="h-4 w-4" />
-            <span>{w.label}</span>
+          <TabsTrigger key={w.id} value={w.id} className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+            <Icon className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{w.label}</span>
           </TabsTrigger>
         );
       })}
