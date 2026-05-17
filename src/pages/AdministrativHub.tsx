@@ -23,7 +23,7 @@ const TILES: Tile[] = [
 const AdministrativHub: React.FC = () => {
   const navigate = useNavigate();
   return (
-    <div className="container mx-auto py-6 space-y-4">
+    <div className="container mx-auto px-2 md:px-6 py-3 md:py-6 space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">Administrativ</h1>

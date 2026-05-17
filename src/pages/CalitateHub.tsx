@@ -40,9 +40,9 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
   return (
     <ForceInventoryType type={type}>
       <Tabs value={sub} onValueChange={(v) => setSub(v as SubTabKey)} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-4 h-auto gap-1 p-1">
+        <TabsList className="flex w-full md:grid md:grid-cols-5 mb-4 h-auto gap-1 p-1 overflow-x-auto">
           {SUB_TABS.map((t) => (
-            <TabsTrigger key={t.key} value={t.key} className="text-xs sm:text-sm whitespace-normal h-auto py-2">
+            <TabsTrigger key={t.key} value={t.key} className="flex-shrink-0 text-xs sm:text-sm whitespace-nowrap md:whitespace-normal h-auto py-2 px-3">
               {t.label}
             </TabsTrigger>
           ))}
@@ -101,7 +101,7 @@ const CalitateHub: React.FC = () => {
   React.useEffect(() => { localStorage.setItem("calitate.depot", depot); }, [depot]);
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-4">
+    <div className="container mx-auto px-2 md:px-6 py-3 md:py-6 space-y-3 md:space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10 text-primary">

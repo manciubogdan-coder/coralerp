@@ -20,7 +20,7 @@ const VanzariHub: React.FC = () => {
   const [tab, setTab] = useState<TabKey>("stoc-marfa");
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-4">
+    <div className="container mx-auto px-2 md:px-6 py-3 md:py-6 space-y-3 md:space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10 text-primary">

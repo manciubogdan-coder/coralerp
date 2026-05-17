@@ -37,7 +37,7 @@ const InventoryPage = () => {
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
       
-      <main className="flex-1 container mx-auto p-2 md:p-6">
+      <main className="flex-1 container mx-auto px-2 md:px-6 py-2 md:py-6">
         <div className="mb-4 md:mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0">
           <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
             <Button 
