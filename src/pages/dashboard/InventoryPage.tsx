@@ -34,7 +34,7 @@ const InventoryPage = () => {
   };
   
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-gray-50 overflow-x-hidden">
       <Header />
       
       <main className="flex-1 container mx-auto px-2 md:px-6 py-2 md:py-6">
