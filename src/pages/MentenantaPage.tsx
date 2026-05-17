@@ -1248,7 +1248,16 @@ const RaportTab: React.FC<{
       { Indicator: "Nr. defecțiuni", Valoare: totals.nr },
       { Indicator: "Ore reparație (total)", Valoare: Number(totals.oreReparatie.toFixed(2)) },
       { Indicator: "Ore oprire efectivă (total)", Valoare: Number(totals.oreStop.toFixed(2)) },
+      { Indicator: "MTTR (ore)", Valoare: Number(mttrMtbf.mttr.toFixed(2)) },
+      { Indicator: "MTBF (ore)", Valoare: Number(mttrMtbf.mtbf.toFixed(2)) },
     ];
+
+    const kpiSheet = perLineKpi.map((r) => ({
+      Linie: r.linie,
+      "Nr. defecțiuni": r.nr,
+      "MTTR (ore)": Number(r.mttr.toFixed(2)),
+      "MTBF (ore)": Number(r.mtbf.toFixed(2)),
+    }));
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), "Sumar");
