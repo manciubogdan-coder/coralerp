@@ -19,38 +19,46 @@ export const InventoryViewOptions = ({
   return (
     <>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
-        <TabsList>
-          <TabsTrigger value="all">Toate</TabsTrigger>
-          <TabsTrigger value="today">Astăzi</TabsTrigger>
-          <TabsTrigger value="week">Ultima săptămână</TabsTrigger>
-          <TabsTrigger value="month">Ultima lună</TabsTrigger>
+        <TabsList className="flex w-full overflow-x-auto gap-1 h-auto p-1">
+          <TabsTrigger value="all" className="flex-shrink-0 text-xs md:text-sm">Toate</TabsTrigger>
+          <TabsTrigger value="today" className="flex-shrink-0 text-xs md:text-sm">Astăzi</TabsTrigger>
+          <TabsTrigger value="week" className="flex-shrink-0 text-xs md:text-sm">Ultima săptămână</TabsTrigger>
+          <TabsTrigger value="month" className="flex-shrink-0 text-xs md:text-sm">Ultima lună</TabsTrigger>
         </TabsList>
       </Tabs>
 
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 grid grid-cols-2 md:flex gap-2">
         <Button
+          size="sm"
           variant={groupBy === 'product' ? 'default' : 'outline'}
           onClick={() => setGroupBy('product')}
+          className="text-xs md:text-sm"
         >
-          Grupare după Produs
+          Grupare Produs
         </Button>
         <Button
+          size="sm"
           variant={groupBy === 'supplier' ? 'default' : 'outline'}
           onClick={() => setGroupBy('supplier')}
+          className="text-xs md:text-sm"
         >
-          Grupare după Furnizor
+          Grupare Furnizor
         </Button>
         <Button
+          size="sm"
           variant={groupBy === 'manufacturer' ? 'default' : 'outline'}
           onClick={() => setGroupBy('manufacturer')}
+          className="text-xs md:text-sm"
         >
-          Grupare după Producător
+          Grupare Producător
         </Button>
         <Button
+          size="sm"
           variant={groupBy === 'lot' ? 'default' : 'outline'}
           onClick={() => setGroupBy('lot')}
+          className="text-xs md:text-sm"
         >
-          Grupare după Lot
+          Grupare Lot
         </Button>
       </div>
     </>
