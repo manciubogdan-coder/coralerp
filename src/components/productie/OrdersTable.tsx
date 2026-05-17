@@ -360,6 +360,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
             })}
           </TableBody>
         </Table>
+        </div>
 
         {/* Componenta de paginație */}
         <OrdersPagination
