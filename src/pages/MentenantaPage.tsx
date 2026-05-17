@@ -1380,6 +1380,7 @@ const RaportTab: React.FC<{
         </CardContent>
       </Card>
 
+      <Card>
         <CardHeader>
           <CardTitle>Defecțiuni pe linie</CardTitle>
         </CardHeader>
