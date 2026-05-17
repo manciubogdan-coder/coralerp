@@ -1157,6 +1157,50 @@ const RaportTab: React.FC<{
     return Object.values(map).sort((a, b) => b.oreStop - a.oreStop);
   }, [inRange, lineMap]);
 
+  // MTTR & MTBF
+  // MTTR = total ore reparatie (durată defecțiune) / nr defecțiuni rezolvate
+  // MTBF = (ore disponibile în interval - ore oprire) / nr defecțiuni
+  const periodHours = useMemo(() => {
+    const fromD = new Date(`${from}T00:00:00`);
+    const toD = new Date(`${to}T23:59:59`);
+    return Math.max(0, (toD.getTime() - fromD.getTime()) / 3600000);
+  }, [from, to]);
+
+  const mttrMtbf = useMemo(() => {
+    const resolved = inRange.filter((d) => d.status === "rezolvata" && d.data_final);
+    const totalRepair = resolved.reduce(
+      (s, d) => s + hoursBetween(d.data_start, d.data_final),
+      0
+    );
+    const mttr = resolved.length ? totalRepair / resolved.length : 0;
+    const nrFail = inRange.length;
+    const uptime = Math.max(0, periodHours - totals.oreStop);
+    const mtbf = nrFail ? uptime / nrFail : 0;
+    return { mttr, mtbf, resolvedCount: resolved.length };
+  }, [inRange, periodHours, totals.oreStop]);
+
+  const perLineKpi = useMemo(() => {
+    const map: Record<string, { linie: string; nr: number; repair: number; resolved: number; stop: number }> = {};
+    inRange.forEach((d) => {
+      const k = lineMap[d.linie_id] ?? "?";
+      if (!map[k]) map[k] = { linie: k, nr: 0, repair: 0, resolved: 0, stop: 0 };
+      map[k].nr += 1;
+      map[k].stop += Number(d.ore_oprire_efectiva ?? 0);
+      if (d.status === "rezolvata" && d.data_final) {
+        map[k].resolved += 1;
+        map[k].repair += hoursBetween(d.data_start, d.data_final);
+      }
+    });
+    return Object.values(map)
+      .map((r) => ({
+        linie: r.linie,
+        nr: r.nr,
+        mttr: r.resolved ? r.repair / r.resolved : 0,
+        mtbf: r.nr ? Math.max(0, periodHours - r.stop) / r.nr : 0,
+      }))
+      .sort((a, b) => a.mtbf - b.mtbf);
+  }, [inRange, lineMap, periodHours]);
+
   const topComponente = useMemo(() => {
     const map: Record<string, number> = {};
     inRange.forEach((d) => {
