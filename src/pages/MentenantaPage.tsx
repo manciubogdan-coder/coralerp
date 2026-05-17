@@ -1157,6 +1157,50 @@ const RaportTab: React.FC<{
     return Object.values(map).sort((a, b) => b.oreStop - a.oreStop);
   }, [inRange, lineMap]);
 
+  // MTTR & MTBF
+  // MTTR = total ore reparatie (durată defecțiune) / nr defecțiuni rezolvate
+  // MTBF = (ore disponibile în interval - ore oprire) / nr defecțiuni
+  const periodHours = useMemo(() => {
+    const fromD = new Date(`${from}T00:00:00`);
+    const toD = new Date(`${to}T23:59:59`);
+    return Math.max(0, (toD.getTime() - fromD.getTime()) / 3600000);
+  }, [from, to]);
+
+  const mttrMtbf = useMemo(() => {
+    const resolved = inRange.filter((d) => d.status === "rezolvata" && d.data_final);
+    const totalRepair = resolved.reduce(
+      (s, d) => s + hoursBetween(d.data_start, d.data_final),
+      0
+    );
+    const mttr = resolved.length ? totalRepair / resolved.length : 0;
+    const nrFail = inRange.length;
+    const uptime = Math.max(0, periodHours - totals.oreStop);
+    const mtbf = nrFail ? uptime / nrFail : 0;
+    return { mttr, mtbf, resolvedCount: resolved.length };
+  }, [inRange, periodHours, totals.oreStop]);
+
+  const perLineKpi = useMemo(() => {
+    const map: Record<string, { linie: string; nr: number; repair: number; resolved: number; stop: number }> = {};
+    inRange.forEach((d) => {
+      const k = lineMap[d.linie_id] ?? "?";
+      if (!map[k]) map[k] = { linie: k, nr: 0, repair: 0, resolved: 0, stop: 0 };
+      map[k].nr += 1;
+      map[k].stop += Number(d.ore_oprire_efectiva ?? 0);
+      if (d.status === "rezolvata" && d.data_final) {
+        map[k].resolved += 1;
+        map[k].repair += hoursBetween(d.data_start, d.data_final);
+      }
+    });
+    return Object.values(map)
+      .map((r) => ({
+        linie: r.linie,
+        nr: r.nr,
+        mttr: r.resolved ? r.repair / r.resolved : 0,
+        mtbf: r.nr ? Math.max(0, periodHours - r.stop) / r.nr : 0,
+      }))
+      .sort((a, b) => a.mtbf - b.mtbf);
+  }, [inRange, lineMap, periodHours]);
+
   const topComponente = useMemo(() => {
     const map: Record<string, number> = {};
     inRange.forEach((d) => {
@@ -1204,7 +1248,16 @@ const RaportTab: React.FC<{
       { Indicator: "Nr. defecțiuni", Valoare: totals.nr },
       { Indicator: "Ore reparație (total)", Valoare: Number(totals.oreReparatie.toFixed(2)) },
       { Indicator: "Ore oprire efectivă (total)", Valoare: Number(totals.oreStop.toFixed(2)) },
+      { Indicator: "MTTR (ore)", Valoare: Number(mttrMtbf.mttr.toFixed(2)) },
+      { Indicator: "MTBF (ore)", Valoare: Number(mttrMtbf.mtbf.toFixed(2)) },
     ];
+
+    const kpiSheet = perLineKpi.map((r) => ({
+      Linie: r.linie,
+      "Nr. defecțiuni": r.nr,
+      "MTTR (ore)": Number(r.mttr.toFixed(2)),
+      "MTBF (ore)": Number(r.mtbf.toFixed(2)),
+    }));
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), "Sumar");
@@ -1219,6 +1272,7 @@ const RaportTab: React.FC<{
       }))),
       "Pe linie"
     );
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kpiSheet), "MTTR & MTBF");
     XLSX.writeFile(wb, `Mentenanta_${from}_${to}.xlsx`);
   };
 
@@ -1261,6 +1315,68 @@ const RaportTab: React.FC<{
               <div className="text-3xl font-bold mt-1">{totals.oreStop.toFixed(1)}</div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Indicatori de fiabilitate (MTTR & MTBF)</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            MTTR = timp mediu de reparație per defecțiune rezolvată. MTBF = timp mediu de funcționare între defecțiuni (interval total − ore oprire) / nr defecțiuni.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="border rounded-lg p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Wrench size={16} /> MTTR global
+              </div>
+              <div className="text-3xl font-bold mt-1">{mttrMtbf.mttr.toFixed(2)} <span className="text-base font-normal text-muted-foreground">ore</span></div>
+              <div className="text-xs text-muted-foreground mt-1">{mttrMtbf.resolvedCount} reparații rezolvate</div>
+            </div>
+            <div className="border rounded-lg p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Clock size={16} /> MTBF global
+              </div>
+              <div className="text-3xl font-bold mt-1">{mttrMtbf.mtbf.toFixed(2)} <span className="text-base font-normal text-muted-foreground">ore</span></div>
+              <div className="text-xs text-muted-foreground mt-1">interval analizat: {periodHours.toFixed(0)}h</div>
+            </div>
+          </div>
+
+          {perLineKpi.length === 0 ? (
+            <div className="text-center text-muted-foreground py-4 text-sm">Fără date pe linii.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Linie / utilaj</TableHead>
+                    <TableHead className="text-right">Nr. defecțiuni</TableHead>
+                    <TableHead className="text-right">MTTR (ore)</TableHead>
+                    <TableHead className="text-right">MTBF (ore)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {perLineKpi.map((r, i) => {
+                    const worst = i === 0 && r.nr > 1;
+                    return (
+                      <TableRow key={r.linie} className={worst ? "bg-red-50 dark:bg-red-950/20" : ""}>
+                        <TableCell className="font-medium">
+                          {r.linie}
+                          {worst && (
+                            <Badge className="ml-2 bg-red-500 text-white">Gaură neagră</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">{r.nr}</TableCell>
+                        <TableCell className="text-right">{r.mttr.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{r.mtbf.toFixed(2)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
