@@ -1272,6 +1272,7 @@ const RaportTab: React.FC<{
       }))),
       "Pe linie"
     );
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kpiSheet), "MTTR & MTBF");
     XLSX.writeFile(wb, `Mentenanta_${from}_${to}.xlsx`);
   };
 
