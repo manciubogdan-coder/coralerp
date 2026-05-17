@@ -321,7 +321,50 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
           </div>
         </div>
         
-        <div className="overflow-hidden rounded-lg border">
+        {/* Mobile/tablet card view */}
+        <div className="md:hidden space-y-2">
+          {loading ? (
+            <div className="text-center py-6 text-gray-500">Se încarcă datele...</div>
+          ) : currentItems.length > 0 ? (
+            currentItems.map((transfer) => (
+              <div
+                key={`${transfer.transfer_id}-${transfer.inventory_item_id}`}
+                className="border rounded-lg p-3 bg-card shadow-sm space-y-2 text-sm"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-medium text-base">{transfer.product_name}</div>
+                  <TransferReturnForm transfer={transfer} onReturnComplete={handleTransferReturned} />
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {transfer.created_at
+                    ? format(new Date(transfer.created_at), 'dd.MM.yyyy HH:mm')
+                    : transfer.transfer_date
+                      ? format(new Date(transfer.transfer_date), 'dd.MM.yyyy')
+                      : '-'}
+                </div>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 border-t pt-2 text-xs">
+                  <div><span className="text-muted-foreground">Destinație:</span> {transfer.destination}</div>
+                  <div><span className="text-muted-foreground">Cantitate:</span> <span className="font-semibold">{formatQuantity(transfer.quantity)} {transfer.unit}</span></div>
+                  {transfer.document_number && <div><span className="text-muted-foreground">Doc:</span> {transfer.document_number}</div>}
+                  {transfer.lot_number && <div><span className="text-muted-foreground">Lot:</span> {transfer.lot_number}</div>}
+                  {transfer.product_code && <div><span className="text-muted-foreground">Cod:</span> {transfer.product_code}</div>}
+                  {transfer.supplier_name && <div className="col-span-2"><span className="text-muted-foreground">Furnizor:</span> {transfer.supplier_name}</div>}
+                  {transfer.manufacturer_name && <div className="col-span-2"><span className="text-muted-foreground">Producător:</span> {transfer.manufacturer_name}</div>}
+                  {transfer.notes && <div className="col-span-2"><span className="text-muted-foreground">Note:</span> {transfer.notes}</div>}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-6 text-gray-500">
+              {searchTerm || (selectedDestination && selectedDestination !== "all")
+                ? "Nu s-au găsit transferuri conform criteriilor de căutare"
+                : "Nu există transferuri înregistrate"}
+            </div>
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-hidden rounded-lg border">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-gray-50 sticky top-0">
