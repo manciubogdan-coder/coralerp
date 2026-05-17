@@ -53,7 +53,28 @@ const CurrentInventoryTable = ({ inventory }: CurrentInventoryTableProps) => {
           />
         </div>
       
-        <div className="max-h-[70vh] overflow-auto">
+        {/* Mobile/tablet: card stacked */}
+        <div className="md:hidden space-y-2 max-h-[70vh] overflow-auto">
+          {displayedInventory.length > 0 ? (
+            displayedInventory.map((item) => (
+              <div key={item.name} className="border rounded-lg p-3 bg-card shadow-sm">
+                <div className="font-medium text-sm">{item.name}</div>
+                <div className="text-xs text-muted-foreground mt-1">Cod: {item.cod_produs || "-"}</div>
+                <div className="flex justify-between items-center mt-2 pt-2 border-t">
+                  <span className="text-xs text-muted-foreground">Total</span>
+                  <span className="font-bold text-base">{item.quantity.toFixed(2)} {item.unit}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-6 text-gray-500 text-sm">
+              {searchTerm ? `Nu s-au găsit produse pentru "${searchTerm}"` : "Nu există produse în stoc."}
+            </div>
+          )}
+        </div>
+
+        {/* Desktop: table */}
+        <div className="hidden md:block max-h-[70vh] overflow-auto">
           <Table>
               <TableHeader className="sticky top-0 bg-white z-10">
                 <TableRow>
