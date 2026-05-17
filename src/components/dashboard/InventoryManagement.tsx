@@ -75,11 +75,11 @@ const InventoryManagement = () => {
   };
 
   return (
-    <div className="p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">
+    <div className="p-2 md:p-4">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
+        <h2 className="text-lg md:text-xl font-semibold">
           Stoc Depozit 
-          <span className="text-sm font-normal text-muted-foreground">
+          <span className="text-xs md:text-sm font-normal text-muted-foreground">
             ({inventoryType === 'ambalaje' ? 'Ambalaje' : inventoryType === 'etichete' ? 'Etichete' : 'Materii Prime'})
           </span>
         </h2>
@@ -97,11 +97,11 @@ const InventoryManagement = () => {
         onValueChange={(value) => setViewMode(value as "inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption" | "daily-quality")}
         className="mb-4"
       >
-        <TabsList>
-          <TabsTrigger value="inventory">Stoc Curent</TabsTrigger>
-          <TabsTrigger value="transfers">Istoric Transferuri</TabsTrigger>
-          <TabsTrigger value="receptions">Istoric Recepții</TabsTrigger>
-          <TabsTrigger value="daily-stock">Stoc Început Zi</TabsTrigger>
+        <TabsList className="flex w-full overflow-x-auto gap-1 h-auto p-1">
+          <TabsTrigger value="inventory" className="flex-shrink-0 text-xs md:text-sm">Stoc Curent</TabsTrigger>
+          <TabsTrigger value="transfers" className="flex-shrink-0 text-xs md:text-sm">Istoric Transferuri</TabsTrigger>
+          <TabsTrigger value="receptions" className="flex-shrink-0 text-xs md:text-sm">Istoric Recepții</TabsTrigger>
+          <TabsTrigger value="daily-stock" className="flex-shrink-0 text-xs md:text-sm">Stoc Început Zi</TabsTrigger>
           <TabsTrigger value="daily-quality">Stoc Zilnic Calitate</TabsTrigger>
           <TabsTrigger value="daily-consumption">Consum Zilnic pe Loturi</TabsTrigger>
         </TabsList>
