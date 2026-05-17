@@ -62,6 +62,86 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
+        {/* Mobile/tablet card view */}
+        <div className="md:hidden divide-y">
+          {paginatedOrders.map((order) => {
+            const cantitateComandată = order.cantitate;
+            const cantitateRealaProadusa = order.cantitate_reala_produsa || 0;
+            const esteReambalare = (order as any).magazin === 'REAMBALARE' || (order as any).tip_comanda === 'REAMBALARE';
+            const cantitatedinRestock = esteReambalare ? 0 : order.cantitate_din_restock || 0;
+            const cantitateAcoperitaTotal = cantitateRealaProadusa + cantitatedinRestock;
+            const cantitateRamasaDeProdus = Math.max(0, cantitateComandată - cantitateAcoperitaTotal);
+            const procentProgres = cantitateComandată > 0 ? Math.round(cantitateAcoperitaTotal / cantitateComandată * 100) : 0;
+            const activeSession = activeSessions.find(s => s.comanda_id === order.id);
+            const hasActiveSession = !!activeSession;
+            return (
+              <div
+                key={order.id}
+                onClick={() => onOrderSelect(order.id)}
+                className={`p-3 cursor-pointer active:bg-coral-50 transition-colors ${
+                  order.status === 'completed' ? 'bg-green-50' : hasActiveSession ? 'bg-emerald-50 border-l-4 border-l-green-500' : ''
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-coral-primary text-sm">{order.numar_comanda}</div>
+                    <div className="font-medium text-sm truncate">{order.productie_produse?.nume}</div>
+                  </div>
+                  {getStatusBadge(order.status)}
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`text-xl font-bold ${getProgressColor(procentProgres)}`}>{cantitateAcoperitaTotal}</span>
+                  <span className="text-gray-400">/</span>
+                  <span className="text-base font-semibold">{cantitateComandată}</span>
+                  <span className="text-xs text-gray-500">{order.productie_produse?.unitate_masura}</span>
+                  <div className={`ml-auto px-2 py-1 rounded-full text-xs font-bold ${getProgressColor(procentProgres)}`}
+                    style={{ backgroundColor: procentProgres >= 100 ? '#dcfce7' : procentProgres >= 50 ? '#dbeafe' : '#fef3c7' }}>
+                    {procentProgres}%
+                  </div>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mb-2">
+                  <div className={`h-2 rounded-full ${
+                    procentProgres >= 100 ? 'bg-green-500' : procentProgres >= 50 ? 'bg-blue-500' : 'bg-amber-500'
+                  }`} style={{ width: `${Math.min(100, procentProgres)}%` }} />
+                </div>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+                  <div className="flex items-center gap-1">
+                    <span className="text-muted-foreground">Magazin:</span>
+                    <span className="font-medium truncate">{order.magazin}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Factory className="w-3 h-3 text-coral-primary shrink-0" />
+                    <span className="font-medium text-coral-primary truncate">{order.productie_linii?.nume || '-'}</span>
+                  </div>
+                  {order.punct_livrare && (
+                    <div className="col-span-2 text-gray-500 truncate">📍 {order.punct_livrare}</div>
+                  )}
+                  {cantitateRamasaDeProdus > 0 && (
+                    <div className="col-span-2 text-red-600 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Lipsește: {cantitateRamasaDeProdus} {order.productie_produse?.unitate_masura}
+                    </div>
+                  )}
+                  {hasActiveSession && (
+                    <div className="col-span-2 text-green-700 flex items-center gap-1">
+                      <Play className="w-3 h-3 fill-green-600" />
+                      🟢 {activeSession.nume_operator} — {new Date(activeSession.ora_start).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  className={`w-full mt-2 ${order.status === 'completed' ? "bg-green-600 hover:bg-green-700" : "bg-coral-primary hover:bg-coral-600"} text-white text-xs`}
+                >
+                  {order.status === 'completed' ? <><CheckCircle className="w-3 h-3 mr-1" />Vezi</> : <><Clock className="w-3 h-3 mr-1" />Accesează</>}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block">
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
