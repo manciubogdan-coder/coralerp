@@ -59,9 +59,9 @@ export const InventoryToolbar = ({
   }, []);
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button variant="outline" onClick={() => setScanOpen(true)}>
-        <ScanLine className="h-4 w-4 mr-2" />
+    <div className="flex flex-wrap gap-2 w-full md:w-auto">
+      <Button variant="outline" size="sm" onClick={() => setScanOpen(true)} className="flex-1 md:flex-none text-xs md:text-sm">
+        <ScanLine className="h-4 w-4 mr-1 md:mr-2" />
         Scanează QR
       </Button>
       <StockTransferForm onTransferComplete={onTransferComplete} />
