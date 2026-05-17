@@ -340,150 +340,273 @@ export const DailyStockQuality = () => {
           {productFilter ? <p>Nu există produse care să se potrivească cu filtrul.</p> : <p>Nu există snapshot pentru data selectată.</p>}
         </div>
       ) : (
-        <div className="border rounded-lg overflow-x-auto print:overflow-visible print:border-0">
-          <Table className="text-xs print:text-[8px] table-fixed w-full min-w-fit print:min-w-full [&_th]:py-3 [&_th]:px-2 [&_th]:whitespace-nowrap [&_td]:py-3 [&_td]:px-2 [&_td]:align-middle print:[&_th]:py-1 print:[&_td]:py-1">
-            <TableHeader>
-              <TableRow className="print:break-inside-avoid">
-                <TableHead className="w-12 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Nr.</TableHead>
-                <TableHead className="w-24 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Produs</TableHead>
-                <TableHead className="w-16 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Cod</TableHead>
-                <TableHead className="w-12 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Lot</TableHead>
-                <TableHead className="w-12 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Cant.</TableHead>
-                <TableHead className="w-8 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">U.M.</TableHead>
-                <TableHead className="w-12 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Doc.</TableHead>
-                <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Data Rec.</TableHead>
-                <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Furnizor</TableHead>
-                <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Producător</TableHead>
-                <TableHead className="w-20 print:hidden">Obs</TableHead>
-                <TableHead className="w-16 print:hidden">% neconf.</TableHead>
-                <TableHead className="w-16 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">C. Cons.</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groupMode === 'product' ? (
-                groupedByProduct.map((group) => {
-                  // Determine common obs/% across all lots in the group (if all share the same value)
-                  const obsVals = group.items.map((it) => qualityMap[it.id]?.obs ?? '');
-                  const pctVals = group.items.map((it) => qualityMap[it.id]?.nonconform_percent ?? 0);
-                  const allObsSame = obsVals.every((v) => v === obsVals[0]);
-                  const allPctSame = pctVals.every((v) => v === pctVals[0]);
-                  const commonObs = allObsSame ? obsVals[0] : '';
-                  const commonPct = allPctSame ? pctVals[0] : undefined;
-                  const obsValue = groupObsDraft[group.name] ?? commonObs ?? '';
-                  const pctValue = groupPercentDraft[group.name] !== undefined && Number.isFinite(groupPercentDraft[group.name])
-                    ? String(groupPercentDraft[group.name])
-                    : (commonPct !== undefined ? String(commonPct) : '');
-                  return (
-                  <TableRow key={group.name} className="bg-muted/50">
-                    <TableCell colSpan={13} className="font-semibold">
-                      <div className="flex flex-col gap-2">
-                        <div>
-                          {group.name}
-                          {group.code ? ` — ${group.code}` : ''} • {group.items.length} loturi • Total: {group.totalQty.toFixed(2)} {group.unit} • Considerat: {group.totalComputed.toFixed(2)} {group.unit}
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                          <Textarea
-                            rows={2}
-                            placeholder={allObsSame ? 'Obs pentru produs' : 'Obs (valori diferite pe loturi)'}
-                            value={obsValue}
-                            onChange={(e) => setGroupObsDraft((prev) => ({ ...prev, [group.name]: (e.target as HTMLTextAreaElement).value }))}
-                            className="min-w-[140px] whitespace-pre-wrap break-words text-xs"
-                          />
+        <>
+          {/* MOBILE / TABLET (sub md): layout card stivuit */}
+          <div className="md:hidden print:hidden space-y-3">
+            {groupMode === 'product' ? (
+              groupedByProduct.map((group) => {
+                const obsVals = group.items.map((it) => qualityMap[it.id]?.obs ?? '');
+                const pctVals = group.items.map((it) => qualityMap[it.id]?.nonconform_percent ?? 0);
+                const allObsSame = obsVals.every((v) => v === obsVals[0]);
+                const allPctSame = pctVals.every((v) => v === pctVals[0]);
+                const commonObs = allObsSame ? obsVals[0] : '';
+                const commonPct = allPctSame ? pctVals[0] : undefined;
+                const obsValue = groupObsDraft[group.name] ?? commonObs ?? '';
+                const pctValue = groupPercentDraft[group.name] !== undefined && Number.isFinite(groupPercentDraft[group.name])
+                  ? String(groupPercentDraft[group.name])
+                  : (commonPct !== undefined ? String(commonPct) : '');
+                return (
+                  <div key={group.name} className="border rounded-lg p-3 bg-card shadow-sm space-y-2">
+                    <div className="font-semibold text-sm">{group.name}{group.code ? ` — ${group.code}` : ''}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {group.items.length} loturi • Total: <b>{group.totalQty.toFixed(2)} {group.unit}</b> • Considerat: <b>{group.totalComputed.toFixed(2)} {group.unit}</b>
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground">Observații</label>
+                        <Textarea
+                          rows={2}
+                          placeholder={allObsSame ? 'Obs pentru produs' : 'Obs (valori diferite pe loturi)'}
+                          value={obsValue}
+                          onChange={(e) => setGroupObsDraft((prev) => ({ ...prev, [group.name]: e.target.value }))}
+                          className="w-full text-sm mt-1"
+                        />
+                      </div>
+                      <div className="flex gap-2 items-end">
+                        <div className="flex-1">
+                          <label className="text-xs font-medium text-muted-foreground">% neconform</label>
                           <Input
                             type="number"
+                            inputMode="decimal"
                             min={0}
                             max={100}
                             step={0.1}
-                            placeholder={allPctSame ? '% neconform' : 'mixt'}
+                            placeholder={allPctSame ? '0' : 'mixt'}
                             value={pctValue}
                             onChange={(e) => {
-                              const raw = (e.target as HTMLInputElement).value;
-                              const num = Number(raw);
+                              const num = Number(e.target.value);
                               setGroupPercentDraft((prev) => ({ ...prev, [group.name]: isNaN(num) ? NaN : Math.max(0, Math.min(100, num)) }));
                             }}
-                            className="w-20 h-8 text-xs"
+                            className="w-full h-11 text-base mt-1"
                           />
-                          <Button size="sm" onClick={() => handleApplyToGroup(group.name, group.items)}>Aplică la toate loturile</Button>
                         </div>
-                        {/* Per-lot recap so user sees what was saved on each lot */}
-                        <div className="text-[11px] font-normal text-muted-foreground space-y-0.5">
-                          {group.items.map((it) => {
-                            const qq = qualityMap[it.id];
-                            const lot = it.lot_number || '-';
-                            const pct = qq?.nonconform_percent ?? 0;
-                            const obs = qq?.obs ?? '';
-                            return (
-                              <div key={it.id} className="flex flex-wrap gap-x-3">
-                                <span>Lot <b>{lot}</b></span>
-                                <span>% neconf: <b>{pct}</b></span>
-                                {obs ? <span className="truncate">Obs: {obs}</span> : null}
-                              </div>
-                            );
-                          })}
-                        </div>
+                        <Button size="default" className="h-11" onClick={() => handleApplyToGroup(group.name, group.items)}>Aplică</Button>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                  );
-                })
-              ) : (
-                filteredSnapshots.map((item) => {
-                  const q = qualityMap[item.id];
-                  const currentPercent = percentDraft[item.id] ?? (q?.nonconform_percent ?? 0);
-                  const pt = item.products?.pt_percent ?? 0;
-                  const computed = q?.consider_quantity ?? baseQty(item) * (1 - (currentPercent || 0) / 100) * (1 - (pt || 0) / 100);
-                  return (
-                    <TableRow key={item.id} className="print:break-inside-avoid">
-                      <TableCell className="font-medium print:table-cell print:text-[8px] print:border print:border-gray-300">{item.entry_number ?? '-'}</TableCell>
-                      <TableCell className="font-medium truncate print:table-cell print:text-[8px] print:border print:border-gray-300 print:overflow-visible print:max-w-none" title={item.name}>{item.name}</TableCell>
-                      <TableCell className="hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.products?.cod_produs || '-'}</TableCell>
-                      <TableCell className="hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.lot_number || '-'}</TableCell>
-                      <TableCell className="text-right print:table-cell print:text-[8px] print:border print:border-gray-300">{item.quantity.toFixed(2)}</TableCell>
-                      <TableCell className="hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.unit}</TableCell>
-                      <TableCell className="hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.document_number || '-'}</TableCell>
-                      <TableCell className="hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit' }) : '-'}</TableCell>
-                      <TableCell className="hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.suppliers?.name || '-'}</TableCell>
-                      <TableCell className="hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.manufacturers?.name || '-'}</TableCell>
-                      <TableCell className="hidden lg:table-cell print:hidden">
-                        <Textarea
-                          rows={3}
-                          placeholder="Observații..."
-                          value={obsDraft[item.id] ?? (q?.obs ?? '')}
-                          onChange={(e) => setObsDraft((prev) => ({ ...prev, [item.id]: (e.target as HTMLTextAreaElement).value }))}
-                          onBlur={(e) => {
-                            const val = (e.target as HTMLTextAreaElement)?.value ?? '';
-                            handleUpsert(item.id, { obs: val });
-                          }}
-                          className="min-w-[120px] whitespace-pre-wrap break-words text-xs"
-                        />
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell print:hidden">
+                    </div>
+                    <div className="text-[11px] text-muted-foreground space-y-0.5 pt-2 border-t">
+                      {group.items.map((it) => {
+                        const qq = qualityMap[it.id];
+                        return (
+                          <div key={it.id} className="flex flex-wrap gap-x-3">
+                            <span>Lot <b>{it.lot_number || '-'}</b></span>
+                            <span>% neconf: <b>{qq?.nonconform_percent ?? 0}</b></span>
+                            {qq?.obs ? <span className="truncate">Obs: {qq.obs}</span> : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              filteredSnapshots.map((item) => {
+                const q = qualityMap[item.id];
+                const currentPercent = percentDraft[item.id] ?? (q?.nonconform_percent ?? 0);
+                const pt = item.products?.pt_percent ?? 0;
+                const computed = q?.consider_quantity ?? baseQty(item) * (1 - (currentPercent || 0) / 100) * (1 - (pt || 0) / 100);
+                return (
+                  <div key={item.id} className="border rounded-lg p-3 bg-card shadow-sm space-y-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="font-semibold text-sm">{item.name}</div>
+                      <div className="text-xs text-muted-foreground whitespace-nowrap">#{item.entry_number ?? '-'}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                      <div><span className="text-muted-foreground">Cod:</span> {item.products?.cod_produs || '-'}</div>
+                      <div><span className="text-muted-foreground">Lot:</span> {item.lot_number || '-'}</div>
+                      <div><span className="text-muted-foreground">Cant.:</span> <b>{item.quantity.toFixed(2)} {item.unit}</b></div>
+                      <div><span className="text-muted-foreground">Doc.:</span> {item.document_number || '-'}</div>
+                      {item.suppliers?.name && <div className="col-span-2 truncate"><span className="text-muted-foreground">Furnizor:</span> {item.suppliers.name}</div>}
+                      {item.manufacturers?.name && <div className="col-span-2 truncate"><span className="text-muted-foreground">Producător:</span> {item.manufacturers.name}</div>}
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Observații</label>
+                      <Textarea
+                        rows={2}
+                        placeholder="Observații..."
+                        value={obsDraft[item.id] ?? (q?.obs ?? '')}
+                        onChange={(e) => setObsDraft((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                        onBlur={(e) => handleUpsert(item.id, { obs: e.target.value })}
+                        className="w-full text-sm mt-1"
+                      />
+                    </div>
+                    <div className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <label className="text-xs font-medium text-muted-foreground">% neconform</label>
                         <Input
                           type="number"
+                          inputMode="decimal"
                           min={0}
                           max={100}
                           step={0.1}
                           value={String(percentDraft[item.id] ?? (q?.nonconform_percent ?? 0))}
                           onChange={(e) => {
-                            const v = Number((e.target as HTMLInputElement).value);
+                            const v = Number(e.target.value);
                             setPercentDraft((prev) => ({ ...prev, [item.id]: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) }));
                           }}
                           onBlur={(e) => {
-                            const raw = (e.target as HTMLInputElement).value;
-                            const v = Number(raw);
+                            const v = Number(e.target.value);
                             handleUpsert(item.id, { nonconform_percent: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) });
                           }}
-                          className="w-20 h-8 text-xs"
+                          className="w-full h-11 text-base mt-1"
                         />
+                      </div>
+                      <div className="flex-1 text-right">
+                        <div className="text-xs text-muted-foreground">Considerat conform</div>
+                        <div className="text-lg font-bold">{computed.toFixed(2)} <span className="text-xs font-normal">{item.unit}</span></div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* DESKTOP (md+) și print: tabelul existent */}
+          <div className="hidden md:block print:block border rounded-lg overflow-x-auto print:overflow-visible print:border-0">
+            <Table className="text-xs print:text-[8px] table-fixed w-full min-w-fit print:min-w-full [&_th]:py-3 [&_th]:px-2 [&_th]:whitespace-nowrap [&_td]:py-3 [&_td]:px-2 [&_td]:align-middle print:[&_th]:py-1 print:[&_td]:py-1">
+              <TableHeader>
+                <TableRow className="print:break-inside-avoid">
+                  <TableHead className="w-12 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Nr.</TableHead>
+                  <TableHead className="w-24 print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Produs</TableHead>
+                  <TableHead className="w-16 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Cod</TableHead>
+                  <TableHead className="w-12 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Lot</TableHead>
+                  <TableHead className="w-12 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Cant.</TableHead>
+                  <TableHead className="w-8 hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">U.M.</TableHead>
+                  <TableHead className="w-12 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Doc.</TableHead>
+                  <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Data Rec.</TableHead>
+                  <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Furnizor</TableHead>
+                  <TableHead className="w-16 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">Producător</TableHead>
+                  <TableHead className="w-20 print:hidden">Obs</TableHead>
+                  <TableHead className="w-16 print:hidden">% neconf.</TableHead>
+                  <TableHead className="w-16 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300">C. Cons.</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {groupMode === 'product' ? (
+                  groupedByProduct.map((group) => {
+                    const obsVals = group.items.map((it) => qualityMap[it.id]?.obs ?? '');
+                    const pctVals = group.items.map((it) => qualityMap[it.id]?.nonconform_percent ?? 0);
+                    const allObsSame = obsVals.every((v) => v === obsVals[0]);
+                    const allPctSame = pctVals.every((v) => v === pctVals[0]);
+                    const commonObs = allObsSame ? obsVals[0] : '';
+                    const commonPct = allPctSame ? pctVals[0] : undefined;
+                    const obsValue = groupObsDraft[group.name] ?? commonObs ?? '';
+                    const pctValue = groupPercentDraft[group.name] !== undefined && Number.isFinite(groupPercentDraft[group.name])
+                      ? String(groupPercentDraft[group.name])
+                      : (commonPct !== undefined ? String(commonPct) : '');
+                    return (
+                    <TableRow key={group.name} className="bg-muted/50">
+                      <TableCell colSpan={13} className="font-semibold">
+                        <div className="flex flex-col gap-2">
+                          <div>
+                            {group.name}
+                            {group.code ? ` — ${group.code}` : ''} • {group.items.length} loturi • Total: {group.totalQty.toFixed(2)} {group.unit} • Considerat: {group.totalComputed.toFixed(2)} {group.unit}
+                          </div>
+                          <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                            <Textarea
+                              rows={2}
+                              placeholder={allObsSame ? 'Obs pentru produs' : 'Obs (valori diferite pe loturi)'}
+                              value={obsValue}
+                              onChange={(e) => setGroupObsDraft((prev) => ({ ...prev, [group.name]: e.target.value }))}
+                              className="min-w-[140px] whitespace-pre-wrap break-words text-xs"
+                            />
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.1}
+                              placeholder={allPctSame ? '% neconform' : 'mixt'}
+                              value={pctValue}
+                              onChange={(e) => {
+                                const num = Number(e.target.value);
+                                setGroupPercentDraft((prev) => ({ ...prev, [group.name]: isNaN(num) ? NaN : Math.max(0, Math.min(100, num)) }));
+                              }}
+                              className="w-20 h-8 text-xs"
+                            />
+                            <Button size="sm" onClick={() => handleApplyToGroup(group.name, group.items)}>Aplică la toate loturile</Button>
+                          </div>
+                          <div className="text-[11px] font-normal text-muted-foreground space-y-0.5">
+                            {group.items.map((it) => {
+                              const qq = qualityMap[it.id];
+                              return (
+                                <div key={it.id} className="flex flex-wrap gap-x-3">
+                                  <span>Lot <b>{it.lot_number || '-'}</b></span>
+                                  <span>% neconf: <b>{qq?.nonconform_percent ?? 0}</b></span>
+                                  {qq?.obs ? <span className="truncate">Obs: {qq.obs}</span> : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </TableCell>
-                      <TableCell className="text-right print:table-cell print:text-[8px] print:border print:border-gray-300">{computed.toFixed(2)}</TableCell>
                     </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                    );
+                  })
+                ) : (
+                  filteredSnapshots.map((item) => {
+                    const q = qualityMap[item.id];
+                    const currentPercent = percentDraft[item.id] ?? (q?.nonconform_percent ?? 0);
+                    const pt = item.products?.pt_percent ?? 0;
+                    const computed = q?.consider_quantity ?? baseQty(item) * (1 - (currentPercent || 0) / 100) * (1 - (pt || 0) / 100);
+                    return (
+                      <TableRow key={item.id} className="print:break-inside-avoid">
+                        <TableCell className="font-medium print:table-cell print:text-[8px] print:border print:border-gray-300">{item.entry_number ?? '-'}</TableCell>
+                        <TableCell className="font-medium truncate print:table-cell print:text-[8px] print:border print:border-gray-300 print:overflow-visible print:max-w-none" title={item.name}>{item.name}</TableCell>
+                        <TableCell className="hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.products?.cod_produs || '-'}</TableCell>
+                        <TableCell className="hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.lot_number || '-'}</TableCell>
+                        <TableCell className="text-right print:table-cell print:text-[8px] print:border print:border-gray-300">{item.quantity.toFixed(2)}</TableCell>
+                        <TableCell className="hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.unit}</TableCell>
+                        <TableCell className="hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.document_number || '-'}</TableCell>
+                        <TableCell className="hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit' }) : '-'}</TableCell>
+                        <TableCell className="hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.suppliers?.name || '-'}</TableCell>
+                        <TableCell className="hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300">{item.manufacturers?.name || '-'}</TableCell>
+                        <TableCell className="hidden lg:table-cell print:hidden">
+                          <Textarea
+                            rows={3}
+                            placeholder="Observații..."
+                            value={obsDraft[item.id] ?? (q?.obs ?? '')}
+                            onChange={(e) => setObsDraft((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            onBlur={(e) => handleUpsert(item.id, { obs: e.target.value })}
+                            className="min-w-[120px] whitespace-pre-wrap break-words text-xs"
+                          />
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell print:hidden">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.1}
+                            value={String(percentDraft[item.id] ?? (q?.nonconform_percent ?? 0))}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              setPercentDraft((prev) => ({ ...prev, [item.id]: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) }));
+                            }}
+                            onBlur={(e) => {
+                              const v = Number(e.target.value);
+                              handleUpsert(item.id, { nonconform_percent: isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) });
+                            }}
+                            className="w-20 h-8 text-xs"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right print:table-cell print:text-[8px] print:border print:border-gray-300">{computed.toFixed(2)}</TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       )}
     </div>
   );
