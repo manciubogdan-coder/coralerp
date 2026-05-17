@@ -102,8 +102,8 @@ const InventoryManagement = () => {
           <TabsTrigger value="transfers" className="flex-shrink-0 text-xs md:text-sm">Istoric Transferuri</TabsTrigger>
           <TabsTrigger value="receptions" className="flex-shrink-0 text-xs md:text-sm">Istoric Recepții</TabsTrigger>
           <TabsTrigger value="daily-stock" className="flex-shrink-0 text-xs md:text-sm">Stoc Început Zi</TabsTrigger>
-          <TabsTrigger value="daily-quality">Stoc Zilnic Calitate</TabsTrigger>
-          <TabsTrigger value="daily-consumption">Consum Zilnic pe Loturi</TabsTrigger>
+          <TabsTrigger value="daily-quality" className="flex-shrink-0 text-xs md:text-sm">Stoc Zilnic Calitate</TabsTrigger>
+          <TabsTrigger value="daily-consumption" className="flex-shrink-0 text-xs md:text-sm">Consum Zilnic pe Loturi</TabsTrigger>
         </TabsList>
         
         <TabsContent value="inventory">
