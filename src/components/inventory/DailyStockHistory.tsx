@@ -232,7 +232,35 @@ export const DailyStockHistory = () => {
           <p className="text-sm mt-2">Snapshot-urile se creează automat în fiecare zi la ora 5:00 dimineața.</p>
         </div>
       ) : (
-        <div className="border rounded-lg overflow-x-auto">
+        <>
+          {/* Mobile/tablet: cards */}
+          <div className="md:hidden space-y-2">
+            {stockSnapshots.map((item) => (
+              <div key={item.id} className="border rounded-lg p-3 bg-card shadow-sm space-y-1.5">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="font-medium text-sm">{item.name}</div>
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded shrink-0">#{item.entry_number || '-'}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">Cod: {item.products?.cod_produs || '-'} • Lot: {item.lot_number || '-'}</div>
+                <div className="flex justify-between items-center pt-1.5 border-t">
+                  <span className="text-xs text-muted-foreground">Cantitate</span>
+                  <span className="font-bold text-base">{item.quantity.toFixed(2)} {item.unit}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs pt-1.5 border-t">
+                  <div><span className="text-muted-foreground">Doc:</span> {item.document_number || '-'}</div>
+                  <div><span className="text-muted-foreground">Data:</span> {item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '-'}</div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Furnizor:</span> {item.suppliers?.name || '-'}</div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Producător:</span> {item.manufacturers?.name || '-'}</div>
+                  {item.crate_types?.name && (
+                    <div className="col-span-2"><span className="text-muted-foreground">Lăd.:</span> {item.crate_types.name} × {item.crate_count || 0}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block border rounded-lg overflow-x-auto">
           <Table>
             <TableHeader>
                  <TableRow>
@@ -273,7 +301,8 @@ export const DailyStockHistory = () => {
               ))}
             </TableBody>
           </Table>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
