@@ -104,14 +104,27 @@ const LotDetailPage: React.FC = () => {
             inventory_type: t.type,
           });
 
-          // Fetch transfers for this item
+          // Find all inventory rows that share the same lot (same name + lot_number)
+          // so we surface every transfer that consumed this lot, not just from this specific row.
+          let relatedIds: string[] = [row.id];
+          if (row.lot_number) {
+            const { data: siblings } = await (supabase as any)
+              .from(t.inv)
+              .select("id")
+              .eq("name", row.name)
+              .eq("lot_number", row.lot_number);
+            if (siblings && siblings.length) {
+              relatedIds = Array.from(new Set([row.id, ...siblings.map((s: any) => s.id)]));
+            }
+          }
+
           const { data: tr } = await (supabase as any)
             .from(t.transfers)
             .select(`
               *,
               stock_transfers:transfer_id ( transfer_date, destination, notes, created_at )
             `)
-            .eq("inventory_item_id", id)
+            .in("inventory_item_id", relatedIds)
             .order("created_at", { ascending: false });
           if (cancelled) return;
           const list: ActiveTransfer[] = (tr || []).map((it: any) => ({
