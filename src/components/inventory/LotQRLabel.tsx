@@ -56,6 +56,7 @@ export const LotQRLabel: React.FC<{ data: LotLabelData }> = ({ data }) => {
           {formatDate(data.receipt_date)}
           {data.entry_number ? ` · #${data.entry_number}` : ""}
         </div>
+        {data.document_number && <div className="row">Doc: {data.document_number}</div>}
       </div>
     </div>
   );
