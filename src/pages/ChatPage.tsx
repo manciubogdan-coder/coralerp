@@ -513,36 +513,19 @@ const ChatPage: React.FC = () => {
   const confirmDeleteConv = async () => {
     if (!deleteConvTarget || !userId) return;
     const convId = deleteConvTarget.id;
-    const isDept = deleteConvTarget.type === "department";
-
-    // Local cutoff as a safety net while the database action is being applied.
-    setConvClearedAt(convId, new Date().toISOString());
 
     const { error: rpcErr } = await (supabase as any).rpc("chat_delete_conversation", {
       p_conversation_id: convId,
     });
 
     if (rpcErr) {
-      console.warn("Conversation delete RPC failed", rpcErr);
       toast({ title: "Eroare", description: rpcErr.message, variant: "destructive" });
       setDeleteConvTarget(null);
       return;
     }
 
-    const { data: stillExists } = await (supabase as any)
-      .from("chat_conversations")
-      .select("id")
-      .eq("id", convId)
-      .maybeSingle();
-
-    if (stillExists && !isDept) {
-      const { error: leaveErr } = await (supabase as any)
-        .from("chat_members")
-        .delete()
-        .eq("conversation_id", convId)
-        .eq("user_id", userId);
-      if (leaveErr) console.warn("Fallback leave conversation failed", leaveErr);
-    }
+    // Cutoff local doar DUPĂ confirmarea DB (safety net pt cache mesaje).
+    setConvClearedAt(convId, new Date().toISOString());
 
     toast({ title: "Conversație ștearsă", description: "Conversația a fost ștearsă din baza de date." });
     if (activeId === convId) {
