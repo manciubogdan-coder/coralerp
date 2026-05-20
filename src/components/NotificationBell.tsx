@@ -91,15 +91,22 @@ const NotificationBell: React.FC = () => {
   const deleteOne = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) return;
+    const { error, count } = await (supabase as any)
+      .from("notifications").delete({ count: "exact" }).eq("id", id);
+    if (error || !count) {
+      console.warn("Notification delete failed", error);
+      return; // nu ascundem dacă DB-ul nu a șters
+    }
     setItems((prev) => prev.filter((i) => i.id !== id));
-    await (supabase as any).from("notifications").delete().eq("id", id);
     window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   const clearAll = async () => {
     if (!user) return;
+    const { error } = await (supabase as any)
+      .from("notifications").delete().eq("user_id", user.id);
+    if (error) { console.warn("Notifications clear failed", error); return; }
     setItems([]);
-    await (supabase as any).from("notifications").delete().eq("user_id", user.id);
     await markChatSeen();
     markTasksSeen();
     window.dispatchEvent(new Event("collaboration-alerts-refresh"));
