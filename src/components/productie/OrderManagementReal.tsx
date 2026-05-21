@@ -412,6 +412,7 @@ const OrderManagementReal = () => {
                     <TableHead className="font-semibold">Zona Livrare</TableHead>
                     <TableHead className="font-semibold">Linie</TableHead>
                     <TableHead className="font-semibold">Data Creării</TableHead>
+                    <TableHead className="font-semibold">Data Producție</TableHead>
                     <TableHead className="font-semibold">Acțiuni</TableHead>
                   </TableRow>
                 </TableHeader>
