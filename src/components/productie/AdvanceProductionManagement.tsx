@@ -439,6 +439,7 @@ const AdvanceProductionManagement = () => {
                         <TableHead>Status</TableHead>
                         <TableHead>Linie Alocată</TableHead>
                         <TableHead>Data Creării</TableHead>
+                        <TableHead>Data Producție</TableHead>
                         <TableHead className="text-right">Acțiuni</TableHead>
                       </TableRow>
                     </TableHeader>
