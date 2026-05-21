@@ -412,6 +412,7 @@ const OrderManagementReal = () => {
                     <TableHead className="font-semibold">Zona Livrare</TableHead>
                     <TableHead className="font-semibold">Linie</TableHead>
                     <TableHead className="font-semibold">Data Creării</TableHead>
+                    <TableHead className="font-semibold">Data Producție</TableHead>
                     <TableHead className="font-semibold">Acțiuni</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -553,6 +554,11 @@ const OrderManagementReal = () => {
                         
                         <TableCell>
                           {new Date(order.created_at).toLocaleDateString('ro-RO')}
+                        </TableCell>
+                        <TableCell>
+                          {(order as any).data_productie
+                            ? new Date((order as any).data_productie).toLocaleDateString('ro-RO')
+                            : <span className="text-muted-foreground">-</span>}
                         </TableCell>
                         
                         <TableCell>
