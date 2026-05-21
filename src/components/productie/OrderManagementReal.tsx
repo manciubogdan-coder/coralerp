@@ -65,11 +65,6 @@ const OrderManagementReal = () => {
       : null;
     const matchesProdDate = !productionDate || orderProdDate === productionDate;
 
-    const orderProdDate = (order as any).data_productie 
-      ? String((order as any).data_productie).split('T')[0] 
-      : null;
-    const matchesProdDate = !productionDate || orderProdDate === productionDate;
-
     return matchesSearch && matchesStatus && matchesStore && matchesProduct && 
            matchesLine && matchesQuantity && matchesDate && matchesProdDate;
   }) : [];
