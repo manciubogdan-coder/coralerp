@@ -356,6 +356,24 @@ const AdvanceProductionManagement = () => {
             <div className="w-full md:w-56">
               <Input
                 type="date"
+                value={createdDate}
+                onChange={(e) => setCreatedDate(e.target.value)}
+                placeholder="Data creării"
+                title="Data creării comenzii"
+              />
+            </div>
+            {createdDate && (
+              <button
+                type="button"
+                onClick={() => setCreatedDate('')}
+                className="text-xs text-muted-foreground hover:text-foreground underline self-center"
+              >
+                Resetează creare
+              </button>
+            )}
+            <div className="w-full md:w-56">
+              <Input
+                type="date"
                 value={productionDate}
                 onChange={(e) => setProductionDate(e.target.value)}
                 placeholder="Data producției"
@@ -368,12 +386,13 @@ const AdvanceProductionManagement = () => {
                 onClick={() => setProductionDate('')}
                 className="text-xs text-muted-foreground hover:text-foreground underline self-center"
               >
-                Resetează data
+                Resetează producție
               </button>
             )}
           </div>
         </CardContent>
       </Card>
+
 
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="grid w-full grid-cols-5">
