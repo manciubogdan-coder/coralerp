@@ -61,7 +61,10 @@ const AdvanceProductionManagement = () => {
       : null;
     const matchesProdDate = !productionDate || orderProdDate === productionDate;
 
-    return matchesSearch && matchesStatus && matchesProdDate;
+    const matchesCreatedDate = !createdDate ||
+      new Date(order.created_at).toISOString().split('T')[0] === createdDate;
+
+    return matchesSearch && matchesStatus && matchesProdDate && matchesCreatedDate;
   });
 
   // Grupează pe status
