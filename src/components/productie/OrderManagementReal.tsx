@@ -57,8 +57,13 @@ const OrderManagementReal = () => {
     const matchesLine = lineFilter === 'all' || (lineFilter === 'unassigned' ? !order.productie_linii?.nume : order.productie_linii?.nume?.toLowerCase().includes(lineFilter.toLowerCase()));
     const matchesQuantity = !minQuantity || order.cantitate >= parseInt(minQuantity);
     
-    const matchesDate = !selectedDate || 
-      new Date(order.created_at).toISOString().split('T')[0] === selectedDate;
+    const orderCreatedDate = new Date(order.created_at).toISOString().split('T')[0];
+    const orderProdDateForCreated = (order as any).data_productie
+      ? String((order as any).data_productie).split('T')[0]
+      : null;
+    const matchesDate = !selectedDate ||
+      orderCreatedDate === selectedDate ||
+      orderProdDateForCreated === selectedDate;
 
     const orderProdDate = (order as any).data_productie 
       ? String((order as any).data_productie).split('T')[0] 
