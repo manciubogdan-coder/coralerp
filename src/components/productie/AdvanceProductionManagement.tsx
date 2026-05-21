@@ -467,6 +467,11 @@ const AdvanceProductionManagement = () => {
                           <TableCell>
                             {new Date(order.created_at).toLocaleDateString('ro-RO')}
                           </TableCell>
+                          <TableCell>
+                            {(order as any).data_productie
+                              ? new Date((order as any).data_productie).toLocaleDateString('ro-RO')
+                              : <span className="text-muted-foreground">-</span>}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
                               <Button
