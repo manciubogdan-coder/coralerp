@@ -29,6 +29,7 @@ const AdvanceProductionManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [productionDate, setProductionDate] = useState<string>('');
+  const [createdDate, setCreatedDate] = useState<string>('');
 
   // All hooks must be called before any early returns
   const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = useOrders();
@@ -60,7 +61,10 @@ const AdvanceProductionManagement = () => {
       : null;
     const matchesProdDate = !productionDate || orderProdDate === productionDate;
 
-    return matchesSearch && matchesStatus && matchesProdDate;
+    const matchesCreatedDate = !createdDate ||
+      new Date(order.created_at).toISOString().split('T')[0] === createdDate;
+
+    return matchesSearch && matchesStatus && matchesProdDate && matchesCreatedDate;
   });
 
   // Grupează pe status
@@ -352,6 +356,24 @@ const AdvanceProductionManagement = () => {
             <div className="w-full md:w-56">
               <Input
                 type="date"
+                value={createdDate}
+                onChange={(e) => setCreatedDate(e.target.value)}
+                placeholder="Data creării"
+                title="Data creării comenzii"
+              />
+            </div>
+            {createdDate && (
+              <button
+                type="button"
+                onClick={() => setCreatedDate('')}
+                className="text-xs text-muted-foreground hover:text-foreground underline self-center"
+              >
+                Resetează creare
+              </button>
+            )}
+            <div className="w-full md:w-56">
+              <Input
+                type="date"
                 value={productionDate}
                 onChange={(e) => setProductionDate(e.target.value)}
                 placeholder="Data producției"
@@ -364,12 +386,13 @@ const AdvanceProductionManagement = () => {
                 onClick={() => setProductionDate('')}
                 className="text-xs text-muted-foreground hover:text-foreground underline self-center"
               >
-                Resetează data
+                Resetează producție
               </button>
             )}
           </div>
         </CardContent>
       </Card>
+
 
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="grid w-full grid-cols-5">
