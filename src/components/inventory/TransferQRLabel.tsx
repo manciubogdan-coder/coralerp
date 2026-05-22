@@ -51,16 +51,15 @@ export const TransferQRLabel: React.FC<{ labels: TransferLabelData[] }> = ({ lab
   const styleTag = (
     <style>{`
       .transfer-label {
-        width: 50mm;
-        height: 30mm;
-        padding: 1.5mm;
+        width: 70mm;
+        min-height: 40mm;
+        padding: 2mm;
         display: flex;
-        gap: 2mm;
+        gap: 2.5mm;
         font-family: ui-sans-serif, system-ui, sans-serif;
         color: #000;
         background: #fff;
         box-sizing: border-box;
-        overflow: hidden;
         border: 1px dashed #ccc;
       }
       .transfer-label .qr { flex-shrink: 0; display:flex; align-items:flex-start; }
