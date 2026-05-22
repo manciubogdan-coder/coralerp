@@ -40,10 +40,8 @@ const SingleLabel: React.FC<{ data: TransferLabelData; pageBreak?: boolean }> = 
         <div className="row">Lot: {data.lot_number || "—"}</div>
         {data.supplier && <div className="row">F: {data.supplier}</div>}
         {data.manufacturer && <div className="row">P: {data.manufacturer}</div>}
-        <div className="row">
-          {formatDate(data.transfer_date)}
-          {data.document_number ? ` · Doc: ${data.document_number}` : ""}
-        </div>
+        <div className="row">{formatDate(data.transfer_date)}</div>
+        {data.document_number && <div className="row">Doc: {data.document_number}</div>}
       </div>
     </div>
   );
