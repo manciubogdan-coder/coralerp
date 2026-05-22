@@ -547,10 +547,26 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         description: `Bonul de transfer pentru ${formData.destination} a fost generat.`,
       });
 
+      // Pregătim etichetele QR (câte una pentru fiecare linie de transfer)
+      const labels: TransferLabelData[] = selectedItems.map((it) => ({
+        inventory_item_id: it.items[0]?.id || "",
+        product_name: it.productName,
+        lot_number: it.lot_number,
+        quantity: it.quantity,
+        unit: it.unit,
+        destination: formData.destination,
+        transfer_date: formData.transferDate,
+        supplier: it.supplier,
+        manufacturer: it.manufacturer,
+        document_number: it.items[0]?.document_number,
+      }));
+
       setShowConfirm(false);
       setIsOpen(false);
       setSelectedItems([]);
       form.reset();
+      setQrLabels(labels);
+      setQrOpen(true);
 
       if (onTransferComplete) {
         onTransferComplete();
