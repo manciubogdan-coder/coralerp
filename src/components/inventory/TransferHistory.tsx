@@ -353,7 +353,12 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="font-medium text-base">{transfer.product_name}</div>
-                  <TransferReturnForm transfer={transfer} onReturnComplete={handleTransferReturned} />
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="outline" onClick={() => openQrFor(transfer)} title="Printează QR">
+                      <QrCode className="h-4 w-4" />
+                    </Button>
+                    <TransferReturnForm transfer={transfer} onReturnComplete={handleTransferReturned} />
+                  </div>
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {transfer.created_at
@@ -431,10 +436,15 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                       <TableCell>{transfer.unit}</TableCell>
                       <TableCell>{transfer.notes || "-"}</TableCell>
                       <TableCell className="sticky right-0 bg-white">
-                        <TransferReturnForm 
-                          transfer={transfer}
-                          onReturnComplete={handleTransferReturned}
-                        />
+                        <div className="flex items-center gap-1 justify-end">
+                          <Button size="sm" variant="outline" onClick={() => openQrFor(transfer)} title="Printează QR">
+                            <QrCode className="h-4 w-4" />
+                          </Button>
+                          <TransferReturnForm 
+                            transfer={transfer}
+                            onReturnComplete={handleTransferReturned}
+                          />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
