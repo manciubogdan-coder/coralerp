@@ -63,18 +63,19 @@ export const TransferQRLabel: React.FC<{ labels: TransferLabelData[] }> = ({ lab
         overflow: hidden;
         border: 1px dashed #ccc;
       }
-      .transfer-label .qr { flex-shrink: 0; display:flex; align-items:center; }
+      .transfer-label .qr { flex-shrink: 0; display:flex; align-items:flex-start; }
       .transfer-label .info {
         flex: 1; min-width: 0; font-size: 6.5pt; line-height: 1.15;
         display: flex; flex-direction: column; gap: 0.4mm;
+        word-break: break-word; overflow-wrap: anywhere;
       }
       .transfer-label .info .name {
-        font-size: 8pt; font-weight: 700;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        font-size: 8pt; font-weight: 700; line-height: 1.1;
+        white-space: normal; overflow-wrap: anywhere; word-break: break-word;
       }
       .transfer-label .info .qty { font-size: 11pt; font-weight: 800; }
       .transfer-label .info .row {
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        white-space: normal; overflow-wrap: anywhere; word-break: break-word;
       }
       .transfer-label .info .badge {
         display: inline-block; font-size: 5.5pt; font-weight: 700;
@@ -103,10 +104,11 @@ export const TransferQRLabel: React.FC<{ labels: TransferLabelData[] }> = ({ lab
         .transfer-label-print-portal .transfer-label {
           width: 100vw !important;
           height: 100vh !important;
-          padding: 4vmin !important;
-          gap: 4vmin !important;
+          padding: 3vmin !important;
+          gap: 3vmin !important;
           border: none !important;
           box-sizing: border-box !important;
+          align-items: flex-start !important;
           page-break-after: always;
           break-after: page;
         }
@@ -114,12 +116,15 @@ export const TransferQRLabel: React.FC<{ labels: TransferLabelData[] }> = ({ lab
           page-break-after: auto;
           break-after: auto;
         }
-        .transfer-label-print-portal .transfer-label .qr { width: 45vmin; height: 45vmin; }
+        .transfer-label-print-portal .transfer-label .qr { width: 38vmin; height: 38vmin; flex-shrink: 0; }
         .transfer-label-print-portal .transfer-label .qr svg { width: 100% !important; height: 100% !important; }
-        .transfer-label-print-portal .transfer-label .info { font-size: 4.5vmin !important; line-height: 1.25 !important; gap: 1.2vmin !important; }
-        .transfer-label-print-portal .transfer-label .info .name { font-size: 6vmin !important; }
-        .transfer-label-print-portal .transfer-label .info .qty  { font-size: 9vmin !important; }
-        .transfer-label-print-portal .transfer-label .info .badge { font-size: 3.5vmin !important; padding: 0.4vmin 1.2vmin !important; border-width: 0.4vmin !important; border-radius: 1vmin !important; }
+        .transfer-label-print-portal .transfer-label .info {
+          font-size: 3.8vmin !important; line-height: 1.2 !important; gap: 1vmin !important;
+          overflow: hidden !important;
+        }
+        .transfer-label-print-portal .transfer-label .info .name { font-size: 5vmin !important; line-height: 1.1 !important; }
+        .transfer-label-print-portal .transfer-label .info .qty  { font-size: 8vmin !important; }
+        .transfer-label-print-portal .transfer-label .info .badge { font-size: 3vmin !important; padding: 0.4vmin 1.2vmin !important; border-width: 0.4vmin !important; border-radius: 1vmin !important; }
       }
     `}</style>
   );
