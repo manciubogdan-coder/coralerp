@@ -22,6 +22,8 @@ import { useInventoryType } from "@/context/inventory-type";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
 import { emitNotification } from "@/lib/notifications";
+import { TransferQRDialog } from "./TransferQRDialog";
+import type { TransferLabelData } from "./TransferQRLabel";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;
@@ -70,6 +72,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [crateTypes, setCrateTypes] = useState<any[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [qrLabels, setQrLabels] = useState<TransferLabelData[]>([]);
+  const [qrOpen, setQrOpen] = useState(false);
   const isMobile = useIsMobile();
   const productSelectTriggerRef = useRef<HTMLButtonElement>(null);
 
