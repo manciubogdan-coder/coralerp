@@ -588,6 +588,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   };
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size={isMobile ? "default" : "sm"}>
