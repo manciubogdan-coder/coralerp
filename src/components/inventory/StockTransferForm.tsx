@@ -22,6 +22,8 @@ import { useInventoryType } from "@/context/inventory-type";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
 import { emitNotification } from "@/lib/notifications";
+import { TransferQRDialog } from "./TransferQRDialog";
+import type { TransferLabelData } from "./TransferQRLabel";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;
@@ -70,6 +72,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [crateTypes, setCrateTypes] = useState<any[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [qrLabels, setQrLabels] = useState<TransferLabelData[]>([]);
+  const [qrOpen, setQrOpen] = useState(false);
   const isMobile = useIsMobile();
   const productSelectTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -543,10 +547,26 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         description: `Bonul de transfer pentru ${formData.destination} a fost generat.`,
       });
 
+      // Pregătim etichetele QR (câte una pentru fiecare linie de transfer)
+      const labels: TransferLabelData[] = selectedItems.map((it) => ({
+        inventory_item_id: it.items[0]?.id || "",
+        product_name: it.productName,
+        lot_number: it.lot_number,
+        quantity: it.quantity,
+        unit: it.unit,
+        destination: formData.destination,
+        transfer_date: formData.transferDate,
+        supplier: it.supplier,
+        manufacturer: it.manufacturer,
+        document_number: it.items[0]?.document_number,
+      }));
+
       setShowConfirm(false);
       setIsOpen(false);
       setSelectedItems([]);
       form.reset();
+      setQrLabels(labels);
+      setQrOpen(true);
 
       if (onTransferComplete) {
         onTransferComplete();
@@ -568,6 +588,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   };
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size={isMobile ? "default" : "sm"}>
@@ -838,5 +859,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         </div>
       </ConfirmationDialog>
     </Dialog>
+    <TransferQRDialog open={qrOpen} onOpenChange={setQrOpen} labels={qrLabels} />
+    </>
   );
 }

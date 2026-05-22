@@ -7,7 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import { toast } from "@/hooks/use-custom-toast";
-import { Search, CalendarIcon, FileDown } from "lucide-react";
+import { Search, CalendarIcon, FileDown, QrCode } from "lucide-react";
+import { TransferQRDialog } from "./TransferQRDialog";
+import type { TransferLabelData } from "./TransferQRLabel";
 import {
   Popover,
   PopoverContent,
@@ -67,6 +69,24 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   const [dateRange, setDateRange] = useState<[Date | undefined, Date | undefined]>([undefined, undefined]);
   const [page, setPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrLabels, setQrLabels] = useState<TransferLabelData[]>([]);
+
+  const openQrFor = (transfer: TransferItem) => {
+    setQrLabels([{
+      inventory_item_id: transfer.inventory_item_id,
+      product_name: transfer.product_name,
+      lot_number: transfer.lot_number,
+      quantity: transfer.quantity,
+      unit: transfer.unit,
+      destination: transfer.destination,
+      transfer_date: transfer.transfer_date || transfer.created_at,
+      supplier: transfer.supplier_name,
+      manufacturer: transfer.manufacturer_name,
+      document_number: transfer.document_number,
+    }]);
+    setQrOpen(true);
+  };
   
   const fetchTransfers = async () => {
     try {
@@ -333,7 +353,12 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="font-medium text-base">{transfer.product_name}</div>
-                  <TransferReturnForm transfer={transfer} onReturnComplete={handleTransferReturned} />
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="outline" onClick={() => openQrFor(transfer)} title="Printează QR">
+                      <QrCode className="h-4 w-4" />
+                    </Button>
+                    <TransferReturnForm transfer={transfer} onReturnComplete={handleTransferReturned} />
+                  </div>
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {transfer.created_at
@@ -411,10 +436,15 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                       <TableCell>{transfer.unit}</TableCell>
                       <TableCell>{transfer.notes || "-"}</TableCell>
                       <TableCell className="sticky right-0 bg-white">
-                        <TransferReturnForm 
-                          transfer={transfer}
-                          onReturnComplete={handleTransferReturned}
-                        />
+                        <div className="flex items-center gap-1 justify-end">
+                          <Button size="sm" variant="outline" onClick={() => openQrFor(transfer)} title="Printează QR">
+                            <QrCode className="h-4 w-4" />
+                          </Button>
+                          <TransferReturnForm 
+                            transfer={transfer}
+                            onReturnComplete={handleTransferReturned}
+                          />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -474,6 +504,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
           </PaginationContent>
         </Pagination>
       </div>
+      <TransferQRDialog open={qrOpen} onOpenChange={setQrOpen} labels={qrLabels} />
     </div>
   );
 }
