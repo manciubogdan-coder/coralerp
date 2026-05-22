@@ -504,6 +504,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
           </PaginationContent>
         </Pagination>
       </div>
+      <TransferQRDialog open={qrOpen} onOpenChange={setQrOpen} labels={qrLabels} />
     </div>
   );
 }
