@@ -7,7 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import { toast } from "@/hooks/use-custom-toast";
-import { Search, CalendarIcon, FileDown } from "lucide-react";
+import { Search, CalendarIcon, FileDown, QrCode } from "lucide-react";
+import { TransferQRDialog } from "./TransferQRDialog";
+import type { TransferLabelData } from "./TransferQRLabel";
 import {
   Popover,
   PopoverContent,
@@ -67,6 +69,24 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   const [dateRange, setDateRange] = useState<[Date | undefined, Date | undefined]>([undefined, undefined]);
   const [page, setPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrLabels, setQrLabels] = useState<TransferLabelData[]>([]);
+
+  const openQrFor = (transfer: TransferItem) => {
+    setQrLabels([{
+      inventory_item_id: transfer.inventory_item_id,
+      product_name: transfer.product_name,
+      lot_number: transfer.lot_number,
+      quantity: transfer.quantity,
+      unit: transfer.unit,
+      destination: transfer.destination,
+      transfer_date: transfer.transfer_date || transfer.created_at,
+      supplier: transfer.supplier_name,
+      manufacturer: transfer.manufacturer_name,
+      document_number: transfer.document_number,
+    }]);
+    setQrOpen(true);
+  };
   
   const fetchTransfers = async () => {
     try {
