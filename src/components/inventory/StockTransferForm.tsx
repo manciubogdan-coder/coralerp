@@ -859,5 +859,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         </div>
       </ConfirmationDialog>
     </Dialog>
+    <TransferQRDialog open={qrOpen} onOpenChange={setQrOpen} labels={qrLabels} />
+    </>
   );
 }
