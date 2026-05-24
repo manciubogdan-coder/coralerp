@@ -318,6 +318,39 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_trasabilitate: {
+        Row: {
+          cod: string
+          comanda_id: string
+          created_at: string
+          id: string
+          scanned_at: string
+          scanned_by: string | null
+          sesiune_id: string | null
+          tip: string
+        }
+        Insert: {
+          cod: string
+          comanda_id: string
+          created_at?: string
+          id?: string
+          scanned_at?: string
+          scanned_by?: string | null
+          sesiune_id?: string | null
+          tip: string
+        }
+        Update: {
+          cod?: string
+          comanda_id?: string
+          created_at?: string
+          id?: string
+          scanned_at?: string
+          scanned_by?: string | null
+          sesiune_id?: string | null
+          tip?: string
+        }
+        Relationships: []
+      }
       purchase_orders_imported: {
         Row: {
           created_at: string
