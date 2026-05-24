@@ -12,6 +12,7 @@ import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 import OrdersTable from "./OrdersTable";
 import DateProductiePicker, { todayISO } from "./DateProductiePicker";
+import TrasabilitateCard from "./TrasabilitateCard";
 
 interface OperatorInterfaceProps {
   selectedLine: string;
