@@ -474,6 +474,49 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           </Card>
         )}
 
+        {/* Card cu Date și Observații */}
+        {currentOrder && (
+          <Card className="border-coral-200 shadow">
+            <CardContent className="p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-600 block">📅 Data creării:</span>
+                  <p className="font-medium text-gray-800">
+                    {currentOrder.created_at
+                      ? new Date(currentOrder.created_at).toLocaleString('ro-RO', {
+                          day: '2-digit', month: '2-digit', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })
+                      : '-'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-600 block">🏭 Data producției:</span>
+                  <p className={`font-medium ${(currentOrder as any).data_productie ? 'text-coral-primary' : 'text-gray-400'}`}>
+                    {(currentOrder as any).data_productie
+                      ? new Date((currentOrder as any).data_productie).toLocaleDateString('ro-RO')
+                      : 'Nestabilită'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-600 block">📝 Observații:</span>
+                  <p className="font-medium text-gray-800 whitespace-pre-wrap break-words">
+                    {(currentOrder as any).baxare || <span className="text-gray-400 italic">Fără observații</span>}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Trasabilitate (opțional) */}
+        {currentOrderId && (
+          <TrasabilitateCard
+            comandaId={currentOrderId}
+            sesiuneId={activeSessions.find(s => s.comanda_id === currentOrderId && s.linie_id === currentLineId)?.id || null}
+          />
+        )}
+
         {activeSession ? (
           <Card className="border-2 border-green-500 shadow-lg ring-2 ring-green-300">
             <CardHeader className="bg-gradient-to-r from-green-600 to-green-500 text-white">
