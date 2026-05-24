@@ -113,6 +113,12 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                     <Factory className="w-3 h-3 text-coral-primary shrink-0" />
                     <span className="font-medium text-coral-primary truncate">{order.productie_linii?.nume || '-'}</span>
                   </div>
+                  <div className="text-gray-500">
+                    📅 Creată: <span className="font-medium text-gray-700">{order.created_at ? new Date(order.created_at).toLocaleDateString('ro-RO') : '-'}</span>
+                  </div>
+                  <div className={(order as any).data_productie ? 'text-coral-primary' : 'text-gray-400'}>
+                    🏭 Prod: <span className="font-medium">{(order as any).data_productie ? new Date((order as any).data_productie).toLocaleDateString('ro-RO') : 'Nestabilită'}</span>
+                  </div>
                   {order.punct_livrare && (
                     <div className="col-span-2 text-gray-500 truncate">📍 {order.punct_livrare}</div>
                   )}
