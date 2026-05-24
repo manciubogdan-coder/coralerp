@@ -199,6 +199,25 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                       )}
                     </div>
                   </TableCell>
+
+                  <TableCell>
+                    <div className="space-y-1 text-xs whitespace-nowrap">
+                      <div>
+                        <span className="text-gray-500">Creată:</span>{' '}
+                        <span className="font-medium text-gray-800">
+                          {order.created_at ? new Date(order.created_at).toLocaleDateString('ro-RO') : '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Producție:</span>{' '}
+                        <span className={`font-medium ${(order as any).data_productie ? 'text-coral-primary' : 'text-gray-400'}`}>
+                          {(order as any).data_productie
+                            ? new Date((order as any).data_productie).toLocaleDateString('ro-RO')
+                            : 'Nestabilită'}
+                        </span>
+                      </div>
+                    </div>
+                  </TableCell>
                   
                   <TableCell>
                     <div className="space-y-2 min-w-[200px]">
