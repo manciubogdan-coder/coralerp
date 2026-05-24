@@ -147,6 +147,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
             <TableRow className="bg-gray-50">
               <TableHead className="font-semibold text-coral-primary">Număr</TableHead>
               <TableHead className="font-semibold text-coral-primary">Produs</TableHead>
+              <TableHead className="font-semibold text-coral-primary">Date</TableHead>
               <TableHead className="font-semibold text-coral-primary">Progres Producție</TableHead>
               <TableHead className="font-semibold text-coral-primary">Status</TableHead>
               <TableHead className="font-semibold text-coral-primary">Magazin</TableHead>
