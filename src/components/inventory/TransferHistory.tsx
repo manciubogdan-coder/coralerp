@@ -245,7 +245,27 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     if (selectedDestination !== "all" && transfer.destination !== selectedDestination) {
       return false;
     }
-    
+
+    // Date range filter
+    if (dateRange[0] || dateRange[1]) {
+      const transferDate = transfer.created_at
+        ? new Date(transfer.created_at)
+        : transfer.transfer_date
+          ? new Date(transfer.transfer_date)
+          : null;
+      if (!transferDate) return false;
+      if (dateRange[0]) {
+        const start = new Date(dateRange[0]);
+        start.setHours(0, 0, 0, 0);
+        if (transferDate < start) return false;
+      }
+      if (dateRange[1]) {
+        const end = new Date(dateRange[1]);
+        end.setHours(23, 59, 59, 999);
+        if (transferDate > end) return false;
+      }
+    }
+
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       return (
@@ -255,9 +275,14 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
         (transfer.notes && transfer.notes.toLowerCase().includes(searchLower))
       );
     }
-    
+
     return true;
   });
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, selectedDestination, dateRange, itemsPerPage]);
   
   const totalPages = Math.max(1, Math.ceil(filteredTransfers.length / itemsPerPage));
   
