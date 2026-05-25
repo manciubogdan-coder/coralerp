@@ -489,47 +489,68 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
           </div>
         </div>
         
-        <Pagination className="my-4">
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious 
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                className={page <= 1 ? "pointer-events-none opacity-50" : ""}
-              />
-            </PaginationItem>
-            
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (page <= 3) {
-                pageNum = i + 1;
-              } else if (page >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = page - 2 + i;
-              }
-              
-              return (
-                <PaginationItem key={i}>
-                  <PaginationLink 
-                    isActive={pageNum === page}
-                    onClick={() => setPage(pageNum)}
-                  >
-                    {pageNum}
-                  </PaginationLink>
-                </PaginationItem>
-              );
-            })}
-            
-            <PaginationItem>
-              <PaginationNext 
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                className={page >= totalPages ? "pointer-events-none opacity-50" : ""}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 my-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Pe pagină:</span>
+            <Select value={String(itemsPerPage)} onValueChange={(v) => setItemsPerPage(Number(v))}>
+              <SelectTrigger className="w-[90px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="250">250</SelectItem>
+                <SelectItem value="500">500</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="ml-2">
+              {filteredTransfers.length} rezultate • pagina {page} / {totalPages}
+            </span>
+          </div>
+
+          <Pagination className="m-0 w-auto mx-0 justify-end">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  className={page <= 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (page <= 3) {
+                  pageNum = i + 1;
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = page - 2 + i;
+                }
+
+                return (
+                  <PaginationItem key={i}>
+                    <PaginationLink
+                      isActive={pageNum === page}
+                      onClick={() => setPage(pageNum)}
+                    >
+                      {pageNum}
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+              })}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  className={page >= totalPages ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       </div>
       <TransferQRDialog open={qrOpen} onOpenChange={setQrOpen} labels={qrLabels} />
     </div>
