@@ -194,24 +194,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   };
   
   const handleExportExcel = () => {
-    let transfersToExport = filteredTransfers;
-    
-    // Apply date range filter for export
-    if (dateRange[0] || dateRange[1]) {
-      transfersToExport = transfersToExport.filter((transfer) => {
-        const transferDate = transfer.created_at 
-          ? new Date(transfer.created_at) 
-          : new Date(transfer.transfer_date);
-        
-        if (dateRange[0] && transferDate < dateRange[0]) return false;
-        if (dateRange[1]) {
-          const endDate = new Date(dateRange[1]);
-          endDate.setDate(endDate.getDate() + 1); // Include the end date
-          if (transferDate >= endDate) return false;
-        }
-        return true;
-      });
-    }
+    const transfersToExport = filteredTransfers;
+
     
     const dataForExport = transfersToExport.map(transfer => ({
       "Data și ora": transfer.created_at 
