@@ -353,38 +353,13 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <div className="flex flex-col sm:flex-row">
-                  <div className="flex sm:flex-col gap-1 p-2 border-b sm:border-b-0 sm:border-r flex-wrap">
-                    {([
-                      { label: "Azi", from: new Date(new Date().setHours(0,0,0,0)), to: new Date(new Date().setHours(0,0,0,0)) },
-                      { label: "Ieri", from: (()=>{const d=new Date();d.setDate(d.getDate()-1);d.setHours(0,0,0,0);return d;})(), to: (()=>{const d=new Date();d.setDate(d.getDate()-1);d.setHours(0,0,0,0);return d;})() },
-                      { label: "Ultimele 7 zile", from: (()=>{const d=new Date();d.setDate(d.getDate()-6);d.setHours(0,0,0,0);return d;})(), to: new Date(new Date().setHours(0,0,0,0)) },
-                      { label: "Ultimele 30 zile", from: (()=>{const d=new Date();d.setDate(d.getDate()-29);d.setHours(0,0,0,0);return d;})(), to: new Date(new Date().setHours(0,0,0,0)) },
-                      { label: "Luna curentă", from: (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1);})(), to: new Date(new Date().setHours(0,0,0,0)) },
-                      { label: "Luna trecută", from: (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth()-1,1);})(), to: (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),0);})() },
-                    ] as const).map(p => (
-                      <Button key={p.label} variant="ghost" size="sm" className="justify-start text-xs h-8"
-                        onClick={() => { setDateRange([p.from, p.to]); setTimeout(()=>setIsCalendarOpen(false),100); }}>
-                        {p.label}
-                      </Button>
-                    ))}
-                  </div>
-                  <Calendar
-                    mode="range"
-                    selected={{ from: dateRange[0], to: dateRange[1] }}
-                    onSelect={(range) => {
-                      setDateRange([range?.from, range?.to]);
-                      if (range?.from && range?.to) {
-                        setTimeout(() => setIsCalendarOpen(false), 100);
-                      }
-                    }}
-                    numberOfMonths={typeof window !== 'undefined' && window.innerWidth >= 768 ? 2 : 1}
-                    locale={ro}
-                    initialFocus
-                    className="pointer-events-auto"
-                  />
-                </div>
+                <DateRangePanel
+                  initial={{ from: dateRange[0], to: dateRange[1] }}
+                  onApply={(from, to) => { setDateRange([from, to]); setIsCalendarOpen(false); }}
+                  onCancel={() => setIsCalendarOpen(false)}
+                />
               </PopoverContent>
+
 
             </Popover>
             
