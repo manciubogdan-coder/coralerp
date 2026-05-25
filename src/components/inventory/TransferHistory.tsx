@@ -68,7 +68,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [dateRange, setDateRange] = useState<[Date | undefined, Date | undefined]>([undefined, undefined]);
   const [page, setPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [qrOpen, setQrOpen] = useState(false);
   const [qrLabels, setQrLabels] = useState<TransferLabelData[]>([]);
 
