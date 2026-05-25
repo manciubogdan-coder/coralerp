@@ -68,7 +68,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [dateRange, setDateRange] = useState<[Date | undefined, Date | undefined]>([undefined, undefined]);
   const [page, setPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [qrOpen, setQrOpen] = useState(false);
   const [qrLabels, setQrLabels] = useState<TransferLabelData[]>([]);
 
@@ -99,31 +99,49 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
           ? 'etichete_stock_transfer_items'
           : 'stock_transfer_items';
       
-      const { data, error } = await supabase
-        .from(transferItemsTable)
-        .select(`
-          *,
-          stock_transfers:transfer_id (
-            transfer_date,
-            destination,
-            notes,
-            created_at
-          ),
-          inventory:inventory_item_id (
-            name,
-            lot_number,
-            document_number,
-            entry_number,
-            suppliers:supplier_id (name),
-            manufacturers:manufacturer_id (name),
-            products:product_id (name, cod_produs)
-          )
-        `)
-        .order('created_at', { ascending: false });
-        
-      if (error) throw error;
-      
-      console.log(`Fetched ${inventoryType} transfers:`, data);
+      // Paginate to bypass Supabase 1000-row limit
+      const pageSize = 1000;
+      let allData: any[] = [];
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from(transferItemsTable)
+          .select(`
+            *,
+            stock_transfers:transfer_id (
+              transfer_date,
+              destination,
+              notes,
+              created_at
+            ),
+            inventory:inventory_item_id (
+              name,
+              lot_number,
+              document_number,
+              entry_number,
+              suppliers:supplier_id (name),
+              manufacturers:manufacturer_id (name),
+              products:product_id (name, cod_produs)
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const data = allData;
+      console.log(`Fetched ${inventoryType} transfers total:`, data.length);
       
       // Transform the data to match the expected format
       const transformedData = (data || []).map(item => ({
@@ -176,24 +194,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   };
   
   const handleExportExcel = () => {
-    let transfersToExport = filteredTransfers;
-    
-    // Apply date range filter for export
-    if (dateRange[0] || dateRange[1]) {
-      transfersToExport = transfersToExport.filter((transfer) => {
-        const transferDate = transfer.created_at 
-          ? new Date(transfer.created_at) 
-          : new Date(transfer.transfer_date);
-        
-        if (dateRange[0] && transferDate < dateRange[0]) return false;
-        if (dateRange[1]) {
-          const endDate = new Date(dateRange[1]);
-          endDate.setDate(endDate.getDate() + 1); // Include the end date
-          if (transferDate >= endDate) return false;
-        }
-        return true;
-      });
-    }
+    const transfersToExport = filteredTransfers;
+
     
     const dataForExport = transfersToExport.map(transfer => ({
       "Data și ora": transfer.created_at 
@@ -227,7 +229,27 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     if (selectedDestination !== "all" && transfer.destination !== selectedDestination) {
       return false;
     }
-    
+
+    // Date range filter
+    if (dateRange[0] || dateRange[1]) {
+      const transferDate = transfer.created_at
+        ? new Date(transfer.created_at)
+        : transfer.transfer_date
+          ? new Date(transfer.transfer_date)
+          : null;
+      if (!transferDate) return false;
+      if (dateRange[0]) {
+        const start = new Date(dateRange[0]);
+        start.setHours(0, 0, 0, 0);
+        if (transferDate < start) return false;
+      }
+      if (dateRange[1]) {
+        const end = new Date(dateRange[1]);
+        end.setHours(23, 59, 59, 999);
+        if (transferDate > end) return false;
+      }
+    }
+
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       return (
@@ -237,9 +259,14 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
         (transfer.notes && transfer.notes.toLowerCase().includes(searchLower))
       );
     }
-    
+
     return true;
   });
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, selectedDestination, dateRange, itemsPerPage]);
   
   const totalPages = Math.max(1, Math.ceil(filteredTransfers.length / itemsPerPage));
   
@@ -462,47 +489,68 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
           </div>
         </div>
         
-        <Pagination className="my-4">
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious 
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                className={page <= 1 ? "pointer-events-none opacity-50" : ""}
-              />
-            </PaginationItem>
-            
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (page <= 3) {
-                pageNum = i + 1;
-              } else if (page >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = page - 2 + i;
-              }
-              
-              return (
-                <PaginationItem key={i}>
-                  <PaginationLink 
-                    isActive={pageNum === page}
-                    onClick={() => setPage(pageNum)}
-                  >
-                    {pageNum}
-                  </PaginationLink>
-                </PaginationItem>
-              );
-            })}
-            
-            <PaginationItem>
-              <PaginationNext 
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                className={page >= totalPages ? "pointer-events-none opacity-50" : ""}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 my-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Pe pagină:</span>
+            <Select value={String(itemsPerPage)} onValueChange={(v) => setItemsPerPage(Number(v))}>
+              <SelectTrigger className="w-[90px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="250">250</SelectItem>
+                <SelectItem value="500">500</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="ml-2">
+              {filteredTransfers.length} rezultate • pagina {page} / {totalPages}
+            </span>
+          </div>
+
+          <Pagination className="m-0 w-auto mx-0 justify-end">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  className={page <= 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (page <= 3) {
+                  pageNum = i + 1;
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = page - 2 + i;
+                }
+
+                return (
+                  <PaginationItem key={i}>
+                    <PaginationLink
+                      isActive={pageNum === page}
+                      onClick={() => setPage(pageNum)}
+                    >
+                      {pageNum}
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+              })}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  className={page >= totalPages ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       </div>
       <TransferQRDialog open={qrOpen} onOpenChange={setQrOpen} labels={qrLabels} />
     </div>
