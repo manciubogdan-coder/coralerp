@@ -588,27 +588,29 @@ function DateRangePanel({
   const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
 
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-col sm:flex-row">
-        <div className="flex sm:flex-col gap-1 p-2 border-b sm:border-b-0 sm:border-r flex-wrap sm:min-w-[160px]">
-          {presets.map(p => (
-            <Button key={p.label} variant="ghost" size="sm" className="justify-start text-xs h-8"
-              onClick={() => { const r = p.get(); setDraft(r); onApply(r.from, r.to); }}>
-              {p.label}
-            </Button>
-          ))}
+    <div className="flex flex-col max-h-[85vh] w-[95vw] sm:w-auto">
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-col sm:flex-row">
+          <div className="flex sm:flex-col gap-1 p-2 border-b sm:border-b-0 sm:border-r flex-wrap sm:min-w-[160px]">
+            {presets.map(p => (
+              <Button key={p.label} variant="ghost" size="sm" className="justify-start text-xs h-8"
+                onClick={() => { const r = p.get(); setDraft(r); onApply(r.from, r.to); }}>
+                {p.label}
+              </Button>
+            ))}
+          </div>
+          <Calendar
+            mode="range"
+            selected={draft as any}
+            onSelect={(range: any) => setDraft({ from: range?.from, to: range?.to })}
+            numberOfMonths={isDesktop ? 2 : 1}
+            locale={ro}
+            initialFocus
+            className="pointer-events-auto"
+          />
         </div>
-        <Calendar
-          mode="range"
-          selected={draft as any}
-          onSelect={(range: any) => setDraft({ from: range?.from, to: range?.to })}
-          numberOfMonths={isDesktop ? 2 : 1}
-          locale={ro}
-          initialFocus
-          className="pointer-events-auto"
-        />
       </div>
-      <div className="flex items-center justify-between gap-2 p-3 border-t bg-muted/30">
+      <div className="flex items-center justify-between gap-2 p-3 border-t bg-background sticky bottom-0">
         <div className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{fmt(draft.from)}</span>
           <span className="mx-1">→</span>
@@ -625,4 +627,5 @@ function DateRangePanel({
     </div>
   );
 }
+
 
