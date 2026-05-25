@@ -99,31 +99,49 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
           ? 'etichete_stock_transfer_items'
           : 'stock_transfer_items';
       
-      const { data, error } = await supabase
-        .from(transferItemsTable)
-        .select(`
-          *,
-          stock_transfers:transfer_id (
-            transfer_date,
-            destination,
-            notes,
-            created_at
-          ),
-          inventory:inventory_item_id (
-            name,
-            lot_number,
-            document_number,
-            entry_number,
-            suppliers:supplier_id (name),
-            manufacturers:manufacturer_id (name),
-            products:product_id (name, cod_produs)
-          )
-        `)
-        .order('created_at', { ascending: false });
-        
-      if (error) throw error;
-      
-      console.log(`Fetched ${inventoryType} transfers:`, data);
+      // Paginate to bypass Supabase 1000-row limit
+      const pageSize = 1000;
+      let allData: any[] = [];
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from(transferItemsTable)
+          .select(`
+            *,
+            stock_transfers:transfer_id (
+              transfer_date,
+              destination,
+              notes,
+              created_at
+            ),
+            inventory:inventory_item_id (
+              name,
+              lot_number,
+              document_number,
+              entry_number,
+              suppliers:supplier_id (name),
+              manufacturers:manufacturer_id (name),
+              products:product_id (name, cod_produs)
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const data = allData;
+      console.log(`Fetched ${inventoryType} transfers total:`, data.length);
       
       // Transform the data to match the expected format
       const transformedData = (data || []).map(item => ({
