@@ -66,7 +66,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   const [selectedDestination, setSelectedDestination] = useState<string>("all");
   const [actionFilter, setActionFilter] = useState<string>("all");
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [dateRange, setDateRange] = useState<[Date | undefined, Date | undefined]>([undefined, undefined]);
+  const initialToday = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+  const [dateRange, setDateRange] = useState<[Date | undefined, Date | undefined]>([initialToday, initialToday]);
   const [page, setPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [qrOpen, setQrOpen] = useState(false);
@@ -98,6 +99,12 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
         : inventoryType === 'etichete'
           ? 'etichete_stock_transfer_items'
           : 'stock_transfer_items';
+
+      // Server-side date filter (on item created_at) to keep the query fast
+      const startDate = dateRange[0] ? new Date(dateRange[0]) : null;
+      if (startDate) startDate.setHours(0, 0, 0, 0);
+      const endDate = dateRange[1] ? new Date(dateRange[1]) : null;
+      if (endDate) endDate.setHours(23, 59, 59, 999);
       
       // Paginate to bypass Supabase 1000-row limit
       const pageSize = 1000;
@@ -106,7 +113,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabase
+        let query: any = supabase
           .from(transferItemsTable)
           .select(`
             *,
@@ -128,6 +135,11 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
           `)
           .order('created_at', { ascending: false })
           .range(offset, offset + pageSize - 1);
+
+        if (startDate) query = query.gte('created_at', startDate.toISOString());
+        if (endDate) query = query.lte('created_at', endDate.toISOString());
+
+        const { data, error } = await query;
 
         if (error) throw error;
 
@@ -184,7 +196,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   
   useEffect(() => {
     fetchTransfers();
-  }, [inventoryType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventoryType, dateRange[0]?.getTime(), dateRange[1]?.getTime()]);
   
   const handleTransferReturned = () => {
     fetchTransfers();
