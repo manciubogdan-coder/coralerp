@@ -563,3 +563,66 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
     </div>
   );
 }
+
+function DateRangePanel({
+  initial,
+  onApply,
+  onCancel,
+}: {
+  initial: { from?: Date; to?: Date };
+  onApply: (from: Date | undefined, to: Date | undefined) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState<{ from?: Date; to?: Date }>({ from: initial.from, to: initial.to });
+  const todayMid = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+  const presets = [
+    { label: "Azi", get: () => { const d = todayMid(); return { from: d, to: d }; } },
+    { label: "Ieri", get: () => { const d = todayMid(); d.setDate(d.getDate()-1); return { from: d, to: d }; } },
+    { label: "Ultimele 7 zile", get: () => { const t = todayMid(); const f = new Date(t); f.setDate(f.getDate()-6); return { from: f, to: t }; } },
+    { label: "Ultimele 30 zile", get: () => { const t = todayMid(); const f = new Date(t); f.setDate(f.getDate()-29); return { from: f, to: t }; } },
+    { label: "Luna curentă", get: () => { const t = todayMid(); return { from: new Date(t.getFullYear(), t.getMonth(), 1), to: t }; } },
+    { label: "Luna trecută", get: () => { const t = todayMid(); return { from: new Date(t.getFullYear(), t.getMonth()-1, 1), to: new Date(t.getFullYear(), t.getMonth(), 0) }; } },
+  ];
+
+  const fmt = (d?: Date) => d ? format(d, "dd.MM.yyyy") : "—";
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
+
+  return (
+    <div className="flex flex-col">
+      <div className="flex flex-col sm:flex-row">
+        <div className="flex sm:flex-col gap-1 p-2 border-b sm:border-b-0 sm:border-r flex-wrap sm:min-w-[160px]">
+          {presets.map(p => (
+            <Button key={p.label} variant="ghost" size="sm" className="justify-start text-xs h-8"
+              onClick={() => { const r = p.get(); setDraft(r); onApply(r.from, r.to); }}>
+              {p.label}
+            </Button>
+          ))}
+        </div>
+        <Calendar
+          mode="range"
+          selected={draft as any}
+          onSelect={(range: any) => setDraft({ from: range?.from, to: range?.to })}
+          numberOfMonths={isDesktop ? 2 : 1}
+          locale={ro}
+          initialFocus
+          className="pointer-events-auto"
+        />
+      </div>
+      <div className="flex items-center justify-between gap-2 p-3 border-t bg-muted/30">
+        <div className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{fmt(draft.from)}</span>
+          <span className="mx-1">→</span>
+          <span className="font-medium text-foreground">{fmt(draft.to ?? draft.from)}</span>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" onClick={onCancel}>Anulează</Button>
+          <Button size="sm" disabled={!draft.from}
+            onClick={() => onApply(draft.from, draft.to ?? draft.from)}>
+            Aplică
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
