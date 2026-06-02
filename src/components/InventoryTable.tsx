@@ -291,7 +291,7 @@ const InventoryTable = ({
                         ? format(new Date(item.receipt_date), 'dd.MM.yyyy')
                         : '-'}
                     </TableCell>
-                    <TableCell className={`px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs ${item.isHeader ? "font-bold" : "font-medium"} truncate`}>
+                    <TableCell className={`px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs text-[11px] leading-tight whitespace-normal break-words ${item.isHeader ? "font-bold" : "font-medium"}`}>
                       {productName}
                     </TableCell>
                     <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{productCode}</TableCell>
