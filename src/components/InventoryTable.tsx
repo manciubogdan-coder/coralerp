@@ -256,19 +256,19 @@ const InventoryTable = ({
       </div>
       
       <div className="max-h-[70vh] overflow-auto print:max-h-none print:overflow-visible">
-        <Table className="w-full print:text-xs table-fixed print:table-auto">
+        <Table className="w-full text-[11px] print:text-xs table-fixed print:table-auto">
           <TableHeader className="sticky top-0 bg-white z-10 print:static">
             <TableRow className="print:break-inside-avoid">
-              <TableHead className="w-8 px-1 text-left print:w-[6%] print:px-1 print:py-1 print:border print:border-gray-300">Nr.</TableHead>
-              <TableHead className="w-12 px-1 text-left print:w-[8%] print:px-1 print:py-1 print:border print:border-gray-300">Data</TableHead>
-              <TableHead className="w-40 px-1 text-left print:w-[18%] print:px-1 print:py-1 print:border print:border-gray-300">Produs</TableHead>
-              <TableHead className="w-12 px-1 text-left print:w-[7%] print:px-1 print:py-1 print:border print:border-gray-300">Cod</TableHead>
-              <TableHead className="w-12 px-1 text-right print:w-[7%] print:px-1 print:py-1 print:border print:border-gray-300">Cant.</TableHead>
-              <TableHead className="w-8 px-1 text-left print:w-[5%] print:px-1 print:py-1 print:border print:border-gray-300">U.M.</TableHead>
-              <TableHead className="w-20 px-1 text-left print:w-[13%] print:px-1 print:py-1 print:border print:border-gray-300">Furnizor</TableHead>
-              <TableHead className="w-20 px-1 text-left print:w-[13%] print:px-1 print:py-1 print:border print:border-gray-300">Producător</TableHead>
-              <TableHead className="w-12 px-1 text-left print:w-[7%] print:px-1 print:py-1 print:border print:border-gray-300">Lot</TableHead>
-              <TableHead className="w-16 px-1 text-left print:w-[8%] print:px-1 print:py-1 print:border print:border-gray-300">Doc.</TableHead>
+              <TableHead className="w-8 px-1 text-left text-[11px] print:w-[6%] print:px-1 print:py-1 print:border print:border-gray-300">Nr.</TableHead>
+              <TableHead className="w-14 px-1 text-left text-[11px] print:w-[8%] print:px-1 print:py-1 print:border print:border-gray-300">Data</TableHead>
+              <TableHead className="w-40 px-1 text-left text-[11px] print:w-[18%] print:px-1 print:py-1 print:border print:border-gray-300">Produs</TableHead>
+              <TableHead className="w-12 px-1 text-left text-[11px] print:w-[7%] print:px-1 print:py-1 print:border print:border-gray-300">Cod</TableHead>
+              <TableHead className="w-14 px-1 text-right text-[11px] print:w-[7%] print:px-1 print:py-1 print:border print:border-gray-300">Cant.</TableHead>
+              <TableHead className="w-10 px-1 text-left text-[11px] print:w-[5%] print:px-1 print:py-1 print:border print:border-gray-300">U.M.</TableHead>
+              <TableHead className="w-24 px-1 text-left text-[11px] print:w-[13%] print:px-1 print:py-1 print:border print:border-gray-300">Furnizor</TableHead>
+              <TableHead className="w-24 px-1 text-left text-[11px] print:w-[13%] print:px-1 print:py-1 print:border print:border-gray-300">Producător</TableHead>
+              <TableHead className="w-14 px-1 text-left text-[11px] print:w-[7%] print:px-1 print:py-1 print:border print:border-gray-300">Lot</TableHead>
+              <TableHead className="w-20 px-1 text-left text-[11px] print:w-[8%] print:px-1 print:py-1 print:border print:border-gray-300">Doc.</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -282,25 +282,25 @@ const InventoryTable = ({
                   item.products?.cod_produs ||
                   (item.product_id ? products[item.product_id]?.cod_produs : undefined) ||
                   "-";
-                
+                const cellCls = "px-1 py-1.5 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs text-[11px] leading-tight whitespace-normal break-words";
                 return (
                   <TableRow key={item.id} className={`print:break-inside-avoid ${item.isHeader ? "bg-gray-100 font-medium print:bg-gray-200" : ""}`}>
-                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{item.entry_number || '-'}</TableCell>
-                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">
+                    <TableCell className={cellCls}>{item.entry_number || '-'}</TableCell>
+                    <TableCell className={cellCls}>
                       {item.receipt_date 
                         ? format(new Date(item.receipt_date), 'dd.MM.yyyy')
                         : '-'}
                     </TableCell>
-                    <TableCell className={`px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs text-[11px] leading-tight whitespace-normal break-words ${item.isHeader ? "font-bold" : "font-medium"}`}>
+                    <TableCell className={`${cellCls} ${item.isHeader ? "font-bold" : "font-medium"}`}>
                       {productName}
                     </TableCell>
-                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{productCode}</TableCell>
-                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs text-right truncate">{formatQuantity(item.quantity)}</TableCell>
-                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{item.unit}</TableCell>
-                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{supplierName || '-'}</TableCell>
-                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{manufacturerName || '-'}</TableCell>
-                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{item.lot_number || '-'}</TableCell>
-                    <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{item.document_number || '-'}</TableCell>
+                    <TableCell className={cellCls}>{productCode}</TableCell>
+                    <TableCell className={`${cellCls} text-right`}>{formatQuantity(item.quantity)}</TableCell>
+                    <TableCell className={cellCls}>{item.unit}</TableCell>
+                    <TableCell className={cellCls}>{supplierName || '-'}</TableCell>
+                    <TableCell className={cellCls}>{manufacturerName || '-'}</TableCell>
+                    <TableCell className={cellCls}>{item.lot_number || '-'}</TableCell>
+                    <TableCell className={cellCls}>{item.document_number || '-'}</TableCell>
                   </TableRow>
                 );
               })
