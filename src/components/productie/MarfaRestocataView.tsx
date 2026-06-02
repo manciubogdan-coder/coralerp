@@ -328,7 +328,7 @@ const MarfaRestocataView = () => {
           delete clone.id;
           delete clone.created_at;
           delete clone.updated_at;
-          clone.status = 'folosit';
+          clone.status = 'epuizat';
           clone.cantitate_surplus = 0;
           clone.motiv_scoatere = meta.motiv_scoatere;
           clone.observatii_scoatere = `[${cantScoasa} ${lot.unitate_masura}] ${meta.observatii_scoatere || ''}`.trim();
