@@ -261,7 +261,7 @@ const InventoryTable = ({
             <TableRow className="print:break-inside-avoid">
               <TableHead className="w-8 px-1 text-left print:w-[6%] print:px-1 print:py-1 print:border print:border-gray-300">Nr.</TableHead>
               <TableHead className="w-12 px-1 text-left print:w-[8%] print:px-1 print:py-1 print:border print:border-gray-300">Data</TableHead>
-              <TableHead className="w-24 px-1 text-left print:w-[18%] print:px-1 print:py-1 print:border print:border-gray-300">Produs</TableHead>
+              <TableHead className="w-40 px-1 text-left print:w-[18%] print:px-1 print:py-1 print:border print:border-gray-300">Produs</TableHead>
               <TableHead className="w-12 px-1 text-left print:w-[7%] print:px-1 print:py-1 print:border print:border-gray-300">Cod</TableHead>
               <TableHead className="w-12 px-1 text-right print:w-[7%] print:px-1 print:py-1 print:border print:border-gray-300">Cant.</TableHead>
               <TableHead className="w-8 px-1 text-left print:w-[5%] print:px-1 print:py-1 print:border print:border-gray-300">U.M.</TableHead>
@@ -291,7 +291,7 @@ const InventoryTable = ({
                         ? format(new Date(item.receipt_date), 'dd.MM.yyyy')
                         : '-'}
                     </TableCell>
-                    <TableCell className={`px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs ${item.isHeader ? "font-bold" : "font-medium"} truncate`}>
+                    <TableCell className={`px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs text-[11px] leading-tight whitespace-normal break-words ${item.isHeader ? "font-bold" : "font-medium"}`}>
                       {productName}
                     </TableCell>
                     <TableCell className="px-1 py-2 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs truncate">{productCode}</TableCell>
