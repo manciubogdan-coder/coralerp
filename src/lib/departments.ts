@@ -132,4 +132,12 @@ export const DEPARTMENTS: DepartmentDef[] = [
     rootPath: "/administrativ",
     description: "Utilizatori, audit, nomenclatoare.",
   },
+  {
+    id: "evidenta_documente",
+    label: "Evidență Documente",
+    short: "Evidență Doc.",
+    icon: FileText,
+    rootPath: "/evidenta-documente",
+    description: "Recepții și rapoarte pe furnizor / interval de timp.",
+  },
 ];
