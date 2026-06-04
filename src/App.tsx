@@ -328,6 +328,16 @@ const AppShell = () => {
                   }
                 />
 
+                {/* ========== EVIDENȚĂ DOCUMENTE ========== */}
+                <Route
+                  path="/evidenta-documente"
+                  element={
+                    <ProtectedRoute requireDepartment="evidenta_documente">
+                      <EvidentaDocumenteHub />
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* ========== CHAT ========== */}
                 <Route
                   path="/chat"
