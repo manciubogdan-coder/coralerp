@@ -37,6 +37,7 @@ import {
   PackageSearch,
   Building2,
   Layers,
+  FileText,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -87,6 +88,13 @@ const GROUPS: DeptGroup[] = [
     items: [
       { name: 'Stoc Etichete', icon: Tag, path: '/etichete' },
       { name: 'Nomenclatoare', icon: Layers, path: '/etichete/nomenclatoare' },
+    ],
+  },
+  {
+    dept: 'evidenta_documente' as DepartmentRole,
+    label: 'Evidență Documente',
+    items: [
+      { name: 'Recepții & Rapoarte', icon: FileText, path: '/evidenta-documente' },
     ],
   },
   {

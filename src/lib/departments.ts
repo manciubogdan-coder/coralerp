@@ -10,6 +10,7 @@ import {
   Settings,
   ShieldCheck,
   HardHat,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 
@@ -26,6 +27,7 @@ export const DEPARTMENT_ROLES = [
   "mentenanta",
   "administrativ",
   "operator",
+  "evidenta_documente",
 ] as const;
 
 export type DepartmentRole = (typeof DEPARTMENT_ROLES)[number];
@@ -129,5 +131,13 @@ export const DEPARTMENTS: DepartmentDef[] = [
     icon: Settings,
     rootPath: "/administrativ",
     description: "Utilizatori, audit, nomenclatoare.",
+  },
+  {
+    id: "evidenta_documente",
+    label: "Evidență Documente",
+    short: "Evidență Doc.",
+    icon: FileText,
+    rootPath: "/evidenta-documente",
+    description: "Recepții și rapoarte pe furnizor / interval de timp.",
   },
 ];

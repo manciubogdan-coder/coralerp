@@ -27,6 +27,7 @@ import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import ProductionStockPage from "./pages/dashboard/ProductionStockPage";
 import MentenantaPage from "./pages/MentenantaPage";
 import CalitateHub from "./pages/CalitateHub";
+import EvidentaDocumenteHub from "./pages/EvidentaDocumenteHub";
 import VanzariHub from "./pages/VanzariHub";
 import ChatPage from "./pages/ChatPage";
 import TaskuriPage from "./pages/TaskuriPage";
@@ -323,6 +324,16 @@ const AppShell = () => {
                   element={
                     <ProtectedRoute requireDepartment="calitate">
                       <CalitateHub />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* ========== EVIDENȚĂ DOCUMENTE ========== */}
+                <Route
+                  path="/evidenta-documente"
+                  element={
+                    <ProtectedRoute requireDepartment="evidenta_documente">
+                      <EvidentaDocumenteHub />
                     </ProtectedRoute>
                   }
                 />
