@@ -37,6 +37,7 @@ import {
   PackageSearch,
   Building2,
   Layers,
+  FileText,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
