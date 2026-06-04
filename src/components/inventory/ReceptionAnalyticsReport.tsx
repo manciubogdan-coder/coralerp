@@ -169,7 +169,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
       let query = (supabase as any)
         .from(getInventoryTable(inventoryType))
         .select(`id, name, original_quantity, net_quantity, unit, receipt_date, document_number,
-                 crate_count, pallet_count, supplier_id, supplier_name, product_id`)
+                 crate_count, crate_type_id, pallet_count, supplier_id, supplier_name, product_id`)
         .gte("receipt_date", start)
         .lte("receipt_date", end);
 
@@ -201,8 +201,24 @@ const ReceptionAnalyticsReport: React.FC = () => {
         ((data || []) as any[]).forEach((r) => reportMap.set(r.inventory_id, r));
       }
 
+      // Fetch crate type names from all 3 lookup tables (merged by id)
+      const crateIds = Array.from(new Set(all.map((r) => r.crate_type_id).filter(Boolean))) as string[];
+      const crateNameMap = new Map<string, string>();
+      if (crateIds.length > 0) {
+        const tables = ["crate_types", "ambalaje_crate_types", "etichete_crate_types"];
+        for (const t of tables) {
+          for (let i = 0; i < crateIds.length; i += 50) {
+            const slice = crateIds.slice(i, i + 50);
+            const { data } = await (supabase as any).from(t).select("id, name").in("id", slice);
+            ((data || []) as any[]).forEach((row) => {
+              if (!crateNameMap.has(row.id)) crateNameMap.set(row.id, row.name);
+            });
+          }
+        }
+      }
+
       // Aggregate by product (name + unit)
-      type Acc = Aggregated & { _docSet: Set<string> };
+      type Acc = Aggregated & { _docSet: Set<string>; _crates: Map<string, number> };
       const map = new Map<string, Acc>();
       all.forEach((r) => {
         const key = `${r.name}__${r.unit || ""}`;
@@ -213,6 +229,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
             produs: r.name,
             unit: r.unit || "",
             nr_lazi: 0,
+            lazi_pe_tip: "",
             nr_paleti: 0,
             cantitate_receptionata: 0,
             cantitate_document: 0,
@@ -222,15 +239,21 @@ const ReceptionAnalyticsReport: React.FC = () => {
             nr_documente: 0,
             nr_receptii: 0,
             _docSet: new Set<string>(),
+            _crates: new Map<string, number>(),
           };
           map.set(key, agg);
         }
         const rec = Number(r.original_quantity ?? r.net_quantity ?? 0);
+        const cnt = Number(r.crate_count ?? 0);
         agg.cantitate_receptionata += rec;
-        agg.nr_lazi += Number(r.crate_count ?? 0);
+        agg.nr_lazi += cnt;
         agg.nr_paleti += Number(r.pallet_count ?? 0);
         agg.nr_receptii += 1;
         if (r.document_number) agg._docSet.add(String(r.document_number));
+        if (cnt > 0) {
+          const tipName = r.crate_type_id ? (crateNameMap.get(r.crate_type_id) || "Necunoscut") : "Necunoscut";
+          agg._crates.set(tipName, (agg._crates.get(tipName) || 0) + cnt);
+        }
 
         const rep = reportMap.get(r.id);
         const docQty = rep?.cantitate_document != null ? Number(rep.cantitate_document) : 0;
@@ -247,7 +270,11 @@ const ReceptionAnalyticsReport: React.FC = () => {
         a.pierdere_calitativa_pct = a.cantitate_receptionata > 0
           ? (a.pierdere_calitativa_kg / a.cantitate_receptionata) * 100
           : 0;
-        const { _docSet, ...rest } = a;
+        a.lazi_pe_tip = Array.from(a._crates.entries())
+          .sort((x, y) => y[1] - x[1])
+          .map(([name, n]) => `${name}: ${n}`)
+          .join(", ");
+        const { _docSet, _crates, ...rest } = a;
         result.push(rest);
       });
 
