@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { useInventoryType } from "@/context/inventory-type";
 import { emitNotification } from "@/lib/notifications";
+import { persistDateKey, readStoredDateKey, todayKey } from "@/lib/persistentDate";
 
 interface DailyStockItem {
   id: string;
@@ -38,7 +39,8 @@ interface QualityRow {
 
 export const DailyStockQuality = () => {
   const { inventoryType } = useInventoryType();
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const dateStorageKey = `dailyStockQuality.date.${inventoryType}`;
+  const [selectedDate, setSelectedDateState] = useState(() => readStoredDateKey(dateStorageKey, todayKey()));
   const [productFilter, setProductFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [snapshots, setSnapshots] = useState<DailyStockItem[]>([]);
@@ -59,6 +61,11 @@ export const DailyStockQuality = () => {
     : inventoryType === "etichete"
       ? "etichete_daily_stock_quality"
       : "daily_stock_quality";
+
+  const setSelectedDate = (value: string) => {
+    setSelectedDateState(value);
+    persistDateKey(dateStorageKey, value);
+  };
 
   const fetchData = async () => {
     try {
@@ -134,6 +141,10 @@ export const DailyStockQuality = () => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, inventoryType]);
+
+  useEffect(() => {
+    setSelectedDateState(readStoredDateKey(dateStorageKey, todayKey()));
+  }, [dateStorageKey]);
 
   const filteredSnapshots = useMemo(() => {
     if (!productFilter.trim()) return snapshots;

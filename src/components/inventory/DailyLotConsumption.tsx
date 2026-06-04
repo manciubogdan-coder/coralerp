@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useInventoryType } from "@/context/inventory-type";
+import { persistDateKey, readStoredDateKey, yesterdayKey } from "@/lib/persistentDate";
 
 interface LotConsumptionItem {
   product_name: string;
@@ -36,12 +37,17 @@ export const DailyLotConsumption = () => {
   const [filteredData, setFilteredData] = useState<ProductSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [productFilter, setProductFilter] = useState("");
-  const [selectedDate, setSelectedDate] = useState(() => {
-    // Setez implicit data de ieri pentru că azi nu există încă mișcări
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    return yesterday.toISOString().split('T')[0];
-  });
+  const dateStorageKey = `dailyLotConsumption.date.${inventoryType}`;
+  const [selectedDate, setSelectedDateState] = useState(() => readStoredDateKey(dateStorageKey, yesterdayKey()));
+
+  const setSelectedDate = (value: string) => {
+    setSelectedDateState(value);
+    persistDateKey(dateStorageKey, value);
+  };
+
+  useEffect(() => {
+    setSelectedDateState(readStoredDateKey(dateStorageKey, yesterdayKey()));
+  }, [dateStorageKey]);
 
   const fetchConsumptionData = async () => {
     try {
