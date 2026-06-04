@@ -36,6 +36,7 @@ type ColumnKey =
   | "produs"
   | "unit"
   | "nr_lazi"
+  | "lazi_pe_tip"
   | "nr_paleti"
   | "cantitate_receptionata"
   | "cantitate_document"
@@ -49,6 +50,7 @@ const ALL_COLUMNS: { key: ColumnKey; label: string; align?: "left" | "right"; nu
   { key: "produs", label: "Produs", align: "left" },
   { key: "unit", label: "UM", align: "left" },
   { key: "nr_lazi", label: "Nr. lăzi", align: "right", numeric: true, format: (n) => n.toString() },
+  { key: "lazi_pe_tip", label: "Lăzi pe tip", align: "left" },
   { key: "nr_paleti", label: "Nr. paleți", align: "right", numeric: true, format: (n) => n.toString() },
   { key: "cantitate_receptionata", label: "Cant. recepționată", align: "right", numeric: true, format: (n) => n.toFixed(2) },
   { key: "cantitate_document", label: "Cant. document", align: "right", numeric: true, format: (n) => n.toFixed(2) },
@@ -60,7 +62,7 @@ const ALL_COLUMNS: { key: ColumnKey; label: string; align?: "left" | "right"; nu
 ];
 
 const DEFAULT_ORDER: ColumnKey[] = ALL_COLUMNS.map((c) => c.key);
-const DEFAULT_VISIBLE: ColumnKey[] = ["produs", "unit", "nr_lazi", "nr_paleti", "cantitate_receptionata", "cantitate_document", "pierdere_cantitativa", "pierdere_calitativa_pct", "pierdere_calitativa_kg", "nr_documente"];
+const DEFAULT_VISIBLE: ColumnKey[] = ["produs", "unit", "nr_lazi", "lazi_pe_tip", "nr_paleti", "cantitate_receptionata", "cantitate_document", "pierdere_cantitativa", "pierdere_calitativa_pct", "pierdere_calitativa_kg", "nr_documente"];
 
 type Aggregated = {
   product_key: string;
