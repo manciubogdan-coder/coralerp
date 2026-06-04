@@ -91,6 +91,13 @@ const GROUPS: DeptGroup[] = [
     ],
   },
   {
+    dept: 'evidenta_documente' as DepartmentRole,
+    label: 'Evidență Documente',
+    items: [
+      { name: 'Recepții & Rapoarte', icon: FileText, path: '/evidenta-documente' },
+    ],
+  },
+  {
     dept: 'productie',
     label: 'Producție',
     items: [
