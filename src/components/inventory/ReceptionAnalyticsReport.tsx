@@ -532,6 +532,27 @@ const ReceptionAnalyticsReport: React.FC = () => {
           )}
         </Table>
       </Card>
+
+      {/* Totalizare pe tip lăzi */}
+      {crateTotals.length > 0 && (
+        <Card className="p-3">
+          <div className="text-xs font-medium mb-2 text-muted-foreground">
+            Totalizare lăzi pe tip
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {crateTotals.map(([name, n]) => (
+              <div key={name} className="flex items-center gap-2 px-3 py-1.5 rounded border bg-primary/5 border-primary/20 text-sm">
+                <span className="font-medium">{name}</span>
+                <span className="tabular-nums font-bold">{n}</span>
+              </div>
+            ))}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded border bg-foreground/5 border-foreground/20 text-sm ml-auto">
+              <span className="font-bold">TOTAL</span>
+              <span className="tabular-nums font-bold">{crateTotals.reduce((s, [, n]) => s + n, 0)}</span>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };
