@@ -27,6 +27,7 @@ import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import ProductionStockPage from "./pages/dashboard/ProductionStockPage";
 import MentenantaPage from "./pages/MentenantaPage";
 import CalitateHub from "./pages/CalitateHub";
+import EvidentaDocumenteHub from "./pages/EvidentaDocumenteHub";
 import VanzariHub from "./pages/VanzariHub";
 import ChatPage from "./pages/ChatPage";
 import TaskuriPage from "./pages/TaskuriPage";
