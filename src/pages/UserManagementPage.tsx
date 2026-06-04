@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/dialog';
 import { DEPARTMENTS, type AppRole, type DepartmentRole } from '@/lib/departments';
 
-const ASSIGNABLE_DEPARTMENTS = DEPARTMENTS.filter((dept) => dept.id !== 'evidenta_documente');
+const ASSIGNABLE_DEPARTMENTS = DEPARTMENTS;
 
 interface UserProfile {
   id: string;
