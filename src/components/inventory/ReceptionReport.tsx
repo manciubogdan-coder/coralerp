@@ -274,7 +274,33 @@ const translateEmailText = async (text: string, target: EmailLang) => {
 const ReceptionReport: React.FC = () => {
   const { inventoryType } = useInventoryType();
   const { toast } = useToast();
-  const [date, setDate] = useState<Date>(new Date());
+  const dateStorageKey = `receptionReport.date.${inventoryType}`;
+  const [date, setDateState] = useState<Date>(() => {
+    if (typeof window === "undefined") return new Date();
+    try {
+      const saved = localStorage.getItem(dateStorageKey);
+      if (saved) {
+        const d = new Date(saved);
+        if (!isNaN(d.getTime())) return d;
+      }
+    } catch {}
+    return new Date();
+  });
+  const setDate = (d: Date) => {
+    setDateState(d);
+    try { localStorage.setItem(dateStorageKey, format(d, "yyyy-MM-dd")); } catch {}
+  };
+  // Re-citește data salvată când se schimbă inventoryType (cheia se schimbă)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(dateStorageKey);
+      if (saved) {
+        const d = new Date(saved);
+        if (!isNaN(d.getTime())) setDateState(d);
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventoryType]);
   const [loading, setLoading] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [groups, setGroups] = useState<SupplierGroup[]>([]);
