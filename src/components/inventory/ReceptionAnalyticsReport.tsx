@@ -314,6 +314,22 @@ const ReceptionAnalyticsReport: React.FC = () => {
     return t;
   }, [rows]);
 
+  const crateTotals = useMemo(() => {
+    const m = new Map<string, number>();
+    rows.forEach((r) => {
+      if (!r.lazi_pe_tip) return;
+      r.lazi_pe_tip.split(",").forEach((part) => {
+        const idx = part.lastIndexOf(":");
+        if (idx < 0) return;
+        const name = part.slice(0, idx).trim();
+        const n = Number(part.slice(idx + 1).trim());
+        if (!name || !isFinite(n)) return;
+        m.set(name, (m.get(name) || 0) + n);
+      });
+    });
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+  }, [rows]);
+
   const handleDragStart = (key: ColumnKey) => setDragKey(key);
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
   const handleDrop = (overKey: ColumnKey) => {
@@ -516,6 +532,27 @@ const ReceptionAnalyticsReport: React.FC = () => {
           )}
         </Table>
       </Card>
+
+      {/* Totalizare pe tip lăzi */}
+      {crateTotals.length > 0 && (
+        <Card className="p-3">
+          <div className="text-xs font-medium mb-2 text-muted-foreground">
+            Totalizare lăzi pe tip
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {crateTotals.map(([name, n]) => (
+              <div key={name} className="flex items-center gap-2 px-3 py-1.5 rounded border bg-primary/5 border-primary/20 text-sm">
+                <span className="font-medium">{name}</span>
+                <span className="tabular-nums font-bold">{n}</span>
+              </div>
+            ))}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded border bg-foreground/5 border-foreground/20 text-sm ml-auto">
+              <span className="font-bold">TOTAL</span>
+              <span className="tabular-nums font-bold">{crateTotals.reduce((s, [, n]) => s + n, 0)}</span>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };
