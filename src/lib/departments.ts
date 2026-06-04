@@ -10,6 +10,7 @@ import {
   Settings,
   ShieldCheck,
   HardHat,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 
