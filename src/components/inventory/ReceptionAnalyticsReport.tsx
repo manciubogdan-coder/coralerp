@@ -518,6 +518,13 @@ const ReceptionAnalyticsReport: React.FC = () => {
               <TableRow>
                 {visibleColumns.map((c, i) => {
                   if (i === 0) return <TableCell key={c.key} className="font-bold">TOTAL</TableCell>;
+                  if (c.key === "lazi_pe_tip") {
+                    return (
+                      <TableCell key={c.key} className="font-bold text-[11px] leading-tight">
+                        {crateTotals.map(([n, v]) => `${n}: ${v}`).join(", ")}
+                      </TableCell>
+                    );
+                  }
                   if (!c.numeric) return <TableCell key={c.key} />;
                   const val = (totals as any)[c.key];
                   if (val == null) return <TableCell key={c.key} />;
