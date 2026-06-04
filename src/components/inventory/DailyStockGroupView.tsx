@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useInventoryType } from "@/context/inventory-type";
+import { persistDateKey, readStoredDateKey, todayKey } from "@/lib/persistentDate";
 
 interface DailyStockItem {
   id: string;
@@ -45,11 +46,14 @@ export const DailyStockGroupView = () => {
   const [loading, setLoading] = useState(true);
   const [groupedView, setGroupedView] = useState(false);
   const [productFilter, setProductFilter] = useState("");
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const dateStorageKey = `dailyStockGroup.date.${inventoryType}`;
+  const [selectedDate, setSelectedDateState] = useState(() => readStoredDateKey(dateStorageKey, todayKey()));
   const [qualityMap, setQualityMap] = useState<Record<string, { obs: string | null; nonconform_percent: number | null; consider_quantity: number | null }>>({});
+
+  const setSelectedDate = (value: string) => {
+    setSelectedDateState(value);
+    persistDateKey(dateStorageKey, value);
+  };
 
   const fetchDailyStock = async () => {
     try {
@@ -159,6 +163,10 @@ export const DailyStockGroupView = () => {
   useEffect(() => {
     fetchDailyStock();
   }, [selectedDate, inventoryType]);
+
+  useEffect(() => {
+    setSelectedDateState(readStoredDateKey(dateStorageKey, todayKey()));
+  }, [dateStorageKey]);
 
   useEffect(() => {
     if (productFilter.trim() === "") {
