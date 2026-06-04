@@ -69,6 +69,7 @@ type Aggregated = {
   produs: string;
   unit: string;
   nr_lazi: number;
+  lazi_pe_tip: string;
   nr_paleti: number;
   cantitate_receptionata: number;
   cantitate_document: number;
