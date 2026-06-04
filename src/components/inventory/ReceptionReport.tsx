@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useInventoryType } from "@/context/inventory-type";
 import { emitNotification } from "@/lib/notifications";
+import { dateFromKey, keyFromDate, persistDateKey, readStoredDateKey, todayKey } from "@/lib/persistentDate";
 import {
   type BreakdownEntry,
   type BreakdownPayload,
@@ -276,29 +277,15 @@ const ReceptionReport: React.FC = () => {
   const { toast } = useToast();
   const dateStorageKey = `receptionReport.date.${inventoryType}`;
   const [date, setDateState] = useState<Date>(() => {
-    if (typeof window === "undefined") return new Date();
-    try {
-      const saved = localStorage.getItem(dateStorageKey);
-      if (saved) {
-        const d = new Date(saved);
-        if (!isNaN(d.getTime())) return d;
-      }
-    } catch {}
-    return new Date();
+    return dateFromKey(readStoredDateKey(dateStorageKey, todayKey()));
   });
   const setDate = (d: Date) => {
     setDateState(d);
-    try { localStorage.setItem(dateStorageKey, format(d, "yyyy-MM-dd")); } catch {}
+    persistDateKey(dateStorageKey, keyFromDate(d));
   };
   // Re-citește data salvată când se schimbă inventoryType (cheia se schimbă)
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(dateStorageKey);
-      if (saved) {
-        const d = new Date(saved);
-        if (!isNaN(d.getTime())) setDateState(d);
-      }
-    } catch {}
+    setDateState(dateFromKey(readStoredDateKey(dateStorageKey, todayKey())));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryType]);
   const [loading, setLoading] = useState(false);
