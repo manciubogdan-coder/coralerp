@@ -27,6 +27,7 @@ export const DEPARTMENT_ROLES = [
   "mentenanta",
   "administrativ",
   "operator",
+  "evidenta_documente",
 ] as const;
 
 export type DepartmentRole = (typeof DEPARTMENT_ROLES)[number];
