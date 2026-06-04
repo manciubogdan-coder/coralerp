@@ -332,7 +332,7 @@ const AppShell = () => {
                 <Route
                   path="/evidenta-documente"
                   element={
-                    <ProtectedRoute requireDepartment="evidenta_documente">
+                    <ProtectedRoute requireDepartment="calitate">
                       <EvidentaDocumenteHub />
                     </ProtectedRoute>
                   }

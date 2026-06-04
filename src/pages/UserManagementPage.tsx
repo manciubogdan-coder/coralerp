@@ -30,6 +30,8 @@ import {
 } from '@/components/ui/dialog';
 import { DEPARTMENTS, type AppRole, type DepartmentRole } from '@/lib/departments';
 
+const ASSIGNABLE_DEPARTMENTS = DEPARTMENTS.filter((dept) => dept.id !== 'evidenta_documente');
+
 interface UserProfile {
   id: string;
   user_id: string;
@@ -443,7 +445,7 @@ const UserManagementPage: React.FC = () => {
             </label>
 
             <div className="space-y-1">
-              {DEPARTMENTS.map((dept) => {
+              {ASSIGNABLE_DEPARTMENTS.map((dept) => {
                 const Icon = dept.icon;
                 const checked = draftDepts.has(dept.id);
                 return (
