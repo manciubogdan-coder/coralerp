@@ -7,6 +7,7 @@ import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView"
 import DailyStockQuality from "@/components/inventory/DailyStockQuality";
 import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
 import ReceptionReport from "@/components/inventory/ReceptionReport";
+import SupplierAnalyticsReport from "@/components/inventory/SupplierAnalyticsReport";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import BackToHubButton from "@/components/BackToHubButton";
 
@@ -23,6 +24,7 @@ const SUB_TABS = [
   { key: "stoc-calitate", label: "Stoc Zilnic Calitate" },
   { key: "consum-loturi", label: "Consum pe Loturi" },
   { key: "receptie", label: "Recepție" },
+  { key: "raport-furnizori", label: "Raport Furnizori" },
   { key: "restocari", label: "Restocări" },
 ] as const;
 
@@ -40,7 +42,7 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
   return (
     <ForceInventoryType type={type}>
       <Tabs value={sub} onValueChange={(v) => setSub(v as SubTabKey)} className="w-full">
-        <TabsList className="flex w-full md:grid md:grid-cols-5 mb-4 h-auto gap-1 p-1 overflow-x-auto">
+        <TabsList className="flex w-full md:grid md:grid-cols-6 mb-4 h-auto gap-1 p-1 overflow-x-auto">
           {SUB_TABS.map((t) => (
             <TabsTrigger key={t.key} value={t.key} className="flex-shrink-0 text-xs sm:text-sm whitespace-nowrap md:whitespace-normal h-auto py-2 px-3">
               {t.label}
@@ -76,6 +78,14 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
           <Card>
             <CardContent className="p-4">
               <ReceptionReport />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="raport-furnizori">
+          <Card>
+            <CardContent className="p-4">
+              <SupplierAnalyticsReport />
             </CardContent>
           </Card>
         </TabsContent>
