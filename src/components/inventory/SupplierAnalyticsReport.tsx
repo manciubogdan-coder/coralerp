@@ -436,18 +436,64 @@ const SupplierAnalyticsReport: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {drilldown.products.map((p) => (
-                      <TableRow key={p.key}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="text-right">{p.cant_rec.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{p.cant_doc.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{p.pierdere_cant.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-semibold text-destructive">{p.pierdere_calit_pct.toFixed(2)}%</TableCell>
-                        <TableCell className="text-right font-semibold text-destructive">{p.pierdere_calit_kg.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{p.nr_receptii}</TableCell>
-                      </TableRow>
-                    ))}
+                    {drilldown.products.map((p) => {
+                      const isOpen = expandedProduct === p.key;
+                      const receptions = drilldown.receptionsByProduct.get(p.key) || [];
+                      return (
+                        <React.Fragment key={p.key}>
+                          <TableRow
+                            className="cursor-pointer hover:bg-muted/60"
+                            onClick={() => setExpandedProduct(isOpen ? null : p.key)}
+                          >
+                            <TableCell className="font-medium text-primary underline-offset-4 hover:underline">
+                              {isOpen ? "▾ " : "▸ "}{p.name}
+                            </TableCell>
+                            <TableCell className="text-right">{p.cant_rec.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">{p.cant_doc.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">{p.pierdere_cant.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-semibold text-destructive">{p.pierdere_calit_pct.toFixed(2)}%</TableCell>
+                            <TableCell className="text-right font-semibold text-destructive">{p.pierdere_calit_kg.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">{p.nr_receptii}</TableCell>
+                          </TableRow>
+                          {isOpen && (
+                            <TableRow className="bg-muted/30 hover:bg-muted/30">
+                              <TableCell colSpan={7} className="p-3">
+                                <div className="text-xs font-semibold mb-2 text-muted-foreground">
+                                  Recepții pentru {p.name}
+                                </div>
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Data recepție</TableHead>
+                                      <TableHead className="text-right">Cant. recepționată</TableHead>
+                                      <TableHead className="text-right">Cant. document</TableHead>
+                                      <TableHead className="text-right">Pierdere calit. %</TableHead>
+                                      <TableHead className="text-right">Pierdere calit. (kg)</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {receptions.map((r) => (
+                                      <TableRow key={r.id}>
+                                        <TableCell>{r.date ? format(parseISO(r.date), "dd MMM yyyy", { locale: ro }) : "—"}</TableCell>
+                                        <TableCell className="text-right">{r.cant_rec.toFixed(2)} {r.unit}</TableCell>
+                                        <TableCell className="text-right">{r.cant_doc.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right text-destructive">{r.pierdere_pct.toFixed(2)}%</TableCell>
+                                        <TableCell className="text-right text-destructive">{r.pierdere_kg.toFixed(2)}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                    {receptions.length === 0 && (
+                                      <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-4">Fără recepții.</TableCell></TableRow>
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </TableBody>
+
                 </Table>
               </CardContent>
             </Card>
