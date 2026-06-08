@@ -104,6 +104,7 @@ const SupplierAnalyticsReport: React.FC = () => {
   const [supplierNames, setSupplierNames] = useState<Map<string, string>>(new Map());
   const [manufacturerNames, setManufacturerNames] = useState<Map<string, string>>(new Map());
   const [selected, setSelected] = useState<{ key: string; name: string } | null>(null);
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   const loadData = async () => {
     if (!range?.from || !range?.to) return;
@@ -180,7 +181,8 @@ const SupplierAnalyticsReport: React.FC = () => {
   }, [range?.from, range?.to, inventoryType]);
 
   // Reset selection when mode or data changes
-  useEffect(() => { setSelected(null); }, [mode, inventoryType]);
+  useEffect(() => { setSelected(null); setExpandedProduct(null); }, [mode, inventoryType]);
+  useEffect(() => { setExpandedProduct(null); }, [selected]);
 
   // Aggregate by supplier or manufacturer
   const aggregated = useMemo<Aggregated[]>(() => {
@@ -242,6 +244,7 @@ const SupplierAnalyticsReport: React.FC = () => {
 
     // by product
     const byProduct = new Map<string, Aggregated>();
+    const receptionsByProduct = new Map<string, Array<{ id: string; date: string; cant_rec: number; cant_doc: number; pierdere_pct: number; pierdere_kg: number; unit: string }>>();
     recsForKey.forEach((r) => {
       const k = `${r.name}__${r.unit || ""}`;
       let a = byProduct.get(k);
@@ -257,7 +260,20 @@ const SupplierAnalyticsReport: React.FC = () => {
       a.cant_doc += doc;
       const pct = rep?.pierdere_calitativa_procent != null ? Number(rep.pierdere_calitativa_procent) : 0;
       a.pierdere_calit_kg += rec * pct / 100;
+
+      const list = receptionsByProduct.get(k) || [];
+      list.push({
+        id: r.id,
+        date: r.receipt_date,
+        cant_rec: rec,
+        cant_doc: doc,
+        pierdere_pct: pct,
+        pierdere_kg: rec * pct / 100,
+        unit: r.unit || "",
+      });
+      receptionsByProduct.set(k, list);
     });
+    receptionsByProduct.forEach((list) => list.sort((a, b) => (b.date || "").localeCompare(a.date || "")));
     const products = Array.from(byProduct.values()).map((a) => ({
       ...a,
       pierdere_cant: a.cant_doc - a.cant_rec,
@@ -292,7 +308,7 @@ const SupplierAnalyticsReport: React.FC = () => {
       else if (lastAvg < firstAvg - 0.1) trend = "down";
     }
 
-    return { products, evolution, trend };
+    return { products, evolution, trend, receptionsByProduct };
   }, [selected, rawRecs, reportMap, mode]);
 
   const exportExcel = () => {
@@ -420,18 +436,64 @@ const SupplierAnalyticsReport: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {drilldown.products.map((p) => (
-                      <TableRow key={p.key}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="text-right">{p.cant_rec.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{p.cant_doc.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{p.pierdere_cant.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-semibold text-destructive">{p.pierdere_calit_pct.toFixed(2)}%</TableCell>
-                        <TableCell className="text-right font-semibold text-destructive">{p.pierdere_calit_kg.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{p.nr_receptii}</TableCell>
-                      </TableRow>
-                    ))}
+                    {drilldown.products.map((p) => {
+                      const isOpen = expandedProduct === p.key;
+                      const receptions = drilldown.receptionsByProduct.get(p.key) || [];
+                      return (
+                        <React.Fragment key={p.key}>
+                          <TableRow
+                            className="cursor-pointer hover:bg-muted/60"
+                            onClick={() => setExpandedProduct(isOpen ? null : p.key)}
+                          >
+                            <TableCell className="font-medium text-primary underline-offset-4 hover:underline">
+                              {isOpen ? "▾ " : "▸ "}{p.name}
+                            </TableCell>
+                            <TableCell className="text-right">{p.cant_rec.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">{p.cant_doc.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">{p.pierdere_cant.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-semibold text-destructive">{p.pierdere_calit_pct.toFixed(2)}%</TableCell>
+                            <TableCell className="text-right font-semibold text-destructive">{p.pierdere_calit_kg.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">{p.nr_receptii}</TableCell>
+                          </TableRow>
+                          {isOpen && (
+                            <TableRow className="bg-muted/30 hover:bg-muted/30">
+                              <TableCell colSpan={7} className="p-3">
+                                <div className="text-xs font-semibold mb-2 text-muted-foreground">
+                                  Recepții pentru {p.name}
+                                </div>
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Data recepție</TableHead>
+                                      <TableHead className="text-right">Cant. recepționată</TableHead>
+                                      <TableHead className="text-right">Cant. document</TableHead>
+                                      <TableHead className="text-right">Pierdere calit. %</TableHead>
+                                      <TableHead className="text-right">Pierdere calit. (kg)</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {receptions.map((r) => (
+                                      <TableRow key={r.id}>
+                                        <TableCell>{r.date ? format(parseISO(r.date), "dd MMM yyyy", { locale: ro }) : "—"}</TableCell>
+                                        <TableCell className="text-right">{r.cant_rec.toFixed(2)} {r.unit}</TableCell>
+                                        <TableCell className="text-right">{r.cant_doc.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right text-destructive">{r.pierdere_pct.toFixed(2)}%</TableCell>
+                                        <TableCell className="text-right text-destructive">{r.pierdere_kg.toFixed(2)}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                    {receptions.length === 0 && (
+                                      <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-4">Fără recepții.</TableCell></TableRow>
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </TableBody>
+
                 </Table>
               </CardContent>
             </Card>
