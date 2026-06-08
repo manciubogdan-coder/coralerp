@@ -104,6 +104,7 @@ const SupplierAnalyticsReport: React.FC = () => {
   const [supplierNames, setSupplierNames] = useState<Map<string, string>>(new Map());
   const [manufacturerNames, setManufacturerNames] = useState<Map<string, string>>(new Map());
   const [selected, setSelected] = useState<{ key: string; name: string } | null>(null);
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   const loadData = async () => {
     if (!range?.from || !range?.to) return;
