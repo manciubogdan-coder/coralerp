@@ -244,6 +244,7 @@ const SupplierAnalyticsReport: React.FC = () => {
 
     // by product
     const byProduct = new Map<string, Aggregated>();
+    const receptionsByProduct = new Map<string, Array<{ id: string; date: string; cant_rec: number; cant_doc: number; pierdere_pct: number; pierdere_kg: number; unit: string }>>();
     recsForKey.forEach((r) => {
       const k = `${r.name}__${r.unit || ""}`;
       let a = byProduct.get(k);
@@ -259,7 +260,20 @@ const SupplierAnalyticsReport: React.FC = () => {
       a.cant_doc += doc;
       const pct = rep?.pierdere_calitativa_procent != null ? Number(rep.pierdere_calitativa_procent) : 0;
       a.pierdere_calit_kg += rec * pct / 100;
+
+      const list = receptionsByProduct.get(k) || [];
+      list.push({
+        id: r.id,
+        date: r.receipt_date,
+        cant_rec: rec,
+        cant_doc: doc,
+        pierdere_pct: pct,
+        pierdere_kg: rec * pct / 100,
+        unit: r.unit || "",
+      });
+      receptionsByProduct.set(k, list);
     });
+    receptionsByProduct.forEach((list) => list.sort((a, b) => (b.date || "").localeCompare(a.date || "")));
     const products = Array.from(byProduct.values()).map((a) => ({
       ...a,
       pierdere_cant: a.cant_doc - a.cant_rec,
