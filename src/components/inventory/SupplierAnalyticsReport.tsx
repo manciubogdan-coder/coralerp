@@ -308,7 +308,7 @@ const SupplierAnalyticsReport: React.FC = () => {
       else if (lastAvg < firstAvg - 0.1) trend = "down";
     }
 
-    return { products, evolution, trend };
+    return { products, evolution, trend, receptionsByProduct };
   }, [selected, rawRecs, reportMap, mode]);
 
   const exportExcel = () => {
