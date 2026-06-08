@@ -181,7 +181,8 @@ const SupplierAnalyticsReport: React.FC = () => {
   }, [range?.from, range?.to, inventoryType]);
 
   // Reset selection when mode or data changes
-  useEffect(() => { setSelected(null); }, [mode, inventoryType]);
+  useEffect(() => { setSelected(null); setExpandedProduct(null); }, [mode, inventoryType]);
+  useEffect(() => { setExpandedProduct(null); }, [selected]);
 
   // Aggregate by supplier or manufacturer
   const aggregated = useMemo<Aggregated[]>(() => {
