@@ -316,6 +316,12 @@ const ReceptionAnalyticsReport: React.FC = () => {
       });
 
       const result: Aggregated[] = [];
+      const fmtDate = (s: string) => {
+        if (!s) return "";
+        const [y, m, d] = s.split("-").map(Number);
+        if (!y || !m || !d) return s;
+        return format(new Date(y, m - 1, d), "dd MMM yyyy", { locale: ro });
+      };
       map.forEach((a) => {
         a.nr_documente = a._docSet.size;
         a.documente = Array.from(a._docSet).sort().join(", ");
@@ -327,6 +333,13 @@ const ReceptionAnalyticsReport: React.FC = () => {
           .sort((x, y) => y[1] - x[1])
           .map(([name, n]) => `${name}: ${n}`)
           .join(", ");
+        if (mode === "zi") {
+          a.data = fmtDate(a._dateSort);
+        } else {
+          a.data = a._minDate && a._maxDate
+            ? (a._minDate === a._maxDate ? fmtDate(a._minDate) : `${fmtDate(a._minDate)} – ${fmtDate(a._maxDate)}`)
+            : "";
+        }
         const { _docSet, _crates, ...rest } = a;
         result.push(rest);
       });
