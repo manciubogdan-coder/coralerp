@@ -140,13 +140,9 @@ const ReceptionAnalyticsReport: React.FC = () => {
   });
   useEffect(() => { try { localStorage.setItem(manufacturerKey, manufacturerId); } catch {} }, [manufacturerId, manufacturerKey]);
 
-  const [mode, setMode] = useState<GroupMode>(() => {
-    try {
-      const v = localStorage.getItem(modeKey);
-      return v === "zi" ? "zi" : "produs";
-    } catch { return "produs"; }
-  });
-  useEffect(() => { try { localStorage.setItem(modeKey, mode); } catch {} }, [mode, modeKey]);
+  const [mode, setMode] = useState<GroupMode>("zi");
+  useEffect(() => { try { localStorage.setItem(modeKey, "zi"); } catch {} }, [modeKey]);
+
 
   const [colOrder, setColOrder] = useState<ColumnKey[]>(() => {
     try {
