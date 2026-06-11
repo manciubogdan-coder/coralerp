@@ -78,8 +78,10 @@ type GroupMode = "produs" | "zi";
 
 type Aggregated = {
   row_key: string;
-  data: string; // display date or ""
+  data: string; // display date or range
   _dateSort: string; // sortable date
+  _minDate: string;
+  _maxDate: string;
   produs: string;
   unit: string;
   nr_lazi: number;
@@ -267,8 +269,10 @@ const ReceptionAnalyticsReport: React.FC = () => {
         if (!agg) {
           agg = {
             row_key: key,
-            data: mode === "zi" && dateStr ? format(new Date(dateStr + "T00:00:00"), "dd MMM yyyy", { locale: ro }) : "",
+            data: "",
             _dateSort: dateStr,
+            _minDate: dateStr,
+            _maxDate: dateStr,
             produs: r.name,
             unit: r.unit || "",
             nr_lazi: 0,
@@ -286,6 +290,10 @@ const ReceptionAnalyticsReport: React.FC = () => {
             _crates: new Map<string, number>(),
           };
           map.set(key, agg);
+        }
+        if (dateStr) {
+          if (!agg._minDate || dateStr < agg._minDate) agg._minDate = dateStr;
+          if (!agg._maxDate || dateStr > agg._maxDate) agg._maxDate = dateStr;
         }
         const rec = Number(r.original_quantity ?? r.net_quantity ?? 0);
         const cnt = Number(r.crate_count ?? 0);
@@ -308,6 +316,12 @@ const ReceptionAnalyticsReport: React.FC = () => {
       });
 
       const result: Aggregated[] = [];
+      const fmtDate = (s: string) => {
+        if (!s) return "";
+        const [y, m, d] = s.split("-").map(Number);
+        if (!y || !m || !d) return s;
+        return format(new Date(y, m - 1, d), "dd MMM yyyy", { locale: ro });
+      };
       map.forEach((a) => {
         a.nr_documente = a._docSet.size;
         a.documente = Array.from(a._docSet).sort().join(", ");
@@ -319,6 +333,13 @@ const ReceptionAnalyticsReport: React.FC = () => {
           .sort((x, y) => y[1] - x[1])
           .map(([name, n]) => `${name}: ${n}`)
           .join(", ");
+        if (mode === "zi") {
+          a.data = fmtDate(a._dateSort);
+        } else {
+          a.data = a._minDate && a._maxDate
+            ? (a._minDate === a._maxDate ? fmtDate(a._minDate) : `${fmtDate(a._minDate)} – ${fmtDate(a._maxDate)}`)
+            : "";
+        }
         const { _docSet, _crates, ...rest } = a;
         result.push(rest);
       });
