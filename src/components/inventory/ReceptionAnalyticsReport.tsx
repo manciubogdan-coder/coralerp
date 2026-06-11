@@ -206,8 +206,8 @@ const ReceptionAnalyticsReport: React.FC = () => {
     }
     setLoading(true);
     try {
-      const start = format(startOfDay(range.from), "yyyy-MM-dd");
-      const end = format(endOfDay(range.to), "yyyy-MM-dd");
+      const start = startOfDay(range.from).toISOString();
+      const end = endOfDay(range.to).toISOString();
 
       let query = (supabase as any)
         .from(getInventoryTable(inventoryType))
