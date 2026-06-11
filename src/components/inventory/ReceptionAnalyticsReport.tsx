@@ -31,8 +31,14 @@ const getSupplierTable = (t: string) => {
   if (t === "etichete") return "etichete_suppliers";
   return "suppliers";
 };
+const getManufacturerTable = (t: string) => {
+  if (t === "ambalaje") return "ambalaje_manufacturers";
+  if (t === "etichete") return "etichete_manufacturers";
+  return "manufacturers";
+};
 
 type ColumnKey =
+  | "data"
   | "produs"
   | "unit"
   | "nr_lazi"
@@ -43,10 +49,12 @@ type ColumnKey =
   | "pierdere_cantitativa"
   | "pierdere_calitativa_pct"
   | "pierdere_calitativa_kg"
+  | "documente"
   | "nr_documente"
   | "nr_receptii";
 
 const ALL_COLUMNS: { key: ColumnKey; label: string; align?: "left" | "right"; numeric?: boolean; format?: (n: number) => string }[] = [
+  { key: "data", label: "Data", align: "left" },
   { key: "produs", label: "Produs", align: "left" },
   { key: "unit", label: "UM", align: "left" },
   { key: "nr_lazi", label: "Nr. lăzi", align: "right", numeric: true, format: (n) => n.toString() },
@@ -57,15 +65,21 @@ const ALL_COLUMNS: { key: ColumnKey; label: string; align?: "left" | "right"; nu
   { key: "pierdere_cantitativa", label: "Pierdere cant. (doc − rec)", align: "right", numeric: true, format: (n) => n.toFixed(2) },
   { key: "pierdere_calitativa_pct", label: "Pierdere calit. % (medie pond.)", align: "right", numeric: true, format: (n) => `${n.toFixed(2)}%` },
   { key: "pierdere_calitativa_kg", label: "Pierdere calit. (kg)", align: "right", numeric: true, format: (n) => n.toFixed(2) },
+  { key: "documente", label: "Documente", align: "left" },
   { key: "nr_documente", label: "Nr. documente", align: "right", numeric: true, format: (n) => n.toString() },
   { key: "nr_receptii", label: "Nr. recepții", align: "right", numeric: true, format: (n) => n.toString() },
 ];
 
 const DEFAULT_ORDER: ColumnKey[] = ALL_COLUMNS.map((c) => c.key);
-const DEFAULT_VISIBLE: ColumnKey[] = ["produs", "unit", "nr_lazi", "lazi_pe_tip", "nr_paleti", "cantitate_receptionata", "cantitate_document", "pierdere_cantitativa", "pierdere_calitativa_pct", "pierdere_calitativa_kg", "nr_documente"];
+const DEFAULT_VISIBLE_PRODUCT: ColumnKey[] = ["produs", "unit", "nr_lazi", "lazi_pe_tip", "nr_paleti", "cantitate_receptionata", "cantitate_document", "pierdere_cantitativa", "pierdere_calitativa_pct", "pierdere_calitativa_kg", "documente", "nr_documente"];
+const DEFAULT_VISIBLE_DAY: ColumnKey[] = ["data", "produs", "unit", "nr_lazi", "nr_paleti", "cantitate_receptionata", "cantitate_document", "pierdere_calitativa_pct", "pierdere_calitativa_kg", "documente"];
+
+type GroupMode = "produs" | "zi";
 
 type Aggregated = {
-  product_key: string;
+  row_key: string;
+  data: string; // display date or ""
+  _dateSort: string; // sortable date
   produs: string;
   unit: string;
   nr_lazi: number;
@@ -76,6 +90,7 @@ type Aggregated = {
   pierdere_cantitativa: number;
   pierdere_calitativa_pct: number;
   pierdere_calitativa_kg: number;
+  documente: string;
   nr_documente: number;
   nr_receptii: number;
 };
@@ -86,8 +101,10 @@ const ReceptionAnalyticsReport: React.FC = () => {
 
   const dateKey = `receptionAnalytics.range.${inventoryType}`;
   const supplierKey = `receptionAnalytics.supplier.${inventoryType}`;
-  const orderKey = `receptionAnalytics.colOrder`;
-  const visibleKey = `receptionAnalytics.colVisible`;
+  const manufacturerKey = `receptionAnalytics.manufacturer.${inventoryType}`;
+  const modeKey = `receptionAnalytics.mode.${inventoryType}`;
+  const orderKey = `receptionAnalytics.colOrder.v2`;
+  const visibleKey = (m: GroupMode) => `receptionAnalytics.colVisible.v2.${m}`;
 
   const [range, setRange] = useState<DateRange | undefined>(() => {
     try {
@@ -116,6 +133,19 @@ const ReceptionAnalyticsReport: React.FC = () => {
   });
   useEffect(() => { try { localStorage.setItem(supplierKey, supplierId); } catch {} }, [supplierId, supplierKey]);
 
+  const [manufacturerId, setManufacturerId] = useState<string>(() => {
+    try { return localStorage.getItem(manufacturerKey) || "__all__"; } catch { return "__all__"; }
+  });
+  useEffect(() => { try { localStorage.setItem(manufacturerKey, manufacturerId); } catch {} }, [manufacturerId, manufacturerKey]);
+
+  const [mode, setMode] = useState<GroupMode>(() => {
+    try {
+      const v = localStorage.getItem(modeKey);
+      return v === "zi" ? "zi" : "produs";
+    } catch { return "produs"; }
+  });
+  useEffect(() => { try { localStorage.setItem(modeKey, mode); } catch {} }, [mode, modeKey]);
+
   const [colOrder, setColOrder] = useState<ColumnKey[]>(() => {
     try {
       const s = localStorage.getItem(orderKey);
@@ -132,27 +162,38 @@ const ReceptionAnalyticsReport: React.FC = () => {
 
   const [colVisible, setColVisible] = useState<Set<ColumnKey>>(() => {
     try {
-      const s = localStorage.getItem(visibleKey);
+      const s = localStorage.getItem(visibleKey(mode));
       if (s) return new Set(JSON.parse(s) as ColumnKey[]);
     } catch {}
-    return new Set(DEFAULT_VISIBLE);
+    return new Set(mode === "zi" ? DEFAULT_VISIBLE_DAY : DEFAULT_VISIBLE_PRODUCT);
   });
-  useEffect(() => { try { localStorage.setItem(visibleKey, JSON.stringify(Array.from(colVisible))); } catch {} }, [colVisible]);
+  useEffect(() => {
+    // reload visibility for mode
+    try {
+      const s = localStorage.getItem(visibleKey(mode));
+      if (s) setColVisible(new Set(JSON.parse(s) as ColumnKey[]));
+      else setColVisible(new Set(mode === "zi" ? DEFAULT_VISIBLE_DAY : DEFAULT_VISIBLE_PRODUCT));
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+  useEffect(() => { try { localStorage.setItem(visibleKey(mode), JSON.stringify(Array.from(colVisible))); } catch {} }, [colVisible, mode]);
 
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
+  const [manufacturers, setManufacturers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<Aggregated[]>([]);
 
   const [dragKey, setDragKey] = useState<ColumnKey | null>(null);
 
-  // Load suppliers
+  // Load suppliers & manufacturers
   useEffect(() => {
     (async () => {
-      const { data } = await (supabase as any)
-        .from(getSupplierTable(inventoryType))
-        .select("id, name")
-        .order("name");
-      setSuppliers((data as any[]) || []);
+      const [{ data: sup }, { data: man }] = await Promise.all([
+        (supabase as any).from(getSupplierTable(inventoryType)).select("id, name").order("name"),
+        (supabase as any).from(getManufacturerTable(inventoryType)).select("id, name").order("name"),
+      ]);
+      setSuppliers((sup as any[]) || []);
+      setManufacturers((man as any[]) || []);
     })();
   }, [inventoryType]);
 
@@ -169,13 +210,13 @@ const ReceptionAnalyticsReport: React.FC = () => {
       let query = (supabase as any)
         .from(getInventoryTable(inventoryType))
         .select(`id, name, original_quantity, net_quantity, unit, receipt_date, document_number,
-                 crate_count, crate_type_id, pallet_count, supplier_id, supplier_name, product_id`)
+                 crate_count, crate_type_id, pallet_count, supplier_id, supplier_name, manufacturer_id, product_id`)
         .gte("receipt_date", start)
         .lte("receipt_date", end);
 
       if (supplierId !== "__all__") query = query.eq("supplier_id", supplierId);
+      if (manufacturerId !== "__all__") query = query.eq("manufacturer_id", manufacturerId);
 
-      // Paginate to bypass 1000-row limit
       const all: any[] = [];
       let from = 0;
       const pageSize = 1000;
@@ -188,7 +229,6 @@ const ReceptionAnalyticsReport: React.FC = () => {
         from += pageSize;
       }
 
-      // Fetch reception_report_data for these inventory_ids
       const invIds = all.map((r) => r.id);
       const reportMap = new Map<string, { cantitate_document: number | null; pierdere_calitativa_procent: number | null }>();
       for (let i = 0; i < invIds.length; i += 50) {
@@ -201,7 +241,6 @@ const ReceptionAnalyticsReport: React.FC = () => {
         ((data || []) as any[]).forEach((r) => reportMap.set(r.inventory_id, r));
       }
 
-      // Fetch crate type names from all 3 lookup tables (merged by id)
       const crateIds = Array.from(new Set(all.map((r) => r.crate_type_id).filter(Boolean))) as string[];
       const crateNameMap = new Map<string, string>();
       if (crateIds.length > 0) {
@@ -217,15 +256,19 @@ const ReceptionAnalyticsReport: React.FC = () => {
         }
       }
 
-      // Aggregate by product (name + unit)
       type Acc = Aggregated & { _docSet: Set<string>; _crates: Map<string, number> };
       const map = new Map<string, Acc>();
       all.forEach((r) => {
-        const key = `${r.name}__${r.unit || ""}`;
+        const dateStr = r.receipt_date ? String(r.receipt_date).slice(0, 10) : "";
+        const key = mode === "zi"
+          ? `${dateStr}__${r.name}__${r.unit || ""}`
+          : `${r.name}__${r.unit || ""}`;
         let agg = map.get(key);
         if (!agg) {
           agg = {
-            product_key: key,
+            row_key: key,
+            data: mode === "zi" && dateStr ? format(new Date(dateStr + "T00:00:00"), "dd MMM yyyy", { locale: ro }) : "",
+            _dateSort: dateStr,
             produs: r.name,
             unit: r.unit || "",
             nr_lazi: 0,
@@ -236,6 +279,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
             pierdere_cantitativa: 0,
             pierdere_calitativa_pct: 0,
             pierdere_calitativa_kg: 0,
+            documente: "",
             nr_documente: 0,
             nr_receptii: 0,
             _docSet: new Set<string>(),
@@ -266,6 +310,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
       const result: Aggregated[] = [];
       map.forEach((a) => {
         a.nr_documente = a._docSet.size;
+        a.documente = Array.from(a._docSet).sort().join(", ");
         a.pierdere_cantitativa = a.cantitate_document - a.cantitate_receptionata;
         a.pierdere_calitativa_pct = a.cantitate_receptionata > 0
           ? (a.pierdere_calitativa_kg / a.cantitate_receptionata) * 100
@@ -278,7 +323,14 @@ const ReceptionAnalyticsReport: React.FC = () => {
         result.push(rest);
       });
 
-      result.sort((x, y) => x.produs.localeCompare(y.produs));
+      if (mode === "zi") {
+        result.sort((x, y) => {
+          if (x._dateSort !== y._dateSort) return y._dateSort.localeCompare(x._dateSort);
+          return x.produs.localeCompare(y.produs);
+        });
+      } else {
+        result.sort((x, y) => x.produs.localeCompare(y.produs));
+      }
       setRows(result);
     } catch (e: any) {
       console.error(e);
@@ -288,11 +340,10 @@ const ReceptionAnalyticsReport: React.FC = () => {
     }
   };
 
-  // Auto-load on filter change
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range?.from, range?.to, supplierId, inventoryType]);
+  }, [range?.from, range?.to, supplierId, manufacturerId, mode, inventoryType]);
 
   const visibleColumns = useMemo(
     () => colOrder.filter((k) => colVisible.has(k)).map((k) => ALL_COLUMNS.find((c) => c.key === k)!).filter(Boolean),
@@ -356,6 +407,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
 
   const exportExcel = () => {
     const supplierName = supplierId === "__all__" ? "Toți furnizorii" : (suppliers.find((s) => s.id === supplierId)?.name || "");
+    const manufacturerName = manufacturerId === "__all__" ? "Toți producătorii" : (manufacturers.find((s) => s.id === manufacturerId)?.name || "");
     const header = visibleColumns.map((c) => c.label);
     const data = rows.map((r) => visibleColumns.map((c) => {
       const val = (r as any)[c.key];
@@ -363,7 +415,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
       return val ?? "";
     }));
     const ws = XLSX.utils.aoa_to_sheet([
-      [`Raport recepții — ${supplierName}`],
+      [`Raport recepții — ${supplierName} / ${manufacturerName} — ${mode === "zi" ? "Per zi" : "Per produs"}`],
       [`Interval: ${range?.from ? format(range.from, "dd.MM.yyyy") : ""} → ${range?.to ? format(range.to, "dd.MM.yyyy") : ""}`],
       [],
       header,
@@ -371,7 +423,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Recepții");
-    const fname = `raport-receptii-${inventoryType}-${format(new Date(), "yyyyMMdd-HHmm")}.xlsx`;
+    const fname = `raport-receptii-${inventoryType}-${mode}-${format(new Date(), "yyyyMMdd-HHmm")}.xlsx`;
     XLSX.writeFile(wb, fname);
   };
 
@@ -406,7 +458,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
           </Popover>
         </div>
 
-        <div className="space-y-1 min-w-[220px]">
+        <div className="space-y-1 min-w-[200px]">
           <Label className="text-xs text-muted-foreground">Furnizor</Label>
           <Select value={supplierId} onValueChange={setSupplierId}>
             <SelectTrigger><SelectValue placeholder="Toți furnizorii" /></SelectTrigger>
@@ -415,6 +467,30 @@ const ReceptionAnalyticsReport: React.FC = () => {
               {suppliers.map((s) => (
                 <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1 min-w-[200px]">
+          <Label className="text-xs text-muted-foreground">Producător</Label>
+          <Select value={manufacturerId} onValueChange={setManufacturerId}>
+            <SelectTrigger><SelectValue placeholder="Toți producătorii" /></SelectTrigger>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              <SelectItem value="__all__">Toți producătorii</SelectItem>
+              {manufacturers.map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1 min-w-[170px]">
+          <Label className="text-xs text-muted-foreground">Grupare</Label>
+          <Select value={mode} onValueChange={(v) => setMode(v as GroupMode)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="produs">Per produs</SelectItem>
+              <SelectItem value="zi">Per zi + produs</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -428,7 +504,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
         </Button>
       </div>
 
-      {/* Configurare coloane — drag & drop + toggle */}
+      {/* Configurare coloane */}
       <Card className="p-3">
         <div className="text-xs font-medium mb-2 text-muted-foreground">
           Coloane (trage pentru a reordona, click pe ochi pentru a ascunde/afișa)
@@ -492,7 +568,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
               </TableRow>
             ) : (
               rows.map((r) => (
-                <TableRow key={r.product_key}>
+                <TableRow key={r.row_key}>
                   {visibleColumns.map((c) => {
                     const val = (r as any)[c.key];
                     const isLoss = c.key === "pierdere_cantitativa" || c.key === "pierdere_calitativa_kg" || c.key === "pierdere_calitativa_pct";
@@ -502,6 +578,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
                         key={c.key}
                         className={cn(
                           c.align === "right" && "text-right tabular-nums",
+                          c.key === "documente" && "text-[11px] max-w-[260px] whitespace-normal break-words",
                           negative && "text-destructive font-medium"
                         )}
                       >
