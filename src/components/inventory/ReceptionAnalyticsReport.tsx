@@ -140,13 +140,9 @@ const ReceptionAnalyticsReport: React.FC = () => {
   });
   useEffect(() => { try { localStorage.setItem(manufacturerKey, manufacturerId); } catch {} }, [manufacturerId, manufacturerKey]);
 
-  const [mode, setMode] = useState<GroupMode>(() => {
-    try {
-      const v = localStorage.getItem(modeKey);
-      return v === "zi" ? "zi" : "produs";
-    } catch { return "produs"; }
-  });
-  useEffect(() => { try { localStorage.setItem(modeKey, mode); } catch {} }, [mode, modeKey]);
+  const [mode, setMode] = useState<GroupMode>("zi");
+  useEffect(() => { try { localStorage.setItem(modeKey, "zi"); } catch {} }, [modeKey]);
+
 
   const [colOrder, setColOrder] = useState<ColumnKey[]>(() => {
     try {
@@ -520,16 +516,8 @@ const ReceptionAnalyticsReport: React.FC = () => {
           </Select>
         </div>
 
-        <div className="space-y-1 min-w-[170px]">
-          <Label className="text-xs text-muted-foreground">Grupare</Label>
-          <Select value={mode} onValueChange={(v) => setMode(v as GroupMode)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="produs">Per produs</SelectItem>
-              <SelectItem value="zi">Per zi + produs</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+
+
 
         <Button onClick={loadData} disabled={loading} variant="default">
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
