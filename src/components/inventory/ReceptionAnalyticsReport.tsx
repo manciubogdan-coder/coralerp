@@ -269,8 +269,10 @@ const ReceptionAnalyticsReport: React.FC = () => {
         if (!agg) {
           agg = {
             row_key: key,
-            data: mode === "zi" && dateStr ? format(new Date(dateStr + "T00:00:00"), "dd MMM yyyy", { locale: ro }) : "",
+            data: "",
             _dateSort: dateStr,
+            _minDate: dateStr,
+            _maxDate: dateStr,
             produs: r.name,
             unit: r.unit || "",
             nr_lazi: 0,
@@ -288,6 +290,10 @@ const ReceptionAnalyticsReport: React.FC = () => {
             _crates: new Map<string, number>(),
           };
           map.set(key, agg);
+        }
+        if (dateStr) {
+          if (!agg._minDate || dateStr < agg._minDate) agg._minDate = dateStr;
+          if (!agg._maxDate || dateStr > agg._maxDate) agg._maxDate = dateStr;
         }
         const rec = Number(r.original_quantity ?? r.net_quantity ?? 0);
         const cnt = Number(r.crate_count ?? 0);
