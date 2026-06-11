@@ -78,8 +78,10 @@ type GroupMode = "produs" | "zi";
 
 type Aggregated = {
   row_key: string;
-  data: string; // display date or ""
+  data: string; // display date or range
   _dateSort: string; // sortable date
+  _minDate: string;
+  _maxDate: string;
   produs: string;
   unit: string;
   nr_lazi: number;
