@@ -603,27 +603,96 @@ const ReceptionAnalyticsReport: React.FC = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((r) => (
-                <TableRow key={r.row_key}>
-                  {visibleColumns.map((c) => {
-                    const val = (r as any)[c.key];
-                    const isLoss = c.key === "pierdere_cantitativa" || c.key === "pierdere_calitativa_kg" || c.key === "pierdere_calitativa_pct";
-                    const negative = isLoss && typeof val === "number" && val < 0;
-                    return (
-                      <TableCell
-                        key={c.key}
-                        className={cn(
-                          c.align === "right" && "text-right tabular-nums",
-                          c.key === "documente" && "text-[11px] max-w-[260px] whitespace-normal break-words",
-                          negative && "text-destructive font-medium"
-                        )}
-                      >
-                        {c.numeric && typeof val === "number" ? c.format!(val) : String(val ?? "")}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))
+              (() => {
+                const out: React.ReactNode[] = [];
+                const computeDaySubtotal = (group: Aggregated[]) => {
+                  const t: any = { nr_lazi: 0, nr_paleti: 0, cantitate_receptionata: 0, cantitate_document: 0, pierdere_cantitativa: 0, pierdere_calitativa_kg: 0, nr_documente: 0, nr_receptii: 0 };
+                  const docs = new Set<string>();
+                  const crates = new Map<string, number>();
+                  group.forEach((r) => {
+                    t.nr_lazi += r.nr_lazi;
+                    t.nr_paleti += r.nr_paleti;
+                    t.cantitate_receptionata += r.cantitate_receptionata;
+                    t.cantitate_document += r.cantitate_document;
+                    t.pierdere_cantitativa += r.pierdere_cantitativa;
+                    t.pierdere_calitativa_kg += r.pierdere_calitativa_kg;
+                    t.nr_receptii += r.nr_receptii;
+                    if (r.documente) r.documente.split(",").map((s) => s.trim()).filter(Boolean).forEach((d) => docs.add(d));
+                    if (r.lazi_pe_tip) r.lazi_pe_tip.split(",").forEach((part) => {
+                      const idx = part.lastIndexOf(":");
+                      if (idx < 0) return;
+                      const name = part.slice(0, idx).trim();
+                      const n = Number(part.slice(idx + 1).trim());
+                      if (name && isFinite(n)) crates.set(name, (crates.get(name) || 0) + n);
+                    });
+                  });
+                  t.nr_documente = docs.size;
+                  t.pierdere_calitativa_pct = t.cantitate_receptionata > 0 ? (t.pierdere_calitativa_kg / t.cantitate_receptionata) * 100 : 0;
+                  t.documente = Array.from(docs).sort().join(", ");
+                  t.lazi_pe_tip = Array.from(crates.entries()).sort((a, b) => b[1] - a[1]).map(([n, v]) => `${n}: ${v}`).join(", ");
+                  return t;
+                };
+
+                let currentDay: string | null = null;
+                let dayGroup: Aggregated[] = [];
+
+                const flushDay = () => {
+                  if (mode !== "zi" || dayGroup.length === 0) { dayGroup = []; return; }
+                  const sub = computeDaySubtotal(dayGroup);
+                  const dayLabel = dayGroup[0].data;
+                  out.push(
+                    <TableRow key={`__sub__${currentDay}`} className="bg-primary/5 border-t-2 border-primary/30">
+                      {visibleColumns.map((c, i) => {
+                        if (i === 0) {
+                          return <TableCell key={c.key} className="font-semibold">Subtotal {dayLabel}</TableCell>;
+                        }
+                        if (c.key === "lazi_pe_tip") {
+                          return <TableCell key={c.key} className="font-semibold text-[11px] leading-tight">{sub.lazi_pe_tip}</TableCell>;
+                        }
+                        if (c.key === "documente") {
+                          return <TableCell key={c.key} className="font-semibold text-[11px] max-w-[260px] whitespace-normal break-words">{sub.documente}</TableCell>;
+                        }
+                        if (!c.numeric) return <TableCell key={c.key} />;
+                        const v = (sub as any)[c.key];
+                        if (v == null) return <TableCell key={c.key} />;
+                        return <TableCell key={c.key} className="text-right font-semibold tabular-nums">{c.format!(v)}</TableCell>;
+                      })}
+                    </TableRow>
+                  );
+                  dayGroup = [];
+                };
+
+                rows.forEach((r) => {
+                  if (mode === "zi") {
+                    if (currentDay !== null && r._dateSort !== currentDay) flushDay();
+                    currentDay = r._dateSort;
+                    dayGroup.push(r);
+                  }
+                  out.push(
+                    <TableRow key={r.row_key}>
+                      {visibleColumns.map((c) => {
+                        const val = (r as any)[c.key];
+                        const isLoss = c.key === "pierdere_cantitativa" || c.key === "pierdere_calitativa_kg" || c.key === "pierdere_calitativa_pct";
+                        const negative = isLoss && typeof val === "number" && val < 0;
+                        return (
+                          <TableCell
+                            key={c.key}
+                            className={cn(
+                              c.align === "right" && "text-right tabular-nums",
+                              c.key === "documente" && "text-[11px] max-w-[260px] whitespace-normal break-words",
+                              negative && "text-destructive font-medium"
+                            )}
+                          >
+                            {c.numeric && typeof val === "number" ? c.format!(val) : String(val ?? "")}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  );
+                });
+                flushDay();
+                return out;
+              })()
             )}
           </TableBody>
           {rows.length > 0 && (
