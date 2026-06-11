@@ -346,11 +346,26 @@ const ReceptionAnalyticsReport: React.FC = () => {
 
       if (mode === "zi") {
         result.sort((x, y) => {
-          if (x._dateSort !== y._dateSort) return x._dateSort.localeCompare(y._dateSort);
+          const xd = x._dateSort || "";
+          const yd = y._dateSort || "";
+          if (xd !== yd) {
+            if (!xd) return 1;
+            if (!yd) return -1;
+            return xd.localeCompare(yd);
+          }
           return x.produs.localeCompare(y.produs);
         });
       } else {
-        result.sort((x, y) => x.produs.localeCompare(y.produs));
+        result.sort((x, y) => {
+          const xd = (x as any)._minDate || "";
+          const yd = (y as any)._minDate || "";
+          if (xd !== yd) {
+            if (!xd) return 1;
+            if (!yd) return -1;
+            return xd.localeCompare(yd);
+          }
+          return x.produs.localeCompare(y.produs);
+        });
       }
       setRows(result);
     } catch (e: any) {
