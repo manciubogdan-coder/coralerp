@@ -346,7 +346,7 @@ const ReceptionAnalyticsReport: React.FC = () => {
 
       if (mode === "zi") {
         result.sort((x, y) => {
-          if (x._dateSort !== y._dateSort) return y._dateSort.localeCompare(x._dateSort);
+          if (x._dateSort !== y._dateSort) return x._dateSort.localeCompare(y._dateSort);
           return x.produs.localeCompare(y.produs);
         });
       } else {
