@@ -516,16 +516,8 @@ const ReceptionAnalyticsReport: React.FC = () => {
           </Select>
         </div>
 
-        <div className="space-y-1 min-w-[170px]">
-          <Label className="text-xs text-muted-foreground">Grupare</Label>
-          <Select value={mode} onValueChange={(v) => setMode(v as GroupMode)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="produs">Per produs</SelectItem>
-              <SelectItem value="zi">Per zi + produs</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+
+
 
         <Button onClick={loadData} disabled={loading} variant="default">
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
