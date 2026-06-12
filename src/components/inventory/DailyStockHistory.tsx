@@ -207,7 +207,7 @@ export const DailyStockHistory = () => {
       
       toast({
         title: "Snapshot regenerat",
-        description: `Snapshot-ul pentru ${new Date(selectedDate).toLocaleDateString('ro-RO')} a fost regenerat (include toate recepțiile cu dată ≤ ${new Date(selectedDate).toLocaleDateString('ro-RO')}).`
+        description: `Snapshot-ul pentru ${new Date(selectedDate).toLocaleDateString('ro-RO')} a fost regenerat. Cantitățile reflectă stocul de început de zi (operațiunile din ziua respectivă sunt anulate retroactiv).`
       });
       
       // Refresh data
