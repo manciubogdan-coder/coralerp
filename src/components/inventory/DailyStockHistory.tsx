@@ -78,6 +78,7 @@ export const DailyStockHistory = () => {
             entry_number,
             receipt_date,
             crate_count,
+            created_at,
             suppliers:supplier_id (name),
             manufacturers:manufacturer_id (name),
             crate_types:crate_type_id (name, weight),
