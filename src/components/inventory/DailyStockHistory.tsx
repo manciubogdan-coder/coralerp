@@ -254,6 +254,22 @@ export const DailyStockHistory = () => {
         </div>
       </div>
 
+      {snapshotGeneratedAt && (
+        <div className={`rounded-lg border p-3 text-sm ${lateReceptionsCount > 0 ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200' : 'border-green-500 bg-green-50 dark:bg-green-950/30 text-green-900 dark:text-green-200'}`}>
+          <div className="font-medium">
+            Snapshot generat la {snapshotGeneratedAt.toLocaleString('ro-RO', { dateStyle: 'short', timeStyle: 'short' })}
+          </div>
+          {lateReceptionsCount > 0 ? (
+            <div className="mt-1">
+              ⚠ {lateReceptionsCount} recepție(i) cu data ≤ {new Date(selectedDate).toLocaleDateString('ro-RO')} au fost înregistrate <strong>după</strong> generarea snapshot-ului.
+              Apasă <strong>„Creează Snapshot Acum"</strong> pentru a regenera și a le include.
+            </div>
+          ) : (
+            <div className="mt-1">✓ Snapshot-ul este la zi — nicio recepție nouă cu data ≤ {new Date(selectedDate).toLocaleDateString('ro-RO')} înregistrată ulterior.</div>
+          )}
+        </div>
+      )}
+
       {stockSnapshots.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
           <p>Nu există snapshot pentru data selectată.</p>
