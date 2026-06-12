@@ -171,7 +171,7 @@ export const DailyStockHistory = () => {
   const triggerSnapshot = async () => {
     try {
       const { error } = await supabase.functions.invoke('daily-stock-snapshot', {
-        body: { inventoryType, force: true },
+        body: { inventoryType, force: true, snapshotDate: selectedDate },
       });
       
       if (error) {
@@ -179,8 +179,8 @@ export const DailyStockHistory = () => {
       }
       
       toast({
-        title: "Snapshot creat",
-        description: "Snapshot-ul stocului curent a fost salvat cu succes."
+        title: "Snapshot regenerat",
+        description: `Snapshot-ul pentru ${new Date(selectedDate).toLocaleDateString('ro-RO')} a fost regenerat (include toate recepțiile cu dată ≤ ${new Date(selectedDate).toLocaleDateString('ro-RO')}).`
       });
       
       // Refresh data
@@ -194,6 +194,7 @@ export const DailyStockHistory = () => {
       });
     }
   };
+
 
   if (loading) {
     return <div className="p-4 text-center">Se încarcă stocul zilnic...</div>;

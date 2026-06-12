@@ -39,10 +39,15 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({} as any))
     const inventoryType = body?.inventoryType ?? 'main'
     const force = Boolean(body?.force)
-    // Întotdeauna folosim data curentă - salvăm exact stocul de acum
-    const snapshotDate = new Date().toISOString().split('T')[0]
+    // Permite regenerarea snapshot-ului pentru o dată trecută (ex: din UI cu data selectată).
+    // Dacă nu e specificat, folosim data curentă.
+    const requestedDate: string | undefined = typeof body?.snapshotDate === 'string' ? body.snapshotDate : undefined
+    const snapshotDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+      ? requestedDate
+      : new Date().toISOString().split('T')[0]
 
-    console.log(`Saving CURRENT stock as snapshot for ${inventoryType} inventory, date: ${snapshotDate}, force: ${force}`)
+    console.log(`Saving stock snapshot for ${inventoryType} inventory, date: ${snapshotDate}, force: ${force}`)
+
 
     // Determine table names based on inventory type
     const inventoryTable = inventoryType === 'ambalaje'
@@ -94,10 +99,14 @@ serve(async (req) => {
     let hasMore = true
 
     while (hasMore) {
+      // Includem doar recepțiile cu data ≤ snapshotDate.
+      // Pentru snapshot-ul de azi (cron 05:00) asta înseamnă receptii < azi sau înregistrate azi cu data 11.06 etc.
+      // Pentru regenerare retroactivă, sunt incluse toate recepțiile cu receipt_date ≤ data selectată.
       const { data: page, error: pageError } = await supabase
         .from(inventoryTable)
         .select('*')
-        .gt('quantity', 0) // Doar intrările cu stoc > 0
+        .gt('quantity', 0)
+        .or(`receipt_date.lte.${snapshotDate},receipt_date.is.null`)
         .order('entry_number', { ascending: false })
         .range(offset, offset + pageSize - 1)
 
@@ -110,6 +119,7 @@ serve(async (req) => {
 
       console.log(`Fetched ${rows.length} rows from ${inventoryTable} (offset ${offset - pageSize})`)
     }
+
 
     const inventory = allInventory
 
