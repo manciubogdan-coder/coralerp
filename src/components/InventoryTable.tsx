@@ -286,11 +286,25 @@ const InventoryTable = ({
                 return (
                   <TableRow key={item.id} className={`print:break-inside-avoid ${item.isHeader ? "bg-gray-100 font-medium print:bg-gray-200" : ""}`}>
                     <TableCell className={cellCls}>{item.entry_number || '-'}</TableCell>
-                    <TableCell className={cellCls}>
+                    <TableCell
+                      className={cellCls}
+                      title={
+                        (item as any).created_at
+                          ? `Înregistrat în sistem: ${format(new Date((item as any).created_at), 'dd.MM.yyyy HH:mm')}`
+                          : undefined
+                      }
+                    >
                       {item.receipt_date 
                         ? format(new Date(item.receipt_date), 'dd.MM.yyyy')
                         : '-'}
+                      {(item as any).created_at && item.receipt_date &&
+                        format(new Date((item as any).created_at), 'yyyy-MM-dd') !== format(new Date(item.receipt_date), 'yyyy-MM-dd') && (
+                          <span className="block text-[9px] text-amber-600 leading-none mt-0.5">
+                            (creat {format(new Date((item as any).created_at), 'dd.MM HH:mm')})
+                          </span>
+                        )}
                     </TableCell>
+
                     <TableCell className={`${cellCls} ${item.isHeader ? "font-bold" : "font-medium"}`}>
                       {productName}
                     </TableCell>
