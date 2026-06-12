@@ -39,6 +39,8 @@ export const DailyStockHistory = () => {
   const [stockSnapshots, setStockSnapshots] = useState<DailyStockItem[]>([]);
   const [qualityMap, setQualityMap] = useState<Record<string, QualityRow>>({});
   const [loading, setLoading] = useState(true);
+  const [snapshotGeneratedAt, setSnapshotGeneratedAt] = useState<Date | null>(null);
+  const [lateReceptionsCount, setLateReceptionsCount] = useState<number>(0);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
@@ -76,6 +78,7 @@ export const DailyStockHistory = () => {
             entry_number,
             receipt_date,
             crate_count,
+            created_at,
             suppliers:supplier_id (name),
             manufacturers:manufacturer_id (name),
             crate_types:crate_type_id (name, weight),
@@ -98,6 +101,30 @@ export const DailyStockHistory = () => {
 
       console.log("Daily stock snapshots data (total: " + allData.length + "):", allData);
       setStockSnapshots(allData || []);
+
+      // Determină momentul generării snapshot-ului (min created_at) și verifică recepții ulterioare
+      let generatedAt: Date | null = null;
+      if (allData.length > 0) {
+        const times = allData
+          .map((s: any) => s.created_at ? new Date(s.created_at).getTime() : null)
+          .filter((t): t is number => t !== null);
+        if (times.length > 0) generatedAt = new Date(Math.min(...times));
+      }
+      setSnapshotGeneratedAt(generatedAt);
+
+      // Numără recepții cu receipt_date ≤ selectedDate înregistrate DUPĂ snapshot
+      if (generatedAt) {
+        const invTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : inventoryType === 'etichete' ? 'etichete_inventory' : 'inventory';
+        const { count } = await (supabase as any)
+          .from(invTable)
+          .select('id', { count: 'exact', head: true })
+          .gt('quantity', 0)
+          .or(`receipt_date.lte.${selectedDate},receipt_date.is.null`)
+          .gt('created_at', generatedAt.toISOString());
+        setLateReceptionsCount(count ?? 0);
+      } else {
+        setLateReceptionsCount(0);
+      }
 
       // Fetch quality data
       if (allData.length > 0) {
@@ -226,6 +253,22 @@ export const DailyStockHistory = () => {
           </Button>
         </div>
       </div>
+
+      {snapshotGeneratedAt && (
+        <div className={`rounded-lg border p-3 text-sm ${lateReceptionsCount > 0 ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200' : 'border-green-500 bg-green-50 dark:bg-green-950/30 text-green-900 dark:text-green-200'}`}>
+          <div className="font-medium">
+            Snapshot generat la {snapshotGeneratedAt.toLocaleString('ro-RO', { dateStyle: 'short', timeStyle: 'short' })}
+          </div>
+          {lateReceptionsCount > 0 ? (
+            <div className="mt-1">
+              ⚠ {lateReceptionsCount} recepție(i) cu data ≤ {new Date(selectedDate).toLocaleDateString('ro-RO')} au fost înregistrate <strong>după</strong> generarea snapshot-ului.
+              Apasă <strong>„Creează Snapshot Acum"</strong> pentru a regenera și a le include.
+            </div>
+          ) : (
+            <div className="mt-1">✓ Snapshot-ul este la zi — nicio recepție nouă cu data ≤ {new Date(selectedDate).toLocaleDateString('ro-RO')} înregistrată ulterior.</div>
+          )}
+        </div>
+      )}
 
       {stockSnapshots.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
