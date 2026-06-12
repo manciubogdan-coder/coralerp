@@ -39,6 +39,8 @@ export const DailyStockHistory = () => {
   const [stockSnapshots, setStockSnapshots] = useState<DailyStockItem[]>([]);
   const [qualityMap, setQualityMap] = useState<Record<string, QualityRow>>({});
   const [loading, setLoading] = useState(true);
+  const [snapshotGeneratedAt, setSnapshotGeneratedAt] = useState<Date | null>(null);
+  const [lateReceptionsCount, setLateReceptionsCount] = useState<number>(0);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
