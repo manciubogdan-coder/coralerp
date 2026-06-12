@@ -102,6 +102,30 @@ export const DailyStockHistory = () => {
       console.log("Daily stock snapshots data (total: " + allData.length + "):", allData);
       setStockSnapshots(allData || []);
 
+      // Determină momentul generării snapshot-ului (min created_at) și verifică recepții ulterioare
+      let generatedAt: Date | null = null;
+      if (allData.length > 0) {
+        const times = allData
+          .map((s: any) => s.created_at ? new Date(s.created_at).getTime() : null)
+          .filter((t): t is number => t !== null);
+        if (times.length > 0) generatedAt = new Date(Math.min(...times));
+      }
+      setSnapshotGeneratedAt(generatedAt);
+
+      // Numără recepții cu receipt_date ≤ selectedDate înregistrate DUPĂ snapshot
+      if (generatedAt) {
+        const invTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : inventoryType === 'etichete' ? 'etichete_inventory' : 'inventory';
+        const { count } = await (supabase as any)
+          .from(invTable)
+          .select('id', { count: 'exact', head: true })
+          .gt('quantity', 0)
+          .or(`receipt_date.lte.${selectedDate},receipt_date.is.null`)
+          .gt('created_at', generatedAt.toISOString());
+        setLateReceptionsCount(count ?? 0);
+      } else {
+        setLateReceptionsCount(0);
+      }
+
       // Fetch quality data
       if (allData.length > 0) {
         const qualityTable = inventoryType === 'ambalaje' ? 'ambalaje_daily_stock_quality' : 'daily_stock_quality';
