@@ -114,7 +114,7 @@ export const DailyStockGroupView = () => {
           .from(invTable)
           .select('id', { count: 'exact', head: true })
           .gt('quantity', 0)
-          .or(`receipt_date.lte.${selectedDate},receipt_date.is.null`)
+          .or(`receipt_date.lt.${selectedDate},receipt_date.is.null`)
           .gt('created_at', generatedAt.toISOString());
         setLateReceptionsCount(count ?? 0);
       } else {
