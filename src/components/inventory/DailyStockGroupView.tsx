@@ -427,8 +427,16 @@ export const DailyStockGroupView = () => {
                        </TableCell>
                        <TableCell className="px-2 py-3 text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:py-1">{item.unit}</TableCell>
                       <TableCell className="px-2 py-3 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:py-1">{item.document_number || '-'}</TableCell>
-                      <TableCell className="px-2 py-3 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:py-1">
+                      <TableCell className="px-2 py-3 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:py-1"
+                        title={(item as any).created_at ? `Înregistrat în sistem: ${new Date((item as any).created_at).toLocaleString('ro-RO')}` : undefined}
+                      >
                         {item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit' }) : '-'}
+                        {(item as any).created_at && item.receipt_date &&
+                          new Date((item as any).created_at).toISOString().split('T')[0] !== new Date(item.receipt_date).toISOString().split('T')[0] && (
+                            <span className="block text-[9px] text-amber-600 leading-none mt-0.5 print:text-[7px]">
+                              (creat {new Date((item as any).created_at).toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit' })} {new Date((item as any).created_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })})
+                            </span>
+                          )}
                       </TableCell>
                       <TableCell className="px-2 py-3 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:py-1">{item.suppliers?.name || '-'}</TableCell>
                       <TableCell className="px-2 py-3 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:py-1">{item.manufacturers?.name || '-'}</TableCell>
