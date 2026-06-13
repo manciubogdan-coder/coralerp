@@ -79,6 +79,7 @@ export const DailyStockGroupView = () => {
           document_number,
           entry_number,
           receipt_date,
+          created_at,
           crate_count,
           suppliers:supplier_id (name),
           manufacturers:manufacturer_id (name),
