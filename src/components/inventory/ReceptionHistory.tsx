@@ -114,15 +114,21 @@ export const ReceptionHistory = () => {
         }
       }
 
-      const { data, error } = await (query as any);
-
-      if (error) {
-        throw error;
+      // Bypass limita de 1000 rânduri din Supabase folosind .range() în buclă
+      const pageSize = 1000;
+      let offset = 0;
+      let allRows: any[] = [];
+      while (true) {
+        const { data, error } = await (query.range(offset, offset + pageSize - 1) as any);
+        if (error) throw error;
+        const chunk = (data as any[]) || [];
+        allRows = allRows.concat(chunk);
+        if (chunk.length < pageSize) break;
+        offset += pageSize;
       }
 
-      console.log("Reception history data:", data);
-      // Map original_quantity to quantity for interface compatibility
-      const receptionsData = ((data as any[]) || []).map((item: any) => ({
+      console.log("Reception history total rows:", allRows.length);
+      const receptionsData = allRows.map((item: any) => ({
         ...item,
         quantity: item.original_quantity
       }));
