@@ -49,6 +49,8 @@ export const DailyStockGroupView = () => {
   const dateStorageKey = `dailyStockGroup.date.${inventoryType}`;
   const [selectedDate, setSelectedDateState] = useState(() => readStoredDateKey(dateStorageKey, todayKey()));
   const [qualityMap, setQualityMap] = useState<Record<string, { obs: string | null; nonconform_percent: number | null; consider_quantity: number | null }>>({});
+  const [snapshotGeneratedAt, setSnapshotGeneratedAt] = useState<Date | null>(null);
+  const [lateReceptionsCount, setLateReceptionsCount] = useState<number>(0);
 
   const setSelectedDate = (value: string) => {
     setSelectedDateState(value);
@@ -95,6 +97,30 @@ export const DailyStockGroupView = () => {
 
       const snapshots = (data || []) as any[];
       setStockSnapshots(snapshots as any);
+
+      // Determine snapshot generation time and check for late receptions
+      let generatedAt: Date | null = null;
+      if (snapshots.length > 0) {
+        const times = snapshots
+          .map((s: any) => s.created_at ? new Date(s.created_at).getTime() : null)
+          .filter((t): t is number => t !== null);
+        if (times.length > 0) generatedAt = new Date(Math.min(...times));
+      }
+      setSnapshotGeneratedAt(generatedAt);
+
+      if (generatedAt) {
+        const invTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : inventoryType === 'etichete' ? 'etichete_inventory' : 'inventory';
+        const { count } = await (supabase as any)
+          .from(invTable)
+          .select('id', { count: 'exact', head: true })
+          .gt('quantity', 0)
+          .or(`receipt_date.lte.${selectedDate},receipt_date.is.null`)
+          .gt('created_at', generatedAt.toISOString());
+        setLateReceptionsCount(count ?? 0);
+      } else {
+        setLateReceptionsCount(0);
+      }
+
 
       // Fetch quality data for these snapshots (read-only display)
       const qualityTable = inventoryType === 'ambalaje'
@@ -237,7 +263,7 @@ export const DailyStockGroupView = () => {
   const triggerSnapshot = async () => {
     try {
       const { error } = await supabase.functions.invoke('daily-stock-snapshot', {
-        body: { inventoryType, force: true },
+        body: { inventoryType, force: true, snapshotDate: selectedDate },
       });
       
       if (error) {
@@ -245,8 +271,8 @@ export const DailyStockGroupView = () => {
       }
       
       toast({
-        title: "Snapshot creat",
-        description: "Snapshot-ul stocului curent a fost salvat cu succes."
+        title: "Snapshot regenerat",
+        description: `Snapshot-ul pentru ${new Date(selectedDate).toLocaleDateString('ro-RO')} a fost regenerat și include recepțiile înregistrate ulterior.`
       });
       
       fetchDailyStock();
@@ -308,6 +334,23 @@ export const DailyStockGroupView = () => {
           </Button>
         </div>
       </div>
+
+      {snapshotGeneratedAt && (
+        <div className={`rounded-lg border p-3 text-sm ${lateReceptionsCount > 0 ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200' : 'border-green-500 bg-green-50 dark:bg-green-950/30 text-green-900 dark:text-green-200'}`}>
+          <div className="font-medium">
+            Snapshot generat la {snapshotGeneratedAt.toLocaleString('ro-RO', { dateStyle: 'short', timeStyle: 'short' })}
+          </div>
+          {lateReceptionsCount > 0 ? (
+            <div className="mt-1">
+              ⚠ {lateReceptionsCount} recepție(i) cu data ≤ {new Date(selectedDate).toLocaleDateString('ro-RO')} au fost înregistrate <strong>după</strong> generarea snapshot-ului.
+              Apasă <strong>„Creează Snapshot Acum"</strong> pentru a regenera și a le include.
+            </div>
+          ) : (
+            <div className="mt-1">✓ Snapshot-ul este la zi — nicio recepție nouă cu data ≤ {new Date(selectedDate).toLocaleDateString('ro-RO')} înregistrată ulterior.</div>
+          )}
+        </div>
+      )}
+
 
       {(groupedView ? filteredGroupedData.length === 0 : filteredStockSnapshots.length === 0) ? (
         <div className="text-center py-8 text-gray-500">
