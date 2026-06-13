@@ -83,6 +83,7 @@ export const ReceptionHistory = () => {
           id,
           entry_number,
           receipt_date,
+          created_at,
           name,
           original_quantity,
           gross_quantity,
