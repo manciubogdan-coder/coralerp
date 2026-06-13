@@ -49,6 +49,8 @@ export const DailyStockGroupView = () => {
   const dateStorageKey = `dailyStockGroup.date.${inventoryType}`;
   const [selectedDate, setSelectedDateState] = useState(() => readStoredDateKey(dateStorageKey, todayKey()));
   const [qualityMap, setQualityMap] = useState<Record<string, { obs: string | null; nonconform_percent: number | null; consider_quantity: number | null }>>({});
+  const [snapshotGeneratedAt, setSnapshotGeneratedAt] = useState<Date | null>(null);
+  const [lateReceptionsCount, setLateReceptionsCount] = useState<number>(0);
 
   const setSelectedDate = (value: string) => {
     setSelectedDateState(value);
