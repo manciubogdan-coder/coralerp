@@ -115,11 +115,12 @@ export const DailyStockHistory = () => {
       // Numără recepții cu receipt_date ≤ selectedDate înregistrate DUPĂ snapshot
       if (generatedAt) {
         const invTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : inventoryType === 'etichete' ? 'etichete_inventory' : 'inventory';
+        // Match edge function: snapshot include doar recepții cu receipt_date STRICT < selectedDate
         const { count } = await (supabase as any)
           .from(invTable)
           .select('id', { count: 'exact', head: true })
           .gt('quantity', 0)
-          .or(`receipt_date.lte.${selectedDate},receipt_date.is.null`)
+          .or(`receipt_date.lt.${selectedDate},receipt_date.is.null`)
           .gt('created_at', generatedAt.toISOString());
         setLateReceptionsCount(count ?? 0);
       } else {
