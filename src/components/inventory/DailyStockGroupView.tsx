@@ -263,7 +263,7 @@ export const DailyStockGroupView = () => {
   const triggerSnapshot = async () => {
     try {
       const { error } = await supabase.functions.invoke('daily-stock-snapshot', {
-        body: { inventoryType, force: true },
+        body: { inventoryType, force: true, snapshotDate: selectedDate },
       });
       
       if (error) {
@@ -271,8 +271,8 @@ export const DailyStockGroupView = () => {
       }
       
       toast({
-        title: "Snapshot creat",
-        description: "Snapshot-ul stocului curent a fost salvat cu succes."
+        title: "Snapshot regenerat",
+        description: `Snapshot-ul pentru ${new Date(selectedDate).toLocaleDateString('ro-RO')} a fost regenerat și include recepțiile înregistrate ulterior.`
       });
       
       fetchDailyStock();
