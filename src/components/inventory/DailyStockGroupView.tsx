@@ -98,6 +98,30 @@ export const DailyStockGroupView = () => {
       const snapshots = (data || []) as any[];
       setStockSnapshots(snapshots as any);
 
+      // Determine snapshot generation time and check for late receptions
+      let generatedAt: Date | null = null;
+      if (snapshots.length > 0) {
+        const times = snapshots
+          .map((s: any) => s.created_at ? new Date(s.created_at).getTime() : null)
+          .filter((t): t is number => t !== null);
+        if (times.length > 0) generatedAt = new Date(Math.min(...times));
+      }
+      setSnapshotGeneratedAt(generatedAt);
+
+      if (generatedAt) {
+        const invTable = inventoryType === 'ambalaje' ? 'ambalaje_inventory' : inventoryType === 'etichete' ? 'etichete_inventory' : 'inventory';
+        const { count } = await (supabase as any)
+          .from(invTable)
+          .select('id', { count: 'exact', head: true })
+          .gt('quantity', 0)
+          .or(`receipt_date.lte.${selectedDate},receipt_date.is.null`)
+          .gt('created_at', generatedAt.toISOString());
+        setLateReceptionsCount(count ?? 0);
+      } else {
+        setLateReceptionsCount(0);
+      }
+
+
       // Fetch quality data for these snapshots (read-only display)
       const qualityTable = inventoryType === 'ambalaje'
         ? 'ambalaje_daily_stock_quality'
