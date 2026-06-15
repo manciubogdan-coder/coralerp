@@ -101,6 +101,9 @@ export const ReceptionHistory = () => {
           obs,
           nonconform_percent,
           consider_quantity,
+          supplier_id,
+          manufacturer_id,
+          product_id,
           suppliers:supplier_id (name),
           manufacturers:manufacturer_id (name),
           products:product_id (name, cod_produs)
