@@ -55,6 +55,9 @@ export const ReceptionHistory = () => {
   const [qrOpen, setQrOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
+  const [suppliersList, setSuppliersList] = useState<Array<{ id: string; name: string }>>([]);
+  const [manufacturersList, setManufacturersList] = useState<Array<{ id: string; name: string }>>([]);
+  const [productsList, setProductsList] = useState<Array<{ id: string; name: string; cod_produs?: string; unit?: string }>>([]);
   const [editFormData, setEditFormData] = useState({
     name: '',
     quantity: 0,
@@ -64,6 +67,9 @@ export const ReceptionHistory = () => {
     receipt_date: '',
     obs: '',
     nonconform_percent: 0,
+    supplier_id: '',
+    manufacturer_id: '',
+    product_id: '',
   });
 
   const groupedData = useGroupedReceptions(filteredReceptions, groupBy);
