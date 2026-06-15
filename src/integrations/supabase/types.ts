@@ -494,6 +494,39 @@ export type Database = {
         }
         Relationships: []
       }
+      reception_audit_log: {
+        Row: {
+          changes: Json
+          created_at: string
+          id: string
+          inventory_type: string
+          reception_id: string
+          reception_table: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          changes?: Json
+          created_at?: string
+          id?: string
+          inventory_type: string
+          reception_id: string
+          reception_table: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          changes?: Json
+          created_at?: string
+          id?: string
+          inventory_type?: string
+          reception_id?: string
+          reception_table?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

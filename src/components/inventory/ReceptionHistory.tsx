@@ -58,6 +58,8 @@ export const ReceptionHistory = () => {
   const [suppliersList, setSuppliersList] = useState<Array<{ id: string; name: string }>>([]);
   const [manufacturersList, setManufacturersList] = useState<Array<{ id: string; name: string }>>([]);
   const [productsList, setProductsList] = useState<Array<{ id: string; name: string; cod_produs?: string; unit?: string }>>([]);
+  const [auditEntries, setAuditEntries] = useState<any[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [editFormData, setEditFormData] = useState({
     name: '',
     quantity: 0,
@@ -197,6 +199,24 @@ export const ReceptionHistory = () => {
     }
   }, [productFilter, receptions]);
 
+  const loadAuditEntries = async (receptionId: string) => {
+    setAuditLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('reception_audit_log')
+        .select('id, user_email, changes, created_at')
+        .eq('reception_id', receptionId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setAuditEntries(data || []);
+    } catch (e) {
+      console.error('Error loading audit log:', e);
+      setAuditEntries([]);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   const handleEdit = (item: ReceptionItem) => {
     setEditingItem(item);
     setEditFormData({
@@ -213,6 +233,7 @@ export const ReceptionHistory = () => {
       product_id: item.product_id || '',
     });
     setIsEditDialogOpen(true);
+    loadAuditEntries(item.id);
   };
 
   const handleSaveEdit = async () => {
@@ -288,6 +309,49 @@ export const ReceptionHistory = () => {
         console.warn("Could not update inventory (may not exist):", inventoryError);
       }
 
+      // === Audit log: detect changes and persist ===
+      try {
+        const supplierName = (id: string) => suppliersList.find(s => s.id === id)?.name || '';
+        const manufacturerName = (id: string) => manufacturersList.find(m => m.id === id)?.name || '';
+        const productLabel = (id: string) => {
+          const p = productsList.find(x => x.id === id);
+          return p ? `${p.name}${p.cod_produs ? ` (${p.cod_produs})` : ''}` : '';
+        };
+        const oldDateIso = editingItem.receipt_date ? editingItem.receipt_date.split('T')[0] : '';
+        const fields: Array<{ field: string; old: any; new: any }> = [
+          { field: 'Nume produs', old: editingItem.name || '', new: editFormData.name || '' },
+          { field: 'Cantitate', old: Number(editingItem.quantity ?? 0), new: Number(editFormData.quantity ?? 0) },
+          { field: 'UM', old: editingItem.unit || '', new: editFormData.unit || '' },
+          { field: 'Data recepție', old: oldDateIso, new: editFormData.receipt_date || '' },
+          { field: 'Document', old: editingItem.document_number || '', new: editFormData.document_number || '' },
+          { field: 'Lot', old: editingItem.lot_number || '', new: editFormData.lot_number || '' },
+          { field: 'Observații', old: editingItem.obs || '', new: editFormData.obs || '' },
+          { field: '% pierdere', old: Number(editingItem.nonconform_percent ?? 0), new: Number(editFormData.nonconform_percent ?? 0) },
+          { field: 'Furnizor', old: editingItem.suppliers?.name || supplierName(editingItem.supplier_id || ''), new: supplierName(editFormData.supplier_id) },
+          { field: 'Producător', old: editingItem.manufacturers?.name || manufacturerName(editingItem.manufacturer_id || ''), new: manufacturerName(editFormData.manufacturer_id) },
+          { field: 'Produs nomenclator', old: editingItem.products ? `${editingItem.products.name}${editingItem.products.cod_produs ? ` (${editingItem.products.cod_produs})` : ''}` : productLabel(editingItem.product_id || ''), new: productLabel(editFormData.product_id) },
+        ];
+        const diffs = fields.filter(f => String(f.old ?? '') !== String(f.new ?? ''));
+        if (diffs.length > 0) {
+          const { data: authData } = await supabase.auth.getUser();
+          const uid = authData?.user?.id || null;
+          const email = authData?.user?.email || null;
+          const { error: auditError } = await (supabase as any)
+            .from('reception_audit_log')
+            .insert({
+              reception_id: editingItem.id,
+              reception_table: receptionTableName,
+              inventory_type: inventoryType,
+              user_id: uid,
+              user_email: email,
+              changes: diffs,
+            });
+          if (auditError) console.warn('Audit log insert failed:', auditError);
+        }
+      } catch (auditEx) {
+        console.warn('Audit log error:', auditEx);
+      }
+
       toast({
         title: "Recepție actualizată",
         description: "Recepția și stocul au fost actualizate cu succes."
@@ -295,6 +359,7 @@ export const ReceptionHistory = () => {
 
       setIsEditDialogOpen(false);
       setEditingItem(null);
+      
       
       // Reîncărcare completă pentru a reflecta modificările
       await fetchReceptions();
@@ -694,159 +759,193 @@ export const ReceptionHistory = () => {
       )}
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md sm:max-w-lg sm:max-h-[85vh] overflow-y-auto p-4">
-          <DialogHeader>
+        <DialogContent className="max-w-md sm:max-w-lg p-0 gap-0 h-[95dvh] sm:h-auto sm:max-h-[90vh] flex flex-col">
+          <DialogHeader className="px-4 py-3 border-b shrink-0">
             <DialogTitle>Editare Recepție</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 py-3">
-            <div className="grid gap-2 sm:col-span-2">
-              <Label>Produs (din nomenclator)</Label>
-              <Select
-                value={editFormData.product_id || 'none'}
-                onValueChange={(v) => {
-                  const prod = productsList.find(p => p.id === v);
-                  setEditFormData({
-                    ...editFormData,
-                    product_id: v === 'none' ? '' : v,
-                    name: prod ? prod.name : editFormData.name,
-                    unit: prod?.unit ? prod.unit : editFormData.unit,
-                  });
-                }}
-              >
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează produs" /></SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  <SelectItem value="none">— fără —</SelectItem>
-                  {productsList.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}{p.cod_produs ? ` (${p.cod_produs})` : ''}</SelectItem>
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>Produs (din nomenclator)</Label>
+                <Select
+                  value={editFormData.product_id || 'none'}
+                  onValueChange={(v) => {
+                    const prod = productsList.find(p => p.id === v);
+                    setEditFormData({
+                      ...editFormData,
+                      product_id: v === 'none' ? '' : v,
+                      name: prod ? prod.name : editFormData.name,
+                      unit: prod?.unit ? prod.unit : editFormData.unit,
+                    });
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează produs" /></SelectTrigger>
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                    <SelectItem value="none">— fără —</SelectItem>
+                    {productsList.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}{p.cod_produs ? ` (${p.cod_produs})` : ''}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label htmlFor="name">Nume Produs</Label>
+                <Input
+                  id="name"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>Furnizor</Label>
+                <Select
+                  value={editFormData.supplier_id || 'none'}
+                  onValueChange={(v) => setEditFormData({ ...editFormData, supplier_id: v === 'none' ? '' : v })}
+                >
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează furnizor" /></SelectTrigger>
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                    <SelectItem value="none">— fără —</SelectItem>
+                    {suppliersList.map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>Producător</Label>
+                <Select
+                  value={editFormData.manufacturer_id || 'none'}
+                  onValueChange={(v) => setEditFormData({ ...editFormData, manufacturer_id: v === 'none' ? '' : v })}
+                >
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează producător" /></SelectTrigger>
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                    <SelectItem value="none">— fără —</SelectItem>
+                    {manufacturersList.map(m => (
+                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="quantity">Cantitate</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  step="0.01"
+                  value={editFormData.quantity}
+                  onChange={(e) => setEditFormData({...editFormData, quantity: parseFloat(e.target.value) || 0})}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="unit">Unitate</Label>
+                <Input
+                  id="unit"
+                  value={editFormData.unit}
+                  onChange={(e) => setEditFormData({...editFormData, unit: e.target.value})}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="receipt_date">Data Recepție</Label>
+                <Input
+                  id="receipt_date"
+                  type="date"
+                  value={editFormData.receipt_date}
+                  onChange={(e) => setEditFormData({...editFormData, receipt_date: e.target.value})}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="document_number">Număr Document</Label>
+                <Input
+                  id="document_number"
+                  value={editFormData.document_number}
+                  onChange={(e) => setEditFormData({...editFormData, document_number: e.target.value})}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label htmlFor="lot_number">Număr Lot</Label>
+                <Input
+                  id="lot_number"
+                  value={editFormData.lot_number}
+                  onChange={(e) => setEditFormData({...editFormData, lot_number: e.target.value})}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label htmlFor="obs">Observații</Label>
+                <Textarea
+                  id="obs"
+                  value={editFormData.obs}
+                  onChange={(e) => setEditFormData({ ...editFormData, obs: e.target.value })}
+                  className="text-sm min-h-[60px]"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="nonconform_percent">% pierdere</Label>
+                <Input
+                  id="nonconform_percent"
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  max={100}
+                  value={editFormData.nonconform_percent}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      nonconform_percent: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Cant. luată în considerare</Label>
+                <Input
+                  readOnly
+                  value={`${Math.max(0, ((editingItem?.net_quantity ?? editingItem?.gross_quantity ?? editFormData.quantity) * (1 - ((editFormData.nonconform_percent ?? 0) / 100)))).toFixed(2)}`}
+                  className="h-9 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Audit log section */}
+            <div className="mt-6 pt-4 border-t">
+              <h3 className="text-sm font-semibold mb-2">Istoric modificări</h3>
+              {auditLoading ? (
+                <p className="text-xs text-muted-foreground">Se încarcă...</p>
+              ) : auditEntries.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nicio modificare înregistrată.</p>
+              ) : (
+                <div className="space-y-2">
+                  {auditEntries.map((entry) => (
+                    <div key={entry.id} className="text-xs border rounded p-2 bg-muted/30">
+                      <div className="flex justify-between items-start gap-2 mb-1">
+                        <span className="font-medium">{entry.user_email || 'utilizator necunoscut'}</span>
+                        <span className="text-muted-foreground whitespace-nowrap">
+                          {new Date(entry.created_at).toLocaleString('ro-RO', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <ul className="space-y-0.5">
+                        {(entry.changes as any[]).map((c, i) => (
+                          <li key={i} className="text-[11px]">
+                            <span className="font-medium">{c.field}:</span>{' '}
+                            <span className="text-red-600 line-through">{String(c.old ?? '—')}</span>
+                            {' → '}
+                            <span className="text-green-700">{String(c.new ?? '—')}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="name">Nume Produs</Label>
-              <Input
-                id="name"
-                value={editFormData.name}
-                onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
-                className="h-9 text-sm"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Furnizor</Label>
-              <Select
-                value={editFormData.supplier_id || 'none'}
-                onValueChange={(v) => setEditFormData({ ...editFormData, supplier_id: v === 'none' ? '' : v })}
-              >
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează furnizor" /></SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  <SelectItem value="none">— fără —</SelectItem>
-                  {suppliersList.map(s => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Producător</Label>
-              <Select
-                value={editFormData.manufacturer_id || 'none'}
-                onValueChange={(v) => setEditFormData({ ...editFormData, manufacturer_id: v === 'none' ? '' : v })}
-              >
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează producător" /></SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  <SelectItem value="none">— fără —</SelectItem>
-                  {manufacturersList.map(m => (
-                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="quantity">Cantitate</Label>
-              <Input
-                id="quantity"
-                type="number"
-                step="0.01"
-                value={editFormData.quantity}
-                onChange={(e) => setEditFormData({...editFormData, quantity: parseFloat(e.target.value) || 0})}
-                className="h-9 text-sm"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="unit">Unitate</Label>
-              <Input
-                id="unit"
-                value={editFormData.unit}
-                onChange={(e) => setEditFormData({...editFormData, unit: e.target.value})}
-                className="h-9 text-sm"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="receipt_date">Data Recepție</Label>
-              <Input
-                id="receipt_date"
-                type="date"
-                value={editFormData.receipt_date}
-                onChange={(e) => setEditFormData({...editFormData, receipt_date: e.target.value})}
-                className="h-9 text-sm"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="document_number">Număr Document</Label>
-              <Input
-                id="document_number"
-                value={editFormData.document_number}
-                onChange={(e) => setEditFormData({...editFormData, document_number: e.target.value})}
-                className="h-9 text-sm"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="lot_number">Număr Lot</Label>
-              <Input
-                id="lot_number"
-                value={editFormData.lot_number}
-                onChange={(e) => setEditFormData({...editFormData, lot_number: e.target.value})}
-                className="h-9 text-sm"
-              />
-            </div>
-          <div className="grid gap-2">
-            <Label htmlFor="obs">Observații</Label>
-            <Textarea
-              id="obs"
-              value={editFormData.obs}
-              onChange={(e) => setEditFormData({ ...editFormData, obs: e.target.value })}
-              className="text-sm min-h-[60px]"
-            />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="nonconform_percent">% marfă neconformă (pierdere)</Label>
-            <Input
-              id="nonconform_percent"
-              type="number"
-              step="0.1"
-              min={0}
-              max={100}
-              value={editFormData.nonconform_percent}
-              onChange={(e) =>
-                setEditFormData({
-                  ...editFormData,
-                  nonconform_percent: parseFloat(e.target.value) || 0,
-                })
-              }
-              className="h-9 text-sm"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Cant. de luat în considerare (previzualizare)</Label>
-            <Input
-              readOnly
-              value={`${Math.max(0, ((editingItem?.net_quantity ?? editingItem?.gross_quantity ?? editFormData.quantity) * (1 - ((editFormData.nonconform_percent ?? 0) / 100)))).toFixed(2)}`}
-              className="h-9 text-sm"
-            />
-            <p className="text-xs text-muted-foreground">Se recalculează automat la salvare.</p>
-          </div>
-          </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 px-4 py-3 border-t shrink-0 bg-background">
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Anulează
             </Button>
