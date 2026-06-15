@@ -199,6 +199,24 @@ export const ReceptionHistory = () => {
     }
   }, [productFilter, receptions]);
 
+  const loadAuditEntries = async (receptionId: string) => {
+    setAuditLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('reception_audit_log')
+        .select('id, user_email, changes, created_at')
+        .eq('reception_id', receptionId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setAuditEntries(data || []);
+    } catch (e) {
+      console.error('Error loading audit log:', e);
+      setAuditEntries([]);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   const handleEdit = (item: ReceptionItem) => {
     setEditingItem(item);
     setEditFormData({
@@ -215,6 +233,7 @@ export const ReceptionHistory = () => {
       product_id: item.product_id || '',
     });
     setIsEditDialogOpen(true);
+    loadAuditEntries(item.id);
   };
 
   const handleSaveEdit = async () => {
