@@ -309,10 +309,49 @@ export const ReceptionHistory = () => {
         console.warn("Could not update inventory (may not exist):", inventoryError);
       }
 
-      toast({
-        title: "Recepție actualizată",
-        description: "Recepția și stocul au fost actualizate cu succes."
-      });
+      // === Audit log: detect changes and persist ===
+      try {
+        const supplierName = (id: string) => suppliersList.find(s => s.id === id)?.name || '';
+        const manufacturerName = (id: string) => manufacturersList.find(m => m.id === id)?.name || '';
+        const productLabel = (id: string) => {
+          const p = productsList.find(x => x.id === id);
+          return p ? `${p.name}${p.cod_produs ? ` (${p.cod_produs})` : ''}` : '';
+        };
+        const oldDateIso = editingItem.receipt_date ? editingItem.receipt_date.split('T')[0] : '';
+        const fields: Array<{ field: string; old: any; new: any }> = [
+          { field: 'Nume produs', old: editingItem.name || '', new: editFormData.name || '' },
+          { field: 'Cantitate', old: Number(editingItem.quantity ?? 0), new: Number(editFormData.quantity ?? 0) },
+          { field: 'UM', old: editingItem.unit || '', new: editFormData.unit || '' },
+          { field: 'Data recepție', old: oldDateIso, new: editFormData.receipt_date || '' },
+          { field: 'Document', old: editingItem.document_number || '', new: editFormData.document_number || '' },
+          { field: 'Lot', old: editingItem.lot_number || '', new: editFormData.lot_number || '' },
+          { field: 'Observații', old: editingItem.obs || '', new: editFormData.obs || '' },
+          { field: '% pierdere', old: Number(editingItem.nonconform_percent ?? 0), new: Number(editFormData.nonconform_percent ?? 0) },
+          { field: 'Furnizor', old: editingItem.suppliers?.name || supplierName(editingItem.supplier_id || ''), new: supplierName(editFormData.supplier_id) },
+          { field: 'Producător', old: editingItem.manufacturers?.name || manufacturerName(editingItem.manufacturer_id || ''), new: manufacturerName(editFormData.manufacturer_id) },
+          { field: 'Produs nomenclator', old: editingItem.products ? `${editingItem.products.name}${editingItem.products.cod_produs ? ` (${editingItem.products.cod_produs})` : ''}` : productLabel(editingItem.product_id || ''), new: productLabel(editFormData.product_id) },
+        ];
+        const diffs = fields.filter(f => String(f.old ?? '') !== String(f.new ?? ''));
+        if (diffs.length > 0) {
+          const { data: authData } = await supabase.auth.getUser();
+          const uid = authData?.user?.id || null;
+          const email = authData?.user?.email || null;
+          const { error: auditError } = await (supabase as any)
+            .from('reception_audit_log')
+            .insert({
+              reception_id: editingItem.id,
+              reception_table: receptionTableName,
+              inventory_type: inventoryType,
+              user_id: uid,
+              user_email: email,
+              changes: diffs,
+            });
+          if (auditError) console.warn('Audit log insert failed:', auditError);
+        }
+      } catch (auditEx) {
+        console.warn('Audit log error:', auditEx);
+      }
+
 
       setIsEditDialogOpen(false);
       setEditingItem(null);
