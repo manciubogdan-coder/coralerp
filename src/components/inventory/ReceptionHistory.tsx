@@ -58,6 +58,8 @@ export const ReceptionHistory = () => {
   const [suppliersList, setSuppliersList] = useState<Array<{ id: string; name: string }>>([]);
   const [manufacturersList, setManufacturersList] = useState<Array<{ id: string; name: string }>>([]);
   const [productsList, setProductsList] = useState<Array<{ id: string; name: string; cod_produs?: string; unit?: string }>>([]);
+  const [auditEntries, setAuditEntries] = useState<any[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [editFormData, setEditFormData] = useState({
     name: '',
     quantity: 0,
