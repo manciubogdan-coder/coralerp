@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, FileSpreadsheet, Edit, Trash2, Printer, QrCode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
@@ -54,6 +55,9 @@ export const ReceptionHistory = () => {
   const [qrOpen, setQrOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
+  const [suppliersList, setSuppliersList] = useState<Array<{ id: string; name: string }>>([]);
+  const [manufacturersList, setManufacturersList] = useState<Array<{ id: string; name: string }>>([]);
+  const [productsList, setProductsList] = useState<Array<{ id: string; name: string; cod_produs?: string; unit?: string }>>([]);
   const [editFormData, setEditFormData] = useState({
     name: '',
     quantity: 0,
@@ -63,6 +67,9 @@ export const ReceptionHistory = () => {
     receipt_date: '',
     obs: '',
     nonconform_percent: 0,
+    supplier_id: '',
+    manufacturer_id: '',
+    product_id: '',
   });
 
   const groupedData = useGroupedReceptions(filteredReceptions, groupBy);
@@ -94,6 +101,9 @@ export const ReceptionHistory = () => {
           obs,
           nonconform_percent,
           consider_quantity,
+          supplier_id,
+          manufacturer_id,
+          product_id,
           suppliers:supplier_id (name),
           manufacturers:manufacturer_id (name),
           products:product_id (name, cod_produs)
@@ -152,6 +162,30 @@ export const ReceptionHistory = () => {
   }, [dateFrom, dateTo, inventoryType]);
 
   useEffect(() => {
+    const loadLists = async () => {
+      const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers'
+        : inventoryType === 'etichete' ? 'etichete_suppliers' : 'suppliers';
+      const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers'
+        : inventoryType === 'etichete' ? 'etichete_manufacturers' : 'manufacturers';
+      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products'
+        : inventoryType === 'etichete' ? 'etichete_products' : 'products';
+      try {
+        const [s, m, p] = await Promise.all([
+          (supabase as any).from(suppliersTable).select('id, name').order('name'),
+          (supabase as any).from(manufacturersTable).select('id, name').order('name'),
+          (supabase as any).from(productsTable).select('id, name, cod_produs, unit').order('name'),
+        ]);
+        setSuppliersList((s.data as any) || []);
+        setManufacturersList((m.data as any) || []);
+        setProductsList((p.data as any) || []);
+      } catch (e) {
+        console.error('Error loading lists:', e);
+      }
+    };
+    loadLists();
+  }, [inventoryType]);
+
+  useEffect(() => {
     if (productFilter.trim() === "") {
       setFilteredReceptions(receptions);
     } else {
@@ -174,6 +208,9 @@ export const ReceptionHistory = () => {
       receipt_date: item.receipt_date ? item.receipt_date.split('T')[0] : '',
       obs: item.obs ?? '',
       nonconform_percent: item.nonconform_percent ?? 0,
+      supplier_id: item.supplier_id || '',
+      manufacturer_id: item.manufacturer_id || '',
+      product_id: item.product_id || '',
     });
     setIsEditDialogOpen(true);
   };
@@ -204,12 +241,15 @@ export const ReceptionHistory = () => {
         receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
         obs: editFormData.obs || null,
         nonconform_percent: editFormData.nonconform_percent ?? 0,
+        supplier_id: editFormData.supplier_id || null,
+        manufacturer_id: editFormData.manufacturer_id || null,
+        product_id: editFormData.product_id || null,
         updated_at: new Date().toISOString()
       };
 
       console.log('Update data to send:', updateData);
       
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from(receptionTableName)
         .update(updateData)
         .eq('id', editingItem.id)
@@ -228,15 +268,18 @@ export const ReceptionHistory = () => {
       
       const inventoryUpdateData = {
         name: editFormData.name,
-        quantity: editFormData.quantity, // Actualizez cantitatea curentă
+        quantity: editFormData.quantity,
         unit: editFormData.unit,
         document_number: editFormData.document_number || null,
         lot_number: editFormData.lot_number || null,
         receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
+        supplier_id: editFormData.supplier_id || null,
+        manufacturer_id: editFormData.manufacturer_id || null,
+        product_id: editFormData.product_id || null,
         updated_at: new Date().toISOString()
       };
 
-      const { error: inventoryError } = await supabase
+      const { error: inventoryError } = await (supabase as any)
         .from(inventoryTableName)
         .update(inventoryUpdateData)
         .eq('entry_number', editingItem.entry_number);
@@ -656,6 +699,29 @@ export const ReceptionHistory = () => {
             <DialogTitle>Editare Recepție</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 py-3">
+            <div className="grid gap-2 sm:col-span-2">
+              <Label>Produs (din nomenclator)</Label>
+              <Select
+                value={editFormData.product_id || 'none'}
+                onValueChange={(v) => {
+                  const prod = productsList.find(p => p.id === v);
+                  setEditFormData({
+                    ...editFormData,
+                    product_id: v === 'none' ? '' : v,
+                    name: prod ? prod.name : editFormData.name,
+                    unit: prod?.unit ? prod.unit : editFormData.unit,
+                  });
+                }}
+              >
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează produs" /></SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  <SelectItem value="none">— fără —</SelectItem>
+                  {productsList.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}{p.cod_produs ? ` (${p.cod_produs})` : ''}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="name">Nume Produs</Label>
               <Input
@@ -664,6 +730,36 @@ export const ReceptionHistory = () => {
                 onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
                 className="h-9 text-sm"
               />
+            </div>
+            <div className="grid gap-2">
+              <Label>Furnizor</Label>
+              <Select
+                value={editFormData.supplier_id || 'none'}
+                onValueChange={(v) => setEditFormData({ ...editFormData, supplier_id: v === 'none' ? '' : v })}
+              >
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează furnizor" /></SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  <SelectItem value="none">— fără —</SelectItem>
+                  {suppliersList.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Producător</Label>
+              <Select
+                value={editFormData.manufacturer_id || 'none'}
+                onValueChange={(v) => setEditFormData({ ...editFormData, manufacturer_id: v === 'none' ? '' : v })}
+              >
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează producător" /></SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  <SelectItem value="none">— fără —</SelectItem>
+                  {manufacturersList.map(m => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="quantity">Cantitate</Label>
