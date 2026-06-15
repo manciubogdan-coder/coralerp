@@ -241,12 +241,15 @@ export const ReceptionHistory = () => {
         receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
         obs: editFormData.obs || null,
         nonconform_percent: editFormData.nonconform_percent ?? 0,
+        supplier_id: editFormData.supplier_id || null,
+        manufacturer_id: editFormData.manufacturer_id || null,
+        product_id: editFormData.product_id || null,
         updated_at: new Date().toISOString()
       };
 
       console.log('Update data to send:', updateData);
       
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from(receptionTableName)
         .update(updateData)
         .eq('id', editingItem.id)
@@ -265,15 +268,18 @@ export const ReceptionHistory = () => {
       
       const inventoryUpdateData = {
         name: editFormData.name,
-        quantity: editFormData.quantity, // Actualizez cantitatea curentă
+        quantity: editFormData.quantity,
         unit: editFormData.unit,
         document_number: editFormData.document_number || null,
         lot_number: editFormData.lot_number || null,
         receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
+        supplier_id: editFormData.supplier_id || null,
+        manufacturer_id: editFormData.manufacturer_id || null,
+        product_id: editFormData.product_id || null,
         updated_at: new Date().toISOString()
       };
 
-      const { error: inventoryError } = await supabase
+      const { error: inventoryError } = await (supabase as any)
         .from(inventoryTableName)
         .update(inventoryUpdateData)
         .eq('entry_number', editingItem.entry_number);
