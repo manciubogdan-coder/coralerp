@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, FileSpreadsheet, Edit, Trash2, Printer, QrCode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
