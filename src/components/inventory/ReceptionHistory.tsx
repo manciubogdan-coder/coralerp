@@ -286,27 +286,60 @@ export const ReceptionHistory = () => {
         : inventoryType === 'etichete'
           ? 'etichete_inventory'
           : 'inventory';
-      
-      const inventoryUpdateData = {
+
+      const supplierNameResolved = editFormData.supplier_id
+        ? (suppliersList.find(s => s.id === editFormData.supplier_id)?.name || null)
+        : null;
+
+      const inventoryUpdateData: any = {
         name: editFormData.name,
         quantity: editFormData.quantity,
+        original_quantity: editFormData.quantity,
         unit: editFormData.unit,
         document_number: editFormData.document_number || null,
         lot_number: editFormData.lot_number || null,
         receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
         supplier_id: editFormData.supplier_id || null,
+        supplier_name: supplierNameResolved,
         manufacturer_id: editFormData.manufacturer_id || null,
         product_id: editFormData.product_id || null,
         updated_at: new Date().toISOString()
       };
 
-      const { error: inventoryError } = await (supabase as any)
-        .from(inventoryTableName)
-        .update(inventoryUpdateData)
-        .eq('entry_number', editingItem.entry_number);
+      let invMatched = 0;
+      if (editingItem.entry_number != null) {
+        const { data: invByEntry, error: invErrEntry } = await (supabase as any)
+          .from(inventoryTableName)
+          .update(inventoryUpdateData)
+          .eq('entry_number', editingItem.entry_number)
+          .select('id');
+        if (invErrEntry) {
+          console.warn("Inventory update by entry_number failed:", invErrEntry);
+        } else {
+          invMatched = (invByEntry as any[])?.length || 0;
+        }
+      }
 
-      if (inventoryError) {
-        console.warn("Could not update inventory (may not exist):", inventoryError);
+      if (invMatched === 0 && editingItem.lot_number && editingItem.document_number) {
+        const { data: invByLot, error: invErrLot } = await (supabase as any)
+          .from(inventoryTableName)
+          .update(inventoryUpdateData)
+          .eq('lot_number', editingItem.lot_number)
+          .eq('document_number', editingItem.document_number)
+          .select('id');
+        if (invErrLot) {
+          console.warn("Inventory update by lot+doc failed:", invErrLot);
+        } else {
+          invMatched = (invByLot as any[])?.length || 0;
+        }
+      }
+
+      if (invMatched === 0) {
+        toast({
+          variant: "destructive",
+          title: "Atenție: stocul nu s-a sincronizat",
+          description: "Modificarea s-a salvat în istoric, dar nu am găsit înregistrarea în inventar. Raportul Recepție / Evidență Documente poate să nu reflecte schimbarea.",
+        });
       }
 
       // === Audit log: detect changes and persist ===
