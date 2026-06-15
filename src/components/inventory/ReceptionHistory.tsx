@@ -57,7 +57,7 @@ export const ReceptionHistory = () => {
   const [itemsPerPage] = useState(20);
   const [suppliersList, setSuppliersList] = useState<Array<{ id: string; name: string }>>([]);
   const [manufacturersList, setManufacturersList] = useState<Array<{ id: string; name: string }>>([]);
-  const [productsList, setProductsList] = useState<Array<{ id: string; name: string; cod_produs?: string; unit?: string }>>([]);
+  const [productsList, setProductsList] = useState<Array<{ id: string; name: string; cod_produs?: string; default_unit?: string }>>([]);
   const [auditEntries, setAuditEntries] = useState<any[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -175,7 +175,7 @@ export const ReceptionHistory = () => {
         const [s, m, p] = await Promise.all([
           (supabase as any).from(suppliersTable).select('id, name').order('name'),
           (supabase as any).from(manufacturersTable).select('id, name').order('name'),
-          (supabase as any).from(productsTable).select('id, name, cod_produs, unit').order('name'),
+          (supabase as any).from(productsTable).select('id, name, cod_produs, default_unit').order('name'),
         ]);
         setSuppliersList((s.data as any) || []);
         setManufacturersList((m.data as any) || []);
@@ -779,7 +779,7 @@ export const ReceptionHistory = () => {
                       ...editFormData,
                       product_id: v,
                       name: prod ? prod.name : editFormData.name,
-                      unit: prod?.unit ? prod.unit : editFormData.unit,
+                      unit: prod?.default_unit ? prod.default_unit : editFormData.unit,
                     });
                   }}
                 >
@@ -788,8 +788,7 @@ export const ReceptionHistory = () => {
                       {editFormData.name || 'Selectează produs'}
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent className="max-h-[300px] overflow-y-auto">
-                    <SelectItem value="none">— fără —</SelectItem>
+                  <SelectContent className="max-h-[60dvh] overflow-y-auto">
                     {productsList.map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name}{p.cod_produs ? ` (${p.cod_produs})` : ''}</SelectItem>
                     ))}
