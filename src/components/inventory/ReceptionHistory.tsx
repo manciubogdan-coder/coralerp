@@ -253,6 +253,10 @@ export const ReceptionHistory = () => {
         formData: editFormData
       });
 
+      const supplierNameResolved = editFormData.supplier_id
+        ? (suppliersList.find(s => s.id === editFormData.supplier_id)?.name || editingItem.suppliers?.name || null)
+        : null;
+
       const updateData = {
         name: editFormData.name,
         original_quantity: editFormData.quantity,
@@ -263,6 +267,7 @@ export const ReceptionHistory = () => {
         obs: editFormData.obs || null,
         nonconform_percent: editFormData.nonconform_percent ?? 0,
         supplier_id: editFormData.supplier_id || null,
+        supplier_name: supplierNameResolved,
         manufacturer_id: editFormData.manufacturer_id || null,
         product_id: editFormData.product_id || null,
         updated_at: new Date().toISOString()
@@ -289,10 +294,6 @@ export const ReceptionHistory = () => {
         : inventoryType === 'etichete'
           ? 'etichete_inventory'
           : 'inventory';
-
-      const supplierNameResolved = editFormData.supplier_id
-        ? (suppliersList.find(s => s.id === editFormData.supplier_id)?.name || null)
-        : null;
 
       const inventoryUpdateData: any = {
         name: editFormData.name,
