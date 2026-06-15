@@ -766,13 +766,35 @@ export const ReceptionHistory = () => {
           <div className="flex-1 overflow-y-auto px-4 py-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="grid gap-2 sm:col-span-2">
-                <Label htmlFor="name">Nume Produs</Label>
-                <Input
-                  id="name"
-                  value={editFormData.name}
-                  onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
-                  className="h-9 text-sm"
-                />
+                <Label>Nume Produs</Label>
+                <Select
+                  value={editFormData.product_id || (productsList.find(p => p.name === editFormData.name)?.id ?? 'none')}
+                  onValueChange={(v) => {
+                    if (v === 'none') {
+                      setEditFormData({ ...editFormData, product_id: '', name: '' });
+                      return;
+                    }
+                    const prod = productsList.find(p => p.id === v);
+                    setEditFormData({
+                      ...editFormData,
+                      product_id: v,
+                      name: prod ? prod.name : editFormData.name,
+                      unit: prod?.unit ? prod.unit : editFormData.unit,
+                    });
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Selectează produs">
+                      {editFormData.name || 'Selectează produs'}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                    <SelectItem value="none">— fără —</SelectItem>
+                    {productsList.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}{p.cod_produs ? ` (${p.cod_produs})` : ''}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2 sm:col-span-2">
                 <Label>Furnizor</Label>
