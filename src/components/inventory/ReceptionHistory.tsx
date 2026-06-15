@@ -352,9 +352,14 @@ export const ReceptionHistory = () => {
         console.warn('Audit log error:', auditEx);
       }
 
+      toast({
+        title: "Recepție actualizată",
+        description: "Recepția și stocul au fost actualizate cu succes."
+      });
 
       setIsEditDialogOpen(false);
       setEditingItem(null);
+      
       
       // Reîncărcare completă pentru a reflecta modificările
       await fetchReceptions();
