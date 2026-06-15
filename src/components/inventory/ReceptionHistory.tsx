@@ -699,6 +699,29 @@ export const ReceptionHistory = () => {
             <DialogTitle>Editare Recepție</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 py-3">
+            <div className="grid gap-2 sm:col-span-2">
+              <Label>Produs (din nomenclator)</Label>
+              <Select
+                value={editFormData.product_id || 'none'}
+                onValueChange={(v) => {
+                  const prod = productsList.find(p => p.id === v);
+                  setEditFormData({
+                    ...editFormData,
+                    product_id: v === 'none' ? '' : v,
+                    name: prod ? prod.name : editFormData.name,
+                    unit: prod?.unit ? prod.unit : editFormData.unit,
+                  });
+                }}
+              >
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează produs" /></SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  <SelectItem value="none">— fără —</SelectItem>
+                  {productsList.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}{p.cod_produs ? ` (${p.cod_produs})` : ''}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="name">Nume Produs</Label>
               <Input
@@ -707,6 +730,36 @@ export const ReceptionHistory = () => {
                 onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
                 className="h-9 text-sm"
               />
+            </div>
+            <div className="grid gap-2">
+              <Label>Furnizor</Label>
+              <Select
+                value={editFormData.supplier_id || 'none'}
+                onValueChange={(v) => setEditFormData({ ...editFormData, supplier_id: v === 'none' ? '' : v })}
+              >
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează furnizor" /></SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  <SelectItem value="none">— fără —</SelectItem>
+                  {suppliersList.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Producător</Label>
+              <Select
+                value={editFormData.manufacturer_id || 'none'}
+                onValueChange={(v) => setEditFormData({ ...editFormData, manufacturer_id: v === 'none' ? '' : v })}
+              >
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selectează producător" /></SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  <SelectItem value="none">— fără —</SelectItem>
+                  {manufacturersList.map(m => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="quantity">Cantitate</Label>
