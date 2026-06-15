@@ -253,6 +253,10 @@ export const ReceptionHistory = () => {
         formData: editFormData
       });
 
+      const supplierNameResolved = editFormData.supplier_id
+        ? (suppliersList.find(s => s.id === editFormData.supplier_id)?.name || editingItem.suppliers?.name || null)
+        : null;
+
       const updateData = {
         name: editFormData.name,
         original_quantity: editFormData.quantity,
@@ -263,6 +267,7 @@ export const ReceptionHistory = () => {
         obs: editFormData.obs || null,
         nonconform_percent: editFormData.nonconform_percent ?? 0,
         supplier_id: editFormData.supplier_id || null,
+        supplier_name: supplierNameResolved,
         manufacturer_id: editFormData.manufacturer_id || null,
         product_id: editFormData.product_id || null,
         updated_at: new Date().toISOString()
@@ -279,6 +284,9 @@ export const ReceptionHistory = () => {
       console.log('Update result:', { data, error });
 
       if (error) throw error;
+      if (!data || (data as any[]).length === 0) {
+        throw new Error("Recepția nu a putut fi actualizată. Reîncarcă pagina și încearcă din nou.");
+      }
 
       // Actualizez și în tabelul de inventar curent (stocul curent)
       const inventoryTableName = inventoryType === 'ambalaje'
@@ -287,14 +295,9 @@ export const ReceptionHistory = () => {
           ? 'etichete_inventory'
           : 'inventory';
 
-      const supplierNameResolved = editFormData.supplier_id
-        ? (suppliersList.find(s => s.id === editFormData.supplier_id)?.name || null)
-        : null;
-
       const inventoryUpdateData: any = {
         name: editFormData.name,
         quantity: editFormData.quantity,
-        original_quantity: editFormData.quantity,
         unit: editFormData.unit,
         document_number: editFormData.document_number || null,
         lot_number: editFormData.lot_number || null,
@@ -307,7 +310,21 @@ export const ReceptionHistory = () => {
       };
 
       let invMatched = 0;
-      if (editingItem.entry_number != null) {
+      const matchedInventoryIds = new Set<string>();
+
+      const { data: invById, error: invErrId } = await (supabase as any)
+        .from(inventoryTableName)
+        .update(inventoryUpdateData)
+        .eq('id', editingItem.id)
+        .select('id');
+      if (invErrId) {
+        console.warn("Inventory update by id failed:", invErrId);
+      } else {
+        ((invById as any[]) || []).forEach((row) => matchedInventoryIds.add(row.id));
+        invMatched = matchedInventoryIds.size;
+      }
+
+      if (invMatched === 0 && editingItem.entry_number != null) {
         const { data: invByEntry, error: invErrEntry } = await (supabase as any)
           .from(inventoryTableName)
           .update(inventoryUpdateData)
@@ -316,7 +333,8 @@ export const ReceptionHistory = () => {
         if (invErrEntry) {
           console.warn("Inventory update by entry_number failed:", invErrEntry);
         } else {
-          invMatched = (invByEntry as any[])?.length || 0;
+          ((invByEntry as any[]) || []).forEach((row) => matchedInventoryIds.add(row.id));
+          invMatched = matchedInventoryIds.size;
         }
       }
 
@@ -330,8 +348,18 @@ export const ReceptionHistory = () => {
         if (invErrLot) {
           console.warn("Inventory update by lot+doc failed:", invErrLot);
         } else {
-          invMatched = (invByLot as any[])?.length || 0;
+          ((invByLot as any[]) || []).forEach((row) => matchedInventoryIds.add(row.id));
+          invMatched = matchedInventoryIds.size;
         }
+      }
+
+      const reportIds = Array.from(matchedInventoryIds.size ? matchedInventoryIds : new Set([editingItem.id]));
+      if (reportIds.length > 0) {
+        const { error: reportSyncError } = await (supabase as any)
+          .from('reception_report_data')
+          .update({ cantitate_receptionata: editFormData.quantity, updated_at: new Date().toISOString() })
+          .in('inventory_id', reportIds);
+        if (reportSyncError) console.warn("Reception report data sync failed:", reportSyncError);
       }
 
       if (invMatched === 0) {
