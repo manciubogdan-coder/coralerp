@@ -759,7 +759,7 @@ export const ReceptionHistory = () => {
       )}
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md sm:max-w-lg p-0 gap-0 h-[95dvh] sm:h-auto sm:max-h-[90vh] flex flex-col">
+        <DialogContent className="p-0 gap-0 flex flex-col w-screen h-[100dvh] max-w-full top-0 left-0 translate-x-0 translate-y-0 rounded-none border-0 sm:w-auto sm:max-w-lg sm:h-auto sm:max-h-[90vh] sm:top-[50%] sm:left-[50%] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:border">
           <DialogHeader className="px-4 py-3 border-b shrink-0">
             <DialogTitle>Editare Recepție</DialogTitle>
           </DialogHeader>
