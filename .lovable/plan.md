@@ -1,48 +1,29 @@
-## Obiectiv
+## Problemă
 
-La finalul unei recepții, utilizatorul să poată genera și printa o etichetă cu cod QR pentru lotul recepționat. Scanarea QR-ului (din aplicație sau de pe telefon) deschide o pagină dedicată cu toate datele lotului și acțiuni rapide: **Bon transfer** și **Returnare în stoc**.
+Când modifici o recepție în "Istoric recepții", se salvează corect în `reception_records` și se scrie audit log, dar tabelul Recepție din **Calitate** și **Evidență Documente** rămâne neschimbat.
 
-## Flux utilizator
+Motivul: aceste tabele se construiesc din tabela `inventory` (respectiv `ambalaje_inventory` / `etichete_inventory`), folosind în principal câmpurile `original_quantity` și `supplier_name`. În `handleSaveEdit`:
+- se actualizează `quantity` în inventar, dar **nu** și `original_quantity` (ăsta e folosit la raport)
+- **nu** se actualizează `supplier_name` (câmpul denormalizat afișat la grupare)
+- match-ul pe `entry_number` poate eșua silențios (doar `console.warn`), deci pare că a mers chiar dacă n-a făcut nimic
 
-1. La salvarea unei recepții (Materii Prime / Ambalaje / Etichete), apare un buton **"Printează QR lot"** (și automat un dialog cu preview).
-2. Dialogul afișează eticheta 50×30 mm (sau 80mm rolă termică) cu:
-   - QR code (link către `/lot/{inventory_id}`)
-   - Denumire produs, Furnizor, Producător
-   - Cantitate + unitate, Lot, Data recepție, Nr. intrare
-3. Buton **"Printează"** → `window.print()` cu CSS dedicat (compatibil imprimante termice ESC/POS prin driver Windows/Mac standard).
-4. Scanarea QR-ului deschide `/lot/{id}` în browser:
-   - Sus: toate datele lotului + cantitate curentă în stoc (live din DB)
-   - Istoric scurt (recepție, transferuri, returnări)
-   - Acțiuni: **Bon transfer din acest lot** și **Returnare în stoc** (dacă există transfer activ pentru acest lot)
-5. Pagina `/lot/{id}` funcționează și pe mobil (scanare cu camera telefonului) — necesită autentificare.
+## Soluție
 
-## Modificări tehnice
+În `src/components/inventory/ReceptionHistory.tsx` → `handleSaveEdit`:
 
-**Pachete noi:**
-- `qrcode.react` — pentru generarea QR în React (mic, fără dependențe native)
+1. **Extinde update-ul pe inventar** ca să sincronizeze toate câmpurile afișate în Recepție/Evidență Documente:
+   - `original_quantity` = noua cantitate (pe lângă `quantity`)
+   - `supplier_name` = numele furnizorului nou (rezolvat din `suppliersList` pe baza `supplier_id`)
+   - restul rămân (`name`, `unit`, `document_number`, `lot_number`, `receipt_date`, `supplier_id`, `manufacturer_id`, `product_id`)
 
-**Componente noi:**
-- `src/components/inventory/LotQRLabel.tsx` — eticheta printabilă (QR + text), cu CSS `@media print` pentru format termic 50×30mm
-- `src/components/inventory/LotQRDialog.tsx` — dialog cu preview + buton Printează
-- `src/pages/LotDetailPage.tsx` — pagina deschisă la scanare; afișează datele + acțiunile
+2. **Match mai robust pe inventar**: în loc de doar `entry_number`, încearcă întâi după `reception_record_id`/`reception_id` dacă există, apoi fallback pe `entry_number`. Dacă tot nu găsește, încearcă după combinația `lot_number + document_number + receipt_date` originală.
 
-**Integrare:**
-- `ReceptionRegistration.tsx`: după salvare reușită, deschide automat `LotQRDialog` cu `inventoryId` nou creat (în loc să închidă direct dialogul). Adaug și buton "QR" în `ReceptionHistory` pentru reprintare.
-- `App.tsx`: rută nouă `/lot/:id` (în interiorul `ProtectedRoute`).
-- QR-ul conține URL-ul absolut: `${window.location.origin}/lot/${id}` — funcționează din orice cititor QR.
+3. **Notifică vizibil** când inventarul nu poate fi actualizat (toast warning), în loc de console.warn tăcut, ca utilizatorul să știe dacă raportul nu se va sincroniza.
 
-**Acțiuni din pagina lotului:**
-- **Bon transfer**: deschide `StockTransferForm` pre-completat cu produsul/lotul respectiv (refolosesc componenta existentă, adaug prop `prefillLotId`).
-- **Returnare**: caută ultimul transfer activ pentru acest `inventory_item_id` și deschide `TransferReturnForm` pre-completat.
+4. **Re-fetch** rămâne la fel după save.
 
-**Tip inventar:** detectez automat tipul (MP / Ambalaje / Etichete) căutând `id`-ul în cele 3 tabele (`inventory`, `ambalaje_inventory`, `etichete_inventory`) și setez contextul corespunzător.
+## Note tehnice
 
-## Imprimantă termică
-
-Nu e nevoie de driver special — folosesc `window.print()` cu `@page { size: 50mm 30mm; margin: 0 }` și CSS care ascunde restul UI-ului. Funcționează cu orice imprimantă termică instalată ca printer Windows/Mac (Zebra, Brother QL, Xprinter etc.). Utilizatorul setează imprimanta default pe cea termică sau o alege la dialog print.
-
-## În afara scope-ului (pentru iterații viitoare)
-
-- Print direct ESC/POS via USB/Bluetooth (nu funcționează din browser fără extensii)
-- Generare bulk QR pentru loturi vechi
-- Stocare istoric printări
+- Nu se atinge logica de audit log — funcționează deja.
+- Nu se modifică schema; toate câmpurile există deja pe `inventory` / `ambalaje_inventory` / `etichete_inventory`.
+- Modificarea e izolată la o singură funcție într-un singur fișier.
