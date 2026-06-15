@@ -162,6 +162,30 @@ export const ReceptionHistory = () => {
   }, [dateFrom, dateTo, inventoryType]);
 
   useEffect(() => {
+    const loadLists = async () => {
+      const suppliersTable = inventoryType === 'ambalaje' ? 'ambalaje_suppliers'
+        : inventoryType === 'etichete' ? 'etichete_suppliers' : 'suppliers';
+      const manufacturersTable = inventoryType === 'ambalaje' ? 'ambalaje_manufacturers'
+        : inventoryType === 'etichete' ? 'etichete_manufacturers' : 'manufacturers';
+      const productsTable = inventoryType === 'ambalaje' ? 'ambalaje_products'
+        : inventoryType === 'etichete' ? 'etichete_products' : 'products';
+      try {
+        const [s, m, p] = await Promise.all([
+          (supabase as any).from(suppliersTable).select('id, name').order('name'),
+          (supabase as any).from(manufacturersTable).select('id, name').order('name'),
+          (supabase as any).from(productsTable).select('id, name, cod_produs, unit').order('name'),
+        ]);
+        setSuppliersList((s.data as any) || []);
+        setManufacturersList((m.data as any) || []);
+        setProductsList((p.data as any) || []);
+      } catch (e) {
+        console.error('Error loading lists:', e);
+      }
+    };
+    loadLists();
+  }, [inventoryType]);
+
+  useEffect(() => {
     if (productFilter.trim() === "") {
       setFilteredReceptions(receptions);
     } else {
@@ -184,6 +208,9 @@ export const ReceptionHistory = () => {
       receipt_date: item.receipt_date ? item.receipt_date.split('T')[0] : '',
       obs: item.obs ?? '',
       nonconform_percent: item.nonconform_percent ?? 0,
+      supplier_id: item.supplier_id || '',
+      manufacturer_id: item.manufacturer_id || '',
+      product_id: item.product_id || '',
     });
     setIsEditDialogOpen(true);
   };
