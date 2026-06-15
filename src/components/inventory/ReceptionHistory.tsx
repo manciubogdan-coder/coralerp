@@ -775,15 +775,6 @@ export const ReceptionHistory = () => {
                 />
               </div>
               <div className="grid gap-2 sm:col-span-2">
-                <Label htmlFor="name">Nume Produs</Label>
-                <Input
-                  id="name"
-                  value={editFormData.name}
-                  onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="grid gap-2 sm:col-span-2">
                 <Label>Furnizor</Label>
                 <Select
                   value={editFormData.supplier_id || 'none'}
