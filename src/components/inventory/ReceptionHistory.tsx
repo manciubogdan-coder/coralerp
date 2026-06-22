@@ -108,7 +108,7 @@ export const ReceptionHistory = () => {
           product_id,
           suppliers:supplier_id (name),
           manufacturers:manufacturer_id (name),
-          products:product_id (name, cod_produs)
+          products:product_id (name, cod_produs, pt_percent)
         `)
         .not('receipt_date', 'is', null)
         .order("receipt_date", { ascending: false });
@@ -527,7 +527,7 @@ export const ReceptionHistory = () => {
       'Furnizor': item.suppliers?.name || '',
       'Producător': item.manufacturers?.name || '',
       'Observații': (item as any).obs || '',
-      '% Pierdere': `${((item as any).nonconform_percent ?? 0).toFixed(1)}%`,
+      '% Pierdere': `${(((item as any).products?.pt_percent ?? (item as any).nonconform_percent) ?? 0).toFixed(1)}%`,
       'Cant. de luat în considerare': (typeof (item as any).consider_quantity === 'number'
         ? (item as any).consider_quantity
         : (((item as any).net_quantity ?? (item as any).quantity) * (1 - (((item as any).nonconform_percent ?? 0) / 100)))).toFixed(2)
@@ -714,7 +714,7 @@ export const ReceptionHistory = () => {
                     <TableCell className="px-2 py-3 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1 whitespace-normal break-words min-h-[2.5rem]" title={(item as any).obs ?? '-'}>
                       <div className="max-w-[150px] whitespace-normal break-words">{(item as any).obs ?? '-'}</div>
                     </TableCell>
-                    <TableCell className="px-2 py-3 text-right text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : `${((item as any).nonconform_percent ?? 0).toFixed(1)}%`}</TableCell>
+                    <TableCell className="px-2 py-3 text-right text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : `${(((item as any).products?.pt_percent ?? (item as any).nonconform_percent) ?? 0).toFixed(1)}%`}</TableCell>
                     <TableCell className="px-2 py-3 text-right text-xs print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (considerQty as number).toFixed(2)}</TableCell>
                     <TableCell className="px-2 py-3 text-center print:hidden">
                       {!isGroupHeader && (
