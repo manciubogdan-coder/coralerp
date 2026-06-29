@@ -102,16 +102,25 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     const match = inventory.find((it) => it.id === targetId);
     if (!match) return;
     const productName = match.products?.name || match.name || "Produs necunoscut";
-    const lotKey = `${productName}-${match.lot_number || "fara-lot"}`;
+    const supplierKey = match.supplier_id || match.supplier || match.suppliers?.name || "fara-furnizor";
+    const manufacturerKey = match.manufacturer_id || match.manufacturer || match.manufacturers?.name || "fara-producator";
+    const lotKey = `${productName}-${match.lot_number || "fara-lot"}-${supplierKey}-${manufacturerKey}`;
     // Skip if already added
     if (selectedItems.some((s) => s.lotKey === lotKey)) {
       pendingPreselectRef.current = null;
       return;
     }
-    // Aggregate all inventory entries sharing the same product+lot
+    // Aggregate inventory entries sharing the same product+lot+supplier+manufacturer
     const sameLot = inventory.filter((it) => {
       const pn = it.products?.name || it.name || "";
-      return pn === productName && (it.lot_number || "") === (match.lot_number || "");
+      const sk = it.supplier_id || it.supplier || it.suppliers?.name || "fara-furnizor";
+      const mk = it.manufacturer_id || it.manufacturer || it.manufacturers?.name || "fara-producator";
+      return (
+        pn === productName &&
+        (it.lot_number || "") === (match.lot_number || "") &&
+        sk === supplierKey &&
+        mk === manufacturerKey
+      );
     });
     const total = sameLot.reduce((s, it) => s + Number(it.quantity || 0), 0);
     const transferItem: TransferItem = {
@@ -218,8 +227,10 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     (item) =>
       !selectedItems.some((selected) => {
         const productName = item.products?.name || item.name || "Produs necunoscut";
-        const lotKey = item.lot_number || "fara-lot";
-        const itemLotKey = `${productName}-${lotKey}`;
+        const lotPart = item.lot_number || "fara-lot";
+        const supplierKey = item.supplier_id || item.supplier || item.suppliers?.name || "fara-furnizor";
+        const manufacturerKey = item.manufacturer_id || item.manufacturer || item.manufacturers?.name || "fara-producator";
+        const itemLotKey = `${productName}-${lotPart}-${supplierKey}-${manufacturerKey}`;
         return selected.lotKey === itemLotKey;
       }),
   );
@@ -239,20 +250,20 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
     );
   });
 
-  // Grupează produsele după lot pentru afișare
+  // Grupează produsele după lot + furnizor + producător pentru afișare
   const groupedByLot = filteredItems.reduce(
     (acc, item) => {
-      const lotKey = item.lot_number || "fara-lot";
+      const lotPart = item.lot_number || "fara-lot";
       const productName = item.products?.name || item.name || "Produs necunoscut";
-      const groupKey = `${productName}-${lotKey}`;
+      const supplierName = item.supplier || item.suppliers?.name || "";
+      const manufacturerName = item.manufacturer || item.manufacturers?.name || "";
+      const supplierKey = item.supplier_id || supplierName || "fara-furnizor";
+      const manufacturerKey = item.manufacturer_id || manufacturerName || "fara-producator";
+      const groupKey = `${productName}-${lotPart}-${supplierKey}-${manufacturerKey}`;
 
       if (
-        !groupKey ||
-        groupKey.trim() === "" ||
-        groupKey === "-" ||
-        groupKey === "Produs necunoscut-fara-lot" ||
-        productName.trim() === "" ||
         !productName ||
+        productName.trim() === "" ||
         productName === "Produs necunoscut"
       ) {
         return acc;
@@ -265,8 +276,10 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           items: [],
           totalQuantity: 0,
           unit: item.unit,
-          supplier: item.supplier || item.suppliers?.name,
-          manufacturer: item.manufacturer || item.manufacturers?.name,
+          supplier: supplierName,
+          manufacturer: manufacturerName,
+          supplier_id: item.supplier_id,
+          manufacturer_id: item.manufacturer_id,
         };
       }
 
@@ -285,6 +298,8 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         unit: string;
         supplier?: string;
         manufacturer?: string;
+        supplier_id?: string;
+        manufacturer_id?: string;
       }
     >,
   );
