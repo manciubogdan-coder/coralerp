@@ -2305,10 +2305,20 @@ const ReceptionReport: React.FC = () => {
           {emailDialog && (() => {
             const group = groups[emailDialog.groupIdx];
             const photos = allPhotosForGroup(group);
-            const previewHeaders = emailHeaders(emailLang);
-            const previewRows = getEmailTableRows(group, emailLang);
+            const isV2 = emailVersion === "v2";
+            const previewHeaders = isV2 ? emailHeadersV2(emailLang) : emailHeaders(emailLang);
+            const previewRows = isV2 ? getEmailTableRowsV2(group, emailLang) : getEmailTableRows(group, emailLang);
+            const bodyEn = isV2 ? emailShortBodyEn : emailBodyEn;
+            const bodyRo = isV2 ? emailShortBodyRo : emailBodyRo;
+            const bodyIt = isV2 ? emailShortBodyIt : emailBodyIt;
             return (
               <div className="space-y-4 min-w-0">
+                <Tabs value={emailVersion} onValueChange={(v) => setEmailVersion(v as "v1" | "v2")}>
+                  <TabsList className="grid grid-cols-2 w-full">
+                    <TabsTrigger value="v1" className="text-xs sm:text-sm">V1 – Lung (detaliat)</TabsTrigger>
+                    <TabsTrigger value="v2" className="text-xs sm:text-sm">V2 – Scurt (tabel)</TabsTrigger>
+                  </TabsList>
+                </Tabs>
                 <Tabs value={emailLang} onValueChange={(v) => setEmailLang(v as EmailLang)}>
                   <TabsList className="grid grid-cols-3 w-full">
                     <TabsTrigger value="en" className="text-xs sm:text-sm">🇬🇧 EN</TabsTrigger>
@@ -2316,17 +2326,17 @@ const ReceptionReport: React.FC = () => {
                     <TabsTrigger value="it" className="text-xs sm:text-sm">🇮🇹 IT</TabsTrigger>
                   </TabsList>
                   <TabsContent value="en" className="mt-3">
-                    <Textarea rows={14} value={emailBodyEn}
+                    <Textarea rows={isV2 ? 8 : 14} value={bodyEn}
                       onChange={(e) => syncEmailTranslations("en", e.target.value)}
                       className="font-mono text-xs w-full" />
                   </TabsContent>
                   <TabsContent value="ro" className="mt-3">
-                    <Textarea rows={14} value={emailBodyRo}
+                    <Textarea rows={isV2 ? 8 : 14} value={bodyRo}
                       onChange={(e) => syncEmailTranslations("ro", e.target.value)}
                       className="font-mono text-xs w-full" />
                   </TabsContent>
                   <TabsContent value="it" className="mt-3">
-                    <Textarea rows={14} value={emailBodyIt}
+                    <Textarea rows={isV2 ? 8 : 14} value={bodyIt}
                       onChange={(e) => syncEmailTranslations("it", e.target.value)}
                       className="font-mono text-xs w-full" />
                   </TabsContent>
@@ -2335,16 +2345,19 @@ const ReceptionReport: React.FC = () => {
                 {emailTranslating && <p className="text-xs text-muted-foreground">Se actualizează traducerile...</p>}
 
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Tabel recepție formatat</p>
+                  <p className="text-sm font-medium">{isV2 ? "Raport calitativ (tabel scurt)" : "Tabel recepție formatat"}</p>
                   <div className="overflow-x-auto rounded-md border">
                     <table className="w-full border-collapse text-xs">
                       <thead className="bg-muted">
-                        <tr>{previewHeaders.map((h) => <th key={h} className="border px-2 py-2 text-left font-semibold">{h}</th>)}</tr>
+                        <tr>{previewHeaders.map((h) => <th key={h} className="border px-2 py-2 text-left font-semibold whitespace-pre-line">{h}</th>)}</tr>
                       </thead>
                       <tbody>
-                        {previewRows.map((r, i) => (
-                          <tr key={`${r.product}-${i}`}>
-                            {[r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos].map((v, j) => (
+                        {previewRows.map((r: any, i) => (
+                          <tr key={i}>
+                            {(isV2
+                              ? [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit]
+                              : [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos]
+                            ).map((v, j) => (
                               <td key={j} className="border px-2 py-2 align-top">{v}</td>
                             ))}
                           </tr>
@@ -2353,6 +2366,7 @@ const ReceptionReport: React.FC = () => {
                     </table>
                   </div>
                 </div>
+
 
                 {photos.length > 0 && (
                   <div className="space-y-2">
