@@ -1471,35 +1471,34 @@ const ReceptionReport: React.FC = () => {
 
   const syncEmailTranslations = (source: EmailLang, value: string) => {
     const seq = ++translateSeqRef.current;
-    if (source === "en") {
-      setEmailBodyEn(value);
-      setEmailTranslating(true);
-      Promise.all([translateEmailText(value, "ro"), translateEmailText(value, "it")]).then(([roText, itText]) => {
-        if (translateSeqRef.current !== seq) return;
-        setEmailBodyRo(roText);
-        setEmailBodyIt(itText);
-        setEmailTranslating(false);
-      });
-    } else if (source === "ro") {
-      setEmailBodyRo(value);
-      setEmailTranslating(true);
-      Promise.all([translateEmailText(value, "en"), translateEmailText(value, "it")]).then(([enText, itText]) => {
-        if (translateSeqRef.current !== seq) return;
-        setEmailBodyEn(enText);
-        setEmailBodyIt(itText);
-        setEmailTranslating(false);
-      });
-    } else {
-      setEmailBodyIt(value);
-      setEmailTranslating(true);
-      Promise.all([translateEmailText(value, "en"), translateEmailText(value, "ro")]).then(([enText, roText]) => {
-        if (translateSeqRef.current !== seq) return;
-        setEmailBodyEn(enText);
-        setEmailBodyRo(roText);
-        setEmailTranslating(false);
-      });
-    }
+    const isV2 = emailVersion === "v2";
+    const setSelf = (v: string) => {
+      if (source === "en") isV2 ? setEmailShortBodyEn(v) : setEmailBodyEn(v);
+      else if (source === "ro") isV2 ? setEmailShortBodyRo(v) : setEmailBodyRo(v);
+      else isV2 ? setEmailShortBodyIt(v) : setEmailBodyIt(v);
+    };
+    const setOthers = (a: string, b: string) => {
+      if (source === "en") {
+        isV2 ? setEmailShortBodyRo(a) : setEmailBodyRo(a);
+        isV2 ? setEmailShortBodyIt(b) : setEmailBodyIt(b);
+      } else if (source === "ro") {
+        isV2 ? setEmailShortBodyEn(a) : setEmailBodyEn(a);
+        isV2 ? setEmailShortBodyIt(b) : setEmailBodyIt(b);
+      } else {
+        isV2 ? setEmailShortBodyEn(a) : setEmailBodyEn(a);
+        isV2 ? setEmailShortBodyRo(b) : setEmailBodyRo(b);
+      }
+    };
+    setSelf(value);
+    setEmailTranslating(true);
+    const targets: EmailLang[] = source === "en" ? ["ro", "it"] : source === "ro" ? ["en", "it"] : ["en", "ro"];
+    Promise.all(targets.map((t) => translateEmailText(value, t))).then(([a, b]) => {
+      if (translateSeqRef.current !== seq) return;
+      setOthers(a, b);
+      setEmailTranslating(false);
+    });
   };
+
 
   const copyEmailToClipboard = async () => {
     if (!emailDialog) return;
