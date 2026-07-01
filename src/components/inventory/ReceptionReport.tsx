@@ -313,6 +313,10 @@ const ReceptionReport: React.FC = () => {
   const [emailCopied, setEmailCopied] = useState(false);
   const [emailTranslating, setEmailTranslating] = useState(false);
   const [emailDefectTranslations, setEmailDefectTranslations] = useState<Record<string, Partial<Record<EmailLang, string>>>>({});
+  const [emailVersion, setEmailVersion] = useState<"v1" | "v2">("v1");
+  const [emailShortBodyRo, setEmailShortBodyRo] = useState("");
+  const [emailShortBodyEn, setEmailShortBodyEn] = useState("");
+  const [emailShortBodyIt, setEmailShortBodyIt] = useState("");
   const translateSeqRef = useRef(0);
 
   // Missing item form
@@ -1274,14 +1278,29 @@ const ReceptionReport: React.FC = () => {
     return out;
   };
 
+  const buildShortIntro = (group: SupplierGroup): EmailContent => {
+    const dateStr = format(date, "dd.MM.yyyy");
+    const doc = group.documentNumber || "—";
+    const partner = group.supplierName;
+    return {
+      ro: `Bună ziua,\n\nVă transmit mai jos raportul calitativ pentru recepția din ${dateStr}, ${partner}, document ${doc}.\n\nVă rugăm să ne transmiteți notele de credit în termen de 30 de zile.\n\nMulțumim, o zi bună!`,
+      en: `Good afternoon,\n\nPlease find below the quality report for the reception on ${dateStr}, ${partner}, document ${doc}.\n\nPlease send us your credit notes within 30 days.\n\nThank you, have a good day!`,
+      it: `Buon pomeriggio,\n\nIn allegato il report qualitativo per il ricevimento del ${dateStr}, ${partner}, documento ${doc}.\n\nVi preghiamo di inviarci le note di credito entro 30 giorni.\n\nGrazie, buona giornata!`,
+    };
+  };
+
   const openEmailDialog = (groupIdx: number) => {
     const { en, ro, it } = buildEmailContent(groups[groupIdx]);
+    const short = buildShortIntro(groups[groupIdx]);
     const defectTexts = Array.from(new Set(groups[groupIdx].rows
       .map((r) => [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim())
       .filter(Boolean)));
     setEmailBodyEn(en);
     setEmailBodyRo(ro);
     setEmailBodyIt(it);
+    setEmailShortBodyEn(short.en);
+    setEmailShortBodyRo(short.ro);
+    setEmailShortBodyIt(short.it);
     setEmailLang("en");
     setEmailCopied(false);
     setEmailDefectTranslations({});
@@ -1309,6 +1328,11 @@ const ReceptionReport: React.FC = () => {
   };
 
   const buildBodyWithPhotos = () => {
+    if (emailVersion === "v2") {
+      if (emailLang === "ro") return emailShortBodyRo;
+      if (emailLang === "it") return emailShortBodyIt;
+      return emailShortBodyEn;
+    }
     if (emailLang === "ro") return emailBodyRo;
     if (emailLang === "it") return emailBodyIt;
     return emailBodyEn;
@@ -1349,73 +1373,132 @@ const ReceptionReport: React.FC = () => {
     };
   });
 
+  // V2 – tabel scurt asemenea Quality Report atașat
+  const getEmailTableRowsV2 = (group: SupplierGroup, lang: EmailLang) => {
+    const dateStr = format(date, "dd.MM.yyyy");
+    return group.rows.map((r) => {
+      const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : calcDiferenta(r);
+      const lossKg = r.is_missing ? null : calcPierdereKg(r);
+      const shortageKg = dif != null && dif < 0 ? Math.abs(dif) : 0;
+      const creditKg = shortageKg + (lossKg != null && lossKg > 0 ? lossKg : 0);
+      const unit = r.unit || "kg";
+      const rawDefects = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim();
+      const defectsText = emailDefectTranslations[rawDefects]?.[lang] || translateKnownTerms(rawDefects, lang) || "-";
+      const docQty = r.cantitate_document ? `${fmtKg(parseFloat(r.cantitate_document) || 0)}${unit}` : "-";
+      const recvQty = `${fmtKg(effectiveReceived(r))}${unit}`;
+      const diffText = dif == null || dif === 0
+        ? "-"
+        : dif < 0
+          ? lang === "ro" ? `${fmtKg(Math.abs(dif))}${unit} mai puțin`
+            : lang === "it" ? `${fmtKg(Math.abs(dif))}${unit} in meno`
+              : `${fmtKg(Math.abs(dif))}${unit} less`
+          : lang === "ro" ? `${fmtKg(dif)}${unit} în plus`
+            : lang === "it" ? `${fmtKg(dif)}${unit} in più`
+              : `${fmtKg(dif)}${unit} extra`;
+      return {
+        date: dateStr,
+        supplier: group.supplierName || "-",
+        document: group.documentNumber || "-",
+        product: r.denumire_produs,
+        producer: r.producator || group.supplierName || "-",
+        docQty,
+        recvQty,
+        diff: diffText,
+        defects: defectsText || "-",
+        credit: creditKg > 0 ? `${fmtKg(creditKg)}${unit}` : "-",
+      };
+    });
+  };
+
   const emailHeaders = (lang: EmailLang) => lang === "ro"
     ? ["Produs", "Producător", "Cantitate document", "Cantitate recepționată", "Diferență cantitativă", "Pierdere calitativă", "Notă de credit", "Defecte", "Poze"]
     : lang === "it"
       ? ["Prodotto", "Produttore", "Quantità documento", "Quantità ricevuta", "Differenza quantitativa", "Perdita qualitativa", "Nota di credito", "Difetti", "Foto"]
       : ["Product", "Producer", "Document quantity", "Received quantity", "Quantitative difference", "Quality loss", "Credit note", "Defects", "Photos"];
 
+  const emailHeadersV2 = (lang: EmailLang) => lang === "ro"
+    ? ["Data", "Furnizor", "Nr. Document", "Denumire produs", "Producător", "Cant. Document\n(kg/buc)", "Cant. Recepționată\n(kg/buc)", "Diferență\nCantitativă", "Probleme Calitative\nConstatate", "Notă Credit\nCalitativă (kg)"]
+    : lang === "it"
+      ? ["Data", "Fornitore", "N. Documento", "Nome prodotto", "Produttore", "Q.tà Documento\n(kg/pz)", "Q.tà Ricevuta\n(kg/pz)", "Differenza\nQuantitativa", "Difetti Qualitativi\nRiscontrati", "Nota Credito\nQualitativo (kg)"]
+      : ["Date", "Supplier", "Document No.", "Product name", "Producer", "Document Qty\n(kg/pcs)", "Received Qty\n(kg/pcs)", "Quantity\nDifference", "Quality Defects\nIdentified", "Quality Credit\nNote (kg)"];
+
   const buildEmailPlainText = (group: SupplierGroup) => {
-    const headers = emailHeaders(emailLang);
-    const rows = getEmailTableRows(group, emailLang);
+    const isV2 = emailVersion === "v2";
+    const headers = isV2 ? emailHeadersV2(emailLang) : emailHeaders(emailLang);
     const photoLines = allPhotosForGroup(group).map((p) => `${p.row.denumire_produs}: ${getReceptionPhotoUrl(p.photo)}`);
+    const tableTitle = emailLang === "ro"
+      ? (isV2 ? "Raport calitativ:" : "Tabel recepție:")
+      : emailLang === "it"
+        ? (isV2 ? "Report qualitativo:" : "Tabella ricevimento:")
+        : (isV2 ? "Quality report:" : "Reception table:");
+    const rowLines = isV2
+      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit].join(" | "))
+      : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos].join(" | "));
     return [
       buildBodyWithPhotos(),
       "",
-      emailLang === "ro" ? "Tabel recepție:" : emailLang === "it" ? "Tabella ricevimento:" : "Reception table:",
-      headers.join(" | "),
-      ...rows.map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos].join(" | ")),
+      tableTitle,
+      headers.map((h) => h.replace(/\n/g, " ")).join(" | "),
+      ...rowLines,
       ...(photoLines.length ? ["", emailLang === "ro" ? "Poze:" : emailLang === "it" ? "Foto:" : "Photos:", ...photoLines] : []),
     ].join("\n");
   };
 
   const buildEmailHtml = (group: SupplierGroup) => {
-    const headers = emailHeaders(emailLang);
-    const rows = getEmailTableRows(group, emailLang);
+    const isV2 = emailVersion === "v2";
+    const headers = isV2 ? emailHeadersV2(emailLang) : emailHeaders(emailLang);
     const photos = allPhotosForGroup(group);
+    const tableTitle = emailLang === "ro"
+      ? (isV2 ? "Raport calitativ" : "Tabel recepție")
+      : emailLang === "it"
+        ? (isV2 ? "Report qualitativo" : "Tabella ricevimento")
+        : (isV2 ? "Quality report" : "Reception table");
+    const bodyCells = isV2
+      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit])
+      : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos]);
     return `
       <div style="font-family: Arial, sans-serif; color:#111827; font-size:14px; line-height:1.45;">
         ${buildBodyWithPhotos().split("\n").map((line) => line.trim() ? `<p style="margin:0 0 12px;">${escapeHtml(line)}</p>` : `<br />`).join("")}
-        <h3 style="margin:18px 0 8px; font-size:16px;">${emailLang === "ro" ? "Tabel recepție" : emailLang === "it" ? "Tabella ricevimento" : "Reception table"}</h3>
+        <h3 style="margin:18px 0 8px; font-size:16px;">${tableTitle}</h3>
         <table style="border-collapse:collapse; width:100%; font-size:13px;">
-          <thead><tr>${headers.map((h) => `<th style="border:1px solid #d1d5db; padding:8px; background:#f3f4f6; text-align:left;">${escapeHtml(h)}</th>`).join("")}</tr></thead>
-          <tbody>${rows.map((r) => `<tr>${[r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos].map((v) => `<td style="border:1px solid #d1d5db; padding:8px; vertical-align:top;">${escapeHtml(v)}</td>`).join("")}</tr>`).join("")}</tbody>
+          <thead><tr>${headers.map((h) => `<th style="border:1px solid #d1d5db; padding:8px; background:#f3f4f6; text-align:left; white-space:pre-line;">${escapeHtml(h)}</th>`).join("")}</tr></thead>
+          <tbody>${bodyCells.map((cells) => `<tr>${cells.map((v) => `<td style="border:1px solid #d1d5db; padding:8px; vertical-align:top;">${escapeHtml(v)}</td>`).join("")}</tr>`).join("")}</tbody>
         </table>
-        ${photos.length ? `<h3 style="margin:18px 0 8px; font-size:16px;">${emailLang === "ro" ? "Poze" : emailLang === "it" ? "Foto" : "Photos"}</h3><ul style="padding-left:18px;">${photos.map((p) => `<li><a href="${escapeHtml(getReceptionPhotoUrl(p.photo))}">${escapeHtml(p.row.denumire_produs)}</a></li>`).join("")}</ul>` : ""}
+        ${!isV2 && photos.length ? `<h3 style="margin:18px 0 8px; font-size:16px;">${emailLang === "ro" ? "Poze" : emailLang === "it" ? "Foto" : "Photos"}</h3><ul style="padding-left:18px;">${photos.map((p) => `<li><a href="${escapeHtml(getReceptionPhotoUrl(p.photo))}">${escapeHtml(p.row.denumire_produs)}</a></li>`).join("")}</ul>` : ""}
       </div>`;
   };
 
+
   const syncEmailTranslations = (source: EmailLang, value: string) => {
     const seq = ++translateSeqRef.current;
-    if (source === "en") {
-      setEmailBodyEn(value);
-      setEmailTranslating(true);
-      Promise.all([translateEmailText(value, "ro"), translateEmailText(value, "it")]).then(([roText, itText]) => {
-        if (translateSeqRef.current !== seq) return;
-        setEmailBodyRo(roText);
-        setEmailBodyIt(itText);
-        setEmailTranslating(false);
-      });
-    } else if (source === "ro") {
-      setEmailBodyRo(value);
-      setEmailTranslating(true);
-      Promise.all([translateEmailText(value, "en"), translateEmailText(value, "it")]).then(([enText, itText]) => {
-        if (translateSeqRef.current !== seq) return;
-        setEmailBodyEn(enText);
-        setEmailBodyIt(itText);
-        setEmailTranslating(false);
-      });
-    } else {
-      setEmailBodyIt(value);
-      setEmailTranslating(true);
-      Promise.all([translateEmailText(value, "en"), translateEmailText(value, "ro")]).then(([enText, roText]) => {
-        if (translateSeqRef.current !== seq) return;
-        setEmailBodyEn(enText);
-        setEmailBodyRo(roText);
-        setEmailTranslating(false);
-      });
-    }
+    const isV2 = emailVersion === "v2";
+    const setSelf = (v: string) => {
+      if (source === "en") isV2 ? setEmailShortBodyEn(v) : setEmailBodyEn(v);
+      else if (source === "ro") isV2 ? setEmailShortBodyRo(v) : setEmailBodyRo(v);
+      else isV2 ? setEmailShortBodyIt(v) : setEmailBodyIt(v);
+    };
+    const setOthers = (a: string, b: string) => {
+      if (source === "en") {
+        isV2 ? setEmailShortBodyRo(a) : setEmailBodyRo(a);
+        isV2 ? setEmailShortBodyIt(b) : setEmailBodyIt(b);
+      } else if (source === "ro") {
+        isV2 ? setEmailShortBodyEn(a) : setEmailBodyEn(a);
+        isV2 ? setEmailShortBodyIt(b) : setEmailBodyIt(b);
+      } else {
+        isV2 ? setEmailShortBodyEn(a) : setEmailBodyEn(a);
+        isV2 ? setEmailShortBodyRo(b) : setEmailBodyRo(b);
+      }
+    };
+    setSelf(value);
+    setEmailTranslating(true);
+    const targets: EmailLang[] = source === "en" ? ["ro", "it"] : source === "ro" ? ["en", "it"] : ["en", "ro"];
+    Promise.all(targets.map((t) => translateEmailText(value, t))).then(([a, b]) => {
+      if (translateSeqRef.current !== seq) return;
+      setOthers(a, b);
+      setEmailTranslating(false);
+    });
   };
+
 
   const copyEmailToClipboard = async () => {
     if (!emailDialog) return;
@@ -2222,10 +2305,20 @@ const ReceptionReport: React.FC = () => {
           {emailDialog && (() => {
             const group = groups[emailDialog.groupIdx];
             const photos = allPhotosForGroup(group);
-            const previewHeaders = emailHeaders(emailLang);
-            const previewRows = getEmailTableRows(group, emailLang);
+            const isV2 = emailVersion === "v2";
+            const previewHeaders = isV2 ? emailHeadersV2(emailLang) : emailHeaders(emailLang);
+            const previewRows = isV2 ? getEmailTableRowsV2(group, emailLang) : getEmailTableRows(group, emailLang);
+            const bodyEn = isV2 ? emailShortBodyEn : emailBodyEn;
+            const bodyRo = isV2 ? emailShortBodyRo : emailBodyRo;
+            const bodyIt = isV2 ? emailShortBodyIt : emailBodyIt;
             return (
               <div className="space-y-4 min-w-0">
+                <Tabs value={emailVersion} onValueChange={(v) => setEmailVersion(v as "v1" | "v2")}>
+                  <TabsList className="grid grid-cols-2 w-full">
+                    <TabsTrigger value="v1" className="text-xs sm:text-sm">V1 – Lung (detaliat)</TabsTrigger>
+                    <TabsTrigger value="v2" className="text-xs sm:text-sm">V2 – Scurt (tabel)</TabsTrigger>
+                  </TabsList>
+                </Tabs>
                 <Tabs value={emailLang} onValueChange={(v) => setEmailLang(v as EmailLang)}>
                   <TabsList className="grid grid-cols-3 w-full">
                     <TabsTrigger value="en" className="text-xs sm:text-sm">🇬🇧 EN</TabsTrigger>
@@ -2233,17 +2326,17 @@ const ReceptionReport: React.FC = () => {
                     <TabsTrigger value="it" className="text-xs sm:text-sm">🇮🇹 IT</TabsTrigger>
                   </TabsList>
                   <TabsContent value="en" className="mt-3">
-                    <Textarea rows={14} value={emailBodyEn}
+                    <Textarea rows={isV2 ? 8 : 14} value={bodyEn}
                       onChange={(e) => syncEmailTranslations("en", e.target.value)}
                       className="font-mono text-xs w-full" />
                   </TabsContent>
                   <TabsContent value="ro" className="mt-3">
-                    <Textarea rows={14} value={emailBodyRo}
+                    <Textarea rows={isV2 ? 8 : 14} value={bodyRo}
                       onChange={(e) => syncEmailTranslations("ro", e.target.value)}
                       className="font-mono text-xs w-full" />
                   </TabsContent>
                   <TabsContent value="it" className="mt-3">
-                    <Textarea rows={14} value={emailBodyIt}
+                    <Textarea rows={isV2 ? 8 : 14} value={bodyIt}
                       onChange={(e) => syncEmailTranslations("it", e.target.value)}
                       className="font-mono text-xs w-full" />
                   </TabsContent>
@@ -2252,16 +2345,19 @@ const ReceptionReport: React.FC = () => {
                 {emailTranslating && <p className="text-xs text-muted-foreground">Se actualizează traducerile...</p>}
 
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Tabel recepție formatat</p>
+                  <p className="text-sm font-medium">{isV2 ? "Raport calitativ (tabel scurt)" : "Tabel recepție formatat"}</p>
                   <div className="overflow-x-auto rounded-md border">
                     <table className="w-full border-collapse text-xs">
                       <thead className="bg-muted">
-                        <tr>{previewHeaders.map((h) => <th key={h} className="border px-2 py-2 text-left font-semibold">{h}</th>)}</tr>
+                        <tr>{previewHeaders.map((h) => <th key={h} className="border px-2 py-2 text-left font-semibold whitespace-pre-line">{h}</th>)}</tr>
                       </thead>
                       <tbody>
-                        {previewRows.map((r, i) => (
-                          <tr key={`${r.product}-${i}`}>
-                            {[r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos].map((v, j) => (
+                        {previewRows.map((r: any, i) => (
+                          <tr key={i}>
+                            {(isV2
+                              ? [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit]
+                              : [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos]
+                            ).map((v, j) => (
                               <td key={j} className="border px-2 py-2 align-top">{v}</td>
                             ))}
                           </tr>
@@ -2270,6 +2366,7 @@ const ReceptionReport: React.FC = () => {
                     </table>
                   </div>
                 </div>
+
 
                 {photos.length > 0 && (
                   <div className="space-y-2">
