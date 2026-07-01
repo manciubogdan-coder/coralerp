@@ -629,12 +629,11 @@ const ReceptionReport: React.FC = () => {
     return ((doc - rec) / doc) * 100 <= tol;
   };
 
-  // True dacă recepția depășește documentul cu cel puțin tolOverKg → cere „Cant. declarată".
+  // True dacă recepția depășește documentul → cere „Cant. declarată".
   const isOverThreshold = (r: ReportRow): boolean => {
     const doc = parseFloat(r.cantitate_document);
     if (isNaN(doc) || doc <= 0) return false;
-    const tol = getTol(r.product_id).over;
-    return r.cantitate_receptionata >= doc + tol;
+    return r.cantitate_receptionata > doc;
   };
 
   const calcDiferenta = (r: ReportRow) => {
