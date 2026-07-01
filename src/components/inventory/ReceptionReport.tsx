@@ -313,6 +313,10 @@ const ReceptionReport: React.FC = () => {
   const [emailCopied, setEmailCopied] = useState(false);
   const [emailTranslating, setEmailTranslating] = useState(false);
   const [emailDefectTranslations, setEmailDefectTranslations] = useState<Record<string, Partial<Record<EmailLang, string>>>>({});
+  const [emailVersion, setEmailVersion] = useState<"v1" | "v2">("v1");
+  const [emailShortBodyRo, setEmailShortBodyRo] = useState("");
+  const [emailShortBodyEn, setEmailShortBodyEn] = useState("");
+  const [emailShortBodyIt, setEmailShortBodyIt] = useState("");
   const translateSeqRef = useRef(0);
 
   // Missing item form
