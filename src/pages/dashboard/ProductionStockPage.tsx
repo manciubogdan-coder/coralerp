@@ -24,6 +24,7 @@ import StockManagement from "@/components/productie/StockManagement";
 import ConsumptionAnalytics from "@/components/productie/ConsumptionAnalytics";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import Reports from "@/components/productie/Reports";
+import SeniorErpImport from "@/components/productie/SeniorErpImport";
 
 const ProductionStockPage = () => {
   const navigate = useNavigate();
@@ -57,6 +58,7 @@ const ProductionStockPage = () => {
             <TabsTrigger value="consumption">Consumuri</TabsTrigger>
             <TabsTrigger value="restocking">Restocări</TabsTrigger>
             <TabsTrigger value="reports">Rapoarte</TabsTrigger>
+            <TabsTrigger value="erp">Import ERP</TabsTrigger>
             <TabsTrigger value="config">Configurări</TabsTrigger>
           </TabsList>
 
@@ -114,6 +116,10 @@ const ProductionStockPage = () => {
                 <ShiftManagement />
               </TabsContent>
             </Tabs>
+          </TabsContent>
+
+          <TabsContent value="erp">
+            <SeniorErpImport />
           </TabsContent>
 
           <TabsContent value="config">

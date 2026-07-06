@@ -1,0 +1,19 @@
+{
+  "name": "senior-erp-bridge",
+  "version": "1.0.0",
+  "description": "Bridge local Senior ERP → Coral ERP (Lovable)",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "install-service": "node scripts/install-service.js",
+    "uninstall-service": "node scripts/uninstall-service.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "mysql2": "^3.11.0",
+    "node-fetch": "^2.7.0",
+    "node-windows": "^1.0.0-beta.8",
+    "pg": "^8.13.0"
+  }
+}
