@@ -321,22 +321,90 @@ Deno.serve(async (req) => {
         }
 
         const dataOnly = String(aviz.data_aviz || "").slice(0, 10);
-        const { error } = await supabase.from("productie_comenzi").insert({
-          numar_comanda: aviz.nr_aviz, // toate liniile aceluiași document Senior au același numar_comanda => grupare
-          magazin: numeMagazin,
-          punct_livrare: punctLivrare,
-          produs_id: produsId,
-          cantitate: Number(linie.cantitate) || 0,
-          baxare: linie.observatie || null,
-          status: "pending",
-          data_productie: dataOnly,
-          sursa: "senior-erp",
-          extern_nr_aviz: externKey,
-          extern_data_aviz: dataOnly,
-        });
+        const cantitate = Number(linie.cantitate) || 0;
+
+        // 1) Alocare din restocări (surplus disponibil)
+        let cantitateRamasa = cantitate;
+        let cantitateDinRestock = 0;
+        try {
+          const { data: restocariDisp } = await supabase
+            .from("productie_restocari")
+            .select("id, cantitate_surplus, status")
+            .eq("produs_id", produsId)
+            .eq("status", "disponibil")
+            .gt("cantitate_surplus", 0)
+            .order("created_at");
+          for (const r of restocariDisp || []) {
+            if (cantitateRamasa <= 0) break;
+            const surplus = Number((r as any).cantitate_surplus || 0);
+            if (surplus <= 0) continue;
+            const folosit = Math.min(cantitateRamasa, surplus);
+            cantitateDinRestock += folosit;
+            cantitateRamasa -= folosit;
+            if (folosit >= surplus) {
+              await supabase
+                .from("productie_restocari")
+                .update({ status: "redistribuit", cantitate_surplus: 0 })
+                .eq("id", (r as any).id);
+            } else {
+              await supabase
+                .from("productie_restocari")
+                .update({ cantitate_surplus: surplus - folosit })
+                .eq("id", (r as any).id);
+            }
+          }
+        } catch (e: any) {
+          errors.push({ aviz: aviz.nr_aviz, produs: linie.cod_produs, restocari: e.message });
+        }
+
+        // 2) Decide status + linie de producție
+        let statusFinal: string = "pending";
+        let linieId: string | null = null;
+        if (cantitateRamasa === 0 && cantitate > 0) {
+          // 100% acoperit din restocări → gata
+          statusFinal = "completed";
+        } else {
+          // auto-distribuire pe linie
+          const linieRegula = reguliByProdus.get(produsId);
+          if (linieRegula) {
+            linieId = linieRegula;
+            statusFinal = "assigned";
+          } else if (primaLinieActiva) {
+            linieId = (primaLinieActiva as any).id;
+            statusFinal = "assigned";
+          }
+        }
+
+        // 3) INSERT (numar_comanda va fi suprascris pentru a evita trigger-ul CBxxxx)
+        const { data: inserted, error } = await supabase
+          .from("productie_comenzi")
+          .insert({
+            numar_comanda: aviz.nr_aviz,
+            magazin: numeMagazin,
+            punct_livrare: punctLivrare,
+            produs_id: produsId,
+            cantitate,
+            baxare: linie.observatie || null,
+            status: statusFinal,
+            linie_id: linieId,
+            cantitate_din_restock: cantitateDinRestock,
+            data_productie: todayBucharest,
+            sursa: "senior-erp",
+            extern_nr_aviz: externKey,
+            extern_data_aviz: dataOnly,
+          })
+          .select("id")
+          .maybeSingle();
         if (error) {
           errors.push({ aviz: aviz.nr_aviz, produs: linie.cod_produs, err: error.message });
         } else {
+          // Forțează numar_comanda = nr document Senior (trigger-ul se poate declanșa doar pe INSERT)
+          if (inserted?.id) {
+            await supabase
+              .from("productie_comenzi")
+              .update({ numar_comanda: aviz.nr_aviz, data_productie: todayBucharest })
+              .eq("id", inserted.id);
+          }
           lines++;
         }
       }
