@@ -78,21 +78,44 @@ const OrderManagementReal = () => {
            matchesLine && matchesQuantity && matchesDate && matchesProdDate;
   }) : [];
 
-  // Adăugăm paginația pentru comenzile filtrate
+  // Grupare comenzi după numar_comanda + magazin (un document Senior = un grup)
+  const groupedOrders = (() => {
+    const map = new Map<string, any[]>();
+    filteredOrders.forEach((o: any) => {
+      const key = `${o.numar_comanda}||${o.magazin}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(o);
+    });
+    const arr = Array.from(map.entries()).map(([key, ord]) => ({
+      key,
+      numar_comanda: ord[0].numar_comanda,
+      magazin: ord[0].magazin,
+      punct_livrare: ord[0].punct_livrare,
+      productie_clienti: ord[0].productie_clienti,
+      created_at: ord[0].created_at,
+      data_productie: (ord[0] as any).data_productie,
+      orders: ord,
+    }));
+    arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return arr;
+  })();
+
+  // Paginăm pe grupuri (nu pe linii) - fiecare document rămâne intact pe o pagină
   const {
     currentPage,
     pageSize,
     totalPages,
-    paginatedOrders,
+    paginatedOrders: paginatedGroups,
     handlePageChange,
     handlePageSizeChange,
     resetPagination
-  } = useOrdersPagination({ orders: filteredOrders, initialPageSize: 25 });
+  } = useOrdersPagination({ orders: groupedOrders as any, initialPageSize: 25 });
 
   // Reset pagination when filtered orders change
   useEffect(() => {
     resetPagination();
   }, [filteredOrders.length, resetPagination]);
+
 
   // Obține lista unică de magazine din comenzi (exclude PRODUCTIE_AVANS)
   const uniqueStores = orders ? 
