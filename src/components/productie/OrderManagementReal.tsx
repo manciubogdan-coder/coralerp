@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Search, Zap, Edit, Trash2, ChefHat, Archive } from "lucide-react";
+import { Loader2, Plus, Search, Zap, Edit, Trash2, ChefHat, Archive, ChevronDown, ChevronRight } from "lucide-react";
 import { useOrders, useUpdateOrder, useDeleteOrder, useAutoDistributeToLine } from "@/hooks/productie/useProductionData";
 import { toast } from "sonner";
 import OrderFormNew from "./OrderFormNew";
