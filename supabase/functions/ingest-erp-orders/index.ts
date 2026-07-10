@@ -316,6 +316,9 @@ Deno.serve(async (req) => {
     return newProd.id;
   }
 
+  let updated = 0;
+  let deleted = 0;
+
   for (const aviz of payload.avize) {
     try {
       if (!aviz.nr_aviz || !aviz.data_aviz || !aviz.nume_magazin) {
@@ -328,12 +331,15 @@ Deno.serve(async (req) => {
       const numeMagazin = mag.nume;
       const punctLivrare = mag.punct;
 
+      const dataOnly = String(aviz.data_aviz || "").slice(0, 10);
+      const currentKeys: string[] = [];
+
       for (const linie of aviz.linii || []) {
         // Skip linii care nu sunt produse reale (reduceri, discount-uri, transport etc.)
-        const denumireLower = String(linie.denumire || "").toLowerCase();
+        const denumireLower = String((linie as any).denumire_produs || "").toLowerCase();
         const codLower = String(linie.cod_produs || "").toLowerCase();
         const nonProductPatterns = ["reducere", "discount", "transport", "rabat", "bonificatie", "bonificație"];
-        if (nonProductPatterns.some(p => denumireLower.includes(p) || codLower.includes(p))) {
+        if (nonProductPatterns.some((p) => denumireLower.includes(p) || codLower.includes(p))) {
           skipped++;
           continue;
         }
@@ -342,18 +348,7 @@ Deno.serve(async (req) => {
         if (!produsId) continue;
 
         const externKey = `${aviz.nr_aviz}::${linie.cod_produs}`;
-        const { data: existing } = await supabase
-          .from("productie_comenzi")
-          .select("id")
-          .eq("sursa", "senior-erp")
-          .eq("extern_nr_aviz", externKey)
-          .maybeSingle();
-        if (existing) {
-          skipped++;
-          continue;
-        }
-
-        const dataOnly = String(aviz.data_aviz || "").slice(0, 10);
+        currentKeys.push(externKey);
         const cantitate = Number(linie.cantitate) || 0;
 
         // Skip retururi (cantitate <= 0)
@@ -362,7 +357,39 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // 1) Alocare din restocări (surplus disponibil)
+        // Verifică dacă rândul există deja (upsert)
+        const { data: existing } = await supabase
+          .from("productie_comenzi")
+          .select("id, cantitate, status, magazin, data_productie")
+          .eq("sursa", "senior-erp")
+          .eq("extern_nr_aviz", externKey)
+          .maybeSingle();
+
+        if (existing) {
+          // UPDATE dacă s-a schimbat ceva
+          const patch: any = {};
+          if (Number((existing as any).cantitate) !== cantitate) patch.cantitate = cantitate;
+          if ((existing as any).magazin !== numeMagazin) {
+            patch.magazin = numeMagazin;
+            patch.punct_livrare = punctLivrare;
+          }
+          if (String((existing as any).data_productie || "").slice(0, 10) !== dataOnly) {
+            patch.data_productie = dataOnly;
+          }
+          if (Object.keys(patch).length) {
+            const { error: uErr } = await supabase
+              .from("productie_comenzi")
+              .update(patch)
+              .eq("id", (existing as any).id);
+            if (uErr) errors.push({ aviz: aviz.nr_aviz, produs: linie.cod_produs, upd: uErr.message });
+            else updated++;
+          } else {
+            skipped++;
+          }
+          continue;
+        }
+
+        // 1) Alocare din restocări (surplus disponibil) - doar la INSERT nou
         let cantitateRamasa = cantitate;
         let cantitateDinRestock = 0;
         try {
@@ -396,15 +423,12 @@ Deno.serve(async (req) => {
           errors.push({ aviz: aviz.nr_aviz, produs: linie.cod_produs, restocari: e.message });
         }
 
-        // 2) Decide status + linie de producție
+        // 2) Status + linie
         let statusFinal: string = "pending";
         let linieId: string | null = null;
         if (cantitateRamasa === 0 && cantitate > 0) {
-          // 100% acoperit din restocări → gata
           statusFinal = "completed";
         } else {
-          // auto-distribuire pe linie DOAR dacă există regulă explicită pentru produs.
-          // Fără regulă → rămâne pending (fără linie) ca să nu ajungă totul pe prima linie alfabetic.
           const linieRegula = reguliByProdus.get(produsId);
           if (linieRegula) {
             linieId = linieRegula;
@@ -412,9 +436,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        // 3) INSERT (numar_comanda va fi suprascris pentru a evita trigger-ul CBxxxx)
-        // data_productie = data documentului Senior (dacă e viitor, se programează atunci)
-        // created_at   = data documentului Senior (data creării comenzii în ERP-ul sursă)
+        // 3) INSERT
         const { data: inserted, error } = await supabase
           .from("productie_comenzi")
           .insert({
@@ -438,7 +460,6 @@ Deno.serve(async (req) => {
         if (error) {
           errors.push({ aviz: aviz.nr_aviz, produs: linie.cod_produs, err: error.message });
         } else {
-          // Forțează numar_comanda = nr document Senior (trigger-ul se poate declanșa doar pe INSERT)
           if (inserted?.id) {
             await supabase
               .from("productie_comenzi")
@@ -448,11 +469,35 @@ Deno.serve(async (req) => {
           lines++;
         }
       }
+
+      // Șterge liniile care nu mai există în Senior pentru acest aviz
+      // (doar cele care încă sunt pending — nu ștergem munca deja făcută)
+      try {
+        const { data: existingForAviz } = await supabase
+          .from("productie_comenzi")
+          .select("id, extern_nr_aviz, status")
+          .eq("sursa", "senior-erp")
+          .like("extern_nr_aviz", `${aviz.nr_aviz}::%`);
+        const toDelete = (existingForAviz || []).filter(
+          (r: any) => !currentKeys.includes(r.extern_nr_aviz) && r.status === "pending"
+        );
+        for (const r of toDelete) {
+          const { error: dErr } = await supabase
+            .from("productie_comenzi")
+            .delete()
+            .eq("id", (r as any).id);
+          if (!dErr) deleted++;
+        }
+      } catch (e: any) {
+        errors.push({ aviz: aviz.nr_aviz, del: e.message });
+      }
+
       created++;
     } catch (e: any) {
       errors.push({ aviz: aviz.nr_aviz, err: e.message || String(e) });
     }
   }
+
 
 
   // Log rulare
