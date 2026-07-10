@@ -178,18 +178,17 @@ Deno.serve(async (req) => {
   try {
     const { data: toFix } = await supabase
       .from("productie_comenzi")
-      .select("id, extern_nr_aviz, numar_comanda")
+      .select("id, extern_nr_aviz, extern_data_aviz, numar_comanda, data_productie")
       .eq("sursa", "senior-erp")
-      .like("numar_comanda", "CB%")
-      .not("extern_nr_aviz", "is", null)
       .limit(400);
-    for (const row of toFix || []) {
+    for (const row of (toFix || []) as any[]) {
       const docNr = String(row.extern_nr_aviz || "").split("::")[0];
-      if (docNr && docNr !== row.numar_comanda) {
-        await supabase
-          .from("productie_comenzi")
-          .update({ numar_comanda: docNr })
-          .eq("id", row.id);
+      const dataDoc = row.extern_data_aviz ? String(row.extern_data_aviz).slice(0, 10) : null;
+      const patch: any = {};
+      if (docNr && docNr !== row.numar_comanda) patch.numar_comanda = docNr;
+      if (dataDoc && dataDoc !== String(row.data_productie || "").slice(0, 10)) patch.data_productie = dataDoc;
+      if (Object.keys(patch).length) {
+        await supabase.from("productie_comenzi").update(patch).eq("id", row.id);
       }
     }
   } catch (e: any) {
