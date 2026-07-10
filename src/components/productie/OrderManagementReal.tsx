@@ -339,6 +339,15 @@ const OrderManagementReal = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
+              <label className="text-sm font-medium mb-2 block">Nr. comandă / produs</label>
+              <Input
+                placeholder="ex: 103304"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <div>
               <label className="text-sm font-medium mb-2 block">Produs</label>
               <Select value={productFilter} onValueChange={setProductFilter}>
                 <SelectTrigger>
