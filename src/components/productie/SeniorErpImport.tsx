@@ -60,6 +60,9 @@ const SeniorErpImport = () => {
   const [newCod, setNewCod] = useState("");
   const [newDen, setNewDen] = useState("");
   const [newProdusId, setNewProdusId] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
 
   const productMap = useMemo(() => {
     const m = new Map<string, any>();
