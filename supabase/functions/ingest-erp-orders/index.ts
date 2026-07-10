@@ -65,13 +65,27 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(LEGACY_URL, LEGACY_ANON);
 
-  // Preload mappings
-  const [{ data: mapProduseData }, { data: mapMagData }, { data: clientiData }] =
-    await Promise.all([
-      supabase.from("erp_mapping_produse").select("cod_extern, produs_id"),
-      supabase.from("erp_mapping_magazine").select("cod_extern, nume_magazin"),
-      supabase.from("productie_clienti").select("id, nume_magazin, punct_livrare"),
-    ]);
+  // Normalizare pentru match după denumire (trim, lower, colapsare spații, fără diacritice)
+  const norm = (s: string) =>
+    String(s || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+
+  // Preload: mapări existente + toate produsele/clienții pentru match după nume
+  const [
+    { data: mapProduseData },
+    { data: mapMagData },
+    { data: produseData },
+    { data: clientiData },
+  ] = await Promise.all([
+    supabase.from("erp_mapping_produse").select("cod_extern, produs_id"),
+    supabase.from("erp_mapping_magazine").select("cod_extern, nume_magazin"),
+    supabase.from("productie_produse").select("id, nume, unitate_masura"),
+    supabase.from("productie_clienti").select("id, nume_magazin, punct_livrare"),
+  ]);
 
   const mapProduse = new Map<string, string>();
   (mapProduseData || []).forEach((r: any) =>
@@ -81,20 +95,151 @@ Deno.serve(async (req) => {
   (mapMagData || []).forEach((r: any) =>
     mapMag.set(String(r.cod_extern).trim().toLowerCase(), r.nume_magazin)
   );
-  const magazinePunct = new Map<string, string>();
+
+  // Index produse după nume normalizat
+  const produseByNume = new Map<string, string>(); // nume_norm -> produs_id
+  (produseData || []).forEach((p: any) => {
+    const k = norm(p.nume);
+    if (k && !produseByNume.has(k)) produseByNume.set(k, p.id);
+  });
+
+  // Index clienți după nume magazin normalizat
+  const clientiByNume = new Map<string, { id: string; punct: string }>();
   (clientiData || []).forEach((c: any) => {
-    const key = String(c.nume_magazin || "").trim().toLowerCase();
-    if (key && !magazinePunct.has(key)) {
-      magazinePunct.set(key, c.punct_livrare || "Standard");
+    const k = norm(c.nume_magazin);
+    if (k && !clientiByNume.has(k)) {
+      clientiByNume.set(k, { id: c.id, punct: c.punct_livrare || "Standard" });
     }
   });
 
   let created = 0;
   let lines = 0;
   let skipped = 0;
-  const unmappedProduse: string[] = [];
-  const unmappedMagazine: string[] = [];
+  const autoCreatedProduse: string[] = [];
+  const autoMappedProduse: string[] = [];
+  const autoCreatedMagazine: string[] = [];
+  const autoMappedMagazine: string[] = [];
   const errors: any[] = [];
+
+  // Rezolvă (sau creează) un client pornind de la aviz. Returnează { nume, punct } sau null.
+  async function resolveMagazin(aviz: Aviz): Promise<{ nume: string; punct: string } | null> {
+    const codExtern = (aviz.cod_magazin || "").trim();
+    const numeErp = (aviz.nume_magazin || "").trim();
+    if (!numeErp && !codExtern) return null;
+
+    // 1) mapping după cod
+    if (codExtern) {
+      const mapped = mapMag.get(codExtern.toLowerCase());
+      if (mapped) {
+        const info = clientiByNume.get(norm(mapped));
+        if (info) return { nume: mapped, punct: info.punct };
+      }
+    }
+
+    // 2) match după nume normalizat
+    const numeKey = norm(numeErp);
+    const found = clientiByNume.get(numeKey);
+    if (found) {
+      // creează maparea (cod_extern -> nume) pentru viitor
+      if (codExtern) {
+        const { error: mErr } = await supabase.from("erp_mapping_magazine").insert({
+          cod_extern: codExtern,
+          denumire_extern: numeErp,
+          nume_magazin: numeErp,
+        });
+        if (!mErr) {
+          mapMag.set(codExtern.toLowerCase(), numeErp);
+          if (!autoMappedMagazine.includes(numeErp)) autoMappedMagazine.push(numeErp);
+        }
+      }
+      return { nume: numeErp, punct: found.punct };
+    }
+
+    // 3) creează client nou + mapping
+    const { data: newClient, error: cErr } = await supabase
+      .from("productie_clienti")
+      .insert({
+        nume_magazin: numeErp,
+        punct_livrare: "Standard",
+        adresa: "",
+        telefon: "",
+        email: "",
+      })
+      .select("id, nume_magazin, punct_livrare")
+      .maybeSingle();
+    if (cErr || !newClient) {
+      errors.push({ aviz: aviz.nr_aviz, err: `client nou eșuat: ${cErr?.message}` });
+      return null;
+    }
+    clientiByNume.set(numeKey, { id: newClient.id, punct: "Standard" });
+    if (!autoCreatedMagazine.includes(numeErp)) autoCreatedMagazine.push(numeErp);
+
+    if (codExtern) {
+      const { error: mErr } = await supabase.from("erp_mapping_magazine").insert({
+        cod_extern: codExtern,
+        denumire_extern: numeErp,
+        nume_magazin: numeErp,
+      });
+      if (!mErr) mapMag.set(codExtern.toLowerCase(), numeErp);
+    }
+    return { nume: numeErp, punct: "Standard" };
+  }
+
+  // Rezolvă (sau creează) un produs pornind de la linie. Returnează produs_id sau null.
+  async function resolveProdus(linie: AvizLine): Promise<string | null> {
+    const cod = String(linie.cod_produs || "").trim();
+    const codKey = cod.toLowerCase();
+    if (!codKey) return null;
+
+    // 1) mapping după cod
+    const mapped = mapProduse.get(codKey);
+    if (mapped) return mapped;
+
+    const denumire = (linie.denumire_produs || "").trim();
+    if (!denumire) return null;
+    const numeKey = norm(denumire);
+
+    // 2) match după denumire
+    let produsId = produseByNume.get(numeKey);
+    if (produsId) {
+      const { error: mErr } = await supabase.from("erp_mapping_produse").insert({
+        cod_extern: cod,
+        denumire_extern: denumire,
+        produs_id: produsId,
+      });
+      if (!mErr) {
+        mapProduse.set(codKey, produsId);
+        const lbl = `${cod} — ${denumire}`;
+        if (!autoMappedProduse.includes(lbl)) autoMappedProduse.push(lbl);
+      }
+      return produsId;
+    }
+
+    // 3) creează produs nou + mapping
+    const { data: newProd, error: pErr } = await supabase
+      .from("productie_produse")
+      .insert({
+        nume: denumire,
+        descriere: `[auto-import Senior ERP · cod ${cod}]`,
+        unitate_masura: linie.um || "buc",
+      })
+      .select("id")
+      .maybeSingle();
+    if (pErr || !newProd) {
+      errors.push({ produs: cod, err: `produs nou eșuat: ${pErr?.message}` });
+      return null;
+    }
+    produseByNume.set(numeKey, newProd.id);
+    const { error: mErr } = await supabase.from("erp_mapping_produse").insert({
+      cod_extern: cod,
+      denumire_extern: denumire,
+      produs_id: newProd.id,
+    });
+    if (!mErr) mapProduse.set(codKey, newProd.id);
+    const lbl = `${cod} — ${denumire}`;
+    if (!autoCreatedProduse.includes(lbl)) autoCreatedProduse.push(lbl);
+    return newProd.id;
+  }
 
   for (const aviz of payload.avize) {
     try {
@@ -103,32 +248,15 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Rezolvă numele magazinului: din mapping dacă există, altfel folosește nume_magazin direct
-      let numeMagazin = aviz.nume_magazin.trim();
-      if (aviz.cod_magazin) {
-        const mapped = mapMag.get(aviz.cod_magazin.trim().toLowerCase());
-        if (mapped) numeMagazin = mapped;
-      }
-      const punctLivrare =
-        magazinePunct.get(numeMagazin.toLowerCase()) || "Standard";
-      if (!magazinePunct.has(numeMagazin.toLowerCase())) {
-        if (!unmappedMagazine.includes(numeMagazin)) unmappedMagazine.push(numeMagazin);
-      }
+      const mag = await resolveMagazin(aviz);
+      if (!mag) continue;
+      const numeMagazin = mag.nume;
+      const punctLivrare = mag.punct;
 
       for (const linie of aviz.linii || []) {
-        const codKey = String(linie.cod_produs || "").trim().toLowerCase();
-        if (!codKey) continue;
-        const produsId = mapProduse.get(codKey);
-        if (!produsId) {
-          const label = `${linie.cod_produs}${
-            linie.denumire_produs ? " — " + linie.denumire_produs : ""
-          }`;
-          if (!unmappedProduse.includes(label)) unmappedProduse.push(label);
-          continue;
-        }
+        const produsId = await resolveProdus(linie);
+        if (!produsId) continue;
 
-        // Inserare comandă cu ON CONFLICT DO NOTHING pe (sursa, extern_nr_aviz)+produs
-        // Facem check manual: dacă există deja o comandă pentru acest aviz+produs, skip.
         const externKey = `${aviz.nr_aviz}::${linie.cod_produs}`;
         const { data: existing } = await supabase
           .from("productie_comenzi")
@@ -165,6 +293,7 @@ Deno.serve(async (req) => {
       errors.push({ aviz: aviz.nr_aviz, err: e.message || String(e) });
     }
   }
+
 
   // Log rulare
   await supabase.from("erp_import_log").insert({
