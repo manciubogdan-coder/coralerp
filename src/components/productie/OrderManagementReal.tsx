@@ -34,6 +34,15 @@ const OrderManagementReal = () => {
   const [lineFilter, setLineFilter] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [productionDate, setProductionDate] = useState<string>('');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = useOrders();
   const updateOrderMutation = useUpdateOrder();
