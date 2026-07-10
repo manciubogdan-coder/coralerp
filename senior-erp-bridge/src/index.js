@@ -46,6 +46,30 @@ function saveLastSync(date) {
   fs.writeFileSync(STATE_FILE, JSON.stringify({ last_sync: date }));
 }
 
+const BATCH_SIZE = Number(process.env.BATCH_SIZE || 50);
+const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 120000);
+
+async function sendBatch(avize) {
+  const res = await fetch(INGEST_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Bridge-Token": TOKEN,
+    },
+    body: JSON.stringify({
+      bridge_version: VERSION,
+      bridge_host: HOSTNAME,
+      avize,
+    }),
+    timeout: REQUEST_TIMEOUT_MS,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${JSON.stringify(body)}`);
+  }
+  return body;
+}
+
 async function tick() {
   const since = loadLastSync();
   log(`▶ Poll (since ${since})...`);
@@ -58,44 +82,40 @@ async function tick() {
   }
   if (!avize.length) {
     log("   nimic nou — trimit heartbeat");
-  } else {
-    log(`   găsit ${avize.length} avize`);
+    try {
+      await sendBatch([]);
+    } catch (e) {
+      log(`❌ Eroare heartbeat: ${e.message}`);
+    }
+    return;
   }
+  log(`   găsit ${avize.length} avize — trimit în batch-uri de ${BATCH_SIZE}`);
 
-  try {
-    const res = await fetch(INGEST_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Bridge-Token": TOKEN,
-      },
-      body: JSON.stringify({
-        bridge_version: VERSION,
-        bridge_host: HOSTNAME,
-        avize,
-      }),
-      timeout: 30000,
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      log(`❌ HTTP ${res.status}: ${JSON.stringify(body)}`);
+  let totCreate = 0, totSkip = 0, totErr = 0, totNemap = 0;
+  const totalBatches = Math.ceil(avize.length / BATCH_SIZE);
+
+  for (let i = 0; i < avize.length; i += BATCH_SIZE) {
+    const batch = avize.slice(i, i + BATCH_SIZE);
+    const idx = Math.floor(i / BATCH_SIZE) + 1;
+    try {
+      const body = await sendBatch(batch);
+      totCreate += body.linii_create || 0;
+      totSkip += body.skipped_duplicat || 0;
+      totErr += (body.erori || []).length;
+      totNemap +=
+        (body.unmapped_produse || []).length +
+        (body.unmapped_magazine || []).length;
+      log(`   batch ${idx}/${totalBatches}: create=${body.linii_create} skip=${body.skipped_duplicat}`);
+
+      const maxDate = batch.map((a) => a.data_aviz).sort().pop();
+      if (maxDate) saveLastSync(maxDate);
+    } catch (e) {
+      log(`❌ batch ${idx}/${totalBatches}: ${e.message}`);
       return;
     }
-    log(
-      `✅ create=${body.linii_create} skipped=${body.skipped_duplicat} nemapate=${
-        (body.unmapped_produse || []).length + (body.unmapped_magazine || []).length
-      } erori=${(body.erori || []).length}`
-    );
-
-    // Avansăm cursorul la maximul din avizele trimise
-    const maxDate = avize
-      .map((a) => a.data_aviz)
-      .sort()
-      .pop();
-    if (maxDate) saveLastSync(maxDate);
-  } catch (e) {
-    log(`❌ Eroare rețea: ${e.message}`);
   }
+
+  log(`✅ Total: create=${totCreate} skipped=${totSkip} nemapate=${totNemap} erori=${totErr}`);
 }
 
 log(`Senior ERP Bridge v${VERSION} pornit — poll la fiecare ${POLL / 1000}s`);
