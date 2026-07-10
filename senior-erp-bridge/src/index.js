@@ -33,17 +33,18 @@ function log(msg) {
   } catch (_) {}
 }
 
+// Fereastră mobilă: la fiecare poll refetch-uim toate avizele cu Data >= azi - REFRESH_WINDOW_DAYS.
+// Așa prindem și modificările făcute în Senior pe avize existente (cantități schimbate etc.).
+const REFRESH_WINDOW_DAYS = Number(process.env.REFRESH_WINDOW_DAYS || 2);
+
 function loadLastSync() {
-  try {
-    return JSON.parse(fs.readFileSync(STATE_FILE, "utf8")).last_sync;
-  } catch (_) {
-    const d = new Date();
-    d.setDate(d.getDate() - LOOKBACK_DAYS);
-    return d.toISOString().slice(0, 10);
-  }
+  const d = new Date();
+  d.setDate(d.getDate() - REFRESH_WINDOW_DAYS);
+  return d.toISOString().slice(0, 10);
 }
-function saveLastSync(date) {
-  fs.writeFileSync(STATE_FILE, JSON.stringify({ last_sync: date }));
+function saveLastSync(_date) {
+  // no-op: fereastra e mereu relativă la azi
+  try { fs.writeFileSync(STATE_FILE, JSON.stringify({ last_sync: _date })); } catch (_) {}
 }
 
 const BATCH_SIZE = Number(process.env.BATCH_SIZE || 50);
