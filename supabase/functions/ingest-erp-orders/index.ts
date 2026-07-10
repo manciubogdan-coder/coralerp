@@ -522,23 +522,57 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Șterge liniile care nu mai există în Senior pentru acest aviz
-      // (doar cele care încă sunt pending — nu ștergem munca deja făcută)
+      // Liniile care nu mai există în Senior pentru acest aviz:
+      //  - pending → DELETE
+      //  - non-pending: mutăm ce s-a produs pe restocare, marcăm cantitate=0 + status='canceled_by_erp'
       try {
         const { data: existingForAviz } = await supabase
           .from("productie_comenzi")
-          .select("id, extern_nr_aviz, status")
+          .select("id, extern_nr_aviz, status, produs_id, cantitate")
           .eq("sursa", "senior-erp")
           .like("extern_nr_aviz", `${aviz.nr_aviz}::%`);
-        const toDelete = (existingForAviz || []).filter(
-          (r: any) => !currentKeys.includes(r.extern_nr_aviz) && r.status === "pending"
+        const disparute = (existingForAviz || []).filter(
+          (r: any) => !currentKeys.includes(r.extern_nr_aviz)
         );
-        for (const r of toDelete) {
-          const { error: dErr } = await supabase
+        for (const r of disparute as any[]) {
+          if (r.status === "pending") {
+            const { error: dErr } = await supabase
+              .from("productie_comenzi")
+              .delete()
+              .eq("id", r.id);
+            if (!dErr) deleted++;
+            continue;
+          }
+          // non-pending: calculăm cât s-a produs → restocăm
+          let cantitateFacuta = 0;
+          try {
+            const { data: sesiuni } = await supabase
+              .from("productie_sesiuni_lucru")
+              .select("cantitate_produsa, status")
+              .eq("comanda_id", r.id)
+              .in("status", ["finalizata", "partial"]);
+            for (const s of (sesiuni || []) as any[]) {
+              cantitateFacuta += Number(s.cantitate_produsa || 0);
+            }
+          } catch (_) {}
+          if (cantitateFacuta > 0) {
+            try {
+              await supabase.from("productie_restocari").insert({
+                comanda_originala_id: r.id,
+                produs_id: r.produs_id,
+                cantitate_surplus: cantitateFacuta,
+                data_productie: dataOnly,
+                status: "disponibil",
+              });
+            } catch (e: any) {
+              errors.push({ aviz: aviz.nr_aviz, restock_delete: e.message });
+            }
+          }
+          const { error: uErr } = await supabase
             .from("productie_comenzi")
-            .delete()
-            .eq("id", (r as any).id);
-          if (!dErr) deleted++;
+            .update({ cantitate: 0, status: "canceled_by_erp" })
+            .eq("id", r.id);
+          if (!uErr) deleted++;
         }
       } catch (e: any) {
         errors.push({ aviz: aviz.nr_aviz, del: e.message });
