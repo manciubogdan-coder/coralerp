@@ -361,7 +361,7 @@ const SeniorErpImport = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {logs.map((l) => {
+              {logs.filter((l) => !(l.avize_primite === 0 && l.linii_create === 0 && l.skipped_duplicat === 0 && (!Array.isArray(l.erori) || l.erori.length === 0))).map((l) => {
                 const nemapate =
                   (Array.isArray(l.unmapped_produse)
                     ? l.unmapped_produse.length
