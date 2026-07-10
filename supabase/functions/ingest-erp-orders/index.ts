@@ -301,8 +301,14 @@ Deno.serve(async (req) => {
     comenzi_create: created,
     linii_create: lines,
     skipped_duplicat: skipped,
-    unmapped_produse: unmappedProduse,
-    unmapped_magazine: unmappedMagazine,
+    unmapped_produse: [
+      ...autoCreatedProduse.map((s) => `[NOU] ${s}`),
+      ...autoMappedProduse.map((s) => `[MAP] ${s}`),
+    ],
+    unmapped_magazine: [
+      ...autoCreatedMagazine.map((s) => `[NOU] ${s}`),
+      ...autoMappedMagazine.map((s) => `[MAP] ${s}`),
+    ],
     erori: errors,
     bridge_version: payload.bridge_version || null,
     bridge_host: payload.bridge_host || null,
@@ -314,8 +320,14 @@ Deno.serve(async (req) => {
     comenzi_create: created,
     linii_create: lines,
     skipped_duplicat: skipped,
-    unmapped_produse: unmappedProduse,
-    unmapped_magazine: unmappedMagazine,
+    produse_auto_create: autoCreatedProduse,
+    produse_auto_map: autoMappedProduse,
+    magazine_auto_create: autoCreatedMagazine,
+    magazine_auto_map: autoMappedMagazine,
+    // păstrăm câmpurile pentru compatibilitate cu bridge-ul care le loghează
+    unmapped_produse: [],
+    unmapped_magazine: [],
     erori: errors,
   });
 });
+
