@@ -50,8 +50,9 @@ if (type === "mssql" || type === "sqlserver") {
 }
 
 async function fetchAvizeSince(sinceDate) {
-  // 1. Antet comenzi CC din C_H_Note_Contabile + partener din tabela de legătură
-  //    C_H_Note_Contabile_Parteneri (Partener_Denumire este denormalizat aici)
+  // 1. Antet comenzi CC. Filtrăm după h.Data (data documentului) ca să refetch-uim
+  //    și avizele deja existente dar cu Data >= sinceDate (permite update la modificări).
+  //    INNER JOIN pe C_H_Note_Contabile_Parteneri: dacă nu are partener, sărim complet.
   const sqlAntet = `
     SELECT
       h.H_Id                        AS nr_aviz,
@@ -61,11 +62,13 @@ async function fetchAvizeSince(sinceDate) {
       hp.Partener_Denumire          AS nume_magazin,
       h.Descriere                   AS observatie
     FROM [dbo].[C_H_Note_Contabile] h
-    LEFT JOIN [dbo].[C_H_Note_Contabile_Parteneri] hp ON hp.H_Id = h.H_Id
+    INNER JOIN [dbo].[C_H_Note_Contabile_Parteneri] hp ON hp.H_Id = h.H_Id
     WHERE h.[Anulat] = 0
       AND h.[Serie_Document_Primar] = 'CC'
-      AND h.[Created_On] >= @param0
-    ORDER BY h.[Created_On] ASC
+      AND h.[Data] >= @param0
+      AND hp.[Partener_Denumire] IS NOT NULL
+      AND LTRIM(RTRIM(hp.[Partener_Denumire])) <> ''
+    ORDER BY h.[Data] ASC
   `;
 
   const antete = await query(sqlAntet, [sinceDate]);
@@ -96,6 +99,8 @@ async function fetchAvizeSince(sinceDate) {
 
   const byAviz = new Map();
   antete.forEach((a) => {
+    const nume = String(a.nume_magazin || "").trim();
+    if (!nume) return; // aviz fără client — sărim
     byAviz.set(a.nr_aviz, {
       nr_aviz: String(a.nr_document_text || a.nr_aviz),
       data_aviz:
@@ -103,7 +108,7 @@ async function fetchAvizeSince(sinceDate) {
           ? a.data_aviz.toISOString()
           : String(a.data_aviz),
       cod_magazin: a.cod_magazin ? String(a.cod_magazin) : "",
-      nume_magazin: String(a.nume_magazin || "Client Direct").trim(),
+      nume_magazin: nume,
       observatie: a.observatie || null,
       linii: [],
     });
