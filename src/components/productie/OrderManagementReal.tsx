@@ -424,7 +424,7 @@ const OrderManagementReal = () => {
       {/* Lista comenzilor cu paginația */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista Comenzilor ({filteredOrders.length})</CardTitle>
+          <CardTitle>Lista Comenzilor ({groupedOrders.length} documente · {filteredOrders.length} articole)</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {filteredOrders.length === 0 ? (
