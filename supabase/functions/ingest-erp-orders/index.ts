@@ -150,13 +150,13 @@ Deno.serve(async (req) => {
   // Preîncarc reguli distribuire produse->linie
   const { data: reguliData } = await supabase
     .from("productie_reguli_distribuire")
-    .select("produs_id, linie_id, prioritate")
+    .select("produs_id, linie_preferata_id, prioritate")
     .order("prioritate");
   const reguliByProdus = new Map<string, string>();
   const liniiActiveIds = new Set((liniiActive || []).map((l: any) => l.id));
   (reguliData || []).forEach((r: any) => {
-    if (!reguliByProdus.has(r.produs_id) && liniiActiveIds.has(r.linie_id)) {
-      reguliByProdus.set(r.produs_id, r.linie_id);
+    if (!reguliByProdus.has(r.produs_id) && liniiActiveIds.has(r.linie_preferata_id)) {
+      reguliByProdus.set(r.produs_id, r.linie_preferata_id);
     }
   });
 
