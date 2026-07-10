@@ -723,7 +723,7 @@ const OrderManagementReal = () => {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 pageSize={pageSize}
-                totalItems={filteredOrders.length}
+                totalItems={groupedOrders.length}
                 onPageChange={handlePageChange}
                 onPageSizeChange={handlePageSizeChange}
                 showPageSizeSelector={true}
