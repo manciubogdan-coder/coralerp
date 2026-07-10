@@ -195,6 +195,7 @@ const SeniorErpImport = () => {
               {bridgeStatus.detail && (
                 <div className="text-[10px] opacity-70 mt-0.5">{bridgeStatus.detail}</div>
               )}
+            </div>
             <div className="border rounded-lg p-3 bg-muted/30">
               <div className="text-xs uppercase text-muted-foreground">
                 Avize azi
