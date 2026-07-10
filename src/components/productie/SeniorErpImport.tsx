@@ -91,20 +91,20 @@ const SeniorErpImport = () => {
 
   const lastLog = logs[0];
   const bridgeStatus = useMemo(() => {
-    if (!lastLog) return { color: "gray", label: "Nu s-a rulat niciodată" };
-    const ago = Date.now() - new Date(lastLog.ran_at).getTime();
+    if (!lastLog) return { color: "gray", label: "Nu s-a rulat niciodată", detail: "" };
+    const ranAt = new Date(lastLog.ran_at);
+    const ago = Date.now() - ranAt.getTime();
     const minutes = Math.floor(ago / 60000);
+    const seconds = Math.floor(ago / 1000);
+    const when = ranAt.toLocaleString("ro-RO");
+    const host = lastLog.bridge_host ? ` (${lastLog.bridge_host})` : "";
+    const label =
+      seconds < 60 ? `acum ${seconds}s` : `acum ${minutes} min`;
     if (minutes > 15)
-      return {
-        color: "red",
-        label: `Bridge oprit? Ultima rulare acum ${minutes} min`,
-      };
+      return { color: "red", label: `Bridge oprit? Ultima activitate ${label}`, detail: `${when}${host}` };
     if (minutes > 5)
-      return {
-        color: "amber",
-        label: `Ultima rulare acum ${minutes} min`,
-      };
-    return { color: "green", label: `Activ • ultima rulare acum ${minutes} min` };
+      return { color: "amber", label: `Ultima activitate ${label}`, detail: `${when}${host}` };
+    return { color: "green", label: `Activ • ${label}`, detail: `${when}${host}` };
   }, [lastLog]);
 
   const totalAzi = useMemo(() => {
