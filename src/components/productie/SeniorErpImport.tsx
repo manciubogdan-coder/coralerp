@@ -91,20 +91,20 @@ const SeniorErpImport = () => {
 
   const lastLog = logs[0];
   const bridgeStatus = useMemo(() => {
-    if (!lastLog) return { color: "gray", label: "Nu s-a rulat niciodată" };
-    const ago = Date.now() - new Date(lastLog.ran_at).getTime();
+    if (!lastLog) return { color: "gray", label: "Nu s-a rulat niciodată", detail: "" };
+    const ranAt = new Date(lastLog.ran_at);
+    const ago = Date.now() - ranAt.getTime();
     const minutes = Math.floor(ago / 60000);
+    const seconds = Math.floor(ago / 1000);
+    const when = ranAt.toLocaleString("ro-RO");
+    const host = lastLog.bridge_host ? ` (${lastLog.bridge_host})` : "";
+    const label =
+      seconds < 60 ? `acum ${seconds}s` : `acum ${minutes} min`;
     if (minutes > 15)
-      return {
-        color: "red",
-        label: `Bridge oprit? Ultima rulare acum ${minutes} min`,
-      };
+      return { color: "red", label: `Bridge oprit? Ultima activitate ${label}`, detail: `${when}${host}` };
     if (minutes > 5)
-      return {
-        color: "amber",
-        label: `Ultima rulare acum ${minutes} min`,
-      };
-    return { color: "green", label: `Activ • ultima rulare acum ${minutes} min` };
+      return { color: "amber", label: `Ultima activitate ${label}`, detail: `${when}${host}` };
+    return { color: "green", label: `Activ • ${label}`, detail: `${when}${host}` };
   }, [lastLog]);
 
   const totalAzi = useMemo(() => {
@@ -192,6 +192,9 @@ const SeniorErpImport = () => {
                 <Clock className="h-3 w-3" /> Bridge
               </div>
               <div className="font-medium mt-1 text-sm">{bridgeStatus.label}</div>
+              {bridgeStatus.detail && (
+                <div className="text-[10px] opacity-70 mt-0.5">{bridgeStatus.detail}</div>
+              )}
             </div>
             <div className="border rounded-lg p-3 bg-muted/30">
               <div className="text-xs uppercase text-muted-foreground">
@@ -361,7 +364,7 @@ const SeniorErpImport = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {logs.map((l) => {
+              {logs.filter((l) => !(l.avize_primite === 0 && l.linii_create === 0 && l.skipped_duplicat === 0 && (!Array.isArray(l.erori) || l.erori.length === 0))).map((l) => {
                 const nemapate =
                   (Array.isArray(l.unmapped_produse)
                     ? l.unmapped_produse.length
