@@ -59,6 +59,17 @@ Deno.serve(async (req) => {
   } catch {
     return json({ error: "Invalid JSON" }, 400);
   }
+
+  // Rută de reset: șterge toate comenzile importate din Senior ERP
+  if ((payload as any)?.action === "reset_all") {
+    const sb = createClient(LEGACY_URL, LEGACY_ANON);
+    const { count, error } = await sb
+      .from("productie_comenzi")
+      .delete({ count: "exact" })
+      .eq("sursa", "senior-erp");
+    if (error) return json({ error: error.message }, 500);
+    return json({ ok: true, deleted: count ?? 0 });
+  }
   if (!payload || !Array.isArray(payload.avize)) {
     return json({ error: "Missing avize[]" }, 400);
   }
