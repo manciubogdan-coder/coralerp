@@ -192,7 +192,9 @@ const SeniorErpImport = () => {
                 <Clock className="h-3 w-3" /> Bridge
               </div>
               <div className="font-medium mt-1 text-sm">{bridgeStatus.label}</div>
-            </div>
+              {bridgeStatus.detail && (
+                <div className="text-[10px] opacity-70 mt-0.5">{bridgeStatus.detail}</div>
+              )}
             <div className="border rounded-lg p-3 bg-muted/30">
               <div className="text-xs uppercase text-muted-foreground">
                 Avize azi
