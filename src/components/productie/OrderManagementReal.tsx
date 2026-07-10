@@ -436,6 +436,7 @@ const OrderManagementReal = () => {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
+                    <TableHead className="w-8"></TableHead>
                     <TableHead className="font-semibold">Număr</TableHead>
                     <TableHead className="font-semibold">Produs</TableHead>
                     <TableHead className="font-semibold">Progres Producție</TableHead>
@@ -449,7 +450,73 @@ const OrderManagementReal = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedOrders.map((order) => {
+                  {paginatedGroups.map((group: any) => {
+                    const isExpanded = expandedGroups.has(group.key);
+                    const totalCantitate = group.orders.reduce((s: number, o: any) => s + (o.cantitate || 0), 0);
+                    const totalProdus = group.orders.reduce((s: number, o: any) => s + ((o.cantitate_reala_produsa || 0) + (o.cantitate_din_restock || 0)), 0);
+                    const progressGrup = totalCantitate > 0 ? Math.round(totalProdus / totalCantitate * 100) : 0;
+                    const statusuri = new Set(group.orders.map((o: any) => o.status));
+                    const statusGrup = statusuri.size === 1 ? (Array.from(statusuri)[0] as string)
+                      : statusuri.has('pending') ? 'pending'
+                      : statusuri.has('in_progress') ? 'in_progress'
+                      : 'partial';
+
+                    const groupHeader = (
+                      <TableRow
+                        key={`grp-${group.key}`}
+                        className="bg-blue-50 hover:bg-blue-100 cursor-pointer border-t-2 border-blue-200"
+                        onClick={() => toggleGroup(group.key)}
+                      >
+                        <TableCell>
+                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </TableCell>
+                        <TableCell className="font-bold text-blue-900">{group.numar_comanda}</TableCell>
+                        <TableCell className="text-sm text-gray-700">
+                          <span className="font-medium">{group.orders.length} articole</span>
+                          <span className="text-gray-500"> · {totalCantitate} buc</span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-24 bg-gray-200 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full ${progressGrup >= 100 ? 'bg-green-500' : progressGrup >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                style={{ width: `${Math.min(100, progressGrup)}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-medium">{progressGrup}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(statusGrup)}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{group.magazin}</div>
+                          <div className="text-xs text-gray-500">{group.punct_livrare}</div>
+                        </TableCell>
+                        <TableCell>
+                          {group.productie_clienti?.productie_zone_livrare && (
+                            <div
+                              className="px-2 py-1 rounded text-white text-xs font-medium text-center"
+                              style={{ backgroundColor: group.productie_clienti.productie_zone_livrare.culoare }}
+                            >
+                              {group.productie_clienti.productie_zone_livrare.nume_zona}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-500">—</TableCell>
+                        <TableCell className="text-xs">
+                          {new Date(group.created_at).toLocaleDateString('ro-RO')}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {group.data_productie ? new Date(group.data_productie).toLocaleDateString('ro-RO') : '-'}
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-500 italic">
+                          {isExpanded ? 'ascunde' : 'deschide'}
+                        </TableCell>
+                      </TableRow>
+                    );
+
+                    if (!isExpanded) return groupHeader;
+
+                    const detailRows = group.orders.map((order: any) => {
                     const cantitateComandată = order.cantitate;
                     const cantitateRealaProadusa = order.cantitate_reala_produsa || 0;
                     const cantitatedinRestock = order.cantitate_din_restock || 0;
