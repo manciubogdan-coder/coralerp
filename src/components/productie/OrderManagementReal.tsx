@@ -706,6 +706,14 @@ const OrderManagementReal = () => {
                         </TableCell>
                       </TableRow>
                     );
+                    });
+
+                    return (
+                      <>
+                        {groupHeader}
+                        {detailRows}
+                      </>
+                    );
                   })}
                 </TableBody>
               </Table>
