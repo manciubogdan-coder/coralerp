@@ -709,10 +709,10 @@ const OrderManagementReal = () => {
                     });
 
                     return (
-                      <>
+                      <React.Fragment key={group.key}>
                         {groupHeader}
                         {detailRows}
-                      </>
+                      </React.Fragment>
                     );
                   })}
                 </TableBody>
