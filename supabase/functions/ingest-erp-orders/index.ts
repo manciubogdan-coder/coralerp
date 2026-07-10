@@ -416,6 +416,8 @@ Deno.serve(async (req) => {
         }
 
         // 3) INSERT (numar_comanda va fi suprascris pentru a evita trigger-ul CBxxxx)
+        // data_productie = data documentului Senior (dacă e viitor, se programează atunci)
+        // created_at   = data documentului Senior (data creării comenzii în ERP-ul sursă)
         const { data: inserted, error } = await supabase
           .from("productie_comenzi")
           .insert({
@@ -428,7 +430,8 @@ Deno.serve(async (req) => {
             status: statusFinal,
             linie_id: linieId,
             cantitate_din_restock: cantitateDinRestock,
-            data_productie: todayBucharest,
+            data_productie: dataOnly,
+            created_at: dataOnly,
             sursa: "senior-erp",
             extern_nr_aviz: externKey,
             extern_data_aviz: dataOnly,
@@ -442,7 +445,7 @@ Deno.serve(async (req) => {
           if (inserted?.id) {
             await supabase
               .from("productie_comenzi")
-              .update({ numar_comanda: aviz.nr_aviz, data_productie: todayBucharest })
+              .update({ numar_comanda: aviz.nr_aviz, data_productie: dataOnly })
               .eq("id", inserted.id);
           }
           lines++;
