@@ -339,6 +339,15 @@ const OrderManagementReal = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
+              <label className="text-sm font-medium mb-2 block">Nr. comandă / produs</label>
+              <Input
+                placeholder="ex: 103304"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <div>
               <label className="text-sm font-medium mb-2 block">Produs</label>
               <Select value={productFilter} onValueChange={setProductFilter}>
                 <SelectTrigger>
@@ -501,7 +510,14 @@ const OrderManagementReal = () => {
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="text-xs text-gray-500">—</TableCell>
+                        <TableCell className="text-xs">
+                          {(() => {
+                            const linii = Array.from(new Set(group.orders.map((o: any) => o.productie_linii?.nume).filter(Boolean)));
+                            return linii.length > 0
+                              ? <span className="text-gray-700">{linii.join(', ')}</span>
+                              : <span className="text-gray-500">—</span>;
+                          })()}
+                        </TableCell>
                         <TableCell className="text-xs">
                           {new Date(group.created_at).toLocaleDateString('ro-RO')}
                         </TableCell>
