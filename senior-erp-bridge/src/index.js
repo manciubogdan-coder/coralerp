@@ -57,10 +57,10 @@ async function tick() {
     return;
   }
   if (!avize.length) {
-    log("   nimic nou");
-    return;
+    log("   nimic nou — trimit heartbeat");
+  } else {
+    log(`   găsit ${avize.length} avize`);
   }
-  log(`   găsit ${avize.length} avize`);
 
   try {
     const res = await fetch(INGEST_URL, {
