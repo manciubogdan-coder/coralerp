@@ -69,6 +69,8 @@ Deno.serve(async (req) => {
       .eq("sursa", "senior-erp");
     if (error) return json({ error: error.message }, 500);
     return json({ ok: true, deleted: count ?? 0 });
+  }
+
 
   // Rută de curățare retururi: șterge comenzile cu cantitate <= 0
   if ((payload as any)?.action === "cleanup_returns") {
