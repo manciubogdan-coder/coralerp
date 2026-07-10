@@ -279,71 +279,112 @@ const SeniorErpImport = () => {
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cod ERP</TableHead>
-                  <TableHead>Denumire ERP</TableHead>
-                  <TableHead>Produs intern</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mapping.map((r) => {
-                  const p = productMap.get(r.produs_id);
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-mono text-xs">
-                        {r.cod_extern}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {r.denumire_extern || "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={r.produs_id}
-                          onValueChange={(v) =>
-                            updateMapping(r.id, { produs_id: v })
-                          }
-                        >
-                          <SelectTrigger className="h-8">
-                            <SelectValue>
-                              {p ? `${p.nume} (${p.unitate_masura})` : "?"}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products.map((pp: any) => (
-                              <SelectItem key={pp.id} value={pp.id}>
-                                {pp.nume} ({pp.unitate_masura})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
+            <>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <Input
+                  placeholder="Caută după cod sau denumire..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                  }}
+                  className="md:max-w-sm"
+                />
+                <div className="text-xs text-muted-foreground">
+                  Total: {mapping.length} mapări
+                </div>
+              </div>
+              {(() => {
+                const q = search.trim().toLowerCase();
+                const filtered = q
+                  ? mapping.filter(
+                      (r) =>
+                        r.cod_extern.toLowerCase().includes(q) ||
+                        (r.denumire_extern || "").toLowerCase().includes(q)
+                    )
+                  : mapping;
+                const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+                const currentPage = Math.min(page, totalPages - 1);
+                const pageRows = filtered.slice(
+                  currentPage * PAGE_SIZE,
+                  currentPage * PAGE_SIZE + PAGE_SIZE
+                );
+                return (
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Cod ERP</TableHead>
+                          <TableHead>Denumire ERP</TableHead>
+                          <TableHead>Produs intern</TableHead>
+                          <TableHead className="w-12"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pageRows.map((r) => {
+                          const p = productMap.get(r.produs_id);
+                          return (
+                            <TableRow key={r.id}>
+                              <TableCell className="font-mono text-xs">
+                                {r.cod_extern}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {r.denumire_extern || "—"}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {p ? `${p.nume} (${p.unitate_masura})` : "?"}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => deleteMapping(r.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                        {filtered.length === 0 && (
+                          <TableRow>
+                            <TableCell
+                              colSpan={4}
+                              className="text-center text-muted-foreground py-6"
+                            >
+                              {q ? "Niciun rezultat pentru căutare." : "Niciun mapping încă."}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                    {filtered.length > PAGE_SIZE && (
+                      <div className="flex items-center justify-between pt-2">
                         <Button
                           size="sm"
-                          variant="ghost"
-                          onClick={() => deleteMapping(r.id)}
+                          variant="outline"
+                          disabled={currentPage === 0}
+                          onClick={() => setPage(currentPage - 1)}
                         >
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                          ← Anterior
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {mapping.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={4}
-                      className="text-center text-muted-foreground py-6"
-                    >
-                      Niciun mapping încă. Adaugă mai sus.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                        <span className="text-xs text-muted-foreground">
+                          Pagina {currentPage + 1} / {totalPages}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={currentPage >= totalPages - 1}
+                          onClick={() => setPage(currentPage + 1)}
+                        >
+                          Următor →
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </>
           )}
         </CardContent>
       </Card>
