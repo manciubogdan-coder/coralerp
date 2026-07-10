@@ -72,22 +72,27 @@ async function fetchAvizeSince(sinceDate) {
   if (!antete || !antete.length) return [];
 
   const nrs = antete.map((a) => a.nr_aviz);
-  const placeholders = nrs.map((_, i) => `@param${i}`).join(",");
 
-  // 2. Linii produse din C_D_Note_Contabile
-  const sqlLinii = `
-    SELECT
-      l.H_Id                        AS nr_aviz,
-      l.Cod                         AS cod_produs,
-      l.Denumire                    AS denumire_produs,
-      l.Cantitate                   AS cantitate,
-      l.UM_Id                       AS um,
-      l.Descriere                   AS observatie
-    FROM [dbo].[C_D_Note_Contabile] l
-    WHERE l.H_Id IN (${placeholders})
-  `;
-
-  const linii = await query(sqlLinii, nrs);
+  // Chunking pentru clauza IN (SQL Server limitează la 2100 parametri per query)
+  const IN_CHUNK = 1000;
+  let linii = [];
+  for (let i = 0; i < nrs.length; i += IN_CHUNK) {
+    const chunk = nrs.slice(i, i + IN_CHUNK);
+    const placeholders = chunk.map((_, j) => `@param${j}`).join(",");
+    const sqlLinii = `
+      SELECT
+        l.H_Id                        AS nr_aviz,
+        l.Cod                         AS cod_produs,
+        l.Denumire                    AS denumire_produs,
+        l.Cantitate                   AS cantitate,
+        l.UM_Id                       AS um,
+        l.Descriere                   AS observatie
+      FROM [dbo].[C_D_Note_Contabile] l
+      WHERE l.H_Id IN (${placeholders})
+    `;
+    const rows = await query(sqlLinii, chunk);
+    if (rows && rows.length) linii = linii.concat(rows);
+  }
 
   const byAviz = new Map();
   antete.forEach((a) => {
