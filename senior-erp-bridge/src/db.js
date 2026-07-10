@@ -60,7 +60,7 @@ async function fetchAvizeSince(sinceDate) {
       p.denumire                    AS nume_magazin,
       h.Descriere                   AS observatie
     FROM [dbo].[C_H_Note_Contabile] h
-    LEFT JOIN [dbo].[D_Parteneri] p ON h.ResponsabilId = p.partener_id
+    LEFT JOIN [dbo].[D_Parteneri] p ON h.PartenerId = p.partener_id
     WHERE h.[Anulat] = 0
       AND h.[Serie_Document_Primar] = 'CC'
       AND h.[Created_On] >= @param0
