@@ -403,13 +403,11 @@ Deno.serve(async (req) => {
           // 100% acoperit din restocări → gata
           statusFinal = "completed";
         } else {
-          // auto-distribuire pe linie
+          // auto-distribuire pe linie DOAR dacă există regulă explicită pentru produs.
+          // Fără regulă → rămâne pending (fără linie) ca să nu ajungă totul pe prima linie alfabetic.
           const linieRegula = reguliByProdus.get(produsId);
           if (linieRegula) {
             linieId = linieRegula;
-            statusFinal = "assigned";
-          } else if (primaLinieActiva) {
-            linieId = (primaLinieActiva as any).id;
             statusFinal = "assigned";
           }
         }
