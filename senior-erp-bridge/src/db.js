@@ -50,17 +50,18 @@ if (type === "mssql" || type === "sqlserver") {
 }
 
 async function fetchAvizeSince(sinceDate) {
-  // 1. Antet comenzi CC din C_H_Note_Contabile
+  // 1. Antet comenzi CC din C_H_Note_Contabile + partener din tabela de legătură
+  //    C_H_Note_Contabile_Parteneri (Partener_Denumire este denormalizat aici)
   const sqlAntet = `
     SELECT
       h.H_Id                        AS nr_aviz,
       h.Data                        AS data_aviz,
       h.Numar_Document_Primar       AS nr_document_text,
-      p.cod                         AS cod_magazin,
-      p.denumire                    AS nume_magazin,
+      hp.Partener_Id                AS cod_magazin,
+      hp.Partener_Denumire          AS nume_magazin,
       h.Descriere                   AS observatie
     FROM [dbo].[C_H_Note_Contabile] h
-    LEFT JOIN [dbo].[D_Parteneri] p ON h.Partener_Id = p.partener_id
+    LEFT JOIN [dbo].[C_H_Note_Contabile_Parteneri] hp ON hp.H_Id = h.H_Id
     WHERE h.[Anulat] = 0
       AND h.[Serie_Document_Primar] = 'CC'
       AND h.[Created_On] >= @param0
@@ -91,7 +92,6 @@ async function fetchAvizeSince(sinceDate) {
   const byAviz = new Map();
   antete.forEach((a) => {
     byAviz.set(a.nr_aviz, {
-      // Trimitem nr_document_text (ex: 103271) ca cheie vizibilă în aplicație
       nr_aviz: String(a.nr_document_text || a.nr_aviz),
       data_aviz:
         a.data_aviz instanceof Date
