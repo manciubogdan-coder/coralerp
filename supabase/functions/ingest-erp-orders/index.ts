@@ -330,6 +330,15 @@ Deno.serve(async (req) => {
       const punctLivrare = mag.punct;
 
       for (const linie of aviz.linii || []) {
+        // Skip linii care nu sunt produse reale (reduceri, discount-uri, transport etc.)
+        const denumireLower = String(linie.denumire || "").toLowerCase();
+        const codLower = String(linie.cod_produs || "").toLowerCase();
+        const nonProductPatterns = ["reducere", "discount", "transport", "rabat", "bonificatie", "bonificație"];
+        if (nonProductPatterns.some(p => denumireLower.includes(p) || codLower.includes(p))) {
+          skipped++;
+          continue;
+        }
+
         const produsId = await resolveProdus(linie);
         if (!produsId) continue;
 
