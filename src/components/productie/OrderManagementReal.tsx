@@ -510,7 +510,14 @@ const OrderManagementReal = () => {
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="text-xs text-gray-500">—</TableCell>
+                        <TableCell className="text-xs">
+                          {(() => {
+                            const linii = Array.from(new Set(group.orders.map((o: any) => o.productie_linii?.nume).filter(Boolean)));
+                            return linii.length > 0
+                              ? <span className="text-gray-700">{linii.join(', ')}</span>
+                              : <span className="text-gray-500">—</span>;
+                          })()}
+                        </TableCell>
                         <TableCell className="text-xs">
                           {new Date(group.created_at).toLocaleDateString('ro-RO')}
                         </TableCell>
