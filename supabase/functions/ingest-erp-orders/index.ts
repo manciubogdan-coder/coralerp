@@ -121,9 +121,35 @@ Deno.serve(async (req) => {
   const autoMappedMagazine: string[] = [];
   const errors: any[] = [];
 
-  // Backfill lazy: aliniem numar_comanda pe rândurile senior-erp mai vechi
-  // (unde numar_comanda a rămas 'CBxxxx') la numărul documentului Senior din extern_nr_aviz.
-  // Procesăm până la 400 pe apel, ca să nu depășim timeout-ul.
+  // Data de producție = azi (Europe/Bucharest)
+  const todayBucharest = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Europe/Bucharest" })
+  )
+    .toISOString()
+    .slice(0, 10);
+
+  // Preîncarc liniile de producție active (pentru auto-distribuire)
+  const { data: liniiActive } = await supabase
+    .from("productie_linii")
+    .select("id, nume, status")
+    .eq("status", "activa")
+    .order("nume");
+  const primaLinieActiva = (liniiActive && liniiActive[0]) || null;
+
+  // Preîncarc reguli distribuire produse->linie
+  const { data: reguliData } = await supabase
+    .from("productie_reguli_distribuire")
+    .select("produs_id, linie_id, prioritate")
+    .order("prioritate");
+  const reguliByProdus = new Map<string, string>();
+  const liniiActiveIds = new Set((liniiActive || []).map((l: any) => l.id));
+  (reguliData || []).forEach((r: any) => {
+    if (!reguliByProdus.has(r.produs_id) && liniiActiveIds.has(r.linie_id)) {
+      reguliByProdus.set(r.produs_id, r.linie_id);
+    }
+  });
+
+  // Backfill lazy: aliniem numar_comanda + data_productie pe rândurile senior-erp mai vechi.
   try {
     const { data: toFix } = await supabase
       .from("productie_comenzi")
