@@ -70,6 +70,20 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 500);
     return json({ ok: true, deleted: count ?? 0 });
   }
+
+
+  // Rută de curățare retururi: șterge comenzile cu cantitate <= 0
+  if ((payload as any)?.action === "cleanup_returns") {
+    const sb = createClient(LEGACY_URL, LEGACY_ANON);
+    const { count, error } = await sb
+      .from("productie_comenzi")
+      .delete({ count: "exact" })
+      .eq("sursa", "senior-erp")
+      .lte("cantitate", 0);
+    if (error) return json({ error: error.message }, 500);
+    return json({ ok: true, deleted: count ?? 0 });
+  }
+
   if (!payload || !Array.isArray(payload.avize)) {
     return json({ error: "Missing avize[]" }, 400);
   }
@@ -333,6 +347,12 @@ Deno.serve(async (req) => {
 
         const dataOnly = String(aviz.data_aviz || "").slice(0, 10);
         const cantitate = Number(linie.cantitate) || 0;
+
+        // Skip retururi (cantitate <= 0)
+        if (cantitate <= 0) {
+          skipped++;
+          continue;
+        }
 
         // 1) Alocare din restocări (surplus disponibil)
         let cantitateRamasa = cantitate;
