@@ -360,27 +360,79 @@ Deno.serve(async (req) => {
         // Verifică dacă rândul există deja (upsert)
         const { data: existing } = await supabase
           .from("productie_comenzi")
-          .select("id, cantitate, status, magazin, data_productie")
+          .select("id, cantitate, status, magazin, data_productie, produs_id")
           .eq("sursa", "senior-erp")
           .eq("extern_nr_aviz", externKey)
           .maybeSingle();
 
         if (existing) {
-          // UPDATE dacă s-a schimbat ceva
+          const ex: any = existing;
+          const oldQty = Number(ex.cantitate) || 0;
+          const delta = cantitate - oldQty;
+          const status = String(ex.status || "pending");
+          const isPending = status === "pending";
+
           const patch: any = {};
-          if (Number((existing as any).cantitate) !== cantitate) patch.cantitate = cantitate;
-          if ((existing as any).magazin !== numeMagazin) {
+          if (ex.magazin !== numeMagazin) {
             patch.magazin = numeMagazin;
             patch.punct_livrare = punctLivrare;
           }
-          if (String((existing as any).data_productie || "").slice(0, 10) !== dataOnly) {
+          if (String(ex.data_productie || "").slice(0, 10) !== dataOnly) {
             patch.data_productie = dataOnly;
           }
+
+          if (isPending) {
+            // pending: simplu update cantitate
+            if (oldQty !== cantitate) patch.cantitate = cantitate;
+          } else {
+            // non-pending (assigned/in_progress/completed): propagăm cu grijă
+            if (delta > 0) {
+              // Suplimentare: reafișăm delta pe linie
+              patch.cantitate = cantitate;
+              if (status === "completed") patch.status = "assigned";
+            } else if (delta < 0) {
+              // Redusă: dacă s-a produs mai mult decât cere Senior acum → excedent → restocare
+              // Calculăm cât s-a produs deja din sesiuni_lucru
+              let cantitateFacuta = 0;
+              try {
+                const { data: sesiuni } = await supabase
+                  .from("productie_sesiuni_lucru")
+                  .select("cantitate_produsa, status")
+                  .eq("comanda_id", ex.id)
+                  .in("status", ["finalizata", "partial"]);
+                for (const s of (sesiuni || []) as any[]) {
+                  cantitateFacuta += Number(s.cantitate_produsa || 0);
+                }
+              } catch (_) {}
+              const excedent = Math.max(0, cantitateFacuta - cantitate);
+              if (excedent > 0) {
+                try {
+                  await supabase.from("productie_restocari").insert({
+                    comanda_originala_id: ex.id,
+                    produs_id: ex.produs_id,
+                    cantitate_surplus: excedent,
+                    data_productie: dataOnly,
+                    status: "disponibil",
+                  });
+                } catch (e: any) {
+                  errors.push({ aviz: aviz.nr_aviz, produs: linie.cod_produs, restock_reduce: e.message });
+                }
+              }
+              patch.cantitate = cantitate;
+              // dacă noul necesar e deja acoperit de ce s-a făcut → completed
+              if (cantitate <= cantitateFacuta - excedent + 0.0001) {
+                patch.status = "completed";
+              } else if (status === "completed") {
+                patch.status = "assigned";
+              }
+            }
+          }
+
           if (Object.keys(patch).length) {
             const { error: uErr } = await supabase
               .from("productie_comenzi")
               .update(patch)
-              .eq("id", (existing as any).id);
+              .eq("id", ex.id);
             if (uErr) errors.push({ aviz: aviz.nr_aviz, produs: linie.cod_produs, upd: uErr.message });
             else updated++;
           } else {
