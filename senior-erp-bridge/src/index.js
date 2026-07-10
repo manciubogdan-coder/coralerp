@@ -12,7 +12,7 @@ const LOG_DIR = path.join(__dirname, "..", "logs");
 if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 
 const POLL = Number(process.env.POLL_INTERVAL_MS || 120000);
-const LOOKBACK_DAYS = Number(process.env.INITIAL_LOOKBACK_DAYS || 3);
+const LOOKBACK_DAYS = Number(process.env.INITIAL_LOOKBACK_DAYS || 0);
 const INGEST_URL = process.env.LOVABLE_INGEST_URL;
 const TOKEN = process.env.BRIDGE_TOKEN;
 
