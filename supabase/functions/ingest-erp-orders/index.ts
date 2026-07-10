@@ -121,6 +121,31 @@ Deno.serve(async (req) => {
   const autoMappedMagazine: string[] = [];
   const errors: any[] = [];
 
+  // Backfill lazy: aliniem numar_comanda pe rândurile senior-erp mai vechi
+  // (unde numar_comanda a rămas 'CBxxxx') la numărul documentului Senior din extern_nr_aviz.
+  // Procesăm până la 400 pe apel, ca să nu depășim timeout-ul.
+  try {
+    const { data: toFix } = await supabase
+      .from("productie_comenzi")
+      .select("id, extern_nr_aviz, numar_comanda")
+      .eq("sursa", "senior-erp")
+      .like("numar_comanda", "CB%")
+      .not("extern_nr_aviz", "is", null)
+      .limit(400);
+    for (const row of toFix || []) {
+      const docNr = String(row.extern_nr_aviz || "").split("::")[0];
+      if (docNr && docNr !== row.numar_comanda) {
+        await supabase
+          .from("productie_comenzi")
+          .update({ numar_comanda: docNr })
+          .eq("id", row.id);
+      }
+    }
+  } catch (e: any) {
+    errors.push({ backfill: e.message || String(e) });
+  }
+
+
   // Rezolvă (sau creează) un client pornind de la aviz. Returnează { nume, punct } sau null.
   async function resolveMagazin(aviz: Aviz): Promise<{ nume: string; punct: string } | null> {
     const codExtern = (aviz.cod_magazin || "").trim();
@@ -271,6 +296,7 @@ Deno.serve(async (req) => {
 
         const dataOnly = String(aviz.data_aviz || "").slice(0, 10);
         const { error } = await supabase.from("productie_comenzi").insert({
+          numar_comanda: aviz.nr_aviz, // toate liniile aceluiași document Senior au același numar_comanda => grupare
           magazin: numeMagazin,
           punct_livrare: punctLivrare,
           produs_id: produsId,

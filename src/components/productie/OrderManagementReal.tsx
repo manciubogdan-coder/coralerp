@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Search, Zap, Edit, Trash2, ChefHat, Archive } from "lucide-react";
+import { Loader2, Plus, Search, Zap, Edit, Trash2, ChefHat, Archive, ChevronDown, ChevronRight } from "lucide-react";
 import { useOrders, useUpdateOrder, useDeleteOrder, useAutoDistributeToLine } from "@/hooks/productie/useProductionData";
 import { toast } from "sonner";
 import OrderFormNew from "./OrderFormNew";
@@ -34,6 +34,15 @@ const OrderManagementReal = () => {
   const [lineFilter, setLineFilter] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [productionDate, setProductionDate] = useState<string>('');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = useOrders();
   const updateOrderMutation = useUpdateOrder();
@@ -69,21 +78,44 @@ const OrderManagementReal = () => {
            matchesLine && matchesQuantity && matchesDate && matchesProdDate;
   }) : [];
 
-  // Adăugăm paginația pentru comenzile filtrate
+  // Grupare comenzi după numar_comanda + magazin (un document Senior = un grup)
+  const groupedOrders = (() => {
+    const map = new Map<string, any[]>();
+    filteredOrders.forEach((o: any) => {
+      const key = `${o.numar_comanda}||${o.magazin}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(o);
+    });
+    const arr = Array.from(map.entries()).map(([key, ord]) => ({
+      key,
+      numar_comanda: ord[0].numar_comanda,
+      magazin: ord[0].magazin,
+      punct_livrare: ord[0].punct_livrare,
+      productie_clienti: ord[0].productie_clienti,
+      created_at: ord[0].created_at,
+      data_productie: (ord[0] as any).data_productie,
+      orders: ord,
+    }));
+    arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return arr;
+  })();
+
+  // Paginăm pe grupuri (nu pe linii) - fiecare document rămâne intact pe o pagină
   const {
     currentPage,
     pageSize,
     totalPages,
-    paginatedOrders,
+    paginatedOrders: paginatedGroups,
     handlePageChange,
     handlePageSizeChange,
     resetPagination
-  } = useOrdersPagination({ orders: filteredOrders, initialPageSize: 25 });
+  } = useOrdersPagination({ orders: groupedOrders as any, initialPageSize: 25 });
 
   // Reset pagination when filtered orders change
   useEffect(() => {
     resetPagination();
   }, [filteredOrders.length, resetPagination]);
+
 
   // Obține lista unică de magazine din comenzi (exclude PRODUCTIE_AVANS)
   const uniqueStores = orders ? 
@@ -392,7 +424,7 @@ const OrderManagementReal = () => {
       {/* Lista comenzilor cu paginația */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista Comenzilor ({filteredOrders.length})</CardTitle>
+          <CardTitle>Lista Comenzilor ({groupedOrders.length} documente · {filteredOrders.length} articole)</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {filteredOrders.length === 0 ? (
@@ -404,6 +436,7 @@ const OrderManagementReal = () => {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
+                    <TableHead className="w-8"></TableHead>
                     <TableHead className="font-semibold">Număr</TableHead>
                     <TableHead className="font-semibold">Produs</TableHead>
                     <TableHead className="font-semibold">Progres Producție</TableHead>
@@ -417,7 +450,73 @@ const OrderManagementReal = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedOrders.map((order) => {
+                  {paginatedGroups.map((group: any) => {
+                    const isExpanded = expandedGroups.has(group.key);
+                    const totalCantitate = group.orders.reduce((s: number, o: any) => s + (o.cantitate || 0), 0);
+                    const totalProdus = group.orders.reduce((s: number, o: any) => s + ((o.cantitate_reala_produsa || 0) + (o.cantitate_din_restock || 0)), 0);
+                    const progressGrup = totalCantitate > 0 ? Math.round(totalProdus / totalCantitate * 100) : 0;
+                    const statusuri = new Set(group.orders.map((o: any) => o.status));
+                    const statusGrup = statusuri.size === 1 ? (Array.from(statusuri)[0] as string)
+                      : statusuri.has('pending') ? 'pending'
+                      : statusuri.has('in_progress') ? 'in_progress'
+                      : 'partial';
+
+                    const groupHeader = (
+                      <TableRow
+                        key={`grp-${group.key}`}
+                        className="bg-blue-50 hover:bg-blue-100 cursor-pointer border-t-2 border-blue-200"
+                        onClick={() => toggleGroup(group.key)}
+                      >
+                        <TableCell>
+                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </TableCell>
+                        <TableCell className="font-bold text-blue-900">{group.numar_comanda}</TableCell>
+                        <TableCell className="text-sm text-gray-700">
+                          <span className="font-medium">{group.orders.length} articole</span>
+                          <span className="text-gray-500"> · {totalCantitate} buc</span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-24 bg-gray-200 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full ${progressGrup >= 100 ? 'bg-green-500' : progressGrup >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                style={{ width: `${Math.min(100, progressGrup)}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-medium">{progressGrup}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(statusGrup)}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{group.magazin}</div>
+                          <div className="text-xs text-gray-500">{group.punct_livrare}</div>
+                        </TableCell>
+                        <TableCell>
+                          {group.productie_clienti?.productie_zone_livrare && (
+                            <div
+                              className="px-2 py-1 rounded text-white text-xs font-medium text-center"
+                              style={{ backgroundColor: group.productie_clienti.productie_zone_livrare.culoare }}
+                            >
+                              {group.productie_clienti.productie_zone_livrare.nume_zona}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-500">—</TableCell>
+                        <TableCell className="text-xs">
+                          {new Date(group.created_at).toLocaleDateString('ro-RO')}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {group.data_productie ? new Date(group.data_productie).toLocaleDateString('ro-RO') : '-'}
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-500 italic">
+                          {isExpanded ? 'ascunde' : 'deschide'}
+                        </TableCell>
+                      </TableRow>
+                    );
+
+                    if (!isExpanded) return groupHeader;
+
+                    const detailRows = group.orders.map((order: any) => {
                     const cantitateComandată = order.cantitate;
                     const cantitateRealaProadusa = order.cantitate_reala_produsa || 0;
                     const cantitatedinRestock = order.cantitate_din_restock || 0;
@@ -428,9 +527,11 @@ const OrderManagementReal = () => {
 
                     return (
                       <TableRow key={order.id} className="hover:bg-gray-50">
-                        <TableCell className="font-medium">
-                          {order.numar_comanda}
+                        <TableCell></TableCell>
+                        <TableCell className="font-medium text-xs text-gray-500">
+                          #{order.id?.toString().slice(0, 6)}
                         </TableCell>
+                        
                         
                         <TableCell>
                           <div className="space-y-1">
@@ -605,6 +706,14 @@ const OrderManagementReal = () => {
                         </TableCell>
                       </TableRow>
                     );
+                    });
+
+                    return (
+                      <React.Fragment key={group.key}>
+                        {groupHeader}
+                        {detailRows}
+                      </React.Fragment>
+                    );
                   })}
                 </TableBody>
               </Table>
@@ -614,7 +723,7 @@ const OrderManagementReal = () => {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 pageSize={pageSize}
-                totalItems={filteredOrders.length}
+                totalItems={groupedOrders.length}
                 onPageChange={handlePageChange}
                 onPageSizeChange={handlePageSizeChange}
                 showPageSizeSelector={true}
