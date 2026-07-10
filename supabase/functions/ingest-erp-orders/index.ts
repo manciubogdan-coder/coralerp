@@ -141,6 +141,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        const dataOnly = String(aviz.data_aviz || "").slice(0, 10);
         const { error } = await supabase.from("productie_comenzi").insert({
           magazin: numeMagazin,
           punct_livrare: punctLivrare,
@@ -148,10 +149,10 @@ Deno.serve(async (req) => {
           cantitate: Number(linie.cantitate) || 0,
           baxare: linie.observatie || null,
           status: "pending",
-          data_productie: aviz.data_aviz,
+          data_productie: dataOnly,
           sursa: "senior-erp",
           extern_nr_aviz: externKey,
-          extern_data_aviz: aviz.data_aviz,
+          extern_data_aviz: dataOnly,
         });
         if (error) {
           errors.push({ aviz: aviz.nr_aviz, produs: linie.cod_produs, err: error.message });
