@@ -334,6 +334,12 @@ Deno.serve(async (req) => {
         const dataOnly = String(aviz.data_aviz || "").slice(0, 10);
         const cantitate = Number(linie.cantitate) || 0;
 
+        // Skip retururi (cantitate <= 0)
+        if (cantitate <= 0) {
+          skipped++;
+          continue;
+        }
+
         // 1) Alocare din restocări (surplus disponibil)
         let cantitateRamasa = cantitate;
         let cantitateDinRestock = 0;
