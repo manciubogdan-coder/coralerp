@@ -527,9 +527,11 @@ const OrderManagementReal = () => {
 
                     return (
                       <TableRow key={order.id} className="hover:bg-gray-50">
-                        <TableCell className="font-medium">
-                          {order.numar_comanda}
+                        <TableCell></TableCell>
+                        <TableCell className="font-medium text-xs text-gray-500">
+                          #{order.id?.toString().slice(0, 6)}
                         </TableCell>
+                        
                         
                         <TableCell>
                           <div className="space-y-1">
