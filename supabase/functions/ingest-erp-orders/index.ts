@@ -271,6 +271,7 @@ Deno.serve(async (req) => {
 
         const dataOnly = String(aviz.data_aviz || "").slice(0, 10);
         const { error } = await supabase.from("productie_comenzi").insert({
+          numar_comanda: aviz.nr_aviz, // toate liniile aceluiași document Senior au același numar_comanda => grupare
           magazin: numeMagazin,
           punct_livrare: punctLivrare,
           produs_id: produsId,
