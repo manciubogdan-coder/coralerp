@@ -1,78 +1,89 @@
+## Problem
+Comenzile din Senior se pot modifica după ce în Coral au fost deja `assigned`/`in_progress`/`completed`. Momentan:
+- La update, dacă rândul există, doar `UPDATE cantitate` — dar dacă e deja făcut mai mult decât cere Senior acum, apare "făcut prea mult" fără restocare.
+- La ștergere, sărim rândurile non-pending complet — deci suplimentările care apar ca linie separată nu se procesează bine, iar tăierile la 0 rămân "fantomă" pe linie.
 
-# Import automat comenzi din Senior ERP — Varianta B (agent local)
+Regulă cerută:
+1. Senior nu are comenzi fără client → deja tratat prin `INNER JOIN` + skip.
+2. Modificările din Senior trebuie propagate SIEMPRE, chiar dacă în Coral comanda e `assigned/in_progress/completed`.
+3. **Cantitate crescută** (Senior > Coral): diferența trebuie să apară din nou de făcut pe linie.
+4. **Cantitate scăzută** (Senior < Coral): ce s-a produs în plus trece în **restocată**.
+5. Linie ștearsă în Senior (există în Coral, non-pending): tot ce s-a produs devine restocată.
 
-## Ce faci tu (utilizatorul) — foarte puțin
-1. Instalezi Node.js pe PC-ul din rețeaua companiei (installer next-next-finish, îți dau linkul).
-2. Dezarhivezi folderul `senior-erp-bridge/` pe care ți-l generez.
-3. Deschizi fișierul `.env` și completezi 4 valori (IP, user, parolă DB, un token pe care ți-l dau eu). Îți scriu exact ce merge în fiecare rând.
-4. Dublu-click pe `install-service.bat` (Windows) — se instalează ca serviciu care pornește automat cu PC-ul.
-5. Deschizi în aplicație pagina „Import Senior ERP", faci mapping-ul produselor o singură dată și gata.
+## Modificări în `supabase/functions/ingest-erp-orders/index.ts`
 
-Restul îl fac eu.
+### A. Logica de UPSERT pe linie existentă (`if (existing)`)
 
-## Ce fac eu
+Extindem `select` să includă și `cantitate_facuta` (sau echivalent — verific numele real după intrarea în build). Presupunem `cantitate_facuta` (câmpul urmărit de picking/producție).
 
-### 1. Migrație DB
-- adaug pe `productie_comenzi` coloanele: `sursa TEXT`, `extern_nr_aviz TEXT`, `extern_data_aviz DATE`
-- index unic `(sursa, extern_nr_aviz)` ca să nu se dubleze avizele
-- tabelă nouă `erp_mapping_produse` (cod ERP ↔ `produs_id` intern)
-- tabelă nouă `erp_import_log` (istoric rulări: câte avize, câte create, erori)
-- RLS + GRANT pentru authenticated
+Cazuri după update:
 
-### 2. Edge function `ingest-erp-orders`
-- Primește POST cu lista de avize noi de la bridge-ul local
-- Auth prin header `X-Bridge-Token` verificat față de secret `SENIOR_ERP_BRIDGE_TOKEN` (îl generez eu automat)
-- Validare Zod, deduplicare pe `extern_nr_aviz`, mapping magazin după nume, mapping produs prin `erp_mapping_produse`
-- Inserează în `productie_comenzi` cu `status='pending'`, `sursa='senior-erp'`
-- Scrie log în `erp_import_log`, returnează sumar: `{ created, skipped, unmapped_products, unmapped_stores }`
-
-### 3. Bridge Node.js (folderul livrat ție)
-Structură:
 ```text
-senior-erp-bridge/
-  package.json
-  .env.example            ← tu îl copiezi în .env și completezi
-  src/index.js            ← loop de poll 2 min
-  src/db.js               ← conectare PG/MySQL, SELECT avize
-  src/last-sync.json      ← auto-generat, ține minte de unde a rămas
-  install-service.bat     ← instalează serviciu Windows (node-windows)
-  uninstall-service.bat
-  README.md               ← ghid pas cu pas cu poze/comenzi
+delta = cantitate_noua - cantitate_veche
+
+daca status = 'pending':
+  → doar UPDATE cantitate, magazin, data (cum e acum)
+
+daca status ∈ ('assigned','in_progress','completed'):
+  cantitate_facuta = cât s-a produs deja (0 dacă lipsește)
+
+  daca delta > 0  (suplimentare):
+    UPDATE cantitate = cantitate_noua
+    daca status = 'completed':
+      status ← 'assigned' (redeschidem; picking-ul vede diferența rămasă)
+    // cantitate_facuta rămâne intactă; UI arată "rămas = cantitate - cantitate_facuta"
+
+  daca delta < 0  (redusă):
+    excedent = max(0, cantitate_facuta - cantitate_noua)
+    UPDATE cantitate = cantitate_noua, cantitate_facuta = min(cantitate_facuta, cantitate_noua)
+    daca excedent > 0:
+      INSERT productie_restocari(produs_id, cantitate_surplus, status='disponibil',
+                                 sursa='senior-update', comanda_id, created_at=now)
+    daca cantitate_noua ≤ cantitate_facuta:
+      status ← 'completed'
+    altfel daca status = 'completed':
+      status ← 'assigned'
+
+  daca doar magazin/data s-a schimbat:
+    UPDATE ca acum
 ```
-- Dependințe minime: `pg` (sau `mysql2`), `node-fetch`, `dotenv`, `node-windows`
-- La fiecare 2 min: SELECT avize cu `data_aviz >= last_sync` → POST către edge function → salvează `last_sync` doar dacă răspunsul e OK
-- Retry automat la eroare de rețea (bridge-ul așteaptă și încearcă din nou)
-- Log local în `logs/bridge-YYYY-MM-DD.log`
 
-### 4. Query SQL pentru Senior ERP
-Aici am nevoie **o singură informație de la tine** înainte să scriu bridge-ul:
-- **numele exact al tabelelor de avize din Senior ERP** și 2-3 coloane cheie (nr aviz, dată, cod client, produs, cantitate)
+### B. Logica de ștergere linie dispărută din Senior
 
-Poți să-mi dai una din variantele astea:
-- un screenshot cu structura tabelelor din pgAdmin/MySQL Workbench, sau
-- un export cu `\d avize` (Postgres) / `DESCRIBE avize;` (MySQL), sau
-- pur și simplu mă conectezi tu la DB de pe PC-ul lor și îmi trimiți rezultatul unei interogări simple `SELECT * FROM information_schema.tables WHERE table_schema='public' LIMIT 200;`
+Actualizăm blocul `toDelete`:
 
-Fără asta, scriu `db.js` cu placeholder-uri și trebuie să le înlocuiesc oricum după. Cu asta, primești bridge-ul gata funcțional din prima.
+```text
+pentru fiecare linie existentă pentru aviz care nu mai e în currentKeys:
+  daca status = 'pending':
+    DELETE (comportament actual)
+  altfel:
+    cantitate_facuta_ok = cât s-a produs (>=0)
+    daca cantitate_facuta_ok > 0:
+      INSERT productie_restocari(produs_id, cantitate_surplus=cantitate_facuta_ok,
+                                 status='disponibil', sursa='senior-delete')
+    UPDATE comanda: cantitate = 0, status = 'canceled_by_erp' (sau 'completed' cu flag),
+                    observatie += "Șters din Senior — X kg mutat pe restocată"
+    // nu ștergem rândul ca să păstrăm istoricul
+```
 
-### 5. UI: pagina „Import Senior ERP" în Producție
-- Card status: „Ultima sincronizare acum 1 min • 8 avize azi • 2 erori"
-- Buton „Sincronizare manuală" (apelează edge function-ul cu flag `force=true`)
-- Tabel mapping produse ERP (cod extern ↔ produs intern) — editabil, salvare live
-- Tabel istoric ultimele 50 rulări din `erp_import_log`
-- Alert vizibil dacă bridge-ul nu a mai raportat de > 15 min (îngrijorare că serviciul s-a oprit)
+Rămâne de confirmat cu tine: **preferi `status='canceled_by_erp'` sau păstrăm `completed` + marcăm în observație?** (implicit propun `canceled_by_erp` ca status nou, ca să nu polueze rapoartele de "finalizat").
 
-## Ordinea implementării (după ce aprobi planul)
-1. Migrație DB (tabelele noi + coloane pe comenzi)
-2. Generez token bridge cu `generate_secret`
-3. Edge function `ingest-erp-orders` + o testez cu date fake
-4. UI mapping produse + status
-5. **Pauză aici**: îmi trimiți structura tabelelor din Senior ERP
-6. Generez folderul `senior-erp-bridge/` cu SQL-ul corect și README pas cu pas
-7. Îl descarci, îl pui pe PC, completezi 4 valori în `.env`, dublu-click pe installer
-8. Test end-to-end
+### C. Log & răspuns
 
-## Note
-- Bridge-ul face doar `SELECT` (read-only) pe ERP-ul lor — zero risc pentru datele lor
-- Dacă PC-ul e Linux, îți dau `install-service.sh` cu systemd în loc de `install-service.bat`
-- Dacă mai târziu vor și marcare aviz procesat în ERP, se adaugă la bridge fără să schimb altceva
+Adaug în răspuns și în `erp_import_log`:
+- `linii_suplimentate` (delta > 0 pe non-pending)
+- `linii_reduse_restock` (delta < 0 cu excedent → kg restocate)
+- `linii_anulate` (dispărute cu producție deja făcută)
+
+## Puncte de verificat înainte să scriu codul
+1. Numele exact al coloanei de cantitate produsă pe `productie_comenzi` (`cantitate_facuta` / `cantitate_picking` / alt câmp). O verific la începutul turei de build.
+2. Structura `productie_restocari` — câmpuri obligatorii (comanda_id? linie_id? sursa?). Se aliniază cu logica existentă din edge function (folosim aceeași structură ca la alocarea din restock).
+3. Statusul `canceled_by_erp` — dacă preferi să reutilizez unul existent (`canceled`?), spune-mi.
+
+## Impact frontend
+Zero modificări obligatorii. `OrderManagementReal` deja arată `cantitate` vs `cantitate_facuta`, deci un `status='assigned'` reapărut cu delta pozitiv o să iasă natural pe linie ca "de făcut". Dacă vrei semnalizare vizuală ("modificat din Senior după alocare"), pot adăuga un badge separat — spune dacă îl vrei.
+
+## Ce NU se schimbă
+- Bridge-ul rămâne cum e (fereastră mobilă, INNER JOIN pe partener).
+- Comenzile pending funcționează la fel.
+- Restocările deja consumate la INSERT rămân cum sunt.
