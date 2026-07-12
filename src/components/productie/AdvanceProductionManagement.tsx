@@ -28,8 +28,12 @@ const AdvanceProductionManagement = () => {
   // Filtre și căutare
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [productionDate, setProductionDate] = useState<string>('');
-  const [createdDate, setCreatedDate] = useState<string>('');
+  const todayLocal = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const [productionDate, setProductionDate] = useState<string>(todayLocal);
+  const [createdDate, setCreatedDate] = useState<string>(todayLocal);
 
   // All hooks must be called before any early returns
   const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = useOrders();

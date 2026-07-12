@@ -32,8 +32,12 @@ const OrderManagementReal = () => {
   const [minQuantity, setMinQuantity] = useState<string>('');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [lineFilter, setLineFilter] = useState<string>('all');
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [productionDate, setProductionDate] = useState<string>('');
+  const todayLocal = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const [selectedDate, setSelectedDate] = useState<string>(todayLocal);
+  const [productionDate, setProductionDate] = useState<string>(todayLocal);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const toggleGroup = (key: string) => {
