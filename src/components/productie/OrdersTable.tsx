@@ -108,6 +108,9 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                   <div className="flex items-center gap-1">
                     <span className="text-muted-foreground">Magazin:</span>
                     <span className="font-medium truncate">{order.magazin}</span>
+                    {order.productie_clienti?.nickname && (
+                      <span className="text-amber-700 font-semibold truncate">({order.productie_clienti.nickname})</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <Factory className="w-3 h-3 text-coral-primary shrink-0" />
