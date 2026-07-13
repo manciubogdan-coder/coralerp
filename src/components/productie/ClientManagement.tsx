@@ -256,6 +256,11 @@ const ClientManagement = () => {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold">{client.nume_magazin}</h3>
+                    {client.nickname && (
+                      <Badge variant="outline" className="text-xs bg-amber-50 border-amber-300 text-amber-800">
+                        {client.nickname}
+                      </Badge>
+                    )}
                     {client.productie_zone_livrare && (
                       <Badge 
                         variant="secondary"
