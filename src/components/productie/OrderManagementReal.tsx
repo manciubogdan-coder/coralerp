@@ -501,7 +501,14 @@ const OrderManagementReal = () => {
                         </TableCell>
                         <TableCell>{getStatusBadge(statusGrup)}</TableCell>
                         <TableCell>
-                          <div className="font-medium">{group.magazin}</div>
+                          <div className="font-medium flex items-center gap-2 flex-wrap">
+                            {group.magazin}
+                            {group.productie_clienti?.nickname && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-50 border border-amber-300 text-amber-800 font-semibold">
+                                {group.productie_clienti.nickname}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-xs text-gray-500">{group.punct_livrare}</div>
                         </TableCell>
                         <TableCell>
