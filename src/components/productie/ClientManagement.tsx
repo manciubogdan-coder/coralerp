@@ -51,6 +51,7 @@ const ClientManagement = () => {
   const resetForm = () => {
     setFormData({
       nume_magazin: '',
+      nickname: '',
       punct_livrare: '',
       adresa: '',
       telefon: '',
