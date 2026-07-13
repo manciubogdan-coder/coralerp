@@ -22,6 +22,7 @@ const ClientManagement = () => {
   const [editingClient, setEditingClient] = useState<any>(null);
   const [formData, setFormData] = useState({
     nume_magazin: '',
+    nickname: '',
     punct_livrare: '',
     adresa: '',
     telefon: '',
@@ -50,6 +51,7 @@ const ClientManagement = () => {
   const resetForm = () => {
     setFormData({
       nume_magazin: '',
+      nickname: '',
       punct_livrare: '',
       adresa: '',
       telefon: '',
@@ -90,6 +92,7 @@ const ClientManagement = () => {
     setEditingClient(client);
     setFormData({
       nume_magazin: client.nume_magazin,
+      nickname: client.nickname || '',
       punct_livrare: client.punct_livrare,
       adresa: client.adresa || '',
       telefon: client.telefon || '',
@@ -145,6 +148,16 @@ const ClientManagement = () => {
                   onChange={(e) => setFormData({ ...formData, nume_magazin: e.target.value })}
                   placeholder="ex: Carrefour, Auchan, etc."
                   required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="nickname">Poreclă / Nume Scurt (afișat în comenzi)</Label>
+                <Input
+                  id="nickname"
+                  value={formData.nickname}
+                  onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
+                  placeholder="ex: Carre Vitan, Auchan Titan"
                 />
               </div>
               
@@ -243,6 +256,11 @@ const ClientManagement = () => {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold">{client.nume_magazin}</h3>
+                    {client.nickname && (
+                      <Badge variant="outline" className="text-xs bg-amber-50 border-amber-300 text-amber-800">
+                        {client.nickname}
+                      </Badge>
+                    )}
                     {client.productie_zone_livrare && (
                       <Badge 
                         variant="secondary"

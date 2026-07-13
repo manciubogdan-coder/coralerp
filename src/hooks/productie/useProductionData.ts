@@ -35,6 +35,7 @@ export interface ProductieZonaLivrare {
 export interface ProductieClient {
   id: string;
   nume_magazin: string;
+  nickname?: string;
   punct_livrare: string;
   adresa?: string;
   telefon?: string;
