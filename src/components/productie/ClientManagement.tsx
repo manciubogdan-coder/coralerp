@@ -92,6 +92,7 @@ const ClientManagement = () => {
     setEditingClient(client);
     setFormData({
       nume_magazin: client.nume_magazin,
+      nickname: client.nickname || '',
       punct_livrare: client.punct_livrare,
       adresa: client.adresa || '',
       telefon: client.telefon || '',
