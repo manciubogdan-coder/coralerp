@@ -322,6 +322,11 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                     <div className="space-y-1">
                       <div className="font-medium flex items-center gap-2 flex-wrap">
                         {order.magazin}
+                        {order.productie_clienti?.nickname && (
+                          <Badge variant="outline" className="text-xs bg-amber-50 border-amber-300 text-amber-800">
+                            {order.productie_clienti.nickname}
+                          </Badge>
+                        )}
                         {((order as any).tip_comanda === 'REAMBALARE' || order.magazin === 'REAMBALARE') && (
                           <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100">
                             🔁 Reambalare
