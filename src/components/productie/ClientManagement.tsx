@@ -150,6 +150,16 @@ const ClientManagement = () => {
                   required
                 />
               </div>
+
+              <div>
+                <Label htmlFor="nickname">Poreclă / Nume Scurt (afișat în comenzi)</Label>
+                <Input
+                  id="nickname"
+                  value={formData.nickname}
+                  onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
+                  placeholder="ex: Carre Vitan, Auchan Titan"
+                />
+              </div>
               
               <div>
                 <Label htmlFor="punct_livrare">Punct de Livrare</Label>
