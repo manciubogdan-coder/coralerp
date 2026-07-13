@@ -22,6 +22,7 @@ const ClientManagement = () => {
   const [editingClient, setEditingClient] = useState<any>(null);
   const [formData, setFormData] = useState({
     nume_magazin: '',
+    nickname: '',
     punct_livrare: '',
     adresa: '',
     telefon: '',
