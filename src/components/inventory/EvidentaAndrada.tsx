@@ -150,10 +150,12 @@ export const EvidentaAndrada: React.FC = () => {
   useEffect(() => { fetchRows(); }, [fetchRows]);
 
   const addRow = async (copyFrom?: Row) => {
-    const base: Partial<Row> = copyFrom
-      ? { ...copyFrom, id: undefined as any, created_at: undefined as any }
+    const base: any = copyFrom
+      ? { ...copyFrom }
       : { data: filterDate || todayKey(), inventory_type: inventoryType };
-    delete (base as any).id;
+    delete base.id;
+    delete base.created_at;
+    delete base.updated_at;
     const { data, error } = await supabaseCloud
       .from("evidenta_andrada_rows")
       .insert({ inventory_type: inventoryType, ...base })
