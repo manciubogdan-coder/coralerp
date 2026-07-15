@@ -12,6 +12,7 @@ import OrderManagementReal from "@/components/productie/OrderManagementReal";
 import AdvanceProductionManagement from "@/components/productie/AdvanceProductionManagement";
 import ProductionForecast from "@/components/productie/ProductionForecast";
 import ReportsOrders from "@/components/productie/ReportsOrders";
+import ReportsMirror from "@/components/productie/ReportsMirror";
 import OrderOCR from "@/components/productie/OrderOCR";
 import OperatorInterface from "@/components/productie/OperatorInterface";
 import LineManagement from "@/components/productie/LineManagement";
@@ -82,12 +83,16 @@ const ProductionStockPage = () => {
               <TabsList>
                 <TabsTrigger value="capacity">Forecast Capacitate</TabsTrigger>
                 <TabsTrigger value="orders">Rapoarte pe Comenzi</TabsTrigger>
+                <TabsTrigger value="mirror">Oglindă Plan vs Realizat</TabsTrigger>
               </TabsList>
               <TabsContent value="capacity" className="mt-4">
                 <ProductionForecast />
               </TabsContent>
               <TabsContent value="orders" className="mt-4">
                 <ReportsOrders />
+              </TabsContent>
+              <TabsContent value="mirror" className="mt-4">
+                <ReportsMirror />
               </TabsContent>
             </Tabs>
           </TabsContent>
