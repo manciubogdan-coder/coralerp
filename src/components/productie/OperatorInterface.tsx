@@ -663,6 +663,32 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       return `${h}h ${m}min`;
     };
 
+    // Agregare per produs pentru linia curentă
+    const perProductMap = new Map<string, { nume: string; unitate: string; ramas: number; comenzi: number }>();
+    lineOrders.forEach((o: any) => {
+      const esteReambalare = o.magazin === 'REAMBALARE' || o.tip_comanda === 'REAMBALARE';
+      const acoperit = (o.cantitate_reala_produsa || 0) + (esteReambalare ? 0 : (o.cantitate_din_restock || 0));
+      const ramas = Math.max(0, (o.cantitate || 0) - acoperit);
+      if (ramas <= 0) return;
+      const nume = o.productie_produse?.nume || '—';
+      const unitate = o.productie_produse?.unitate_masura || 'buc';
+      const existing = perProductMap.get(nume);
+      if (existing) {
+        existing.ramas += ramas;
+        existing.comenzi += 1;
+      } else {
+        perProductMap.set(nume, { nume, unitate, ramas, comenzi: 1 });
+      }
+    });
+    const perProduct = Array.from(perProductMap.values()).sort((a, b) => {
+      if (isAromateLine) {
+        const idxA = getAromateIndex(a.nume);
+        const idxB = getAromateIndex(b.nume);
+        if (idxA !== idxB) return idxA - idxB;
+      }
+      return b.ramas - a.ramas;
+    });
+
     return (
       <div className="space-y-6" key={`orders-${refreshKey}-${forceRefreshKey}`}>
         <div className="flex items-center gap-4 flex-wrap">
