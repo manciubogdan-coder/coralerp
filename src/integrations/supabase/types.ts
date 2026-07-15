@@ -223,6 +223,126 @@ export type Database = {
           },
         ]
       }
+      evidenta_andrada_rows: {
+        Row: {
+          bucati_100g: number | null
+          bucati_15g: number | null
+          bucati_250g: number | null
+          bucati_30g: number | null
+          bucati_500g: number | null
+          bucati_70g: number | null
+          cantitate_intrata: number | null
+          cantitate_ramasa: number | null
+          created_at: string
+          data: string
+          data_productie: string | null
+          furnizor: string | null
+          id: string
+          inventory_type: string
+          kg_final: number | null
+          kg_solicitat: number | null
+          lot: string | null
+          mp_intrata_in_prod: number | null
+          mp_utilizata_vanduta: number | null
+          nr_pers: number | null
+          observatii: string | null
+          ora_start: string | null
+          ora_stop: string | null
+          pauza_min: number | null
+          pierdere_tehnologica: number | null
+          pierdere_totala: number | null
+          procent_cantar: number | null
+          procent_cn_solicitata: number | null
+          procent_nc: number | null
+          producator: string | null
+          produs: string | null
+          rebut: number | null
+          retur: string | null
+          retur_repozit: number | null
+          schimb: string | null
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          bucati_100g?: number | null
+          bucati_15g?: number | null
+          bucati_250g?: number | null
+          bucati_30g?: number | null
+          bucati_500g?: number | null
+          bucati_70g?: number | null
+          cantitate_intrata?: number | null
+          cantitate_ramasa?: number | null
+          created_at?: string
+          data: string
+          data_productie?: string | null
+          furnizor?: string | null
+          id?: string
+          inventory_type?: string
+          kg_final?: number | null
+          kg_solicitat?: number | null
+          lot?: string | null
+          mp_intrata_in_prod?: number | null
+          mp_utilizata_vanduta?: number | null
+          nr_pers?: number | null
+          observatii?: string | null
+          ora_start?: string | null
+          ora_stop?: string | null
+          pauza_min?: number | null
+          pierdere_tehnologica?: number | null
+          pierdere_totala?: number | null
+          procent_cantar?: number | null
+          procent_cn_solicitata?: number | null
+          procent_nc?: number | null
+          producator?: string | null
+          produs?: string | null
+          rebut?: number | null
+          retur?: string | null
+          retur_repozit?: number | null
+          schimb?: string | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          bucati_100g?: number | null
+          bucati_15g?: number | null
+          bucati_250g?: number | null
+          bucati_30g?: number | null
+          bucati_500g?: number | null
+          bucati_70g?: number | null
+          cantitate_intrata?: number | null
+          cantitate_ramasa?: number | null
+          created_at?: string
+          data?: string
+          data_productie?: string | null
+          furnizor?: string | null
+          id?: string
+          inventory_type?: string
+          kg_final?: number | null
+          kg_solicitat?: number | null
+          lot?: string | null
+          mp_intrata_in_prod?: number | null
+          mp_utilizata_vanduta?: number | null
+          nr_pers?: number | null
+          observatii?: string | null
+          ora_start?: string | null
+          ora_stop?: string | null
+          pauza_min?: number | null
+          pierdere_tehnologica?: number | null
+          pierdere_totala?: number | null
+          procent_cantar?: number | null
+          procent_cn_solicitata?: number | null
+          procent_nc?: number | null
+          producator?: string | null
+          produs?: string | null
+          rebut?: number | null
+          retur?: string | null
+          retur_repozit?: number | null
+          schimb?: string | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notif_events_catalog: {
         Row: {
           description: string | null
