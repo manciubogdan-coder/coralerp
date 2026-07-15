@@ -75,21 +75,35 @@ const ProductionForecast: React.FC = () => {
   });
 
   const productBreakdown = useMemo(() => {
-    const map = new Map<string, { nume: string; unitate: string; total: number; comenzi: number }>();
+    // For each product: total per weekday + set of distinct dates per weekday
+    const map = new Map<string, {
+      nume: string;
+      unitate: string;
+      perDay: Record<number, { total: number; dates: Set<string> }>;
+      grandTotal: number;
+    }>();
     for (const o of lineProducts as any[]) {
+      if (!o.data_productie) continue;
+      const dateStr = String(o.data_productie).split("T")[0];
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const dt = new Date(y, (m || 1) - 1, d || 1);
+      const wd = dt.getDay();
       const nume = o.productie_produse?.nume || "—";
       const unitate = o.productie_produse?.unitate_masura || "buc";
-      const existing = map.get(nume);
       const qty = Number(o.cantitate) || 0;
-      if (existing) {
-        existing.total += qty;
-        existing.comenzi += 1;
-      } else {
-        map.set(nume, { nume, unitate, total: qty, comenzi: 1 });
+      let entry = map.get(nume);
+      if (!entry) {
+        entry = { nume, unitate, perDay: {}, grandTotal: 0 };
+        map.set(nume, entry);
       }
+      if (!entry.perDay[wd]) entry.perDay[wd] = { total: 0, dates: new Set() };
+      entry.perDay[wd].total += qty;
+      entry.perDay[wd].dates.add(dateStr);
+      entry.grandTotal += qty;
     }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    return Array.from(map.values()).sort((a, b) => b.grandTotal - a.grandTotal);
   }, [lineProducts]);
+
 
 
   const { data: orders = [], isLoading } = useQuery({
@@ -302,34 +316,54 @@ const ProductionForecast: React.FC = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Produs</TableHead>
-                      <TableHead className="text-right">Total comandat</TableHead>
-                      <TableHead className="text-right">Nr. comenzi</TableHead>
-                      <TableHead className="text-right">Media / comandă</TableHead>
+                      <TableHead className="min-w-[180px]">Produs</TableHead>
+                      {WEEKDAYS.map((w) => (
+                        <TableHead key={w.idx} className="text-center min-w-[90px]">{w.long}</TableHead>
+                      ))}
+                      <TableHead className="text-right bg-muted/40">Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {productBreakdown.map((p) => (
                       <TableRow key={p.nume}>
                         <TableCell className="font-medium">{p.nume}</TableCell>
-                        <TableCell className="text-right font-semibold">
-                          {Math.round(p.total).toLocaleString()} {p.unitate}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">{p.comenzi}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {Math.round(p.total / Math.max(1, p.comenzi)).toLocaleString()} {p.unitate}
+                        {WEEKDAYS.map((w) => {
+                          const cell = p.perDay[w.idx];
+                          if (!cell || cell.total === 0) {
+                            return (
+                              <TableCell key={w.idx} className="text-center text-muted-foreground text-xs">—</TableCell>
+                            );
+                          }
+                          const avg = cell.total / cell.dates.size;
+                          return (
+                            <TableCell key={w.idx} className="text-center">
+                              <div className="flex flex-col items-center gap-0.5">
+                                <div className="font-semibold">{Math.round(cell.total).toLocaleString()}</div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  {cell.dates.size}× • media {Math.round(avg).toLocaleString()}
+                                </div>
+                              </div>
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="text-right font-semibold bg-muted/30">
+                          {Math.round(p.grandTotal).toLocaleString()} {p.unitate}
                         </TableCell>
                       </TableRow>
                     ))}
                     <TableRow className="bg-muted/40 font-semibold">
                       <TableCell>TOTAL</TableCell>
+                      {WEEKDAYS.map((w) => {
+                        const dayTotal = productBreakdown.reduce((s, p) => s + (p.perDay[w.idx]?.total || 0), 0);
+                        return (
+                          <TableCell key={w.idx} className="text-center">
+                            {dayTotal > 0 ? Math.round(dayTotal).toLocaleString() : "—"}
+                          </TableCell>
+                        );
+                      })}
                       <TableCell className="text-right">
-                        {Math.round(productBreakdown.reduce((s, p) => s + p.total, 0)).toLocaleString()}
+                        {Math.round(productBreakdown.reduce((s, p) => s + p.grandTotal, 0)).toLocaleString()}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {productBreakdown.reduce((s, p) => s + p.comenzi, 0)}
-                      </TableCell>
-                      <TableCell />
                     </TableRow>
                   </TableBody>
                 </Table>
