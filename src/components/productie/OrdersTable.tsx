@@ -14,9 +14,21 @@ interface OrdersTableProps {
   onOrderSelect: (orderId: string) => void;
   totalItems: number;
   activeSessions?: ProductieSesiuneLucru[];
+  lineCapacity?: number;
 }
 
-const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalItems, activeSessions = [] }) => {
+// Formatează ore zecimale în "Xh Ymin"
+const formatDuration = (hours: number) => {
+  if (!isFinite(hours) || hours <= 0) return '-';
+  const totalMin = Math.max(1, Math.round(hours * 60));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
+};
+
+const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalItems, activeSessions = [], lineCapacity }) => {
   const {
     currentPage,
     pageSize,
