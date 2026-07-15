@@ -704,37 +704,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           </CardContent>
         </Card>
 
-        {/* Breakdown per produs */}
-        {perProduct.length > 0 && (
-          <Card className="border-coral-200">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base text-coral-primary flex items-center gap-2">
-                <Package className="h-4 w-4" /> Detaliu pe produse ({perProduct.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {perProduct.map((p) => {
-                  const ore = cap > 0 ? p.ramas / cap : 0;
-                  return (
-                    <div key={p.nume} className="border rounded-md p-3 bg-white flex flex-col gap-1">
-                      <div className="font-medium text-coral-primary truncate" title={p.nume}>{p.nume}</div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Rămas:</span>
-                        <span className="font-bold">{p.ramas} {p.unitate}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600 flex items-center gap-1"><Clock className="h-3 w-3" /> Timp:</span>
-                        <span className="font-medium text-blue-700">{cap > 0 ? `~${formatDur(ore)}` : '-'}</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground">{p.comenzi} {p.comenzi === 1 ? 'comandă' : 'comenzi'}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+
 
         <Card className="border-coral-200">
           <CardContent className="pt-4 flex items-center gap-2 flex-wrap">
