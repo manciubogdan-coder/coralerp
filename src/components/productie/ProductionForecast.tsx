@@ -44,8 +44,53 @@ const ProductionForecast: React.FC = () => {
 
   const [startDate, setStartDate] = useState(fmtDate(fourWeeksAgo));
   const [endDate, setEndDate] = useState(fmtDate(today));
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
 
   const { data: lines = [] } = useProductionLines();
+  const selectedLine = lines.find((l) => l.id === selectedLineId);
+
+  const { data: lineProducts = [], isLoading: loadingProducts } = useQuery({
+    queryKey: ["forecast-line-products", selectedLineId, startDate, endDate],
+    enabled: !!selectedLineId,
+    queryFn: async () => {
+      const all: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("productie_comenzi")
+          .select("cantitate, data_productie, productie_produse(nume, unitate_masura)")
+          .eq("linie_id", selectedLineId as string)
+          .gte("data_productie", startDate)
+          .lte("data_productie", endDate)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return all;
+    },
+  });
+
+  const productBreakdown = useMemo(() => {
+    const map = new Map<string, { nume: string; unitate: string; total: number; comenzi: number }>();
+    for (const o of lineProducts as any[]) {
+      const nume = o.productie_produse?.nume || "—";
+      const unitate = o.productie_produse?.unitate_masura || "buc";
+      const existing = map.get(nume);
+      const qty = Number(o.cantitate) || 0;
+      if (existing) {
+        existing.total += qty;
+        existing.comenzi += 1;
+      } else {
+        map.set(nume, { nume, unitate, total: qty, comenzi: 1 });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [lineProducts]);
+
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["forecast-orders", startDate, endDate],
@@ -156,7 +201,11 @@ const ProductionForecast: React.FC = () => {
                     const weekTotal = cells.reduce((s, c) => s + (c.data?.avg || 0), 0);
                     const weekTime = line.capacitate_ora > 0 ? weekTotal / line.capacitate_ora : 0;
                     return (
-                      <TableRow key={line.id}>
+                      <TableRow
+                        key={line.id}
+                        onClick={() => setSelectedLineId(line.id === selectedLineId ? null : line.id)}
+                        className={`cursor-pointer hover:bg-muted/40 ${selectedLineId === line.id ? "bg-muted/60" : ""}`}
+                      >
                         <TableCell className="font-medium">{line.nume}</TableCell>
                         <TableCell className="text-center text-sm text-muted-foreground">
                           {line.capacitate_ora} buc/h
@@ -223,8 +272,72 @@ const ProductionForecast: React.FC = () => {
               <Calendar className="h-3 w-3" /> N× = câte zile de acel tip s-au observat
             </Badge>
           </div>
+          <p className="text-xs text-muted-foreground pt-1">
+            💡 Apasă pe o linie pentru a vedea detaliul pe produse.
+          </p>
         </CardContent>
       </Card>
+
+      {selectedLineId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Produse pe linia „{selectedLine?.nume}"
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedLineId(null)}>Închide</Button>
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Total comandat per produs în perioada {startDate} → {endDate}.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {loadingProducts ? (
+              <div className="text-center py-8 text-muted-foreground">Se încarcă...</div>
+            ) : productBreakdown.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">Nicio comandă în perioada selectată.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Produs</TableHead>
+                      <TableHead className="text-right">Total comandat</TableHead>
+                      <TableHead className="text-right">Nr. comenzi</TableHead>
+                      <TableHead className="text-right">Media / comandă</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {productBreakdown.map((p) => (
+                      <TableRow key={p.nume}>
+                        <TableCell className="font-medium">{p.nume}</TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {Math.round(p.total).toLocaleString()} {p.unitate}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">{p.comenzi}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {Math.round(p.total / Math.max(1, p.comenzi)).toLocaleString()} {p.unitate}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="bg-muted/40 font-semibold">
+                      <TableCell>TOTAL</TableCell>
+                      <TableCell className="text-right">
+                        {Math.round(productBreakdown.reduce((s, p) => s + p.total, 0)).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {productBreakdown.reduce((s, p) => s + p.comenzi, 0)}
+                      </TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
