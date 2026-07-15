@@ -6,7 +6,7 @@ import { ForceInventoryType, type InventoryType } from "@/context/inventory-type
 import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView";
 import DailyStockQuality from "@/components/inventory/DailyStockQuality";
 import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
-import EvidentaAndrada from "@/components/inventory/EvidentaAndrada";
+
 import ReceptionReport from "@/components/inventory/ReceptionReport";
 import SupplierAnalyticsReport from "@/components/inventory/SupplierAnalyticsReport";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
