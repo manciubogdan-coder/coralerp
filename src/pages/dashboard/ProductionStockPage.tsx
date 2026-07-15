@@ -10,6 +10,7 @@ import ProductionStockManagement from "@/components/production/ProductionStockMa
 import ProductionDashboardReal from "@/components/productie/ProductionDashboardReal";
 import OrderManagementReal from "@/components/productie/OrderManagementReal";
 import AdvanceProductionManagement from "@/components/productie/AdvanceProductionManagement";
+import ProductionForecast from "@/components/productie/ProductionForecast";
 import OrderOCR from "@/components/productie/OrderOCR";
 import OperatorInterface from "@/components/productie/OperatorInterface";
 import LineManagement from "@/components/productie/LineManagement";
