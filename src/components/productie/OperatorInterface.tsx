@@ -644,10 +644,28 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   // VIEW: Orders for selected line - NOW USING TABLE FORMAT
   if (view === 'orders' && currentLineId) {
     const currentLine = lines?.find(l => l.id === currentLineId);
+    const cap = currentLine?.capacitate_ora || 0;
+
+    // Total bucăți rămase pe linie (pentru toate comenzile filtrate)
+    const totalBucRamase = lineOrders.reduce((sum, o: any) => {
+      const esteReambalare = o.magazin === 'REAMBALARE' || o.tip_comanda === 'REAMBALARE';
+      const acoperit = (o.cantitate_reala_produsa || 0) + (esteReambalare ? 0 : (o.cantitate_din_restock || 0));
+      return sum + Math.max(0, (o.cantitate || 0) - acoperit);
+    }, 0);
+    const totalOreEstimate = cap > 0 ? totalBucRamase / cap : 0;
+    const formatDur = (hours: number) => {
+      if (!isFinite(hours) || hours <= 0) return '-';
+      const totalMin = Math.max(1, Math.round(hours * 60));
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+      if (h === 0) return `${m} min`;
+      if (m === 0) return `${h}h`;
+      return `${h}h ${m}min`;
+    };
 
     return (
       <div className="space-y-6" key={`orders-${refreshKey}-${forceRefreshKey}`}>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <Button
             variant="outline"
             onClick={() => setView('lines')}
@@ -660,6 +678,31 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             Comenzi pentru {currentLine?.nume} - {totalItems} comenzi (ordinea livrării)
           </h2>
         </div>
+
+        {/* Sumar linie: bucăți rămase + timp estimat */}
+        <Card className="border-coral-200">
+          <CardContent className="pt-4 flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-coral-primary" />
+              <span className="text-sm text-gray-600">Total de produs:</span>
+              <span className="font-bold text-coral-primary text-lg">{totalBucRamase} buc</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-blue-600" />
+              <span className="text-sm text-gray-600">Timp estimat:</span>
+              <span className="font-bold text-blue-700 text-lg">
+                {cap > 0 ? `~${formatDur(totalOreEstimate)}` : 'Fără capacitate'}
+              </span>
+            </div>
+            {cap > 0 && (
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-green-600" />
+                <span className="text-sm text-gray-600">Productivitate:</span>
+                <span className="font-medium text-green-700">{cap} buc/h</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <Card className="border-coral-200">
           <CardContent className="pt-4 flex items-center gap-2 flex-wrap">
@@ -678,6 +721,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
               onOrderSelect={handleOrderSelect}
               totalItems={totalItems}
               activeSessions={activeSessions}
+              lineCapacity={cap}
             />
             
             {/* Paginarea pentru comenzi */}
