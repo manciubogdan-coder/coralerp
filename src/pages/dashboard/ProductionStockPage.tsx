@@ -76,6 +76,10 @@ const ProductionStockPage = () => {
             <AdvanceProductionManagement />
           </TabsContent>
 
+          <TabsContent value="forecast">
+            <ProductionForecast />
+          </TabsContent>
+
           <TabsContent value="ocr">
             <OrderOCR />
           </TabsContent>
