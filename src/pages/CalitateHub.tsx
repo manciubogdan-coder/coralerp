@@ -6,6 +6,7 @@ import { ForceInventoryType, type InventoryType } from "@/context/inventory-type
 import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView";
 import DailyStockQuality from "@/components/inventory/DailyStockQuality";
 import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
+import EvidentaAndrada from "@/components/inventory/EvidentaAndrada";
 import ReceptionReport from "@/components/inventory/ReceptionReport";
 import SupplierAnalyticsReport from "@/components/inventory/SupplierAnalyticsReport";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
@@ -26,6 +27,7 @@ const SUB_TABS = [
   { key: "receptie", label: "Recepție" },
   { key: "raport-furnizori", label: "Raport Furnizori" },
   { key: "restocari", label: "Restocări" },
+  { key: "evidenta-andrada", label: "Evidență Andrada" },
 ] as const;
 
 type SubTabKey = (typeof SUB_TABS)[number]["key"];
@@ -42,7 +44,7 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
   return (
     <ForceInventoryType type={type}>
       <Tabs value={sub} onValueChange={(v) => setSub(v as SubTabKey)} className="w-full">
-        <TabsList className="flex w-full md:grid md:grid-cols-6 mb-4 h-auto gap-1 p-1 overflow-x-auto">
+        <TabsList className="flex w-full md:grid md:grid-cols-7 mb-4 h-auto gap-1 p-1 overflow-x-auto">
           {SUB_TABS.map((t) => (
             <TabsTrigger key={t.key} value={t.key} className="flex-shrink-0 text-xs sm:text-sm whitespace-nowrap md:whitespace-normal h-auto py-2 px-3">
               {t.label}
@@ -94,6 +96,14 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
           <Card>
             <CardContent className="p-4">
               <MarfaRestocataView />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="evidenta-andrada">
+          <Card>
+            <CardContent className="p-4">
+              <EvidentaAndrada />
             </CardContent>
           </Card>
         </TabsContent>
