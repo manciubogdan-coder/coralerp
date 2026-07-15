@@ -185,17 +185,30 @@ const AppSidebar: React.FC = () => {
             <SidebarGroupContent>
               <SidebarMenu>
                 {hasDepartment('calitate') && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={location.pathname === '/calitate'}
-                      onClick={() => handleNavigation('/calitate')}
-                      tooltip="Hub Calitate"
-                      className={isMobile ? 'text-black hover:bg-gray-100' : ''}
-                    >
-                      <ShieldCheck className="mr-2" size={16} />
-                      <span>Hub Calitate</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        isActive={location.pathname === '/calitate'}
+                        onClick={() => handleNavigation('/calitate')}
+                        tooltip="Hub Calitate"
+                        className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                      >
+                        <ShieldCheck className="mr-2" size={16} />
+                        <span>Hub Calitate</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        isActive={location.pathname === '/evidenta-andrada'}
+                        onClick={() => handleNavigation('/evidenta-andrada')}
+                        tooltip="Evidență Andrada"
+                        className={isMobile ? 'text-black hover:bg-gray-100' : ''}
+                      >
+                        <ShieldCheck className="mr-2" size={16} />
+                        <span>Evidență Andrada</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </>
                 )}
                 {hasDepartment('operator' as any) && (
                   <SidebarMenuItem>
