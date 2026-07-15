@@ -295,6 +295,31 @@ export const EvidentaAndrada: React.FC = () => {
       );
     }
     const val = (r as any)[c.key];
+    if (c.type === "int") {
+      return (
+        <Input
+          type="number"
+          step="1"
+          min="0"
+          value={val ?? ""}
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (raw === "") { updateLocal(r.id, c.key, null); return; }
+            const n = parseInt(raw, 10);
+            updateLocal(r.id, c.key, isNaN(n) ? null : n);
+          }}
+          onBlur={async (e) => {
+            const raw = e.target.value;
+            const v = raw === "" ? null : (isNaN(parseInt(raw, 10)) ? null : parseInt(raw, 10));
+            await saveField(r.id, c.key, v);
+            if (["bucati_15g","bucati_30g","bucati_70g","bucati_100g","bucati_250g","bucati_500g"].includes(c.key as string)) {
+              await commitDerived({ ...r, [c.key]: v } as Row);
+            }
+          }}
+          className="h-8 text-right px-2"
+        />
+      );
+    }
     if (c.type === "num") {
       return (
         <Input
@@ -305,7 +330,7 @@ export const EvidentaAndrada: React.FC = () => {
           onBlur={async (e) => {
             const v = e.target.value === "" ? null : parseFloat(e.target.value);
             await saveField(r.id, c.key, v);
-            if (["mp_intrata_in_prod","mp_utilizata_vanduta","rebut","retur_repozit","bucati_15g","bucati_30g","bucati_70g","bucati_100g","bucati_250g","bucati_500g"].includes(c.key as string)) {
+            if (["mp_intrata_in_prod","mp_utilizata_vanduta","rebut","retur_repozit"].includes(c.key as string)) {
               const updated = { ...r, [c.key]: v };
               await commitDerived(updated as Row);
             }
@@ -313,6 +338,7 @@ export const EvidentaAndrada: React.FC = () => {
           className="h-8 text-right px-2"
         />
       );
+    }
     }
     if (c.type === "date") {
       return (
