@@ -259,8 +259,14 @@ export const EvidentaAndrada: React.FC = () => {
   const handleExport = () => {
     if (!filtered.length) { toast({ title: "Nu există date" }); return; }
     const data = filtered.map((r) => {
+      const d = derivedFromLot(r);
       const out: any = {};
-      COLS.forEach((c) => { out[c.label] = (r as any)[c.key] ?? ""; });
+      COLS.forEach((c) => {
+        if (c.key === "procent_cn_solicitata") out[c.label] = d.pt ?? "";
+        else if (c.key === "kg_solicitat") out[c.label] = d.kgSolicitat ?? "";
+        else if (c.key === "cantitate_ramasa") out[c.label] = d.remaining ?? "";
+        else out[c.label] = (r as any)[c.key] ?? "";
+      });
       return out;
     });
     exportToExcel(data, `Evidenta_Andrada_${inventoryType}_${filterDate || "toate"}.xlsx`);
