@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-custom-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { InventoryItem } from "@/types";
 import {
   Dialog,
