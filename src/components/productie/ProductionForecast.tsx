@@ -75,21 +75,35 @@ const ProductionForecast: React.FC = () => {
   });
 
   const productBreakdown = useMemo(() => {
-    const map = new Map<string, { nume: string; unitate: string; total: number; comenzi: number }>();
+    // For each product: total per weekday + set of distinct dates per weekday
+    const map = new Map<string, {
+      nume: string;
+      unitate: string;
+      perDay: Record<number, { total: number; dates: Set<string> }>;
+      grandTotal: number;
+    }>();
     for (const o of lineProducts as any[]) {
+      if (!o.data_productie) continue;
+      const dateStr = String(o.data_productie).split("T")[0];
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const dt = new Date(y, (m || 1) - 1, d || 1);
+      const wd = dt.getDay();
       const nume = o.productie_produse?.nume || "—";
       const unitate = o.productie_produse?.unitate_masura || "buc";
-      const existing = map.get(nume);
       const qty = Number(o.cantitate) || 0;
-      if (existing) {
-        existing.total += qty;
-        existing.comenzi += 1;
-      } else {
-        map.set(nume, { nume, unitate, total: qty, comenzi: 1 });
+      let entry = map.get(nume);
+      if (!entry) {
+        entry = { nume, unitate, perDay: {}, grandTotal: 0 };
+        map.set(nume, entry);
       }
+      if (!entry.perDay[wd]) entry.perDay[wd] = { total: 0, dates: new Set() };
+      entry.perDay[wd].total += qty;
+      entry.perDay[wd].dates.add(dateStr);
+      entry.grandTotal += qty;
     }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    return Array.from(map.values()).sort((a, b) => b.grandTotal - a.grandTotal);
   }, [lineProducts]);
+
 
 
   const { data: orders = [], isLoading } = useQuery({
