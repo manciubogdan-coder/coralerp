@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-custom-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { InventoryItem } from "@/types";
 import {
   Dialog,
@@ -540,6 +541,76 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
       const dest = (formData.destination || "").toString();
       const isProductionDest = /produc[țt]ie/i.test(dest);
+
+      // Auto-populate Evidența Andrada (doar pentru materii prime + destinație producție)
+      if (inventoryType === "materii-prime" && isProductionDest) {
+        try {
+          // Agregăm pe (data, lot, produs, furnizor, producător)
+          type AggKey = string;
+          const agg = new Map<AggKey, {
+            data: string;
+            lot: string;
+            produs: string;
+            furnizor: string | null;
+            producator: string | null;
+            mp: number;
+          }>();
+          for (const it of selectedItems) {
+            const lot = (it.lot_number || "").trim();
+            if (!lot) continue;
+            const produs = it.productName || "";
+            const furnizor = it.supplier || null;
+            const producator = it.manufacturer || null;
+            const netTransferred = it.netQuantity && it.netQuantity > 0 ? it.netQuantity : it.quantity;
+            const key = [formData.transferDate, lot, produs, furnizor || "", producator || ""].join("|");
+            const prev = agg.get(key);
+            if (prev) prev.mp += netTransferred;
+            else agg.set(key, { data: formData.transferDate, lot, produs, furnizor, producator, mp: netTransferred });
+          }
+
+          for (const row of agg.values()) {
+            // Verificăm dacă există deja un rând pentru aceeași combinație
+            const { data: existing } = await supabaseCloud
+              .from("evidenta_andrada_rows")
+              .select("id, mp_intrata_in_prod, cantitate_intrata, observatii")
+              .eq("inventory_type", "materii-prime")
+              .eq("data", row.data)
+              .eq("lot", row.lot)
+              .eq("produs", row.produs)
+              .limit(1)
+              .maybeSingle();
+
+            const destNote = `Transfer către ${dest}`;
+            if (existing) {
+              const newMp = Number(((existing.mp_intrata_in_prod || 0) + row.mp).toFixed(3));
+              const newCant = Number(((existing.cantitate_intrata || 0) + row.mp).toFixed(3));
+              const obs = existing.observatii && existing.observatii.includes(destNote)
+                ? existing.observatii
+                : [existing.observatii, destNote].filter(Boolean).join(" • ");
+              await supabaseCloud
+                .from("evidenta_andrada_rows")
+                .update({ mp_intrata_in_prod: newMp, cantitate_intrata: newCant, observatii: obs })
+                .eq("id", existing.id);
+            } else {
+              await supabaseCloud.from("evidenta_andrada_rows").insert({
+                inventory_type: "materii-prime",
+                data: row.data,
+                lot: row.lot,
+                produs: row.produs,
+                furnizor: row.furnizor,
+                producator: row.producator,
+                cantitate_intrata: Number(row.mp.toFixed(3)),
+                mp_intrata_in_prod: Number(row.mp.toFixed(3)),
+                data_productie: row.data,
+                observatii: destNote,
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("[evidenta-andrada] auto-populate failed", e);
+        }
+      }
+
       try {
         await emitNotification("transfer.created", "Transfer creat", {
           body: `Bon transfer către ${dest} (${selectedItems.length} produse)`,
