@@ -267,6 +267,19 @@ export const EvidentaAndrada: React.FC = () => {
   };
 
   const renderCell = (r: Row, c: typeof COLS[number]) => {
+    // Auto-derived read-only cells based on lot + cantitate_intrata
+    if (c.readonly) {
+      const d = derivedFromLot(r);
+      let display: string | number = "";
+      if (c.key === "procent_cn_solicitata") display = d.pt != null ? `${d.pt}%` : "—";
+      else if (c.key === "kg_solicitat") display = d.kgSolicitat != null ? d.kgSolicitat.toFixed(2) : "—";
+      else if (c.key === "cantitate_ramasa") display = d.remaining != null ? d.remaining.toFixed(2) : "—";
+      return (
+        <div className="h-8 px-2 flex items-center justify-end text-sm bg-muted/40 rounded font-medium">
+          {display}
+        </div>
+      );
+    }
     const val = (r as any)[c.key];
     if (c.type === "num") {
       return (
@@ -278,13 +291,12 @@ export const EvidentaAndrada: React.FC = () => {
           onBlur={async (e) => {
             const v = e.target.value === "" ? null : parseFloat(e.target.value);
             await saveField(r.id, c.key, v);
-            // recompute derived if this field affects it
             if (["mp_intrata_in_prod","mp_utilizata_vanduta","rebut","retur_repozit","bucati_15g","bucati_30g","bucati_70g","bucati_100g","bucati_250g","bucati_500g"].includes(c.key as string)) {
               const updated = { ...r, [c.key]: v };
               await commitDerived(updated as Row);
             }
           }}
-          className="h-8 text-right px-1"
+          className="h-8 text-right px-2"
         />
       );
     }
@@ -295,7 +307,7 @@ export const EvidentaAndrada: React.FC = () => {
           value={val ?? ""}
           onChange={(e) => updateLocal(r.id, c.key, e.target.value || null)}
           onBlur={(e) => saveField(r.id, c.key, e.target.value || null)}
-          className="h-8 px-1"
+          className="h-8 px-2"
         />
       );
     }
@@ -306,7 +318,7 @@ export const EvidentaAndrada: React.FC = () => {
           value={val ?? ""}
           onChange={(e) => updateLocal(r.id, c.key, e.target.value || null)}
           onBlur={(e) => saveField(r.id, c.key, e.target.value || null)}
-          className="h-8 px-1"
+          className="h-8 px-2"
         />
       );
     }
@@ -316,7 +328,7 @@ export const EvidentaAndrada: React.FC = () => {
         value={val ?? ""}
         onChange={(e) => updateLocal(r.id, c.key, e.target.value)}
         onBlur={(e) => saveField(r.id, c.key, e.target.value || null)}
-        className="h-8 px-1"
+        className="h-8 px-2"
       />
     );
   };
