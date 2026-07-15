@@ -150,31 +150,40 @@ export const EvidentaAndrada: React.FC = () => {
 
   useEffect(() => { fetchRows(); }, [fetchRows]);
 
-  // Lookup: lot -> { pt_percent, remaining_qty } from legacy DB
-  const [lotInfo, setLotInfo] = useState<Record<string, { pt: number | null; remaining: number | null }>>({});
+  // Lookup: lot -> { pierdere_procent (Pierd.% din tab Recepție), pierdere_kg (Pierd(kg)), remaining_qty }
+  const [lotInfo, setLotInfo] = useState<Record<string, { pct: number | null; kg: number | null; remaining: number | null }>>({});
   useEffect(() => {
     const lots = Array.from(new Set(rows.map((r) => r.lot).filter(Boolean))) as string[];
     if (lots.length === 0) { setLotInfo({}); return; }
     (async () => {
-      const info: Record<string, { pt: number | null; remaining: number | null }> = {};
-      // reception -> pt_percent via products
+      const info: Record<string, { pct: number | null; kg: number | null; remaining: number | null }> = {};
       const { data: rec } = await (supabase as any)
         .from("reception_report_data")
-        .select("lot_number, nonconform_percent, products:product_id(pt_percent)")
+        .select("lot_number, pierdere_calitativa_procent, cantitate_receptionata, cantitate_document, surplus_declarat")
         .in("lot_number", lots);
       (rec || []).forEach((r: any) => {
-        const pt = r.products?.pt_percent ?? r.nonconform_percent ?? null;
-        if (!info[r.lot_number]) info[r.lot_number] = { pt: pt, remaining: null };
-        else if (info[r.lot_number].pt == null) info[r.lot_number].pt = pt;
+        const pct = r.pierdere_calitativa_procent != null ? Number(r.pierdere_calitativa_procent) : null;
+        // base = effectiveReceived (cantitate_receptionata - surplus_declarat), else document if under-tolerance
+        const surplus = Number(r.surplus_declarat || 0);
+        const rec_q = Number(r.cantitate_receptionata || 0);
+        const doc_q = Number(r.cantitate_document || 0);
+        const effective = rec_q - surplus;
+        const base = effective < doc_q ? doc_q : effective;
+        const kg = pct != null && base ? +((base * pct) / 100).toFixed(2) : null;
+        const key = r.lot_number;
+        if (!info[key]) info[key] = { pct, kg, remaining: null };
+        else {
+          info[key].pct = info[key].pct ?? pct;
+          info[key].kg = (info[key].kg || 0) + (kg || 0);
+        }
       });
-      // inventory -> remaining qty per lot
       const { data: inv } = await (supabase as any)
         .from("inventory")
         .select("lot_number, quantity")
         .in("lot_number", lots);
       (inv || []).forEach((r: any) => {
         const key = r.lot_number;
-        if (!info[key]) info[key] = { pt: null, remaining: 0 };
+        if (!info[key]) info[key] = { pct: null, kg: null, remaining: 0 };
         info[key].remaining = (info[key].remaining || 0) + Number(r.quantity || 0);
       });
       setLotInfo(info);
@@ -183,11 +192,10 @@ export const EvidentaAndrada: React.FC = () => {
 
   const derivedFromLot = (r: Row) => {
     const info = r.lot ? lotInfo[r.lot] : undefined;
-    const pt = info?.pt ?? null;
-    const cantIntr = r.cantitate_intrata || 0;
-    const kgSolicitat = pt != null && cantIntr ? +(cantIntr * pt / 100).toFixed(2) : null;
+    const pct = info?.pct ?? null;
+    const kg = info?.kg ?? null;
     const remaining = info?.remaining ?? null;
-    return { pt, kgSolicitat, remaining: remaining != null ? +remaining.toFixed(2) : null };
+    return { pt: pct, kgSolicitat: kg, remaining: remaining != null ? +remaining.toFixed(2) : null };
   };
 
 
