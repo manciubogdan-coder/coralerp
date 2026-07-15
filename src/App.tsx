@@ -329,6 +329,16 @@ const AppShell = () => {
                   }
                 />
 
+                {/* ========== EVIDENȚĂ ANDRADA ========== */}
+                <Route
+                  path="/evidenta-andrada"
+                  element={
+                    <ProtectedRoute requireDepartment="calitate">
+                      <EvidentaAndradaHub />
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* ========== EVIDENȚĂ DOCUMENTE ========== */}
                 <Route
                   path="/evidenta-documente"
