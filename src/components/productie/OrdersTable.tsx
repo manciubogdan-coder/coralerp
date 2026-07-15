@@ -14,9 +14,21 @@ interface OrdersTableProps {
   onOrderSelect: (orderId: string) => void;
   totalItems: number;
   activeSessions?: ProductieSesiuneLucru[];
+  lineCapacity?: number;
 }
 
-const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalItems, activeSessions = [] }) => {
+// Formatează ore zecimale în "Xh Ymin"
+const formatDuration = (hours: number) => {
+  if (!isFinite(hours) || hours <= 0) return '-';
+  const totalMin = Math.max(1, Math.round(hours * 60));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
+};
+
+const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalItems, activeSessions = [], lineCapacity }) => {
   const {
     currentPage,
     pageSize,
@@ -129,6 +141,12 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                     <div className="col-span-2 text-red-600 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       Lipsește: {cantitateRamasaDeProdus} {order.productie_produse?.unitate_masura}
+                      {lineCapacity && lineCapacity > 0 && (
+                        <span className="ml-2 text-blue-700 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          ~{formatDuration(cantitateRamasaDeProdus / lineCapacity)}
+                        </span>
+                      )}
                     </div>
                   )}
                   {hasActiveSession && (
@@ -285,6 +303,14 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                             <AlertTriangle className="w-3 h-3 text-red-600" />
                             <span className="text-red-700 font-medium text-xs">
                               Lipsește: {cantitateRamasaDeProdus} {order.productie_produse?.unitate_masura}
+                            </span>
+                          </div>
+                        )}
+                        {cantitateRamasaDeProdus > 0 && lineCapacity && lineCapacity > 0 && (
+                          <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 rounded-full border border-blue-200">
+                            <Clock className="w-3 h-3 text-blue-600" />
+                            <span className="text-blue-700 font-medium text-xs">
+                              Timp estimat: ~{formatDuration(cantitateRamasaDeProdus / lineCapacity)}
                             </span>
                           </div>
                         )}
