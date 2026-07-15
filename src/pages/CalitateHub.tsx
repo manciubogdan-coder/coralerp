@@ -99,6 +99,14 @@ const DepotPanel: React.FC<{ type: InventoryType }> = ({ type }) => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="evidenta-andrada">
+          <Card>
+            <CardContent className="p-4">
+              <EvidentaAndrada />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </ForceInventoryType>
   );
