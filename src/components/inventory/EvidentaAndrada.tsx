@@ -1,488 +1,370 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Calendar, FileSpreadsheet } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
+import { Calendar, FileSpreadsheet, Plus, Trash2, Copy } from "lucide-react";
+import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useInventoryType } from "@/context/inventory-type";
-import { persistDateKey, readStoredDateKey, yesterdayKey } from "@/lib/persistentDate";
+import { persistDateKey, readStoredDateKey, todayKey } from "@/lib/persistentDate";
 
-interface LotRow {
-  product_name: string;
-  product_code: string;
-  lot_number: string;
-  unit: string;
-  manufacturer_id: string | null;
-  manufacturer_name: string;
-  pt_percent: number;
-  initial_stock: number;
-  outbound_quantity: number;
-  received_quantity: number;
-  final_stock: number;
-  current_remaining: number;
-}
-
-interface ManualEntry {
-  rebut: number;
-  pt_real: number;
-  cantar: number;
-  notes?: string;
-}
-
-const emptyEntry: ManualEntry = { rebut: 0, pt_real: 0, cantar: 0, notes: "" };
-
-const storageKeyFor = (invType: string, date: string) =>
-  `evidenta-andrada.${invType}.${date}`;
-
-const loadManual = (invType: string, date: string): Record<string, ManualEntry> => {
-  try {
-    const raw = localStorage.getItem(storageKeyFor(invType, date));
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+type Row = {
+  id: string;
+  inventory_type: string;
+  data: string;
+  lot: string | null;
+  produs: string | null;
+  cantitate_intrata: number | null;
+  furnizor: string | null;
+  kg_solicitat: number | null;
+  procent_cn_solicitata: number | null;
+  cantitate_ramasa: number | null;
+  data_productie: string | null;
+  schimb: string | null;
+  mp_intrata_in_prod: number | null;
+  mp_utilizata_vanduta: number | null;
+  pierdere_totala: number | null;
+  rebut: number | null;
+  retur_repozit: number | null;
+  procent_nc: number | null;
+  pierdere_tehnologica: number | null;
+  procent_cantar: number | null;
+  bucati_15g: number | null;
+  bucati_30g: number | null;
+  bucati_70g: number | null;
+  bucati_100g: number | null;
+  bucati_250g: number | null;
+  bucati_500g: number | null;
+  kg_final: number | null;
+  nr_pers: number | null;
+  ora_start: string | null;
+  ora_stop: string | null;
+  pauza_min: number | null;
+  observatii: string | null;
+  retur: string | null;
+  producator: string | null;
+  sort_order: number | null;
 };
 
-const saveManual = (invType: string, date: string, data: Record<string, ManualEntry>) => {
-  try {
-    localStorage.setItem(storageKeyFor(invType, date), JSON.stringify(data));
-  } catch {}
+const numFields = new Set([
+  "cantitate_intrata","kg_solicitat","procent_cn_solicitata","cantitate_ramasa",
+  "mp_intrata_in_prod","mp_utilizata_vanduta","pierdere_totala","rebut","retur_repozit",
+  "procent_nc","pierdere_tehnologica","procent_cantar","bucati_15g","bucati_30g",
+  "bucati_70g","bucati_100g","bucati_250g","bucati_500g","kg_final","nr_pers","pauza_min",
+]);
+
+// column definition: [key, label, width, type]
+const COLS: Array<{ key: keyof Row; label: string; w: string; type: "date" | "num" | "text" | "time" }> = [
+  { key: "data", label: "Data", w: "w-28", type: "date" },
+  { key: "lot", label: "Lot", w: "w-20", type: "text" },
+  { key: "produs", label: "Produs", w: "w-28", type: "text" },
+  { key: "cantitate_intrata", label: "Cant. intrată (kg)", w: "w-24", type: "num" },
+  { key: "furnizor", label: "Furnizor", w: "w-28", type: "text" },
+  { key: "producator", label: "Producător", w: "w-28", type: "text" },
+  { key: "kg_solicitat", label: "Kg solicitat", w: "w-24", type: "num" },
+  { key: "procent_cn_solicitata", label: "% CN solicitată", w: "w-24", type: "num" },
+  { key: "cantitate_ramasa", label: "Cant. rămasă", w: "w-24", type: "num" },
+  { key: "data_productie", label: "Data producție", w: "w-28", type: "date" },
+  { key: "schimb", label: "Schimb", w: "w-24", type: "text" },
+  { key: "mp_intrata_in_prod", label: "MP intrată în prod", w: "w-24", type: "num" },
+  { key: "mp_utilizata_vanduta", label: "MP utilizată/vândută", w: "w-24", type: "num" },
+  { key: "pierdere_totala", label: "Pierdere totală", w: "w-24", type: "num" },
+  { key: "rebut", label: "Rebut", w: "w-20", type: "num" },
+  { key: "retur_repozit", label: "Retur repoziț.", w: "w-20", type: "num" },
+  { key: "procent_nc", label: "% NC", w: "w-20", type: "num" },
+  { key: "pierdere_tehnologica", label: "Pierd. tehno (kg)", w: "w-24", type: "num" },
+  { key: "procent_cantar", label: "% Cântar", w: "w-20", type: "num" },
+  { key: "bucati_15g", label: "Buc 15g", w: "w-20", type: "num" },
+  { key: "bucati_30g", label: "Buc 30g", w: "w-20", type: "num" },
+  { key: "bucati_70g", label: "Buc 70g", w: "w-20", type: "num" },
+  { key: "bucati_100g", label: "Buc 100g", w: "w-20", type: "num" },
+  { key: "bucati_250g", label: "Buc 250g", w: "w-20", type: "num" },
+  { key: "bucati_500g", label: "Buc 500g", w: "w-20", type: "num" },
+  { key: "kg_final", label: "Kg final", w: "w-24", type: "num" },
+  { key: "nr_pers", label: "Nr. pers", w: "w-16", type: "num" },
+  { key: "ora_start", label: "Ora start", w: "w-24", type: "time" },
+  { key: "ora_stop", label: "Ora stop", w: "w-24", type: "time" },
+  { key: "pauza_min", label: "Pauza (min)", w: "w-20", type: "num" },
+  { key: "observatii", label: "Observații", w: "w-40", type: "text" },
+  { key: "retur", label: "Retur", w: "w-24", type: "text" },
+];
+
+// derive computed values (client-side, non-persistent unless user edits)
+const computeDerived = (r: Row): Partial<Row> => {
+  const kgFinalCalc =
+    ((r.bucati_15g || 0) * 15 +
+      (r.bucati_30g || 0) * 30 +
+      (r.bucati_70g || 0) * 70 +
+      (r.bucati_100g || 0) * 100 +
+      (r.bucati_250g || 0) * 250 +
+      (r.bucati_500g || 0) * 500) / 1000;
+
+  const mpIn = r.mp_intrata_in_prod || 0;
+  const mpOut = r.mp_utilizata_vanduta || 0;
+  const pierdereTotal = mpIn && mpOut ? +(mpIn - mpOut).toFixed(2) : r.pierdere_totala;
+  const rebut = r.rebut || 0;
+  const returRep = r.retur_repozit || 0;
+  const pierdTeh = pierdereTotal !== null && pierdereTotal !== undefined
+    ? +(pierdereTotal - rebut - returRep).toFixed(2)
+    : null;
+  const procNC = mpIn > 0 ? +((rebut / mpIn) * 100).toFixed(2) : null;
+
+  return {
+    kg_final: kgFinalCalc > 0 ? +kgFinalCalc.toFixed(2) : r.kg_final,
+    pierdere_totala: pierdereTotal ?? null,
+    pierdere_tehnologica: pierdTeh ?? r.pierdere_tehnologica,
+    procent_nc: procNC ?? r.procent_nc,
+  };
 };
 
 export const EvidentaAndrada: React.FC = () => {
   const { inventoryType } = useInventoryType();
-  const [rows, setRows] = useState<LotRow[]>([]);
-  const [manufacturers, setManufacturers] = useState<{ id: string; name: string }[]>([]);
-  const [manufacturerFilter, setManufacturerFilter] = useState<string>("all");
-  const [productFilter, setProductFilter] = useState("");
+  const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
-  const [manual, setManual] = useState<Record<string, ManualEntry>>({});
+  const [search, setSearch] = useState("");
+  const [producatorFilter, setProducatorFilter] = useState("");
 
-  const dateKey = `evidenta-andrada.date.${inventoryType}`;
-  const [selectedDate, setSelectedDateState] = useState(() =>
-    readStoredDateKey(dateKey, yesterdayKey())
+  const dateKey = `evidenta-andrada.filter-date.${inventoryType}`;
+  const [filterDate, setFilterDateState] = useState<string>(() =>
+    readStoredDateKey(dateKey, "") // empty = show all
   );
+  const setFilterDate = (v: string) => { setFilterDateState(v); persistDateKey(dateKey, v); };
 
-  const setSelectedDate = (v: string) => {
-    setSelectedDateState(v);
-    persistDateKey(dateKey, v);
+  const fetchRows = useCallback(async () => {
+    setLoading(true);
+    let q = supabaseCloud
+      .from("evidenta_andrada_rows")
+      .select("*")
+      .eq("inventory_type", inventoryType)
+      .order("data", { ascending: true })
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+    if (filterDate) q = q.eq("data", filterDate);
+    const { data, error } = await q;
+    if (error) toast({ title: "Eroare", description: error.message, variant: "destructive" });
+    setRows((data as any) || []);
+    setLoading(false);
+  }, [inventoryType, filterDate]);
+
+  useEffect(() => { fetchRows(); }, [fetchRows]);
+
+  const addRow = async (copyFrom?: Row) => {
+    const base: any = copyFrom
+      ? { ...copyFrom }
+      : { data: filterDate || todayKey(), inventory_type: inventoryType };
+    delete base.id;
+    delete base.created_at;
+    delete base.updated_at;
+    const { data, error } = await supabaseCloud
+      .from("evidenta_andrada_rows")
+      .insert({ inventory_type: inventoryType, ...base })
+      .select()
+      .single();
+    if (error) { toast({ title: "Eroare", description: error.message, variant: "destructive" }); return; }
+    setRows((prev) => [...prev, data as any]);
   };
 
-  useEffect(() => {
-    setManual(loadManual(inventoryType, selectedDate));
-  }, [inventoryType, selectedDate]);
+  const deleteRow = async (id: string) => {
+    if (!confirm("Ștergi acest rând?")) return;
+    const { error } = await supabaseCloud.from("evidenta_andrada_rows").delete().eq("id", id);
+    if (error) { toast({ title: "Eroare", description: error.message, variant: "destructive" }); return; }
+    setRows((prev) => prev.filter((r) => r.id !== id));
+  };
 
-  const updateEntry = (lotKey: string, patch: Partial<ManualEntry>) => {
-    setManual((prev) => {
-      const next = { ...prev, [lotKey]: { ...emptyEntry, ...prev[lotKey], ...patch } };
-      saveManual(inventoryType, selectedDate, next);
-      return next;
+  // debounced-ish save on blur
+  const saveField = async (id: string, field: keyof Row, value: any) => {
+    const patch: any = { [field]: value };
+    const { error } = await supabaseCloud
+      .from("evidenta_andrada_rows")
+      .update(patch)
+      .eq("id", id);
+    if (error) toast({ title: "Eroare la salvare", description: error.message, variant: "destructive" });
+  };
+
+  const updateLocal = (id: string, field: keyof Row, value: any) => {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+  };
+
+  const commitDerived = async (r: Row) => {
+    const d = computeDerived(r);
+    const patch: any = {};
+    (Object.keys(d) as (keyof Row)[]).forEach((k) => {
+      if (d[k] !== r[k] && d[k] !== null && d[k] !== undefined) patch[k] = d[k];
     });
+    if (Object.keys(patch).length === 0) return;
+    setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, ...patch } : x)));
+    await supabaseCloud.from("evidenta_andrada_rows").update(patch).eq("id", r.id);
   };
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      if (inventoryType === "ambalaje") {
-        setRows([]);
-        setLoading(false);
-        return;
-      }
-
-      const snapshotTable =
-        inventoryType === "etichete" ? "etichete_daily_stock_snapshots" : "daily_stock_snapshots";
-      const inventoryTable =
-        inventoryType === "etichete" ? "etichete_inventory" : "inventory";
-      const receptionTable =
-        inventoryType === "etichete" ? "etichete_reception_records" : "reception_records";
-      const transfersTable =
-        inventoryType === "etichete" ? "etichete_stock_transfers" : "stock_transfers";
-      const transferItemsTable =
-        inventoryType === "etichete" ? "etichete_stock_transfer_items" : "stock_transfer_items";
-      const manufacturersTable =
-        inventoryType === "etichete" ? "etichete_manufacturers" : "manufacturers";
-
-      // Manufacturers list for filter
-      const { data: mfrs } = await supabase
-        .from(manufacturersTable)
-        .select("id, name")
-        .order("name");
-      setManufacturers((mfrs || []) as any);
-
-      // Initial stock snapshot
-      const { data: initialStock } = await supabase
-        .from(snapshotTable)
-        .select(`name, lot_number, quantity, unit, product_id, manufacturer_id,
-                 products:product_id (name, cod_produs, pt_percent),
-                 manufacturers:manufacturer_id (name)`)
-        .eq("snapshot_date", selectedDate);
-
-      // Current inventory (final + current remaining)
-      const { data: currentInv } = await supabase
-        .from(inventoryTable)
-        .select(`name, lot_number, quantity, unit, product_id, manufacturer_id,
-                 products:product_id (name, cod_produs, pt_percent),
-                 manufacturers:manufacturer_id (name)`);
-
-      // Receptions on date
-      const { data: receptionRecords } = await supabase
-        .from(receptionTable)
-        .select("name, lot_number, original_quantity, manufacturer_id")
-        .gte("receipt_date", selectedDate)
-        .lt("receipt_date", `${selectedDate}T23:59:59`);
-
-      // Transfers on date
-      const { data: transfersForDate } = await supabase
-        .from(transfersTable)
-        .select("id")
-        .eq("transfer_date", selectedDate);
-      const transferIds = (transfersForDate ?? []).map((t: any) => t.id).filter(Boolean);
-
-      let transferItems: any[] = [];
-      if (transferIds.length > 0) {
-        const { data: items } = await supabase
-          .from(transferItemsTable)
-          .select("quantity, inventory_item_id")
-          .in("transfer_id", transferIds);
-        const invIds = Array.from(
-          new Set(((items ?? []) as any[]).map((i: any) => i.inventory_item_id).filter(Boolean))
-        );
-        const invMap = new Map<string, { name: string; lot_number: string | null }>();
-        if (invIds.length > 0) {
-          const { data: invRows } = await supabase
-            .from(inventoryTable)
-            .select("id, name, lot_number")
-            .in("id", invIds);
-          (invRows ?? []).forEach((r: any) =>
-            invMap.set(r.id, { name: r.name, lot_number: r.lot_number ?? null })
-          );
-        }
-        transferItems = ((items ?? []) as any[]).map((it: any) => ({
-          ...it,
-          inv: invMap.get(it.inventory_item_id) ?? null,
-        }));
-      }
-
-      const initialMap = new Map<string, number>();
-      const finalMap = new Map<string, number>();
-      const currentRemainingMap = new Map<string, number>();
-      const receiptsMap = new Map<string, number>();
-      const outboundMap = new Map<string, number>();
-      const meta = new Map<
-        string,
-        { product_name: string; product_code: string; unit: string; pt_percent: number; manufacturer_id: string | null; manufacturer_name: string }
-      >();
-
-      const setMeta = (item: any) => {
-        const key = `${item.name}_${item.lot_number || "Fără lot"}`;
-        if (!meta.has(key)) {
-          meta.set(key, {
-            product_name: item.name,
-            product_code: item.products?.cod_produs || "",
-            unit: item.unit,
-            pt_percent: Number(item.products?.pt_percent ?? 0),
-            manufacturer_id: item.manufacturer_id ?? null,
-            manufacturer_name: item.manufacturers?.name ?? "—",
-          });
-        } else if (item.manufacturer_id) {
-          // Ensure manufacturer info is filled if missing
-          const m = meta.get(key)!;
-          if (!m.manufacturer_id) {
-            m.manufacturer_id = item.manufacturer_id;
-            m.manufacturer_name = item.manufacturers?.name ?? m.manufacturer_name;
-          }
-        }
-      };
-
-      (initialStock || []).forEach((it: any) => {
-        const key = `${it.name}_${it.lot_number || "Fără lot"}`;
-        initialMap.set(key, (initialMap.get(key) || 0) + Number(it.quantity || 0));
-        setMeta(it);
-      });
-      (currentInv || []).forEach((it: any) => {
-        const key = `${it.name}_${it.lot_number || "Fără lot"}`;
-        const q = Number(it.quantity || 0);
-        currentRemainingMap.set(key, (currentRemainingMap.get(key) || 0) + q);
-        if (q > 0) finalMap.set(key, (finalMap.get(key) || 0) + q);
-        setMeta(it);
-      });
-      (receptionRecords || []).forEach((r: any) => {
-        const key = `${r.name}_${r.lot_number || "Fără lot"}`;
-        receiptsMap.set(key, (receiptsMap.get(key) || 0) + Number(r.original_quantity || 0));
-      });
-      transferItems.forEach((t: any) => {
-        if (t.inv?.name) {
-          const key = `${t.inv.name}_${t.inv.lot_number || "Fără lot"}`;
-          outboundMap.set(key, (outboundMap.get(key) || 0) + Number(t.quantity || 0));
-        }
-      });
-
-      const allKeys = new Set<string>([
-        ...initialMap.keys(),
-        ...outboundMap.keys(),
-        ...receiptsMap.keys(),
-      ]);
-
-      const result: LotRow[] = [];
-      allKeys.forEach((key) => {
-        const m = meta.get(key);
-        if (!m) return;
-        const outbound = outboundMap.get(key) || 0;
-        const received = receiptsMap.get(key) || 0;
-        if (outbound === 0 && received === 0) return;
-        const [productName, lotNumber] = key.split("_");
-        result.push({
-          product_name: productName,
-          product_code: m.product_code,
-          lot_number: lotNumber,
-          unit: m.unit,
-          manufacturer_id: m.manufacturer_id,
-          manufacturer_name: m.manufacturer_name,
-          pt_percent: m.pt_percent,
-          initial_stock: initialMap.get(key) || 0,
-          outbound_quantity: outbound,
-          received_quantity: received,
-          final_stock: finalMap.get(key) || 0,
-          current_remaining: currentRemainingMap.get(key) || 0,
-        });
-      });
-
-      result.sort(
-        (a, b) =>
-          a.product_name.localeCompare(b.product_name) ||
-          a.lot_number.localeCompare(b.lot_number)
-      );
-      setRows(result);
-    } catch (err) {
-      console.error(err);
-      toast({ title: "Eroare", description: "Nu s-au putut încărca datele", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [selectedDate, inventoryType]);
+  const producatoriList = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.producator).filter(Boolean))) as string[],
+    [rows]
+  );
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
-      if (manufacturerFilter !== "all" && (r.manufacturer_id || "none") !== manufacturerFilter)
-        return false;
-      if (productFilter.trim()) {
-        const q = productFilter.toLowerCase();
-        if (
-          !r.product_name.toLowerCase().includes(q) &&
-          !r.product_code.toLowerCase().includes(q) &&
-          !r.lot_number.toLowerCase().includes(q)
-        )
-          return false;
+      if (producatorFilter && r.producator !== producatorFilter) return false;
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const hay = [r.lot, r.produs, r.furnizor, r.producator, r.observatii].join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, manufacturerFilter, productFilter]);
-
-  const rowKey = (r: LotRow) => `${r.product_name}||${r.lot_number}`;
-
-  const calc = (r: LotRow) => {
-    const entry = manual[rowKey(r)] || emptyEntry;
-    const estimated = (r.outbound_quantity * r.pt_percent) / 100;
-    const realTotal = (entry.rebut || 0) + (entry.pt_real || 0) + (entry.cantar || 0);
-    const diff = realTotal - estimated;
-    return { entry, estimated, realTotal, diff };
-  };
+  }, [rows, producatorFilter, search]);
 
   const handleExport = () => {
-    if (!filtered.length) {
-      toast({ title: "Nu există date", variant: "destructive" });
-      return;
-    }
+    if (!filtered.length) { toast({ title: "Nu există date" }); return; }
     const data = filtered.map((r) => {
-      const { entry, estimated, realTotal, diff } = calc(r);
-      return {
-        Produs: r.product_name,
-        Cod: r.product_code,
-        Lot: r.lot_number,
-        Producător: r.manufacturer_name,
-        Unitate: r.unit,
-        "Stoc Inițial": r.initial_stock,
-        "Cant. Ieșită": r.outbound_quantity,
-        "Cant. Primită": r.received_quantity,
-        "Stoc Final": r.final_stock,
-        "Stoc Rămas (real)": r.current_remaining,
-        "% PT recepție": r.pt_percent,
-        "Pierdere estimată (kg)": estimated,
-        Rebut: entry.rebut || 0,
-        "Pierdere tehnologică": entry.pt_real || 0,
-        "Diferență cântar (±)": entry.cantar || 0,
-        "Pierdere reală total": realTotal,
-        Diferență: diff,
-        Note: entry.notes || "",
-      };
+      const out: any = {};
+      COLS.forEach((c) => { out[c.label] = (r as any)[c.key] ?? ""; });
+      return out;
     });
-    exportToExcel(data, `Evidenta_Andrada_${selectedDate}.xlsx`);
+    exportToExcel(data, `Evidenta_Andrada_${inventoryType}_${filterDate || "toate"}.xlsx`);
   };
 
-  if (loading) {
+  const renderCell = (r: Row, c: typeof COLS[number]) => {
+    const val = (r as any)[c.key];
+    if (c.type === "num") {
+      return (
+        <Input
+          type="number"
+          step="0.01"
+          value={val ?? ""}
+          onChange={(e) => updateLocal(r.id, c.key, e.target.value === "" ? null : parseFloat(e.target.value))}
+          onBlur={async (e) => {
+            const v = e.target.value === "" ? null : parseFloat(e.target.value);
+            await saveField(r.id, c.key, v);
+            // recompute derived if this field affects it
+            if (["mp_intrata_in_prod","mp_utilizata_vanduta","rebut","retur_repozit","bucati_15g","bucati_30g","bucati_70g","bucati_100g","bucati_250g","bucati_500g"].includes(c.key as string)) {
+              const updated = { ...r, [c.key]: v };
+              await commitDerived(updated as Row);
+            }
+          }}
+          className="h-8 text-right px-1"
+        />
+      );
+    }
+    if (c.type === "date") {
+      return (
+        <Input
+          type="date"
+          value={val ?? ""}
+          onChange={(e) => updateLocal(r.id, c.key, e.target.value || null)}
+          onBlur={(e) => saveField(r.id, c.key, e.target.value || null)}
+          className="h-8 px-1"
+        />
+      );
+    }
+    if (c.type === "time") {
+      return (
+        <Input
+          type="time"
+          value={val ?? ""}
+          onChange={(e) => updateLocal(r.id, c.key, e.target.value || null)}
+          onBlur={(e) => saveField(r.id, c.key, e.target.value || null)}
+          className="h-8 px-1"
+        />
+      );
+    }
     return (
-      <div className="flex items-center justify-center p-8 text-muted-foreground">
-        Se încarcă evidența...
-      </div>
+      <Input
+        type="text"
+        value={val ?? ""}
+        onChange={(e) => updateLocal(r.id, c.key, e.target.value)}
+        onBlur={(e) => saveField(r.id, c.key, e.target.value || null)}
+        className="h-8 px-1"
+      />
     );
-  }
+  };
 
   if (inventoryType === "ambalaje") {
-    return (
-      <div className="flex items-center justify-center p-8 text-muted-foreground">
-        Evidența Andrada nu este disponibilă pentru ambalaje
-      </div>
-    );
+    return <div className="p-8 text-center text-muted-foreground">Evidența Andrada nu este disponibilă pentru ambalaje.</div>;
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center flex-wrap">
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2 items-center">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4" />
           <input
             type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
             className="px-3 py-2 border rounded-md text-sm"
           />
+          {filterDate && (
+            <Button size="sm" variant="ghost" onClick={() => setFilterDate("")}>
+              Toate
+            </Button>
+          )}
         </div>
-        <Select value={manufacturerFilter} onValueChange={setManufacturerFilter}>
-          <SelectTrigger className="w-full sm:w-64">
-            <SelectValue placeholder="Producător" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Toți producătorii</SelectItem>
-            {manufacturers.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                {m.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <select
+          value={producatorFilter}
+          onChange={(e) => setProducatorFilter(e.target.value)}
+          className="px-3 py-2 border rounded-md text-sm"
+        >
+          <option value="">Toți producătorii</option>
+          {producatoriList.map((p) => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
         <Input
-          placeholder="Caută produs / lot..."
-          value={productFilter}
-          onChange={(e) => setProductFilter(e.target.value)}
-          className="w-full sm:w-64"
+          placeholder="Caută (lot, produs, furnizor, obs)..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-64"
         />
-        <Button onClick={handleExport} variant="outline" size="sm">
-          <FileSpreadsheet className="h-4 w-4 mr-2" />
-          Export Excel
+        <Button size="sm" onClick={() => addRow()}>
+          <Plus className="h-4 w-4 mr-1" /> Rând nou
+        </Button>
+        <Button size="sm" variant="outline" onClick={handleExport}>
+          <FileSpreadsheet className="h-4 w-4 mr-1" /> Export Excel
         </Button>
         <div className="text-xs text-muted-foreground ml-auto">
-          Datele manuale (rebut / PT / cântar) se salvează local pe zi.
+          Se salvează automat. Formule: Pierdere totală = MP intrată − MP utilizată • Pierd. tehno = Pierd. totală − Rebut − Retur • %NC = Rebut ÷ MP intrată • Kg final = Σ(buc × g)
         </div>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="text-center p-8 text-muted-foreground">
-          Nu există date pentru filtrele selectate
-        </div>
+      {loading ? (
+        <div className="p-8 text-center text-muted-foreground">Se încarcă...</div>
       ) : (
-        <div className="border rounded-lg overflow-auto">
+        <div className="border rounded-lg overflow-auto max-h-[75vh]">
           <Table>
             <TableHeader className="sticky top-0 bg-background z-10">
               <TableRow>
-                <TableHead>Produs</TableHead>
-                <TableHead>Lot</TableHead>
-                <TableHead>Producător</TableHead>
-                <TableHead className="text-right">Stoc Inițial</TableHead>
-                <TableHead className="text-right">Ieșit</TableHead>
-                <TableHead className="text-right">Primit</TableHead>
-                <TableHead className="text-right">Stoc Final</TableHead>
-                <TableHead className="text-right">Rămas real</TableHead>
-                <TableHead className="text-right">% PT</TableHead>
-                <TableHead className="text-right">Est. pierdere</TableHead>
-                <TableHead className="text-right w-24">Rebut</TableHead>
-                <TableHead className="text-right w-24">PT real</TableHead>
-                <TableHead className="text-right w-24">± Cântar</TableHead>
-                <TableHead className="text-right">Real total</TableHead>
-                <TableHead className="text-right">Diferență</TableHead>
+                <TableHead className="w-16">Acțiuni</TableHead>
+                {COLS.map((c) => (
+                  <TableHead key={c.key as string} className={c.w}>{c.label}</TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((r) => {
-                const key = rowKey(r);
-                const { entry, estimated, realTotal, diff } = calc(r);
-                return (
-                  <TableRow key={key}>
-                    <TableCell>
-                      <div className="font-medium">{r.product_name}</div>
-                      <div className="text-xs text-muted-foreground">{r.product_code}</div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{r.lot_number}</TableCell>
-                    <TableCell className="text-sm">{r.manufacturer_name}</TableCell>
-                    <TableCell className="text-right">{r.initial_stock.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{r.outbound_quantity.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{r.received_quantity.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{r.final_stock.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {r.current_remaining.toFixed(2)} {r.unit}
-                    </TableCell>
-                    <TableCell className="text-right">{r.pt_percent.toFixed(1)}%</TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {estimated.toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={entry.rebut || ""}
-                        onChange={(e) =>
-                          updateEntry(key, { rebut: parseFloat(e.target.value) || 0 })
-                        }
-                        className="h-8 text-right w-20"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={entry.pt_real || ""}
-                        onChange={(e) =>
-                          updateEntry(key, { pt_real: parseFloat(e.target.value) || 0 })
-                        }
-                        className="h-8 text-right w-20"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={entry.cantar || ""}
-                        onChange={(e) =>
-                          updateEntry(key, { cantar: parseFloat(e.target.value) || 0 })
-                        }
-                        className="h-8 text-right w-20"
-                        placeholder="+/-"
-                      />
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {realTotal.toFixed(2)}
-                    </TableCell>
-                    <TableCell
-                      className={`text-right font-semibold ${
-                        Math.abs(diff) < 0.01
-                          ? "text-muted-foreground"
-                          : diff > 0
-                          ? "text-destructive"
-                          : "text-green-600"
-                      }`}
-                    >
-                      {diff > 0 ? "+" : ""}
-                      {diff.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {filtered.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Duplică rând" onClick={() => addRow(r)}>
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Șterge" onClick={() => deleteRow(r.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                  {COLS.map((c) => (
+                    <TableCell key={c.key as string} className="p-1">{renderCell(r, c)}</TableCell>
+                  ))}
+                </TableRow>
+              ))}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={COLS.length + 1} className="text-center text-muted-foreground py-6">
+                    Niciun rând. Apasă „Rând nou" ca să începi.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
