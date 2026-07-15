@@ -141,6 +141,12 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                     <div className="col-span-2 text-red-600 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       Lipsește: {cantitateRamasaDeProdus} {order.productie_produse?.unitate_masura}
+                      {lineCapacity && lineCapacity > 0 && (
+                        <span className="ml-2 text-blue-700 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          ~{formatDuration(cantitateRamasaDeProdus / lineCapacity)}
+                        </span>
+                      )}
                     </div>
                   )}
                   {hasActiveSession && (
