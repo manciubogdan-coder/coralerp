@@ -150,6 +150,47 @@ export const EvidentaAndrada: React.FC = () => {
 
   useEffect(() => { fetchRows(); }, [fetchRows]);
 
+  // Lookup: lot -> { pt_percent, remaining_qty } from legacy DB
+  const [lotInfo, setLotInfo] = useState<Record<string, { pt: number | null; remaining: number | null }>>({});
+  useEffect(() => {
+    const lots = Array.from(new Set(rows.map((r) => r.lot).filter(Boolean))) as string[];
+    if (lots.length === 0) { setLotInfo({}); return; }
+    (async () => {
+      const info: Record<string, { pt: number | null; remaining: number | null }> = {};
+      // reception -> pt_percent via products
+      const { data: rec } = await (supabase as any)
+        .from("reception_report_data")
+        .select("lot_number, nonconform_percent, products:product_id(pt_percent)")
+        .in("lot_number", lots);
+      (rec || []).forEach((r: any) => {
+        const pt = r.products?.pt_percent ?? r.nonconform_percent ?? null;
+        if (!info[r.lot_number]) info[r.lot_number] = { pt: pt, remaining: null };
+        else if (info[r.lot_number].pt == null) info[r.lot_number].pt = pt;
+      });
+      // inventory -> remaining qty per lot
+      const { data: inv } = await (supabase as any)
+        .from("inventory")
+        .select("lot_number, quantity")
+        .in("lot_number", lots);
+      (inv || []).forEach((r: any) => {
+        const key = r.lot_number;
+        if (!info[key]) info[key] = { pt: null, remaining: 0 };
+        info[key].remaining = (info[key].remaining || 0) + Number(r.quantity || 0);
+      });
+      setLotInfo(info);
+    })();
+  }, [rows]);
+
+  const derivedFromLot = (r: Row) => {
+    const info = r.lot ? lotInfo[r.lot] : undefined;
+    const pt = info?.pt ?? null;
+    const cantIntr = r.cantitate_intrata || 0;
+    const kgSolicitat = pt != null && cantIntr ? +(cantIntr * pt / 100).toFixed(2) : null;
+    const remaining = info?.remaining ?? null;
+    return { pt, kgSolicitat, remaining: remaining != null ? +remaining.toFixed(2) : null };
+  };
+
+
   const addRow = async (copyFrom?: Row) => {
     const base: any = copyFrom
       ? { ...copyFrom }
