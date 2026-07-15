@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Calendar, FileSpreadsheet, Plus, Trash2, Copy } from "lucide-react";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
+import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useInventoryType } from "@/context/inventory-type";
