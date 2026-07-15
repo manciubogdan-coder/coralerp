@@ -272,8 +272,72 @@ const ProductionForecast: React.FC = () => {
               <Calendar className="h-3 w-3" /> N× = câte zile de acel tip s-au observat
             </Badge>
           </div>
+          <p className="text-xs text-muted-foreground pt-1">
+            💡 Apasă pe o linie pentru a vedea detaliul pe produse.
+          </p>
         </CardContent>
       </Card>
+
+      {selectedLineId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Produse pe linia „{selectedLine?.nume}"
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedLineId(null)}>Închide</Button>
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Total comandat per produs în perioada {startDate} → {endDate}.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {loadingProducts ? (
+              <div className="text-center py-8 text-muted-foreground">Se încarcă...</div>
+            ) : productBreakdown.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">Nicio comandă în perioada selectată.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Produs</TableHead>
+                      <TableHead className="text-right">Total comandat</TableHead>
+                      <TableHead className="text-right">Nr. comenzi</TableHead>
+                      <TableHead className="text-right">Media / comandă</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {productBreakdown.map((p) => (
+                      <TableRow key={p.nume}>
+                        <TableCell className="font-medium">{p.nume}</TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {Math.round(p.total).toLocaleString()} {p.unitate}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">{p.comenzi}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {Math.round(p.total / Math.max(1, p.comenzi)).toLocaleString()} {p.unitate}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="bg-muted/40 font-semibold">
+                      <TableCell>TOTAL</TableCell>
+                      <TableCell className="text-right">
+                        {Math.round(productBreakdown.reduce((s, p) => s + p.total, 0)).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {productBreakdown.reduce((s, p) => s + p.comenzi, 0)}
+                      </TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
