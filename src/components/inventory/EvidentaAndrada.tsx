@@ -56,7 +56,7 @@ const numFields = new Set([
 ]);
 
 // column definition: [key, label, width, type]
-const COLS: Array<{ key: keyof Row; label: string; w: string; type: "date" | "num" | "text" | "time"; readonly?: boolean }> = [
+const COLS: Array<{ key: keyof Row; label: string; w: string; type: "date" | "num" | "text" | "time" | "int"; readonly?: boolean }> = [
   { key: "data", label: "Data", w: "min-w-[140px]", type: "date" },
   { key: "lot", label: "Lot", w: "min-w-[120px]", type: "text" },
   { key: "produs", label: "Produs", w: "min-w-[200px]", type: "text" },
