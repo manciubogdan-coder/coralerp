@@ -339,7 +339,7 @@ export const EvidentaAndrada: React.FC = () => {
         />
       );
     }
-    }
+
     if (c.type === "date") {
       return (
         <Input
