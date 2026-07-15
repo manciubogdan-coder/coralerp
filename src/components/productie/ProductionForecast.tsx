@@ -201,7 +201,11 @@ const ProductionForecast: React.FC = () => {
                     const weekTotal = cells.reduce((s, c) => s + (c.data?.avg || 0), 0);
                     const weekTime = line.capacitate_ora > 0 ? weekTotal / line.capacitate_ora : 0;
                     return (
-                      <TableRow key={line.id}>
+                      <TableRow
+                        key={line.id}
+                        onClick={() => setSelectedLineId(line.id === selectedLineId ? null : line.id)}
+                        className={`cursor-pointer hover:bg-muted/40 ${selectedLineId === line.id ? "bg-muted/60" : ""}`}
+                      >
                         <TableCell className="font-medium">{line.nume}</TableCell>
                         <TableCell className="text-center text-sm text-muted-foreground">
                           {line.capacitate_ora} buc/h
