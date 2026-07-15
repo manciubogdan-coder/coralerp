@@ -159,17 +159,17 @@ export const EvidentaAndrada: React.FC = () => {
       const info: Record<string, { pct: number | null; kg: number | null; remaining: number | null }> = {};
       const { data: rec } = await (supabase as any)
         .from("reception_report_data")
-        .select("lot_number, pierdere_calitativa_procent, cantitate_receptionata, cantitate_document, surplus_declarat")
+        .select("lot_number, pierdere_calitativa_procent, cantitate_receptionata, cantitate_document, declared_quantity")
         .in("lot_number", lots);
       (rec || []).forEach((r: any) => {
         const pct = r.pierdere_calitativa_procent != null ? Number(r.pierdere_calitativa_procent) : null;
-        // base = effectiveReceived (cantitate_receptionata - surplus_declarat), else document if under-tolerance
-        const surplus = Number(r.surplus_declarat || 0);
+        const declared = Number(r.declared_quantity || 0);
         const rec_q = Number(r.cantitate_receptionata || 0);
         const doc_q = Number(r.cantitate_document || 0);
-        const effective = rec_q - surplus;
-        const base = effective < doc_q ? doc_q : effective;
-        const kg = pct != null && base ? +((base * pct) / 100).toFixed(2) : null;
+        const effective = rec_q - Math.max(0, (rec_q - doc_q) - declared);
+        const underTol = rec_q < doc_q;
+        const base = underTol ? doc_q : effective;
+        const kg = pct != null ? +((base * pct) / 100).toFixed(2) : null;
         const key = r.lot_number;
         if (!info[key]) info[key] = { pct, kg, remaining: null };
         else {
