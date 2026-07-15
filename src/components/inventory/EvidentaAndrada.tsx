@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Calendar, FileSpreadsheet, Plus, Trash2, Copy } from "lucide-react";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
+import { supabase } from "@/integrations/supabase/client";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useInventoryType } from "@/context/inventory-type";
@@ -55,39 +56,39 @@ const numFields = new Set([
 ]);
 
 // column definition: [key, label, width, type]
-const COLS: Array<{ key: keyof Row; label: string; w: string; type: "date" | "num" | "text" | "time" }> = [
-  { key: "data", label: "Data", w: "w-28", type: "date" },
-  { key: "lot", label: "Lot", w: "w-20", type: "text" },
-  { key: "produs", label: "Produs", w: "w-28", type: "text" },
-  { key: "cantitate_intrata", label: "Cant. intrată (kg)", w: "w-24", type: "num" },
-  { key: "furnizor", label: "Furnizor", w: "w-28", type: "text" },
-  { key: "producator", label: "Producător", w: "w-28", type: "text" },
-  { key: "kg_solicitat", label: "Kg solicitat", w: "w-24", type: "num" },
-  { key: "procent_cn_solicitata", label: "% CN solicitată", w: "w-24", type: "num" },
-  { key: "cantitate_ramasa", label: "Cant. rămasă", w: "w-24", type: "num" },
-  { key: "data_productie", label: "Data producție", w: "w-28", type: "date" },
-  { key: "schimb", label: "Schimb", w: "w-24", type: "text" },
-  { key: "mp_intrata_in_prod", label: "MP intrată în prod", w: "w-24", type: "num" },
-  { key: "mp_utilizata_vanduta", label: "MP utilizată/vândută", w: "w-24", type: "num" },
-  { key: "pierdere_totala", label: "Pierdere totală", w: "w-24", type: "num" },
-  { key: "rebut", label: "Rebut", w: "w-20", type: "num" },
-  { key: "retur_repozit", label: "Retur repoziț.", w: "w-20", type: "num" },
-  { key: "procent_nc", label: "% NC", w: "w-20", type: "num" },
-  { key: "pierdere_tehnologica", label: "Pierd. tehno (kg)", w: "w-24", type: "num" },
-  { key: "procent_cantar", label: "% Cântar", w: "w-20", type: "num" },
-  { key: "bucati_15g", label: "Buc 15g", w: "w-20", type: "num" },
-  { key: "bucati_30g", label: "Buc 30g", w: "w-20", type: "num" },
-  { key: "bucati_70g", label: "Buc 70g", w: "w-20", type: "num" },
-  { key: "bucati_100g", label: "Buc 100g", w: "w-20", type: "num" },
-  { key: "bucati_250g", label: "Buc 250g", w: "w-20", type: "num" },
-  { key: "bucati_500g", label: "Buc 500g", w: "w-20", type: "num" },
-  { key: "kg_final", label: "Kg final", w: "w-24", type: "num" },
-  { key: "nr_pers", label: "Nr. pers", w: "w-16", type: "num" },
-  { key: "ora_start", label: "Ora start", w: "w-24", type: "time" },
-  { key: "ora_stop", label: "Ora stop", w: "w-24", type: "time" },
-  { key: "pauza_min", label: "Pauza (min)", w: "w-20", type: "num" },
-  { key: "observatii", label: "Observații", w: "w-40", type: "text" },
-  { key: "retur", label: "Retur", w: "w-24", type: "text" },
+const COLS: Array<{ key: keyof Row; label: string; w: string; type: "date" | "num" | "text" | "time"; readonly?: boolean }> = [
+  { key: "data", label: "Data", w: "min-w-[140px]", type: "date" },
+  { key: "lot", label: "Lot", w: "min-w-[120px]", type: "text" },
+  { key: "produs", label: "Produs", w: "min-w-[200px]", type: "text" },
+  { key: "cantitate_intrata", label: "Cant. intrată (kg)", w: "min-w-[110px]", type: "num" },
+  { key: "furnizor", label: "Furnizor", w: "min-w-[180px]", type: "text" },
+  { key: "producator", label: "Producător", w: "min-w-[180px]", type: "text" },
+  { key: "procent_cn_solicitata", label: "% CN solicitată", w: "min-w-[110px]", type: "num", readonly: true },
+  { key: "kg_solicitat", label: "Kg solicitat", w: "min-w-[110px]", type: "num", readonly: true },
+  { key: "cantitate_ramasa", label: "Cant. rămasă în depozit", w: "min-w-[130px]", type: "num", readonly: true },
+  { key: "data_productie", label: "Data producție", w: "min-w-[140px]", type: "date" },
+  { key: "schimb", label: "Schimb", w: "min-w-[100px]", type: "text" },
+  { key: "mp_intrata_in_prod", label: "MP intrată în prod", w: "min-w-[110px]", type: "num" },
+  { key: "mp_utilizata_vanduta", label: "MP utilizată/vândută", w: "min-w-[110px]", type: "num" },
+  { key: "pierdere_totala", label: "Pierdere totală", w: "min-w-[110px]", type: "num" },
+  { key: "rebut", label: "Rebut", w: "min-w-[90px]", type: "num" },
+  { key: "retur_repozit", label: "Retur repoziț.", w: "min-w-[100px]", type: "num" },
+  { key: "procent_nc", label: "% NC", w: "min-w-[90px]", type: "num" },
+  { key: "pierdere_tehnologica", label: "Pierd. tehno (kg)", w: "min-w-[110px]", type: "num" },
+  { key: "procent_cantar", label: "% Cântar", w: "min-w-[90px]", type: "num" },
+  { key: "bucati_15g", label: "Buc 15g", w: "min-w-[80px]", type: "num" },
+  { key: "bucati_30g", label: "Buc 30g", w: "min-w-[80px]", type: "num" },
+  { key: "bucati_70g", label: "Buc 70g", w: "min-w-[80px]", type: "num" },
+  { key: "bucati_100g", label: "Buc 100g", w: "min-w-[80px]", type: "num" },
+  { key: "bucati_250g", label: "Buc 250g", w: "min-w-[80px]", type: "num" },
+  { key: "bucati_500g", label: "Buc 500g", w: "min-w-[80px]", type: "num" },
+  { key: "kg_final", label: "Kg final", w: "min-w-[100px]", type: "num" },
+  { key: "nr_pers", label: "Nr. pers", w: "min-w-[80px]", type: "num" },
+  { key: "ora_start", label: "Ora start", w: "min-w-[110px]", type: "time" },
+  { key: "ora_stop", label: "Ora stop", w: "min-w-[110px]", type: "time" },
+  { key: "pauza_min", label: "Pauza (min)", w: "min-w-[90px]", type: "num" },
+  { key: "observatii", label: "Observații", w: "min-w-[240px]", type: "text" },
+  { key: "retur", label: "Retur", w: "min-w-[140px]", type: "text" },
 ];
 
 // derive computed values (client-side, non-persistent unless user edits)
@@ -148,6 +149,47 @@ export const EvidentaAndrada: React.FC = () => {
   }, [inventoryType, filterDate]);
 
   useEffect(() => { fetchRows(); }, [fetchRows]);
+
+  // Lookup: lot -> { pt_percent, remaining_qty } from legacy DB
+  const [lotInfo, setLotInfo] = useState<Record<string, { pt: number | null; remaining: number | null }>>({});
+  useEffect(() => {
+    const lots = Array.from(new Set(rows.map((r) => r.lot).filter(Boolean))) as string[];
+    if (lots.length === 0) { setLotInfo({}); return; }
+    (async () => {
+      const info: Record<string, { pt: number | null; remaining: number | null }> = {};
+      // reception -> pt_percent via products
+      const { data: rec } = await (supabase as any)
+        .from("reception_report_data")
+        .select("lot_number, nonconform_percent, products:product_id(pt_percent)")
+        .in("lot_number", lots);
+      (rec || []).forEach((r: any) => {
+        const pt = r.products?.pt_percent ?? r.nonconform_percent ?? null;
+        if (!info[r.lot_number]) info[r.lot_number] = { pt: pt, remaining: null };
+        else if (info[r.lot_number].pt == null) info[r.lot_number].pt = pt;
+      });
+      // inventory -> remaining qty per lot
+      const { data: inv } = await (supabase as any)
+        .from("inventory")
+        .select("lot_number, quantity")
+        .in("lot_number", lots);
+      (inv || []).forEach((r: any) => {
+        const key = r.lot_number;
+        if (!info[key]) info[key] = { pt: null, remaining: 0 };
+        info[key].remaining = (info[key].remaining || 0) + Number(r.quantity || 0);
+      });
+      setLotInfo(info);
+    })();
+  }, [rows]);
+
+  const derivedFromLot = (r: Row) => {
+    const info = r.lot ? lotInfo[r.lot] : undefined;
+    const pt = info?.pt ?? null;
+    const cantIntr = r.cantitate_intrata || 0;
+    const kgSolicitat = pt != null && cantIntr ? +(cantIntr * pt / 100).toFixed(2) : null;
+    const remaining = info?.remaining ?? null;
+    return { pt, kgSolicitat, remaining: remaining != null ? +remaining.toFixed(2) : null };
+  };
+
 
   const addRow = async (copyFrom?: Row) => {
     const base: any = copyFrom
@@ -217,14 +259,33 @@ export const EvidentaAndrada: React.FC = () => {
   const handleExport = () => {
     if (!filtered.length) { toast({ title: "Nu există date" }); return; }
     const data = filtered.map((r) => {
+      const d = derivedFromLot(r);
       const out: any = {};
-      COLS.forEach((c) => { out[c.label] = (r as any)[c.key] ?? ""; });
+      COLS.forEach((c) => {
+        if (c.key === "procent_cn_solicitata") out[c.label] = d.pt ?? "";
+        else if (c.key === "kg_solicitat") out[c.label] = d.kgSolicitat ?? "";
+        else if (c.key === "cantitate_ramasa") out[c.label] = d.remaining ?? "";
+        else out[c.label] = (r as any)[c.key] ?? "";
+      });
       return out;
     });
     exportToExcel(data, `Evidenta_Andrada_${inventoryType}_${filterDate || "toate"}.xlsx`);
   };
 
   const renderCell = (r: Row, c: typeof COLS[number]) => {
+    // Auto-derived read-only cells based on lot + cantitate_intrata
+    if (c.readonly) {
+      const d = derivedFromLot(r);
+      let display: string | number = "";
+      if (c.key === "procent_cn_solicitata") display = d.pt != null ? `${d.pt}%` : "—";
+      else if (c.key === "kg_solicitat") display = d.kgSolicitat != null ? d.kgSolicitat.toFixed(2) : "—";
+      else if (c.key === "cantitate_ramasa") display = d.remaining != null ? d.remaining.toFixed(2) : "—";
+      return (
+        <div className="h-8 px-2 flex items-center justify-end text-sm bg-muted/40 rounded font-medium">
+          {display}
+        </div>
+      );
+    }
     const val = (r as any)[c.key];
     if (c.type === "num") {
       return (
@@ -236,13 +297,12 @@ export const EvidentaAndrada: React.FC = () => {
           onBlur={async (e) => {
             const v = e.target.value === "" ? null : parseFloat(e.target.value);
             await saveField(r.id, c.key, v);
-            // recompute derived if this field affects it
             if (["mp_intrata_in_prod","mp_utilizata_vanduta","rebut","retur_repozit","bucati_15g","bucati_30g","bucati_70g","bucati_100g","bucati_250g","bucati_500g"].includes(c.key as string)) {
               const updated = { ...r, [c.key]: v };
               await commitDerived(updated as Row);
             }
           }}
-          className="h-8 text-right px-1"
+          className="h-8 text-right px-2"
         />
       );
     }
@@ -253,7 +313,7 @@ export const EvidentaAndrada: React.FC = () => {
           value={val ?? ""}
           onChange={(e) => updateLocal(r.id, c.key, e.target.value || null)}
           onBlur={(e) => saveField(r.id, c.key, e.target.value || null)}
-          className="h-8 px-1"
+          className="h-8 px-2"
         />
       );
     }
@@ -264,7 +324,7 @@ export const EvidentaAndrada: React.FC = () => {
           value={val ?? ""}
           onChange={(e) => updateLocal(r.id, c.key, e.target.value || null)}
           onBlur={(e) => saveField(r.id, c.key, e.target.value || null)}
-          className="h-8 px-1"
+          className="h-8 px-2"
         />
       );
     }
@@ -274,7 +334,7 @@ export const EvidentaAndrada: React.FC = () => {
         value={val ?? ""}
         onChange={(e) => updateLocal(r.id, c.key, e.target.value)}
         onBlur={(e) => saveField(r.id, c.key, e.target.value || null)}
-        className="h-8 px-1"
+        className="h-8 px-2"
       />
     );
   };
