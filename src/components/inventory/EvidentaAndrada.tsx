@@ -157,35 +157,44 @@ export const EvidentaAndrada: React.FC = () => {
     if (lots.length === 0) { setLotInfo({}); return; }
     (async () => {
       const info: Record<string, { pct: number | null; kg: number | null; remaining: number | null }> = {};
-      const { data: rec } = await (supabase as any)
-        .from("reception_report_data")
-        .select("lot_number, pierdere_calitativa_procent, cantitate_receptionata, cantitate_document, declared_quantity")
-        .in("lot_number", lots);
-      (rec || []).forEach((r: any) => {
-        const pct = r.pierdere_calitativa_procent != null ? Number(r.pierdere_calitativa_procent) : null;
-        const declared = Number(r.declared_quantity || 0);
-        const rec_q = Number(r.cantitate_receptionata || 0);
-        const doc_q = Number(r.cantitate_document || 0);
-        const effective = rec_q - Math.max(0, (rec_q - doc_q) - declared);
-        const underTol = rec_q < doc_q;
-        const base = underTol ? doc_q : effective;
-        const kg = pct != null ? +((base * pct) / 100).toFixed(2) : null;
-        const key = r.lot_number;
-        if (!info[key]) info[key] = { pct, kg, remaining: null };
-        else {
-          info[key].pct = info[key].pct ?? pct;
-          info[key].kg = (info[key].kg || 0) + (kg || 0);
-        }
-      });
+      // 1) All inventory rows for these lots (has lot_number + quantity + id for join)
       const { data: inv } = await (supabase as any)
         .from("inventory")
-        .select("lot_number, quantity")
+        .select("id, lot_number, quantity")
         .in("lot_number", lots);
-      (inv || []).forEach((r: any) => {
+      const invRows = (inv || []) as any[];
+      const invIdToLot: Record<string, string> = {};
+      invRows.forEach((r: any) => {
+        invIdToLot[r.id] = r.lot_number;
         const key = r.lot_number;
         if (!info[key]) info[key] = { pct: null, kg: null, remaining: 0 };
         info[key].remaining = (info[key].remaining || 0) + Number(r.quantity || 0);
       });
+
+      // 2) reception_report_data by inventory_id (batched)
+      const invIds = Object.keys(invIdToLot);
+      for (let i = 0; i < invIds.length; i += 50) {
+        const slice = invIds.slice(i, i + 50);
+        const { data: rec } = await (supabase as any)
+          .from("reception_report_data")
+          .select("inventory_id, pierdere_calitativa_procent, cantitate_receptionata, cantitate_document, declared_quantity")
+          .in("inventory_id", slice);
+        (rec || []).forEach((r: any) => {
+          const key = invIdToLot[r.inventory_id];
+          if (!key) return;
+          const pct = r.pierdere_calitativa_procent != null ? Number(r.pierdere_calitativa_procent) : null;
+          const declared = Number(r.declared_quantity || 0);
+          const rec_q = Number(r.cantitate_receptionata || 0);
+          const doc_q = Number(r.cantitate_document || 0);
+          const effective = rec_q - Math.max(0, (rec_q - doc_q) - declared);
+          const underTol = rec_q < doc_q;
+          const base = underTol ? doc_q : effective;
+          const kg = pct != null ? +((base * pct) / 100).toFixed(2) : null;
+          if (!info[key]) info[key] = { pct: null, kg: null, remaining: null };
+          info[key].pct = info[key].pct ?? pct;
+          info[key].kg = (info[key].kg || 0) + (kg || 0);
+        });
+      }
       setLotInfo(info);
     })();
   }, [rows]);
