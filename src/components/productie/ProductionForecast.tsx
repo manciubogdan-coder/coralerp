@@ -44,8 +44,53 @@ const ProductionForecast: React.FC = () => {
 
   const [startDate, setStartDate] = useState(fmtDate(fourWeeksAgo));
   const [endDate, setEndDate] = useState(fmtDate(today));
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
 
   const { data: lines = [] } = useProductionLines();
+  const selectedLine = lines.find((l) => l.id === selectedLineId);
+
+  const { data: lineProducts = [], isLoading: loadingProducts } = useQuery({
+    queryKey: ["forecast-line-products", selectedLineId, startDate, endDate],
+    enabled: !!selectedLineId,
+    queryFn: async () => {
+      const all: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("productie_comenzi")
+          .select("cantitate, data_productie, productie_produse(nume, unitate_masura)")
+          .eq("linie_id", selectedLineId as string)
+          .gte("data_productie", startDate)
+          .lte("data_productie", endDate)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return all;
+    },
+  });
+
+  const productBreakdown = useMemo(() => {
+    const map = new Map<string, { nume: string; unitate: string; total: number; comenzi: number }>();
+    for (const o of lineProducts as any[]) {
+      const nume = o.productie_produse?.nume || "—";
+      const unitate = o.productie_produse?.unitate_masura || "buc";
+      const existing = map.get(nume);
+      const qty = Number(o.cantitate) || 0;
+      if (existing) {
+        existing.total += qty;
+        existing.comenzi += 1;
+      } else {
+        map.set(nume, { nume, unitate, total: qty, comenzi: 1 });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [lineProducts]);
+
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["forecast-orders", startDate, endDate],
