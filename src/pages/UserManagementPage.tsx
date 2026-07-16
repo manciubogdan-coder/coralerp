@@ -83,6 +83,14 @@ const UserManagementPage: React.FC = () => {
         rolesByUser.set(r.user_id, arr);
       });
 
+
+      const { data: evidentaRows } = await supabaseCloud
+        .from('evidenta_andrada_access')
+        .select('user_id');
+      const evidentaSet = new Set<string>(
+        ((evidentaRows as Array<{ user_id: string }>) || []).map((r) => r.user_id),
+      );
+
       const usersWithRoles = ((profiles as any[]) || []).map((profile) => {
         const roles = rolesByUser.get(profile.user_id) || [];
         const departments = roles.filter((r): r is DepartmentRole =>
@@ -92,6 +100,7 @@ const UserManagementPage: React.FC = () => {
           ...profile,
           isAdmin: roles.includes('admin'),
           departments,
+          evidentaAndrada: evidentaSet.has(profile.user_id),
         } as UserProfile;
       });
 
