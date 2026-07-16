@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCollaborationAlerts } from '@/contexts/CollaborationAlertsContext';
+import { useEvidentaAndradaAccess } from '@/hooks/use-evidenta-andrada-access';
 import { DEPARTMENTS } from '@/lib/departments';
-import { ShieldAlert, MessageSquare, ListTodo, Bell } from 'lucide-react';
+import { ShieldAlert, MessageSquare, ListTodo, Bell, ClipboardList } from 'lucide-react';
 
 interface CollabTile {
   label: string;
@@ -41,6 +42,7 @@ const DepartmentHub: React.FC = () => {
   const navigate = useNavigate();
   const { hasDepartment, profile, isAdmin } = useAuth();
   const { chatUnread, taskUnread } = useCollaborationAlerts();
+  const { allowed: canSeeEvidenta } = useEvidentaAndradaAccess();
 
   // Toate hub-urile (inclusiv Calitate și Operator) provin din DEPARTMENTS;
   // tile-ul apare doar dacă userul are rolul corespunzător (sau e admin).
@@ -57,7 +59,7 @@ const DepartmentHub: React.FC = () => {
         </p>
       </div>
 
-      {accessible.length === 0 ? (
+      {accessible.length === 0 && !canSeeEvidenta ? (
         <Card>
           <CardContent className="py-10 flex flex-col items-center text-center gap-3">
             <ShieldAlert className="h-10 w-10 text-amber-500" />
@@ -96,6 +98,27 @@ const DepartmentHub: React.FC = () => {
                 </Card>
               );
             })}
+            {canSeeEvidenta && (
+              <Card
+                key="evidenta-andrada"
+                onClick={() => navigate('/evidenta-andrada')}
+                className="cursor-pointer hover:border-primary transition-colors"
+              >
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-md bg-primary/10 text-primary">
+                      <ClipboardList className="h-6 w-6" />
+                    </div>
+                    <CardTitle className="text-lg">Evidență Andrada</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>
+                    Evidență loturi pe producători: rebut, pierdere tehnologică și cântar.
+                  </CardDescription>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       )}

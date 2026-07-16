@@ -334,7 +334,7 @@ const AppShell = () => {
                 <Route
                   path="/evidenta-andrada"
                   element={
-                    <ProtectedRoute requireDepartment="calitate">
+                    <ProtectedRoute>
                       <EvidentaAndradaHub />
                     </ProtectedRoute>
                   }

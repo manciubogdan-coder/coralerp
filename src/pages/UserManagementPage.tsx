@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { supabaseCloud } from '@/integrations/supabase/cloudClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,6 +42,7 @@ interface UserProfile {
   created_at: string;
   isAdmin?: boolean;
   departments?: DepartmentRole[];
+  evidentaAndrada?: boolean;
 }
 
 const UserManagementPage: React.FC = () => {
@@ -55,6 +57,7 @@ const UserManagementPage: React.FC = () => {
   const [editing, setEditing] = useState<UserProfile | null>(null);
   const [draftAdmin, setDraftAdmin] = useState(false);
   const [draftDepts, setDraftDepts] = useState<Set<DepartmentRole>>(new Set());
+  const [draftEvidenta, setDraftEvidenta] = useState(false);
   const [savingRoles, setSavingRoles] = useState(false);
 
   const fetchUsers = async () => {
@@ -80,6 +83,14 @@ const UserManagementPage: React.FC = () => {
         rolesByUser.set(r.user_id, arr);
       });
 
+
+      const { data: evidentaRows } = await supabaseCloud
+        .from('evidenta_andrada_access')
+        .select('user_id');
+      const evidentaSet = new Set<string>(
+        ((evidentaRows as Array<{ user_id: string }>) || []).map((r) => r.user_id),
+      );
+
       const usersWithRoles = ((profiles as any[]) || []).map((profile) => {
         const roles = rolesByUser.get(profile.user_id) || [];
         const departments = roles.filter((r): r is DepartmentRole =>
@@ -89,6 +100,7 @@ const UserManagementPage: React.FC = () => {
           ...profile,
           isAdmin: roles.includes('admin'),
           departments,
+          evidentaAndrada: evidentaSet.has(profile.user_id),
         } as UserProfile;
       });
 
@@ -169,6 +181,7 @@ const UserManagementPage: React.FC = () => {
     setEditing(u);
     setDraftAdmin(!!u.isAdmin);
     setDraftDepts(new Set(u.departments || []));
+    setDraftEvidenta(!!u.evidentaAndrada);
   };
 
   const toggleDept = (dept: DepartmentRole) => {
@@ -209,6 +222,21 @@ const UserManagementPage: React.FC = () => {
           .delete()
           .eq('user_id', editing.user_id)
           .eq('role', role);
+        if (error) throw error;
+      }
+
+
+      // Evidență Andrada access
+      if (draftEvidenta && !editing.evidentaAndrada) {
+        const { error } = await supabaseCloud
+          .from('evidenta_andrada_access')
+          .upsert({ user_id: editing.user_id, email: editing.email }, { onConflict: 'user_id' });
+        if (error) throw error;
+      } else if (!draftEvidenta && editing.evidentaAndrada) {
+        const { error } = await supabaseCloud
+          .from('evidenta_andrada_access')
+          .delete()
+          .eq('user_id', editing.user_id);
         if (error) throw error;
       }
 
@@ -460,6 +488,19 @@ const UserManagementPage: React.FC = () => {
                 );
               })}
             </div>
+
+            <label className="flex items-center gap-3 p-3 rounded-md border bg-muted/30">
+              <Checkbox
+                checked={draftEvidenta}
+                onCheckedChange={(v) => setDraftEvidenta(v === true)}
+              />
+              <div>
+                <div className="font-medium">Acces Evidență Andrada</div>
+                <div className="text-xs text-muted-foreground">
+                  Utilizatorul va vedea tile-ul „Evidență Andrada” pe pagina principală.
+                </div>
+              </div>
+            </label>
           </div>
 
           <DialogFooter>
