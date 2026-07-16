@@ -312,6 +312,7 @@ export const EvidentaAndrada: React.FC = () => {
         if (c.key === "procent_cn_solicitata") out[c.label] = d.pt ?? "";
         else if (c.key === "kg_solicitat") out[c.label] = d.kgSolicitat ?? "";
         else if (c.key === "cantitate_ramasa") out[c.label] = d.remaining ?? "";
+        else if (c.key === "data") out[c.label] = d.receiptDate ?? r.data ?? "";
         else out[c.label] = (r as any)[c.key] ?? "";
       });
       return out;
@@ -327,8 +328,16 @@ export const EvidentaAndrada: React.FC = () => {
       if (c.key === "procent_cn_solicitata") display = d.pt != null ? `${d.pt}%` : "—";
       else if (c.key === "kg_solicitat") display = d.kgSolicitat != null ? d.kgSolicitat.toFixed(2) : "—";
       else if (c.key === "cantitate_ramasa") display = d.remaining != null ? d.remaining.toFixed(2) : "—";
+      else if (c.key === "data") {
+        const d2 = d.receiptDate || r.data;
+        if (d2) {
+          const [y, m, day] = String(d2).split("-");
+          display = day && m && y ? `${day}.${m}.${y}` : d2;
+        } else display = "—";
+      }
+      const align = c.key === "data" ? "justify-start" : "justify-end";
       return (
-        <div className="h-8 px-2 flex items-center justify-end text-sm bg-muted/40 rounded font-medium">
+        <div className={`h-8 px-2 flex items-center ${align} text-sm bg-muted/40 rounded font-medium`}>
           {display}
         </div>
       );
