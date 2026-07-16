@@ -231,7 +231,7 @@ export const EvidentaAndrada: React.FC = () => {
       }
       setLotInfo(info);
     })();
-  }, [rows, inventoryType]);
+  }, [rows, allRows, viewMode, inventoryType]);
 
   const derivedFromLot = (r: Row) => {
     const info = r.lot ? lotInfo[r.lot] : undefined;
