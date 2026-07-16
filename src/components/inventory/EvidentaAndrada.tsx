@@ -143,7 +143,10 @@ export const EvidentaAndrada: React.FC = () => {
       .order("data", { ascending: true })
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
-    if (filterDate) q = q.eq("data_productie", filterDate);
+    if (filterDate) {
+      // match rows where data_productie = filterDate, OR data_productie is null and data = filterDate (legacy rows)
+      q = q.or(`data_productie.eq.${filterDate},and(data_productie.is.null,data.eq.${filterDate})`);
+    }
     const { data, error } = await q;
     if (error) toast({ title: "Eroare", description: error.message, variant: "destructive" });
     setRows((data as any) || []);
