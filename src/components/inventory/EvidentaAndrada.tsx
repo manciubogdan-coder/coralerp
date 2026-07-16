@@ -162,7 +162,8 @@ export const EvidentaAndrada: React.FC = () => {
   // Lookup: lot -> { pct, kg, remaining, receiptDate }
   const [lotInfo, setLotInfo] = useState<Record<string, { pct: number | null; kg: number | null; remaining: number | null; receiptDate: string | null }>>({});
   useEffect(() => {
-    const lots = Array.from(new Set(rows.map((r) => r.lot).filter(Boolean))) as string[];
+    const src = viewMode === "centralizat" ? allRows : rows;
+    const lots = Array.from(new Set(src.map((r) => r.lot).filter(Boolean))) as string[];
     if (lots.length === 0) { setLotInfo({}); return; }
     (async () => {
       const info: Record<string, { pct: number | null; kg: number | null; remaining: number | null; receiptDate: string | null }> = {};
