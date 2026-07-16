@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
+import { useInventoryType } from "@/context/inventory-type";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 
 interface InventoryTableProps {
   inventory: InventoryItem[];
@@ -34,10 +36,11 @@ const InventoryTable = ({
   manufacturers: propsManufacturers = {},
   crateTypes: propsCrateTypes = {}
 }: InventoryTableProps) => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [groupBySupplier, setGroupBySupplier] = useState(false);
-  const [groupByProduct, setGroupByProduct] = useState(false);
-  const [showEmptyItems, setShowEmptyItems] = useState(defaultShowEmptyItems);
+  const { inventoryType } = useInventoryType();
+  const [searchTerm, setSearchTerm] = usePersistentState(`inventory-table.search.${inventoryType}`, "");
+  const [groupBySupplier, setGroupBySupplier] = usePersistentState(`inventory-table.groupBySupplier.${inventoryType}`, false);
+  const [groupByProduct, setGroupByProduct] = usePersistentState(`inventory-table.groupByProduct.${inventoryType}`, false);
+  const [showEmptyItems, setShowEmptyItems] = usePersistentState(`inventory-table.showEmpty.${inventoryType}`, defaultShowEmptyItems);
   const suppliers = propsSuppliers;
   const products = propsProducts;
   const manufacturers = propsManufacturers;
