@@ -59,7 +59,7 @@ const DepartmentHub: React.FC = () => {
         </p>
       </div>
 
-      {accessible.length === 0 ? (
+      {accessible.length === 0 && !canSeeEvidenta ? (
         <Card>
           <CardContent className="py-10 flex flex-col items-center text-center gap-3">
             <ShieldAlert className="h-10 w-10 text-amber-500" />
