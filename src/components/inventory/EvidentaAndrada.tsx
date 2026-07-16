@@ -673,6 +673,20 @@ export const EvidentaAndrada: React.FC = () => {
                     <TableCell>{fmtDate(a.receiptDate)}</TableCell>
                     <TableCell>{fmtDate(a.firstDate)}</TableCell>
                     <TableCell>{fmtDate(a.lastDate)}</TableCell>
+                    {(() => {
+                      const done = a.remaining != null && a.remaining <= 0.01;
+                      const started = a.count > 0;
+                      return (
+                        <>
+                          <TableCell>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${done ? "bg-red-100 text-red-700" : started ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                              {done ? "Terminat" : started ? "În lucru" : "Neînceput"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-medium">{done ? fmtDate(a.lastDate) : "—"}</TableCell>
+                        </>
+                      );
+                    })()}
                     <TableCell className="text-right">{a.count}</TableCell>
                     <TableCell className="text-right">{fmt(a.sums["cantitate_intrata"])}</TableCell>
                     <TableCell className="text-right">{a.pct != null ? `${a.pct}%` : "—"}</TableCell>
