@@ -1,10 +1,12 @@
 import React, { useState } from "react";
+import { Navigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ClipboardList, Package, Boxes, Tag } from "lucide-react";
+import { ClipboardList, Package, Boxes, Tag, Loader2 } from "lucide-react";
 import { ForceInventoryType, type InventoryType } from "@/context/inventory-type";
 import EvidentaAndrada from "@/components/inventory/EvidentaAndrada";
 import BackToHubButton from "@/components/BackToHubButton";
+import { useEvidentaAndradaAccess } from "@/hooks/use-evidenta-andrada-access";
 
 type DepotKey = "materii-prime" | "ambalaje" | "etichete";
 
