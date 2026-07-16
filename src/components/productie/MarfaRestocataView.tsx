@@ -110,9 +110,9 @@ const MarfaRestocataView = () => {
   // Marfă restocată = surplus disponibil
   const { data: marfaRestocata, isLoading, refetch } = useQuery({
     queryKey: ['marfa-restocata'],
-    staleTime: 0,
-    refetchOnMount: true,
-    refetchOnWindowFocus: true,
+    staleTime: 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('productie_restocari')
