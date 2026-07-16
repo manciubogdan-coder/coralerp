@@ -135,6 +135,13 @@ export const EvidentaAndrada: React.FC = () => {
   );
   const setFilterDate = (v: string) => { setFilterDateState(v); persistDateKey(dateKey, v); };
 
+  const startKey = `evidenta-andrada.central-start.${inventoryType}`;
+  const endKey = `evidenta-andrada.central-end.${inventoryType}`;
+  const [centralStart, setCentralStartState] = useState<string>(() => readStoredDateKey(startKey, ""));
+  const [centralEnd, setCentralEndState] = useState<string>(() => readStoredDateKey(endKey, ""));
+  const setCentralStart = (v: string) => { setCentralStartState(v); persistDateKey(startKey, v); };
+  const setCentralEnd = (v: string) => { setCentralEndState(v); persistDateKey(endKey, v); };
+
   const fetchRows = useCallback(async () => {
     setLoading(true);
     // Fetch ALL rows for inventory_type (needed for centralized view + lot lookups)
