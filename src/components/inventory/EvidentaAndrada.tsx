@@ -159,30 +159,32 @@ export const EvidentaAndrada: React.FC = () => {
 
   useEffect(() => { fetchRows(); }, [fetchRows]);
 
-  // Lookup: lot -> { pct, kg, remaining, receiptDate }
+  // Lookup: `${product}||${lot}` -> { pct, kg, remaining, receiptDate }
+  // Keyed by product+lot because the same lot_number is reused across many products.
   const [lotInfo, setLotInfo] = useState<Record<string, { pct: number | null; kg: number | null; remaining: number | null; receiptDate: string | null }>>({});
+  const lotKey = (product: string | null | undefined, lot: string | null | undefined) => `${(product ?? "").trim()}||${(lot ?? "").trim()}`;
   useEffect(() => {
     const src = viewMode === "centralizat" ? allRows : rows;
     const lots = Array.from(new Set(src.map((r) => r.lot).filter(Boolean))) as string[];
     if (lots.length === 0) { setLotInfo({}); return; }
     (async () => {
       const info: Record<string, { pct: number | null; kg: number | null; remaining: number | null; receiptDate: string | null }> = {};
-      // 1) inventory rows (lot -> id, quantity)
+      // 1) inventory rows (lot -> id, name, quantity) — key by product+lot
       const { data: inv } = await (supabase as any)
         .from("inventory")
-        .select("id, lot_number, quantity")
+        .select("id, name, lot_number, quantity")
         .in("lot_number", lots);
       const invRows = (inv || []) as any[];
-      const invIdToLot: Record<string, string> = {};
+      const invIdToKey: Record<string, string> = {};
       invRows.forEach((r: any) => {
-        invIdToLot[r.id] = r.lot_number;
-        const key = r.lot_number;
+        const key = lotKey(r.name, r.lot_number);
+        invIdToKey[r.id] = key;
         if (!info[key]) info[key] = { pct: null, kg: null, remaining: 0, receiptDate: null };
         info[key].remaining = (info[key].remaining || 0) + Number(r.quantity || 0);
       });
 
       // 2) reception_report_data by inventory_id (batched)
-      const invIds = Object.keys(invIdToLot);
+      const invIds = Object.keys(invIdToKey);
       for (let i = 0; i < invIds.length; i += 50) {
         const slice = invIds.slice(i, i + 50);
         const { data: rec } = await (supabase as any)
@@ -190,7 +192,7 @@ export const EvidentaAndrada: React.FC = () => {
           .select("inventory_id, pierdere_calitativa_procent, cantitate_receptionata, cantitate_document, declared_quantity")
           .in("inventory_id", slice);
         (rec || []).forEach((r: any) => {
-          const key = invIdToLot[r.inventory_id];
+          const key = invIdToKey[r.inventory_id];
           if (!key) return;
           const pct = r.pierdere_calitativa_procent != null ? Number(r.pierdere_calitativa_procent) : null;
           const declared = Number(r.declared_quantity || 0);
@@ -207,11 +209,13 @@ export const EvidentaAndrada: React.FC = () => {
       }
 
       // 3) receipt_date from reception_records by lot_number (per inventory type)
+      //    Attach to every product-keyed entry that shares this lot.
       const recTable = inventoryType === "etichete"
         ? "etichete_reception_records"
         : inventoryType === "ambalaje"
           ? "ambalaje_reception_records"
           : "reception_records";
+      const dateByLot: Record<string, string> = {};
       for (let i = 0; i < lots.length; i += 50) {
         const slice = lots.slice(i, i + 50);
         const { data: rr } = await (supabase as any)
@@ -221,20 +225,22 @@ export const EvidentaAndrada: React.FC = () => {
           .not("receipt_date", "is", null)
           .order("receipt_date", { ascending: false });
         (rr || []).forEach((row: any) => {
-          const key = row.lot_number;
-          if (!key || !info[key]) return;
-          if (!info[key].receiptDate) {
-            const d = String(row.receipt_date).split("T")[0];
-            info[key].receiptDate = d;
+          if (!row.lot_number) return;
+          if (!dateByLot[row.lot_number]) {
+            dateByLot[row.lot_number] = String(row.receipt_date).split("T")[0];
           }
         });
       }
+      Object.keys(info).forEach((k) => {
+        const lotPart = k.split("||")[1] || "";
+        if (!info[k].receiptDate && dateByLot[lotPart]) info[k].receiptDate = dateByLot[lotPart];
+      });
       setLotInfo(info);
     })();
   }, [rows, allRows, viewMode, inventoryType]);
 
   const derivedFromLot = (r: Row) => {
-    const info = r.lot ? lotInfo[r.lot] : undefined;
+    const info = lotInfo[lotKey(r.produs, r.lot)];
     const pct = info?.pct ?? null;
     const kg = info?.kg ?? null;
     const remaining = info?.remaining ?? null;
