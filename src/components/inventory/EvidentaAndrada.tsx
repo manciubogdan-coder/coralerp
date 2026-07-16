@@ -9,6 +9,7 @@ import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useInventoryType } from "@/context/inventory-type";
 import { persistDateKey, readStoredDateKey, todayKey } from "@/lib/persistentDate";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 
 type Row = {
   id: string;
