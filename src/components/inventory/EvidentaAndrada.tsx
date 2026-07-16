@@ -537,7 +537,7 @@ export const EvidentaAndrada: React.FC = () => {
     exportToExcel(data, `Evidenta_Andrada_Centralizat_${inventoryType}.xlsx`);
   };
 
-  if (inventoryType === "ambalaje") {
+  if ((inventoryType as string) === "ambalaje") {
     return <div className="p-8 text-center text-muted-foreground">Evidența Andrada nu este disponibilă pentru ambalaje.</div>;
   }
 
