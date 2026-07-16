@@ -225,6 +225,21 @@ const UserManagementPage: React.FC = () => {
         if (error) throw error;
       }
 
+
+      // Evidență Andrada access
+      if (draftEvidenta && !editing.evidentaAndrada) {
+        const { error } = await supabaseCloud
+          .from('evidenta_andrada_access')
+          .upsert({ user_id: editing.user_id, email: editing.email }, { onConflict: 'user_id' });
+        if (error) throw error;
+      } else if (!draftEvidenta && editing.evidentaAndrada) {
+        const { error } = await supabaseCloud
+          .from('evidenta_andrada_access')
+          .delete()
+          .eq('user_id', editing.user_id);
+        if (error) throw error;
+      }
+
       toast({ title: 'Roluri actualizate', description: `Rolurile pentru ${editing.email} au fost salvate.` });
       setEditing(null);
       fetchUsers();
