@@ -155,14 +155,14 @@ export const EvidentaAndrada: React.FC = () => {
 
   useEffect(() => { fetchRows(); }, [fetchRows]);
 
-  // Lookup: lot -> { pierdere_procent (Pierd.% din tab Recepție), pierdere_kg (Pierd(kg)), remaining_qty }
-  const [lotInfo, setLotInfo] = useState<Record<string, { pct: number | null; kg: number | null; remaining: number | null }>>({});
+  // Lookup: lot -> { pct, kg, remaining, receiptDate }
+  const [lotInfo, setLotInfo] = useState<Record<string, { pct: number | null; kg: number | null; remaining: number | null; receiptDate: string | null }>>({});
   useEffect(() => {
     const lots = Array.from(new Set(rows.map((r) => r.lot).filter(Boolean))) as string[];
     if (lots.length === 0) { setLotInfo({}); return; }
     (async () => {
-      const info: Record<string, { pct: number | null; kg: number | null; remaining: number | null }> = {};
-      // 1) All inventory rows for these lots (has lot_number + quantity + id for join)
+      const info: Record<string, { pct: number | null; kg: number | null; remaining: number | null; receiptDate: string | null }> = {};
+      // 1) inventory rows (lot -> id, quantity)
       const { data: inv } = await (supabase as any)
         .from("inventory")
         .select("id, lot_number, quantity")
@@ -172,7 +172,7 @@ export const EvidentaAndrada: React.FC = () => {
       invRows.forEach((r: any) => {
         invIdToLot[r.id] = r.lot_number;
         const key = r.lot_number;
-        if (!info[key]) info[key] = { pct: null, kg: null, remaining: 0 };
+        if (!info[key]) info[key] = { pct: null, kg: null, remaining: 0, receiptDate: null };
         info[key].remaining = (info[key].remaining || 0) + Number(r.quantity || 0);
       });
 
@@ -195,21 +195,46 @@ export const EvidentaAndrada: React.FC = () => {
           const underTol = rec_q < doc_q;
           const base = underTol ? doc_q : effective;
           const kg = pct != null ? +((base * pct) / 100).toFixed(2) : null;
-          if (!info[key]) info[key] = { pct: null, kg: null, remaining: null };
+          if (!info[key]) info[key] = { pct: null, kg: null, remaining: null, receiptDate: null };
           info[key].pct = info[key].pct ?? pct;
           info[key].kg = (info[key].kg || 0) + (kg || 0);
         });
       }
+
+      // 3) receipt_date from reception_records by lot_number (per inventory type)
+      const recTable = inventoryType === "etichete"
+        ? "etichete_reception_records"
+        : inventoryType === "ambalaje"
+          ? "ambalaje_reception_records"
+          : "reception_records";
+      for (let i = 0; i < lots.length; i += 50) {
+        const slice = lots.slice(i, i + 50);
+        const { data: rr } = await (supabase as any)
+          .from(recTable)
+          .select("lot_number, receipt_date")
+          .in("lot_number", slice)
+          .not("receipt_date", "is", null)
+          .order("receipt_date", { ascending: false });
+        (rr || []).forEach((row: any) => {
+          const key = row.lot_number;
+          if (!key || !info[key]) return;
+          if (!info[key].receiptDate) {
+            const d = String(row.receipt_date).split("T")[0];
+            info[key].receiptDate = d;
+          }
+        });
+      }
       setLotInfo(info);
     })();
-  }, [rows]);
+  }, [rows, inventoryType]);
 
   const derivedFromLot = (r: Row) => {
     const info = r.lot ? lotInfo[r.lot] : undefined;
     const pct = info?.pct ?? null;
     const kg = info?.kg ?? null;
     const remaining = info?.remaining ?? null;
-    return { pt: pct, kgSolicitat: kg, remaining: remaining != null ? +remaining.toFixed(2) : null };
+    const receiptDate = info?.receiptDate ?? null;
+    return { pt: pct, kgSolicitat: kg, remaining: remaining != null ? +remaining.toFixed(2) : null, receiptDate };
   };
 
 
