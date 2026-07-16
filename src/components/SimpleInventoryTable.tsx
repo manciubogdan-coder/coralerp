@@ -1,18 +1,21 @@
 
-import React, { useState } from "react";
+import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, FileSpreadsheet } from "lucide-react";
 import { InventoryItem } from "@/types";
 import { exportToExcel } from "@/lib/excelExport";
+import { useInventoryType } from "@/context/inventory-type";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 
 interface SimpleInventoryTableProps {
   inventory: InventoryItem[];
 }
 
 const SimpleInventoryTable = ({ inventory }: SimpleInventoryTableProps) => {
-  const [searchTerm, setSearchTerm] = useState("");
+  const { inventoryType } = useInventoryType();
+  const [searchTerm, setSearchTerm] = usePersistentState(`simple-inventory.search.${inventoryType}`, "");
 
   // Grupează produsele după nume și sumează cantitățile
   const groupedInventory = inventory.reduce((acc, item) => {
