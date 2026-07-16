@@ -630,7 +630,7 @@ export const EvidentaAndrada: React.FC = () => {
       {loading ? (
         <div className="p-8 text-center text-muted-foreground">Se încarcă...</div>
       ) : viewMode === "centralizat" ? (
-        <div className="border rounded-lg overflow-auto max-h-[75vh]">
+        <div className="border rounded-lg [&>div]:max-h-[75vh] [&>div]:overflow-auto">
           <Table className="border-separate border-spacing-0">
             <TableHeader className="bg-background">
               <TableRow>
@@ -727,7 +727,7 @@ export const EvidentaAndrada: React.FC = () => {
           </Table>
         </div>
       ) : (
-        <div className="border rounded-lg overflow-auto max-h-[75vh]">
+        <div className="border rounded-lg [&>div]:max-h-[75vh] [&>div]:overflow-auto">
           <Table className="border-separate border-spacing-0">
             <TableHeader className="bg-background">
               <TableRow>
