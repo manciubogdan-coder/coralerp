@@ -712,7 +712,7 @@ export const EvidentaAndrada: React.FC = () => {
               })}
               {centralized.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={27} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={29} className="text-center text-muted-foreground py-6">
                     Niciun rând.
                   </TableCell>
                 </TableRow>
