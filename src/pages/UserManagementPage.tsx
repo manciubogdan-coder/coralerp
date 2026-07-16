@@ -181,6 +181,7 @@ const UserManagementPage: React.FC = () => {
     setEditing(u);
     setDraftAdmin(!!u.isAdmin);
     setDraftDepts(new Set(u.departments || []));
+    setDraftEvidenta(!!u.evidentaAndrada);
   };
 
   const toggleDept = (dept: DepartmentRole) => {
