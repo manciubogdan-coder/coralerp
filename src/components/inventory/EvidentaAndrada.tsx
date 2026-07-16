@@ -213,7 +213,7 @@ export const EvidentaAndrada: React.FC = () => {
   const addRow = async (copyFrom?: Row) => {
     const base: any = copyFrom
       ? { ...copyFrom }
-      : { data: filterDate || todayKey(), inventory_type: inventoryType };
+      : { data: todayKey(), data_productie: filterDate || null, inventory_type: inventoryType };
     delete base.id;
     delete base.created_at;
     delete base.updated_at;
