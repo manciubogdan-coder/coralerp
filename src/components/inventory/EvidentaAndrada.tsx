@@ -631,38 +631,38 @@ export const EvidentaAndrada: React.FC = () => {
         <div className="p-8 text-center text-muted-foreground">Se încarcă...</div>
       ) : viewMode === "centralizat" ? (
         <div className="border rounded-lg overflow-auto max-h-[75vh]">
-          <Table>
-            <TableHeader className="sticky top-0 bg-background z-10">
+          <Table className="border-separate border-spacing-0">
+            <TableHeader className="bg-background">
               <TableRow>
-                <TableHead className="min-w-[180px]">Produs</TableHead>
-                <TableHead className="min-w-[120px]">Lot</TableHead>
-                <TableHead className="min-w-[160px]">Producător</TableHead>
-                <TableHead className="min-w-[160px]">Furnizor</TableHead>
-                <TableHead className="min-w-[110px]">Data recepție</TableHead>
-                <TableHead className="min-w-[110px]">Prima zi</TableHead>
-                <TableHead className="min-w-[110px]">Ultima zi</TableHead>
-                <TableHead className="min-w-[120px]">Status lot</TableHead>
-                <TableHead className="min-w-[120px]">Data terminării</TableHead>
-                <TableHead className="min-w-[70px] text-right">Zile</TableHead>
-                <TableHead className="min-w-[110px] text-right">Cant. intr.</TableHead>
-                <TableHead className="min-w-[100px] text-right">% CN sol.</TableHead>
-                <TableHead className="min-w-[110px] text-right">Kg solicit.</TableHead>
-                <TableHead className="min-w-[110px] text-right">Rămas depozit</TableHead>
-                <TableHead className="min-w-[120px] text-right bg-blue-50">MP intr. prod (Σ)</TableHead>
-                <TableHead className="min-w-[120px] text-right bg-blue-50">MP utiliz. (Σ)</TableHead>
-                <TableHead className="min-w-[110px] text-right bg-orange-50">Pierd. tot. (Σ)</TableHead>
-                <TableHead className="min-w-[90px] text-right bg-red-50">Rebut (Σ)</TableHead>
-                <TableHead className="min-w-[100px] text-right bg-orange-50">Retur (Σ)</TableHead>
-                <TableHead className="min-w-[90px] text-right">% NC</TableHead>
-                <TableHead className="min-w-[120px] text-right bg-orange-50">Pierd. tehno (Σ)</TableHead>
-                <TableHead className="min-w-[100px] text-right">% Cântar med.</TableHead>
-                <TableHead className="min-w-[80px] text-right">15g (Σ)</TableHead>
-                <TableHead className="min-w-[80px] text-right">30g (Σ)</TableHead>
-                <TableHead className="min-w-[80px] text-right">70g (Σ)</TableHead>
-                <TableHead className="min-w-[80px] text-right">100g (Σ)</TableHead>
-                <TableHead className="min-w-[80px] text-right">250g (Σ)</TableHead>
-                <TableHead className="min-w-[80px] text-right">500g (Σ)</TableHead>
-                <TableHead className="min-w-[100px] text-right bg-green-50">Kg final (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[180px]">Produs</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[120px]">Lot</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[160px]">Producător</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[160px]">Furnizor</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[110px]">Data recepție</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[110px]">Prima zi</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[110px]">Ultima zi</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[120px]">Status lot</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[120px]">Data terminării</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[70px] text-right">Zile</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[110px] text-right">Cant. intr.</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[100px] text-right">% CN sol.</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[110px] text-right">Kg solicit.</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[110px] text-right">Rămas depozit</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[120px] text-right bg-blue-50">MP intr. prod (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[120px] text-right bg-blue-50">MP utiliz. (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[110px] text-right bg-orange-50">Pierd. tot. (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[90px] text-right bg-red-50">Rebut (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[100px] text-right bg-orange-50">Retur (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[90px] text-right">% NC</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[120px] text-right bg-orange-50">Pierd. tehno (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[100px] text-right">% Cântar med.</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[80px] text-right">15g (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[80px] text-right">30g (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[80px] text-right">70g (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[80px] text-right">100g (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[80px] text-right">250g (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[80px] text-right">500g (Σ)</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 min-w-[100px] text-right bg-green-50">Kg final (Σ)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -728,12 +728,12 @@ export const EvidentaAndrada: React.FC = () => {
         </div>
       ) : (
         <div className="border rounded-lg overflow-auto max-h-[75vh]">
-          <Table>
-            <TableHeader className="sticky top-0 bg-background z-10">
+          <Table className="border-separate border-spacing-0">
+            <TableHeader className="bg-background">
               <TableRow>
-                <TableHead className="w-16">Acțiuni</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 w-16">Acțiuni</TableHead>
                 {COLS.map((c) => (
-                  <TableHead key={c.key as string} className={c.w}>{c.label}</TableHead>
+                  <TableHead key={c.key as string} className={`sticky top-0 bg-background z-10 ${c.w}`}>{c.label}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
