@@ -123,9 +123,11 @@ const computeDerived = (r: Row): Partial<Row> => {
 export const EvidentaAndrada: React.FC = () => {
   const { inventoryType } = useInventoryType();
   const [rows, setRows] = useState<Row[]>([]);
+  const [allRows, setAllRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = usePersistentState(`evidenta-andrada.search.${inventoryType}`, "");
   const [producatorFilter, setProducatorFilter] = usePersistentState(`evidenta-andrada.producator.${inventoryType}`, "");
+  const [viewMode, setViewMode] = usePersistentState<"detaliat" | "centralizat">(`evidenta-andrada.viewmode.${inventoryType}`, "detaliat");
 
   const dateKey = `evidenta-andrada.filter-date.${inventoryType}`;
   const [filterDate, setFilterDateState] = useState<string>(() =>
@@ -135,7 +137,8 @@ export const EvidentaAndrada: React.FC = () => {
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
-    let q = supabaseCloud
+    // Fetch ALL rows for inventory_type (needed for centralized view + lot lookups)
+    const { data: allData, error: allErr } = await supabaseCloud
       .from("evidenta_andrada_rows")
       .select("*")
       .eq("inventory_type", inventoryType)
@@ -143,13 +146,14 @@ export const EvidentaAndrada: React.FC = () => {
       .order("data", { ascending: true })
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
-    if (filterDate) {
-      // match rows where data_productie = filterDate, OR data_productie is null and data = filterDate (legacy rows)
-      q = q.or(`data_productie.eq.${filterDate},and(data_productie.is.null,data.eq.${filterDate})`);
-    }
-    const { data, error } = await q;
-    if (error) toast({ title: "Eroare", description: error.message, variant: "destructive" });
-    setRows((data as any) || []);
+    if (allErr) toast({ title: "Eroare", description: allErr.message, variant: "destructive" });
+    const all = (allData as any) || [];
+    setAllRows(all);
+    // Apply date filter for detailed view
+    const filtered = filterDate
+      ? all.filter((r: Row) => (r.data_productie === filterDate) || (!r.data_productie && r.data === filterDate))
+      : all;
+    setRows(filtered);
     setLoading(false);
   }, [inventoryType, filterDate]);
 
