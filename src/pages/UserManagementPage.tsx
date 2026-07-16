@@ -488,6 +488,19 @@ const UserManagementPage: React.FC = () => {
                 );
               })}
             </div>
+
+            <label className="flex items-center gap-3 p-3 rounded-md border bg-muted/30">
+              <Checkbox
+                checked={draftEvidenta}
+                onCheckedChange={(v) => setDraftEvidenta(v === true)}
+              />
+              <div>
+                <div className="font-medium">Acces Evidență Andrada</div>
+                <div className="text-xs text-muted-foreground">
+                  Utilizatorul va vedea tile-ul „Evidență Andrada” pe pagina principală.
+                </div>
+              </div>
+            </label>
           </div>
 
           <DialogFooter>
