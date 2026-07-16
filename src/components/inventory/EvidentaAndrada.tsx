@@ -589,7 +589,7 @@ export const EvidentaAndrada: React.FC = () => {
             Centralizat
           </button>
         </div>
-        {viewMode === "detaliat" && (
+        {viewMode === "detaliat" ? (
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             <input
@@ -600,6 +600,29 @@ export const EvidentaAndrada: React.FC = () => {
             />
             {filterDate && (
               <Button size="sm" variant="ghost" onClick={() => setFilterDate("")}>
+                Toate
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            <span className="text-sm text-muted-foreground">Perioadă:</span>
+            <input
+              type="date"
+              value={centralStart}
+              onChange={(e) => setCentralStart(e.target.value)}
+              className="px-3 py-2 border rounded-md text-sm"
+            />
+            <span className="text-sm text-muted-foreground">-</span>
+            <input
+              type="date"
+              value={centralEnd}
+              onChange={(e) => setCentralEnd(e.target.value)}
+              className="px-3 py-2 border rounded-md text-sm"
+            />
+            {(centralStart || centralEnd) && (
+              <Button size="sm" variant="ghost" onClick={() => { setCentralStart(""); setCentralEnd(""); }}>
                 Toate
               </Button>
             )}
