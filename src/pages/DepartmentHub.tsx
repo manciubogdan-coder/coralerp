@@ -42,6 +42,7 @@ const DepartmentHub: React.FC = () => {
   const navigate = useNavigate();
   const { hasDepartment, profile, isAdmin } = useAuth();
   const { chatUnread, taskUnread } = useCollaborationAlerts();
+  const { allowed: canSeeEvidenta } = useEvidentaAndradaAccess();
 
   // Toate hub-urile (inclusiv Calitate și Operator) provin din DEPARTMENTS;
   // tile-ul apare doar dacă userul are rolul corespunzător (sau e admin).
