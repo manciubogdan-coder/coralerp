@@ -512,6 +512,8 @@ export const EvidentaAndrada: React.FC = () => {
         "Data recepție": a.receiptDate ?? "",
         "Prima zi prod.": a.firstDate ?? "",
         "Ultima zi prod.": a.lastDate ?? "",
+        "Status lot": a.remaining != null && a.remaining <= 0.01 ? "Terminat" : (a.count > 0 ? "În lucru" : "Neînceput"),
+        "Data terminării lotului": (a.remaining != null && a.remaining <= 0.01) ? (a.lastDate ?? "") : "",
         "Nr. zile / rânduri": a.count,
         "Cant. intrată (kg)": +a.sums["cantitate_intrata"].toFixed(2),
         "% CN solicitată": a.pct ?? "",
