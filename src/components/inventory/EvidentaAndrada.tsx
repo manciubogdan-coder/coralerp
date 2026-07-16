@@ -658,7 +658,7 @@ export const EvidentaAndrada: React.FC = () => {
         </Button>
         <div className="text-xs text-muted-foreground ml-auto">
           {viewMode === "centralizat"
-            ? "Totaluri pe Produs + Lot + Producător + Furnizor (ignoră filtrul de dată)."
+            ? "Totaluri pe Produs + Lot + Producător + Furnizor, filtrate după perioada de producție."
             : "Se salvează automat. Formule: Pierd. totală = MP intr. − MP utiliz. • Pierd. tehno = Pierd. tot. − Rebut − Retur • %NC = Rebut ÷ MP intr. • Kg final = Σ(buc × g)"}
         </div>
       </div>
