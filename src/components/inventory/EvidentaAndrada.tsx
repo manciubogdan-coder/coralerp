@@ -292,8 +292,8 @@ export const EvidentaAndrada: React.FC = () => {
   };
 
   const producatoriList = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.producator).filter(Boolean))) as string[],
-    [rows]
+    () => Array.from(new Set((viewMode === "centralizat" ? allRows : rows).map((r) => r.producator).filter(Boolean))) as string[],
+    [rows, allRows, viewMode]
   );
 
   const filtered = useMemo(() => {
@@ -307,6 +307,74 @@ export const EvidentaAndrada: React.FC = () => {
       return true;
     });
   }, [rows, producatorFilter, search]);
+
+  // Centralized aggregation: group by lot + produs + producator + furnizor
+  const NUM_AGG_KEYS: (keyof Row)[] = [
+    "cantitate_intrata","mp_intrata_in_prod","mp_utilizata_vanduta","pierdere_totala",
+    "rebut","retur_repozit","pierdere_tehnologica",
+    "bucati_15g","bucati_30g","bucati_70g","bucati_100g","bucati_250g","bucati_500g","kg_final",
+  ];
+  type Agg = {
+    key: string;
+    lot: string | null; produs: string | null; producator: string | null; furnizor: string | null;
+    count: number;
+    firstDate: string | null; lastDate: string | null;
+    pct: number | null; kgSolicitat: number | null; remaining: number | null; receiptDate: string | null;
+    procent_cantar_sum: number; procent_cantar_n: number;
+    sums: Record<string, number>;
+  };
+  const centralized = useMemo<Agg[]>(() => {
+    const src = allRows.filter((r) => {
+      if (producatorFilter && r.producator !== producatorFilter) return false;
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const hay = [r.lot, r.produs, r.furnizor, r.producator, r.observatii].join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    const map = new Map<string, Agg>();
+    for (const r of src) {
+      const key = `${r.produs ?? ""}||${r.lot ?? ""}||${r.producator ?? ""}||${r.furnizor ?? ""}`;
+      let a = map.get(key);
+      if (!a) {
+        const info = r.lot ? lotInfo[r.lot] : undefined;
+        a = {
+          key,
+          lot: r.lot, produs: r.produs, producator: r.producator, furnizor: r.furnizor,
+          count: 0, firstDate: null, lastDate: null,
+          pct: info?.pct ?? null, kgSolicitat: info?.kg ?? null,
+          remaining: info?.remaining != null ? +info.remaining.toFixed(2) : null,
+          receiptDate: info?.receiptDate ?? null,
+          procent_cantar_sum: 0, procent_cantar_n: 0,
+          sums: {},
+        };
+        NUM_AGG_KEYS.forEach((k) => (a!.sums[k as string] = 0));
+        map.set(key, a);
+      }
+      a.count += 1;
+      const dp = r.data_productie || r.data;
+      if (dp) {
+        if (!a.firstDate || dp < a.firstDate) a.firstDate = dp;
+        if (!a.lastDate || dp > a.lastDate) a.lastDate = dp;
+      }
+      NUM_AGG_KEYS.forEach((k) => {
+        const v = (r as any)[k];
+        if (v != null && !isNaN(Number(v))) a!.sums[k as string] += Number(v);
+      });
+      if (r.procent_cantar != null && !isNaN(Number(r.procent_cantar))) {
+        a.procent_cantar_sum += Number(r.procent_cantar);
+        a.procent_cantar_n += 1;
+      }
+    }
+    // compute %NC = rebut / mp_intrata_in_prod * 100 at aggregate level
+    return Array.from(map.values()).sort((x, y) => {
+      const a = `${x.produs ?? ""} ${x.lot ?? ""}`;
+      const b = `${y.produs ?? ""} ${y.lot ?? ""}`;
+      return a.localeCompare(b);
+    });
+  }, [allRows, lotInfo, producatorFilter, search]);
+
 
   const handleExport = () => {
     if (!filtered.length) { toast({ title: "Nu există date" }); return; }
