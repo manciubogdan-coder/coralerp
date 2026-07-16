@@ -344,6 +344,12 @@ export const EvidentaAndrada: React.FC = () => {
         const hay = [r.lot, r.produs, r.furnizor, r.producator, r.observatii].join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
+      if (centralStart || centralEnd) {
+        const dp = r.data_productie;
+        if (!dp) return false;
+        if (centralStart && dp < centralStart) return false;
+        if (centralEnd && dp > centralEnd) return false;
+      }
       return true;
     });
     const map = new Map<string, Agg>();
