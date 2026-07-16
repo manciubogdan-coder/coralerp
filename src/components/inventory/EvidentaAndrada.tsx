@@ -344,7 +344,7 @@ export const EvidentaAndrada: React.FC = () => {
       const key = `${r.produs ?? ""}||${r.lot ?? ""}||${r.producator ?? ""}||${r.furnizor ?? ""}`;
       let a = map.get(key);
       if (!a) {
-        const info = r.lot ? lotInfo[r.lot] : undefined;
+        const info = lotInfo[lotKey(r.produs, r.lot)];
         a = {
           key,
           lot: r.lot, produs: r.produs, producator: r.producator, furnizor: r.furnizor,
