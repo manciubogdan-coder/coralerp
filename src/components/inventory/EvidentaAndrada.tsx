@@ -58,7 +58,7 @@ const numFields = new Set([
 
 // column definition: [key, label, width, type]
 const COLS: Array<{ key: keyof Row; label: string; w: string; type: "date" | "num" | "text" | "time" | "int"; readonly?: boolean }> = [
-  { key: "data", label: "Data", w: "min-w-[140px]", type: "date" },
+  { key: "data", label: "Data recepție", w: "min-w-[140px]", type: "date", readonly: true },
   { key: "lot", label: "Lot", w: "min-w-[120px]", type: "text" },
   { key: "produs", label: "Produs", w: "min-w-[200px]", type: "text" },
   { key: "cantitate_intrata", label: "Cant. intrată (kg)", w: "min-w-[140px]", type: "num" },
