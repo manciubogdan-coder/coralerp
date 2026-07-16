@@ -498,23 +498,92 @@ export const EvidentaAndrada: React.FC = () => {
     return <div className="p-8 text-center text-muted-foreground">Evidența Andrada nu este disponibilă pentru ambalaje.</div>;
   }
 
+  // Centralized export
+  const handleExportCentralized = () => {
+    if (!centralized.length) { toast({ title: "Nu există date" }); return; }
+    const data = centralized.map((a) => {
+      const mpIn = a.sums["mp_intrata_in_prod"] || 0;
+      const procNC = mpIn > 0 ? +((a.sums["rebut"] / mpIn) * 100).toFixed(2) : null;
+      return {
+        "Produs": a.produs ?? "",
+        "Lot": a.lot ?? "",
+        "Producător": a.producator ?? "",
+        "Furnizor": a.furnizor ?? "",
+        "Data recepție": a.receiptDate ?? "",
+        "Prima zi prod.": a.firstDate ?? "",
+        "Ultima zi prod.": a.lastDate ?? "",
+        "Nr. zile / rânduri": a.count,
+        "Cant. intrată (kg)": +a.sums["cantitate_intrata"].toFixed(2),
+        "% CN solicitată": a.pct ?? "",
+        "Kg solicitat (pierd. prevăzută)": a.kgSolicitat ?? "",
+        "Cant. rămasă în depozit": a.remaining ?? "",
+        "MP intrată în prod. (Σ)": +a.sums["mp_intrata_in_prod"].toFixed(2),
+        "MP utilizată/vândută (Σ)": +a.sums["mp_utilizata_vanduta"].toFixed(2),
+        "Pierdere totală (Σ)": +a.sums["pierdere_totala"].toFixed(2),
+        "Rebut (Σ)": +a.sums["rebut"].toFixed(2),
+        "Retur repoziț. (Σ)": +a.sums["retur_repozit"].toFixed(2),
+        "% NC realizat": procNC ?? "",
+        "Pierd. tehno realizată (kg)": +a.sums["pierdere_tehnologica"].toFixed(2),
+        "% Cântar mediu": a.procent_cantar_n ? +(a.procent_cantar_sum / a.procent_cantar_n).toFixed(2) : "",
+        "Buc 15g (Σ)": a.sums["bucati_15g"],
+        "Buc 30g (Σ)": a.sums["bucati_30g"],
+        "Buc 70g (Σ)": a.sums["bucati_70g"],
+        "Buc 100g (Σ)": a.sums["bucati_100g"],
+        "Buc 250g (Σ)": a.sums["bucati_250g"],
+        "Buc 500g (Σ)": a.sums["bucati_500g"],
+        "Kg final (Σ)": +a.sums["kg_final"].toFixed(2),
+      };
+    });
+    exportToExcel(data, `Evidenta_Andrada_Centralizat_${inventoryType}.xlsx`);
+  };
+
+  if (inventoryType === "ambalaje") {
+    return <div className="p-8 text-center text-muted-foreground">Evidența Andrada nu este disponibilă pentru ambalaje.</div>;
+  }
+
+  const fmt = (n: number, dec = 2) => (n === 0 ? "—" : n.toFixed(dec));
+  const fmtInt = (n: number) => (n === 0 ? "—" : String(n));
+  const fmtDate = (s: string | null) => {
+    if (!s) return "—";
+    const [y, m, d] = s.split("-");
+    return d && m && y ? `${d}.${m}.${y}` : s;
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2 items-center">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4" />
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            className="px-3 py-2 border rounded-md text-sm"
-          />
-          {filterDate && (
-            <Button size="sm" variant="ghost" onClick={() => setFilterDate("")}>
-              Toate
-            </Button>
-          )}
+        <div className="inline-flex rounded-md border overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setViewMode("detaliat")}
+            className={`px-3 py-2 text-sm ${viewMode === "detaliat" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+          >
+            Detaliat
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("centralizat")}
+            className={`px-3 py-2 text-sm border-l ${viewMode === "centralizat" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+          >
+            Centralizat
+          </button>
         </div>
+        {viewMode === "detaliat" && (
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="px-3 py-2 border rounded-md text-sm"
+            />
+            {filterDate && (
+              <Button size="sm" variant="ghost" onClick={() => setFilterDate("")}>
+                Toate
+              </Button>
+            )}
+          </div>
+        )}
         <select
           value={producatorFilter}
           onChange={(e) => setProducatorFilter(e.target.value)}
@@ -531,19 +600,108 @@ export const EvidentaAndrada: React.FC = () => {
           onChange={(e) => setSearch(e.target.value)}
           className="w-64"
         />
-        <Button size="sm" onClick={() => addRow()}>
-          <Plus className="h-4 w-4 mr-1" /> Rând nou
-        </Button>
-        <Button size="sm" variant="outline" onClick={handleExport}>
+        {viewMode === "detaliat" && (
+          <Button size="sm" onClick={() => addRow()}>
+            <Plus className="h-4 w-4 mr-1" /> Rând nou
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={viewMode === "centralizat" ? handleExportCentralized : handleExport}
+        >
           <FileSpreadsheet className="h-4 w-4 mr-1" /> Export Excel
         </Button>
         <div className="text-xs text-muted-foreground ml-auto">
-          Se salvează automat. Formule: Pierdere totală = MP intrată − MP utilizată • Pierd. tehno = Pierd. totală − Rebut − Retur • %NC = Rebut ÷ MP intrată • Kg final = Σ(buc × g)
+          {viewMode === "centralizat"
+            ? "Totaluri pe Produs + Lot + Producător + Furnizor (ignoră filtrul de dată)."
+            : "Se salvează automat. Formule: Pierd. totală = MP intr. − MP utiliz. • Pierd. tehno = Pierd. tot. − Rebut − Retur • %NC = Rebut ÷ MP intr. • Kg final = Σ(buc × g)"}
         </div>
       </div>
 
       {loading ? (
         <div className="p-8 text-center text-muted-foreground">Se încarcă...</div>
+      ) : viewMode === "centralizat" ? (
+        <div className="border rounded-lg overflow-auto max-h-[75vh]">
+          <Table>
+            <TableHeader className="sticky top-0 bg-background z-10">
+              <TableRow>
+                <TableHead className="min-w-[180px]">Produs</TableHead>
+                <TableHead className="min-w-[120px]">Lot</TableHead>
+                <TableHead className="min-w-[160px]">Producător</TableHead>
+                <TableHead className="min-w-[160px]">Furnizor</TableHead>
+                <TableHead className="min-w-[110px]">Data recepție</TableHead>
+                <TableHead className="min-w-[110px]">Prima zi</TableHead>
+                <TableHead className="min-w-[110px]">Ultima zi</TableHead>
+                <TableHead className="min-w-[70px] text-right">Zile</TableHead>
+                <TableHead className="min-w-[110px] text-right">Cant. intr.</TableHead>
+                <TableHead className="min-w-[100px] text-right">% CN sol.</TableHead>
+                <TableHead className="min-w-[110px] text-right">Kg solicit.</TableHead>
+                <TableHead className="min-w-[110px] text-right">Rămas depozit</TableHead>
+                <TableHead className="min-w-[120px] text-right bg-blue-50">MP intr. prod (Σ)</TableHead>
+                <TableHead className="min-w-[120px] text-right bg-blue-50">MP utiliz. (Σ)</TableHead>
+                <TableHead className="min-w-[110px] text-right bg-orange-50">Pierd. tot. (Σ)</TableHead>
+                <TableHead className="min-w-[90px] text-right bg-red-50">Rebut (Σ)</TableHead>
+                <TableHead className="min-w-[100px] text-right bg-orange-50">Retur (Σ)</TableHead>
+                <TableHead className="min-w-[90px] text-right">% NC</TableHead>
+                <TableHead className="min-w-[120px] text-right bg-orange-50">Pierd. tehno (Σ)</TableHead>
+                <TableHead className="min-w-[100px] text-right">% Cântar med.</TableHead>
+                <TableHead className="min-w-[80px] text-right">15g (Σ)</TableHead>
+                <TableHead className="min-w-[80px] text-right">30g (Σ)</TableHead>
+                <TableHead className="min-w-[80px] text-right">70g (Σ)</TableHead>
+                <TableHead className="min-w-[80px] text-right">100g (Σ)</TableHead>
+                <TableHead className="min-w-[80px] text-right">250g (Σ)</TableHead>
+                <TableHead className="min-w-[80px] text-right">500g (Σ)</TableHead>
+                <TableHead className="min-w-[100px] text-right bg-green-50">Kg final (Σ)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {centralized.map((a) => {
+                const mpIn = a.sums["mp_intrata_in_prod"] || 0;
+                const procNC = mpIn > 0 ? +((a.sums["rebut"] / mpIn) * 100).toFixed(2) : null;
+                const cantarMed = a.procent_cantar_n ? +(a.procent_cantar_sum / a.procent_cantar_n).toFixed(2) : null;
+                return (
+                  <TableRow key={a.key}>
+                    <TableCell className="font-medium">{a.produs ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{a.lot ?? "—"}</TableCell>
+                    <TableCell>{a.producator ?? "—"}</TableCell>
+                    <TableCell>{a.furnizor ?? "—"}</TableCell>
+                    <TableCell>{fmtDate(a.receiptDate)}</TableCell>
+                    <TableCell>{fmtDate(a.firstDate)}</TableCell>
+                    <TableCell>{fmtDate(a.lastDate)}</TableCell>
+                    <TableCell className="text-right">{a.count}</TableCell>
+                    <TableCell className="text-right">{fmt(a.sums["cantitate_intrata"])}</TableCell>
+                    <TableCell className="text-right">{a.pct != null ? `${a.pct}%` : "—"}</TableCell>
+                    <TableCell className="text-right">{a.kgSolicitat != null ? a.kgSolicitat.toFixed(2) : "—"}</TableCell>
+                    <TableCell className="text-right">{a.remaining != null ? a.remaining.toFixed(2) : "—"}</TableCell>
+                    <TableCell className="text-right bg-blue-50/50 font-semibold">{fmt(a.sums["mp_intrata_in_prod"])}</TableCell>
+                    <TableCell className="text-right bg-blue-50/50 font-semibold">{fmt(a.sums["mp_utilizata_vanduta"])}</TableCell>
+                    <TableCell className="text-right bg-orange-50/50">{fmt(a.sums["pierdere_totala"])}</TableCell>
+                    <TableCell className="text-right bg-red-50/50">{fmt(a.sums["rebut"])}</TableCell>
+                    <TableCell className="text-right bg-orange-50/50">{fmt(a.sums["retur_repozit"])}</TableCell>
+                    <TableCell className="text-right">{procNC != null ? `${procNC}%` : "—"}</TableCell>
+                    <TableCell className="text-right bg-orange-50/50">{fmt(a.sums["pierdere_tehnologica"])}</TableCell>
+                    <TableCell className="text-right">{cantarMed != null ? `${cantarMed}%` : "—"}</TableCell>
+                    <TableCell className="text-right">{fmtInt(a.sums["bucati_15g"])}</TableCell>
+                    <TableCell className="text-right">{fmtInt(a.sums["bucati_30g"])}</TableCell>
+                    <TableCell className="text-right">{fmtInt(a.sums["bucati_70g"])}</TableCell>
+                    <TableCell className="text-right">{fmtInt(a.sums["bucati_100g"])}</TableCell>
+                    <TableCell className="text-right">{fmtInt(a.sums["bucati_250g"])}</TableCell>
+                    <TableCell className="text-right">{fmtInt(a.sums["bucati_500g"])}</TableCell>
+                    <TableCell className="text-right bg-green-50/50 font-semibold">{fmt(a.sums["kg_final"])}</TableCell>
+                  </TableRow>
+                );
+              })}
+              {centralized.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={27} className="text-center text-muted-foreground py-6">
+                    Niciun rând.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       ) : (
         <div className="border rounded-lg overflow-auto max-h-[75vh]">
           <Table>
