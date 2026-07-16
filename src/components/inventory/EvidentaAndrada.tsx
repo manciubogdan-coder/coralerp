@@ -135,6 +135,13 @@ export const EvidentaAndrada: React.FC = () => {
   );
   const setFilterDate = (v: string) => { setFilterDateState(v); persistDateKey(dateKey, v); };
 
+  const startKey = `evidenta-andrada.central-start.${inventoryType}`;
+  const endKey = `evidenta-andrada.central-end.${inventoryType}`;
+  const [centralStart, setCentralStartState] = useState<string>(() => readStoredDateKey(startKey, ""));
+  const [centralEnd, setCentralEndState] = useState<string>(() => readStoredDateKey(endKey, ""));
+  const setCentralStart = (v: string) => { setCentralStartState(v); persistDateKey(startKey, v); };
+  const setCentralEnd = (v: string) => { setCentralEndState(v); persistDateKey(endKey, v); };
+
   const fetchRows = useCallback(async () => {
     setLoading(true);
     // Fetch ALL rows for inventory_type (needed for centralized view + lot lookups)
@@ -337,6 +344,12 @@ export const EvidentaAndrada: React.FC = () => {
         const hay = [r.lot, r.produs, r.furnizor, r.producator, r.observatii].join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
+      if (centralStart || centralEnd) {
+        const dp = r.data_productie;
+        if (!dp) return false;
+        if (centralStart && dp < centralStart) return false;
+        if (centralEnd && dp > centralEnd) return false;
+      }
       return true;
     });
     const map = new Map<string, Agg>();
@@ -379,7 +392,7 @@ export const EvidentaAndrada: React.FC = () => {
       const b = `${y.produs ?? ""} ${y.lot ?? ""}`;
       return a.localeCompare(b);
     });
-  }, [allRows, lotInfo, producatorFilter, search]);
+  }, [allRows, lotInfo, producatorFilter, search, centralStart, centralEnd]);
 
 
   const handleExport = () => {
@@ -576,7 +589,7 @@ export const EvidentaAndrada: React.FC = () => {
             Centralizat
           </button>
         </div>
-        {viewMode === "detaliat" && (
+        {viewMode === "detaliat" ? (
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             <input
@@ -587,6 +600,29 @@ export const EvidentaAndrada: React.FC = () => {
             />
             {filterDate && (
               <Button size="sm" variant="ghost" onClick={() => setFilterDate("")}>
+                Toate
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            <span className="text-sm text-muted-foreground">Perioadă:</span>
+            <input
+              type="date"
+              value={centralStart}
+              onChange={(e) => setCentralStart(e.target.value)}
+              className="px-3 py-2 border rounded-md text-sm"
+            />
+            <span className="text-sm text-muted-foreground">-</span>
+            <input
+              type="date"
+              value={centralEnd}
+              onChange={(e) => setCentralEnd(e.target.value)}
+              className="px-3 py-2 border rounded-md text-sm"
+            />
+            {(centralStart || centralEnd) && (
+              <Button size="sm" variant="ghost" onClick={() => { setCentralStart(""); setCentralEnd(""); }}>
                 Toate
               </Button>
             )}
@@ -622,7 +658,7 @@ export const EvidentaAndrada: React.FC = () => {
         </Button>
         <div className="text-xs text-muted-foreground ml-auto">
           {viewMode === "centralizat"
-            ? "Totaluri pe Produs + Lot + Producător + Furnizor (ignoră filtrul de dată)."
+            ? "Totaluri pe Produs + Lot + Producător + Furnizor, filtrate după perioada de producție."
             : "Se salvează automat. Formule: Pierd. totală = MP intr. − MP utiliz. • Pierd. tehno = Pierd. tot. − Rebut − Retur • %NC = Rebut ÷ MP intr. • Kg final = Σ(buc × g)"}
         </div>
       </div>
