@@ -635,6 +635,8 @@ export const EvidentaAndrada: React.FC = () => {
                 <TableHead className="min-w-[110px]">Data recepție</TableHead>
                 <TableHead className="min-w-[110px]">Prima zi</TableHead>
                 <TableHead className="min-w-[110px]">Ultima zi</TableHead>
+                <TableHead className="min-w-[120px]">Status lot</TableHead>
+                <TableHead className="min-w-[120px]">Data terminării</TableHead>
                 <TableHead className="min-w-[70px] text-right">Zile</TableHead>
                 <TableHead className="min-w-[110px] text-right">Cant. intr.</TableHead>
                 <TableHead className="min-w-[100px] text-right">% CN sol.</TableHead>
