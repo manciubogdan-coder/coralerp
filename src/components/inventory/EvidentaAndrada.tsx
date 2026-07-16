@@ -124,12 +124,12 @@ export const EvidentaAndrada: React.FC = () => {
   const { inventoryType } = useInventoryType();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [producatorFilter, setProducatorFilter] = useState("");
+  const [search, setSearch] = usePersistentState(`evidenta-andrada.search.${inventoryType}`, "");
+  const [producatorFilter, setProducatorFilter] = usePersistentState(`evidenta-andrada.producator.${inventoryType}`, "");
 
   const dateKey = `evidenta-andrada.filter-date.${inventoryType}`;
   const [filterDate, setFilterDateState] = useState<string>(() =>
-    readStoredDateKey(dateKey, "") // empty = show all
+    readStoredDateKey(dateKey, "") // empty = show all; filters on data_productie
   );
   const setFilterDate = (v: string) => { setFilterDateState(v); persistDateKey(dateKey, v); };
 
@@ -139,10 +139,11 @@ export const EvidentaAndrada: React.FC = () => {
       .from("evidenta_andrada_rows")
       .select("*")
       .eq("inventory_type", inventoryType)
+      .order("data_productie", { ascending: true, nullsFirst: true })
       .order("data", { ascending: true })
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
-    if (filterDate) q = q.eq("data", filterDate);
+    if (filterDate) q = q.eq("data_productie", filterDate);
     const { data, error } = await q;
     if (error) toast({ title: "Eroare", description: error.message, variant: "destructive" });
     setRows((data as any) || []);
