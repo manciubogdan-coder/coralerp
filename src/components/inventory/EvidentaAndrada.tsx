@@ -512,6 +512,8 @@ export const EvidentaAndrada: React.FC = () => {
         "Data recepție": a.receiptDate ?? "",
         "Prima zi prod.": a.firstDate ?? "",
         "Ultima zi prod.": a.lastDate ?? "",
+        "Status lot": a.remaining != null && a.remaining <= 0.01 ? "Terminat" : (a.count > 0 ? "În lucru" : "Neînceput"),
+        "Data terminării lotului": (a.remaining != null && a.remaining <= 0.01) ? (a.lastDate ?? "") : "",
         "Nr. zile / rânduri": a.count,
         "Cant. intrată (kg)": +a.sums["cantitate_intrata"].toFixed(2),
         "% CN solicitată": a.pct ?? "",
@@ -633,6 +635,8 @@ export const EvidentaAndrada: React.FC = () => {
                 <TableHead className="min-w-[110px]">Data recepție</TableHead>
                 <TableHead className="min-w-[110px]">Prima zi</TableHead>
                 <TableHead className="min-w-[110px]">Ultima zi</TableHead>
+                <TableHead className="min-w-[120px]">Status lot</TableHead>
+                <TableHead className="min-w-[120px]">Data terminării</TableHead>
                 <TableHead className="min-w-[70px] text-right">Zile</TableHead>
                 <TableHead className="min-w-[110px] text-right">Cant. intr.</TableHead>
                 <TableHead className="min-w-[100px] text-right">% CN sol.</TableHead>
@@ -669,6 +673,20 @@ export const EvidentaAndrada: React.FC = () => {
                     <TableCell>{fmtDate(a.receiptDate)}</TableCell>
                     <TableCell>{fmtDate(a.firstDate)}</TableCell>
                     <TableCell>{fmtDate(a.lastDate)}</TableCell>
+                    {(() => {
+                      const done = a.remaining != null && a.remaining <= 0.01;
+                      const started = a.count > 0;
+                      return (
+                        <>
+                          <TableCell>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${done ? "bg-red-100 text-red-700" : started ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                              {done ? "Terminat" : started ? "În lucru" : "Neînceput"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-medium">{done ? fmtDate(a.lastDate) : "—"}</TableCell>
+                        </>
+                      );
+                    })()}
                     <TableCell className="text-right">{a.count}</TableCell>
                     <TableCell className="text-right">{fmt(a.sums["cantitate_intrata"])}</TableCell>
                     <TableCell className="text-right">{a.pct != null ? `${a.pct}%` : "—"}</TableCell>
@@ -694,7 +712,7 @@ export const EvidentaAndrada: React.FC = () => {
               })}
               {centralized.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={27} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={29} className="text-center text-muted-foreground py-6">
                     Niciun rând.
                   </TableCell>
                 </TableRow>
