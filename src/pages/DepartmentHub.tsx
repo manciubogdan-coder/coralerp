@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCollaborationAlerts } from '@/contexts/CollaborationAlertsContext';
+import { useEvidentaAndradaAccess } from '@/hooks/use-evidenta-andrada-access';
 import { DEPARTMENTS } from '@/lib/departments';
-import { ShieldAlert, MessageSquare, ListTodo, Bell } from 'lucide-react';
+import { ShieldAlert, MessageSquare, ListTodo, Bell, ClipboardList } from 'lucide-react';
 
 interface CollabTile {
   label: string;
