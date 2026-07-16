@@ -98,6 +98,27 @@ const DepartmentHub: React.FC = () => {
                 </Card>
               );
             })}
+            {canSeeEvidenta && (
+              <Card
+                key="evidenta-andrada"
+                onClick={() => navigate('/evidenta-andrada')}
+                className="cursor-pointer hover:border-primary transition-colors"
+              >
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-md bg-primary/10 text-primary">
+                      <ClipboardList className="h-6 w-6" />
+                    </div>
+                    <CardTitle className="text-lg">Evidență Andrada</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>
+                    Evidență loturi pe producători: rebut, pierdere tehnologică și cântar.
+                  </CardDescription>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       )}
