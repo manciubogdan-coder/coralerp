@@ -42,6 +42,7 @@ interface UserProfile {
   created_at: string;
   isAdmin?: boolean;
   departments?: DepartmentRole[];
+  evidentaAndrada?: boolean;
 }
 
 const UserManagementPage: React.FC = () => {
@@ -56,6 +57,7 @@ const UserManagementPage: React.FC = () => {
   const [editing, setEditing] = useState<UserProfile | null>(null);
   const [draftAdmin, setDraftAdmin] = useState(false);
   const [draftDepts, setDraftDepts] = useState<Set<DepartmentRole>>(new Set());
+  const [draftEvidenta, setDraftEvidenta] = useState(false);
   const [savingRoles, setSavingRoles] = useState(false);
 
   const fetchUsers = async () => {
