@@ -392,7 +392,7 @@ export const EvidentaAndrada: React.FC = () => {
       const b = `${y.produs ?? ""} ${y.lot ?? ""}`;
       return a.localeCompare(b);
     });
-  }, [allRows, lotInfo, producatorFilter, search]);
+  }, [allRows, lotInfo, producatorFilter, search, centralStart, centralEnd]);
 
 
   const handleExport = () => {
