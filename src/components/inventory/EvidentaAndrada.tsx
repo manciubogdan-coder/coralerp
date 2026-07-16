@@ -728,12 +728,12 @@ export const EvidentaAndrada: React.FC = () => {
         </div>
       ) : (
         <div className="border rounded-lg overflow-auto max-h-[75vh]">
-          <Table>
-            <TableHeader className="sticky top-0 bg-background z-10">
+          <Table className="border-separate border-spacing-0">
+            <TableHeader className="bg-background">
               <TableRow>
-                <TableHead className="w-16">Acțiuni</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10 w-16">Acțiuni</TableHead>
                 {COLS.map((c) => (
-                  <TableHead key={c.key as string} className={c.w}>{c.label}</TableHead>
+                  <TableHead key={c.key as string} className={`sticky top-0 bg-background z-10 ${c.w}`}>{c.label}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
