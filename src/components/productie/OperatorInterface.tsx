@@ -11,8 +11,10 @@ import { useProductionLines, useOrders, useCreateWorkSession, useWorkSessions, u
 import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 import OrdersTable from "./OrdersTable";
+import GroupedOrdersView from "./GroupedOrdersView";
 import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 import TrasabilitateCard from "./TrasabilitateCard";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 interface OperatorInterfaceProps {
   selectedLine: string;
@@ -31,6 +33,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const [refreshKey, setRefreshKey] = useState(0);
   const [forceRefreshKey, setForceRefreshKey] = useState(0);
   const [selectedDay, setSelectedDay] = useState<string>(todayISO());
+  const [ordersViewMode, setOrdersViewMode] = useState<'individual' | 'grouped'>('individual');
 
   const {
     data: lines,
@@ -291,6 +294,83 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
+
+  // === Grouped session handlers ===
+  const handleStartGroupSession = async (produsId: string, operatorList: string[]) => {
+    const validOperators = operatorList.map(n => n.trim()).filter(Boolean);
+    if (validOperators.length === 0 || !currentLineId) {
+      toast({ title: "Eroare", description: "Completează cel puțin un operator.", variant: "destructive" });
+      return;
+    }
+    const groupOrders = lineOrders.filter((o: any) => (o.produs_id || `noprod-${o.id}`) === produsId && !isOrderDone(o));
+    let created = 0;
+    for (const o of groupOrders) {
+      if (activeSessions.some(s => s.comanda_id === o.id && s.linie_id === currentLineId)) continue;
+      try {
+        await createSessionMutation.mutateAsync({
+          comanda_id: o.id,
+          linie_id: currentLineId,
+          nume_operator: validOperators.join(', '),
+          numar_angajati: validOperators.length,
+        });
+        created++;
+      } catch (err) {
+        console.error('Eroare pornire sesiune grup pentru comanda', o.numar_comanda, err);
+      }
+    }
+    toast({
+      title: "Sesiuni pornite",
+      description: `S-au pornit ${created} sesiuni pentru grup.`,
+    });
+  };
+
+  const handleFinishGroupSession = async (produsId: string, totalQty: number) => {
+    if (totalQty < 0 || !currentLineId) return;
+    const groupOrders = lineOrders.filter((o: any) => (o.produs_id || `noprod-${o.id}`) === produsId);
+    // Ordinea existentă (după prioritate zonă) e deja aplicată în lineOrders
+    const withSession = groupOrders
+      .map((o: any) => ({ order: o, session: activeSessions.find(s => s.comanda_id === o.id && s.linie_id === currentLineId) }))
+      .filter(x => !!x.session);
+
+    if (withSession.length === 0) {
+      toast({ title: "Nicio sesiune activă", description: "Grupul nu are sesiuni active de finalizat.", variant: "destructive" });
+      return;
+    }
+
+    if (totalQty === 0) {
+      const ok = window.confirm('Ai introdus 0 bucăți produse pentru tot grupul. Continui?');
+      if (!ok) return;
+    }
+
+    let remaining = totalQty;
+    for (let i = 0; i < withSession.length; i++) {
+      const { order, session } = withSession[i] as any;
+      const esteReamb = order.magazin === 'REAMBALARE' || order.tip_comanda === 'REAMBALARE';
+      const acoperitPrev = (order.cantitate_reala_produsa || 0) + (esteReamb ? 0 : order.cantitate_din_restock || 0);
+      const nevoie = Math.max(0, (order.cantitate || 0) - acoperitPrev);
+      let assign = Math.min(nevoie, remaining);
+      // Ultima sesiune primește surplusul rămas
+      if (i === withSession.length - 1) assign = remaining;
+      remaining = Math.max(0, remaining - assign);
+      const status: 'finalizata' | 'partial' = (acoperitPrev + assign) >= (order.cantitate || 0) ? 'finalizata' : 'partial';
+      try {
+        await finishSessionMutation.mutateAsync({
+          id: session.id,
+          cantitate_produsa: assign,
+          status,
+          comanda_id: order.id,
+        });
+      } catch (err) {
+        console.error('Eroare finalizare sesiune grup pentru comanda', order.numar_comanda, err);
+      }
+    }
+    toast({
+      title: "Grup finalizat",
+      description: `Distribuit ${totalQty} buc pe ${withSession.length} comenzi.`,
+    });
+  };
+
+
 
   if (linesLoading || ordersLoading || sessionsLoading) {
     return (
@@ -716,26 +796,51 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           </CardContent>
         </Card>
 
+        {/* Toggle vizualizare */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-muted-foreground">Vizualizare:</span>
+          <ToggleGroup
+            type="single"
+            value={ordersViewMode}
+            onValueChange={(v) => v && setOrdersViewMode(v as 'individual' | 'grouped')}
+            className="border rounded-md"
+          >
+            <ToggleGroupItem value="individual" className="px-3">Individual</ToggleGroupItem>
+            <ToggleGroupItem value="grouped" className="px-3">Grupat pe produs</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
         {totalItems > 0 ? (
-          <>
-            <OrdersTable 
-              orders={paginatedOrders}
-              onOrderSelect={handleOrderSelect}
-              totalItems={totalItems}
+          ordersViewMode === 'grouped' ? (
+            <GroupedOrdersView
+              orders={lineOrders}
               activeSessions={activeSessions}
               lineCapacity={cap}
+              onOrderSelect={handleOrderSelect}
+              onStartGroup={handleStartGroupSession}
+              onFinishGroup={handleFinishGroupSession}
             />
-            
-            {/* Paginarea pentru comenzi */}
-            <OrdersPagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalItems={totalItems}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-            />
-          </>
+          ) : (
+            <>
+              <OrdersTable
+                orders={paginatedOrders}
+                onOrderSelect={handleOrderSelect}
+                totalItems={totalItems}
+                activeSessions={activeSessions}
+                lineCapacity={cap}
+              />
+
+              {/* Paginarea pentru comenzi */}
+              <OrdersPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={totalItems}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+              />
+            </>
+          )
         ) : (
           <Card className="border-coral-200 shadow-md">
             <CardContent className="p-8 text-center">
@@ -747,6 +852,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       </div>
     );
   }
+
 
   // VIEW: Lines Overview (default)
   return (
