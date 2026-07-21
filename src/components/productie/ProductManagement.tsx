@@ -372,11 +372,19 @@ const ProductManagement = () => {
           <h2 className="text-2xl font-bold">Management Produse</h2>
           <p className="text-gray-600">Administrează produsele, ingredientele și rețetele</p>
         </div>
-        <Button onClick={() => { setIsDialogOpen(true); resetForm(); }} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Adaugă Produs
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setIsGrupareOpen(true)} className="flex items-center gap-2">
+            <Layers className="h-4 w-4" />
+            Grupare ambalare
+          </Button>
+          <Button onClick={() => { setIsDialogOpen(true); resetForm(); }} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Adaugă Produs
+          </Button>
+        </div>
       </div>
+
+      <GrupareAmbalareDialog open={isGrupareOpen} onOpenChange={setIsGrupareOpen} />
 
       <Card>
         <CardHeader>
