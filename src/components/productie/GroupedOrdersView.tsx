@@ -12,9 +12,10 @@ interface Props {
   orders: ProductieComanda[];
   activeSessions: ProductieSesiuneLucru[];
   lineCapacity?: number;
+  groupMap?: Record<string, string>;
   onOrderSelect: (orderId: string) => void;
-  onStartGroup: (produsId: string, operatorNames: string[]) => Promise<void>;
-  onFinishGroup: (produsId: string, totalQty: number) => Promise<void>;
+  onStartGroup: (orderIds: string[], operatorNames: string[]) => Promise<void>;
+  onFinishGroup: (orderIds: string[], totalQty: number) => Promise<void>;
 }
 
 const formatDur = (hours: number) => {
@@ -38,20 +39,21 @@ const GroupedOrdersView: React.FC<Props> = ({
   orders,
   activeSessions,
   lineCapacity,
+  groupMap,
   onOrderSelect,
   onStartGroup,
   onFinishGroup,
 }) => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [startDialog, setStartDialog] = useState<{ open: boolean; produsId: string; produsNume: string }>({
+  const [startDialog, setStartDialog] = useState<{ open: boolean; orderIds: string[]; nume: string }>({
     open: false,
-    produsId: "",
-    produsNume: "",
+    orderIds: [],
+    nume: "",
   });
-  const [finishDialog, setFinishDialog] = useState<{ open: boolean; produsId: string; produsNume: string }>({
+  const [finishDialog, setFinishDialog] = useState<{ open: boolean; orderIds: string[]; nume: string }>({
     open: false,
-    produsId: "",
-    produsNume: "",
+    orderIds: [],
+    nume: "",
   });
   const [operatorNames, setOperatorNames] = useState<string[]>([""]);
   const [totalQty, setTotalQty] = useState<number>(0);
@@ -59,41 +61,47 @@ const GroupedOrdersView: React.FC<Props> = ({
 
   const groups = useMemo(() => {
     const map = new Map<string, {
-      produsId: string;
-      produsNume: string;
+      key: string;
+      nume: string;
       unitate: string;
+      isMerged: boolean;
       orders: ProductieComanda[];
     }>();
     for (const o of orders) {
-      const key = o.produs_id || `noprod-${o.id}`;
+      const produsId = o.produs_id || "";
+      const produsNume = (o as any).productie_produse?.nume || "Fără produs";
+      const grup = produsId && groupMap ? (groupMap[produsId] || "").trim() : "";
+      const key = grup ? `grp:${grup}` : (produsId ? `prod:${produsId}` : `noprod-${o.id}`);
+      const nume = grup || produsNume;
       if (!map.has(key)) {
         map.set(key, {
-          produsId: key,
-          produsNume: (o as any).productie_produse?.nume || "Fără produs",
+          key,
+          nume,
           unitate: (o as any).productie_produse?.unitate_masura || "buc",
+          isMerged: !!grup,
           orders: [],
         });
       }
       map.get(key)!.orders.push(o);
     }
     return Array.from(map.values());
-  }, [orders]);
+  }, [orders, groupMap]);
 
-  const openStart = (produsId: string, produsNume: string) => {
+  const openStart = (orderIds: string[], nume: string) => {
     setOperatorNames([""]);
-    setStartDialog({ open: true, produsId, produsNume });
+    setStartDialog({ open: true, orderIds, nume });
   };
 
-  const openFinish = (produsId: string, produsNume: string) => {
+  const openFinish = (orderIds: string[], nume: string) => {
     setTotalQty(0);
-    setFinishDialog({ open: true, produsId, produsNume });
+    setFinishDialog({ open: true, orderIds, nume });
   };
 
   const handleStart = async () => {
     setSubmitting(true);
     try {
-      await onStartGroup(startDialog.produsId, operatorNames);
-      setStartDialog({ open: false, produsId: "", produsNume: "" });
+      await onStartGroup(startDialog.orderIds, operatorNames);
+      setStartDialog({ open: false, orderIds: [], nume: "" });
     } finally {
       setSubmitting(false);
     }
@@ -102,8 +110,8 @@ const GroupedOrdersView: React.FC<Props> = ({
   const handleFinish = async () => {
     setSubmitting(true);
     try {
-      await onFinishGroup(finishDialog.produsId, totalQty);
-      setFinishDialog({ open: false, produsId: "", produsNume: "" });
+      await onFinishGroup(finishDialog.orderIds, totalQty);
+      setFinishDialog({ open: false, orderIds: [], nume: "" });
     } finally {
       setSubmitting(false);
     }
@@ -123,20 +131,24 @@ const GroupedOrdersView: React.FC<Props> = ({
         const groupSessions = activeSessions.filter((s) => g.orders.some((o) => o.id === s.comanda_id));
         const hasActive = groupSessions.length > 0;
         const timp = lineCapacity && lineCapacity > 0 ? totalRamas / lineCapacity : 0;
-        const isExpanded = !!expanded[g.produsId];
+        const isExpanded = !!expanded[g.key];
+        const orderIds = g.orders.map((o) => o.id);
 
         return (
-          <Card key={g.produsId} className={`border-coral-200 shadow ${hasActive ? "border-l-4 border-l-green-500 bg-emerald-50/40" : ""}`}>
+          <Card key={g.key} className={`border-coral-200 shadow ${hasActive ? "border-l-4 border-l-green-500 bg-emerald-50/40" : ""}`}>
             <CardHeader className="p-3 md:p-4 pb-2">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <button
-                  onClick={() => setExpanded((prev) => ({ ...prev, [g.produsId]: !prev[g.produsId] }))}
+                  onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !prev[g.key] }))}
                   className="flex items-center gap-2 text-left flex-1 min-w-0"
                 >
                   {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                   <CardTitle className="text-base md:text-lg text-coral-primary truncate">
-                    {g.produsNume}
+                    {g.nume}
                   </CardTitle>
+                  {g.isMerged && (
+                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 shrink-0">grup</Badge>
+                  )}
                   <Badge variant="outline" className="ml-2 shrink-0">
                     {g.orders.length} comenzi
                   </Badge>
@@ -150,7 +162,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                   {hasActive ? (
                     <Button
                       size="sm"
-                      onClick={() => openFinish(g.produsId, g.produsNume)}
+                      onClick={() => openFinish(orderIds, g.nume)}
                       className="bg-green-600 hover:bg-green-700 text-white"
                     >
                       <CheckCircle className="h-4 w-4 mr-1" />
@@ -160,7 +172,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                     totalRamas > 0 && (
                       <Button
                         size="sm"
-                        onClick={() => openStart(g.produsId, g.produsNume)}
+                        onClick={() => openStart(orderIds, g.nume)}
                         className="bg-coral-primary hover:bg-coral-600 text-white"
                       >
                         <Play className="h-4 w-4 mr-1" />
@@ -258,12 +270,12 @@ const GroupedOrdersView: React.FC<Props> = ({
       )}
 
       {/* Dialog: Pornește sesiune grup */}
-      <Dialog open={startDialog.open} onOpenChange={(open) => !open && setStartDialog({ open: false, produsId: "", produsNume: "" })}>
+      <Dialog open={startDialog.open} onOpenChange={(open) => !open && setStartDialog({ open: false, orderIds: [], nume: "" })}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-coral-primary" />
-              Pornește sesiune grup: {startDialog.produsNume}
+              Pornește sesiune grup: {startDialog.nume}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
@@ -306,7 +318,7 @@ const GroupedOrdersView: React.FC<Props> = ({
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setStartDialog({ open: false, produsId: "", produsNume: "" })}
+              onClick={() => setStartDialog({ open: false, orderIds: [], nume: "" })}
               disabled={submitting}
             >
               Anulează
@@ -324,12 +336,12 @@ const GroupedOrdersView: React.FC<Props> = ({
       </Dialog>
 
       {/* Dialog: Finalizează grup */}
-      <Dialog open={finishDialog.open} onOpenChange={(open) => !open && setFinishDialog({ open: false, produsId: "", produsNume: "" })}>
+      <Dialog open={finishDialog.open} onOpenChange={(open) => !open && setFinishDialog({ open: false, orderIds: [], nume: "" })}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
-              Finalizează sesiune grup: {finishDialog.produsNume}
+              Finalizează sesiune grup: {finishDialog.nume}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
@@ -348,7 +360,7 @@ const GroupedOrdersView: React.FC<Props> = ({
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setFinishDialog({ open: false, produsId: "", produsNume: "" })}
+              onClick={() => setFinishDialog({ open: false, orderIds: [], nume: "" })}
               disabled={submitting}
             >
               Anulează

@@ -11,7 +11,8 @@ import { useIngredients } from '@/hooks/productie/useIngredients';
 import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe } from '@/hooks/productie/useRecipes';
 import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct } from '@/hooks/productie/useDistributionRules';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, Trash2, Package, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Loader2, Layers } from 'lucide-react';
+import GrupareAmbalareDialog from './GrupareAmbalareDialog';
 
 interface Ingredient {
   ingredient_id: string;
@@ -38,6 +39,7 @@ interface ProductFormData {
 const ProductManagement = () => {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isGrupareOpen, setIsGrupareOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [formData, setFormData] = useState<ProductFormData>({
     nume: '',
@@ -370,11 +372,19 @@ const ProductManagement = () => {
           <h2 className="text-2xl font-bold">Management Produse</h2>
           <p className="text-gray-600">Administrează produsele, ingredientele și rețetele</p>
         </div>
-        <Button onClick={() => { setIsDialogOpen(true); resetForm(); }} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Adaugă Produs
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setIsGrupareOpen(true)} className="flex items-center gap-2">
+            <Layers className="h-4 w-4" />
+            Grupare ambalare
+          </Button>
+          <Button onClick={() => { setIsDialogOpen(true); resetForm(); }} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Adaugă Produs
+          </Button>
+        </div>
       </div>
+
+      <GrupareAmbalareDialog open={isGrupareOpen} onOpenChange={setIsGrupareOpen} />
 
       <Card>
         <CardHeader>
