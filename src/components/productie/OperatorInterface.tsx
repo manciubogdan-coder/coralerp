@@ -12,6 +12,7 @@ import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 import OrdersTable from "./OrdersTable";
 import GroupedOrdersView from "./GroupedOrdersView";
+import { useGrupareAmbalare } from "@/hooks/productie/useGrupareAmbalare";
 import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 import TrasabilitateCard from "./TrasabilitateCard";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
