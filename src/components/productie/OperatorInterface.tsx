@@ -33,6 +33,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const [refreshKey, setRefreshKey] = useState(0);
   const [forceRefreshKey, setForceRefreshKey] = useState(0);
   const [selectedDay, setSelectedDay] = useState<string>(todayISO());
+  const [ordersViewMode, setOrdersViewMode] = useState<'individual' | 'grouped'>('individual');
 
   const {
     data: lines,
