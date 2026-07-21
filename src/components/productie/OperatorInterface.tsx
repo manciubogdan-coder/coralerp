@@ -796,26 +796,51 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           </CardContent>
         </Card>
 
+        {/* Toggle vizualizare */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-muted-foreground">Vizualizare:</span>
+          <ToggleGroup
+            type="single"
+            value={ordersViewMode}
+            onValueChange={(v) => v && setOrdersViewMode(v as 'individual' | 'grouped')}
+            className="border rounded-md"
+          >
+            <ToggleGroupItem value="individual" className="px-3">Individual</ToggleGroupItem>
+            <ToggleGroupItem value="grouped" className="px-3">Grupat pe produs</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
         {totalItems > 0 ? (
-          <>
-            <OrdersTable 
-              orders={paginatedOrders}
-              onOrderSelect={handleOrderSelect}
-              totalItems={totalItems}
+          ordersViewMode === 'grouped' ? (
+            <GroupedOrdersView
+              orders={lineOrders}
               activeSessions={activeSessions}
               lineCapacity={cap}
+              onOrderSelect={handleOrderSelect}
+              onStartGroup={handleStartGroupSession}
+              onFinishGroup={handleFinishGroupSession}
             />
-            
-            {/* Paginarea pentru comenzi */}
-            <OrdersPagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalItems={totalItems}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-            />
-          </>
+          ) : (
+            <>
+              <OrdersTable
+                orders={paginatedOrders}
+                onOrderSelect={handleOrderSelect}
+                totalItems={totalItems}
+                activeSessions={activeSessions}
+                lineCapacity={cap}
+              />
+
+              {/* Paginarea pentru comenzi */}
+              <OrdersPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={totalItems}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+              />
+            </>
+          )
         ) : (
           <Card className="border-coral-200 shadow-md">
             <CardContent className="p-8 text-center">
@@ -827,6 +852,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       </div>
     );
   }
+
 
   // VIEW: Lines Overview (default)
   return (
