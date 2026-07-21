@@ -54,6 +54,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     isLoading: sessionsLoading
   } = useWorkSessions();
 
+  const { data: groupMap } = useGrupareAmbalare();
+
   const activeSessions = workSessions?.filter(session => session.status === 'activa') || [];
 
   // Ordinea fixă pentru produsele de aromate (conform fișei de lucru)
