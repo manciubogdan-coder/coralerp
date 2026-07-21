@@ -821,6 +821,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
               orders={lineOrders}
               activeSessions={activeSessions}
               lineCapacity={cap}
+              groupMap={groupMap}
               onOrderSelect={handleOrderSelect}
               onStartGroup={handleStartGroupSession}
               onFinishGroup={handleFinishGroupSession}
