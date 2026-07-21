@@ -39,6 +39,7 @@ interface ProductFormData {
 const ProductManagement = () => {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isGrupareOpen, setIsGrupareOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [formData, setFormData] = useState<ProductFormData>({
     nume: '',
