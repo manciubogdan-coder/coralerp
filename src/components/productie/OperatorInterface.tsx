@@ -296,13 +296,14 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   }, []);
 
   // === Grouped session handlers ===
-  const handleStartGroupSession = async (produsId: string, operatorList: string[]) => {
+  const handleStartGroupSession = async (orderIds: string[], operatorList: string[]) => {
     const validOperators = operatorList.map(n => n.trim()).filter(Boolean);
     if (validOperators.length === 0 || !currentLineId) {
       toast({ title: "Eroare", description: "Completează cel puțin un operator.", variant: "destructive" });
       return;
     }
-    const groupOrders = lineOrders.filter((o: any) => (o.produs_id || `noprod-${o.id}`) === produsId && !isOrderDone(o));
+    const idSet = new Set(orderIds);
+    const groupOrders = lineOrders.filter((o: any) => idSet.has(o.id) && !isOrderDone(o));
     let created = 0;
     for (const o of groupOrders) {
       if (activeSessions.some(s => s.comanda_id === o.id && s.linie_id === currentLineId)) continue;
@@ -324,9 +325,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     });
   };
 
-  const handleFinishGroupSession = async (produsId: string, totalQty: number) => {
+  const handleFinishGroupSession = async (orderIds: string[], totalQty: number) => {
     if (totalQty < 0 || !currentLineId) return;
-    const groupOrders = lineOrders.filter((o: any) => (o.produs_id || `noprod-${o.id}`) === produsId);
+    const idSet = new Set(orderIds);
+    const groupOrders = lineOrders.filter((o: any) => idSet.has(o.id));
     // Ordinea existentă (după prioritate zonă) e deja aplicată în lineOrders
     const withSession = groupOrders
       .map((o: any) => ({ order: o, session: activeSessions.find(s => s.comanda_id === o.id && s.linie_id === currentLineId) }))
