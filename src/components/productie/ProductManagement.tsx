@@ -11,7 +11,8 @@ import { useIngredients } from '@/hooks/productie/useIngredients';
 import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe } from '@/hooks/productie/useRecipes';
 import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct } from '@/hooks/productie/useDistributionRules';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, Trash2, Package, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Loader2, Layers } from 'lucide-react';
+import GrupareAmbalareDialog from './GrupareAmbalareDialog';
 
 interface Ingredient {
   ingredient_id: string;
