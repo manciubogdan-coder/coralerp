@@ -1,0 +1,371 @@
+import React, { useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Package, Clock, ChevronDown, ChevronRight, Play, CheckCircle, Users, Factory, AlertTriangle } from "lucide-react";
+import { ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/useProductionData";
+
+interface Props {
+  orders: ProductieComanda[];
+  activeSessions: ProductieSesiuneLucru[];
+  lineCapacity?: number;
+  onOrderSelect: (orderId: string) => void;
+  onStartGroup: (produsId: string, operatorNames: string[]) => Promise<void>;
+  onFinishGroup: (produsId: string, totalQty: number) => Promise<void>;
+}
+
+const formatDur = (hours: number) => {
+  if (!isFinite(hours) || hours <= 0) return "-";
+  const totalMin = Math.max(1, Math.round(hours * 60));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
+};
+
+const isOrderDone = (o: any) => {
+  if (o.status === "completed") return true;
+  const esteReamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
+  const acoperit = (o.cantitate_reala_produsa || 0) + (esteReamb ? 0 : o.cantitate_din_restock || 0);
+  return o.cantitate > 0 && acoperit >= o.cantitate;
+};
+
+const GroupedOrdersView: React.FC<Props> = ({
+  orders,
+  activeSessions,
+  lineCapacity,
+  onOrderSelect,
+  onStartGroup,
+  onFinishGroup,
+}) => {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [startDialog, setStartDialog] = useState<{ open: boolean; produsId: string; produsNume: string }>({
+    open: false,
+    produsId: "",
+    produsNume: "",
+  });
+  const [finishDialog, setFinishDialog] = useState<{ open: boolean; produsId: string; produsNume: string }>({
+    open: false,
+    produsId: "",
+    produsNume: "",
+  });
+  const [operatorNames, setOperatorNames] = useState<string[]>([""]);
+  const [totalQty, setTotalQty] = useState<number>(0);
+  const [submitting, setSubmitting] = useState(false);
+
+  const groups = useMemo(() => {
+    const map = new Map<string, {
+      produsId: string;
+      produsNume: string;
+      unitate: string;
+      orders: ProductieComanda[];
+    }>();
+    for (const o of orders) {
+      const key = o.produs_id || `noprod-${o.id}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          produsId: key,
+          produsNume: (o as any).productie_produse?.nume || "Fără produs",
+          unitate: (o as any).productie_produse?.unitate_masura || "buc",
+          orders: [],
+        });
+      }
+      map.get(key)!.orders.push(o);
+    }
+    return Array.from(map.values());
+  }, [orders]);
+
+  const openStart = (produsId: string, produsNume: string) => {
+    setOperatorNames([""]);
+    setStartDialog({ open: true, produsId, produsNume });
+  };
+
+  const openFinish = (produsId: string, produsNume: string) => {
+    setTotalQty(0);
+    setFinishDialog({ open: true, produsId, produsNume });
+  };
+
+  const handleStart = async () => {
+    setSubmitting(true);
+    try {
+      await onStartGroup(startDialog.produsId, operatorNames);
+      setStartDialog({ open: false, produsId: "", produsNume: "" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleFinish = async () => {
+    setSubmitting(true);
+    try {
+      await onFinishGroup(finishDialog.produsId, totalQty);
+      setFinishDialog({ open: false, produsId: "", produsNume: "" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {groups.map((g) => {
+        const totalCerut = g.orders.reduce((s, o) => s + (o.cantitate || 0), 0);
+        const totalAcoperit = g.orders.reduce((s, o: any) => {
+          const esteReamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
+          return s + (o.cantitate_reala_produsa || 0) + (esteReamb ? 0 : o.cantitate_din_restock || 0);
+        }, 0);
+        const totalRamas = Math.max(0, totalCerut - totalAcoperit);
+        const procent = totalCerut > 0 ? Math.round((totalAcoperit / totalCerut) * 100) : 0;
+        const doneCount = g.orders.filter(isOrderDone).length;
+        const groupSessions = activeSessions.filter((s) => g.orders.some((o) => o.id === s.comanda_id));
+        const hasActive = groupSessions.length > 0;
+        const timp = lineCapacity && lineCapacity > 0 ? totalRamas / lineCapacity : 0;
+        const isExpanded = !!expanded[g.produsId];
+
+        return (
+          <Card key={g.produsId} className={`border-coral-200 shadow ${hasActive ? "border-l-4 border-l-green-500 bg-emerald-50/40" : ""}`}>
+            <CardHeader className="p-3 md:p-4 pb-2">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <button
+                  onClick={() => setExpanded((prev) => ({ ...prev, [g.produsId]: !prev[g.produsId] }))}
+                  className="flex items-center gap-2 text-left flex-1 min-w-0"
+                >
+                  {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                  <CardTitle className="text-base md:text-lg text-coral-primary truncate">
+                    {g.produsNume}
+                  </CardTitle>
+                  <Badge variant="outline" className="ml-2 shrink-0">
+                    {g.orders.length} comenzi
+                  </Badge>
+                  {doneCount > 0 && (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shrink-0">
+                      {doneCount} finalizate
+                    </Badge>
+                  )}
+                </button>
+                <div className="flex items-center gap-2">
+                  {hasActive ? (
+                    <Button
+                      size="sm"
+                      onClick={() => openFinish(g.produsId, g.produsNume)}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Finalizează grup
+                    </Button>
+                  ) : (
+                    totalRamas > 0 && (
+                      <Button
+                        size="sm"
+                        onClick={() => openStart(g.produsId, g.produsNume)}
+                        className="bg-coral-primary hover:bg-coral-600 text-white"
+                      >
+                        <Play className="h-4 w-4 mr-1" />
+                        Pornește sesiune grup
+                      </Button>
+                    )
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-3 md:p-4 pt-0">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div>
+                  <div className="text-xs text-gray-500 flex items-center gap-1"><Package className="h-3 w-3" /> Total cerut</div>
+                  <div className="font-bold text-coral-primary">{totalCerut} {g.unitate}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Acoperit</div>
+                  <div className="font-bold text-green-700">{totalAcoperit} <span className="text-xs text-gray-400">({procent}%)</span></div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Rămas</div>
+                  <div className={`font-bold ${totalRamas > 0 ? "text-red-600" : "text-gray-400"}`}>{totalRamas} {g.unitate}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 flex items-center gap-1"><Clock className="h-3 w-3" /> Timp estimat</div>
+                  <div className="font-bold text-blue-700">{lineCapacity && lineCapacity > 0 ? `~${formatDur(timp)}` : "—"}</div>
+                </div>
+              </div>
+
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mt-3">
+                <div
+                  className={`h-2 rounded-full ${procent >= 100 ? "bg-green-500" : procent >= 50 ? "bg-blue-500" : "bg-amber-500"}`}
+                  style={{ width: `${Math.min(100, procent)}%` }}
+                />
+              </div>
+
+              {hasActive && (
+                <div className="mt-3 text-xs text-green-700 flex items-center gap-1">
+                  <Play className="w-3 h-3 fill-green-600" />
+                  🟢 Sesiune activă: {groupSessions[0].nume_operator}
+                  {" — "}
+                  {new Date(groupSessions[0].ora_start).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })}
+                  {groupSessions.length > 1 && <span className="ml-1">(pe {groupSessions.length} comenzi)</span>}
+                </div>
+              )}
+
+              {isExpanded && (
+                <div className="mt-3 border-t pt-3 space-y-2">
+                  {g.orders.map((o: any) => {
+                    const esteReamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
+                    const acoperit = (o.cantitate_reala_produsa || 0) + (esteReamb ? 0 : o.cantitate_din_restock || 0);
+                    const ramas = Math.max(0, (o.cantitate || 0) - acoperit);
+                    const done = isOrderDone(o);
+                    return (
+                      <div
+                        key={o.id}
+                        onClick={() => onOrderSelect(o.id)}
+                        className={`flex items-center justify-between gap-2 p-2 rounded border cursor-pointer hover:bg-coral-50 ${done ? "bg-green-50" : ""}`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-medium text-coral-primary">{o.numar_comanda}</div>
+                          <div className="text-xs text-gray-600 truncate">
+                            {o.magazin}
+                            {o.productie_clienti?.nickname && (
+                              <span className="text-amber-700 font-semibold"> ({o.productie_clienti.nickname})</span>
+                            )}
+                            {o.punct_livrare && <span className="text-gray-400"> · {o.punct_livrare}</span>}
+                          </div>
+                        </div>
+                        <div className="text-right text-xs shrink-0">
+                          <div>
+                            <span className="font-bold text-green-700">{acoperit}</span>
+                            <span className="text-gray-400"> / </span>
+                            <span className="font-semibold">{o.cantitate}</span>
+                            <span className="text-gray-500"> {o.productie_produse?.unitate_masura}</span>
+                          </div>
+                          {ramas > 0 && <div className="text-red-600">Lipsă: {ramas}</div>}
+                          {done && <div className="text-green-600">✓ Complet</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {groups.length === 0 && (
+        <Card className="border-coral-200">
+          <CardContent className="p-6 text-center text-gray-500">Nu există comenzi de grupat</CardContent>
+        </Card>
+      )}
+
+      {/* Dialog: Pornește sesiune grup */}
+      <Dialog open={startDialog.open} onOpenChange={(open) => !open && setStartDialog({ open: false, produsId: "", produsNume: "" })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-coral-primary" />
+              Pornește sesiune grup: {startDialog.produsNume}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Se va crea o sesiune de lucru identică pentru toate comenzile din grup care nu sunt deja finalizate.
+            </p>
+            <Label className="text-coral-primary font-medium">Operatori</Label>
+            {operatorNames.map((name, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  value={name}
+                  onChange={(e) => {
+                    const u = [...operatorNames];
+                    u[i] = e.target.value;
+                    setOperatorNames(u);
+                  }}
+                  placeholder={`Numele operatorului ${i + 1}`}
+                />
+                {operatorNames.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setOperatorNames(operatorNames.filter((_, x) => x !== i))}
+                    className="text-red-500"
+                  >
+                    ✕
+                  </Button>
+                )}
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setOperatorNames([...operatorNames, ""])}
+              className="border-coral-200 text-coral-primary"
+            >
+              + Adaugă operator
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setStartDialog({ open: false, produsId: "", produsNume: "" })}
+              disabled={submitting}
+            >
+              Anulează
+            </Button>
+            <Button
+              onClick={handleStart}
+              disabled={submitting || operatorNames.every((n) => !n.trim())}
+              className="bg-coral-primary hover:bg-coral-600 text-white"
+            >
+              <Play className="h-4 w-4 mr-1" />
+              Pornește
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Finalizează grup */}
+      <Dialog open={finishDialog.open} onOpenChange={(open) => !open && setFinishDialog({ open: false, produsId: "", produsNume: "" })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Finalizează sesiune grup: {finishDialog.produsNume}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Introdu <strong>cantitatea totală produsă</strong> pentru tot grupul. Se distribuie automat pe comenzi în ordinea priorității zonelor; surplusul intră în restocări.
+            </p>
+            <Label className="text-coral-primary font-medium">Cantitate totală produsă</Label>
+            <Input
+              type="number"
+              min={0}
+              value={totalQty.toString()}
+              onChange={(e) => setTotalQty(parseInt(e.target.value) || 0)}
+              placeholder="ex: 500"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setFinishDialog({ open: false, produsId: "", produsNume: "" })}
+              disabled={submitting}
+            >
+              Anulează
+            </Button>
+            <Button
+              onClick={handleFinish}
+              disabled={submitting}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Finalizează
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default GroupedOrdersView;
