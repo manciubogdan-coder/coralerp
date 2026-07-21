@@ -456,6 +456,27 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_grupare_ambalare: {
+        Row: {
+          created_at: string
+          grup_nume: string
+          produs_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          grup_nume: string
+          produs_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          grup_nume?: string
+          produs_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       productie_trasabilitate: {
         Row: {
           cod: string
