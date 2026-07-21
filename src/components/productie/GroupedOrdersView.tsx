@@ -270,12 +270,12 @@ const GroupedOrdersView: React.FC<Props> = ({
       )}
 
       {/* Dialog: Pornește sesiune grup */}
-      <Dialog open={startDialog.open} onOpenChange={(open) => !open && setStartDialog({ open: false, produsId: "", produsNume: "" })}>
+      <Dialog open={startDialog.open} onOpenChange={(open) => !open && setStartDialog({ open: false, orderIds: [], nume: "" })}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-coral-primary" />
-              Pornește sesiune grup: {startDialog.produsNume}
+              Pornește sesiune grup: {startDialog.nume}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
@@ -318,7 +318,7 @@ const GroupedOrdersView: React.FC<Props> = ({
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setStartDialog({ open: false, produsId: "", produsNume: "" })}
+              onClick={() => setStartDialog({ open: false, orderIds: [], nume: "" })}
               disabled={submitting}
             >
               Anulează
@@ -336,12 +336,12 @@ const GroupedOrdersView: React.FC<Props> = ({
       </Dialog>
 
       {/* Dialog: Finalizează grup */}
-      <Dialog open={finishDialog.open} onOpenChange={(open) => !open && setFinishDialog({ open: false, produsId: "", produsNume: "" })}>
+      <Dialog open={finishDialog.open} onOpenChange={(open) => !open && setFinishDialog({ open: false, orderIds: [], nume: "" })}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
-              Finalizează sesiune grup: {finishDialog.produsNume}
+              Finalizează sesiune grup: {finishDialog.nume}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
@@ -360,7 +360,7 @@ const GroupedOrdersView: React.FC<Props> = ({
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setFinishDialog({ open: false, produsId: "", produsNume: "" })}
+              onClick={() => setFinishDialog({ open: false, orderIds: [], nume: "" })}
               disabled={submitting}
             >
               Anulează
