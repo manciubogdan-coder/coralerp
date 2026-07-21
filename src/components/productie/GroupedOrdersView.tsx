@@ -131,20 +131,24 @@ const GroupedOrdersView: React.FC<Props> = ({
         const groupSessions = activeSessions.filter((s) => g.orders.some((o) => o.id === s.comanda_id));
         const hasActive = groupSessions.length > 0;
         const timp = lineCapacity && lineCapacity > 0 ? totalRamas / lineCapacity : 0;
-        const isExpanded = !!expanded[g.produsId];
+        const isExpanded = !!expanded[g.key];
+        const orderIds = g.orders.map((o) => o.id);
 
         return (
-          <Card key={g.produsId} className={`border-coral-200 shadow ${hasActive ? "border-l-4 border-l-green-500 bg-emerald-50/40" : ""}`}>
+          <Card key={g.key} className={`border-coral-200 shadow ${hasActive ? "border-l-4 border-l-green-500 bg-emerald-50/40" : ""}`}>
             <CardHeader className="p-3 md:p-4 pb-2">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <button
-                  onClick={() => setExpanded((prev) => ({ ...prev, [g.produsId]: !prev[g.produsId] }))}
+                  onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !prev[g.key] }))}
                   className="flex items-center gap-2 text-left flex-1 min-w-0"
                 >
                   {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                   <CardTitle className="text-base md:text-lg text-coral-primary truncate">
-                    {g.produsNume}
+                    {g.nume}
                   </CardTitle>
+                  {g.isMerged && (
+                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 shrink-0">grup</Badge>
+                  )}
                   <Badge variant="outline" className="ml-2 shrink-0">
                     {g.orders.length} comenzi
                   </Badge>
@@ -158,7 +162,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                   {hasActive ? (
                     <Button
                       size="sm"
-                      onClick={() => openFinish(g.produsId, g.produsNume)}
+                      onClick={() => openFinish(orderIds, g.nume)}
                       className="bg-green-600 hover:bg-green-700 text-white"
                     >
                       <CheckCircle className="h-4 w-4 mr-1" />
@@ -168,7 +172,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                     totalRamas > 0 && (
                       <Button
                         size="sm"
-                        onClick={() => openStart(g.produsId, g.produsNume)}
+                        onClick={() => openStart(orderIds, g.nume)}
                         className="bg-coral-primary hover:bg-coral-600 text-white"
                       >
                         <Play className="h-4 w-4 mr-1" />
