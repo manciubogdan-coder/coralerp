@@ -12,9 +12,10 @@ interface Props {
   orders: ProductieComanda[];
   activeSessions: ProductieSesiuneLucru[];
   lineCapacity?: number;
+  groupMap?: Record<string, string>;
   onOrderSelect: (orderId: string) => void;
-  onStartGroup: (produsId: string, operatorNames: string[]) => Promise<void>;
-  onFinishGroup: (produsId: string, totalQty: number) => Promise<void>;
+  onStartGroup: (orderIds: string[], operatorNames: string[]) => Promise<void>;
+  onFinishGroup: (orderIds: string[], totalQty: number) => Promise<void>;
 }
 
 const formatDur = (hours: number) => {
