@@ -39,20 +39,21 @@ const GroupedOrdersView: React.FC<Props> = ({
   orders,
   activeSessions,
   lineCapacity,
+  groupMap,
   onOrderSelect,
   onStartGroup,
   onFinishGroup,
 }) => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [startDialog, setStartDialog] = useState<{ open: boolean; produsId: string; produsNume: string }>({
+  const [startDialog, setStartDialog] = useState<{ open: boolean; orderIds: string[]; nume: string }>({
     open: false,
-    produsId: "",
-    produsNume: "",
+    orderIds: [],
+    nume: "",
   });
-  const [finishDialog, setFinishDialog] = useState<{ open: boolean; produsId: string; produsNume: string }>({
+  const [finishDialog, setFinishDialog] = useState<{ open: boolean; orderIds: string[]; nume: string }>({
     open: false,
-    produsId: "",
-    produsNume: "",
+    orderIds: [],
+    nume: "",
   });
   const [operatorNames, setOperatorNames] = useState<string[]>([""]);
   const [totalQty, setTotalQty] = useState<number>(0);
@@ -60,41 +61,47 @@ const GroupedOrdersView: React.FC<Props> = ({
 
   const groups = useMemo(() => {
     const map = new Map<string, {
-      produsId: string;
-      produsNume: string;
+      key: string;
+      nume: string;
       unitate: string;
+      isMerged: boolean;
       orders: ProductieComanda[];
     }>();
     for (const o of orders) {
-      const key = o.produs_id || `noprod-${o.id}`;
+      const produsId = o.produs_id || "";
+      const produsNume = (o as any).productie_produse?.nume || "Fără produs";
+      const grup = produsId && groupMap ? (groupMap[produsId] || "").trim() : "";
+      const key = grup ? `grp:${grup}` : (produsId ? `prod:${produsId}` : `noprod-${o.id}`);
+      const nume = grup || produsNume;
       if (!map.has(key)) {
         map.set(key, {
-          produsId: key,
-          produsNume: (o as any).productie_produse?.nume || "Fără produs",
+          key,
+          nume,
           unitate: (o as any).productie_produse?.unitate_masura || "buc",
+          isMerged: !!grup,
           orders: [],
         });
       }
       map.get(key)!.orders.push(o);
     }
     return Array.from(map.values());
-  }, [orders]);
+  }, [orders, groupMap]);
 
-  const openStart = (produsId: string, produsNume: string) => {
+  const openStart = (orderIds: string[], nume: string) => {
     setOperatorNames([""]);
-    setStartDialog({ open: true, produsId, produsNume });
+    setStartDialog({ open: true, orderIds, nume });
   };
 
-  const openFinish = (produsId: string, produsNume: string) => {
+  const openFinish = (orderIds: string[], nume: string) => {
     setTotalQty(0);
-    setFinishDialog({ open: true, produsId, produsNume });
+    setFinishDialog({ open: true, orderIds, nume });
   };
 
   const handleStart = async () => {
     setSubmitting(true);
     try {
-      await onStartGroup(startDialog.produsId, operatorNames);
-      setStartDialog({ open: false, produsId: "", produsNume: "" });
+      await onStartGroup(startDialog.orderIds, operatorNames);
+      setStartDialog({ open: false, orderIds: [], nume: "" });
     } finally {
       setSubmitting(false);
     }
@@ -103,8 +110,8 @@ const GroupedOrdersView: React.FC<Props> = ({
   const handleFinish = async () => {
     setSubmitting(true);
     try {
-      await onFinishGroup(finishDialog.produsId, totalQty);
-      setFinishDialog({ open: false, produsId: "", produsNume: "" });
+      await onFinishGroup(finishDialog.orderIds, totalQty);
+      setFinishDialog({ open: false, orderIds: [], nume: "" });
     } finally {
       setSubmitting(false);
     }
