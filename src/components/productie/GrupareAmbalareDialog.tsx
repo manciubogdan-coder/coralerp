@@ -53,12 +53,12 @@ const GrupareAmbalareDialog: React.FC<Props> = ({ open, onOpenChange }) => {
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    const gf = groupFilter.trim();
+    const gf = groupFilter.trim().toLowerCase();
     let list = (products || []) as any[];
     if (s) list = list.filter((p) => p.nume.toLowerCase().includes(s));
     if (filterMode === "grouped") list = list.filter((p) => (map[p.id] || "").trim() !== "");
     if (filterMode === "ungrouped") list = list.filter((p) => (map[p.id] || "").trim() === "");
-    if (gf) list = list.filter((p) => (map[p.id] || "").trim() === gf);
+    if (gf) list = list.filter((p) => (map[p.id] || "").trim().toLowerCase().includes(gf));
     return list;
   }, [products, search, filterMode, groupFilter, map]);
 
@@ -159,33 +159,27 @@ const GrupareAmbalareDialog: React.FC<Props> = ({ open, onOpenChange }) => {
               </button>
             ))}
           </div>
-          {groupFilter && (
-            <Badge variant="outline" className="gap-1">
-              Grup: {groupFilter}
-              <button onClick={() => setGroupFilter("")}><X className="h-3 w-3" /></button>
-            </Badge>
-          )}
+          <div className="relative min-w-48 flex-1 max-w-80">
+            <Input
+              placeholder="Caută sau selectează grup..."
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value)}
+              list="grupare-existing"
+              className="pr-8"
+            />
+            {groupFilter && (
+              <button
+                type="button"
+                aria-label="Șterge filtrul de grup"
+                onClick={() => setGroupFilter("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
           <div className="ml-auto text-xs text-gray-500">{filtered.length} afișate · {selected.size} selectate</div>
         </div>
-
-        {/* Existing groups chips (click to filter) */}
-        {existingGroups.length > 0 && (
-          <div className="flex flex-wrap gap-1 max-h-20 overflow-auto border rounded p-2 bg-gray-50">
-            {existingGroups.map((g) => {
-              const count = Object.values(map).filter((v) => v === g).length;
-              const active = groupFilter === g;
-              return (
-                <button
-                  key={g}
-                  onClick={() => setGroupFilter(active ? "" : g)}
-                  className={`text-xs rounded px-2 py-0.5 border ${active ? "bg-coral-primary text-white border-coral-primary" : "bg-white text-coral-primary border-coral-200 hover:bg-coral-50"}`}
-                >
-                  {g} ({count})
-                </button>
-              );
-            })}
-          </div>
-        )}
 
         {/* Bulk assign bar */}
         <div className="flex items-center gap-2 p-2 border rounded bg-amber-50">
