@@ -2,15 +2,19 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { useProducts } from "@/hooks/productie/useProductionData";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Layers } from "lucide-react";
+import { Loader2, Save, Layers, Wand2, X } from "lucide-react";
 
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }
+
+type FilterMode = "all" | "grouped" | "ungrouped";
 
 const GrupareAmbalareDialog: React.FC<Props> = ({ open, onOpenChange }) => {
   const { toast } = useToast();
@@ -18,10 +22,16 @@ const GrupareAmbalareDialog: React.FC<Props> = ({ open, onOpenChange }) => {
   const [map, setMap] = useState<Record<string, string>>({});
   const [initialMap, setInitialMap] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [groupFilter, setGroupFilter] = useState<string>("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkGroupName, setBulkGroupName] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    setSelected(new Set());
+    setBulkGroupName("");
     (async () => {
       const { data, error } = await supabaseCloud
         .from("productie_grupare_ambalare")
@@ -37,12 +47,42 @@ const GrupareAmbalareDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     })();
   }, [open, toast]);
 
+  const existingGroups = useMemo(() => {
+    return Array.from(new Set(Object.values(map).map((v) => (v || "").trim()).filter(Boolean))).sort();
+  }, [map]);
+
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    const list = products || [];
-    if (!s) return list;
-    return list.filter((p: any) => p.nume.toLowerCase().includes(s));
-  }, [products, search]);
+    const gf = groupFilter.trim();
+    let list = (products || []) as any[];
+    if (s) list = list.filter((p) => p.nume.toLowerCase().includes(s));
+    if (filterMode === "grouped") list = list.filter((p) => (map[p.id] || "").trim() !== "");
+    if (filterMode === "ungrouped") list = list.filter((p) => (map[p.id] || "").trim() === "");
+    if (gf) list = list.filter((p) => (map[p.id] || "").trim() === gf);
+    return list;
+  }, [products, search, filterMode, groupFilter, map]);
+
+  const allVisibleSelected = filtered.length > 0 && filtered.every((p: any) => selected.has(p.id));
+  const toggleAllVisible = () => {
+    const next = new Set(selected);
+    if (allVisibleSelected) filtered.forEach((p: any) => next.delete(p.id));
+    else filtered.forEach((p: any) => next.add(p.id));
+    setSelected(next);
+  };
+
+  const applyBulk = () => {
+    const name = bulkGroupName.trim();
+    if (selected.size === 0) {
+      toast({ variant: "destructive", title: "Selectează produse", description: "Bifează produsele pe care vrei să le grupezi." });
+      return;
+    }
+    setMap((prev) => {
+      const u = { ...prev };
+      selected.forEach((id) => { u[id] = name; });
+      return u;
+    });
+    toast({ title: name ? `Grup aplicat: ${name}` : "Grup eliminat", description: `${selected.size} produse actualizate (nesalvat).` });
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -82,69 +122,144 @@ const GrupareAmbalareDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     }
   };
 
-  // Sugestii = grupuri deja existente
-  const existingGroups = useMemo(() => {
-    return Array.from(new Set(Object.values(map).map((v) => (v || "").trim()).filter(Boolean))).sort();
-  }, [map]);
+  const totalProducts = products?.length || 0;
+  const groupedCount = Object.values(map).filter((v) => (v || "").trim() !== "").length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-5xl h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="h-5 w-5 text-coral-primary" />
             Grupare ambalare pe produse
+            <Badge variant="outline" className="ml-2">{groupedCount} / {totalProducts} grupate</Badge>
           </DialogTitle>
         </DialogHeader>
-        <div className="text-sm text-muted-foreground mb-2">
-          Pentru fiecare produs setează un <strong>nume de grup ambalare</strong> identic dacă vrei să apară împreună în vizualizarea „Grupat pe produs" a operatorului
-          (ex: <em>MENTA 30 GR</em> pentru toate SKU-urile de mentă 30gr). Lasă gol pentru produsele care nu se grupează.
+
+        <div className="text-xs text-muted-foreground">
+          Bifează mai multe produse și scrie un nume de grup jos pentru a le grupa dintr-o singură mișcare. Lasă gol pentru a scoate din grup.
         </div>
-        <Input
-          placeholder="Caută produs..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="mb-2"
-        />
-        {existingGroups.length > 0 && (
-          <div className="text-xs text-gray-500 mb-2">
-            Grupuri existente: {existingGroups.map((g) => (
-              <span key={g} className="inline-block bg-coral-50 text-coral-primary border border-coral-200 rounded px-1.5 py-0.5 mr-1">{g}</span>
+
+        {/* Filters row */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            placeholder="Caută produs..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-64"
+          />
+          <div className="flex rounded border overflow-hidden">
+            {(["all", "ungrouped", "grouped"] as FilterMode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => { setFilterMode(m); setGroupFilter(""); }}
+                className={`px-3 py-1.5 text-xs ${filterMode === m ? "bg-coral-primary text-white" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+              >
+                {m === "all" ? "Toate" : m === "ungrouped" ? "Fără grup" : "Cu grup"}
+              </button>
             ))}
           </div>
+          {groupFilter && (
+            <Badge variant="outline" className="gap-1">
+              Grup: {groupFilter}
+              <button onClick={() => setGroupFilter("")}><X className="h-3 w-3" /></button>
+            </Badge>
+          )}
+          <div className="ml-auto text-xs text-gray-500">{filtered.length} afișate · {selected.size} selectate</div>
+        </div>
+
+        {/* Existing groups chips (click to filter) */}
+        {existingGroups.length > 0 && (
+          <div className="flex flex-wrap gap-1 max-h-20 overflow-auto border rounded p-2 bg-gray-50">
+            {existingGroups.map((g) => {
+              const count = Object.values(map).filter((v) => v === g).length;
+              const active = groupFilter === g;
+              return (
+                <button
+                  key={g}
+                  onClick={() => setGroupFilter(active ? "" : g)}
+                  className={`text-xs rounded px-2 py-0.5 border ${active ? "bg-coral-primary text-white border-coral-primary" : "bg-white text-coral-primary border-coral-200 hover:bg-coral-50"}`}
+                >
+                  {g} ({count})
+                </button>
+              );
+            })}
+          </div>
         )}
+
+        {/* Bulk assign bar */}
+        <div className="flex items-center gap-2 p-2 border rounded bg-amber-50">
+          <Wand2 className="h-4 w-4 text-amber-700 shrink-0" />
+          <Input
+            placeholder="Nume grup pentru selecție (gol = elimină din grup)"
+            value={bulkGroupName}
+            onChange={(e) => setBulkGroupName(e.target.value)}
+            list="grupare-existing"
+            className="flex-1"
+          />
+          <Button
+            size="sm"
+            onClick={applyBulk}
+            disabled={selected.size === 0}
+            className="bg-amber-600 hover:bg-amber-700 text-white"
+          >
+            Aplică la {selected.size}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
+            Deselectează
+          </Button>
+        </div>
+
+        {/* Table */}
         <div className="flex-1 overflow-auto border rounded">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 sticky top-0">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
+                <th className="p-2 w-10">
+                  <Checkbox checked={allVisibleSelected} onCheckedChange={toggleAllVisible} />
+                </th>
                 <th className="text-left p-2 font-medium">Produs</th>
-                <th className="text-left p-2 font-medium w-[45%]">Grup ambalare</th>
+                <th className="text-left p-2 font-medium w-[40%]">Grup ambalare</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={2} className="p-4 text-center"><Loader2 className="h-5 w-5 animate-spin inline" /></td></tr>
+                <tr><td colSpan={3} className="p-4 text-center"><Loader2 className="h-5 w-5 animate-spin inline" /></td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={2} className="p-4 text-center text-gray-500">Nu există produse</td></tr>
-              ) : filtered.map((p: any) => (
-                <tr key={p.id} className="border-t">
-                  <td className="p-2">{p.nume}</td>
-                  <td className="p-2">
-                    <Input
-                      value={map[p.id] || ""}
-                      onChange={(e) => setMap((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                      placeholder="— fără grup —"
-                      list="grupare-existing"
-                    />
-                  </td>
-                </tr>
-              ))}
+                <tr><td colSpan={3} className="p-4 text-center text-gray-500">Nu există produse</td></tr>
+              ) : filtered.map((p: any) => {
+                const isSel = selected.has(p.id);
+                return (
+                  <tr key={p.id} className={`border-t ${isSel ? "bg-amber-50/60" : ""}`}>
+                    <td className="p-2">
+                      <Checkbox
+                        checked={isSel}
+                        onCheckedChange={(v) => {
+                          const next = new Set(selected);
+                          if (v) next.add(p.id); else next.delete(p.id);
+                          setSelected(next);
+                        }}
+                      />
+                    </td>
+                    <td className="p-2">{p.nume}</td>
+                    <td className="p-2">
+                      <Input
+                        value={map[p.id] || ""}
+                        onChange={(e) => setMap((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                        placeholder="— fără grup —"
+                        list="grupare-existing"
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           <datalist id="grupare-existing">
             {existingGroups.map((g) => <option key={g} value={g} />)}
           </datalist>
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Anulează</Button>
           <Button onClick={handleSave} disabled={saving} className="bg-coral-primary hover:bg-coral-600 text-white">
