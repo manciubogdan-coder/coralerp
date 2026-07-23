@@ -478,6 +478,8 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
     { name: "Nesetate", value: global.unset, color: STATUS_COLORS.unset },
   ].filter((x) => x.value > 0);
 
+  const globalOkPct = global.total > 0 ? Math.round((global.green / global.total) * 100) : 0;
+
   return (
     <div className="space-y-6">
       <Card>
@@ -485,16 +487,20 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
           <CardTitle className="text-base">Global — toate departamentele</CardTitle>
           <CardDescription>{global.total} KPI-uri urmărite</CardDescription>
         </CardHeader>
-        <CardContent style={{ height: 260 }}>
+        <CardContent style={{ height: 280 }} className="relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={globalData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} paddingAngle={2}>
+              <Pie data={globalData} dataKey="value" nameKey="name" innerRadius={75} outerRadius={110} paddingAngle={2}>
                 {globalData.map((d, i) => (<Cell key={i} fill={d.color} />))}
               </Pie>
               <Tooltip />
-              <Legend />
+              <Legend verticalAlign="bottom" height={30} />
             </PieChart>
           </ResponsiveContainer>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center -mt-6">
+            <div className="text-4xl font-bold" style={{ color: STATUS_COLORS.green }}>{globalOkPct}%</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">OK</div>
+          </div>
         </CardContent>
       </Card>
 
