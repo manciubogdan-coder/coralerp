@@ -478,7 +478,8 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
     { name: "Nesetate", value: global.unset, color: STATUS_COLORS.unset },
   ].filter((x) => x.value > 0);
 
-  const globalOkPct = global.total > 0 ? Math.round((global.green / global.total) * 100) : 0;
+  const globalEvaluated = global.green + global.yellow + global.red;
+  const globalOkPct = globalEvaluated > 0 ? Math.round((global.green / globalEvaluated) * 100) : null;
 
   return (
     <div className="space-y-6">
@@ -498,8 +499,10 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center -mt-6">
-            <div className="text-4xl font-bold" style={{ color: STATUS_COLORS.green }}>{globalOkPct}%</div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">OK</div>
+            <div className="text-4xl font-bold" style={{ color: globalOkPct === null ? STATUS_COLORS.unset : STATUS_COLORS.green }}>
+              {globalOkPct === null ? "—" : `${globalOkPct}%`}
+            </div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">{globalOkPct === null ? "fără date" : "OK"}</div>
           </div>
         </CardContent>
       </Card>
@@ -512,13 +515,14 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
             { name: "Roșu", value: b.red, color: STATUS_COLORS.red },
             { name: "Nesetate", value: b.unset, color: STATUS_COLORS.unset },
           ].filter((x) => x.value > 0);
-          const okPct = b.total > 0 ? Math.round((b.green / b.total) * 100) : 0;
+          const evaluated = b.green + b.yellow + b.red;
+          const okPct = evaluated > 0 ? Math.round((b.green / evaluated) * 100) : null;
           return (
             <Card key={b.dept}>
               <CardHeader>
                 <CardTitle className="text-base flex items-center justify-between">
                   {b.dept}
-                  <Badge variant="secondary">{okPct}% OK</Badge>
+                  <Badge variant="secondary">{okPct === null ? "—" : `${okPct}% OK`}</Badge>
                 </CardTitle>
                 <CardDescription>{b.total} KPI-uri</CardDescription>
               </CardHeader>
@@ -532,8 +536,10 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <div className="text-2xl font-bold" style={{ color: STATUS_COLORS.green }}>{okPct}%</div>
-                  <div className="text-[10px] text-muted-foreground uppercase">OK</div>
+                  <div className="text-2xl font-bold" style={{ color: okPct === null ? STATUS_COLORS.unset : STATUS_COLORS.green }}>
+                    {okPct === null ? "—" : `${okPct}%`}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground uppercase">{okPct === null ? "fără date" : "OK"}</div>
                 </div>
               </CardContent>
             </Card>
