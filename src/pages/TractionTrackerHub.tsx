@@ -478,6 +478,8 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
     { name: "Nesetate", value: global.unset, color: STATUS_COLORS.unset },
   ].filter((x) => x.value > 0);
 
+  const globalOkPct = global.total > 0 ? Math.round((global.green / global.total) * 100) : 0;
+
   return (
     <div className="space-y-6">
       <Card>
@@ -485,16 +487,20 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
           <CardTitle className="text-base">Global — toate departamentele</CardTitle>
           <CardDescription>{global.total} KPI-uri urmărite</CardDescription>
         </CardHeader>
-        <CardContent style={{ height: 260 }}>
+        <CardContent style={{ height: 280 }} className="relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={globalData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} paddingAngle={2}>
+              <Pie data={globalData} dataKey="value" nameKey="name" innerRadius={75} outerRadius={110} paddingAngle={2}>
                 {globalData.map((d, i) => (<Cell key={i} fill={d.color} />))}
               </Pie>
               <Tooltip />
-              <Legend />
+              <Legend verticalAlign="bottom" height={30} />
             </PieChart>
           </ResponsiveContainer>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center -mt-6">
+            <div className="text-4xl font-bold" style={{ color: STATUS_COLORS.green }}>{globalOkPct}%</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">OK</div>
+          </div>
         </CardContent>
       </Card>
 
@@ -516,15 +522,19 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
                 </CardTitle>
                 <CardDescription>{b.total} KPI-uri</CardDescription>
               </CardHeader>
-              <CardContent style={{ height: 200 }}>
+              <CardContent style={{ height: 200 }} className="relative">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={data} dataKey="value" nameKey="name" innerRadius={40} outerRadius={75} paddingAngle={2}>
+                    <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
                       {data.map((d, i) => (<Cell key={i} fill={d.color} />))}
                     </Pie>
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <div className="text-2xl font-bold" style={{ color: STATUS_COLORS.green }}>{okPct}%</div>
+                  <div className="text-[10px] text-muted-foreground uppercase">OK</div>
+                </div>
               </CardContent>
             </Card>
           );
@@ -554,12 +564,16 @@ const NewTrackerCard: React.FC<{ onCreate: (dept: string, name: string, period: 
         </div>
         <div className="space-y-1">
           <Label>Departament</Label>
-          <Select value={dept} onValueChange={setDept}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {DEPARTMENT_OPTIONS.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
-            </SelectContent>
-          </Select>
+          <Input
+            value={dept}
+            onChange={(e) => setDept(e.target.value)}
+            list="dept-options"
+            placeholder="Ex: Achiziții, Marketing, IT..."
+          />
+          <datalist id="dept-options">
+            {DEPARTMENT_OPTIONS.map((d) => (<option key={d} value={d} />))}
+          </datalist>
+          <p className="text-xs text-muted-foreground">Poți scrie orice departament nou.</p>
         </div>
         <div className="space-y-1">
           <Label>Perioadă</Label>
@@ -624,16 +638,17 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
           </div>
           <div className="space-y-1">
             <Label>Departament</Label>
-            <Select
+            <Input
               value={tracker.department}
-              onValueChange={(v) => props.onUpdateTracker(tracker.id, { department: v })}
               disabled={readOnly}
-            >
-              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {DEPARTMENT_OPTIONS.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
-              </SelectContent>
-            </Select>
+              onChange={(e) => props.onUpdateTracker(tracker.id, { department: e.target.value })}
+              list="dept-options-editor"
+              className="w-48"
+              placeholder="Ex: Marketing, IT..."
+            />
+            <datalist id="dept-options-editor">
+              {DEPARTMENT_OPTIONS.map((d) => (<option key={d} value={d} />))}
+            </datalist>
           </div>
           <div className="space-y-1">
             <Label>Perioadă</Label>
@@ -782,81 +797,104 @@ const KpiRow: React.FC<{
   const [addOpen, setAddOpen] = useState(false);
   const [newPeriod, setNewPeriod] = useState("");
   const [newValue, setNewValue] = useState("");
+  const [advOpen, setAdvOpen] = useState(false);
 
   const latest = values[0];
   const status = statusForValue(kpi, latest?.value ?? null);
+  const opLabel = kpi.target_operator === "lte" ? "≤" : kpi.target_operator === "eq" ? "=" : "≥";
 
   return (
-    <div className="rounded-md border p-3 space-y-2 bg-muted/20">
-      <div className="flex flex-wrap gap-2 items-end">
+    <div className="rounded-lg border p-3 space-y-3 bg-card">
+      <div className="flex flex-wrap gap-3 items-end">
         <div
-          className="w-3 h-3 rounded-full mt-2 shrink-0"
+          className="w-4 h-4 rounded-full mt-2 shrink-0 ring-2 ring-background shadow"
           style={{ backgroundColor: STATUS_COLORS[status] }}
           title={status}
         />
-        <div className="space-y-1 flex-1 min-w-[180px]">
-          <Label className="text-xs">Nume KPI</Label>
-          <Input value={kpi.name} disabled={readOnly} onChange={(e) => onUpdate({ name: e.target.value })} />
+        <div className="space-y-1 flex-1 min-w-[200px]">
+          <Label className="text-xs text-muted-foreground">Nume KPI</Label>
+          <Input value={kpi.name} disabled={readOnly} onChange={(e) => onUpdate({ name: e.target.value })} className="font-medium" />
         </div>
         <div className="space-y-1 w-24">
-          <Label className="text-xs">UM</Label>
-          <Input value={kpi.unit || ""} disabled={readOnly} onChange={(e) => onUpdate({ unit: e.target.value })} />
+          <Label className="text-xs text-muted-foreground">UM</Label>
+          <Input value={kpi.unit || ""} disabled={readOnly} onChange={(e) => onUpdate({ unit: e.target.value })} placeholder="%, buc..." />
         </div>
-        <div className="space-y-1 w-28">
-          <Label className="text-xs">Target</Label>
+        <div className="space-y-1 w-32">
+          <Label className="text-xs text-muted-foreground">Țintă ({opLabel})</Label>
           <Input type="number" step="any" value={kpi.target_value ?? ""} disabled={readOnly}
             onChange={(e) => onUpdate({ target_value: e.target.value ? parseFloat(e.target.value) : null })} />
         </div>
-        <div className="space-y-1 w-28">
-          <Label className="text-xs">Operator</Label>
-          <Select value={kpi.target_operator} onValueChange={(v) => onUpdate({ target_operator: v })} disabled={readOnly}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="gte">≥ target</SelectItem>
-              <SelectItem value="lte">≤ target</SelectItem>
-              <SelectItem value="eq">= target</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1 w-24">
-          <Label className="text-xs">Prag verde</Label>
-          <Input type="number" step="any" value={kpi.threshold_green ?? ""} disabled={readOnly}
-            onChange={(e) => onUpdate({ threshold_green: e.target.value ? parseFloat(e.target.value) : null })} />
-        </div>
-        <div className="space-y-1 w-24">
-          <Label className="text-xs">Prag galben</Label>
-          <Input type="number" step="any" value={kpi.threshold_yellow ?? ""} disabled={readOnly}
-            onChange={(e) => onUpdate({ threshold_yellow: e.target.value ? parseFloat(e.target.value) : null })} />
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Ultima valoare</Label>
+          <div className="h-10 px-3 flex items-center rounded-md border bg-muted/40 text-sm font-medium min-w-[120px]">
+            {latest ? `${latest.value ?? "—"} ${kpi.unit || ""}` : "—"}
+            {latest && <span className="text-xs text-muted-foreground ml-2">({latest.period_label})</span>}
+          </div>
         </div>
         {!readOnly && (
-          <Button variant="ghost" size="icon" onClick={onDelete}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          <>
+            <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
+              <Plus className="h-3 w-3 mr-1" />Valoare
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onDelete} title="Șterge KPI">
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </>
         )}
       </div>
 
-      <div className="text-xs text-muted-foreground">
-        Pragurile sunt raportate la target (ex: 1 = 100%, 0.8 = 80%). Ultima valoare:{" "}
-        <span className="font-medium text-foreground">
-          {latest ? `${latest.value ?? "—"} ${kpi.unit || ""} (${latest.period_label})` : "—"}
-        </span>
-      </div>
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={() => setAdvOpen((o) => !o)}
+          className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+        >
+          {advOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          Setări avansate (operator, praguri culori)
+        </button>
+      )}
+      {advOpen && !readOnly && (
+        <div className="flex flex-wrap gap-2 items-end pl-4 border-l-2 border-muted">
+          <div className="space-y-1 w-32">
+            <Label className="text-xs">Regulă</Label>
+            <Select value={kpi.target_operator} onValueChange={(v) => onUpdate({ target_operator: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gte">Mai mare ≥</SelectItem>
+                <SelectItem value="lte">Mai mic ≤</SelectItem>
+                <SelectItem value="eq">Egal =</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1 w-28">
+            <Label className="text-xs">Prag verde</Label>
+            <Input type="number" step="any" value={kpi.threshold_green ?? ""}
+              onChange={(e) => onUpdate({ threshold_green: e.target.value ? parseFloat(e.target.value) : null })} />
+          </div>
+          <div className="space-y-1 w-28">
+            <Label className="text-xs">Prag galben</Label>
+            <Input type="number" step="any" value={kpi.threshold_yellow ?? ""}
+              onChange={(e) => onUpdate({ threshold_yellow: e.target.value ? parseFloat(e.target.value) : null })} />
+          </div>
+          <p className="text-xs text-muted-foreground flex-1 min-w-[200px]">
+            Pragurile sunt raportate la țintă (1 = 100%, 0.8 = 80%).
+          </p>
+        </div>
+      )}
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {values.slice(0, 6).map((v) => (
-          <Badge key={v.id} variant="outline" className="gap-1">
-            {v.period_label}: <strong>{v.value ?? "—"}</strong>
-            {!readOnly && (
-              <button className="ml-1 text-destructive" onClick={() => onDeleteValue(v.id)} title="Șterge">×</button>
-            )}
-          </Badge>
-        ))}
-        {!readOnly && (
-          <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
-            <Plus className="h-3 w-3 mr-1" />Valoare
-          </Button>
-        )}
-      </div>
+      {values.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">Istoric:</span>
+          {values.slice(0, 8).map((v) => (
+            <Badge key={v.id} variant="outline" className="gap-1">
+              {v.period_label}: <strong>{v.value ?? "—"}</strong>
+              {!readOnly && (
+                <button className="ml-1 text-destructive" onClick={() => onDeleteValue(v.id)} title="Șterge">×</button>
+              )}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       {tasks.length > 0 && (
         <div className="border-t pt-2 space-y-1">
