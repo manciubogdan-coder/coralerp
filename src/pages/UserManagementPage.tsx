@@ -43,6 +43,7 @@ interface UserProfile {
   isAdmin?: boolean;
   departments?: DepartmentRole[];
   evidentaAndrada?: boolean;
+  tractionTracker?: boolean;
 }
 
 const UserManagementPage: React.FC = () => {
@@ -58,6 +59,7 @@ const UserManagementPage: React.FC = () => {
   const [draftAdmin, setDraftAdmin] = useState(false);
   const [draftDepts, setDraftDepts] = useState<Set<DepartmentRole>>(new Set());
   const [draftEvidenta, setDraftEvidenta] = useState(false);
+  const [draftTraction, setDraftTraction] = useState(false);
   const [savingRoles, setSavingRoles] = useState(false);
 
   const fetchUsers = async () => {
@@ -91,6 +93,13 @@ const UserManagementPage: React.FC = () => {
         ((evidentaRows as Array<{ user_id: string }>) || []).map((r) => r.user_id),
       );
 
+      const { data: tractionRows } = await supabaseCloud
+        .from('traction_tracker_access')
+        .select('user_id');
+      const tractionSet = new Set<string>(
+        ((tractionRows as Array<{ user_id: string }>) || []).map((r) => r.user_id),
+      );
+
       const usersWithRoles = ((profiles as any[]) || []).map((profile) => {
         const roles = rolesByUser.get(profile.user_id) || [];
         const departments = roles.filter((r): r is DepartmentRole =>
@@ -101,6 +110,7 @@ const UserManagementPage: React.FC = () => {
           isAdmin: roles.includes('admin'),
           departments,
           evidentaAndrada: evidentaSet.has(profile.user_id),
+          tractionTracker: tractionSet.has(profile.user_id),
         } as UserProfile;
       });
 
@@ -182,6 +192,7 @@ const UserManagementPage: React.FC = () => {
     setDraftAdmin(!!u.isAdmin);
     setDraftDepts(new Set(u.departments || []));
     setDraftEvidenta(!!u.evidentaAndrada);
+    setDraftTraction(!!u.tractionTracker);
   };
 
   const toggleDept = (dept: DepartmentRole) => {
@@ -235,6 +246,20 @@ const UserManagementPage: React.FC = () => {
       } else if (!draftEvidenta && editing.evidentaAndrada) {
         const { error } = await supabaseCloud
           .from('evidenta_andrada_access')
+          .delete()
+          .eq('user_id', editing.user_id);
+        if (error) throw error;
+      }
+
+      // Traction Tracker access
+      if (draftTraction && !editing.tractionTracker) {
+        const { error } = await supabaseCloud
+          .from('traction_tracker_access')
+          .upsert({ user_id: editing.user_id, email: editing.email }, { onConflict: 'user_id' });
+        if (error) throw error;
+      } else if (!draftTraction && editing.tractionTracker) {
+        const { error } = await supabaseCloud
+          .from('traction_tracker_access')
           .delete()
           .eq('user_id', editing.user_id);
         if (error) throw error;
@@ -498,6 +523,19 @@ const UserManagementPage: React.FC = () => {
                 <div className="font-medium">Acces Evidență Andrada</div>
                 <div className="text-xs text-muted-foreground">
                   Utilizatorul va vedea tile-ul „Evidență Andrada” pe pagina principală.
+                </div>
+              </div>
+            </label>
+
+            <label className="flex items-center gap-3 p-3 rounded-md border bg-muted/30">
+              <Checkbox
+                checked={draftTraction}
+                onCheckedChange={(v) => setDraftTraction(v === true)}
+              />
+              <div>
+                <div className="font-medium">Acces Traction Tracker</div>
+                <div className="text-xs text-muted-foreground">
+                  Utilizatorul va vedea tile-ul „Traction Tracker" pe pagina principală.
                 </div>
               </div>
             </label>

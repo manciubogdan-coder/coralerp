@@ -686,6 +686,249 @@ export type Database = {
         }
         Relationships: []
       }
+      traction_kpi_values: {
+        Row: {
+          created_at: string
+          id: string
+          kpi_id: string
+          notes: string | null
+          period_label: string
+          period_start: string | null
+          updated_at: string
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kpi_id: string
+          notes?: string | null
+          period_label: string
+          period_start?: string | null
+          updated_at?: string
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kpi_id?: string
+          notes?: string | null
+          period_label?: string
+          period_start?: string | null
+          updated_at?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traction_kpi_values_kpi_id_fkey"
+            columns: ["kpi_id"]
+            isOneToOne: false
+            referencedRelation: "traction_kpis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traction_kpis: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          order_index: number
+          strategic_id: string
+          target_operator: string
+          target_value: number | null
+          threshold_green: number | null
+          threshold_yellow: number | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          order_index?: number
+          strategic_id: string
+          target_operator?: string
+          target_value?: number | null
+          threshold_green?: number | null
+          threshold_yellow?: number | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          order_index?: number
+          strategic_id?: string
+          target_operator?: string
+          target_value?: number | null
+          threshold_green?: number | null
+          threshold_yellow?: number | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traction_kpis_strategic_id_fkey"
+            columns: ["strategic_id"]
+            isOneToOne: false
+            referencedRelation: "traction_strategic_objectives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traction_operational_objectives: {
+        Row: {
+          action: string | null
+          created_at: string
+          deadline: string | null
+          id: string
+          kpi_id: string | null
+          order_index: number
+          period_label: string | null
+          status: string
+          title: string
+          tracker_id: string
+          updated_at: string
+        }
+        Insert: {
+          action?: string | null
+          created_at?: string
+          deadline?: string | null
+          id?: string
+          kpi_id?: string | null
+          order_index?: number
+          period_label?: string | null
+          status?: string
+          title: string
+          tracker_id: string
+          updated_at?: string
+        }
+        Update: {
+          action?: string | null
+          created_at?: string
+          deadline?: string | null
+          id?: string
+          kpi_id?: string | null
+          order_index?: number
+          period_label?: string | null
+          status?: string
+          title?: string
+          tracker_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traction_operational_objectives_kpi_id_fkey"
+            columns: ["kpi_id"]
+            isOneToOne: false
+            referencedRelation: "traction_kpis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traction_operational_objectives_tracker_id_fkey"
+            columns: ["tracker_id"]
+            isOneToOne: false
+            referencedRelation: "traction_trackers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traction_strategic_objectives: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          order_index: number
+          title: string
+          tracker_id: string
+          updated_at: string
+          year: number | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          order_index?: number
+          title: string
+          tracker_id: string
+          updated_at?: string
+          year?: number | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          order_index?: number
+          title?: string
+          tracker_id?: string
+          updated_at?: string
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traction_strategic_objectives_tracker_id_fkey"
+            columns: ["tracker_id"]
+            isOneToOne: false
+            referencedRelation: "traction_trackers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traction_tracker_access: {
+        Row: {
+          created_at: string
+          email: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      traction_trackers: {
+        Row: {
+          created_at: string
+          department: string
+          id: string
+          name: string
+          owner_email: string | null
+          owner_id: string
+          owner_name: string | null
+          period_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department: string
+          id?: string
+          name: string
+          owner_email?: string | null
+          owner_id: string
+          owner_name?: string | null
+          period_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department?: string
+          id?: string
+          name?: string
+          owner_email?: string | null
+          owner_id?: string
+          owner_name?: string | null
+          period_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
