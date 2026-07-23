@@ -509,7 +509,20 @@ const UserManagementPage: React.FC = () => {
                     <Checkbox checked={checked} onCheckedChange={() => toggleDept(dept.id)} />
                     <Icon className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">{dept.label}</span>
-                  </label>
+            </label>
+
+            <label className="flex items-center gap-3 p-3 rounded-md border bg-muted/30">
+              <Checkbox
+                checked={draftTraction}
+                onCheckedChange={(v) => setDraftTraction(v === true)}
+              />
+              <div>
+                <div className="font-medium">Acces Traction Tracker</div>
+                <div className="text-xs text-muted-foreground">
+                  Utilizatorul va vedea tile-ul „Traction Tracker" pe pagina principală.
+                </div>
+              </div>
+            </label>
                 );
               })}
             </div>
