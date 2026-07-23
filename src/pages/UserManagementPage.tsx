@@ -192,6 +192,7 @@ const UserManagementPage: React.FC = () => {
     setDraftAdmin(!!u.isAdmin);
     setDraftDepts(new Set(u.departments || []));
     setDraftEvidenta(!!u.evidentaAndrada);
+    setDraftTraction(!!u.tractionTracker);
   };
 
   const toggleDept = (dept: DepartmentRole) => {
@@ -245,6 +246,20 @@ const UserManagementPage: React.FC = () => {
       } else if (!draftEvidenta && editing.evidentaAndrada) {
         const { error } = await supabaseCloud
           .from('evidenta_andrada_access')
+          .delete()
+          .eq('user_id', editing.user_id);
+        if (error) throw error;
+      }
+
+      // Traction Tracker access
+      if (draftTraction && !editing.tractionTracker) {
+        const { error } = await supabaseCloud
+          .from('traction_tracker_access')
+          .upsert({ user_id: editing.user_id, email: editing.email }, { onConflict: 'user_id' });
+        if (error) throw error;
+      } else if (!draftTraction && editing.tractionTracker) {
+        const { error } = await supabaseCloud
+          .from('traction_tracker_access')
           .delete()
           .eq('user_id', editing.user_id);
         if (error) throw error;
