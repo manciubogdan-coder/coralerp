@@ -154,14 +154,6 @@ const TractionTrackerHub: React.FC = () => {
     [trackers, user?.id],
   );
 
-  if (accessLoading) {
-    return (
-      <div className="min-h-[40vh] flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-  if (!allowed) return <Navigate to="/" replace />;
 
   // ---------- CRUD helpers ----------
   const createMyTracker = async (department: string, name: string, period_type: string) => {
@@ -276,6 +268,15 @@ const TractionTrackerHub: React.FC = () => {
     });
     return Array.from(byDept.entries()).map(([dept, b]) => ({ dept, ...b }));
   }, [trackers, strategics, kpis, latestValueByKpi]);
+
+  if (accessLoading) {
+    return (
+      <div className="min-h-[40vh] flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (!allowed) return <Navigate to="/" replace />;
 
   if (loading) {
     return (
