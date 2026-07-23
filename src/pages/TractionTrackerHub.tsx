@@ -564,12 +564,16 @@ const NewTrackerCard: React.FC<{ onCreate: (dept: string, name: string, period: 
         </div>
         <div className="space-y-1">
           <Label>Departament</Label>
-          <Select value={dept} onValueChange={setDept}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {DEPARTMENT_OPTIONS.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
-            </SelectContent>
-          </Select>
+          <Input
+            value={dept}
+            onChange={(e) => setDept(e.target.value)}
+            list="dept-options"
+            placeholder="Ex: Achiziții, Marketing, IT..."
+          />
+          <datalist id="dept-options">
+            {DEPARTMENT_OPTIONS.map((d) => (<option key={d} value={d} />))}
+          </datalist>
+          <p className="text-xs text-muted-foreground">Poți scrie orice departament nou.</p>
         </div>
         <div className="space-y-1">
           <Label>Perioadă</Label>
