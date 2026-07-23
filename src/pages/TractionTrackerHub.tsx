@@ -499,8 +499,10 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center -mt-6">
-            <div className="text-4xl font-bold" style={{ color: STATUS_COLORS.green }}>{globalOkPct}%</div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">OK</div>
+            <div className="text-4xl font-bold" style={{ color: globalOkPct === null ? STATUS_COLORS.unset : STATUS_COLORS.green }}>
+              {globalOkPct === null ? "—" : `${globalOkPct}%`}
+            </div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">{globalOkPct === null ? "fără date" : "OK"}</div>
           </div>
         </CardContent>
       </Card>
