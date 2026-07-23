@@ -882,21 +882,19 @@ const KpiRow: React.FC<{
         </div>
       )}
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {values.slice(0, 6).map((v) => (
-          <Badge key={v.id} variant="outline" className="gap-1">
-            {v.period_label}: <strong>{v.value ?? "—"}</strong>
-            {!readOnly && (
-              <button className="ml-1 text-destructive" onClick={() => onDeleteValue(v.id)} title="Șterge">×</button>
-            )}
-          </Badge>
-        ))}
-        {!readOnly && (
-          <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
-            <Plus className="h-3 w-3 mr-1" />Valoare
-          </Button>
-        )}
-      </div>
+      {values.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">Istoric:</span>
+          {values.slice(0, 8).map((v) => (
+            <Badge key={v.id} variant="outline" className="gap-1">
+              {v.period_label}: <strong>{v.value ?? "—"}</strong>
+              {!readOnly && (
+                <button className="ml-1 text-destructive" onClick={() => onDeleteValue(v.id)} title="Șterge">×</button>
+              )}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       {tasks.length > 0 && (
         <div className="border-t pt-2 space-y-1">
