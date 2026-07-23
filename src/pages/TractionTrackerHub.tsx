@@ -129,7 +129,6 @@ const TractionTrackerHub: React.FC = () => {
   const [viewedTrackerId, setViewedTrackerId] = useState<string | null>(null);
 
   const fetchAll = async () => {
-    setLoading(true);
     const [tr, so, kp, kv, to] = await Promise.all([
       supabaseCloud.from("traction_trackers").select("*").order("created_at", { ascending: true }),
       supabaseCloud.from("traction_strategic_objectives").select("*").order("order_index"),
@@ -142,11 +141,13 @@ const TractionTrackerHub: React.FC = () => {
     setKpis((kp.data as Kpi[]) || []);
     setValues((kv.data as KpiValue[]) || []);
     setTasks((to.data as OpTask[]) || []);
-    setLoading(false);
   };
 
   useEffect(() => {
-    if (allowed) fetchAll();
+    if (allowed) {
+      setLoading(true);
+      fetchAll().finally(() => setLoading(false));
+    }
   }, [allowed]);
 
   const myTracker = useMemo(
@@ -154,87 +155,100 @@ const TractionTrackerHub: React.FC = () => {
     [trackers, user?.id],
   );
 
+  const showErr = (error: any) => {
+    if (error) toast({ title: "Eroare", description: error.message, variant: "destructive" });
+  };
 
-  // ---------- CRUD helpers ----------
+  // ---------- CRUD helpers (optimistic — no full refetch on edits) ----------
   const createMyTracker = async (department: string, name: string, period_type: string) => {
     if (!user) return;
-    const { error } = await supabaseCloud.from("traction_trackers").insert({
+    const { data, error } = await supabaseCloud.from("traction_trackers").insert({
       owner_id: user.id,
       owner_email: user.email,
       owner_name: profile?.name || null,
       department,
       name,
       period_type,
-    });
-    if (error) toast({ title: "Eroare", description: error.message, variant: "destructive" });
-    else fetchAll();
+    }).select().single();
+    if (error) return showErr(error);
+    setTrackers((prev) => [...prev, data as Tracker]);
   };
 
   const updateTracker = async (id: string, patch: Partial<Tracker>) => {
+    setTrackers((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
     const { error } = await supabaseCloud.from("traction_trackers").update(patch).eq("id", id);
-    if (error) toast({ title: "Eroare", description: error.message, variant: "destructive" });
-    else fetchAll();
+    if (error) showErr(error);
   };
 
   const addStrategic = async (tracker_id: string) => {
-    const { error } = await supabaseCloud.from("traction_strategic_objectives").insert({
+    const { data, error } = await supabaseCloud.from("traction_strategic_objectives").insert({
       tracker_id, title: "Obiectiv strategic nou", year: new Date().getFullYear(),
       order_index: strategics.filter((s) => s.tracker_id === tracker_id).length,
-    });
-    if (error) toast({ title: "Eroare", description: error.message, variant: "destructive" });
-    else fetchAll();
+    }).select().single();
+    if (error) return showErr(error);
+    setStrategics((prev) => [...prev, data as Strategic]);
   };
   const updateStrategic = async (id: string, patch: Partial<Strategic>) => {
-    await supabaseCloud.from("traction_strategic_objectives").update(patch).eq("id", id);
-    fetchAll();
+    setStrategics((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    const { error } = await supabaseCloud.from("traction_strategic_objectives").update(patch).eq("id", id);
+    if (error) showErr(error);
   };
   const deleteStrategic = async (id: string) => {
-    await supabaseCloud.from("traction_strategic_objectives").delete().eq("id", id);
-    fetchAll();
+    setStrategics((prev) => prev.filter((s) => s.id !== id));
+    const { error } = await supabaseCloud.from("traction_strategic_objectives").delete().eq("id", id);
+    if (error) showErr(error);
   };
 
   const addKpi = async (strategic_id: string) => {
-    await supabaseCloud.from("traction_kpis").insert({
+    const { data, error } = await supabaseCloud.from("traction_kpis").insert({
       strategic_id, name: "KPI nou", target_operator: "gte",
       threshold_green: 1, threshold_yellow: 0.8,
       order_index: kpis.filter((k) => k.strategic_id === strategic_id).length,
-    });
-    fetchAll();
+    }).select().single();
+    if (error) return showErr(error);
+    setKpis((prev) => [...prev, data as Kpi]);
   };
   const updateKpi = async (id: string, patch: Partial<Kpi>) => {
-    await supabaseCloud.from("traction_kpis").update(patch).eq("id", id);
-    fetchAll();
+    setKpis((prev) => prev.map((k) => (k.id === id ? { ...k, ...patch } : k)));
+    const { error } = await supabaseCloud.from("traction_kpis").update(patch).eq("id", id);
+    if (error) showErr(error);
   };
   const deleteKpi = async (id: string) => {
-    await supabaseCloud.from("traction_kpis").delete().eq("id", id);
-    fetchAll();
+    setKpis((prev) => prev.filter((k) => k.id !== id));
+    const { error } = await supabaseCloud.from("traction_kpis").delete().eq("id", id);
+    if (error) showErr(error);
   };
 
   const addValue = async (kpi_id: string, period_label: string, value: number) => {
-    await supabaseCloud.from("traction_kpi_values").insert({
+    const { data, error } = await supabaseCloud.from("traction_kpi_values").insert({
       kpi_id, period_label, value, period_start: new Date().toISOString().slice(0, 10),
-    });
-    fetchAll();
+    }).select().single();
+    if (error) return showErr(error);
+    setValues((prev) => [data as KpiValue, ...prev]);
   };
   const deleteValue = async (id: string) => {
-    await supabaseCloud.from("traction_kpi_values").delete().eq("id", id);
-    fetchAll();
+    setValues((prev) => prev.filter((v) => v.id !== id));
+    const { error } = await supabaseCloud.from("traction_kpi_values").delete().eq("id", id);
+    if (error) showErr(error);
   };
 
   const addTask = async (tracker_id: string, kpi_id: string | null) => {
-    await supabaseCloud.from("traction_operational_objectives").insert({
+    const { data, error } = await supabaseCloud.from("traction_operational_objectives").insert({
       tracker_id, kpi_id, title: "Acțiune nouă", status: "open",
       order_index: tasks.filter((t) => t.tracker_id === tracker_id).length,
-    });
-    fetchAll();
+    }).select().single();
+    if (error) return showErr(error);
+    setTasks((prev) => [...prev, data as OpTask]);
   };
   const updateTask = async (id: string, patch: Partial<OpTask>) => {
-    await supabaseCloud.from("traction_operational_objectives").update(patch).eq("id", id);
-    fetchAll();
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    const { error } = await supabaseCloud.from("traction_operational_objectives").update(patch).eq("id", id);
+    if (error) showErr(error);
   };
   const deleteTask = async (id: string) => {
-    await supabaseCloud.from("traction_operational_objectives").delete().eq("id", id);
-    fetchAll();
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    const { error } = await supabaseCloud.from("traction_operational_objectives").delete().eq("id", id);
+    if (error) showErr(error);
   };
 
   // ---------- Dashboard aggregation ----------
