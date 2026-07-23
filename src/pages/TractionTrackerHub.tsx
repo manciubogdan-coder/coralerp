@@ -638,16 +638,17 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
           </div>
           <div className="space-y-1">
             <Label>Departament</Label>
-            <Select
+            <Input
               value={tracker.department}
-              onValueChange={(v) => props.onUpdateTracker(tracker.id, { department: v })}
               disabled={readOnly}
-            >
-              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {DEPARTMENT_OPTIONS.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
-              </SelectContent>
-            </Select>
+              onChange={(e) => props.onUpdateTracker(tracker.id, { department: e.target.value })}
+              list="dept-options-editor"
+              className="w-48"
+              placeholder="Ex: Marketing, IT..."
+            />
+            <datalist id="dept-options-editor">
+              {DEPARTMENT_OPTIONS.map((d) => (<option key={d} value={d} />))}
+            </datalist>
           </div>
           <div className="space-y-1">
             <Label>Perioadă</Label>
