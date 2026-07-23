@@ -478,7 +478,8 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
     { name: "Nesetate", value: global.unset, color: STATUS_COLORS.unset },
   ].filter((x) => x.value > 0);
 
-  const globalOkPct = global.total > 0 ? Math.round((global.green / global.total) * 100) : 0;
+  const globalEvaluated = global.green + global.yellow + global.red;
+  const globalOkPct = globalEvaluated > 0 ? Math.round((global.green / globalEvaluated) * 100) : null;
 
   return (
     <div className="space-y-6">
