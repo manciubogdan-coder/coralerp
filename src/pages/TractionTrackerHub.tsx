@@ -522,15 +522,19 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
                 </CardTitle>
                 <CardDescription>{b.total} KPI-uri</CardDescription>
               </CardHeader>
-              <CardContent style={{ height: 200 }}>
+              <CardContent style={{ height: 200 }} className="relative">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={data} dataKey="value" nameKey="name" innerRadius={40} outerRadius={75} paddingAngle={2}>
+                    <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
                       {data.map((d, i) => (<Cell key={i} fill={d.color} />))}
                     </Pie>
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <div className="text-2xl font-bold" style={{ color: STATUS_COLORS.green }}>{okPct}%</div>
+                  <div className="text-[10px] text-muted-foreground uppercase">OK</div>
+                </div>
               </CardContent>
             </Card>
           );
