@@ -797,65 +797,90 @@ const KpiRow: React.FC<{
   const [addOpen, setAddOpen] = useState(false);
   const [newPeriod, setNewPeriod] = useState("");
   const [newValue, setNewValue] = useState("");
+  const [advOpen, setAdvOpen] = useState(false);
 
   const latest = values[0];
   const status = statusForValue(kpi, latest?.value ?? null);
+  const opLabel = kpi.target_operator === "lte" ? "≤" : kpi.target_operator === "eq" ? "=" : "≥";
 
   return (
-    <div className="rounded-md border p-3 space-y-2 bg-muted/20">
-      <div className="flex flex-wrap gap-2 items-end">
+    <div className="rounded-lg border p-3 space-y-3 bg-card">
+      <div className="flex flex-wrap gap-3 items-end">
         <div
-          className="w-3 h-3 rounded-full mt-2 shrink-0"
+          className="w-4 h-4 rounded-full mt-2 shrink-0 ring-2 ring-background shadow"
           style={{ backgroundColor: STATUS_COLORS[status] }}
           title={status}
         />
-        <div className="space-y-1 flex-1 min-w-[180px]">
-          <Label className="text-xs">Nume KPI</Label>
-          <Input value={kpi.name} disabled={readOnly} onChange={(e) => onUpdate({ name: e.target.value })} />
+        <div className="space-y-1 flex-1 min-w-[200px]">
+          <Label className="text-xs text-muted-foreground">Nume KPI</Label>
+          <Input value={kpi.name} disabled={readOnly} onChange={(e) => onUpdate({ name: e.target.value })} className="font-medium" />
         </div>
         <div className="space-y-1 w-24">
-          <Label className="text-xs">UM</Label>
-          <Input value={kpi.unit || ""} disabled={readOnly} onChange={(e) => onUpdate({ unit: e.target.value })} />
+          <Label className="text-xs text-muted-foreground">UM</Label>
+          <Input value={kpi.unit || ""} disabled={readOnly} onChange={(e) => onUpdate({ unit: e.target.value })} placeholder="%, buc..." />
         </div>
-        <div className="space-y-1 w-28">
-          <Label className="text-xs">Target</Label>
+        <div className="space-y-1 w-32">
+          <Label className="text-xs text-muted-foreground">Țintă ({opLabel})</Label>
           <Input type="number" step="any" value={kpi.target_value ?? ""} disabled={readOnly}
             onChange={(e) => onUpdate({ target_value: e.target.value ? parseFloat(e.target.value) : null })} />
         </div>
-        <div className="space-y-1 w-28">
-          <Label className="text-xs">Operator</Label>
-          <Select value={kpi.target_operator} onValueChange={(v) => onUpdate({ target_operator: v })} disabled={readOnly}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="gte">≥ target</SelectItem>
-              <SelectItem value="lte">≤ target</SelectItem>
-              <SelectItem value="eq">= target</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1 w-24">
-          <Label className="text-xs">Prag verde</Label>
-          <Input type="number" step="any" value={kpi.threshold_green ?? ""} disabled={readOnly}
-            onChange={(e) => onUpdate({ threshold_green: e.target.value ? parseFloat(e.target.value) : null })} />
-        </div>
-        <div className="space-y-1 w-24">
-          <Label className="text-xs">Prag galben</Label>
-          <Input type="number" step="any" value={kpi.threshold_yellow ?? ""} disabled={readOnly}
-            onChange={(e) => onUpdate({ threshold_yellow: e.target.value ? parseFloat(e.target.value) : null })} />
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Ultima valoare</Label>
+          <div className="h-10 px-3 flex items-center rounded-md border bg-muted/40 text-sm font-medium min-w-[120px]">
+            {latest ? `${latest.value ?? "—"} ${kpi.unit || ""}` : "—"}
+            {latest && <span className="text-xs text-muted-foreground ml-2">({latest.period_label})</span>}
+          </div>
         </div>
         {!readOnly && (
-          <Button variant="ghost" size="icon" onClick={onDelete}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          <>
+            <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
+              <Plus className="h-3 w-3 mr-1" />Valoare
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onDelete} title="Șterge KPI">
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </>
         )}
       </div>
 
-      <div className="text-xs text-muted-foreground">
-        Pragurile sunt raportate la target (ex: 1 = 100%, 0.8 = 80%). Ultima valoare:{" "}
-        <span className="font-medium text-foreground">
-          {latest ? `${latest.value ?? "—"} ${kpi.unit || ""} (${latest.period_label})` : "—"}
-        </span>
-      </div>
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={() => setAdvOpen((o) => !o)}
+          className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+        >
+          {advOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          Setări avansate (operator, praguri culori)
+        </button>
+      )}
+      {advOpen && !readOnly && (
+        <div className="flex flex-wrap gap-2 items-end pl-4 border-l-2 border-muted">
+          <div className="space-y-1 w-32">
+            <Label className="text-xs">Regulă</Label>
+            <Select value={kpi.target_operator} onValueChange={(v) => onUpdate({ target_operator: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gte">Mai mare ≥</SelectItem>
+                <SelectItem value="lte">Mai mic ≤</SelectItem>
+                <SelectItem value="eq">Egal =</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1 w-28">
+            <Label className="text-xs">Prag verde</Label>
+            <Input type="number" step="any" value={kpi.threshold_green ?? ""}
+              onChange={(e) => onUpdate({ threshold_green: e.target.value ? parseFloat(e.target.value) : null })} />
+          </div>
+          <div className="space-y-1 w-28">
+            <Label className="text-xs">Prag galben</Label>
+            <Input type="number" step="any" value={kpi.threshold_yellow ?? ""}
+              onChange={(e) => onUpdate({ threshold_yellow: e.target.value ? parseFloat(e.target.value) : null })} />
+          </div>
+          <p className="text-xs text-muted-foreground flex-1 min-w-[200px]">
+            Pragurile sunt raportate la țintă (1 = 100%, 0.8 = 80%).
+          </p>
+        </div>
+      )}
 
       <div className="flex items-center gap-2 flex-wrap">
         {values.slice(0, 6).map((v) => (
