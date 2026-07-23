@@ -43,6 +43,7 @@ interface UserProfile {
   isAdmin?: boolean;
   departments?: DepartmentRole[];
   evidentaAndrada?: boolean;
+  tractionTracker?: boolean;
 }
 
 const UserManagementPage: React.FC = () => {
@@ -58,6 +59,7 @@ const UserManagementPage: React.FC = () => {
   const [draftAdmin, setDraftAdmin] = useState(false);
   const [draftDepts, setDraftDepts] = useState<Set<DepartmentRole>>(new Set());
   const [draftEvidenta, setDraftEvidenta] = useState(false);
+  const [draftTraction, setDraftTraction] = useState(false);
   const [savingRoles, setSavingRoles] = useState(false);
 
   const fetchUsers = async () => {
@@ -91,6 +93,13 @@ const UserManagementPage: React.FC = () => {
         ((evidentaRows as Array<{ user_id: string }>) || []).map((r) => r.user_id),
       );
 
+      const { data: tractionRows } = await supabaseCloud
+        .from('traction_tracker_access')
+        .select('user_id');
+      const tractionSet = new Set<string>(
+        ((tractionRows as Array<{ user_id: string }>) || []).map((r) => r.user_id),
+      );
+
       const usersWithRoles = ((profiles as any[]) || []).map((profile) => {
         const roles = rolesByUser.get(profile.user_id) || [];
         const departments = roles.filter((r): r is DepartmentRole =>
@@ -101,6 +110,7 @@ const UserManagementPage: React.FC = () => {
           isAdmin: roles.includes('admin'),
           departments,
           evidentaAndrada: evidentaSet.has(profile.user_id),
+          tractionTracker: tractionSet.has(profile.user_id),
         } as UserProfile;
       });
 
