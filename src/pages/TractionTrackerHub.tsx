@@ -1136,7 +1136,10 @@ const KpiRow: React.FC<{
   onAddTask: () => void;
   onUpdateTask: (id: string, patch: Partial<OpTask>) => void;
   onDeleteTask: (id: string) => void;
-}> = ({ kpi, values, tasks, readOnly, onUpdate, onDelete, onAddValue, onDeleteValue, onAddTask, onUpdateTask, onDeleteTask }) => {
+  opProgress: ProgressLog[];
+  onAddOpProgress: (operational_id: string, entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => void;
+  onDeleteOpProgress: (id: string) => void;
+}> = ({ kpi, values, tasks, readOnly, onUpdate, onDelete, onAddValue, onDeleteValue, onAddTask, onUpdateTask, onDeleteTask, opProgress, onAddOpProgress, onDeleteOpProgress }) => {
   const [addOpen, setAddOpen] = useState(false);
   const [newPeriod, setNewPeriod] = useState("");
   const [newValue, setNewValue] = useState("");
