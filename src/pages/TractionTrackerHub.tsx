@@ -569,8 +569,11 @@ const DashboardView: React.FC<{
   const globalOkPct = globalEvaluated > 0 ? Math.round((global.green / globalEvaluated) * 100) : null;
 
   const totalStrategics = strategics.length;
+  const stratDone = strategics.filter((s) => !!s.completed_at).length;
+  const stratActive = totalStrategics - stratDone;
+  const kpisDone = kpis.filter((k) => !!k.completed_at).length;
   const totalOps = tasks.length;
-  const opsDone = tasks.filter((t) => (t.status || "").toLowerCase().includes("final") || (t.status || "").toLowerCase() === "done" || (t.status || "").toLowerCase() === "closed").length;
+  const opsDone = tasks.filter((t) => !!t.completed_at || (t.status || "").toLowerCase().includes("final") || (t.status || "").toLowerCase() === "done" || (t.status || "").toLowerCase() === "closed").length;
   const opsOpen = totalOps - opsDone;
 
   return (
@@ -581,7 +584,9 @@ const DashboardView: React.FC<{
           title="Obiective strategice"
           total={totalStrategics}
           lines={[
-            { label: "Trackere active", value: trackers.length, tone: "neutral" },
+            { label: "Active", value: stratActive, tone: "yellow" },
+            { label: "Finalizate", value: stratDone, tone: "green" },
+            { label: "Trackere", value: trackers.length, tone: "neutral" },
           ]}
         />
         <CategorySummary
@@ -592,6 +597,7 @@ const DashboardView: React.FC<{
             { label: "Atenție", value: global.yellow, tone: "yellow" },
             { label: "Critic", value: global.red, tone: "red" },
             { label: "Nesetate", value: global.unset, tone: "neutral" },
+            { label: "Finalizate", value: kpisDone, tone: "green" },
             { label: "% OK", value: globalOkPct === null ? "—" : `${globalOkPct}%`, tone: "green" },
           ]}
         />
@@ -741,8 +747,18 @@ const TrackerThreeColumns: React.FC<{
 
   const allKpis = kpis.filter((k) => strategics.some((s) => s.id === k.strategic_id));
   const opDone = (t: OpTask) => {
+    if (t.completed_at) return true;
     const s = (t.status || "").toLowerCase();
     return s.includes("final") || s === "done" || s === "closed";
+  };
+  const sortDone = <T extends { completed_at?: string | null }>(arr: T[]) =>
+    [...arr].sort((a, b) => (a.completed_at ? 1 : 0) - (b.completed_at ? 1 : 0));
+  const sortedStrategics = sortDone(strategics);
+  const sortedKpis = sortDone(allKpis);
+  const sortedTasks = [...tasks].sort((a, b) => (opDone(a) ? 1 : 0) - (opDone(b) ? 1 : 0));
+  const fmtDate = (iso?: string | null) => {
+    if (!iso) return "";
+    try { return new Date(iso).toLocaleDateString("ro-RO"); } catch { return ""; }
   };
 
   return (
@@ -775,7 +791,7 @@ const TrackerThreeColumns: React.FC<{
               {strategics.length === 0 && (
                 <p className="text-xs text-muted-foreground italic p-3">Fără obiective.</p>
               )}
-              {strategics.map((s) => {
+              {sortedStrategics.map((s) => {
                 const progressList = stratProgress.filter((p) => p.parent_id === s.id);
                 const lastProg = latestOf(progressList);
                 const evolStatus: Status | null = lastProg
@@ -783,14 +799,22 @@ const TrackerThreeColumns: React.FC<{
                   : null;
                 const st = evolStatus || stratStatus(s);
                 const nKpi = kpis.filter((k) => k.strategic_id === s.id).length;
+                const isDone = !!s.completed_at;
                 return (
-                  <div key={s.id} className="p-2 flex items-start gap-2">
+                  <div key={s.id} className={"p-2 flex items-start gap-2 " + (isDone ? "bg-emerald-50/40 dark:bg-emerald-950/10 opacity-70" : "")}>
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full mt-1 shrink-0"
-                      style={{ backgroundColor: STATUS_COLORS[st] }}
+                      style={{ backgroundColor: isDone ? STATUS_COLORS.green : STATUS_COLORS[st] }}
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-medium truncate" title={s.title}>{s.title}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className={"text-xs font-medium truncate " + (isDone ? "line-through text-muted-foreground" : "")} title={s.title}>{s.title}</div>
+                        {isDone && (
+                          <Badge className="text-[9px] px-1.5 py-0 bg-emerald-600 text-white">
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />Finalizat {fmtDate(s.completed_at)}
+                          </Badge>
+                        )}
+                      </div>
                       {s.description && (
                         <div className="text-[10px] text-muted-foreground line-clamp-2" title={s.description}>
                           {s.description}
@@ -812,9 +836,9 @@ const TrackerThreeColumns: React.FC<{
                             {lastProg.notes ? ` — ${lastProg.notes}` : ""}
                           </span>
                         </div>
-                      ) : (
+                      ) : !isDone ? (
                         <div className="text-[10px] italic text-muted-foreground mt-1">fără progres înregistrat</div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -832,18 +856,26 @@ const TrackerThreeColumns: React.FC<{
               {allKpis.length === 0 && (
                 <p className="text-xs text-muted-foreground italic p-3">Fără KPI-uri.</p>
               )}
-              {allKpis.map((k) => {
+              {sortedKpis.map((k) => {
                 const last = latest(k.id);
                 const st = statusForValue(k, last?.value ?? null);
                 const opSign = k.target_operator === "lte" ? "≤" : k.target_operator === "eq" ? "=" : "≥";
+                const isDone = !!k.completed_at;
                 return (
-                  <div key={k.id} className="p-2 flex items-center gap-2">
+                  <div key={k.id} className={"p-2 flex items-center gap-2 " + (isDone ? "bg-emerald-50/40 dark:bg-emerald-950/10 opacity-70" : "")}>
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: STATUS_COLORS[st] }}
+                      style={{ backgroundColor: isDone ? STATUS_COLORS.green : STATUS_COLORS[st] }}
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-medium truncate" title={k.name}>{k.name}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className={"text-xs font-medium truncate " + (isDone ? "line-through text-muted-foreground" : "")} title={k.name}>{k.name}</div>
+                        {isDone && (
+                          <Badge className="text-[9px] px-1.5 py-0 bg-emerald-600 text-white">
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />Finalizat {fmtDate(k.completed_at)}
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-[10px] text-muted-foreground">
                         Actual: <span className="font-semibold text-foreground">{last?.value ?? "—"}</span>
                         {k.unit ? ` ${k.unit}` : ""} • Țintă: {opSign} {k.target_value ?? "—"}
@@ -866,25 +898,32 @@ const TrackerThreeColumns: React.FC<{
               {tasks.length === 0 && (
                 <p className="text-xs text-muted-foreground italic p-3">Fără acțiuni.</p>
               )}
-              {tasks.map((t) => {
+              {sortedTasks.map((t) => {
                 const progressList = opProgress.filter((p) => p.parent_id === t.id);
                 const lastProg = latestOf(progressList);
                 const evolStatus: Status | null = lastProg
                   ? (lastProg.status || statusForProgress(lastProg.progress))
                   : null;
                 const done = opDone(t);
-                const dotColor = evolStatus
-                  ? STATUS_COLORS[evolStatus]
-                  : (done ? STATUS_COLORS.green : STATUS_COLORS.yellow);
+                const dotColor = done
+                  ? STATUS_COLORS.green
+                  : (evolStatus ? STATUS_COLORS[evolStatus] : STATUS_COLORS.yellow);
                 const linkedKpi = t.kpi_id ? kpis.find((k) => k.id === t.kpi_id) : null;
                 return (
-                  <div key={t.id} className="p-2 flex items-start gap-2">
+                  <div key={t.id} className={"p-2 flex items-start gap-2 " + (done ? "bg-emerald-50/40 dark:bg-emerald-950/10 opacity-70" : "")}>
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full mt-1 shrink-0"
                       style={{ backgroundColor: dotColor }}
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-medium truncate" title={t.title}>{t.title}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className={"text-xs font-medium truncate " + (done ? "line-through text-muted-foreground" : "")} title={t.title}>{t.title}</div>
+                        {done && (
+                          <Badge className="text-[9px] px-1.5 py-0 bg-emerald-600 text-white">
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />Finalizat {fmtDate(t.completed_at)}
+                          </Badge>
+                        )}
+                      </div>
                       {t.action && (
                         <div className="text-[10px] text-muted-foreground line-clamp-2" title={t.action}>
                           {t.action}
