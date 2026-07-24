@@ -69,6 +69,17 @@ type OpTask = {
   order_index: number;
 };
 
+type ProgressLog = {
+  id: string;
+  parent_id: string; // strategic_id sau operational_id
+  period_label: string | null;
+  period_start: string | null;
+  progress: number | null;
+  status: Status | null;
+  notes: string | null;
+  created_at?: string;
+};
+
 type Status = "green" | "yellow" | "red" | "unset";
 
 const DEPARTMENT_OPTIONS = [
@@ -107,12 +118,29 @@ function statusForValue(kpi: Kpi, value: number | null | undefined): Status {
   return "red";
 }
 
+
 const STATUS_COLORS: Record<Status, string> = {
   green: "hsl(142 71% 45%)",
   yellow: "hsl(45 93% 55%)",
   red: "hsl(0 84% 60%)",
   unset: "hsl(220 9% 65%)",
 };
+
+function statusForProgress(pct: number | null | undefined): Status {
+  if (pct === null || pct === undefined || Number.isNaN(pct)) return "unset";
+  if (pct >= 80) return "green";
+  if (pct >= 50) return "yellow";
+  return "red";
+}
+
+function latestOf<T extends { period_start?: string | null; period_label?: string | null; created_at?: string }>(rows: T[]): T | undefined {
+  if (!rows.length) return undefined;
+  return [...rows].sort((a, b) => {
+    const ka = a.period_start || a.period_label || a.created_at || "";
+    const kb = b.period_start || b.period_label || b.created_at || "";
+    return kb > ka ? 1 : -1;
+  })[0];
+}
 
 const TractionTrackerHub: React.FC = () => {
   const { user, isAdmin, profile } = useAuth();
@@ -125,22 +153,28 @@ const TractionTrackerHub: React.FC = () => {
   const [kpis, setKpis] = useState<Kpi[]>([]);
   const [values, setValues] = useState<KpiValue[]>([]);
   const [tasks, setTasks] = useState<OpTask[]>([]);
+  const [stratProgress, setStratProgress] = useState<ProgressLog[]>([]);
+  const [opProgress, setOpProgress] = useState<ProgressLog[]>([]);
   const [tab, setTab] = useState("dashboard");
   const [viewedTrackerId, setViewedTrackerId] = useState<string | null>(null);
 
   const fetchAll = async () => {
-    const [tr, so, kp, kv, to] = await Promise.all([
+    const [tr, so, kp, kv, to, sp, op] = await Promise.all([
       supabaseCloud.from("traction_trackers").select("*").order("created_at", { ascending: true }),
       supabaseCloud.from("traction_strategic_objectives").select("*").order("order_index"),
       supabaseCloud.from("traction_kpis").select("*").order("order_index"),
       supabaseCloud.from("traction_kpi_values").select("*").order("period_start", { ascending: false }),
       supabaseCloud.from("traction_operational_objectives").select("*").order("order_index"),
+      supabaseCloud.from("traction_strategic_progress").select("*").order("period_start", { ascending: false }),
+      supabaseCloud.from("traction_operational_progress").select("*").order("period_start", { ascending: false }),
     ]);
     setTrackers((tr.data as Tracker[]) || []);
     setStrategics((so.data as Strategic[]) || []);
     setKpis((kp.data as Kpi[]) || []);
     setValues((kv.data as KpiValue[]) || []);
     setTasks((to.data as OpTask[]) || []);
+    setStratProgress(((sp.data as any[]) || []).map((r) => ({ ...r, parent_id: r.strategic_id })) as ProgressLog[]);
+    setOpProgress(((op.data as any[]) || []).map((r) => ({ ...r, parent_id: r.operational_id })) as ProgressLog[]);
   };
 
   useEffect(() => {
@@ -248,6 +282,30 @@ const TractionTrackerHub: React.FC = () => {
   const deleteTask = async (id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     const { error } = await supabaseCloud.from("traction_operational_objectives").delete().eq("id", id);
+    if (error) showErr(error);
+  };
+
+  // ---------- Progress logs (strategic + operational) ----------
+  const addStratProgress = async (strategic_id: string, entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => {
+    const payload: any = { strategic_id, ...entry, period_start: new Date().toISOString().slice(0, 10) };
+    const { data, error } = await supabaseCloud.from("traction_strategic_progress").insert(payload).select().single();
+    if (error) return showErr(error);
+    setStratProgress((prev) => [{ ...(data as any), parent_id: (data as any).strategic_id } as ProgressLog, ...prev]);
+  };
+  const deleteStratProgress = async (id: string) => {
+    setStratProgress((prev) => prev.filter((p) => p.id !== id));
+    const { error } = await supabaseCloud.from("traction_strategic_progress").delete().eq("id", id);
+    if (error) showErr(error);
+  };
+  const addOpProgress = async (operational_id: string, entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => {
+    const payload: any = { operational_id, ...entry, period_start: new Date().toISOString().slice(0, 10) };
+    const { data, error } = await supabaseCloud.from("traction_operational_progress").insert(payload).select().single();
+    if (error) return showErr(error);
+    setOpProgress((prev) => [{ ...(data as any), parent_id: (data as any).operational_id } as ProgressLog, ...prev]);
+  };
+  const deleteOpProgress = async (id: string) => {
+    setOpProgress((prev) => prev.filter((p) => p.id !== id));
+    const { error } = await supabaseCloud.from("traction_operational_progress").delete().eq("id", id);
     if (error) showErr(error);
   };
 
@@ -373,6 +431,12 @@ const TractionTrackerHub: React.FC = () => {
               onAddTask={addTask}
               onUpdateTask={updateTask}
               onDeleteTask={deleteTask}
+              stratProgress={stratProgress}
+              opProgress={opProgress}
+              onAddStratProgress={addStratProgress}
+              onDeleteStratProgress={deleteStratProgress}
+              onAddOpProgress={addOpProgress}
+              onDeleteOpProgress={deleteOpProgress}
             />
           )}
         </TabsContent>
@@ -446,6 +510,12 @@ const TractionTrackerHub: React.FC = () => {
                     onAddTask={addTask}
                     onUpdateTask={updateTask}
                     onDeleteTask={deleteTask}
+                    stratProgress={stratProgress}
+                    opProgress={opProgress}
+                    onAddStratProgress={addStratProgress}
+                    onDeleteStratProgress={deleteStratProgress}
+                    onAddOpProgress={addOpProgress}
+                    onDeleteOpProgress={deleteOpProgress}
                     readOnly={!isAdmin && viewedTracker.owner_id !== user?.id}
                   />
                 </CardContent>
@@ -867,6 +937,12 @@ type TrackerEditorProps = {
   onAddTask: (tracker_id: string, kpi_id: string | null) => void;
   onUpdateTask: (id: string, patch: Partial<OpTask>) => void;
   onDeleteTask: (id: string) => void;
+  stratProgress: ProgressLog[];
+  opProgress: ProgressLog[];
+  onAddStratProgress: (strategic_id: string, entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => void;
+  onDeleteStratProgress: (id: string) => void;
+  onAddOpProgress: (operational_id: string, entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => void;
+  onDeleteOpProgress: (id: string) => void;
   readOnly?: boolean;
 };
 
@@ -973,6 +1049,15 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
                   </Button>
                 )}
               </div>
+              <div className="pl-10 pt-2">
+                <ProgressCell
+                  label="Progres obiectiv"
+                  entries={props.stratProgress.filter((p) => p.parent_id === s.id)}
+                  readOnly={readOnly}
+                  onAdd={(entry) => props.onAddStratProgress(s.id, entry)}
+                  onDelete={props.onDeleteStratProgress}
+                />
+              </div>
             </CardHeader>
             {isOpen && (
               <CardContent className="space-y-3">
@@ -999,6 +1084,9 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
                     onAddTask={() => props.onAddTask(tracker.id, k.id)}
                     onUpdateTask={props.onUpdateTask}
                     onDeleteTask={props.onDeleteTask}
+                    opProgress={props.opProgress}
+                    onAddOpProgress={props.onAddOpProgress}
+                    onDeleteOpProgress={props.onDeleteOpProgress}
                   />
                 ))}
                 {sKpis.length === 0 && (
@@ -1023,7 +1111,10 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
           {tasks.filter((t) => !t.kpi_id).map((t) => (
             <TaskRow key={t.id} task={t} readOnly={readOnly}
               onUpdate={(p) => props.onUpdateTask(t.id, p)}
-              onDelete={() => props.onDeleteTask(t.id)} />
+              onDelete={() => props.onDeleteTask(t.id)}
+              progress={props.opProgress.filter((pr) => pr.parent_id === t.id)}
+              onAddProgress={(entry) => props.onAddOpProgress(t.id, entry)}
+              onDeleteProgress={props.onDeleteOpProgress} />
           ))}
           {tasks.filter((t) => !t.kpi_id).length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-2">Fără acțiuni.</p>
@@ -1048,7 +1139,10 @@ const KpiRow: React.FC<{
   onAddTask: () => void;
   onUpdateTask: (id: string, patch: Partial<OpTask>) => void;
   onDeleteTask: (id: string) => void;
-}> = ({ kpi, values, tasks, readOnly, onUpdate, onDelete, onAddValue, onDeleteValue, onAddTask, onUpdateTask, onDeleteTask }) => {
+  opProgress: ProgressLog[];
+  onAddOpProgress: (operational_id: string, entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => void;
+  onDeleteOpProgress: (id: string) => void;
+}> = ({ kpi, values, tasks, readOnly, onUpdate, onDelete, onAddValue, onDeleteValue, onAddTask, onUpdateTask, onDeleteTask, opProgress, onAddOpProgress, onDeleteOpProgress }) => {
   const [addOpen, setAddOpen] = useState(false);
   const [newPeriod, setNewPeriod] = useState("");
   const [newValue, setNewValue] = useState("");
@@ -1168,7 +1262,10 @@ const KpiRow: React.FC<{
           {tasks.map((t) => (
             <TaskRow key={t.id} task={t} readOnly={readOnly}
               onUpdate={(p) => onUpdateTask(t.id, p)}
-              onDelete={() => onDeleteTask(t.id)} />
+              onDelete={() => onDeleteTask(t.id)}
+              progress={opProgress.filter((pr) => pr.parent_id === t.id)}
+              onAddProgress={(entry) => onAddOpProgress(t.id, entry)}
+              onDeleteProgress={onDeleteOpProgress} />
           ))}
         </div>
       )}
@@ -1212,29 +1309,152 @@ const TaskRow: React.FC<{
   readOnly?: boolean;
   onUpdate: (patch: Partial<OpTask>) => void;
   onDelete: () => void;
-}> = ({ task, readOnly, onUpdate, onDelete }) => {
+  progress?: ProgressLog[];
+  onAddProgress?: (entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => void;
+  onDeleteProgress?: (id: string) => void;
+}> = ({ task, readOnly, onUpdate, onDelete, progress, onAddProgress, onDeleteProgress }) => {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded border p-2 bg-background">
-      <Input value={task.title} disabled={readOnly}
-        onChange={(e) => onUpdate({ title: e.target.value })} className="flex-1 min-w-[160px]" />
-      <Input value={task.action || ""} placeholder="Acțiune" disabled={readOnly}
-        onChange={(e) => onUpdate({ action: e.target.value })} className="flex-1 min-w-[160px]" />
-      <Input type="date" value={task.deadline || ""} disabled={readOnly}
-        onChange={(e) => onUpdate({ deadline: e.target.value || null })} className="w-40" />
-      <Select value={task.status} onValueChange={(v) => onUpdate({ status: v })} disabled={readOnly}>
-        <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="open">Deschis</SelectItem>
-          <SelectItem value="in_progress">În lucru</SelectItem>
-          <SelectItem value="done">Finalizat</SelectItem>
-          <SelectItem value="blocked">Blocat</SelectItem>
-        </SelectContent>
-      </Select>
+    <div className="rounded border p-2 bg-background space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input value={task.title} disabled={readOnly}
+          onChange={(e) => onUpdate({ title: e.target.value })} className="flex-1 min-w-[160px]" />
+        <Input value={task.action || ""} placeholder="Acțiune" disabled={readOnly}
+          onChange={(e) => onUpdate({ action: e.target.value })} className="flex-1 min-w-[160px]" />
+        <Input type="date" value={task.deadline || ""} disabled={readOnly}
+          onChange={(e) => onUpdate({ deadline: e.target.value || null })} className="w-40" />
+        <Select value={task.status} onValueChange={(v) => onUpdate({ status: v })} disabled={readOnly}>
+          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="open">Deschis</SelectItem>
+            <SelectItem value="in_progress">În lucru</SelectItem>
+            <SelectItem value="done">Finalizat</SelectItem>
+            <SelectItem value="blocked">Blocat</SelectItem>
+          </SelectContent>
+        </Select>
+        {!readOnly && (
+          <Button variant="ghost" size="icon" onClick={onDelete}>
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        )}
+      </div>
+      {onAddProgress && (
+        <ProgressCell
+          label="Progres acțiune"
+          entries={progress || []}
+          readOnly={readOnly}
+          onAdd={onAddProgress}
+          onDelete={onDeleteProgress || (() => {})}
+        />
+      )}
+    </div>
+  );
+};
+
+// ============ Progress cell (evoluție pentru obiective strategice și acțiuni operaționale) ============
+const ProgressCell: React.FC<{
+  label: string;
+  entries: ProgressLog[];
+  readOnly?: boolean;
+  onAdd: (entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => void;
+  onDelete: (id: string) => void;
+}> = ({ label, entries, readOnly, onAdd, onDelete }) => {
+  const [open, setOpen] = useState(false);
+  const [period, setPeriod] = useState("");
+  const [pct, setPct] = useState("");
+  const [statusChoice, setStatusChoice] = useState<"auto" | Status>("auto");
+  const [notes, setNotes] = useState("");
+
+  const sorted = [...entries].sort((a, b) => {
+    const ka = a.period_start || a.period_label || a.created_at || "";
+    const kb = b.period_start || b.period_label || b.created_at || "";
+    return kb > ka ? 1 : -1;
+  });
+  const last = sorted[0];
+  const lastStatus: Status = last
+    ? (last.status || statusForProgress(last.progress))
+    : "unset";
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 pt-1">
+      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground uppercase tracking-wide">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full ring-1 ring-background shadow"
+          style={{ backgroundColor: STATUS_COLORS[lastStatus] }}
+        />
+        {label}:
+      </div>
+      {last ? (
+        <span className="text-xs">
+          <strong>{last.progress ?? "—"}%</strong>
+          {last.period_label ? ` • ${last.period_label}` : ""}
+          {last.notes ? ` — ${last.notes}` : ""}
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground italic">fără istoric</span>
+      )}
+      {sorted.slice(1, 5).map((p) => (
+        <Badge key={p.id} variant="outline" className="gap-1 text-[10px]">
+          {p.period_label || (p.period_start ?? "")}:
+          <strong>{p.progress ?? "—"}%</strong>
+          <span
+            className="inline-block h-2 w-2 rounded-full"
+            style={{ backgroundColor: STATUS_COLORS[(p.status || statusForProgress(p.progress)) as Status] }}
+          />
+          {!readOnly && (
+            <button className="ml-1 text-destructive" onClick={() => onDelete(p.id)} title="Șterge">×</button>
+          )}
+        </Badge>
+      ))}
       {!readOnly && (
-        <Button variant="ghost" size="icon" onClick={onDelete}>
-          <Trash2 className="h-4 w-4 text-destructive" />
+        <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => setOpen(true)}>
+          <Plus className="h-3 w-3 mr-1" />Progres
         </Button>
       )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Adaugă intrare de progres</DialogTitle>
+            <DialogDescription>
+              Notează cum evoluăm sau involvăm față de perioada trecută.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Perioadă</Label>
+            <Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="S23 2026 / Iunie 2026" />
+            <Label>Progres (%)</Label>
+            <Input type="number" step="any" min={0} max={100} value={pct} onChange={(e) => setPct(e.target.value)} placeholder="0 - 100" />
+            <Label>Semafor</Label>
+            <Select value={statusChoice} onValueChange={(v) => setStatusChoice(v as any)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Automat din % (≥80 verde, ≥50 galben)</SelectItem>
+                <SelectItem value="green">🟢 Verde</SelectItem>
+                <SelectItem value="yellow">🟡 Galben</SelectItem>
+                <SelectItem value="red">🔴 Roșu</SelectItem>
+              </SelectContent>
+            </Select>
+            <Label>Observații</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Ce am făcut / ce urmează..." />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Anulează</Button>
+            <Button onClick={() => {
+              const progressVal = pct === "" ? null : parseFloat(pct);
+              const statusVal = statusChoice === "auto" ? null : statusChoice;
+              onAdd({
+                period_label: period.trim() || new Date().toLocaleDateString("ro-RO"),
+                progress: progressVal,
+                status: statusVal,
+                notes: notes.trim() || null,
+              });
+              setPeriod(""); setPct(""); setStatusChoice("auto"); setNotes(""); setOpen(false);
+            }}>
+              <Save className="h-4 w-4 mr-1" />Salvează
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

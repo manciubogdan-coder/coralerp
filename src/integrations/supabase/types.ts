@@ -834,6 +834,50 @@ export type Database = {
           },
         ]
       }
+      traction_operational_progress: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          operational_id: string
+          period_label: string | null
+          period_start: string
+          progress: number | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          operational_id: string
+          period_label?: string | null
+          period_start: string
+          progress?: number | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          operational_id?: string
+          period_label?: string | null
+          period_start?: string
+          progress?: number | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traction_operational_progress_operational_id_fkey"
+            columns: ["operational_id"]
+            isOneToOne: false
+            referencedRelation: "traction_operational_objectives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       traction_strategic_objectives: {
         Row: {
           created_at: string
@@ -871,6 +915,50 @@ export type Database = {
             columns: ["tracker_id"]
             isOneToOne: false
             referencedRelation: "traction_trackers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traction_strategic_progress: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          period_label: string | null
+          period_start: string
+          progress: number | null
+          status: string | null
+          strategic_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          period_label?: string | null
+          period_start: string
+          progress?: number | null
+          status?: string | null
+          strategic_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          period_label?: string | null
+          period_start?: string
+          progress?: number | null
+          status?: string | null
+          strategic_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traction_strategic_progress_strategic_id_fkey"
+            columns: ["strategic_id"]
+            isOneToOne: false
+            referencedRelation: "traction_strategic_objectives"
             referencedColumns: ["id"]
           },
         ]
