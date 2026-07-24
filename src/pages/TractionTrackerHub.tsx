@@ -1049,6 +1049,15 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
                   </Button>
                 )}
               </div>
+              <div className="pl-10 pt-2">
+                <ProgressCell
+                  label="Progres obiectiv"
+                  entries={props.stratProgress.filter((p) => p.parent_id === s.id)}
+                  readOnly={readOnly}
+                  onAdd={(entry) => props.onAddStratProgress(s.id, entry)}
+                  onDelete={props.onDeleteStratProgress}
+                />
+              </div>
             </CardHeader>
             {isOpen && (
               <CardContent className="space-y-3">
