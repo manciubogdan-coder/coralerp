@@ -405,6 +405,8 @@ const TractionTrackerHub: React.FC = () => {
             kpis={kpis}
             values={values}
             tasks={tasks}
+            stratProgress={stratProgress}
+            opProgress={opProgress}
             onOpenTracker={(id) => { setViewedTrackerId(id); setTab(isAdmin ? "all" : "mine"); }}
           />
         </TabsContent>
@@ -536,8 +538,10 @@ const DashboardView: React.FC<{
   kpis: Kpi[];
   values: KpiValue[];
   tasks: OpTask[];
+  stratProgress: ProgressLog[];
+  opProgress: ProgressLog[];
   onOpenTracker: (id: string) => void;
-}> = ({ breakdown, trackers, strategics, kpis, values, tasks, onOpenTracker }) => {
+}> = ({ breakdown, trackers, strategics, kpis, values, tasks, stratProgress, opProgress, onOpenTracker }) => {
   if (breakdown.length === 0) {
     return (
       <Card>
@@ -651,6 +655,8 @@ const DashboardView: React.FC<{
             kpis={kpis}
             values={values}
             tasks={tasks.filter((t) => t.tracker_id === tr.id)}
+            stratProgress={stratProgress}
+            opProgress={opProgress}
             onOpen={() => onOpenTracker(tr.id)}
           />
         ))}
@@ -710,8 +716,10 @@ const TrackerThreeColumns: React.FC<{
   kpis: Kpi[];
   values: KpiValue[];
   tasks: OpTask[];
+  stratProgress: ProgressLog[];
+  opProgress: ProgressLog[];
   onOpen: () => void;
-}> = ({ tracker, strategics, kpis, values, tasks, onOpen }) => {
+}> = ({ tracker, strategics, kpis, values, tasks, stratProgress, opProgress, onOpen }) => {
   const latest = (kpiId: string) => {
     const rows = values.filter((v) => v.kpi_id === kpiId);
     if (!rows.length) return undefined;
@@ -765,7 +773,12 @@ const TrackerThreeColumns: React.FC<{
                 <p className="text-xs text-muted-foreground italic p-3">Fără obiective.</p>
               )}
               {strategics.map((s) => {
-                const st = stratStatus(s);
+                const progressList = stratProgress.filter((p) => p.parent_id === s.id);
+                const lastProg = latestOf(progressList);
+                const evolStatus: Status | null = lastProg
+                  ? (lastProg.status || statusForProgress(lastProg.progress))
+                  : null;
+                const st = evolStatus || stratStatus(s);
                 const nKpi = kpis.filter((k) => k.strategic_id === s.id).length;
                 return (
                   <div key={s.id} className="p-2 flex items-start gap-2">
@@ -783,6 +796,22 @@ const TrackerThreeColumns: React.FC<{
                       <div className="text-[10px] text-muted-foreground mt-0.5">
                         {nKpi} KPI-uri{s.year ? ` • ${s.year}` : ""}
                       </div>
+                      {lastProg ? (
+                        <div className="text-[10px] mt-1 flex items-center gap-1 flex-wrap">
+                          <Badge
+                            className="text-[9px] px-1.5 py-0"
+                            style={{ backgroundColor: STATUS_COLORS[evolStatus!], color: "white" }}
+                          >
+                            {lastProg.progress ?? "—"}%
+                          </Badge>
+                          <span className="text-muted-foreground">
+                            {lastProg.period_label || ""}
+                            {lastProg.notes ? ` — ${lastProg.notes}` : ""}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-[10px] italic text-muted-foreground mt-1">fără progres înregistrat</div>
+                      )}
                     </div>
                   </div>
                 );
@@ -835,13 +864,21 @@ const TrackerThreeColumns: React.FC<{
                 <p className="text-xs text-muted-foreground italic p-3">Fără acțiuni.</p>
               )}
               {tasks.map((t) => {
+                const progressList = opProgress.filter((p) => p.parent_id === t.id);
+                const lastProg = latestOf(progressList);
+                const evolStatus: Status | null = lastProg
+                  ? (lastProg.status || statusForProgress(lastProg.progress))
+                  : null;
                 const done = opDone(t);
+                const dotColor = evolStatus
+                  ? STATUS_COLORS[evolStatus]
+                  : (done ? STATUS_COLORS.green : STATUS_COLORS.yellow);
                 const linkedKpi = t.kpi_id ? kpis.find((k) => k.id === t.kpi_id) : null;
                 return (
                   <div key={t.id} className="p-2 flex items-start gap-2">
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full mt-1 shrink-0"
-                      style={{ backgroundColor: done ? STATUS_COLORS.green : STATUS_COLORS.yellow }}
+                      style={{ backgroundColor: dotColor }}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-medium truncate" title={t.title}>{t.title}</div>
@@ -855,6 +892,20 @@ const TrackerThreeColumns: React.FC<{
                         {t.deadline && <span>Termen: {t.deadline}</span>}
                         {linkedKpi && <span className="truncate">KPI: {linkedKpi.name}</span>}
                       </div>
+                      {lastProg && (
+                        <div className="text-[10px] mt-1 flex items-center gap-1 flex-wrap">
+                          <Badge
+                            className="text-[9px] px-1.5 py-0"
+                            style={{ backgroundColor: STATUS_COLORS[evolStatus!], color: "white" }}
+                          >
+                            {lastProg.progress ?? "—"}%
+                          </Badge>
+                          <span className="text-muted-foreground">
+                            {lastProg.period_label || ""}
+                            {lastProg.notes ? ` — ${lastProg.notes}` : ""}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
