@@ -864,13 +864,21 @@ const TrackerThreeColumns: React.FC<{
                 <p className="text-xs text-muted-foreground italic p-3">Fără acțiuni.</p>
               )}
               {tasks.map((t) => {
+                const progressList = opProgress.filter((p) => p.parent_id === t.id);
+                const lastProg = latestOf(progressList);
+                const evolStatus: Status | null = lastProg
+                  ? (lastProg.status || statusForProgress(lastProg.progress))
+                  : null;
                 const done = opDone(t);
+                const dotColor = evolStatus
+                  ? STATUS_COLORS[evolStatus]
+                  : (done ? STATUS_COLORS.green : STATUS_COLORS.yellow);
                 const linkedKpi = t.kpi_id ? kpis.find((k) => k.id === t.kpi_id) : null;
                 return (
                   <div key={t.id} className="p-2 flex items-start gap-2">
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full mt-1 shrink-0"
-                      style={{ backgroundColor: done ? STATUS_COLORS.green : STATUS_COLORS.yellow }}
+                      style={{ backgroundColor: dotColor }}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-medium truncate" title={t.title}>{t.title}</div>
@@ -884,6 +892,20 @@ const TrackerThreeColumns: React.FC<{
                         {t.deadline && <span>Termen: {t.deadline}</span>}
                         {linkedKpi && <span className="truncate">KPI: {linkedKpi.name}</span>}
                       </div>
+                      {lastProg && (
+                        <div className="text-[10px] mt-1 flex items-center gap-1 flex-wrap">
+                          <Badge
+                            className="text-[9px] px-1.5 py-0"
+                            style={{ backgroundColor: STATUS_COLORS[evolStatus!], color: "white" }}
+                          >
+                            {lastProg.progress ?? "—"}%
+                          </Badge>
+                          <span className="text-muted-foreground">
+                            {lastProg.period_label || ""}
+                            {lastProg.notes ? ` — ${lastProg.notes}` : ""}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
