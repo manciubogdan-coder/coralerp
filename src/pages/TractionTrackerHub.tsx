@@ -1303,29 +1303,152 @@ const TaskRow: React.FC<{
   readOnly?: boolean;
   onUpdate: (patch: Partial<OpTask>) => void;
   onDelete: () => void;
-}> = ({ task, readOnly, onUpdate, onDelete }) => {
+  progress?: ProgressLog[];
+  onAddProgress?: (entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => void;
+  onDeleteProgress?: (id: string) => void;
+}> = ({ task, readOnly, onUpdate, onDelete, progress, onAddProgress, onDeleteProgress }) => {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded border p-2 bg-background">
-      <Input value={task.title} disabled={readOnly}
-        onChange={(e) => onUpdate({ title: e.target.value })} className="flex-1 min-w-[160px]" />
-      <Input value={task.action || ""} placeholder="Acțiune" disabled={readOnly}
-        onChange={(e) => onUpdate({ action: e.target.value })} className="flex-1 min-w-[160px]" />
-      <Input type="date" value={task.deadline || ""} disabled={readOnly}
-        onChange={(e) => onUpdate({ deadline: e.target.value || null })} className="w-40" />
-      <Select value={task.status} onValueChange={(v) => onUpdate({ status: v })} disabled={readOnly}>
-        <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="open">Deschis</SelectItem>
-          <SelectItem value="in_progress">În lucru</SelectItem>
-          <SelectItem value="done">Finalizat</SelectItem>
-          <SelectItem value="blocked">Blocat</SelectItem>
-        </SelectContent>
-      </Select>
+    <div className="rounded border p-2 bg-background space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input value={task.title} disabled={readOnly}
+          onChange={(e) => onUpdate({ title: e.target.value })} className="flex-1 min-w-[160px]" />
+        <Input value={task.action || ""} placeholder="Acțiune" disabled={readOnly}
+          onChange={(e) => onUpdate({ action: e.target.value })} className="flex-1 min-w-[160px]" />
+        <Input type="date" value={task.deadline || ""} disabled={readOnly}
+          onChange={(e) => onUpdate({ deadline: e.target.value || null })} className="w-40" />
+        <Select value={task.status} onValueChange={(v) => onUpdate({ status: v })} disabled={readOnly}>
+          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="open">Deschis</SelectItem>
+            <SelectItem value="in_progress">În lucru</SelectItem>
+            <SelectItem value="done">Finalizat</SelectItem>
+            <SelectItem value="blocked">Blocat</SelectItem>
+          </SelectContent>
+        </Select>
+        {!readOnly && (
+          <Button variant="ghost" size="icon" onClick={onDelete}>
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        )}
+      </div>
+      {onAddProgress && (
+        <ProgressCell
+          label="Progres acțiune"
+          entries={progress || []}
+          readOnly={readOnly}
+          onAdd={onAddProgress}
+          onDelete={onDeleteProgress || (() => {})}
+        />
+      )}
+    </div>
+  );
+};
+
+// ============ Progress cell (evoluție pentru obiective strategice și acțiuni operaționale) ============
+const ProgressCell: React.FC<{
+  label: string;
+  entries: ProgressLog[];
+  readOnly?: boolean;
+  onAdd: (entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => void;
+  onDelete: (id: string) => void;
+}> = ({ label, entries, readOnly, onAdd, onDelete }) => {
+  const [open, setOpen] = useState(false);
+  const [period, setPeriod] = useState("");
+  const [pct, setPct] = useState("");
+  const [statusChoice, setStatusChoice] = useState<"auto" | Status>("auto");
+  const [notes, setNotes] = useState("");
+
+  const sorted = [...entries].sort((a, b) => {
+    const ka = a.period_start || a.period_label || a.created_at || "";
+    const kb = b.period_start || b.period_label || b.created_at || "";
+    return kb > ka ? 1 : -1;
+  });
+  const last = sorted[0];
+  const lastStatus: Status = last
+    ? (last.status || statusForProgress(last.progress))
+    : "unset";
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 pt-1">
+      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground uppercase tracking-wide">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full ring-1 ring-background shadow"
+          style={{ backgroundColor: STATUS_COLORS[lastStatus] }}
+        />
+        {label}:
+      </div>
+      {last ? (
+        <span className="text-xs">
+          <strong>{last.progress ?? "—"}%</strong>
+          {last.period_label ? ` • ${last.period_label}` : ""}
+          {last.notes ? ` — ${last.notes}` : ""}
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground italic">fără istoric</span>
+      )}
+      {sorted.slice(1, 5).map((p) => (
+        <Badge key={p.id} variant="outline" className="gap-1 text-[10px]">
+          {p.period_label || (p.period_start ?? "")}:
+          <strong>{p.progress ?? "—"}%</strong>
+          <span
+            className="inline-block h-2 w-2 rounded-full"
+            style={{ backgroundColor: STATUS_COLORS[(p.status || statusForProgress(p.progress)) as Status] }}
+          />
+          {!readOnly && (
+            <button className="ml-1 text-destructive" onClick={() => onDelete(p.id)} title="Șterge">×</button>
+          )}
+        </Badge>
+      ))}
       {!readOnly && (
-        <Button variant="ghost" size="icon" onClick={onDelete}>
-          <Trash2 className="h-4 w-4 text-destructive" />
+        <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => setOpen(true)}>
+          <Plus className="h-3 w-3 mr-1" />Progres
         </Button>
       )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Adaugă intrare de progres</DialogTitle>
+            <DialogDescription>
+              Notează cum evoluăm sau involvăm față de perioada trecută.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Perioadă</Label>
+            <Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="S23 2026 / Iunie 2026" />
+            <Label>Progres (%)</Label>
+            <Input type="number" step="any" min={0} max={100} value={pct} onChange={(e) => setPct(e.target.value)} placeholder="0 - 100" />
+            <Label>Semafor</Label>
+            <Select value={statusChoice} onValueChange={(v) => setStatusChoice(v as any)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Automat din % (≥80 verde, ≥50 galben)</SelectItem>
+                <SelectItem value="green">🟢 Verde</SelectItem>
+                <SelectItem value="yellow">🟡 Galben</SelectItem>
+                <SelectItem value="red">🔴 Roșu</SelectItem>
+              </SelectContent>
+            </Select>
+            <Label>Observații</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Ce am făcut / ce urmează..." />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Anulează</Button>
+            <Button onClick={() => {
+              const progressVal = pct === "" ? null : parseFloat(pct);
+              const statusVal = statusChoice === "auto" ? null : statusChoice;
+              onAdd({
+                period_label: period.trim() || new Date().toLocaleDateString("ro-RO"),
+                progress: progressVal,
+                status: statusVal,
+                notes: notes.trim() || null,
+              });
+              setPeriod(""); setPct(""); setStatusChoice("auto"); setNotes(""); setOpen(false);
+            }}>
+              <Save className="h-4 w-4 mr-1" />Salvează
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
