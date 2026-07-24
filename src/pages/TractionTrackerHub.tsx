@@ -69,6 +69,17 @@ type OpTask = {
   order_index: number;
 };
 
+type ProgressLog = {
+  id: string;
+  parent_id: string; // strategic_id sau operational_id
+  period_label: string | null;
+  period_start: string | null;
+  progress: number | null;
+  status: Status | null;
+  notes: string | null;
+  created_at?: string;
+};
+
 type Status = "green" | "yellow" | "red" | "unset";
 
 const DEPARTMENT_OPTIONS = [
