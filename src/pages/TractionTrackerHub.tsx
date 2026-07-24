@@ -491,59 +491,90 @@ const DashboardView: React.FC<{
   const globalEvaluated = global.green + global.yellow + global.red;
   const globalOkPct = globalEvaluated > 0 ? Math.round((global.green / globalEvaluated) * 100) : null;
 
+  const totalStrategics = strategics.length;
+  const totalOps = tasks.length;
+  const opsDone = tasks.filter((t) => (t.status || "").toLowerCase().includes("final") || (t.status || "").toLowerCase() === "done" || (t.status || "").toLowerCase() === "closed").length;
+  const opsOpen = totalOps - opsDone;
+
   return (
     <div className="space-y-6">
-      {/* Summary strip */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <SummaryTile label="Total KPI-uri" value={global.total} tone="neutral" />
-        <SummaryTile label="OK (Verde)" value={global.green} tone="green" />
-        <SummaryTile label="Atenție (Galben)" value={global.yellow} tone="yellow" />
-        <SummaryTile label="Critic (Roșu)" value={global.red} tone="red" />
-        <SummaryTile label="% OK global" value={globalOkPct === null ? "—" : `${globalOkPct}%`} tone="green" />
+      {/* Summary strip — 3 categories */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <CategorySummary
+          title="Obiective strategice"
+          total={totalStrategics}
+          lines={[
+            { label: "Trackere active", value: trackers.length, tone: "neutral" },
+          ]}
+        />
+        <CategorySummary
+          title="KPI-uri"
+          total={global.total}
+          lines={[
+            { label: "OK", value: global.green, tone: "green" },
+            { label: "Atenție", value: global.yellow, tone: "yellow" },
+            { label: "Critic", value: global.red, tone: "red" },
+            { label: "Nesetate", value: global.unset, tone: "neutral" },
+            { label: "% OK", value: globalOkPct === null ? "—" : `${globalOkPct}%`, tone: "green" },
+          ]}
+        />
+        <CategorySummary
+          title="Acțiuni operaționale"
+          total={totalOps}
+          lines={[
+            { label: "Finalizate", value: opsDone, tone: "green" },
+            { label: "În lucru / deschise", value: opsOpen, tone: "yellow" },
+          ]}
+        />
       </div>
 
-      {/* Per-department donuts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {breakdown.map((b) => {
-          const data = [
-            { name: "Verde", value: b.green, color: STATUS_COLORS.green },
-            { name: "Galben", value: b.yellow, color: STATUS_COLORS.yellow },
-            { name: "Roșu", value: b.red, color: STATUS_COLORS.red },
-            { name: "Nesetate", value: b.unset, color: STATUS_COLORS.unset },
-          ].filter((x) => x.value > 0);
-          const evaluated = b.green + b.yellow + b.red;
-          const okPct = evaluated > 0 ? Math.round((b.green / evaluated) * 100) : null;
-          return (
-            <Card key={b.dept}>
-              <CardHeader className="pb-1">
-                <CardTitle className="text-sm">{b.dept}</CardTitle>
-                <CardDescription className="text-xs">{b.total} KPI-uri</CardDescription>
-              </CardHeader>
-              <CardContent style={{ height: 160 }} className="relative p-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={data} dataKey="value" nameKey="name" innerRadius={40} outerRadius={65} paddingAngle={2}>
-                      {data.map((d, i) => (<Cell key={i} fill={d.color} />))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <div className="text-xl font-bold" style={{ color: okPct === null ? STATUS_COLORS.unset : STATUS_COLORS.green }}>
-                    {okPct === null ? "—" : `${okPct}%`}
+      {/* Per-department donuts (KPI status) */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+          Stare KPI-uri per departament
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          {breakdown.map((b) => {
+            const data = [
+              { name: "Verde", value: b.green, color: STATUS_COLORS.green },
+              { name: "Galben", value: b.yellow, color: STATUS_COLORS.yellow },
+              { name: "Roșu", value: b.red, color: STATUS_COLORS.red },
+              { name: "Nesetate", value: b.unset, color: STATUS_COLORS.unset },
+            ].filter((x) => x.value > 0);
+            const evaluated = b.green + b.yellow + b.red;
+            const okPct = evaluated > 0 ? Math.round((b.green / evaluated) * 100) : null;
+            return (
+              <Card key={b.dept}>
+                <CardHeader className="pb-0 pt-2 px-3">
+                  <CardTitle className="text-xs">{b.dept}</CardTitle>
+                  <CardDescription className="text-[10px]">{b.total} KPI-uri</CardDescription>
+                </CardHeader>
+                <CardContent style={{ height: 120 }} className="relative p-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={data} dataKey="value" nameKey="name" innerRadius={30} outerRadius={50} paddingAngle={2}>
+                        {data.map((d, i) => (<Cell key={i} fill={d.color} />))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                    <div className="text-base font-bold" style={{ color: okPct === null ? STATUS_COLORS.unset : STATUS_COLORS.green }}>
+                      {okPct === null ? "—" : `${okPct}%`}
+                    </div>
+                    <div className="text-[8px] text-muted-foreground uppercase">OK</div>
                   </div>
-                  <div className="text-[9px] text-muted-foreground uppercase">OK</div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Detailed matrix per tracker */}
+      {/* Per-tracker breakdown split into 3 columns */}
       <div className="space-y-5">
         {trackers.map((tr) => (
-          <TrackerMatrix
+          <TrackerThreeColumns
             key={tr.id}
             tracker={tr}
             strategics={strategics.filter((s) => s.tracker_id === tr.id)}
@@ -555,6 +586,36 @@ const DashboardView: React.FC<{
         ))}
       </div>
     </div>
+  );
+};
+
+const CategorySummary: React.FC<{
+  title: string;
+  total: number;
+  lines: Array<{ label: string; value: number | string; tone: "green" | "yellow" | "red" | "neutral" }>;
+}> = ({ title, total, lines }) => {
+  const toneClass = (t: string) =>
+    t === "green" ? "text-green-700"
+    : t === "yellow" ? "text-yellow-700"
+    : t === "red" ? "text-red-700"
+    : "text-foreground";
+  return (
+    <Card>
+      <CardHeader className="pb-1">
+        <CardDescription className="text-[10px] uppercase tracking-wide">{title}</CardDescription>
+        <CardTitle className="text-3xl font-bold">{total}</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+          {lines.map((l, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <span className="text-muted-foreground">{l.label}:</span>
+              <span className={`font-semibold ${toneClass(l.tone)}`}>{l.value}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
