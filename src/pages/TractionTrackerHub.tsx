@@ -898,25 +898,32 @@ const TrackerThreeColumns: React.FC<{
               {tasks.length === 0 && (
                 <p className="text-xs text-muted-foreground italic p-3">Fără acțiuni.</p>
               )}
-              {tasks.map((t) => {
+              {sortedTasks.map((t) => {
                 const progressList = opProgress.filter((p) => p.parent_id === t.id);
                 const lastProg = latestOf(progressList);
                 const evolStatus: Status | null = lastProg
                   ? (lastProg.status || statusForProgress(lastProg.progress))
                   : null;
                 const done = opDone(t);
-                const dotColor = evolStatus
-                  ? STATUS_COLORS[evolStatus]
-                  : (done ? STATUS_COLORS.green : STATUS_COLORS.yellow);
+                const dotColor = done
+                  ? STATUS_COLORS.green
+                  : (evolStatus ? STATUS_COLORS[evolStatus] : STATUS_COLORS.yellow);
                 const linkedKpi = t.kpi_id ? kpis.find((k) => k.id === t.kpi_id) : null;
                 return (
-                  <div key={t.id} className="p-2 flex items-start gap-2">
+                  <div key={t.id} className={"p-2 flex items-start gap-2 " + (done ? "bg-emerald-50/40 dark:bg-emerald-950/10 opacity-70" : "")}>
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full mt-1 shrink-0"
                       style={{ backgroundColor: dotColor }}
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-medium truncate" title={t.title}>{t.title}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className={"text-xs font-medium truncate " + (done ? "line-through text-muted-foreground" : "")} title={t.title}>{t.title}</div>
+                        {done && (
+                          <Badge className="text-[9px] px-1.5 py-0 bg-emerald-600 text-white">
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />Finalizat {fmtDate(t.completed_at)}
+                          </Badge>
+                        )}
+                      </div>
                       {t.action && (
                         <div className="text-[10px] text-muted-foreground line-clamp-2" title={t.action}>
                           {t.action}
