@@ -159,18 +159,22 @@ const TractionTrackerHub: React.FC = () => {
   const [viewedTrackerId, setViewedTrackerId] = useState<string | null>(null);
 
   const fetchAll = async () => {
-    const [tr, so, kp, kv, to] = await Promise.all([
+    const [tr, so, kp, kv, to, sp, op] = await Promise.all([
       supabaseCloud.from("traction_trackers").select("*").order("created_at", { ascending: true }),
       supabaseCloud.from("traction_strategic_objectives").select("*").order("order_index"),
       supabaseCloud.from("traction_kpis").select("*").order("order_index"),
       supabaseCloud.from("traction_kpi_values").select("*").order("period_start", { ascending: false }),
       supabaseCloud.from("traction_operational_objectives").select("*").order("order_index"),
+      supabaseCloud.from("traction_strategic_progress").select("*").order("period_start", { ascending: false }),
+      supabaseCloud.from("traction_operational_progress").select("*").order("period_start", { ascending: false }),
     ]);
     setTrackers((tr.data as Tracker[]) || []);
     setStrategics((so.data as Strategic[]) || []);
     setKpis((kp.data as Kpi[]) || []);
     setValues((kv.data as KpiValue[]) || []);
     setTasks((to.data as OpTask[]) || []);
+    setStratProgress(((sp.data as any[]) || []).map((r) => ({ ...r, parent_id: r.strategic_id })) as ProgressLog[]);
+    setOpProgress(((op.data as any[]) || []).map((r) => ({ ...r, parent_id: r.operational_id })) as ProgressLog[]);
   };
 
   useEffect(() => {
