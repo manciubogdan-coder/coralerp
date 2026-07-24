@@ -431,6 +431,12 @@ const TractionTrackerHub: React.FC = () => {
               onAddTask={addTask}
               onUpdateTask={updateTask}
               onDeleteTask={deleteTask}
+              stratProgress={stratProgress}
+              opProgress={opProgress}
+              onAddStratProgress={addStratProgress}
+              onDeleteStratProgress={deleteStratProgress}
+              onAddOpProgress={addOpProgress}
+              onDeleteOpProgress={deleteOpProgress}
             />
           )}
         </TabsContent>
