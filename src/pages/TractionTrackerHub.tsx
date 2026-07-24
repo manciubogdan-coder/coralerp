@@ -1259,7 +1259,10 @@ const KpiRow: React.FC<{
           {tasks.map((t) => (
             <TaskRow key={t.id} task={t} readOnly={readOnly}
               onUpdate={(p) => onUpdateTask(t.id, p)}
-              onDelete={() => onDeleteTask(t.id)} />
+              onDelete={() => onDeleteTask(t.id)}
+              progress={opProgress.filter((pr) => pr.parent_id === t.id)}
+              onAddProgress={(entry) => onAddOpProgress(t.id, entry)}
+              onDeleteProgress={onDeleteOpProgress} />
           ))}
         </div>
       )}
