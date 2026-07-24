@@ -118,12 +118,6 @@ function statusForValue(kpi: Kpi, value: number | null | undefined): Status {
   return "red";
 }
 
-const STATUS_COLORS: Record<Status, string> = {
-  green: "hsl(142 71% 45%)",
-  yellow: "hsl(45 93% 55%)",
-  red: "hsl(0 84% 60%)",
-  unset: "hsl(220 9% 65%)",
-};
 
 const STATUS_COLORS: Record<Status, string> = {
   green: "hsl(142 71% 45%)",
