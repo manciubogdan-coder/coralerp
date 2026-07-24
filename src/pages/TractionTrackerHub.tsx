@@ -459,7 +459,15 @@ const TractionTrackerHub: React.FC = () => {
 };
 
 // ============ Dashboard ============
-const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; yellow: number; red: number; unset: number; total: number }> }> = ({ breakdown }) => {
+const DashboardView: React.FC<{
+  breakdown: Array<{ dept: string; green: number; yellow: number; red: number; unset: number; total: number }>;
+  trackers: Tracker[];
+  strategics: Strategic[];
+  kpis: Kpi[];
+  values: KpiValue[];
+  tasks: OpTask[];
+  onOpenTracker: (id: string) => void;
+}> = ({ breakdown, trackers, strategics, kpis, values, tasks, onOpenTracker }) => {
   if (breakdown.length === 0) {
     return (
       <Card>
@@ -469,6 +477,7 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
       </Card>
     );
   }
+
   const global = breakdown.reduce(
     (acc, b) => ({
       green: acc.green + b.green,
@@ -479,43 +488,22 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
     }),
     { green: 0, yellow: 0, red: 0, unset: 0, total: 0 },
   );
-  const globalData = [
-    { name: "Verde", value: global.green, color: STATUS_COLORS.green },
-    { name: "Galben", value: global.yellow, color: STATUS_COLORS.yellow },
-    { name: "Roșu", value: global.red, color: STATUS_COLORS.red },
-    { name: "Nesetate", value: global.unset, color: STATUS_COLORS.unset },
-  ].filter((x) => x.value > 0);
-
   const globalEvaluated = global.green + global.yellow + global.red;
   const globalOkPct = globalEvaluated > 0 ? Math.round((global.green / globalEvaluated) * 100) : null;
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Global — toate departamentele</CardTitle>
-          <CardDescription>{global.total} KPI-uri urmărite</CardDescription>
-        </CardHeader>
-        <CardContent style={{ height: 280 }} className="relative">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={globalData} dataKey="value" nameKey="name" innerRadius={75} outerRadius={110} paddingAngle={2}>
-                {globalData.map((d, i) => (<Cell key={i} fill={d.color} />))}
-              </Pie>
-              <Tooltip />
-              <Legend verticalAlign="bottom" height={30} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center -mt-6">
-            <div className="text-4xl font-bold" style={{ color: globalOkPct === null ? STATUS_COLORS.unset : STATUS_COLORS.green }}>
-              {globalOkPct === null ? "—" : `${globalOkPct}%`}
-            </div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">{globalOkPct === null ? "fără date" : "OK"}</div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Summary strip */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <SummaryTile label="Total KPI-uri" value={global.total} tone="neutral" />
+        <SummaryTile label="OK (Verde)" value={global.green} tone="green" />
+        <SummaryTile label="Atenție (Galben)" value={global.yellow} tone="yellow" />
+        <SummaryTile label="Critic (Roșu)" value={global.red} tone="red" />
+        <SummaryTile label="% OK global" value={globalOkPct === null ? "—" : `${globalOkPct}%`} tone="green" />
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Per-department donuts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {breakdown.map((b) => {
           const data = [
             { name: "Verde", value: b.green, color: STATUS_COLORS.green },
@@ -527,34 +515,197 @@ const DashboardView: React.FC<{ breakdown: Array<{ dept: string; green: number; 
           const okPct = evaluated > 0 ? Math.round((b.green / evaluated) * 100) : null;
           return (
             <Card key={b.dept}>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center justify-between">
-                  {b.dept}
-                  <Badge variant="secondary">{okPct === null ? "—" : `${okPct}% OK`}</Badge>
-                </CardTitle>
-                <CardDescription>{b.total} KPI-uri</CardDescription>
+              <CardHeader className="pb-1">
+                <CardTitle className="text-sm">{b.dept}</CardTitle>
+                <CardDescription className="text-xs">{b.total} KPI-uri</CardDescription>
               </CardHeader>
-              <CardContent style={{ height: 200 }} className="relative">
+              <CardContent style={{ height: 160 }} className="relative p-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                    <Pie data={data} dataKey="value" nameKey="name" innerRadius={40} outerRadius={65} paddingAngle={2}>
                       {data.map((d, i) => (<Cell key={i} fill={d.color} />))}
                     </Pie>
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <div className="text-2xl font-bold" style={{ color: okPct === null ? STATUS_COLORS.unset : STATUS_COLORS.green }}>
+                  <div className="text-xl font-bold" style={{ color: okPct === null ? STATUS_COLORS.unset : STATUS_COLORS.green }}>
                     {okPct === null ? "—" : `${okPct}%`}
                   </div>
-                  <div className="text-[10px] text-muted-foreground uppercase">{okPct === null ? "fără date" : "OK"}</div>
+                  <div className="text-[9px] text-muted-foreground uppercase">OK</div>
                 </div>
               </CardContent>
             </Card>
           );
         })}
       </div>
+
+      {/* Detailed matrix per tracker */}
+      <div className="space-y-5">
+        {trackers.map((tr) => (
+          <TrackerMatrix
+            key={tr.id}
+            tracker={tr}
+            strategics={strategics.filter((s) => s.tracker_id === tr.id)}
+            kpis={kpis}
+            values={values}
+            tasks={tasks.filter((t) => t.tracker_id === tr.id)}
+            onOpen={() => onOpenTracker(tr.id)}
+          />
+        ))}
+      </div>
     </div>
+  );
+};
+
+const SummaryTile: React.FC<{ label: string; value: number | string; tone: "green" | "yellow" | "red" | "neutral" }> = ({ label, value, tone }) => {
+  const bg =
+    tone === "green" ? "bg-green-500/10 border-green-500/30 text-green-700"
+    : tone === "yellow" ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-700"
+    : tone === "red" ? "bg-red-500/10 border-red-500/30 text-red-700"
+    : "bg-muted border-border text-foreground";
+  return (
+    <div className={`rounded-lg border p-3 ${bg}`}>
+      <div className="text-[11px] uppercase tracking-wide opacity-80">{label}</div>
+      <div className="text-2xl font-bold mt-1">{value}</div>
+    </div>
+  );
+};
+
+// ============ Detailed tracker matrix (Excel-like) ============
+const TrackerMatrix: React.FC<{
+  tracker: Tracker;
+  strategics: Strategic[];
+  kpis: Kpi[];
+  values: KpiValue[];
+  tasks: OpTask[];
+  onOpen: () => void;
+}> = ({ tracker, strategics, kpis, values, tasks, onOpen }) => {
+  // Collect last N period labels used across this tracker's KPIs
+  const trackerKpiIds = React.useMemo(() => {
+    const strIds = new Set(strategics.map((s) => s.id));
+    return kpis.filter((k) => strIds.has(k.strategic_id)).map((k) => k.id);
+  }, [strategics, kpis]);
+
+  const periodCols = React.useMemo(() => {
+    const seen = new Map<string, string>(); // label -> sort key
+    values.forEach((v) => {
+      if (!trackerKpiIds.includes(v.kpi_id)) return;
+      const key = v.period_start || v.period_label;
+      if (!seen.has(v.period_label) || (key || "") > (seen.get(v.period_label) || "")) {
+        seen.set(v.period_label, key || "");
+      }
+    });
+    return Array.from(seen.entries())
+      .sort((a, b) => (a[1] > b[1] ? 1 : -1))
+      .slice(-4)
+      .map(([label]) => label);
+  }, [values, trackerKpiIds]);
+
+  const valueFor = (kpiId: string, label: string): KpiValue | undefined => {
+    const rows = values.filter((v) => v.kpi_id === kpiId && v.period_label === label);
+    if (!rows.length) return undefined;
+    return rows.sort((a, b) => ((b.period_start || "") > (a.period_start || "") ? 1 : -1))[0];
+  };
+
+  const latest = (kpiId: string) => {
+    const rows = values.filter((v) => v.kpi_id === kpiId);
+    if (!rows.length) return undefined;
+    return rows.sort((a, b) => ((b.period_start || b.period_label || "") > (a.period_start || a.period_label || "") ? 1 : -1))[0];
+  };
+
+  const totalKpis = strategics.reduce((n, s) => n + kpis.filter((k) => k.strategic_id === s.id).length, 0);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              {tracker.name}
+              <Badge variant="secondary">{tracker.department}</Badge>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {tracker.owner_name || tracker.owner_email || "—"} • {PERIOD_TYPES[tracker.period_type] || tracker.period_type} • {totalKpis} KPI-uri
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={onOpen}>
+            <Pencil className="h-3.5 w-3.5 mr-1" /> Deschide editor
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {strategics.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-3">Nu există obiective strategice.</p>
+        ) : (
+          <div className="overflow-x-auto border rounded-md">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left px-2 py-2 font-medium w-[28%]">Metrică</th>
+                  {periodCols.map((p) => (
+                    <th key={p} className="text-right px-2 py-2 font-medium whitespace-nowrap">{p}</th>
+                  ))}
+                  <th className="text-right px-2 py-2 font-medium">Actual</th>
+                  <th className="text-right px-2 py-2 font-medium">Obiectiv</th>
+                  <th className="text-center px-2 py-2 font-medium">Semafor</th>
+                  <th className="text-left px-2 py-2 font-medium">Responsabil</th>
+                  <th className="text-left px-2 py-2 font-medium">Observații</th>
+                </tr>
+              </thead>
+              <tbody>
+                {strategics.map((s) => {
+                  const sKpis = kpis.filter((k) => k.strategic_id === s.id);
+                  return (
+                    <React.Fragment key={s.id}>
+                      <tr className="bg-primary/10">
+                        <td colSpan={periodCols.length + 6} className="px-2 py-1.5 font-semibold text-primary uppercase text-[11px] tracking-wide">
+                          {s.title}
+                        </td>
+                      </tr>
+                      {sKpis.length === 0 && (
+                        <tr>
+                          <td colSpan={periodCols.length + 6} className="px-2 py-2 text-muted-foreground italic">
+                            Fără KPI-uri.
+                          </td>
+                        </tr>
+                      )}
+                      {sKpis.map((k) => {
+                        const last = latest(k.id);
+                        const status = statusForValue(k, last?.value ?? null);
+                        const relatedTasks = tasks.filter((t) => t.kpi_id === k.id);
+                        const notes = [last?.notes, ...relatedTasks.map((t) => t.title)].filter(Boolean).join(" • ");
+                        return (
+                          <tr key={k.id} className="border-t hover:bg-muted/30">
+                            <td className="px-2 py-1.5">{k.name}{k.unit ? ` (${k.unit})` : ""}</td>
+                            {periodCols.map((p) => {
+                              const v = valueFor(k.id, p);
+                              const st = statusForValue(k, v?.value ?? null);
+                              return (
+                                <td key={p} className="text-right px-2 py-1.5 tabular-nums" style={{ color: v ? STATUS_COLORS[st] : undefined }}>
+                                  {v?.value ?? "—"}
+                                </td>
+                              );
+                            })}
+                            <td className="text-right px-2 py-1.5 tabular-nums font-medium">{last?.value ?? "—"}</td>
+                            <td className="text-right px-2 py-1.5 tabular-nums text-muted-foreground">{k.target_value ?? "—"}</td>
+                            <td className="text-center px-2 py-1.5">
+                              <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: STATUS_COLORS[status] }} />
+                            </td>
+                            <td className="px-2 py-1.5 text-muted-foreground">{tracker.owner_name || tracker.owner_email || "—"}</td>
+                            <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[240px]" title={notes}>{notes || "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
