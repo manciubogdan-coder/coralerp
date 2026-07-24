@@ -856,18 +856,26 @@ const TrackerThreeColumns: React.FC<{
               {allKpis.length === 0 && (
                 <p className="text-xs text-muted-foreground italic p-3">Fără KPI-uri.</p>
               )}
-              {allKpis.map((k) => {
+              {sortedKpis.map((k) => {
                 const last = latest(k.id);
                 const st = statusForValue(k, last?.value ?? null);
                 const opSign = k.target_operator === "lte" ? "≤" : k.target_operator === "eq" ? "=" : "≥";
+                const isDone = !!k.completed_at;
                 return (
-                  <div key={k.id} className="p-2 flex items-center gap-2">
+                  <div key={k.id} className={"p-2 flex items-center gap-2 " + (isDone ? "bg-emerald-50/40 dark:bg-emerald-950/10 opacity-70" : "")}>
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: STATUS_COLORS[st] }}
+                      style={{ backgroundColor: isDone ? STATUS_COLORS.green : STATUS_COLORS[st] }}
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-medium truncate" title={k.name}>{k.name}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className={"text-xs font-medium truncate " + (isDone ? "line-through text-muted-foreground" : "")} title={k.name}>{k.name}</div>
+                        {isDone && (
+                          <Badge className="text-[9px] px-1.5 py-0 bg-emerald-600 text-white">
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />Finalizat {fmtDate(k.completed_at)}
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-[10px] text-muted-foreground">
                         Actual: <span className="font-semibold text-foreground">{last?.value ?? "—"}</span>
                         {k.unit ? ` ${k.unit}` : ""} • Țintă: {opSign} {k.target_value ?? "—"}
