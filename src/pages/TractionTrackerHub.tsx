@@ -1225,7 +1225,7 @@ const KpiRow: React.FC<{
   const opLabel = kpi.target_operator === "lte" ? "≤" : kpi.target_operator === "eq" ? "=" : "≥";
 
   return (
-    <div className="rounded-lg border p-3 space-y-3 bg-card">
+    <div className={"rounded-lg border p-3 space-y-3 " + (kpi.completed_at ? "bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-500/40 opacity-80" : "bg-card")}>
       <div className="flex flex-wrap gap-3 items-end">
         <div
           className="w-4 h-4 rounded-full mt-2 shrink-0 ring-2 ring-background shadow"
@@ -1233,8 +1233,15 @@ const KpiRow: React.FC<{
           title={status}
         />
         <div className="space-y-1 flex-1 min-w-[200px]">
-          <Label className="text-xs text-muted-foreground">Nume KPI</Label>
-          <Input value={kpi.name} disabled={readOnly} onChange={(e) => onUpdate({ name: e.target.value })} className="font-medium" />
+          <Label className="text-xs text-muted-foreground flex items-center gap-2">
+            Nume KPI
+            {kpi.completed_at && (
+              <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white gap-1 h-5">
+                <CheckCircle2 className="h-3 w-3" />Finalizat
+              </Badge>
+            )}
+          </Label>
+          <Input value={kpi.name} disabled={readOnly} onChange={(e) => onUpdate({ name: e.target.value })} className={"font-medium " + (kpi.completed_at ? "line-through text-muted-foreground" : "")} />
         </div>
         <div className="space-y-1 w-24">
           <Label className="text-xs text-muted-foreground">UM</Label>
@@ -1268,6 +1275,15 @@ const KpiRow: React.FC<{
             <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
               <Plus className="h-3 w-3 mr-1" />Valoare
             </Button>
+            {kpi.completed_at ? (
+              <Button size="sm" variant="ghost" onClick={() => onUpdate({ completed_at: null })} className="text-emerald-600" title="Redeschide KPI">
+                <RotateCcw className="h-4 w-4 mr-1" />Redeschide
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => onUpdate({ completed_at: new Date().toISOString() })} className="text-emerald-600" title="Finalizează KPI">
+                <CheckCircle2 className="h-4 w-4 mr-1" />Finalizează
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={onDelete} title="Șterge KPI">
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
