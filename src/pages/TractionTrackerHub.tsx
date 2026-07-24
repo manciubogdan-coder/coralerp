@@ -1098,9 +1098,20 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
                   placeholder="An"
                 />
                 {!readOnly && (
-                  <Button variant="ghost" size="icon" onClick={() => props.onDeleteStrategic(s.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <>
+                    {s.completed_at ? (
+                      <Button variant="ghost" size="sm" onClick={() => props.onUpdateStrategic(s.id, { completed_at: null })} title="Redeschide" className="text-emerald-600">
+                        <RotateCcw className="h-4 w-4 mr-1" />Redeschide
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => props.onUpdateStrategic(s.id, { completed_at: new Date().toISOString() })} title="Finalizează" className="text-emerald-600">
+                        <CheckCircle2 className="h-4 w-4 mr-1" />Finalizează
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" onClick={() => props.onDeleteStrategic(s.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </>
                 )}
               </div>
               <div className="pl-10 pt-2">
