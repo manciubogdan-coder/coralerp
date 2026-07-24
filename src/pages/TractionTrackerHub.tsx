@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Loader2, Target, LayoutDashboard, User, Users, Plus, Trash2, Save, ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { Loader2, Target, LayoutDashboard, User, Users, Plus, Trash2, Save, ChevronDown, ChevronRight, Pencil, CheckCircle2, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
