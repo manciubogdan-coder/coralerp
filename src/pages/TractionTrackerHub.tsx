@@ -285,6 +285,30 @@ const TractionTrackerHub: React.FC = () => {
     if (error) showErr(error);
   };
 
+  // ---------- Progress logs (strategic + operational) ----------
+  const addStratProgress = async (strategic_id: string, entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => {
+    const payload: any = { strategic_id, ...entry, period_start: new Date().toISOString().slice(0, 10) };
+    const { data, error } = await supabaseCloud.from("traction_strategic_progress").insert(payload).select().single();
+    if (error) return showErr(error);
+    setStratProgress((prev) => [{ ...(data as any), parent_id: (data as any).strategic_id } as ProgressLog, ...prev]);
+  };
+  const deleteStratProgress = async (id: string) => {
+    setStratProgress((prev) => prev.filter((p) => p.id !== id));
+    const { error } = await supabaseCloud.from("traction_strategic_progress").delete().eq("id", id);
+    if (error) showErr(error);
+  };
+  const addOpProgress = async (operational_id: string, entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => {
+    const payload: any = { operational_id, ...entry, period_start: new Date().toISOString().slice(0, 10) };
+    const { data, error } = await supabaseCloud.from("traction_operational_progress").insert(payload).select().single();
+    if (error) return showErr(error);
+    setOpProgress((prev) => [{ ...(data as any), parent_id: (data as any).operational_id } as ProgressLog, ...prev]);
+  };
+  const deleteOpProgress = async (id: string) => {
+    setOpProgress((prev) => prev.filter((p) => p.id !== id));
+    const { error } = await supabaseCloud.from("traction_operational_progress").delete().eq("id", id);
+    if (error) showErr(error);
+  };
+
   // ---------- Dashboard aggregation ----------
   const latestValueByKpi = useMemo(() => {
     const map = new Map<string, KpiValue>();
