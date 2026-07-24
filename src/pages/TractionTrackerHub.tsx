@@ -1111,7 +1111,10 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
           {tasks.filter((t) => !t.kpi_id).map((t) => (
             <TaskRow key={t.id} task={t} readOnly={readOnly}
               onUpdate={(p) => props.onUpdateTask(t.id, p)}
-              onDelete={() => props.onDeleteTask(t.id)} />
+              onDelete={() => props.onDeleteTask(t.id)}
+              progress={props.opProgress.filter((pr) => pr.parent_id === t.id)}
+              onAddProgress={(entry) => props.onAddOpProgress(t.id, entry)}
+              onDeleteProgress={props.onDeleteOpProgress} />
           ))}
           {tasks.filter((t) => !t.kpi_id).length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-2">Fără acțiuni.</p>
