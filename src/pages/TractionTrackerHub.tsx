@@ -538,8 +538,10 @@ const DashboardView: React.FC<{
   kpis: Kpi[];
   values: KpiValue[];
   tasks: OpTask[];
+  stratProgress: ProgressLog[];
+  opProgress: ProgressLog[];
   onOpenTracker: (id: string) => void;
-}> = ({ breakdown, trackers, strategics, kpis, values, tasks, onOpenTracker }) => {
+}> = ({ breakdown, trackers, strategics, kpis, values, tasks, stratProgress, opProgress, onOpenTracker }) => {
   if (breakdown.length === 0) {
     return (
       <Card>
