@@ -773,7 +773,12 @@ const TrackerThreeColumns: React.FC<{
                 <p className="text-xs text-muted-foreground italic p-3">Fără obiective.</p>
               )}
               {strategics.map((s) => {
-                const st = stratStatus(s);
+                const progressList = stratProgress.filter((p) => p.parent_id === s.id);
+                const lastProg = latestOf(progressList);
+                const evolStatus: Status | null = lastProg
+                  ? (lastProg.status || statusForProgress(lastProg.progress))
+                  : null;
+                const st = evolStatus || stratStatus(s);
                 const nKpi = kpis.filter((k) => k.strategic_id === s.id).length;
                 return (
                   <div key={s.id} className="p-2 flex items-start gap-2">
@@ -791,6 +796,22 @@ const TrackerThreeColumns: React.FC<{
                       <div className="text-[10px] text-muted-foreground mt-0.5">
                         {nKpi} KPI-uri{s.year ? ` • ${s.year}` : ""}
                       </div>
+                      {lastProg ? (
+                        <div className="text-[10px] mt-1 flex items-center gap-1 flex-wrap">
+                          <Badge
+                            className="text-[9px] px-1.5 py-0"
+                            style={{ backgroundColor: STATUS_COLORS[evolStatus!], color: "white" }}
+                          >
+                            {lastProg.progress ?? "—"}%
+                          </Badge>
+                          <span className="text-muted-foreground">
+                            {lastProg.period_label || ""}
+                            {lastProg.notes ? ` — ${lastProg.notes}` : ""}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-[10px] italic text-muted-foreground mt-1">fără progres înregistrat</div>
+                      )}
                     </div>
                   </div>
                 );
