@@ -633,8 +633,8 @@ const SummaryTile: React.FC<{ label: string; value: number | string; tone: "gree
   );
 };
 
-// ============ Detailed tracker matrix (Excel-like) ============
-const TrackerMatrix: React.FC<{
+// ============ 3-column tracker breakdown ============
+const TrackerThreeColumns: React.FC<{
   tracker: Tracker;
   strategics: Strategic[];
   kpis: Kpi[];
@@ -642,40 +642,27 @@ const TrackerMatrix: React.FC<{
   tasks: OpTask[];
   onOpen: () => void;
 }> = ({ tracker, strategics, kpis, values, tasks, onOpen }) => {
-  // Collect last N period labels used across this tracker's KPIs
-  const trackerKpiIds = React.useMemo(() => {
-    const strIds = new Set(strategics.map((s) => s.id));
-    return kpis.filter((k) => strIds.has(k.strategic_id)).map((k) => k.id);
-  }, [strategics, kpis]);
-
-  const periodCols = React.useMemo(() => {
-    const seen = new Map<string, string>(); // label -> sort key
-    values.forEach((v) => {
-      if (!trackerKpiIds.includes(v.kpi_id)) return;
-      const key = v.period_start || v.period_label;
-      if (!seen.has(v.period_label) || (key || "") > (seen.get(v.period_label) || "")) {
-        seen.set(v.period_label, key || "");
-      }
-    });
-    return Array.from(seen.entries())
-      .sort((a, b) => (a[1] > b[1] ? 1 : -1))
-      .slice(-4)
-      .map(([label]) => label);
-  }, [values, trackerKpiIds]);
-
-  const valueFor = (kpiId: string, label: string): KpiValue | undefined => {
-    const rows = values.filter((v) => v.kpi_id === kpiId && v.period_label === label);
-    if (!rows.length) return undefined;
-    return rows.sort((a, b) => ((b.period_start || "") > (a.period_start || "") ? 1 : -1))[0];
-  };
-
   const latest = (kpiId: string) => {
     const rows = values.filter((v) => v.kpi_id === kpiId);
     if (!rows.length) return undefined;
     return rows.sort((a, b) => ((b.period_start || b.period_label || "") > (a.period_start || a.period_label || "") ? 1 : -1))[0];
   };
 
-  const totalKpis = strategics.reduce((n, s) => n + kpis.filter((k) => k.strategic_id === s.id).length, 0);
+  const stratStatus = (s: Strategic): Status => {
+    const sKpis = kpis.filter((k) => k.strategic_id === s.id);
+    if (sKpis.length === 0) return "unset";
+    const statuses = sKpis.map((k) => statusForValue(k, latest(k.id)?.value ?? null));
+    if (statuses.some((x) => x === "red")) return "red";
+    if (statuses.some((x) => x === "yellow")) return "yellow";
+    if (statuses.every((x) => x === "unset")) return "unset";
+    return "green";
+  };
+
+  const allKpis = kpis.filter((k) => strategics.some((s) => s.id === k.strategic_id));
+  const opDone = (t: OpTask) => {
+    const s = (t.status || "").toLowerCase();
+    return s.includes("final") || s === "done" || s === "closed";
+  };
 
   return (
     <Card>
@@ -687,7 +674,7 @@ const TrackerMatrix: React.FC<{
               <Badge variant="secondary">{tracker.department}</Badge>
             </CardTitle>
             <CardDescription className="text-xs">
-              {tracker.owner_name || tracker.owner_email || "—"} • {PERIOD_TYPES[tracker.period_type] || tracker.period_type} • {totalKpis} KPI-uri
+              {tracker.owner_name || tracker.owner_email || "—"} • {PERIOD_TYPES[tracker.period_type] || tracker.period_type}
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={onOpen}>
@@ -696,100 +683,121 @@ const TrackerMatrix: React.FC<{
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        {strategics.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-3">Nu există obiective strategice.</p>
-        ) : (
-          <div className="overflow-x-auto border rounded-md">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left px-2 py-2 font-medium w-[28%]">Metrică</th>
-                  {periodCols.map((p) => (
-                    <th key={p} className="text-right px-2 py-2 font-medium whitespace-nowrap">{p}</th>
-                  ))}
-                  <th className="text-right px-2 py-2 font-medium">Actual</th>
-                  <th className="text-right px-2 py-2 font-medium">Obiectiv</th>
-                  <th className="text-center px-2 py-2 font-medium">Semafor</th>
-                  <th className="text-left px-2 py-2 font-medium">Responsabil</th>
-                  <th className="text-left px-2 py-2 font-medium">Observații</th>
-                </tr>
-              </thead>
-              <tbody>
-                {strategics.map((s) => {
-                  const sKpis = kpis.filter((k) => k.strategic_id === s.id);
-                  return (
-                    <React.Fragment key={s.id}>
-                      <tr className="bg-primary/10">
-                        <td colSpan={periodCols.length + 6} className="px-2 py-1.5 font-semibold text-primary uppercase text-[11px] tracking-wide">
-                          {s.title}
-                        </td>
-                      </tr>
-                      {sKpis.length === 0 && (
-                        <tr>
-                          <td colSpan={periodCols.length + 6} className="px-2 py-2 text-muted-foreground italic">
-                            Fără KPI-uri.
-                          </td>
-                        </tr>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          {/* ===== Col 1: Strategic objectives ===== */}
+          <div className="border rounded-md overflow-hidden">
+            <div className="px-3 py-2 bg-primary/10 text-primary text-[11px] font-semibold uppercase tracking-wide flex items-center justify-between">
+              <span>Obiective strategice</span>
+              <Badge variant="outline" className="text-[10px]">{strategics.length}</Badge>
+            </div>
+            <div className="divide-y">
+              {strategics.length === 0 && (
+                <p className="text-xs text-muted-foreground italic p-3">Fără obiective.</p>
+              )}
+              {strategics.map((s) => {
+                const st = stratStatus(s);
+                const nKpi = kpis.filter((k) => k.strategic_id === s.id).length;
+                return (
+                  <div key={s.id} className="p-2 flex items-start gap-2">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full mt-1 shrink-0"
+                      style={{ backgroundColor: STATUS_COLORS[st] }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-medium truncate" title={s.title}>{s.title}</div>
+                      {s.description && (
+                        <div className="text-[10px] text-muted-foreground line-clamp-2" title={s.description}>
+                          {s.description}
+                        </div>
                       )}
-                      {sKpis.map((k) => {
-                        const last = latest(k.id);
-                        const status = statusForValue(k, last?.value ?? null);
-                        const relatedTasks = tasks.filter((t) => t.kpi_id === k.id);
-                        return (
-                          <React.Fragment key={k.id}>
-                            <tr className="border-t hover:bg-muted/30">
-                              <td className="px-2 py-1.5">{k.name}{k.unit ? ` (${k.unit})` : ""}</td>
-                              {periodCols.map((p) => {
-                                const v = valueFor(k.id, p);
-                                const st = statusForValue(k, v?.value ?? null);
-                                return (
-                                  <td key={p} className="text-right px-2 py-1.5 tabular-nums" style={{ color: v ? STATUS_COLORS[st] : undefined }}>
-                                    {v?.value ?? "—"}
-                                  </td>
-                                );
-                              })}
-                              <td className="text-right px-2 py-1.5 tabular-nums font-medium">{last?.value ?? "—"}</td>
-                              <td className="text-right px-2 py-1.5 tabular-nums text-muted-foreground">
-                                {(k.target_operator === "lte" ? "≤" : k.target_operator === "eq" ? "=" : "≥")} {k.target_value ?? "—"}
-                              </td>
-                              <td className="text-center px-2 py-1.5">
-                                <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: STATUS_COLORS[status] }} />
-                              </td>
-                              <td className="px-2 py-1.5 text-muted-foreground">{tracker.owner_name || tracker.owner_email || "—"}</td>
-                              <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[240px]" title={last?.notes || ""}>{last?.notes || "—"}</td>
-                            </tr>
-                            {relatedTasks.length > 0 && relatedTasks.map((t) => (
-                              <tr key={t.id} className="bg-muted/20 text-[11px]">
-                                <td className="pl-6 pr-2 py-1 text-muted-foreground" colSpan={periodCols.length + 1}>
-                                  <span className="inline-flex items-center gap-1">
-                                    <span className="text-primary">↳ Acțiune:</span>
-                                    <span className="font-medium text-foreground">{t.title}</span>
-                                    {t.action && <span className="text-muted-foreground">— {t.action}</span>}
-                                  </span>
-                                </td>
-                                <td className="px-2 py-1 text-muted-foreground" colSpan={2}>
-                                  {t.deadline ? `Termen: ${t.deadline}` : ""}
-                                </td>
-                                <td className="text-center px-2 py-1">
-                                  <Badge variant="outline" className="text-[10px]">{t.status}</Badge>
-                                </td>
-                                <td className="px-2 py-1 text-muted-foreground" colSpan={2}>{t.period_label || ""}</td>
-                              </tr>
-                            ))}
-                          </React.Fragment>
-                        );
-                      })}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {nKpi} KPI-uri{s.year ? ` • ${s.year}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        )}
+
+          {/* ===== Col 2: KPIs ===== */}
+          <div className="border rounded-md overflow-hidden">
+            <div className="px-3 py-2 bg-blue-500/10 text-blue-700 text-[11px] font-semibold uppercase tracking-wide flex items-center justify-between">
+              <span>KPI-uri</span>
+              <Badge variant="outline" className="text-[10px]">{allKpis.length}</Badge>
+            </div>
+            <div className="divide-y">
+              {allKpis.length === 0 && (
+                <p className="text-xs text-muted-foreground italic p-3">Fără KPI-uri.</p>
+              )}
+              {allKpis.map((k) => {
+                const last = latest(k.id);
+                const st = statusForValue(k, last?.value ?? null);
+                const opSign = k.target_operator === "lte" ? "≤" : k.target_operator === "eq" ? "=" : "≥";
+                return (
+                  <div key={k.id} className="p-2 flex items-center gap-2">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: STATUS_COLORS[st] }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-medium truncate" title={k.name}>{k.name}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        Actual: <span className="font-semibold text-foreground">{last?.value ?? "—"}</span>
+                        {k.unit ? ` ${k.unit}` : ""} • Țintă: {opSign} {k.target_value ?? "—"}
+                        {last?.period_label ? ` • ${last.period_label}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ===== Col 3: Operational actions ===== */}
+          <div className="border rounded-md overflow-hidden">
+            <div className="px-3 py-2 bg-amber-500/10 text-amber-700 text-[11px] font-semibold uppercase tracking-wide flex items-center justify-between">
+              <span>Acțiuni operaționale</span>
+              <Badge variant="outline" className="text-[10px]">{tasks.length}</Badge>
+            </div>
+            <div className="divide-y">
+              {tasks.length === 0 && (
+                <p className="text-xs text-muted-foreground italic p-3">Fără acțiuni.</p>
+              )}
+              {tasks.map((t) => {
+                const done = opDone(t);
+                const linkedKpi = t.kpi_id ? kpis.find((k) => k.id === t.kpi_id) : null;
+                return (
+                  <div key={t.id} className="p-2 flex items-start gap-2">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full mt-1 shrink-0"
+                      style={{ backgroundColor: done ? STATUS_COLORS.green : STATUS_COLORS.yellow }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-medium truncate" title={t.title}>{t.title}</div>
+                      {t.action && (
+                        <div className="text-[10px] text-muted-foreground line-clamp-2" title={t.action}>
+                          {t.action}
+                        </div>
+                      )}
+                      <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-[9px]">{t.status || "—"}</Badge>
+                        {t.deadline && <span>Termen: {t.deadline}</span>}
+                        {linkedKpi && <span className="truncate">KPI: {linkedKpi.name}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
 };
+
+
 
 // ============ New tracker card ============
 const NewTrackerCard: React.FC<{ onCreate: (dept: string, name: string, period: string) => void }> = ({ onCreate }) => {
