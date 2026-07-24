@@ -1084,6 +1084,9 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
                     onAddTask={() => props.onAddTask(tracker.id, k.id)}
                     onUpdateTask={props.onUpdateTask}
                     onDeleteTask={props.onDeleteTask}
+                    opProgress={props.opProgress}
+                    onAddOpProgress={props.onAddOpProgress}
+                    onDeleteOpProgress={props.onDeleteOpProgress}
                   />
                 ))}
                 {sKpis.length === 0 && (
