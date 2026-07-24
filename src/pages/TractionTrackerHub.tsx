@@ -125,6 +125,29 @@ const STATUS_COLORS: Record<Status, string> = {
   unset: "hsl(220 9% 65%)",
 };
 
+const STATUS_COLORS: Record<Status, string> = {
+  green: "hsl(142 71% 45%)",
+  yellow: "hsl(45 93% 55%)",
+  red: "hsl(0 84% 60%)",
+  unset: "hsl(220 9% 65%)",
+};
+
+function statusForProgress(pct: number | null | undefined): Status {
+  if (pct === null || pct === undefined || Number.isNaN(pct)) return "unset";
+  if (pct >= 80) return "green";
+  if (pct >= 50) return "yellow";
+  return "red";
+}
+
+function latestOf<T extends { period_start?: string | null; period_label?: string | null; created_at?: string }>(rows: T[]): T | undefined {
+  if (!rows.length) return undefined;
+  return [...rows].sort((a, b) => {
+    const ka = a.period_start || a.period_label || a.created_at || "";
+    const kb = b.period_start || b.period_label || b.created_at || "";
+    return kb > ka ? 1 : -1;
+  })[0];
+}
+
 const TractionTrackerHub: React.FC = () => {
   const { user, isAdmin, profile } = useAuth();
   const { allowed, loading: accessLoading } = useTractionTrackerAccess();
@@ -136,6 +159,8 @@ const TractionTrackerHub: React.FC = () => {
   const [kpis, setKpis] = useState<Kpi[]>([]);
   const [values, setValues] = useState<KpiValue[]>([]);
   const [tasks, setTasks] = useState<OpTask[]>([]);
+  const [stratProgress, setStratProgress] = useState<ProgressLog[]>([]);
+  const [opProgress, setOpProgress] = useState<ProgressLog[]>([]);
   const [tab, setTab] = useState("dashboard");
   const [viewedTrackerId, setViewedTrackerId] = useState<string | null>(null);
 
