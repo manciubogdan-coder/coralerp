@@ -405,6 +405,8 @@ const TractionTrackerHub: React.FC = () => {
             kpis={kpis}
             values={values}
             tasks={tasks}
+            stratProgress={stratProgress}
+            opProgress={opProgress}
             onOpenTracker={(id) => { setViewedTrackerId(id); setTab(isAdmin ? "all" : "mine"); }}
           />
         </TabsContent>
