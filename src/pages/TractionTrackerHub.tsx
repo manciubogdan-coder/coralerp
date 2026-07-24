@@ -937,6 +937,12 @@ type TrackerEditorProps = {
   onAddTask: (tracker_id: string, kpi_id: string | null) => void;
   onUpdateTask: (id: string, patch: Partial<OpTask>) => void;
   onDeleteTask: (id: string) => void;
+  stratProgress: ProgressLog[];
+  opProgress: ProgressLog[];
+  onAddStratProgress: (strategic_id: string, entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => void;
+  onDeleteStratProgress: (id: string) => void;
+  onAddOpProgress: (operational_id: string, entry: { period_label: string; progress: number | null; status: Status | null; notes: string | null }) => void;
+  onDeleteOpProgress: (id: string) => void;
   readOnly?: boolean;
 };
 
