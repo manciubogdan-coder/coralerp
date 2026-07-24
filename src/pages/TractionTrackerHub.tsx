@@ -747,8 +747,18 @@ const TrackerThreeColumns: React.FC<{
 
   const allKpis = kpis.filter((k) => strategics.some((s) => s.id === k.strategic_id));
   const opDone = (t: OpTask) => {
+    if (t.completed_at) return true;
     const s = (t.status || "").toLowerCase();
     return s.includes("final") || s === "done" || s === "closed";
+  };
+  const sortDone = <T extends { completed_at?: string | null }>(arr: T[]) =>
+    [...arr].sort((a, b) => (a.completed_at ? 1 : 0) - (b.completed_at ? 1 : 0));
+  const sortedStrategics = sortDone(strategics);
+  const sortedKpis = sortDone(allKpis);
+  const sortedTasks = [...tasks].sort((a, b) => (opDone(a) ? 1 : 0) - (opDone(b) ? 1 : 0));
+  const fmtDate = (iso?: string | null) => {
+    if (!iso) return "";
+    try { return new Date(iso).toLocaleDateString("ro-RO"); } catch { return ""; }
   };
 
   return (
