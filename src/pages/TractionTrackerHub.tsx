@@ -510,6 +510,12 @@ const TractionTrackerHub: React.FC = () => {
                     onAddTask={addTask}
                     onUpdateTask={updateTask}
                     onDeleteTask={deleteTask}
+                    stratProgress={stratProgress}
+                    opProgress={opProgress}
+                    onAddStratProgress={addStratProgress}
+                    onDeleteStratProgress={deleteStratProgress}
+                    onAddOpProgress={addOpProgress}
+                    onDeleteOpProgress={deleteOpProgress}
                     readOnly={!isAdmin && viewedTracker.owner_id !== user?.id}
                   />
                 </CardContent>
