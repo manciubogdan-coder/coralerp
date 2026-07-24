@@ -984,6 +984,17 @@ const KpiRow: React.FC<{
           <Label className="text-xs text-muted-foreground">UM</Label>
           <Input value={kpi.unit || ""} disabled={readOnly} onChange={(e) => onUpdate({ unit: e.target.value })} placeholder="%, buc..." />
         </div>
+        <div className="space-y-1 w-40">
+          <Label className="text-xs text-muted-foreground">Direcție</Label>
+          <Select value={kpi.target_operator || "gte"} disabled={readOnly} onValueChange={(v) => onUpdate({ target_operator: v })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gte">↑ Cât mai mare (≥)</SelectItem>
+              <SelectItem value="lte">↓ Cât mai mic (≤)</SelectItem>
+              <SelectItem value="eq">= Egal cu ținta</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1 w-32">
           <Label className="text-xs text-muted-foreground">Țintă ({opLabel})</Label>
           <Input type="number" step="any" value={kpi.target_value ?? ""} disabled={readOnly}
