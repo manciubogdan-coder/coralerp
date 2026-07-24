@@ -340,7 +340,15 @@ const TractionTrackerHub: React.FC = () => {
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-4">
-          <DashboardView breakdown={departmentBreakdown} />
+          <DashboardView
+            breakdown={departmentBreakdown}
+            trackers={trackers}
+            strategics={strategics}
+            kpis={kpis}
+            values={values}
+            tasks={tasks}
+            onOpenTracker={(id) => { setViewedTrackerId(id); setTab(isAdmin ? "all" : "mine"); }}
+          />
         </TabsContent>
 
         <TabsContent value="mine" className="mt-4">
