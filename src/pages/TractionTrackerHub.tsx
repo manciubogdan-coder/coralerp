@@ -1068,19 +1068,26 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
         const sKpis = kpis.filter((k) => k.strategic_id === s.id);
         const isOpen = expanded.has(s.id);
         return (
-          <Card key={s.id}>
+          <Card key={s.id} className={s.completed_at ? "opacity-70 border-emerald-500/50 bg-emerald-50/30 dark:bg-emerald-950/10" : ""}>
             <CardHeader className="pb-2">
               <div className="flex items-start gap-2">
                 <Button variant="ghost" size="icon" onClick={() => toggle(s.id)}>
                   {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 </Button>
                 <div className="flex-1 space-y-2">
-                  <Input
-                    value={s.title}
-                    disabled={readOnly}
-                    onChange={(e) => props.onUpdateStrategic(s.id, { title: e.target.value })}
-                    className="font-semibold"
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={s.title}
+                      disabled={readOnly}
+                      onChange={(e) => props.onUpdateStrategic(s.id, { title: e.target.value })}
+                      className={"font-semibold " + (s.completed_at ? "line-through text-muted-foreground" : "")}
+                    />
+                    {s.completed_at && (
+                      <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white gap-1 shrink-0">
+                        <CheckCircle2 className="h-3 w-3" />Finalizat
+                      </Badge>
+                    )}
+                  </div>
                   <Textarea
                     value={s.description || ""}
                     placeholder="Descriere (opțional)"
