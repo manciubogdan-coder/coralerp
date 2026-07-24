@@ -689,7 +689,7 @@ const TrackerMatrix: React.FC<{
                               })}
                               <td className="text-right px-2 py-1.5 tabular-nums font-medium">{last?.value ?? "—"}</td>
                               <td className="text-right px-2 py-1.5 tabular-nums text-muted-foreground">
-                                {kpi_opLabel(k)} {k.target_value ?? "—"}
+                                {(k.target_operator === "lte" ? "≤" : k.target_operator === "eq" ? "=" : "≥")} {k.target_value ?? "—"}
                               </td>
                               <td className="text-center px-2 py-1.5">
                                 <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: STATUS_COLORS[status] }} />
