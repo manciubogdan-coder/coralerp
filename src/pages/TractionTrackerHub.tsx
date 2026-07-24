@@ -1402,10 +1402,16 @@ const TaskRow: React.FC<{
   onDeleteProgress?: (id: string) => void;
 }> = ({ task, readOnly, onUpdate, onDelete, progress, onAddProgress, onDeleteProgress }) => {
   return (
-    <div className="rounded border p-2 bg-background space-y-2">
+    <div className={"rounded border p-2 space-y-2 " + (task.completed_at ? "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-500/40 opacity-80" : "bg-background")}>
       <div className="flex flex-wrap items-center gap-2">
+        {task.completed_at && (
+          <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white gap-1 shrink-0">
+            <CheckCircle2 className="h-3 w-3" />Finalizat
+          </Badge>
+        )}
         <Input value={task.title} disabled={readOnly}
-          onChange={(e) => onUpdate({ title: e.target.value })} className="flex-1 min-w-[160px]" />
+          onChange={(e) => onUpdate({ title: e.target.value })}
+          className={"flex-1 min-w-[160px] " + (task.completed_at ? "line-through text-muted-foreground" : "")} />
         <Input value={task.action || ""} placeholder="Acțiune" disabled={readOnly}
           onChange={(e) => onUpdate({ action: e.target.value })} className="flex-1 min-w-[160px]" />
         <Input type="date" value={task.deadline || ""} disabled={readOnly}
@@ -1420,9 +1426,20 @@ const TaskRow: React.FC<{
           </SelectContent>
         </Select>
         {!readOnly && (
-          <Button variant="ghost" size="icon" onClick={onDelete}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          <>
+            {task.completed_at ? (
+              <Button variant="ghost" size="sm" onClick={() => onUpdate({ completed_at: null })} className="text-emerald-600" title="Redeschide">
+                <RotateCcw className="h-4 w-4 mr-1" />Redeschide
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => onUpdate({ completed_at: new Date().toISOString(), status: "done" })} className="text-emerald-600" title="Finalizează">
+                <CheckCircle2 className="h-4 w-4 mr-1" />Finalizează
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" onClick={onDelete}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </>
         )}
       </div>
       {onAddProgress && (
