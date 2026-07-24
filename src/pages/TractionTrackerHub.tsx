@@ -791,7 +791,7 @@ const TrackerThreeColumns: React.FC<{
               {strategics.length === 0 && (
                 <p className="text-xs text-muted-foreground italic p-3">Fără obiective.</p>
               )}
-              {strategics.map((s) => {
+              {sortedStrategics.map((s) => {
                 const progressList = stratProgress.filter((p) => p.parent_id === s.id);
                 const lastProg = latestOf(progressList);
                 const evolStatus: Status | null = lastProg
@@ -799,14 +799,22 @@ const TrackerThreeColumns: React.FC<{
                   : null;
                 const st = evolStatus || stratStatus(s);
                 const nKpi = kpis.filter((k) => k.strategic_id === s.id).length;
+                const isDone = !!s.completed_at;
                 return (
-                  <div key={s.id} className="p-2 flex items-start gap-2">
+                  <div key={s.id} className={"p-2 flex items-start gap-2 " + (isDone ? "bg-emerald-50/40 dark:bg-emerald-950/10 opacity-70" : "")}>
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full mt-1 shrink-0"
-                      style={{ backgroundColor: STATUS_COLORS[st] }}
+                      style={{ backgroundColor: isDone ? STATUS_COLORS.green : STATUS_COLORS[st] }}
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-medium truncate" title={s.title}>{s.title}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className={"text-xs font-medium truncate " + (isDone ? "line-through text-muted-foreground" : "")} title={s.title}>{s.title}</div>
+                        {isDone && (
+                          <Badge className="text-[9px] px-1.5 py-0 bg-emerald-600 text-white">
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />Finalizat {fmtDate(s.completed_at)}
+                          </Badge>
+                        )}
+                      </div>
                       {s.description && (
                         <div className="text-[10px] text-muted-foreground line-clamp-2" title={s.description}>
                           {s.description}
@@ -828,9 +836,9 @@ const TrackerThreeColumns: React.FC<{
                             {lastProg.notes ? ` — ${lastProg.notes}` : ""}
                           </span>
                         </div>
-                      ) : (
+                      ) : !isDone ? (
                         <div className="text-[10px] italic text-muted-foreground mt-1">fără progres înregistrat</div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 );
