@@ -569,8 +569,11 @@ const DashboardView: React.FC<{
   const globalOkPct = globalEvaluated > 0 ? Math.round((global.green / globalEvaluated) * 100) : null;
 
   const totalStrategics = strategics.length;
+  const stratDone = strategics.filter((s) => !!s.completed_at).length;
+  const stratActive = totalStrategics - stratDone;
+  const kpisDone = kpis.filter((k) => !!k.completed_at).length;
   const totalOps = tasks.length;
-  const opsDone = tasks.filter((t) => (t.status || "").toLowerCase().includes("final") || (t.status || "").toLowerCase() === "done" || (t.status || "").toLowerCase() === "closed").length;
+  const opsDone = tasks.filter((t) => !!t.completed_at || (t.status || "").toLowerCase().includes("final") || (t.status || "").toLowerCase() === "done" || (t.status || "").toLowerCase() === "closed").length;
   const opsOpen = totalOps - opsDone;
 
   return (
@@ -581,7 +584,9 @@ const DashboardView: React.FC<{
           title="Obiective strategice"
           total={totalStrategics}
           lines={[
-            { label: "Trackere active", value: trackers.length, tone: "neutral" },
+            { label: "Active", value: stratActive, tone: "yellow" },
+            { label: "Finalizate", value: stratDone, tone: "green" },
+            { label: "Trackere", value: trackers.length, tone: "neutral" },
           ]}
         />
         <CategorySummary
@@ -592,6 +597,7 @@ const DashboardView: React.FC<{
             { label: "Atenție", value: global.yellow, tone: "yellow" },
             { label: "Critic", value: global.red, tone: "red" },
             { label: "Nesetate", value: global.unset, tone: "neutral" },
+            { label: "Finalizate", value: kpisDone, tone: "green" },
             { label: "% OK", value: globalOkPct === null ? "—" : `${globalOkPct}%`, tone: "green" },
           ]}
         />
