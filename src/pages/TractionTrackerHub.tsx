@@ -716,8 +716,10 @@ const TrackerThreeColumns: React.FC<{
   kpis: Kpi[];
   values: KpiValue[];
   tasks: OpTask[];
+  stratProgress: ProgressLog[];
+  opProgress: ProgressLog[];
   onOpen: () => void;
-}> = ({ tracker, strategics, kpis, values, tasks, onOpen }) => {
+}> = ({ tracker, strategics, kpis, values, tasks, stratProgress, opProgress, onOpen }) => {
   const latest = (kpiId: string) => {
     const rows = values.filter((v) => v.kpi_id === kpiId);
     if (!rows.length) return undefined;
