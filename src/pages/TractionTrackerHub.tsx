@@ -651,6 +651,8 @@ const DashboardView: React.FC<{
             kpis={kpis}
             values={values}
             tasks={tasks.filter((t) => t.tracker_id === tr.id)}
+            stratProgress={stratProgress}
+            opProgress={opProgress}
             onOpen={() => onOpenTracker(tr.id)}
           />
         ))}
