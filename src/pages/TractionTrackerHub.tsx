@@ -34,6 +34,7 @@ type Strategic = {
   description: string | null;
   year: number | null;
   order_index: number;
+  completed_at?: string | null;
 };
 
 type Kpi = {
@@ -46,6 +47,7 @@ type Kpi = {
   threshold_green: number | null;
   threshold_yellow: number | null;
   order_index: number;
+  completed_at?: string | null;
 };
 
 type KpiValue = {
@@ -67,6 +69,7 @@ type OpTask = {
   status: string;
   period_label: string | null;
   order_index: number;
+  completed_at?: string | null;
 };
 
 type ProgressLog = {
