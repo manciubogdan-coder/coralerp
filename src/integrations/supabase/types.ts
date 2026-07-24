@@ -729,6 +729,7 @@ export type Database = {
       }
       traction_kpis: {
         Row: {
+          completed_at: string | null
           created_at: string
           id: string
           name: string
@@ -742,6 +743,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string
           id?: string
           name: string
@@ -755,6 +757,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          completed_at?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -780,6 +783,7 @@ export type Database = {
       traction_operational_objectives: {
         Row: {
           action: string | null
+          completed_at: string | null
           created_at: string
           deadline: string | null
           id: string
@@ -793,6 +797,7 @@ export type Database = {
         }
         Insert: {
           action?: string | null
+          completed_at?: string | null
           created_at?: string
           deadline?: string | null
           id?: string
@@ -806,6 +811,7 @@ export type Database = {
         }
         Update: {
           action?: string | null
+          completed_at?: string | null
           created_at?: string
           deadline?: string | null
           id?: string
@@ -880,6 +886,7 @@ export type Database = {
       }
       traction_strategic_objectives: {
         Row: {
+          completed_at: string | null
           created_at: string
           description: string | null
           id: string
@@ -890,6 +897,7 @@ export type Database = {
           year: number | null
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -900,6 +908,7 @@ export type Database = {
           year?: number | null
         }
         Update: {
+          completed_at?: string | null
           created_at?: string
           description?: string | null
           id?: string

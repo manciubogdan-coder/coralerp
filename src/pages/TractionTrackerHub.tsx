@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Loader2, Target, LayoutDashboard, User, Users, Plus, Trash2, Save, ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { Loader2, Target, LayoutDashboard, User, Users, Plus, Trash2, Save, ChevronDown, ChevronRight, Pencil, CheckCircle2, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ type Strategic = {
   description: string | null;
   year: number | null;
   order_index: number;
+  completed_at?: string | null;
 };
 
 type Kpi = {
@@ -46,6 +47,7 @@ type Kpi = {
   threshold_green: number | null;
   threshold_yellow: number | null;
   order_index: number;
+  completed_at?: string | null;
 };
 
 type KpiValue = {
@@ -67,6 +69,7 @@ type OpTask = {
   status: string;
   period_label: string | null;
   order_index: number;
+  completed_at?: string | null;
 };
 
 type ProgressLog = {
@@ -1065,19 +1068,26 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
         const sKpis = kpis.filter((k) => k.strategic_id === s.id);
         const isOpen = expanded.has(s.id);
         return (
-          <Card key={s.id}>
+          <Card key={s.id} className={s.completed_at ? "opacity-70 border-emerald-500/50 bg-emerald-50/30 dark:bg-emerald-950/10" : ""}>
             <CardHeader className="pb-2">
               <div className="flex items-start gap-2">
                 <Button variant="ghost" size="icon" onClick={() => toggle(s.id)}>
                   {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 </Button>
                 <div className="flex-1 space-y-2">
-                  <Input
-                    value={s.title}
-                    disabled={readOnly}
-                    onChange={(e) => props.onUpdateStrategic(s.id, { title: e.target.value })}
-                    className="font-semibold"
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={s.title}
+                      disabled={readOnly}
+                      onChange={(e) => props.onUpdateStrategic(s.id, { title: e.target.value })}
+                      className={"font-semibold " + (s.completed_at ? "line-through text-muted-foreground" : "")}
+                    />
+                    {s.completed_at && (
+                      <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white gap-1 shrink-0">
+                        <CheckCircle2 className="h-3 w-3" />Finalizat
+                      </Badge>
+                    )}
+                  </div>
                   <Textarea
                     value={s.description || ""}
                     placeholder="Descriere (opțional)"
@@ -1095,9 +1105,20 @@ const TrackerEditor: React.FC<TrackerEditorProps> = (props) => {
                   placeholder="An"
                 />
                 {!readOnly && (
-                  <Button variant="ghost" size="icon" onClick={() => props.onDeleteStrategic(s.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <>
+                    {s.completed_at ? (
+                      <Button variant="ghost" size="sm" onClick={() => props.onUpdateStrategic(s.id, { completed_at: null })} title="Redeschide" className="text-emerald-600">
+                        <RotateCcw className="h-4 w-4 mr-1" />Redeschide
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => props.onUpdateStrategic(s.id, { completed_at: new Date().toISOString() })} title="Finalizează" className="text-emerald-600">
+                        <CheckCircle2 className="h-4 w-4 mr-1" />Finalizează
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" onClick={() => props.onDeleteStrategic(s.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </>
                 )}
               </div>
               <div className="pl-10 pt-2">
@@ -1204,7 +1225,7 @@ const KpiRow: React.FC<{
   const opLabel = kpi.target_operator === "lte" ? "≤" : kpi.target_operator === "eq" ? "=" : "≥";
 
   return (
-    <div className="rounded-lg border p-3 space-y-3 bg-card">
+    <div className={"rounded-lg border p-3 space-y-3 " + (kpi.completed_at ? "bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-500/40 opacity-80" : "bg-card")}>
       <div className="flex flex-wrap gap-3 items-end">
         <div
           className="w-4 h-4 rounded-full mt-2 shrink-0 ring-2 ring-background shadow"
@@ -1212,8 +1233,15 @@ const KpiRow: React.FC<{
           title={status}
         />
         <div className="space-y-1 flex-1 min-w-[200px]">
-          <Label className="text-xs text-muted-foreground">Nume KPI</Label>
-          <Input value={kpi.name} disabled={readOnly} onChange={(e) => onUpdate({ name: e.target.value })} className="font-medium" />
+          <Label className="text-xs text-muted-foreground flex items-center gap-2">
+            Nume KPI
+            {kpi.completed_at && (
+              <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white gap-1 h-5">
+                <CheckCircle2 className="h-3 w-3" />Finalizat
+              </Badge>
+            )}
+          </Label>
+          <Input value={kpi.name} disabled={readOnly} onChange={(e) => onUpdate({ name: e.target.value })} className={"font-medium " + (kpi.completed_at ? "line-through text-muted-foreground" : "")} />
         </div>
         <div className="space-y-1 w-24">
           <Label className="text-xs text-muted-foreground">UM</Label>
@@ -1247,6 +1275,15 @@ const KpiRow: React.FC<{
             <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
               <Plus className="h-3 w-3 mr-1" />Valoare
             </Button>
+            {kpi.completed_at ? (
+              <Button size="sm" variant="ghost" onClick={() => onUpdate({ completed_at: null })} className="text-emerald-600" title="Redeschide KPI">
+                <RotateCcw className="h-4 w-4 mr-1" />Redeschide
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => onUpdate({ completed_at: new Date().toISOString() })} className="text-emerald-600" title="Finalizează KPI">
+                <CheckCircle2 className="h-4 w-4 mr-1" />Finalizează
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={onDelete} title="Șterge KPI">
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
@@ -1365,10 +1402,16 @@ const TaskRow: React.FC<{
   onDeleteProgress?: (id: string) => void;
 }> = ({ task, readOnly, onUpdate, onDelete, progress, onAddProgress, onDeleteProgress }) => {
   return (
-    <div className="rounded border p-2 bg-background space-y-2">
+    <div className={"rounded border p-2 space-y-2 " + (task.completed_at ? "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-500/40 opacity-80" : "bg-background")}>
       <div className="flex flex-wrap items-center gap-2">
+        {task.completed_at && (
+          <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white gap-1 shrink-0">
+            <CheckCircle2 className="h-3 w-3" />Finalizat
+          </Badge>
+        )}
         <Input value={task.title} disabled={readOnly}
-          onChange={(e) => onUpdate({ title: e.target.value })} className="flex-1 min-w-[160px]" />
+          onChange={(e) => onUpdate({ title: e.target.value })}
+          className={"flex-1 min-w-[160px] " + (task.completed_at ? "line-through text-muted-foreground" : "")} />
         <Input value={task.action || ""} placeholder="Acțiune" disabled={readOnly}
           onChange={(e) => onUpdate({ action: e.target.value })} className="flex-1 min-w-[160px]" />
         <Input type="date" value={task.deadline || ""} disabled={readOnly}
@@ -1383,9 +1426,20 @@ const TaskRow: React.FC<{
           </SelectContent>
         </Select>
         {!readOnly && (
-          <Button variant="ghost" size="icon" onClick={onDelete}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          <>
+            {task.completed_at ? (
+              <Button variant="ghost" size="sm" onClick={() => onUpdate({ completed_at: null })} className="text-emerald-600" title="Redeschide">
+                <RotateCcw className="h-4 w-4 mr-1" />Redeschide
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => onUpdate({ completed_at: new Date().toISOString(), status: "done" })} className="text-emerald-600" title="Finalizează">
+                <CheckCircle2 className="h-4 w-4 mr-1" />Finalizează
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" onClick={onDelete}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </>
         )}
       </div>
       {onAddProgress && (
