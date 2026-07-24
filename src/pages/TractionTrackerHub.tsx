@@ -674,27 +674,48 @@ const TrackerMatrix: React.FC<{
                         const last = latest(k.id);
                         const status = statusForValue(k, last?.value ?? null);
                         const relatedTasks = tasks.filter((t) => t.kpi_id === k.id);
-                        const notes = [last?.notes, ...relatedTasks.map((t) => t.title)].filter(Boolean).join(" • ");
                         return (
-                          <tr key={k.id} className="border-t hover:bg-muted/30">
-                            <td className="px-2 py-1.5">{k.name}{k.unit ? ` (${k.unit})` : ""}</td>
-                            {periodCols.map((p) => {
-                              const v = valueFor(k.id, p);
-                              const st = statusForValue(k, v?.value ?? null);
-                              return (
-                                <td key={p} className="text-right px-2 py-1.5 tabular-nums" style={{ color: v ? STATUS_COLORS[st] : undefined }}>
-                                  {v?.value ?? "—"}
+                          <React.Fragment key={k.id}>
+                            <tr className="border-t hover:bg-muted/30">
+                              <td className="px-2 py-1.5">{k.name}{k.unit ? ` (${k.unit})` : ""}</td>
+                              {periodCols.map((p) => {
+                                const v = valueFor(k.id, p);
+                                const st = statusForValue(k, v?.value ?? null);
+                                return (
+                                  <td key={p} className="text-right px-2 py-1.5 tabular-nums" style={{ color: v ? STATUS_COLORS[st] : undefined }}>
+                                    {v?.value ?? "—"}
+                                  </td>
+                                );
+                              })}
+                              <td className="text-right px-2 py-1.5 tabular-nums font-medium">{last?.value ?? "—"}</td>
+                              <td className="text-right px-2 py-1.5 tabular-nums text-muted-foreground">
+                                {kpi_opLabel(k)} {k.target_value ?? "—"}
+                              </td>
+                              <td className="text-center px-2 py-1.5">
+                                <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: STATUS_COLORS[status] }} />
+                              </td>
+                              <td className="px-2 py-1.5 text-muted-foreground">{tracker.owner_name || tracker.owner_email || "—"}</td>
+                              <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[240px]" title={last?.notes || ""}>{last?.notes || "—"}</td>
+                            </tr>
+                            {relatedTasks.length > 0 && relatedTasks.map((t) => (
+                              <tr key={t.id} className="bg-muted/20 text-[11px]">
+                                <td className="pl-6 pr-2 py-1 text-muted-foreground" colSpan={periodCols.length + 1}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <span className="text-primary">↳ Acțiune:</span>
+                                    <span className="font-medium text-foreground">{t.title}</span>
+                                    {t.action && <span className="text-muted-foreground">— {t.action}</span>}
+                                  </span>
                                 </td>
-                              );
-                            })}
-                            <td className="text-right px-2 py-1.5 tabular-nums font-medium">{last?.value ?? "—"}</td>
-                            <td className="text-right px-2 py-1.5 tabular-nums text-muted-foreground">{k.target_value ?? "—"}</td>
-                            <td className="text-center px-2 py-1.5">
-                              <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: STATUS_COLORS[status] }} />
-                            </td>
-                            <td className="px-2 py-1.5 text-muted-foreground">{tracker.owner_name || tracker.owner_email || "—"}</td>
-                            <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[240px]" title={notes}>{notes || "—"}</td>
-                          </tr>
+                                <td className="px-2 py-1 text-muted-foreground" colSpan={2}>
+                                  {t.deadline ? `Termen: ${t.deadline}` : ""}
+                                </td>
+                                <td className="text-center px-2 py-1">
+                                  <Badge variant="outline" className="text-[10px]">{t.status}</Badge>
+                                </td>
+                                <td className="px-2 py-1 text-muted-foreground" colSpan={2}>{t.period_label || ""}</td>
+                              </tr>
+                            ))}
+                          </React.Fragment>
                         );
                       })}
                     </React.Fragment>
