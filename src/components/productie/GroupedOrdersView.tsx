@@ -140,13 +140,17 @@ const GroupedOrdersView: React.FC<Props> = ({
         const totalRamas = Math.max(0, totalCerut - totalAcoperit);
         const procent = totalCerut > 0 ? Math.round((totalAcoperit / totalCerut) * 100) : 0;
         const doneCount = g.orders.filter(isOrderDone).length;
+        const visibleOrders = hideDone ? g.orders.filter((o) => !isOrderDone(o)) : g.orders;
         const groupSessions = activeSessions.filter((s) => g.orders.some((o) => o.id === s.comanda_id));
         const hasActive = groupSessions.length > 0;
         const timp = lineCapacity && lineCapacity > 0 ? totalRamas / lineCapacity : 0;
         const isExpanded = !!expanded[g.key];
         const orderIds = g.orders.map((o) => o.id);
 
+        if (hideDone && visibleOrders.length === 0 && !hasActive) return null;
+
         return (
+
           <Card key={g.key} className={`border-coral-200 shadow ${hasActive ? "border-l-4 border-l-green-500 bg-emerald-50/40" : ""}`}>
             <CardHeader className="p-3 md:p-4 pb-2">
               <div className="flex items-start justify-between gap-3 flex-wrap">
