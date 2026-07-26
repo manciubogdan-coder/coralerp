@@ -238,7 +238,7 @@ const GroupedOrdersView: React.FC<Props> = ({
 
               {isExpanded && (
                 <div className="mt-3 border-t pt-3 space-y-2">
-                  {g.orders.map((o: any) => {
+                  {visibleOrders.map((o: any) => {
                     const esteReamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
                     const acoperit = (o.cantitate_reala_produsa || 0) + (esteReamb ? 0 : o.cantitate_din_restock || 0);
                     const ramas = Math.max(0, (o.cantitate || 0) - acoperit);
