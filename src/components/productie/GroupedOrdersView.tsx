@@ -119,7 +119,17 @@ const GroupedOrdersView: React.FC<Props> = ({
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          size="sm"
+          variant={hideDone ? "default" : "outline"}
+          onClick={() => setHideDone((v) => !v)}
+        >
+          {hideDone ? "Arată finalizate" : "Ascunde finalizate"}
+        </Button>
+      </div>
       {groups.map((g) => {
+
         const totalCerut = g.orders.reduce((s, o) => s + (o.cantitate || 0), 0);
         const totalAcoperit = g.orders.reduce((s, o: any) => {
           const esteReamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
