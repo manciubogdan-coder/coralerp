@@ -135,14 +135,18 @@ const GroupedOrdersView: React.FC<Props> = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end gap-2">
+        <span className="text-xs text-muted-foreground mr-auto">
+          Finalizatele din zilele anterioare sunt ascunse automat
+        </span>
         <Button
           size="sm"
           variant={hideDone ? "default" : "outline"}
           onClick={() => setHideDone((v) => !v)}
         >
-          {hideDone ? "Arată finalizate" : "Ascunde finalizate"}
+          {hideDone ? "Arată finalizate de azi" : "Ascunde finalizate de azi"}
         </Button>
       </div>
+
       {groups.map((g) => {
 
         const totalCerut = g.orders.reduce((s, o) => s + (o.cantitate || 0), 0);
