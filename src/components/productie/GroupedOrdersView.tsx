@@ -45,6 +45,8 @@ const GroupedOrdersView: React.FC<Props> = ({
   onFinishGroup,
 }) => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [hideDone, setHideDone] = useState(true);
+
   const [startDialog, setStartDialog] = useState<{ open: boolean; orderIds: string[]; nume: string }>({
     open: false,
     orderIds: [],
