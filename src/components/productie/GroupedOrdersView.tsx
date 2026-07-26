@@ -81,6 +81,8 @@ const GroupedOrdersView: React.FC<Props> = ({
       orders: ProductieComanda[];
     }>();
     for (const o of orders) {
+      // Comenzile finalizate din alte zile nu mai apar niciodată în lista grupată
+      if (isOrderDone(o) && !isFromToday(o)) continue;
       const produsId = o.produs_id || "";
       const produsNume = (o as any).productie_produse?.nume || "Fără produs";
       const grup = produsId && groupMap ? (groupMap[produsId] || "").trim() : "";
