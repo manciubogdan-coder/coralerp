@@ -35,6 +35,17 @@ const isOrderDone = (o: any) => {
   return o.cantitate > 0 && acoperit >= o.cantitate;
 };
 
+const todayKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+// Ziua comenzii: data producției programată, altfel data creării
+const orderDayKey = (o: any) => String(o?.data_productie || o?.created_at || "").slice(0, 10);
+
+const isFromToday = (o: any) => orderDayKey(o) === todayKey();
+
+
 const GroupedOrdersView: React.FC<Props> = ({
   orders,
   activeSessions,
@@ -70,6 +81,8 @@ const GroupedOrdersView: React.FC<Props> = ({
       orders: ProductieComanda[];
     }>();
     for (const o of orders) {
+      // Comenzile finalizate din alte zile nu mai apar niciodată în lista grupată
+      if (isOrderDone(o) && !isFromToday(o)) continue;
       const produsId = o.produs_id || "";
       const produsNume = (o as any).productie_produse?.nume || "Fără produs";
       const grup = produsId && groupMap ? (groupMap[produsId] || "").trim() : "";
@@ -122,14 +135,18 @@ const GroupedOrdersView: React.FC<Props> = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end gap-2">
+        <span className="text-xs text-muted-foreground mr-auto">
+          Finalizatele din zilele anterioare sunt ascunse automat
+        </span>
         <Button
           size="sm"
           variant={hideDone ? "default" : "outline"}
           onClick={() => setHideDone((v) => !v)}
         >
-          {hideDone ? "Arată finalizate" : "Ascunde finalizate"}
+          {hideDone ? "Arată finalizate de azi" : "Ascunde finalizate de azi"}
         </Button>
       </div>
+
       {groups.map((g) => {
 
         const totalCerut = g.orders.reduce((s, o) => s + (o.cantitate || 0), 0);
