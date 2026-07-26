@@ -35,6 +35,17 @@ const isOrderDone = (o: any) => {
   return o.cantitate > 0 && acoperit >= o.cantitate;
 };
 
+const todayKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+// Ziua comenzii: data producției programată, altfel data creării
+const orderDayKey = (o: any) => String(o?.data_productie || o?.created_at || "").slice(0, 10);
+
+const isFromToday = (o: any) => orderDayKey(o) === todayKey();
+
+
 const GroupedOrdersView: React.FC<Props> = ({
   orders,
   activeSessions,
