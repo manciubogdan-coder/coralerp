@@ -45,6 +45,8 @@ const GroupedOrdersView: React.FC<Props> = ({
   onFinishGroup,
 }) => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [hideDone, setHideDone] = useState(true);
+
   const [startDialog, setStartDialog] = useState<{ open: boolean; orderIds: string[]; nume: string }>({
     open: false,
     orderIds: [],
@@ -119,7 +121,17 @@ const GroupedOrdersView: React.FC<Props> = ({
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          size="sm"
+          variant={hideDone ? "default" : "outline"}
+          onClick={() => setHideDone((v) => !v)}
+        >
+          {hideDone ? "Arată finalizate" : "Ascunde finalizate"}
+        </Button>
+      </div>
       {groups.map((g) => {
+
         const totalCerut = g.orders.reduce((s, o) => s + (o.cantitate || 0), 0);
         const totalAcoperit = g.orders.reduce((s, o: any) => {
           const esteReamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
@@ -128,13 +140,17 @@ const GroupedOrdersView: React.FC<Props> = ({
         const totalRamas = Math.max(0, totalCerut - totalAcoperit);
         const procent = totalCerut > 0 ? Math.round((totalAcoperit / totalCerut) * 100) : 0;
         const doneCount = g.orders.filter(isOrderDone).length;
+        const visibleOrders = hideDone ? g.orders.filter((o) => !isOrderDone(o)) : g.orders;
         const groupSessions = activeSessions.filter((s) => g.orders.some((o) => o.id === s.comanda_id));
         const hasActive = groupSessions.length > 0;
         const timp = lineCapacity && lineCapacity > 0 ? totalRamas / lineCapacity : 0;
         const isExpanded = !!expanded[g.key];
         const orderIds = g.orders.map((o) => o.id);
 
+        if (hideDone && visibleOrders.length === 0 && !hasActive) return null;
+
         return (
+
           <Card key={g.key} className={`border-coral-200 shadow ${hasActive ? "border-l-4 border-l-green-500 bg-emerald-50/40" : ""}`}>
             <CardHeader className="p-3 md:p-4 pb-2">
               <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -222,7 +238,7 @@ const GroupedOrdersView: React.FC<Props> = ({
 
               {isExpanded && (
                 <div className="mt-3 border-t pt-3 space-y-2">
-                  {g.orders.map((o: any) => {
+                  {visibleOrders.map((o: any) => {
                     const esteReamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
                     const acoperit = (o.cantitate_reala_produsa || 0) + (esteReamb ? 0 : o.cantitate_din_restock || 0);
                     const ramas = Math.max(0, (o.cantitate || 0) - acoperit);
