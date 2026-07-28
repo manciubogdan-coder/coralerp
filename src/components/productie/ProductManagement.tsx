@@ -73,6 +73,32 @@ const ProductManagement = () => {
   const { mutateAsync: createDistributionRule } = useCreateDistributionRule();
   const { mutateAsync: deleteDistributionRulesByProduct } = useDeleteDistributionRulesByProduct();
 
+  const [searchName, setSearchName] = useState('');
+  const [searchUm, setSearchUm] = useState('');
+  const [recipeFilter, setRecipeFilter] = useState('all');
+  const { data: allRecipes } = useRecipes();
+
+  const productsWithRecipe = React.useMemo(() => {
+    const set = new Set<string>();
+    (allRecipes || []).forEach((r: any) => {
+      if ((r.productie_retete_ingrediente?.length || 0) > 0) set.add(r.produs_id);
+    });
+    return set;
+  }, [allRecipes]);
+
+  const filteredProducts = React.useMemo(() => {
+    return (products || []).filter((p: any) => {
+      if (searchName && !(p.nume || '').toLowerCase().includes(searchName.toLowerCase())) return false;
+      if (searchUm && !(p.unitate_masura || '').toLowerCase().includes(searchUm.toLowerCase())) return false;
+      const has = productsWithRecipe.has(p.id);
+      if (recipeFilter === 'with' && !has) return false;
+      if (recipeFilter === 'without' && has) return false;
+      return true;
+    });
+  }, [products, searchName, searchUm, recipeFilter, productsWithRecipe]);
+
+
+
   // Effect pentru a actualiza form data când se încarcă rețetele existente
   useEffect(() => {
     if (editingProduct && existingRecipes && existingRecipes.length > 0) {
