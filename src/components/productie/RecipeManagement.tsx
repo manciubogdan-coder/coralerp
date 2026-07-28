@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, ChefHat, Minus } from "lucide-react";
+import { Plus, Edit, Trash2, ChefHat, Minus, Search } from "lucide-react";
 import { useRecipes, useCreateRecipe, useUpdateRecipe, useDeleteRecipe } from "@/hooks/productie/useRecipes";
 import { useProducts } from "@/hooks/productie/useProductionData";
 import { useIngredients } from "@/hooks/productie/useIngredients";
@@ -22,6 +22,7 @@ interface IngredientFormData {
 
 const RecipeManagement = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [editingRecipe, setEditingRecipe] = useState<any>(null);
   const [formData, setFormData] = useState({
     produs_id: '',
@@ -39,6 +40,24 @@ const RecipeManagement = () => {
   const createRecipe = useCreateRecipe();
   const updateRecipe = useUpdateRecipe();
   const deleteRecipe = useDeleteRecipe();
+
+  const filteredRecipes = useMemo(() => {
+    const needle = searchTerm.trim().toLocaleLowerCase('ro-RO');
+    if (!needle) return recipes || [];
+
+    return (recipes || []).filter(recipe => {
+      const ingredientNames = recipe.productie_retete_ingrediente
+        ?.map(ingredient => ingredient.productie_ingrediente?.nume || '')
+        .join(' ') || '';
+
+      return [
+        recipe.nume_reteta,
+        recipe.productie_produse?.nume,
+        recipe.descriere,
+        ingredientNames,
+      ].some(value => value?.toLocaleLowerCase('ro-RO').includes(needle));
+    });
+  }, [recipes, searchTerm]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -332,6 +351,15 @@ const RecipeManagement = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="relative mb-4 max-w-xl">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Caută după rețetă, produs sau ingredient..."
+              className="pl-9"
+            />
+          </div>
           {isLoading ? (
             <div className="text-center py-4">Se încarcă rețetele...</div>
           ) : !recipes || recipes.length === 0 ? (
@@ -341,6 +369,10 @@ const RecipeManagement = () => {
               <p className="text-sm text-muted-foreground mt-2">
                 Adaugă prima rețetă pentru a începe producția.
               </p>
+            </div>
+          ) : filteredRecipes.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground">
+              Nu am găsit nicio rețetă pentru „{searchTerm}”.
             </div>
           ) : (
             <Table>
@@ -355,7 +387,7 @@ const RecipeManagement = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recipes.map((recipe) => (
+                {filteredRecipes.map((recipe) => (
                   <TableRow key={recipe.id}>
                     <TableCell className="font-medium">{recipe.nume_reteta}</TableCell>
                     <TableCell>{recipe.productie_produse?.nume}</TableCell>

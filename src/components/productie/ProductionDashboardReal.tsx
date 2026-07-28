@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProducts, useProductionLines, useOrders, useWorkSessions } from "@/hooks/productie/useProductionData";
-import { useAutoRefresh } from "@/hooks/productie/useAutoRefresh";
 import { Loader2, Package, Factory, ShoppingCart, Users, AlertTriangle, TrendingUp } from "lucide-react";
 import CapacityMonitor from "./CapacityMonitor";
 import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
@@ -12,19 +11,6 @@ import OrdersPagination from "./OrdersPagination";
 const ProductionDashboardReal = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   
-  // Auto-refresh pentru dashboard la fiecare 20 secunde
-  useAutoRefresh({ 
-    interval: 20000, 
-    enabled: true,
-    queryKeys: [
-      ['orders'],
-      ['production-orders'],
-      ['work-sessions'],
-      ['products'],
-      ['lines']
-    ]
-  });
-
   // Listen for quantity corrections - SIMPLIFIED
   useEffect(() => {
     const handleQuantityCorrection = () => {
@@ -100,10 +86,7 @@ const ProductionDashboardReal = () => {
       <div>
         <h2 className="text-2xl font-bold">Dashboard Producție</h2>
         <p className="text-muted-foreground">
-          Monitorizează starea producției în timp real
-          <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-            🔄 Auto-refresh activ (20s)
-          </span>
+          Monitorizează starea producției
         </p>
       </div>
 
