@@ -8,10 +8,11 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useProductionLines } from '@/hooks/productie/useProductionData';
 import { useIngredients } from '@/hooks/productie/useIngredients';
-import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe } from '@/hooks/productie/useRecipes';
+import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe, useRecipes } from '@/hooks/productie/useRecipes';
 import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct } from '@/hooks/productie/useDistributionRules';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, Trash2, Package, Loader2, Layers } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle } from 'lucide-react';
 import GrupareAmbalareDialog from './GrupareAmbalareDialog';
 
 interface Ingredient {
@@ -71,6 +72,32 @@ const ProductManagement = () => {
 
   const { mutateAsync: createDistributionRule } = useCreateDistributionRule();
   const { mutateAsync: deleteDistributionRulesByProduct } = useDeleteDistributionRulesByProduct();
+
+  const [searchName, setSearchName] = useState('');
+  const [searchUm, setSearchUm] = useState('');
+  const [recipeFilter, setRecipeFilter] = useState('all');
+  const { data: allRecipes } = useRecipes();
+
+  const productsWithRecipe = React.useMemo(() => {
+    const set = new Set<string>();
+    (allRecipes || []).forEach((r: any) => {
+      if ((r.productie_retete_ingrediente?.length || 0) > 0) set.add(r.produs_id);
+    });
+    return set;
+  }, [allRecipes]);
+
+  const filteredProducts = React.useMemo(() => {
+    return (products || []).filter((p: any) => {
+      if (searchName && !(p.nume || '').toLowerCase().includes(searchName.toLowerCase())) return false;
+      if (searchUm && !(p.unitate_masura || '').toLowerCase().includes(searchUm.toLowerCase())) return false;
+      const has = productsWithRecipe.has(p.id);
+      if (recipeFilter === 'with' && !has) return false;
+      if (recipeFilter === 'without' && has) return false;
+      return true;
+    });
+  }, [products, searchName, searchUm, recipeFilter, productsWithRecipe]);
+
+
 
   // Effect pentru a actualiza form data când se încarcă rețetele existente
   useEffect(() => {
@@ -395,23 +422,68 @@ const ProductManagement = () => {
                 <TableRow>
                   <TableHead>Nume</TableHead>
                   <TableHead>Unitate de Masura</TableHead>
+                  <TableHead>Rețetă</TableHead>
                   <TableHead>Actiuni</TableHead>
+                </TableRow>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="py-2">
+                    <Input
+                      placeholder="Caută produs..."
+                      value={searchName}
+                      onChange={(e) => setSearchName(e.target.value)}
+                      className="h-8"
+                    />
+                  </TableHead>
+                  <TableHead className="py-2">
+                    <Input
+                      placeholder="Caută UM..."
+                      value={searchUm}
+                      onChange={(e) => setSearchUm(e.target.value)}
+                      className="h-8"
+                    />
+                  </TableHead>
+                  <TableHead className="py-2">
+                    <Select value={recipeFilter} onValueChange={setRecipeFilter}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Toate</SelectItem>
+                        <SelectItem value="with">Cu rețetă</SelectItem>
+                        <SelectItem value="without">Fără rețetă</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableHead>
+                  <TableHead className="py-2 text-xs text-muted-foreground">
+                    {filteredProducts.length} rezultate
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center">Se incarca...</TableCell>
+                    <TableCell colSpan={4} className="text-center">Se incarca...</TableCell>
                   </TableRow>
-                ) : products?.length === 0 ? (
+                ) : filteredProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center">Nu exista produse</TableCell>
+                    <TableCell colSpan={4} className="text-center">Nu exista produse</TableCell>
                   </TableRow>
                 ) : (
-                  products?.map((product) => (
+                  filteredProducts.map((product) => (
                     <TableRow key={product.id}>
                       <TableCell>{product.nume}</TableCell>
                       <TableCell>{product.unitate_masura}</TableCell>
+                      <TableCell>
+                        {productsWithRecipe.has(product.id) ? (
+                          <Badge variant="outline" className="border-emerald-500 text-emerald-600">
+                            <CheckCircle2 className="h-3 w-3 mr-1" /> Are rețetă
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-destructive text-destructive">
+                            <XCircle className="h-3 w-3 mr-1" /> Fără rețetă
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Button
@@ -447,6 +519,7 @@ const ProductManagement = () => {
           </CardContent>
         </CardHeader>
       </Card>
+
       
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
