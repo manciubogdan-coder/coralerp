@@ -8,10 +8,11 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useProductionLines } from '@/hooks/productie/useProductionData';
 import { useIngredients } from '@/hooks/productie/useIngredients';
-import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe } from '@/hooks/productie/useRecipes';
+import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe, useRecipes } from '@/hooks/productie/useRecipes';
 import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct } from '@/hooks/productie/useDistributionRules';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, Trash2, Package, Loader2, Layers } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle } from 'lucide-react';
 import GrupareAmbalareDialog from './GrupareAmbalareDialog';
 
 interface Ingredient {
