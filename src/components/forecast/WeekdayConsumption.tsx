@@ -248,6 +248,7 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
         .filter((r) => selected.has(r.product_id))
         .map((r) => ({
           key: r.product_id,
+          productId: r.product_id,
           name: r.product_name,
           code: r.product_code,
           unit: r.unit,
