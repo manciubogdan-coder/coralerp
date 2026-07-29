@@ -9,6 +9,7 @@ import { useInventoryType } from "@/context/inventory-type";
 import ProductOrderSettings from "@/components/forecast/ProductOrderSettings";
 import ConsumptionReport from "@/components/forecast/ConsumptionReport";
 import ForecastView from "@/components/forecast/ForecastView";
+import ClientOrdersForecast from "@/components/forecast/ClientOrdersForecast";
 import StockSufficiency from "@/components/forecast/StockSufficiency";
 import OrderManagement from "@/components/forecast/OrderManagement";
 import OrderHistory from "@/components/forecast/OrderHistory";
@@ -46,11 +47,12 @@ const ForecastPage = () => {
         
         <div className="bg-white rounded-lg shadow-md p-4">
         <Tabs defaultValue="orders" className="w-full">
-            <TabsList className="grid w-full grid-cols-6 mb-4">
+            <TabsList className="grid w-full grid-cols-7 mb-4">
               <TabsTrigger value="orders">Gestionare Comenzi</TabsTrigger>
               <TabsTrigger value="history">Istoric Comenzi</TabsTrigger>
               <TabsTrigger value="consumption">Raport Consum</TabsTrigger>
-              <TabsTrigger value="forecast">Forecast</TabsTrigger>
+              <TabsTrigger value="forecast">Forecast din transferuri</TabsTrigger>
+              <TabsTrigger value="forecast-orders">Forecast din comenzi client</TabsTrigger>
               <TabsTrigger value="sufficiency">Zile Stoc</TabsTrigger>
               <TabsTrigger value="settings">Setări Produse</TabsTrigger>
             </TabsList>
@@ -71,6 +73,10 @@ const ForecastPage = () => {
               <ForecastView inventoryType={inventoryType} />
             </TabsContent>
             
+            <TabsContent value="forecast-orders">
+              <ClientOrdersForecast inventoryType={inventoryType} />
+            </TabsContent>
+
             <TabsContent value="sufficiency">
               <StockSufficiency inventoryType={inventoryType} />
             </TabsContent>
