@@ -317,6 +317,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           <FileDown className="h-4 w-4 mr-2" />
           Export Excel
         </Button>
+        <Button onClick={() => setOrderOpen(true)} disabled={selected.size === 0}>
+          <Truck className="h-4 w-4 mr-2" />
+          Comandă furnizor ({selected.size})
+        </Button>
+
         <div className="flex gap-1">
           <Button size="sm" variant={view === "weekday" ? "default" : "outline"} onClick={() => setView("weekday")}>
             Pe zilele săptămânii
