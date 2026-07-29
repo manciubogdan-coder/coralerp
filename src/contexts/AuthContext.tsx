@@ -151,10 +151,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
 
         if (session?.user) {
+          if (currentUserIdRef.current === session.user.id) return;
+          currentUserIdRef.current = session.user.id;
           setIsLoading(true);
           await fetchProfile(session.user.id);
           setIsLoading(false);
         } else {
+          currentUserIdRef.current = null;
           setIsLoading(false);
         }
       })
