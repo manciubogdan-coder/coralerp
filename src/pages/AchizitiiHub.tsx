@@ -134,9 +134,19 @@ const AchizitiiHub: React.FC = () => {
 
           <div className="bg-white rounded-lg shadow-sm border p-3 md:p-4">
             <InventoryTypeSync type={forecastWarehouse}>
-              <Tabs defaultValue="forecast-orders" className="w-full">
-                <TabsList className="flex w-full md:grid md:grid-cols-6 mb-4 gap-1 overflow-x-auto">
-                  <TabsTrigger value="forecast-orders" className="flex-shrink-0 text-xs md:text-sm">Forecast din comenzi client</TabsTrigger>
+              <Tabs
+                key={forecastWarehouse}
+                defaultValue={forecastWarehouse === "materii-prime" ? "forecast-orders" : "forecast"}
+                className="w-full"
+              >
+                <TabsList
+                  className={`flex w-full mb-4 gap-1 overflow-x-auto ${
+                    forecastWarehouse === "materii-prime" ? "md:grid md:grid-cols-6" : "md:grid md:grid-cols-5"
+                  }`}
+                >
+                  {forecastWarehouse === "materii-prime" && (
+                    <TabsTrigger value="forecast-orders" className="flex-shrink-0 text-xs md:text-sm">Forecast din comenzi client</TabsTrigger>
+                  )}
                   <TabsTrigger value="forecast" className="flex-shrink-0 text-xs md:text-sm">Forecast din transferuri</TabsTrigger>
                   <TabsTrigger value="orders" className="flex-shrink-0 text-xs md:text-sm">Gestionare Comenzi</TabsTrigger>
                   <TabsTrigger value="history" className="flex-shrink-0 text-xs md:text-sm">Istoric Comenzi</TabsTrigger>
@@ -153,9 +163,11 @@ const AchizitiiHub: React.FC = () => {
                 <TabsContent value="forecast">
                   <ForecastView inventoryType={forecastWarehouse} />
                 </TabsContent>
-                <TabsContent value="forecast-orders">
-                  <ClientOrdersForecast inventoryType={forecastWarehouse} />
-                </TabsContent>
+                {forecastWarehouse === "materii-prime" && (
+                  <TabsContent value="forecast-orders">
+                    <ClientOrdersForecast inventoryType={forecastWarehouse} />
+                  </TabsContent>
+                )}
                 <TabsContent value="sufficiency">
                   <StockSufficiency inventoryType={forecastWarehouse} />
                 </TabsContent>
@@ -163,6 +175,7 @@ const AchizitiiHub: React.FC = () => {
                   <ProductOrderSettings inventoryType={forecastWarehouse} />
                 </TabsContent>
               </Tabs>
+
 
             </InventoryTypeSync>
           </div>
