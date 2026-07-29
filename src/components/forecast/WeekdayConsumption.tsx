@@ -245,7 +245,11 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
           const avgDaily = total / totalDays;
           const coverDays = avgDaily > 0 ? stock / avgDaily : null;
           const leadTime = leadByProduct.get(p.id) ?? 7;
-          const suggestedQty = Math.max(avgDaily * leadTime - stock, 0);
+          const ord = orderedByProduct.get(p.id);
+          const orderedQty = ord?.qty || 0;
+          const suggestedQty = Math.max(avgDaily * leadTime - stock - orderedQty, 0);
+          const totalAfterOrder = stock + orderedQty + suggestedQty;
+          const coverAfterOrder = avgDaily > 0 ? totalAfterOrder / avgDaily : null;
           return {
             product_id: p.id,
             product_name: p.name,
@@ -260,6 +264,10 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
             coverDate: coverDays !== null ? addDays(new Date(), Math.floor(coverDays)) : null,
             leadTime,
             suggestedQty,
+            ordered: ord?.qty || 0,
+            orderedEta: ord?.eta || null,
+            coverAfterOrder,
+            coverDateAfterOrder: coverAfterOrder !== null ? addDays(new Date(), Math.floor(coverAfterOrder)) : null,
           };
         })
         .filter((r) => r.total > 0)
