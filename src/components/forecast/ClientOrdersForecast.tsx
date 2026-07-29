@@ -21,12 +21,15 @@ interface Props {
 
 interface Row {
   key: string;
+  productId: string | null;
   name: string;
   unit: string;
   net: number;
   pt: number;
   brut: number;
   stock: number;
+  ordered: number;
+  orderedEta: Date | null;
   diff: number;
   matched: boolean;
   perDayBrut: number[];
@@ -98,20 +101,36 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const toTs = endOfDay(toDate).toISOString();
 
       // 1. Comenzi de client din perioada selectată (data producție sau, dacă lipsește, data creării)
-      const { data: byProdDate, error: e1 } = await supabase
-        .from("productie_comenzi")
-        .select("id, produs_id, cantitate, data_productie, created_at, status")
-        .gte("data_productie", fromStr)
-        .lte("data_productie", toStr);
-      if (e1) throw e1;
+      const fetchAll = async (build: () => any) => {
+        const all: any[] = [];
+        const step = 1000;
+        for (let from = 0; ; from += step) {
+          const { data, error } = await build().range(from, from + step - 1);
+          if (error) throw error;
+          all.push(...(data || []));
+          if (!data || data.length < step) break;
+        }
+        return all;
+      };
 
-      const { data: byCreated, error: e2 } = await supabase
-        .from("productie_comenzi")
-        .select("id, produs_id, cantitate, data_productie, created_at, status")
-        .is("data_productie", null)
-        .gte("created_at", fromTs)
-        .lte("created_at", toTs);
-      if (e2) throw e2;
+      const byProdDate = await fetchAll(() =>
+        supabase
+          .from("productie_comenzi")
+          .select("id, produs_id, cantitate, data_productie, created_at, status")
+          .gte("data_productie", fromStr)
+          .lte("data_productie", toStr)
+          .order("id")
+      );
+
+      const byCreated = await fetchAll(() =>
+        supabase
+          .from("productie_comenzi")
+          .select("id, produs_id, cantitate, data_productie, created_at, status")
+          .is("data_productie", null)
+          .gte("created_at", fromTs)
+          .lte("created_at", toTs)
+          .order("id")
+      );
 
       const orders = [...(byProdDate || []), ...(byCreated || [])].filter(
         (o: any) => o.status !== "canceled_by_erp"
@@ -187,6 +206,29 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         stockByProduct.set(i.product_id, (stockByProduct.get(i.product_id) || 0) + (Number(i.quantity) || 0));
       });
 
+      // 5b. Comenzi către furnizor în curs (nelivrate)
+      const ordersTable =
+        inventoryType === "ambalaje"
+          ? "ambalaje_product_orders"
+          : inventoryType === "etichete"
+          ? "etichete_product_orders"
+          : "product_orders";
+      const { data: pendingOrders } = await supabase
+        .from(ordersTable)
+        .select("product_id, quantity_ordered, expected_delivery_date, status")
+        .in("status", ["pending", "ordered"]);
+      const orderedByProduct = new Map<string, { qty: number; eta: Date | null }>();
+      (pendingOrders || []).forEach((o: any) => {
+        if (!o.product_id) return;
+        const cur = orderedByProduct.get(o.product_id) || { qty: 0, eta: null as Date | null };
+        cur.qty += Number(o.quantity_ordered) || 0;
+        if (o.expected_delivery_date) {
+          const d = new Date(o.expected_delivery_date);
+          if (!cur.eta || d < cur.eta) cur.eta = d;
+        }
+        orderedByProduct.set(o.product_id, cur);
+      });
+
       const totalDays = counts.reduce((a, b) => a + b, 0) || 1;
 
       const result: Row[] = [...need.entries()].map(([key, v]) => {
@@ -194,6 +236,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const pt = Number(p?.pt_percent) || 0;
         const brut = v.qty * (1 + pt / 100);
         const stock = p ? stockByProduct.get(p.id) || 0 : 0;
+        const ord = p ? orderedByProduct.get(p.id) : undefined;
         const factor = 1 + pt / 100;
         const perDayBrut = v.perDay.map((q) => q * factor);
         const avgDaily = brut / totalDays;
@@ -202,12 +245,15 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           perDayBrut,
           perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
           key,
+          productId: p?.id || null,
           name: p?.name || v.name,
           unit: p?.default_unit || "kg",
           net: v.qty,
           pt,
           brut,
           stock,
+          ordered: ord?.qty || 0,
+          orderedEta: ord?.eta || null,
           diff: stock - brut,
           matched: !!p,
           avgDaily,
@@ -247,9 +293,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         .filter((r) => selected.has(r.key))
         .map((r) => ({
           key: r.key,
+          productId: r.productId,
           name: r.name,
           unit: r.unit,
-          qty: Math.max(r.brut - r.stock, 0),
+          qty: Math.max(r.brut - r.stock - r.ordered, 0),
         })),
     [filtered, selected]
   );
@@ -368,6 +415,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                 <TableHead className="text-right">% PT</TableHead>
                 <TableHead className="text-right">Necesar cu PT</TableHead>
                 <TableHead className="text-right">Stoc curent</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Comandat</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Ajunge până la</TableHead>
                 {view === "weekday" ? (
@@ -413,6 +461,23 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     {r.brut.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    {r.ordered > 0 ? (
+                      <>
+                        <Badge className="bg-blue-500 hover:bg-blue-600">
+                          <Truck className="h-3 w-3 mr-1" />
+                          {r.ordered.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                        </Badge>
+                        {r.orderedEta && (
+                          <span className="block text-[10px] text-muted-foreground mt-0.5">
+                            {format(r.orderedEta, "dd MMM", { locale: ro })}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell
                     className={cn(
                       "text-right font-semibold",
@@ -458,6 +523,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         onOpenChange={setOrderOpen}
         inventoryType={inventoryType}
         lines={orderLines}
+        onCreated={() => {
+          setSelected(new Set());
+          fetchData();
+        }}
       />
 
     </div>

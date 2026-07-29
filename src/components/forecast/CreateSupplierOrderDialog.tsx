@@ -28,6 +28,7 @@ export interface OrderLineInput {
   code?: string | null;
   unit: string;
   qty: number;
+  productId?: string | null;
 }
 
 interface Props {
@@ -35,16 +36,24 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
   lines: OrderLineInput[];
+  onCreated?: () => void;
 }
 
-const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, inventoryType, lines }) => {
+const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, inventoryType, lines, onCreated }) => {
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [supplierId, setSupplierId] = useState("");
   const [deliveryDate, setDeliveryDate] = useState<Date>(addDays(new Date(), 3));
   const [qtys, setQtys] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   const suppliersTable =
     inventoryType === "ambalaje" ? "ambalaje_suppliers" : inventoryType === "etichete" ? "etichete_suppliers" : "suppliers";
+  const ordersTable =
+    inventoryType === "ambalaje"
+      ? "ambalaje_product_orders"
+      : inventoryType === "etichete"
+      ? "etichete_product_orders"
+      : "product_orders";
 
   useEffect(() => {
     if (!open) return;
@@ -58,10 +67,11 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
 
   const supplierName = useMemo(() => suppliers.find((s) => s.id === supplierId)?.name || "", [suppliers, supplierId]);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!supplierName) return;
     const items = lines
       .map((l) => ({
+        product_id: l.productId || null,
         product_code: l.code || null,
         product_name: l.name,
         quantity: Number(qtys[l.key]) || 0,
@@ -75,9 +85,42 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
       return;
     }
 
-    exportPurchaseOrder({ supplier_name: supplierName, items, order_date: new Date() }, inventoryType);
-    toast({ title: "Comandă generată", description: `${items.length} produse pentru ${supplierName}` });
-    onOpenChange(false);
+    setSaving(true);
+    try {
+      const toInsert = items
+        .filter((i) => i.product_id)
+        .map((i) => ({
+          product_id: i.product_id,
+          supplier_id: supplierId,
+          quantity_ordered: i.quantity,
+          order_date: new Date().toISOString(),
+          expected_delivery_date: format(deliveryDate, "yyyy-MM-dd"),
+          status: "ordered",
+          notes: "Generat din Forecast",
+        }));
+
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from(ordersTable).insert(toInsert as any);
+        if (error) throw error;
+      }
+
+      exportPurchaseOrder({ supplier_name: supplierName, items, order_date: new Date() }, inventoryType);
+
+      const skipped = items.length - toInsert.length;
+      toast({
+        title: "Comandă generată și salvată",
+        description: `${toInsert.length} produse înregistrate pentru ${supplierName}${
+          skipped > 0 ? ` (${skipped} fără corespondent în nomenclator, doar în Excel)` : ""
+        }`,
+      });
+      onCreated?.();
+      onOpenChange(false);
+    } catch (e) {
+      console.error("[CreateSupplierOrderDialog]", e);
+      toast({ title: "Eroare la salvarea comenzii", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -166,7 +209,7 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Anulează
           </Button>
-          <Button onClick={handleGenerate} disabled={!supplierId}>
+          <Button onClick={handleGenerate} disabled={!supplierId || saving}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Generează comanda
           </Button>
