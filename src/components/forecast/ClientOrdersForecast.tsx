@@ -428,7 +428,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       ) : filtered.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">Nu există comenzi de client în perioada selectată.</div>
       ) : (
-        <div className="border rounded-lg overflow-x-auto">
+        <div className="border rounded-lg overflow-x-auto text-xs [&_th]:h-8 [&_th]:px-2 [&_td]:p-2">
           <Table>
             <TableHeader>
               <TableRow>
