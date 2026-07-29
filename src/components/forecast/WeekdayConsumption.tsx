@@ -35,6 +35,8 @@ interface Row {
   avgDaily: number;
   coverDays: number | null;
   coverDate: Date | null;
+  leadTime: number;
+  suggestedQty: number;
 }
 
 
@@ -190,6 +192,18 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
         }
       }
 
+      const settingsTable =
+        inventoryType === "ambalaje"
+          ? "ambalaje_product_order_settings"
+          : inventoryType === "etichete"
+          ? "etichete_product_order_settings"
+          : "product_order_settings";
+      const { data: settingsRows } = await supabase.from(settingsTable).select("product_id, lead_time_days");
+      const leadByProduct = new Map<string, number>();
+      (settingsRows || []).forEach((s2: any) => {
+        if (s2.product_id) leadByProduct.set(s2.product_id, Number(s2.lead_time_days) || 7);
+      });
+
       const totalDays = counts.reduce((a, b) => a + b, 0) || 1;
 
       const result: Row[] = (productsData || [])
@@ -199,6 +213,8 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
           const stock = stockByProduct.get(p.id) || 0;
           const avgDaily = total / totalDays;
           const coverDays = avgDaily > 0 ? stock / avgDaily : null;
+          const leadTime = leadByProduct.get(p.id) ?? 7;
+          const suggestedQty = Math.max(avgDaily * leadTime - stock, 0);
           return {
             product_id: p.id,
             product_name: p.name,
@@ -211,6 +227,8 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
             avgDaily,
             coverDays,
             coverDate: coverDays !== null ? addDays(new Date(), Math.floor(coverDays)) : null,
+            leadTime,
+            suggestedQty,
           };
         })
         .filter((r) => r.total > 0)
@@ -252,8 +270,8 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
           name: r.product_name,
           code: r.product_code,
           unit: r.unit,
-          // sugestie: necesar pentru 14 zile minus stocul curent
-          qty: Math.max(r.avgDaily * 14 - r.stock, 0),
+          // sugestie: necesar până la următoarea livrare (termen livrare produs) minus stoc
+          qty: r.suggestedQty,
         })),
     [filtered, selected]
   );
@@ -351,6 +369,8 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
                 <TableHead>UM</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-right">Stoc curent</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Termen livrare</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Cant. recomandată</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Ajunge până la</TableHead>
                 {WEEKDAYS.map((w, i) => (
