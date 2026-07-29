@@ -332,11 +332,22 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={filtered.length > 0 && filtered.every((r) => selected.has(r.key))}
+                    onCheckedChange={(v) =>
+                      setSelected(v ? new Set(filtered.map((r) => r.key)) : new Set())
+                    }
+                  />
+                </TableHead>
                 <TableHead className="min-w-[220px]">Materie primă</TableHead>
                 <TableHead>UM</TableHead>
                 <TableHead className="text-right">Necesar net</TableHead>
                 <TableHead className="text-right">% PT</TableHead>
                 <TableHead className="text-right">Necesar cu PT</TableHead>
+                <TableHead className="text-right">Stoc curent</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Ajunge până la</TableHead>
                 {view === "weekday" ? (
                   WEEKDAYS.map((w, i) => (
                     <TableHead key={w} className="text-right whitespace-nowrap">
@@ -345,16 +356,26 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     </TableHead>
                   ))
                 ) : (
-                  <>
-                    <TableHead className="text-right">Stoc curent</TableHead>
-                    <TableHead className="text-right">Diferență</TableHead>
-                  </>
+                  <TableHead className="text-right">Diferență</TableHead>
                 )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((r) => (
                 <TableRow key={r.key}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selected.has(r.key)}
+                      onCheckedChange={(v) =>
+                        setSelected((prev) => {
+                          const next = new Set(prev);
+                          if (v) next.add(r.key);
+                          else next.delete(r.key);
+                          return next;
+                        })
+                      }
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">
                     {r.name}
                     {!r.matched && (
@@ -369,6 +390,24 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                   <TableCell className="text-right font-semibold text-primary">
                     {r.brut.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                   </TableCell>
+                  <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right font-semibold",
+                      r.coverDays === null
+                        ? "text-muted-foreground"
+                        : r.coverDays < 3
+                        ? "text-destructive"
+                        : r.coverDays < 7
+                        ? "text-amber-600"
+                        : "text-emerald-600"
+                    )}
+                  >
+                    {r.coverDays === null ? "—" : `${r.coverDays.toLocaleString("ro-RO", { maximumFractionDigits: 1 })} zile`}
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    {r.coverDate ? format(r.coverDate, "dd MMM yyyy", { locale: ro }) : "—"}
+                  </TableCell>
                   {view === "weekday" ? (
                     WEEKDAYS.map((w, i) => (
                       <TableCell key={w} className="text-right">
@@ -381,20 +420,24 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       </TableCell>
                     ))
                   ) : (
-                    <>
-                      <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
-                      <TableCell className={cn("text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
-                        {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
-                      </TableCell>
-                    </>
+                    <TableCell className={cn("text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
+                      {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                    </TableCell>
                   )}
-
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
       )}
+
+      <CreateSupplierOrderDialog
+        open={orderOpen}
+        onOpenChange={setOrderOpen}
+        inventoryType={inventoryType}
+        lines={orderLines}
+      />
+
     </div>
   );
 };
