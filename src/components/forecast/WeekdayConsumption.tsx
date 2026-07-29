@@ -425,6 +425,7 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
         onOpenChange={setOrderOpen}
         inventoryType={inventoryType}
         lines={orderLines}
+        onCreated={() => setSelected(new Set())}
       />
 
     </div>
