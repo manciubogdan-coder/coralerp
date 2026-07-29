@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import OrderToday from "./OrderToday";
 import FutureOrders from "./FutureOrders";
+import WeekdayConsumption from "./WeekdayConsumption";
+
 
 interface ForecastViewProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
