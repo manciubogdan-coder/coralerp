@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, Loader2, FileDown } from "lucide-react";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { format, startOfDay, endOfDay, eachDayOfInterval, subDays } from "date-fns";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
@@ -27,7 +27,13 @@ interface Row {
   stock: number;
   diff: number;
   matched: boolean;
+  perDayBrut: number[];
+  perDayAvg: number[];
 }
+
+// 0 = Luni ... 6 = Duminică
+const WEEKDAYS = ["Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă", "Duminică"];
+const isoDay = (d: Date) => (d.getDay() + 6) % 7;
 
 const norm = (s: string) =>
   (s || "")
@@ -51,12 +57,14 @@ const toKg = (q: number, u?: string) => {
 };
 
 const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" }) => {
-  const [fromDate, setFromDate] = useState<Date>(new Date());
+  const [fromDate, setFromDate] = useState<Date>(subDays(new Date(), 30));
   const [toDate, setToDate] = useState<Date>(new Date());
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [ordersCount, setOrdersCount] = useState(0);
   const [missingRecipes, setMissingRecipes] = useState<string[]>([]);
+  const [dayCounts, setDayCounts] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
+  const [view, setView] = useState<"total" | "weekday">("weekday");
 
   const getTableNames = () => {
     switch (inventoryType) {
@@ -76,6 +84,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const fromStr = format(startOfDay(fromDate), "yyyy-MM-dd");
       const toStr = format(startOfDay(toDate), "yyyy-MM-dd");
       const fromTs = startOfDay(fromDate).toISOString();
+      const counts = [0, 0, 0, 0, 0, 0, 0];
+      eachDayOfInterval({ start: startOfDay(fromDate), end: startOfDay(toDate) }).forEach((d) => {
+        counts[isoDay(d)] += 1;
+      });
+      setDayCounts(counts);
       const toTs = endOfDay(toDate).toISOString();
 
       // 1. Comenzi de client din perioada selectată (data producție sau, dacă lipsește, data creării)
@@ -128,11 +141,13 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       (finite || []).forEach((p: any) => finiteMap.set(p.id, p.nume));
 
       // 4. Agregare necesar net pe ingredient
-      const need = new Map<string, { name: string; qty: number }>();
+      const need = new Map<string, { name: string; qty: number; perDay: number[] }>();
       const missing = new Set<string>();
 
       orders.forEach((o: any) => {
         if (!o.produs_id) return;
+        const refDate = new Date(o.data_productie || o.created_at);
+        const dayIdx = isNaN(refDate.getTime()) ? null : isoDay(refDate);
         const recipe = recipeByProduct.get(o.produs_id);
         if (!recipe?.productie_retete_ingrediente?.length) {
           missing.add(finiteMap.get(o.produs_id) || o.produs_id);
@@ -142,9 +157,13 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           const name = ing.productie_ingrediente?.nume || "Necunoscut";
           const qty = toKg((Number(ing.cantitate_necesara) || 0) * (Number(o.cantitate) || 0), ing.unitate_masura);
           const key = norm(name);
-          const prev = need.get(key);
-          if (prev) prev.qty += qty;
-          else need.set(key, { name, qty });
+          let entry = need.get(key);
+          if (!entry) {
+            entry = { name, qty: 0, perDay: [0, 0, 0, 0, 0, 0, 0] };
+            need.set(key, entry);
+          }
+          entry.qty += qty;
+          if (dayIdx !== null) entry.perDay[dayIdx] += qty;
         });
       });
 
@@ -167,7 +186,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const pt = Number(p?.pt_percent) || 0;
         const brut = v.qty * (1 + pt / 100);
         const stock = p ? stockByProduct.get(p.id) || 0 : 0;
+        const factor = 1 + pt / 100;
+        const perDayBrut = v.perDay.map((q) => q * factor);
         return {
+          perDayBrut,
+          perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
           key,
           name: p?.name || v.name,
           unit: p?.default_unit || "kg",
@@ -202,15 +225,22 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   }, [rows, searchTerm]);
 
   const exportExcel = () => {
-    const data = filtered.map((r) => ({
-      Materie: r.name,
-      UM: r.unit,
-      "Necesar net": Math.round(r.net * 100) / 100,
-      "% PT": r.pt,
-      "Necesar cu PT": Math.round(r.brut * 100) / 100,
-      "Stoc curent": Math.round(r.stock * 100) / 100,
-      Diferență: Math.round(r.diff * 100) / 100,
-    }));
+    const data = filtered.map((r) => {
+      const base: Record<string, any> = {
+        Materie: r.name,
+        UM: r.unit,
+        "Necesar net": Math.round(r.net * 100) / 100,
+        "% PT": r.pt,
+        "Necesar cu PT": Math.round(r.brut * 100) / 100,
+        "Stoc curent": Math.round(r.stock * 100) / 100,
+        Diferență: Math.round(r.diff * 100) / 100,
+      };
+      WEEKDAYS.forEach((w, i) => {
+        base[`${w} - necesar`] = Math.round(r.perDayBrut[i] * 100) / 100;
+        base[`${w} - medie`] = Math.round(r.perDayAvg[i] * 100) / 100;
+      });
+      return base;
+    });
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Necesar comenzi");
@@ -256,6 +286,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           <FileDown className="h-4 w-4 mr-2" />
           Export Excel
         </Button>
+        <div className="flex gap-1">
+          <Button size="sm" variant={view === "weekday" ? "default" : "outline"} onClick={() => setView("weekday")}>
+            Pe zilele săptămânii
+          </Button>
+          <Button size="sm" variant={view === "total" ? "default" : "outline"} onClick={() => setView("total")}>
+            Total perioadă
+          </Button>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">
@@ -285,8 +323,19 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                 <TableHead className="text-right">Necesar net</TableHead>
                 <TableHead className="text-right">% PT</TableHead>
                 <TableHead className="text-right">Necesar cu PT</TableHead>
-                <TableHead className="text-right">Stoc curent</TableHead>
-                <TableHead className="text-right">Diferență</TableHead>
+                {view === "weekday" ? (
+                  WEEKDAYS.map((w, i) => (
+                    <TableHead key={w} className="text-right whitespace-nowrap">
+                      {w}
+                      <span className="block text-[10px] font-normal text-muted-foreground">{dayCounts[i]} zile</span>
+                    </TableHead>
+                  ))
+                ) : (
+                  <>
+                    <TableHead className="text-right">Stoc curent</TableHead>
+                    <TableHead className="text-right">Diferență</TableHead>
+                  </>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -306,10 +355,26 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                   <TableCell className="text-right font-semibold text-primary">
                     {r.brut.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                   </TableCell>
-                  <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
-                  <TableCell className={cn("text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
-                    {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
-                  </TableCell>
+                  {view === "weekday" ? (
+                    WEEKDAYS.map((w, i) => (
+                      <TableCell key={w} className="text-right">
+                        <span className="font-medium">
+                          {r.perDayBrut[i].toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                        </span>
+                        <span className="block text-[11px] text-primary">
+                          ø {r.perDayAvg[i].toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                        </span>
+                      </TableCell>
+                    ))
+                  ) : (
+                    <>
+                      <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                      <TableCell className={cn("text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
+                        {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                      </TableCell>
+                    </>
+                  )}
+
                 </TableRow>
               ))}
             </TableBody>
