@@ -101,20 +101,36 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const toTs = endOfDay(toDate).toISOString();
 
       // 1. Comenzi de client din perioada selectată (data producție sau, dacă lipsește, data creării)
-      const { data: byProdDate, error: e1 } = await supabase
-        .from("productie_comenzi")
-        .select("id, produs_id, cantitate, data_productie, created_at, status")
-        .gte("data_productie", fromStr)
-        .lte("data_productie", toStr);
-      if (e1) throw e1;
+      const fetchAll = async (build: () => any) => {
+        const all: any[] = [];
+        const step = 1000;
+        for (let from = 0; ; from += step) {
+          const { data, error } = await build().range(from, from + step - 1);
+          if (error) throw error;
+          all.push(...(data || []));
+          if (!data || data.length < step) break;
+        }
+        return all;
+      };
 
-      const { data: byCreated, error: e2 } = await supabase
-        .from("productie_comenzi")
-        .select("id, produs_id, cantitate, data_productie, created_at, status")
-        .is("data_productie", null)
-        .gte("created_at", fromTs)
-        .lte("created_at", toTs);
-      if (e2) throw e2;
+      const byProdDate = await fetchAll(() =>
+        supabase
+          .from("productie_comenzi")
+          .select("id, produs_id, cantitate, data_productie, created_at, status")
+          .gte("data_productie", fromStr)
+          .lte("data_productie", toStr)
+          .order("id")
+      );
+
+      const byCreated = await fetchAll(() =>
+        supabase
+          .from("productie_comenzi")
+          .select("id, produs_id, cantitate, data_productie, created_at, status")
+          .is("data_productie", null)
+          .gte("created_at", fromTs)
+          .lte("created_at", toTs)
+          .order("id")
+      );
 
       const orders = [...(byProdDate || []), ...(byCreated || [])].filter(
         (o: any) => o.status !== "canceled_by_erp"
