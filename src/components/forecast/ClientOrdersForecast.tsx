@@ -3,14 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Loader2, FileDown } from "lucide-react";
-import { format, startOfDay, endOfDay, eachDayOfInterval, subDays } from "date-fns";
+import { CalendarIcon, Loader2, FileDown, Truck } from "lucide-react";
+import { format, startOfDay, endOfDay, eachDayOfInterval, subDays, addDays } from "date-fns";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import CreateSupplierOrderDialog, { OrderLineInput } from "./CreateSupplierOrderDialog";
 
 interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -29,7 +31,11 @@ interface Row {
   matched: boolean;
   perDayBrut: number[];
   perDayAvg: number[];
+  avgDaily: number;
+  coverDays: number | null;
+  coverDate: Date | null;
 }
+
 
 // 0 = Luni ... 6 = Duminică
 const WEEKDAYS = ["Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă", "Duminică"];
