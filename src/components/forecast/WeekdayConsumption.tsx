@@ -37,6 +37,10 @@ interface Row {
   coverDate: Date | null;
   leadTime: number;
   suggestedQty: number;
+  ordered: number;
+  orderedEta: Date | null;
+  coverAfterOrder: number | null;
+  coverDateAfterOrder: Date | null;
 }
 
 
