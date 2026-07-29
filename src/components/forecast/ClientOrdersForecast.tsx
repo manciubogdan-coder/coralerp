@@ -440,7 +440,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     }
                   />
                 </TableHead>
-                <TableHead className="min-w-[220px]">Materie primă</TableHead>
+                <TableHead className="min-w-[160px]">Materie primă</TableHead>
                 <TableHead>UM</TableHead>
                 <TableHead className="text-right">Necesar net</TableHead>
                 <TableHead className="text-right">% PT</TableHead>
