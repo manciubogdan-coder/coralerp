@@ -163,10 +163,35 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
         arr[isoDay(d)] += Number(item.quantity) || 0;
       });
 
+      // stoc curent per produs
+      const stockByProduct = new Map<string, number>();
+      {
+        let sp = 0;
+        let more = true;
+        while (more) {
+          const { data: invRows } = await supabase
+            .from(tables.inventory)
+            .select("product_id, quantity")
+            .gt("quantity", 0)
+            .range(sp * 1000, (sp + 1) * 1000 - 1);
+          (invRows || []).forEach((i: any) => {
+            if (!i.product_id) return;
+            stockByProduct.set(i.product_id, (stockByProduct.get(i.product_id) || 0) + (Number(i.quantity) || 0));
+          });
+          more = (invRows || []).length === 1000;
+          sp++;
+        }
+      }
+
+      const totalDays = counts.reduce((a, b) => a + b, 0) || 1;
+
       const result: Row[] = (productsData || [])
         .map((p: any) => {
           const perDayTotals = perProduct.get(p.id) || [0, 0, 0, 0, 0, 0, 0];
           const total = perDayTotals.reduce((a, b) => a + b, 0);
+          const stock = stockByProduct.get(p.id) || 0;
+          const avgDaily = total / totalDays;
+          const coverDays = avgDaily > 0 ? stock / avgDaily : null;
           return {
             product_id: p.id,
             product_name: p.name,
@@ -175,10 +200,15 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
             total,
             perDayTotals,
             perDayAvg: perDayTotals.map((v, i) => (counts[i] > 0 ? v / counts[i] : 0)),
+            stock,
+            avgDaily,
+            coverDays,
+            coverDate: coverDays !== null ? addDays(new Date(), Math.floor(coverDays)) : null,
           };
         })
         .filter((r) => r.total > 0)
         .sort((a, b) => b.total - a.total);
+
 
       setRows(result);
     } catch (e) {
