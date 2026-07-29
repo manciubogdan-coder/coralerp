@@ -406,7 +406,12 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
                     {r.total.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">{r.leadTime} zile</TableCell>
+                  <TableCell className="text-right font-semibold">
+                    {r.suggestedQty > 0 ? r.suggestedQty.toLocaleString("ro-RO", { maximumFractionDigits: 2 }) : "—"}
+                  </TableCell>
                   <TableCell
+
                     className={cn(
                       "text-right font-semibold",
                       r.coverDays === null
