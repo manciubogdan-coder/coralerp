@@ -209,6 +209,32 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
         if (s2.product_id) leadByProduct.set(s2.product_id, Number(s2.lead_time_days) || 7);
       });
 
+      const ordersTable =
+        inventoryType === "ambalaje"
+          ? "ambalaje_product_orders"
+          : inventoryType === "etichete"
+          ? "etichete_product_orders"
+          : "product_orders";
+      const { data: pendingOrders } = await supabase
+        .from(ordersTable)
+        .select("product_id, quantity_ordered, expected_delivery_date, status")
+        .in("status", ["pending", "ordered"]);
+      const today0 = startOfDay(new Date());
+      const orderedByProduct = new Map<string, { qty: number; eta: Date | null }>();
+      (pendingOrders || []).filter((o: any) => {
+        if (!o.expected_delivery_date) return false;
+        return new Date(o.expected_delivery_date) >= today0;
+      }).forEach((o: any) => {
+        if (!o.product_id) return;
+        const cur = orderedByProduct.get(o.product_id) || { qty: 0, eta: null as Date | null };
+        cur.qty += Number(o.quantity_ordered) || 0;
+        if (o.expected_delivery_date) {
+          const d = new Date(o.expected_delivery_date);
+          if (!cur.eta || d < cur.eta) cur.eta = d;
+        }
+        orderedByProduct.set(o.product_id, cur);
+      });
+
       const totalDays = counts.reduce((a, b) => a + b, 0) || 1;
 
       const result: Row[] = (productsData || [])
