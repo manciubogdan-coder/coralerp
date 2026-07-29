@@ -209,7 +209,7 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Anulează
           </Button>
-          <Button onClick={handleGenerate} disabled={!supplierId}>
+          <Button onClick={handleGenerate} disabled={!supplierId || saving}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Generează comanda
           </Button>
