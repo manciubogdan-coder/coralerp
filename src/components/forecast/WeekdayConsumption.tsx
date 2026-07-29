@@ -416,6 +416,7 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
                 <TableHead>UM</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-right">Stoc curent</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Comandat</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Termen livrare</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Cant. recomandată</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
