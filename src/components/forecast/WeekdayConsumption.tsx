@@ -3,14 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Loader2, FileDown } from "lucide-react";
-import { format, subDays, startOfDay, endOfDay, eachDayOfInterval } from "date-fns";
+import { CalendarIcon, Loader2, FileDown, Truck } from "lucide-react";
+import { format, subDays, startOfDay, endOfDay, eachDayOfInterval, addDays } from "date-fns";
 import { ro } from "date-fns/locale";
 import { formatInTimeZone } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import CreateSupplierOrderDialog, { OrderLineInput } from "./CreateSupplierOrderDialog";
 
 interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -29,7 +31,12 @@ interface Row {
   total: number;
   perDayTotals: number[];
   perDayAvg: number[];
+  stock: number;
+  avgDaily: number;
+  coverDays: number | null;
+  coverDate: Date | null;
 }
+
 
 const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" }) => {
   const [fromDate, setFromDate] = useState<Date>(subDays(new Date(), 30));
