@@ -293,9 +293,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         .filter((r) => selected.has(r.key))
         .map((r) => ({
           key: r.key,
+          productId: r.productId,
           name: r.name,
           unit: r.unit,
-          qty: Math.max(r.brut - r.stock, 0),
+          qty: Math.max(r.brut - r.stock - r.ordered, 0),
         })),
     [filtered, selected]
   );
