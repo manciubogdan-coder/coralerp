@@ -232,11 +232,28 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryType]);
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [orderOpen, setOrderOpen] = useState(false);
+
   const filtered = useMemo(() => {
     if (!searchTerm) return rows;
     const s = searchTerm.toLowerCase();
     return rows.filter((r) => r.name.toLowerCase().includes(s));
   }, [rows, searchTerm]);
+
+  const orderLines: OrderLineInput[] = useMemo(
+    () =>
+      filtered
+        .filter((r) => selected.has(r.key))
+        .map((r) => ({
+          key: r.key,
+          name: r.name,
+          unit: r.unit,
+          qty: Math.max(r.brut - r.stock, 0),
+        })),
+    [filtered, selected]
+  );
+
 
   const exportExcel = () => {
     const data = filtered.map((r) => {
