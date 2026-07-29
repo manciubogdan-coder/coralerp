@@ -323,6 +323,14 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
         "Nume Produs": r.product_name,
         Unitate: r.unit,
         "Total Perioadă": Math.round(r.total * 100) / 100,
+        "Stoc curent": Math.round(r.stock * 100) / 100,
+        Comandat: Math.round(r.ordered * 100) / 100,
+        "Termen livrare": r.leadTime,
+        "Cant. recomandată": Math.round(r.suggestedQty * 100) / 100,
+        "Zile acoperire": r.coverDays === null ? "-" : Math.round(r.coverDays * 10) / 10,
+        "Ajunge până la": r.coverDate ? format(r.coverDate, "yyyy-MM-dd") : "-",
+        "Zile după comandă": r.coverAfterOrder === null ? "-" : Math.round(r.coverAfterOrder * 10) / 10,
+        "Ajunge după comandă": r.coverDateAfterOrder ? format(r.coverDateAfterOrder, "yyyy-MM-dd") : "-",
       };
       WEEKDAYS.forEach((w, i) => {
         base[`${w} - total`] = Math.round(r.perDayTotals[i] * 100) / 100;
