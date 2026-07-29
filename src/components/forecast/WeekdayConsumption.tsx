@@ -261,6 +261,11 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
           <FileDown className="h-4 w-4 mr-2" />
           Export Excel
         </Button>
+        <Button onClick={() => setOrderOpen(true)} disabled={selected.size === 0}>
+          <Truck className="h-4 w-4 mr-2" />
+          Comandă furnizor ({selected.size})
+        </Button>
+
       </div>
 
       <p className="text-xs text-muted-foreground">
