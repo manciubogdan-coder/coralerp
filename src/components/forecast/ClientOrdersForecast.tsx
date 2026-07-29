@@ -37,6 +37,8 @@ interface Row {
   avgDaily: number;
   coverDays: number | null;
   coverDate: Date | null;
+  leadTime: number;
+  suggestedQty: number;
 }
 
 
@@ -78,11 +80,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   const getTableNames = () => {
     switch (inventoryType) {
       case "ambalaje":
-        return { products: "ambalaje_products" as const, inventory: "ambalaje_inventory" as const };
+        return { products: "ambalaje_products" as const, inventory: "ambalaje_inventory" as const, settings: "ambalaje_product_order_settings" as const };
       case "etichete":
-        return { products: "etichete_products" as const, inventory: "etichete_inventory" as const };
+        return { products: "etichete_products" as const, inventory: "etichete_inventory" as const, settings: "etichete_product_order_settings" as const };
       default:
-        return { products: "products" as const, inventory: "inventory" as const };
+        return { products: "products" as const, inventory: "inventory" as const, settings: "product_order_settings" as const };
     }
   };
 
@@ -217,8 +219,13 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         .from(ordersTable)
         .select("product_id, quantity_ordered, expected_delivery_date, status")
         .in("status", ["pending", "ordered"]);
+      const today0 = startOfDay(new Date());
       const orderedByProduct = new Map<string, { qty: number; eta: Date | null }>();
-      (pendingOrders || []).forEach((o: any) => {
+      (pendingOrders || []).filter((o: any) => {
+        // ignorăm comenzile vechi (data estimată de livrare a trecut) — sunt reziduale
+        if (!o.expected_delivery_date) return false;
+        return new Date(o.expected_delivery_date) >= today0;
+      }).forEach((o: any) => {
         if (!o.product_id) return;
         const cur = orderedByProduct.get(o.product_id) || { qty: 0, eta: null as Date | null };
         cur.qty += Number(o.quantity_ordered) || 0;
@@ -227,6 +234,13 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           if (!cur.eta || d < cur.eta) cur.eta = d;
         }
         orderedByProduct.set(o.product_id, cur);
+      });
+
+      // 5c. Termen de livrare per produs
+      const { data: settingsRows } = await supabase.from(tables.settings).select("product_id, lead_time_days");
+      const leadByProduct = new Map<string, number>();
+      (settingsRows || []).forEach((s2: any) => {
+        if (s2.product_id) leadByProduct.set(s2.product_id, Number(s2.lead_time_days) || 7);
       });
 
       const totalDays = counts.reduce((a, b) => a + b, 0) || 1;
@@ -241,6 +255,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const perDayBrut = v.perDay.map((q) => q * factor);
         const avgDaily = brut / totalDays;
         const coverDays = avgDaily > 0 ? stock / avgDaily : null;
+        const leadTime = p ? leadByProduct.get(p.id) ?? 7 : 7;
+        const orderedQty = ord?.qty || 0;
+        const suggestedQty = Math.max(avgDaily * leadTime - stock - orderedQty, 0);
         return {
           perDayBrut,
           perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
@@ -259,6 +276,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           avgDaily,
           coverDays,
           coverDate: coverDays !== null ? addDays(new Date(), Math.floor(coverDays)) : null,
+          leadTime,
+          suggestedQty,
         };
       });
 
@@ -296,7 +315,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           productId: r.productId,
           name: r.name,
           unit: r.unit,
-          qty: Math.max(r.brut - r.stock - r.ordered, 0),
+          qty: r.suggestedQty,
         })),
     [filtered, selected]
   );
@@ -416,6 +435,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                 <TableHead className="text-right">Necesar cu PT</TableHead>
                 <TableHead className="text-right">Stoc curent</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Comandat</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Termen livrare</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Cant. recomandată</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Ajunge până la</TableHead>
                 {view === "weekday" ? (
@@ -477,6 +498,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">{r.leadTime} zile</TableCell>
+                  <TableCell className="text-right font-semibold">
+                    {r.suggestedQty > 0
+                      ? r.suggestedQty.toLocaleString("ro-RO", { maximumFractionDigits: 2 })
+                      : "—"}
                   </TableCell>
                   <TableCell
                     className={cn(
