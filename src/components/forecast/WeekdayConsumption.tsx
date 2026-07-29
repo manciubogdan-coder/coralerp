@@ -412,7 +412,7 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
                     onCheckedChange={(v) => setSelected(v ? new Set(filtered.map((r) => r.product_id)) : new Set())}
                   />
                 </TableHead>
-                <TableHead className="min-w-[220px]">Produs</TableHead>
+                <TableHead className="min-w-[160px]">Produs</TableHead>
                 <TableHead>UM</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-right">Stoc curent</TableHead>
