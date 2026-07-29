@@ -260,6 +260,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const leadTime = p ? leadByProduct.get(p.id) ?? 7 : 7;
         const orderedQty = ord?.qty || 0;
         const suggestedQty = Math.max(avgDaily * leadTime - stock - orderedQty, 0);
+        const totalAfterOrder = stock + orderedQty + suggestedQty;
+        const coverAfterOrder = avgDaily > 0 ? totalAfterOrder / avgDaily : null;
         return {
           perDayBrut,
           perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
@@ -280,6 +282,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           coverDate: coverDays !== null ? addDays(new Date(), Math.floor(coverDays)) : null,
           leadTime,
           suggestedQty,
+          coverAfterOrder,
+          coverDateAfterOrder: coverAfterOrder !== null ? addDays(new Date(), Math.floor(coverAfterOrder)) : null,
         };
       });
 
