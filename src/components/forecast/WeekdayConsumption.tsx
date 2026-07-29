@@ -194,6 +194,9 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryType]);
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [orderOpen, setOrderOpen] = useState(false);
+
   const filtered = useMemo(() => {
     if (!searchTerm) return rows;
     const s = searchTerm.toLowerCase();
@@ -201,6 +204,22 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
       (r) => r.product_name.toLowerCase().includes(s) || (r.product_code || "").toLowerCase().includes(s)
     );
   }, [rows, searchTerm]);
+
+  const orderLines: OrderLineInput[] = useMemo(
+    () =>
+      filtered
+        .filter((r) => selected.has(r.product_id))
+        .map((r) => ({
+          key: r.product_id,
+          name: r.product_name,
+          code: r.product_code,
+          unit: r.unit,
+          // sugestie: necesar pentru 14 zile minus stocul curent
+          qty: Math.max(r.avgDaily * 14 - r.stock, 0),
+        })),
+    [filtered, selected]
+  );
+
 
   const exportExcel = () => {
     const data = filtered.map((r) => {
