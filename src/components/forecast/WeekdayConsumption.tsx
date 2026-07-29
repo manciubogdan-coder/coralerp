@@ -279,9 +279,18 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={filtered.length > 0 && filtered.every((r) => selected.has(r.product_id))}
+                    onCheckedChange={(v) => setSelected(v ? new Set(filtered.map((r) => r.product_id)) : new Set())}
+                  />
+                </TableHead>
                 <TableHead className="min-w-[220px]">Produs</TableHead>
                 <TableHead>UM</TableHead>
                 <TableHead className="text-right">Total</TableHead>
+                <TableHead className="text-right">Stoc curent</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Ajunge până la</TableHead>
                 {WEEKDAYS.map((w, i) => (
                   <TableHead key={w} className="text-right whitespace-nowrap">
                     {w}
@@ -293,6 +302,19 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
             <TableBody>
               {filtered.map((r) => (
                 <TableRow key={r.product_id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selected.has(r.product_id)}
+                      onCheckedChange={(v) =>
+                        setSelected((prev) => {
+                          const next = new Set(prev);
+                          if (v) next.add(r.product_id);
+                          else next.delete(r.product_id);
+                          return next;
+                        })
+                      }
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">
                     {r.product_name}
                     {r.product_code ? <span className="block text-xs text-muted-foreground font-mono">{r.product_code}</span> : null}
@@ -300,6 +322,24 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
                   <TableCell>{r.unit}</TableCell>
                   <TableCell className="text-right font-semibold">
                     {r.total.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right font-semibold",
+                      r.coverDays === null
+                        ? "text-muted-foreground"
+                        : r.coverDays < 3
+                        ? "text-destructive"
+                        : r.coverDays < 7
+                        ? "text-amber-600"
+                        : "text-emerald-600"
+                    )}
+                  >
+                    {r.coverDays === null ? "—" : `${r.coverDays.toLocaleString("ro-RO", { maximumFractionDigits: 1 })} zile`}
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    {r.coverDate ? format(r.coverDate, "dd MMM yyyy", { locale: ro }) : "—"}
                   </TableCell>
                   {WEEKDAYS.map((w, i) => (
                     <TableCell key={w} className="text-right">
@@ -317,6 +357,14 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
           </Table>
         </div>
       )}
+
+      <CreateSupplierOrderDialog
+        open={orderOpen}
+        onOpenChange={setOrderOpen}
+        inventoryType={inventoryType}
+        lines={orderLines}
+      />
+
     </div>
   );
 };
