@@ -286,6 +286,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           <FileDown className="h-4 w-4 mr-2" />
           Export Excel
         </Button>
+        <div className="flex gap-1">
+          <Button size="sm" variant={view === "weekday" ? "default" : "outline"} onClick={() => setView("weekday")}>
+            Pe zilele săptămânii
+          </Button>
+          <Button size="sm" variant={view === "total" ? "default" : "outline"} onClick={() => setView("total")}>
+            Total perioadă
+          </Button>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">
@@ -315,8 +323,19 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                 <TableHead className="text-right">Necesar net</TableHead>
                 <TableHead className="text-right">% PT</TableHead>
                 <TableHead className="text-right">Necesar cu PT</TableHead>
-                <TableHead className="text-right">Stoc curent</TableHead>
-                <TableHead className="text-right">Diferență</TableHead>
+                {view === "weekday" ? (
+                  WEEKDAYS.map((w, i) => (
+                    <TableHead key={w} className="text-right whitespace-nowrap">
+                      {w}
+                      <span className="block text-[10px] font-normal text-muted-foreground">{dayCounts[i]} zile</span>
+                    </TableHead>
+                  ))
+                ) : (
+                  <>
+                    <TableHead className="text-right">Stoc curent</TableHead>
+                    <TableHead className="text-right">Diferență</TableHead>
+                  </>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
