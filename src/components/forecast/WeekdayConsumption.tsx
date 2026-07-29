@@ -455,6 +455,23 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
                     {r.total.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    {r.ordered > 0 ? (
+                      <>
+                        <Badge className="bg-blue-500 hover:bg-blue-600">
+                          <Truck className="h-3 w-3 mr-1" />
+                          {r.ordered.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                        </Badge>
+                        {r.orderedEta && (
+                          <span className="block text-[10px] text-muted-foreground mt-0.5">
+                            {format(r.orderedEta, "dd MMM", { locale: ro })}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">{r.leadTime} zile</TableCell>
                   <TableCell className="text-right font-semibold">
                     {r.suggestedQty > 0 ? r.suggestedQty.toLocaleString("ro-RO", { maximumFractionDigits: 2 }) : "—"}
