@@ -415,6 +415,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                 <TableHead className="text-right">% PT</TableHead>
                 <TableHead className="text-right">Necesar cu PT</TableHead>
                 <TableHead className="text-right">Stoc curent</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Comandat</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Ajunge până la</TableHead>
                 {view === "weekday" ? (
