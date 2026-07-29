@@ -451,6 +451,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                 <TableHead className="text-right whitespace-nowrap">Cant. recomandată</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Ajunge până la</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Zile după comandă</TableHead>
                 {view === "weekday" ? (
                   WEEKDAYS.map((w, i) => (
                     <TableHead key={w} className="text-right whitespace-nowrap">
