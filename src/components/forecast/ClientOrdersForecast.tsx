@@ -355,10 +355,26 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                   <TableCell className="text-right font-semibold text-primary">
                     {r.brut.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                   </TableCell>
-                  <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
-                  <TableCell className={cn("text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
-                    {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
-                  </TableCell>
+                  {view === "weekday" ? (
+                    WEEKDAYS.map((w, i) => (
+                      <TableCell key={w} className="text-right">
+                        <span className="font-medium">
+                          {r.perDayBrut[i].toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                        </span>
+                        <span className="block text-[11px] text-primary">
+                          ø {r.perDayAvg[i].toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                        </span>
+                      </TableCell>
+                    ))
+                  ) : (
+                    <>
+                      <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                      <TableCell className={cn("text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
+                        {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                      </TableCell>
+                    </>
+                  )}
+
                 </TableRow>
               ))}
             </TableBody>
