@@ -26,12 +26,17 @@ const ForecastView: React.FC<ForecastViewProps> = ({ inventoryType }) => {
         />
       </div>
 
-      <Tabs defaultValue="today" className="w-full">
+      <Tabs defaultValue="weekday" className="w-full">
         <TabsList className="mb-4">
+          <TabsTrigger value="weekday">Consum pe zilele săptămânii</TabsTrigger>
           <TabsTrigger value="today">De Comandat Azi</TabsTrigger>
           <TabsTrigger value="future">Comenzi Viitoare</TabsTrigger>
         </TabsList>
-        
+
+        <TabsContent value="weekday">
+          <WeekdayConsumption inventoryType={inventoryType} searchTerm={searchTerm} />
+        </TabsContent>
+
         <TabsContent value="today">
           <OrderToday inventoryType={inventoryType} searchTerm={searchTerm} />
         </TabsContent>
@@ -40,6 +45,7 @@ const ForecastView: React.FC<ForecastViewProps> = ({ inventoryType }) => {
           <FutureOrders inventoryType={inventoryType} searchTerm={searchTerm} />
         </TabsContent>
       </Tabs>
+
     </div>
   );
 };
