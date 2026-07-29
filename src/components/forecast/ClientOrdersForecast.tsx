@@ -1,0 +1,323 @@
+import React, { useState, useEffect, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-custom-toast";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon, Loader2, FileDown } from "lucide-react";
+import { format, startOfDay, endOfDay } from "date-fns";
+import { ro } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import * as XLSX from "xlsx";
+
+interface Props {
+  inventoryType: "materii-prime" | "ambalaje" | "etichete";
+  searchTerm?: string;
+}
+
+interface Row {
+  key: string;
+  name: string;
+  unit: string;
+  net: number;
+  pt: number;
+  brut: number;
+  stock: number;
+  diff: number;
+  matched: boolean;
+}
+
+const norm = (s: string) =>
+  (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+
+const toKg = (q: number, u?: string) => {
+  switch ((u || "").toLowerCase()) {
+    case "g":
+    case "gr":
+    case "grame":
+      return q / 1000;
+    case "t":
+    case "tone":
+      return q * 1000;
+    default:
+      return q;
+  }
+};
+
+const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" }) => {
+  const [fromDate, setFromDate] = useState<Date>(new Date());
+  const [toDate, setToDate] = useState<Date>(new Date());
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [ordersCount, setOrdersCount] = useState(0);
+  const [missingRecipes, setMissingRecipes] = useState<string[]>([]);
+
+  const getTableNames = () => {
+    switch (inventoryType) {
+      case "ambalaje":
+        return { products: "ambalaje_products" as const, inventory: "ambalaje_inventory" as const };
+      case "etichete":
+        return { products: "etichete_products" as const, inventory: "etichete_inventory" as const };
+      default:
+        return { products: "products" as const, inventory: "inventory" as const };
+    }
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const tables = getTableNames();
+      const fromStr = format(startOfDay(fromDate), "yyyy-MM-dd");
+      const toStr = format(startOfDay(toDate), "yyyy-MM-dd");
+      const fromTs = startOfDay(fromDate).toISOString();
+      const toTs = endOfDay(toDate).toISOString();
+
+      // 1. Comenzi de client din perioada selectată (data producție sau, dacă lipsește, data creării)
+      const { data: byProdDate, error: e1 } = await supabase
+        .from("productie_comenzi")
+        .select("id, produs_id, cantitate, data_productie, created_at, status")
+        .gte("data_productie", fromStr)
+        .lte("data_productie", toStr);
+      if (e1) throw e1;
+
+      const { data: byCreated, error: e2 } = await supabase
+        .from("productie_comenzi")
+        .select("id, produs_id, cantitate, data_productie, created_at, status")
+        .is("data_productie", null)
+        .gte("created_at", fromTs)
+        .lte("created_at", toTs);
+      if (e2) throw e2;
+
+      const orders = [...(byProdDate || []), ...(byCreated || [])].filter(
+        (o: any) => o.status !== "canceled_by_erp"
+      );
+      setOrdersCount(orders.length);
+
+      if (orders.length === 0) {
+        setRows([]);
+        setMissingRecipes([]);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Rețete active
+      const { data: recipes, error: e3 } = await supabase
+        .from("productie_retete")
+        .select(
+          `produs_id, activa,
+           productie_retete_ingrediente(ingredient_id, cantitate_necesara, unitate_masura,
+             productie_ingrediente(id, nume, unitate_masura))`
+        )
+        .eq("activa", true);
+      if (e3) throw e3;
+
+      const recipeByProduct = new Map<string, any>();
+      (recipes || []).forEach((r: any) => {
+        if (r.produs_id && !recipeByProduct.has(r.produs_id)) recipeByProduct.set(r.produs_id, r);
+      });
+
+      // 3. Produse finite (pentru nume la produsele fără rețetă)
+      const { data: finite } = await supabase.from("productie_produse").select("id, nume");
+      const finiteMap = new Map<string, string>();
+      (finite || []).forEach((p: any) => finiteMap.set(p.id, p.nume));
+
+      // 4. Agregare necesar net pe ingredient
+      const need = new Map<string, { name: string; qty: number }>();
+      const missing = new Set<string>();
+
+      orders.forEach((o: any) => {
+        if (!o.produs_id) return;
+        const recipe = recipeByProduct.get(o.produs_id);
+        if (!recipe?.productie_retete_ingrediente?.length) {
+          missing.add(finiteMap.get(o.produs_id) || o.produs_id);
+          return;
+        }
+        recipe.productie_retete_ingrediente.forEach((ing: any) => {
+          const name = ing.productie_ingrediente?.nume || "Necunoscut";
+          const qty = toKg((Number(ing.cantitate_necesara) || 0) * (Number(o.cantitate) || 0), ing.unitate_masura);
+          const key = norm(name);
+          const prev = need.get(key);
+          if (prev) prev.qty += qty;
+          else need.set(key, { name, qty });
+        });
+      });
+
+      setMissingRecipes([...missing].slice(0, 30));
+
+      // 5. Produse din depozit (PT + stoc)
+      const { data: products } = await supabase.from(tables.products).select("*");
+      const productByName = new Map<string, any>();
+      (products || []).forEach((p: any) => productByName.set(norm(p.name), p));
+
+      const { data: inv } = await supabase.from(tables.inventory).select("product_id, quantity").gt("quantity", 0);
+      const stockByProduct = new Map<string, number>();
+      (inv || []).forEach((i: any) => {
+        if (!i.product_id) return;
+        stockByProduct.set(i.product_id, (stockByProduct.get(i.product_id) || 0) + (Number(i.quantity) || 0));
+      });
+
+      const result: Row[] = [...need.entries()].map(([key, v]) => {
+        const p = productByName.get(key);
+        const pt = Number(p?.pt_percent) || 0;
+        const brut = v.qty * (1 + pt / 100);
+        const stock = p ? stockByProduct.get(p.id) || 0 : 0;
+        return {
+          key,
+          name: p?.name || v.name,
+          unit: p?.default_unit || "kg",
+          net: v.qty,
+          pt,
+          brut,
+          stock,
+          diff: stock - brut,
+          matched: !!p,
+        };
+      });
+
+      result.sort((a, b) => a.diff - b.diff);
+      setRows(result);
+    } catch (e) {
+      console.error("[ClientOrdersForecast]", e);
+      toast({ title: "Eroare la calculul necesarului", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventoryType]);
+
+  const filtered = useMemo(() => {
+    if (!searchTerm) return rows;
+    const s = searchTerm.toLowerCase();
+    return rows.filter((r) => r.name.toLowerCase().includes(s));
+  }, [rows, searchTerm]);
+
+  const exportExcel = () => {
+    const data = filtered.map((r) => ({
+      Materie: r.name,
+      UM: r.unit,
+      "Necesar net": Math.round(r.net * 100) / 100,
+      "% PT": r.pt,
+      "Necesar cu PT": Math.round(r.brut * 100) / 100,
+      "Stoc curent": Math.round(r.stock * 100) / 100,
+      Diferență: Math.round(r.diff * 100) / 100,
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Necesar comenzi");
+    XLSX.writeFile(wb, `ForecastComenziClient_${format(fromDate, "yyyyMMdd")}_${format(toDate, "yyyyMMdd")}.xlsx`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-end">
+        <div className="space-y-1">
+          <label className="text-sm font-medium">De la</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(fromDate, "dd MMM yyyy", { locale: ro })}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={fromDate} onSelect={(d) => d && setFromDate(d)} initialFocus className="pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Până la</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(toDate, "dd MMM yyyy", { locale: ro })}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={toDate} onSelect={(d) => d && setToDate(d)} initialFocus className="pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+        </div>
+        <Button onClick={fetchData} disabled={loading}>
+          {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+          Calculează
+        </Button>
+        <Button variant="outline" onClick={exportExcel} disabled={rows.length === 0}>
+          <FileDown className="h-4 w-4 mr-2" />
+          Export Excel
+        </Button>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Necesar calculat din comenzile de client introduse ({ordersCount} comenzi) × rețete active, la care se adaugă pierderea
+        tehnologică (%PT din nomenclatorul de produse).
+      </p>
+
+      {missingRecipes.length > 0 && (
+        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
+          Produse din comenzi fără rețetă activă (neincluse în calcul): {missingRecipes.join(", ")}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center p-8">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">Nu există comenzi de client în perioada selectată.</div>
+      ) : (
+        <div className="border rounded-lg overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-[220px]">Materie primă</TableHead>
+                <TableHead>UM</TableHead>
+                <TableHead className="text-right">Necesar net</TableHead>
+                <TableHead className="text-right">% PT</TableHead>
+                <TableHead className="text-right">Necesar cu PT</TableHead>
+                <TableHead className="text-right">Stoc curent</TableHead>
+                <TableHead className="text-right">Diferență</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((r) => (
+                <TableRow key={r.key}>
+                  <TableCell className="font-medium">
+                    {r.name}
+                    {!r.matched && (
+                      <Badge variant="outline" className="ml-2 text-[10px]">
+                        fără corespondent în stoc
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>{r.unit}</TableCell>
+                  <TableCell className="text-right">{r.net.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="text-right">{r.pt.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}%</TableCell>
+                  <TableCell className="text-right font-semibold text-primary">
+                    {r.brut.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell className={cn("text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
+                    {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ClientOrdersForecast;

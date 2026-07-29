@@ -5,6 +5,8 @@ import { Package, Boxes, Tag, TrendingUp, Warehouse } from "lucide-react";
 import InventoryManagement from "@/components/dashboard/InventoryManagement";
 import ReceptionReport from "@/components/inventory/ReceptionReport";
 import ForecastView from "@/components/forecast/ForecastView";
+import ClientOrdersForecast from "@/components/forecast/ClientOrdersForecast";
+
 import StockSufficiency from "@/components/forecast/StockSufficiency";
 import OrderManagement from "@/components/forecast/OrderManagement";
 import OrderHistory from "@/components/forecast/OrderHistory";
@@ -134,11 +136,12 @@ const AchizitiiHub: React.FC = () => {
           <div className="bg-white rounded-lg shadow-sm border p-3 md:p-4">
             <InventoryTypeSync type={forecastWarehouse}>
               <Tabs defaultValue="orders" className="w-full">
-                <TabsList className="flex w-full md:grid md:grid-cols-6 mb-4 gap-1 overflow-x-auto">
+                <TabsList className="flex w-full md:grid md:grid-cols-7 mb-4 gap-1 overflow-x-auto">
                   <TabsTrigger value="orders" className="flex-shrink-0 text-xs md:text-sm">Gestionare Comenzi</TabsTrigger>
                   <TabsTrigger value="history" className="flex-shrink-0 text-xs md:text-sm">Istoric Comenzi</TabsTrigger>
                   <TabsTrigger value="consumption" className="flex-shrink-0 text-xs md:text-sm">Raport Consum</TabsTrigger>
-                  <TabsTrigger value="forecast" className="flex-shrink-0 text-xs md:text-sm">Forecast</TabsTrigger>
+                  <TabsTrigger value="forecast" className="flex-shrink-0 text-xs md:text-sm">Forecast din transferuri</TabsTrigger>
+                  <TabsTrigger value="forecast-orders" className="flex-shrink-0 text-xs md:text-sm">Forecast din comenzi client</TabsTrigger>
                   <TabsTrigger value="sufficiency" className="flex-shrink-0 text-xs md:text-sm">Zile Stoc</TabsTrigger>
                   <TabsTrigger value="settings" className="flex-shrink-0 text-xs md:text-sm">Setări Produse</TabsTrigger>
                 </TabsList>
@@ -155,6 +158,9 @@ const AchizitiiHub: React.FC = () => {
                 <TabsContent value="forecast">
                   <ForecastView inventoryType={forecastWarehouse} />
                 </TabsContent>
+                <TabsContent value="forecast-orders">
+                  <ClientOrdersForecast inventoryType={forecastWarehouse} />
+                </TabsContent>
                 <TabsContent value="sufficiency">
                   <StockSufficiency inventoryType={forecastWarehouse} />
                 </TabsContent>
@@ -162,6 +168,7 @@ const AchizitiiHub: React.FC = () => {
                   <ProductOrderSettings inventoryType={forecastWarehouse} />
                 </TabsContent>
               </Tabs>
+
             </InventoryTypeSync>
           </div>
         </TabsContent>
