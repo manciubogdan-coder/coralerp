@@ -535,6 +535,20 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                   <TableCell className="text-right whitespace-nowrap">
                     {r.coverDate ? format(r.coverDate, "dd MMM yyyy", { locale: ro }) : "—"}
                   </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right font-semibold whitespace-nowrap",
+                      r.coverAfterOrder === null
+                        ? "text-muted-foreground"
+                        : r.coverAfterOrder < 3
+                        ? "text-destructive"
+                        : r.coverAfterOrder < 7
+                        ? "text-amber-600"
+                        : "text-emerald-600"
+                    )}
+                  >
+                    {r.coverAfterOrder === null ? "—" : `${r.coverAfterOrder.toLocaleString("ro-RO", { maximumFractionDigits: 1 })} zile`}
+                  </TableCell>
                   {view === "weekday" ? (
                     WEEKDAYS.map((w, i) => (
                       <TableCell key={w} className="text-right">
