@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -56,6 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [departments, setDepartments] = useState<DepartmentRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const currentUserIdRef = useRef<string | null>(null);
 
   const fetchProfile = async (userId: string) => {
     let nextProfile: AppProfile | null = null;
@@ -113,10 +114,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      const nextUserId = session?.user?.id ?? null;
+      const prevUserId = currentUserIdRef.current;
+
       setSession(session);
       setUser(session?.user ?? null);
 
       if (session?.user) {
+        // Dacă e același user (ex: TOKEN_REFRESHED sau revenire pe tab),
+        // NU punem isLoading=true — altfel se remontează toată aplicația
+        // și se pierde pagina/tabul curent.
+        if (prevUserId === nextUserId) return;
+
+        currentUserIdRef.current = nextUserId;
         setIsLoading(true);
         // Defer Supabase calls with setTimeout to avoid deadlock
         setTimeout(() => {
@@ -126,6 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           })();
         }, 0);
       } else {
+        currentUserIdRef.current = null;
         setProfile(null);
         setIsAdmin(false);
         setIsLoading(false);
@@ -140,10 +151,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
 
         if (session?.user) {
+          if (currentUserIdRef.current === session.user.id) return;
+          currentUserIdRef.current = session.user.id;
           setIsLoading(true);
           await fetchProfile(session.user.id);
           setIsLoading(false);
         } else {
+          currentUserIdRef.current = null;
           setIsLoading(false);
         }
       })

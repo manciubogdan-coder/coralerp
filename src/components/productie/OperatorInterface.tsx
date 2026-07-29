@@ -279,22 +279,12 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       }
     };
 
-    // Listener pentru focus/visibility changes
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log('📺 === PAGINA DEVINE VIZIBILĂ - REFRESH ===');
-        setRefreshKey(prev => prev + 1);
-      }
-    };
-
     window.addEventListener('quantity-corrected', handleQuantityCorrection as EventListener);
     window.addEventListener('storage', handleStorageChange);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('quantity-corrected', handleQuantityCorrection as EventListener);
       window.removeEventListener('storage', handleStorageChange);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
