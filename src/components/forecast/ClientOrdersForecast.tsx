@@ -187,6 +187,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         stockByProduct.set(i.product_id, (stockByProduct.get(i.product_id) || 0) + (Number(i.quantity) || 0));
       });
 
+      const totalDays = counts.reduce((a, b) => a + b, 0) || 1;
+
       const result: Row[] = [...need.entries()].map(([key, v]) => {
         const p = productByName.get(key);
         const pt = Number(p?.pt_percent) || 0;
@@ -194,6 +196,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const stock = p ? stockByProduct.get(p.id) || 0 : 0;
         const factor = 1 + pt / 100;
         const perDayBrut = v.perDay.map((q) => q * factor);
+        const avgDaily = brut / totalDays;
+        const coverDays = avgDaily > 0 ? stock / avgDaily : null;
         return {
           perDayBrut,
           perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
@@ -206,8 +210,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           stock,
           diff: stock - brut,
           matched: !!p,
+          avgDaily,
+          coverDays,
+          coverDate: coverDays !== null ? addDays(new Date(), Math.floor(coverDays)) : null,
         };
       });
+
 
       result.sort((a, b) => a.diff - b.diff);
       setRows(result);
