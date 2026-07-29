@@ -5,6 +5,8 @@ import { Package, Boxes, Tag, TrendingUp, Warehouse } from "lucide-react";
 import InventoryManagement from "@/components/dashboard/InventoryManagement";
 import ReceptionReport from "@/components/inventory/ReceptionReport";
 import ForecastView from "@/components/forecast/ForecastView";
+import ClientOrdersForecast from "@/components/forecast/ClientOrdersForecast";
+
 import StockSufficiency from "@/components/forecast/StockSufficiency";
 import OrderManagement from "@/components/forecast/OrderManagement";
 import OrderHistory from "@/components/forecast/OrderHistory";
