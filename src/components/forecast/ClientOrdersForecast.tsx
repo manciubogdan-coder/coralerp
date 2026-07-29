@@ -206,6 +206,29 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         stockByProduct.set(i.product_id, (stockByProduct.get(i.product_id) || 0) + (Number(i.quantity) || 0));
       });
 
+      // 5b. Comenzi către furnizor în curs (nelivrate)
+      const ordersTable =
+        inventoryType === "ambalaje"
+          ? "ambalaje_product_orders"
+          : inventoryType === "etichete"
+          ? "etichete_product_orders"
+          : "product_orders";
+      const { data: pendingOrders } = await supabase
+        .from(ordersTable)
+        .select("product_id, quantity_ordered, expected_delivery_date, status")
+        .in("status", ["pending", "ordered"]);
+      const orderedByProduct = new Map<string, { qty: number; eta: Date | null }>();
+      (pendingOrders || []).forEach((o: any) => {
+        if (!o.product_id) return;
+        const cur = orderedByProduct.get(o.product_id) || { qty: 0, eta: null as Date | null };
+        cur.qty += Number(o.quantity_ordered) || 0;
+        if (o.expected_delivery_date) {
+          const d = new Date(o.expected_delivery_date);
+          if (!cur.eta || d < cur.eta) cur.eta = d;
+        }
+        orderedByProduct.set(o.product_id, cur);
+      });
+
       const totalDays = counts.reduce((a, b) => a + b, 0) || 1;
 
       const result: Row[] = [...need.entries()].map(([key, v]) => {
@@ -213,6 +236,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const pt = Number(p?.pt_percent) || 0;
         const brut = v.qty * (1 + pt / 100);
         const stock = p ? stockByProduct.get(p.id) || 0 : 0;
+        const ord = p ? orderedByProduct.get(p.id) : undefined;
         const factor = 1 + pt / 100;
         const perDayBrut = v.perDay.map((q) => q * factor);
         const avgDaily = brut / totalDays;
@@ -221,12 +245,15 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           perDayBrut,
           perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
           key,
+          productId: p?.id || null,
           name: p?.name || v.name,
           unit: p?.default_unit || "kg",
           net: v.qty,
           pt,
           brut,
           stock,
+          ordered: ord?.qty || 0,
+          orderedEta: ord?.eta || null,
           diff: stock - brut,
           matched: !!p,
           avgDaily,
