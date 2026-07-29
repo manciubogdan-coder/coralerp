@@ -45,9 +45,15 @@ const ForecastPage = () => {
         </div>
         
         <div className="bg-white rounded-lg shadow-md p-4">
-        <Tabs defaultValue="forecast-orders" className="w-full">
-            <TabsList className="grid w-full grid-cols-6 mb-4">
-              <TabsTrigger value="forecast-orders">Forecast din comenzi client</TabsTrigger>
+        <Tabs
+          key={inventoryType}
+          defaultValue={inventoryType === "materii-prime" ? "forecast-orders" : "forecast"}
+          className="w-full"
+        >
+            <TabsList className={`grid w-full mb-4 ${inventoryType === "materii-prime" ? "grid-cols-6" : "grid-cols-5"}`}>
+              {inventoryType === "materii-prime" && (
+                <TabsTrigger value="forecast-orders">Forecast din comenzi client</TabsTrigger>
+              )}
               <TabsTrigger value="forecast">Forecast din transferuri</TabsTrigger>
               <TabsTrigger value="orders">Gestionare Comenzi</TabsTrigger>
               <TabsTrigger value="history">Istoric Comenzi</TabsTrigger>
@@ -67,9 +73,12 @@ const ForecastPage = () => {
               <ForecastView inventoryType={inventoryType} />
             </TabsContent>
             
-            <TabsContent value="forecast-orders">
-              <ClientOrdersForecast inventoryType={inventoryType} />
-            </TabsContent>
+            {inventoryType === "materii-prime" && (
+              <TabsContent value="forecast-orders">
+                <ClientOrdersForecast inventoryType={inventoryType} />
+              </TabsContent>
+            )}
+
 
             <TabsContent value="sufficiency">
               <StockSufficiency inventoryType={inventoryType} />
