@@ -21,12 +21,15 @@ interface Props {
 
 interface Row {
   key: string;
+  productId: string | null;
   name: string;
   unit: string;
   net: number;
   pt: number;
   brut: number;
   stock: number;
+  ordered: number;
+  orderedEta: Date | null;
   diff: number;
   matched: boolean;
   perDayBrut: number[];
