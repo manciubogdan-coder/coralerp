@@ -421,6 +421,7 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
                 <TableHead className="text-right whitespace-nowrap">Cant. recomandată</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Ajunge până la</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Zile după comandă</TableHead>
                 {WEEKDAYS.map((w, i) => (
                   <TableHead key={w} className="text-right whitespace-nowrap">
                     {w}
