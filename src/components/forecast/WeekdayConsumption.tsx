@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -37,6 +38,10 @@ interface Row {
   coverDate: Date | null;
   leadTime: number;
   suggestedQty: number;
+  ordered: number;
+  orderedEta: Date | null;
+  coverAfterOrder: number | null;
+  coverDateAfterOrder: Date | null;
 }
 
 
@@ -204,6 +209,32 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
         if (s2.product_id) leadByProduct.set(s2.product_id, Number(s2.lead_time_days) || 7);
       });
 
+      const ordersTable =
+        inventoryType === "ambalaje"
+          ? "ambalaje_product_orders"
+          : inventoryType === "etichete"
+          ? "etichete_product_orders"
+          : "product_orders";
+      const { data: pendingOrders } = await supabase
+        .from(ordersTable)
+        .select("product_id, quantity_ordered, expected_delivery_date, status")
+        .in("status", ["pending", "ordered"]);
+      const today0 = startOfDay(new Date());
+      const orderedByProduct = new Map<string, { qty: number; eta: Date | null }>();
+      (pendingOrders || []).filter((o: any) => {
+        if (!o.expected_delivery_date) return false;
+        return new Date(o.expected_delivery_date) >= today0;
+      }).forEach((o: any) => {
+        if (!o.product_id) return;
+        const cur = orderedByProduct.get(o.product_id) || { qty: 0, eta: null as Date | null };
+        cur.qty += Number(o.quantity_ordered) || 0;
+        if (o.expected_delivery_date) {
+          const d = new Date(o.expected_delivery_date);
+          if (!cur.eta || d < cur.eta) cur.eta = d;
+        }
+        orderedByProduct.set(o.product_id, cur);
+      });
+
       const totalDays = counts.reduce((a, b) => a + b, 0) || 1;
 
       const result: Row[] = (productsData || [])
@@ -214,7 +245,11 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
           const avgDaily = total / totalDays;
           const coverDays = avgDaily > 0 ? stock / avgDaily : null;
           const leadTime = leadByProduct.get(p.id) ?? 7;
-          const suggestedQty = Math.max(avgDaily * leadTime - stock, 0);
+          const ord = orderedByProduct.get(p.id);
+          const orderedQty = ord?.qty || 0;
+          const suggestedQty = Math.max(avgDaily * leadTime - stock - orderedQty, 0);
+          const totalAfterOrder = stock + orderedQty + suggestedQty;
+          const coverAfterOrder = avgDaily > 0 ? totalAfterOrder / avgDaily : null;
           return {
             product_id: p.id,
             product_name: p.name,
@@ -229,6 +264,10 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
             coverDate: coverDays !== null ? addDays(new Date(), Math.floor(coverDays)) : null,
             leadTime,
             suggestedQty,
+            ordered: ord?.qty || 0,
+            orderedEta: ord?.eta || null,
+            coverAfterOrder,
+            coverDateAfterOrder: coverAfterOrder !== null ? addDays(new Date(), Math.floor(coverAfterOrder)) : null,
           };
         })
         .filter((r) => r.total > 0)
@@ -284,6 +323,14 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
         "Nume Produs": r.product_name,
         Unitate: r.unit,
         "Total Perioadă": Math.round(r.total * 100) / 100,
+        "Stoc curent": Math.round(r.stock * 100) / 100,
+        Comandat: Math.round(r.ordered * 100) / 100,
+        "Termen livrare": r.leadTime,
+        "Cant. recomandată": Math.round(r.suggestedQty * 100) / 100,
+        "Zile acoperire": r.coverDays === null ? "-" : Math.round(r.coverDays * 10) / 10,
+        "Ajunge până la": r.coverDate ? format(r.coverDate, "yyyy-MM-dd") : "-",
+        "Zile după comandă": r.coverAfterOrder === null ? "-" : Math.round(r.coverAfterOrder * 10) / 10,
+        "Ajunge după comandă": r.coverDateAfterOrder ? format(r.coverDateAfterOrder, "yyyy-MM-dd") : "-",
       };
       WEEKDAYS.forEach((w, i) => {
         base[`${w} - total`] = Math.round(r.perDayTotals[i] * 100) / 100;
@@ -355,7 +402,7 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
       ) : filtered.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">Nu există date de consum pentru perioada selectată.</div>
       ) : (
-        <div className="border rounded-lg overflow-x-auto">
+        <div className="border rounded-lg overflow-x-auto text-xs [&_th]:h-8 [&_th]:px-2 [&_td]:p-2">
           <Table>
             <TableHeader>
               <TableRow>
@@ -365,14 +412,16 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
                     onCheckedChange={(v) => setSelected(v ? new Set(filtered.map((r) => r.product_id)) : new Set())}
                   />
                 </TableHead>
-                <TableHead className="min-w-[220px]">Produs</TableHead>
+                <TableHead className="min-w-[160px]">Produs</TableHead>
                 <TableHead>UM</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-right">Stoc curent</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Comandat</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Termen livrare</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Cant. recomandată</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Ajunge până la</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Zile după comandă</TableHead>
                 {WEEKDAYS.map((w, i) => (
                   <TableHead key={w} className="text-right whitespace-nowrap">
                     {w}
@@ -406,6 +455,23 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
                     {r.total.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    {r.ordered > 0 ? (
+                      <>
+                        <Badge className="bg-blue-500 hover:bg-blue-600">
+                          <Truck className="h-3 w-3 mr-1" />
+                          {r.ordered.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                        </Badge>
+                        {r.orderedEta && (
+                          <span className="block text-[10px] text-muted-foreground mt-0.5">
+                            {format(r.orderedEta, "dd MMM", { locale: ro })}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">{r.leadTime} zile</TableCell>
                   <TableCell className="text-right font-semibold">
                     {r.suggestedQty > 0 ? r.suggestedQty.toLocaleString("ro-RO", { maximumFractionDigits: 2 }) : "—"}
@@ -427,6 +493,20 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     {r.coverDate ? format(r.coverDate, "dd MMM yyyy", { locale: ro }) : "—"}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right font-semibold whitespace-nowrap",
+                      r.coverAfterOrder === null
+                        ? "text-muted-foreground"
+                        : r.coverAfterOrder < 3
+                        ? "text-destructive"
+                        : r.coverAfterOrder < 7
+                        ? "text-amber-600"
+                        : "text-emerald-600"
+                    )}
+                  >
+                    {r.coverAfterOrder === null ? "—" : `${r.coverAfterOrder.toLocaleString("ro-RO", { maximumFractionDigits: 1 })} zile`}
                   </TableCell>
                   {WEEKDAYS.map((w, i) => (
                     <TableCell key={w} className="text-right">
