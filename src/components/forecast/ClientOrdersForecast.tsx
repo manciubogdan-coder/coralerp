@@ -3,14 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Loader2, FileDown } from "lucide-react";
-import { format, startOfDay, endOfDay, eachDayOfInterval, subDays } from "date-fns";
+import { CalendarIcon, Loader2, FileDown, Truck } from "lucide-react";
+import { format, startOfDay, endOfDay, eachDayOfInterval, subDays, addDays } from "date-fns";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import CreateSupplierOrderDialog, { OrderLineInput } from "./CreateSupplierOrderDialog";
 
 interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -29,7 +31,11 @@ interface Row {
   matched: boolean;
   perDayBrut: number[];
   perDayAvg: number[];
+  avgDaily: number;
+  coverDays: number | null;
+  coverDate: Date | null;
 }
+
 
 // 0 = Luni ... 6 = Duminică
 const WEEKDAYS = ["Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă", "Duminică"];
@@ -181,6 +187,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         stockByProduct.set(i.product_id, (stockByProduct.get(i.product_id) || 0) + (Number(i.quantity) || 0));
       });
 
+      const totalDays = counts.reduce((a, b) => a + b, 0) || 1;
+
       const result: Row[] = [...need.entries()].map(([key, v]) => {
         const p = productByName.get(key);
         const pt = Number(p?.pt_percent) || 0;
@@ -188,6 +196,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const stock = p ? stockByProduct.get(p.id) || 0 : 0;
         const factor = 1 + pt / 100;
         const perDayBrut = v.perDay.map((q) => q * factor);
+        const avgDaily = brut / totalDays;
+        const coverDays = avgDaily > 0 ? stock / avgDaily : null;
         return {
           perDayBrut,
           perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
@@ -200,8 +210,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           stock,
           diff: stock - brut,
           matched: !!p,
+          avgDaily,
+          coverDays,
+          coverDate: coverDays !== null ? addDays(new Date(), Math.floor(coverDays)) : null,
         };
       });
+
 
       result.sort((a, b) => a.diff - b.diff);
       setRows(result);
@@ -218,11 +232,28 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryType]);
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [orderOpen, setOrderOpen] = useState(false);
+
   const filtered = useMemo(() => {
     if (!searchTerm) return rows;
     const s = searchTerm.toLowerCase();
     return rows.filter((r) => r.name.toLowerCase().includes(s));
   }, [rows, searchTerm]);
+
+  const orderLines: OrderLineInput[] = useMemo(
+    () =>
+      filtered
+        .filter((r) => selected.has(r.key))
+        .map((r) => ({
+          key: r.key,
+          name: r.name,
+          unit: r.unit,
+          qty: Math.max(r.brut - r.stock, 0),
+        })),
+    [filtered, selected]
+  );
+
 
   const exportExcel = () => {
     const data = filtered.map((r) => {
@@ -286,6 +317,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           <FileDown className="h-4 w-4 mr-2" />
           Export Excel
         </Button>
+        <Button onClick={() => setOrderOpen(true)} disabled={selected.size === 0}>
+          <Truck className="h-4 w-4 mr-2" />
+          Comandă furnizor ({selected.size})
+        </Button>
+
         <div className="flex gap-1">
           <Button size="sm" variant={view === "weekday" ? "default" : "outline"} onClick={() => setView("weekday")}>
             Pe zilele săptămânii
@@ -318,11 +354,22 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={filtered.length > 0 && filtered.every((r) => selected.has(r.key))}
+                    onCheckedChange={(v) =>
+                      setSelected(v ? new Set(filtered.map((r) => r.key)) : new Set())
+                    }
+                  />
+                </TableHead>
                 <TableHead className="min-w-[220px]">Materie primă</TableHead>
                 <TableHead>UM</TableHead>
                 <TableHead className="text-right">Necesar net</TableHead>
                 <TableHead className="text-right">% PT</TableHead>
                 <TableHead className="text-right">Necesar cu PT</TableHead>
+                <TableHead className="text-right">Stoc curent</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Ajunge până la</TableHead>
                 {view === "weekday" ? (
                   WEEKDAYS.map((w, i) => (
                     <TableHead key={w} className="text-right whitespace-nowrap">
@@ -331,16 +378,26 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     </TableHead>
                   ))
                 ) : (
-                  <>
-                    <TableHead className="text-right">Stoc curent</TableHead>
-                    <TableHead className="text-right">Diferență</TableHead>
-                  </>
+                  <TableHead className="text-right">Diferență</TableHead>
                 )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((r) => (
                 <TableRow key={r.key}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selected.has(r.key)}
+                      onCheckedChange={(v) =>
+                        setSelected((prev) => {
+                          const next = new Set(prev);
+                          if (v) next.add(r.key);
+                          else next.delete(r.key);
+                          return next;
+                        })
+                      }
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">
                     {r.name}
                     {!r.matched && (
@@ -355,6 +412,24 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                   <TableCell className="text-right font-semibold text-primary">
                     {r.brut.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                   </TableCell>
+                  <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right font-semibold",
+                      r.coverDays === null
+                        ? "text-muted-foreground"
+                        : r.coverDays < 3
+                        ? "text-destructive"
+                        : r.coverDays < 7
+                        ? "text-amber-600"
+                        : "text-emerald-600"
+                    )}
+                  >
+                    {r.coverDays === null ? "—" : `${r.coverDays.toLocaleString("ro-RO", { maximumFractionDigits: 1 })} zile`}
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    {r.coverDate ? format(r.coverDate, "dd MMM yyyy", { locale: ro }) : "—"}
+                  </TableCell>
                   {view === "weekday" ? (
                     WEEKDAYS.map((w, i) => (
                       <TableCell key={w} className="text-right">
@@ -367,20 +442,24 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       </TableCell>
                     ))
                   ) : (
-                    <>
-                      <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
-                      <TableCell className={cn("text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
-                        {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
-                      </TableCell>
-                    </>
+                    <TableCell className={cn("text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
+                      {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                    </TableCell>
                   )}
-
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
       )}
+
+      <CreateSupplierOrderDialog
+        open={orderOpen}
+        onOpenChange={setOrderOpen}
+        inventoryType={inventoryType}
+        lines={orderLines}
+      />
+
     </div>
   );
 };
