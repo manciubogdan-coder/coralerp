@@ -394,25 +394,34 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   }, [projFrom, projTo]);
 
   const projection = useMemo(() => {
-    const map = new Map<string, { remaining: number[]; consum: number[]; outDate: Date | null }>();
+    const map = new Map<
+      string,
+      { start: number[]; incoming: number[]; remaining: number[]; consum: number[]; outDate: Date | null }
+    >();
     filtered.forEach((r) => {
       let running = r.stock;
       let incomingLeft = r.ordered;
+      const start: number[] = [];
+      const incoming: number[] = [];
       const remaining: number[] = [];
       const consum: number[] = [];
       let outDate: Date | null = null;
       projDays.forEach((d) => {
+        start.push(running);
+        let inQty = 0;
         if (incomingLeft > 0 && r.orderedEta && startOfDay(r.orderedEta) <= d) {
+          inQty = incomingLeft;
           running += incomingLeft;
           incomingLeft = 0;
         }
+        incoming.push(inQty);
         const need = r.perDayAvg[isoDay(d)] || 0;
         running -= need;
         consum.push(need);
         remaining.push(running);
         if (running < 0 && !outDate) outDate = d;
       });
-      map.set(r.key, { remaining, consum, outDate });
+      map.set(r.key, { start, incoming, remaining, consum, outDate });
     });
     return map;
   }, [filtered, projDays]);
