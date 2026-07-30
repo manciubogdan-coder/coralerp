@@ -96,7 +96,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   const [ordersCount, setOrdersCount] = useState(0);
   const [missingRecipes, setMissingRecipes] = useState<string[]>([]);
   const [dayCounts, setDayCounts] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
-  const [view, setView] = useState<"total" | "weekday">("weekday");
+  const [view, setView] = useState<"total" | "weekday" | "proiectie">("weekday");
+  // Perioada de proiecție (viitor) — independentă de perioada de referință
+  const [projFrom, setProjFrom] = useState<Date>(startOfDay(new Date()));
+  const [projTo, setProjTo] = useState<Date>(startOfDay(addDays(new Date(), 6)));
+
 
   const getTableNames = () => {
     switch (inventoryType) {
