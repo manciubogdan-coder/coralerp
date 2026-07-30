@@ -540,12 +540,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
 
       <p className="text-xs text-muted-foreground">
         {mode === "live"
-          ? `Live: necesar din comenzile de client curente (${ordersCount} comenzi) × rețete active + pierdere tehnologică (%PT).`
-          : `Istoric: consum de referință din ${format(fromDate, "dd MMM", { locale: ro })} – ${format(
+          ? `Live: necesar din comenzile de client deja existente, de azi înainte (${ordersCount} comenzi) × rețete active + pierdere tehnologică (%PT).`
+          : `Istoric: media zilnică se calculează din comenzile din ${format(fromDate, "dd MMM", { locale: ro })} – ${format(
               toDate,
               "dd MMM yyyy",
               { locale: ro }
-            )} (${ordersCount} comenzi). Media zilnică rezultată este proiectată în viitor pentru a estima pe câte zile ajunge stocul.`}
+            )} (${ordersCount} comenzi) și este proiectată în viitor pentru a estima necesarul și pe câte zile ajunge stocul.`}
       </p>
 
       {missingRecipes.length > 0 && (
