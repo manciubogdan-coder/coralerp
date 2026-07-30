@@ -163,12 +163,31 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       );
       setOrdersCount(orders.length);
 
+      // Numărul de zile din perioada analizată (pentru medii zilnice).
+      // Live: de azi până la ultima dată de producție existentă în comenzi.
+      const counts = [0, 0, 0, 0, 0, 0, 0];
+      let spanEnd = effTo;
+      if (m === "live") {
+        const dates = orders
+          .map((o: any) => new Date(o.data_productie || o.created_at))
+          .filter((d) => !isNaN(d.getTime()));
+        spanEnd = dates.length
+          ? startOfDay(new Date(Math.max(...dates.map((d) => d.getTime()))))
+          : effFrom;
+        if (spanEnd < effFrom) spanEnd = effFrom;
+      }
+      eachDayOfInterval({ start: effFrom, end: spanEnd }).forEach((d) => {
+        counts[isoDay(d)] += 1;
+      });
+      setDayCounts(counts);
+
       if (orders.length === 0) {
         setRows([]);
         setMissingRecipes([]);
         setLoading(false);
         return;
       }
+
 
       // 2. Rețete active
       const { data: recipes, error: e3 } = await supabase
