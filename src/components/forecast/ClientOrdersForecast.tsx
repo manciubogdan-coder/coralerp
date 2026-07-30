@@ -464,6 +464,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         )}
 
         {mode === "istoric" && (
+        <>
         <div className="space-y-1">
           <label className="text-sm font-medium">De la</label>
           <Popover>
