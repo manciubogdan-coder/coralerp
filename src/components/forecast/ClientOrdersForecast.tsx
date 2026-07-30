@@ -574,8 +574,66 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           <Button size="sm" variant={view === "total" ? "default" : "outline"} onClick={() => setView("total")}>
             Total perioadă
           </Button>
+          <Button size="sm" variant={view === "proiectie" ? "default" : "outline"} onClick={() => setView("proiectie")}>
+            Proiecție zi cu zi
+          </Button>
         </div>
       </div>
+
+      {view === "proiectie" && (
+        <div className="flex flex-wrap gap-3 items-end border rounded-md p-3 bg-muted/30">
+          <div className="text-sm font-medium w-full">
+            Perioada de proiecție (viitor) — cât și până când îmi ajunge marfa
+          </div>
+          <div className="flex gap-1">
+            {[
+              { v: 7, l: "Următoarea săpt." },
+              { v: 14, l: "2 săpt." },
+              { v: 30, l: "30 zile" },
+            ].map((p) => (
+              <Button
+                key={p.v}
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setProjFrom(startOfDay(new Date()));
+                  setProjTo(startOfDay(addDays(new Date(), p.v - 1)));
+                }}
+              >
+                {p.l}
+              </Button>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium block">Proiecție de la</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="w-[150px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(projFrom, "dd MMM yyyy", { locale: ro })}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={projFrom} onSelect={(d) => d && setProjFrom(startOfDay(d))} initialFocus className="pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium block">Proiecție până la</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="w-[150px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(projTo, "dd MMM yyyy", { locale: ro })}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={projTo} onSelect={(d) => d && setProjTo(startOfDay(d))} initialFocus className="pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+      )}
 
       <p className="text-xs text-muted-foreground">
         {mode === "live"
@@ -585,7 +643,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
               "dd MMM yyyy",
               { locale: ro }
             )} (${ordersCount} comenzi) și este proiectată în viitor pentru a estima necesarul și pe câte zile ajunge stocul.`}
+        {view === "proiectie" &&
+          ` Proiecție: stoc curent (+ comenzi furnizor cu ETA în interval) minus consumul mediu pe fiecare zi din ${format(
+            projFrom,
+            "dd MMM",
+            { locale: ro }
+          )} – ${format(projTo, "dd MMM yyyy", { locale: ro })}.`}
       </p>
+
 
       {missingRecipes.length > 0 && (
         <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
