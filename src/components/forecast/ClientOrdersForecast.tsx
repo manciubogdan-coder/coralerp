@@ -109,19 +109,22 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     }
   };
 
-  const fetchData = async (rangeFrom: Date = fromDate, rangeTo: Date = toDate) => {
+  const fetchData = async (
+    rangeFrom: Date = fromDate,
+    rangeTo: Date = toDate,
+    m: "live" | "istoric" = mode
+  ) => {
     setLoading(true);
     try {
       const tables = getTableNames();
-      const fromStr = format(startOfDay(rangeFrom), "yyyy-MM-dd");
-      const toStr = format(startOfDay(rangeTo), "yyyy-MM-dd");
-      const fromTs = startOfDay(rangeFrom).toISOString();
-      const counts = [0, 0, 0, 0, 0, 0, 0];
-      eachDayOfInterval({ start: startOfDay(rangeFrom), end: startOfDay(rangeTo) }).forEach((d) => {
-        counts[isoDay(d)] += 1;
-      });
-      setDayCounts(counts);
-      const toTs = endOfDay(rangeTo).toISOString();
+      // Live = doar comenzile existente de azi înainte.
+      // Istoric = doar comenzile din perioada de referință selectată (trecut).
+      const effFrom = m === "live" ? startOfDay(new Date()) : startOfDay(rangeFrom);
+      const effTo = m === "live" ? startOfDay(addDays(new Date(), 60)) : startOfDay(rangeTo);
+      const fromStr = format(effFrom, "yyyy-MM-dd");
+      const toStr = format(effTo, "yyyy-MM-dd");
+      const fromTs = effFrom.toISOString();
+      const toTs = endOfDay(effTo).toISOString();
 
       // 1. Comenzi de client din perioada selectată (data producție sau, dacă lipsește, data creării)
       const fetchAll = async (build: () => any) => {
@@ -160,12 +163,31 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       );
       setOrdersCount(orders.length);
 
+      // Numărul de zile din perioada analizată (pentru medii zilnice).
+      // Live: de azi până la ultima dată de producție existentă în comenzi.
+      const counts = [0, 0, 0, 0, 0, 0, 0];
+      let spanEnd = effTo;
+      if (m === "live") {
+        const dates = orders
+          .map((o: any) => new Date(o.data_productie || o.created_at))
+          .filter((d) => !isNaN(d.getTime()));
+        spanEnd = dates.length
+          ? startOfDay(new Date(Math.max(...dates.map((d) => d.getTime()))))
+          : effFrom;
+        if (spanEnd < effFrom) spanEnd = effFrom;
+      }
+      eachDayOfInterval({ start: effFrom, end: spanEnd }).forEach((d) => {
+        counts[isoDay(d)] += 1;
+      });
+      setDayCounts(counts);
+
       if (orders.length === 0) {
         setRows([]);
         setMissingRecipes([]);
         setLoading(false);
         return;
       }
+
 
       // 2. Rețete active
       const { data: recipes, error: e3 } = await supabase
@@ -331,7 +353,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     const from = subDays(to, n - 1);
     setFromDate(from);
     setToDate(to);
-    fetchData(from, to);
+    fetchData(from, to, "istoric");
   };
 
   const switchMode = (m: "live" | "istoric") => {
@@ -339,11 +361,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     if (m === "istoric") {
       applyPreset(preset === "custom" ? "7" : preset);
     } else {
-      const from = subDays(new Date(), 30);
-      const to = new Date();
-      setFromDate(from);
-      setToDate(to);
-      fetchData(from, to);
+      fetchData(fromDate, toDate, "live");
     }
   };
 
@@ -445,6 +463,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           </div>
         )}
 
+        {mode === "istoric" && (
+        <>
         <div className="space-y-1">
           <label className="text-sm font-medium">De la</label>
           <Popover>
@@ -493,6 +513,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
             </PopoverContent>
           </Popover>
         </div>
+        </>
+        )}
         <Button onClick={() => fetchData()} disabled={loading}>
           {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
           Calculează
@@ -518,12 +540,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
 
       <p className="text-xs text-muted-foreground">
         {mode === "live"
-          ? `Live: necesar din comenzile de client curente (${ordersCount} comenzi) × rețete active + pierdere tehnologică (%PT).`
-          : `Istoric: consum de referință din ${format(fromDate, "dd MMM", { locale: ro })} – ${format(
+          ? `Live: necesar din comenzile de client deja existente, de azi înainte (${ordersCount} comenzi) × rețete active + pierdere tehnologică (%PT).`
+          : `Istoric: media zilnică se calculează din comenzile din ${format(fromDate, "dd MMM", { locale: ro })} – ${format(
               toDate,
               "dd MMM yyyy",
               { locale: ro }
-            )} (${ordersCount} comenzi). Media zilnică rezultată este proiectată în viitor pentru a estima pe câte zile ajunge stocul.`}
+            )} (${ordersCount} comenzi) și este proiectată în viitor pentru a estima necesarul și pe câte zile ajunge stocul.`}
       </p>
 
       {missingRecipes.length > 0 && (
