@@ -933,42 +933,6 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                             </span>
                           </td>
                         ))
-                      ) : view === "proiectie" ? (
-                        (() => {
-                          const pr = projection.get(r.key);
-                          return (
-                            <>
-                              <td
-                                className={cn(
-                                  "p-2 text-right whitespace-nowrap font-semibold",
-                                  pr?.outDate ? "text-destructive" : "text-emerald-600"
-                                )}
-                              >
-                                {pr?.outDate ? format(pr.outDate, "dd MMM yyyy", { locale: ro }) : "OK în interval"}
-                              </td>
-                              {projDays.map((d, i) => {
-                                const rest = pr?.remaining[i] ?? 0;
-                                const need = pr?.consum[i] ?? 0;
-                                return (
-                                  <td
-                                    key={d.toISOString()}
-                                    className={cn(
-                                      "p-2 text-right whitespace-nowrap",
-                                      rest < 0 ? "bg-destructive/10 text-destructive font-semibold" : ""
-                                    )}
-                                  >
-                                    <span className="block">
-                                      {rest.toLocaleString("ro-RO", { maximumFractionDigits: 1 })}
-                                    </span>
-                                    <span className="block text-[10px] text-muted-foreground">
-                                      -{need.toLocaleString("ro-RO", { maximumFractionDigits: 1 })}
-                                    </span>
-                                  </td>
-                                );
-                              })}
-                            </>
-                          );
-                        })()
                       ) : (
                         <td className={cn("p-2 text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
                           {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
