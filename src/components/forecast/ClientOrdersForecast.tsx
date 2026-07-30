@@ -384,6 +384,41 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     );
   }, [filtered]);
 
+  // ==== Proiecție viitoare: descărcarea stocului zi de zi ====
+  const projDays = useMemo(() => {
+    const start = startOfDay(projFrom);
+    const end = startOfDay(projTo);
+    if (end < start) return [start];
+    const list = eachDayOfInterval({ start, end });
+    return list.slice(0, 60);
+  }, [projFrom, projTo]);
+
+  const projection = useMemo(() => {
+    const map = new Map<string, { remaining: number[]; consum: number[]; outDate: Date | null }>();
+    filtered.forEach((r) => {
+      let running = r.stock;
+      let incomingLeft = r.ordered;
+      const remaining: number[] = [];
+      const consum: number[] = [];
+      let outDate: Date | null = null;
+      projDays.forEach((d) => {
+        if (incomingLeft > 0 && r.orderedEta && startOfDay(r.orderedEta) <= d) {
+          running += incomingLeft;
+          incomingLeft = 0;
+        }
+        const need = r.perDayAvg[isoDay(d)] || 0;
+        running -= need;
+        consum.push(need);
+        remaining.push(running);
+        if (running < 0 && !outDate) outDate = d;
+      });
+      map.set(r.key, { remaining, consum, outDate });
+    });
+    return map;
+  }, [filtered, projDays]);
+
+
+
   const orderLines: OrderLineInput[] = useMemo(
     () =>
       filtered
