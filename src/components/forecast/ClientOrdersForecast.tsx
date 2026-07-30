@@ -4,10 +4,9 @@ import { toast } from "@/hooks/use-custom-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Loader2, FileDown, Truck } from "lucide-react";
+import { CalendarIcon, Loader2, FileDown, Truck, Activity, History } from "lucide-react";
 import { format, startOfDay, endOfDay, eachDayOfInterval, subDays, addDays } from "date-fns";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -24,6 +23,7 @@ interface Row {
   productId: string | null;
   name: string;
   unit: string;
+  group: string;
   net: number;
   pt: number;
   brut: number;
@@ -43,7 +43,6 @@ interface Row {
   coverDateAfterOrder: Date | null;
 }
 
-
 // 0 = Luni ... 6 = Duminică
 const WEEKDAYS = ["Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă", "Duminică"];
 const isoDay = (d: Date) => (d.getDay() + 6) % 7;
@@ -54,6 +53,24 @@ const norm = (s: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
+
+const SALATE_KEYS = [
+  "salata", "salate", "lollo", "rucola", "rukola", "spanac", "valeriana", "babyleaf", "baby",
+  "iceberg", "batavia", "frisee", "radicchio", "romana", "mix", "mesclun", "andive", "creta",
+];
+const AROMATE_KEYS = [
+  "menta", "busuioc", "patrunjel", "marar", "cimbru", "cimbrisor", "rozmarin", "oregano",
+  "leustean", "tarhon", "coriandru", "arpagic", "ceapaverde", "salvie", "melisa", "roinita",
+  "lavanda", "sovarv", "aromat",
+];
+
+const groupOf = (name: string): string => {
+  const n = norm(name);
+  if (AROMATE_KEYS.some((k) => n.includes(k))) return "Aromate";
+  if (SALATE_KEYS.some((k) => n.includes(k))) return "Salate";
+  return "Altele";
+};
+const GROUP_ORDER = ["Salate", "Aromate", "Altele"];
 
 const toKg = (q: number, u?: string) => {
   switch ((u || "").toLowerCase()) {
@@ -70,6 +87,8 @@ const toKg = (q: number, u?: string) => {
 };
 
 const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" }) => {
+  const [mode, setMode] = useState<"live" | "istoric">("live");
+  const [preset, setPreset] = useState<string>("7");
   const [fromDate, setFromDate] = useState<Date>(subDays(new Date(), 30));
   const [toDate, setToDate] = useState<Date>(new Date());
   const [rows, setRows] = useState<Row[]>([]);
@@ -90,19 +109,19 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (rangeFrom: Date = fromDate, rangeTo: Date = toDate) => {
     setLoading(true);
     try {
       const tables = getTableNames();
-      const fromStr = format(startOfDay(fromDate), "yyyy-MM-dd");
-      const toStr = format(startOfDay(toDate), "yyyy-MM-dd");
-      const fromTs = startOfDay(fromDate).toISOString();
+      const fromStr = format(startOfDay(rangeFrom), "yyyy-MM-dd");
+      const toStr = format(startOfDay(rangeTo), "yyyy-MM-dd");
+      const fromTs = startOfDay(rangeFrom).toISOString();
       const counts = [0, 0, 0, 0, 0, 0, 0];
-      eachDayOfInterval({ start: startOfDay(fromDate), end: startOfDay(toDate) }).forEach((d) => {
+      eachDayOfInterval({ start: startOfDay(rangeFrom), end: startOfDay(rangeTo) }).forEach((d) => {
         counts[isoDay(d)] += 1;
       });
       setDayCounts(counts);
-      const toTs = endOfDay(toDate).toISOString();
+      const toTs = endOfDay(rangeTo).toISOString();
 
       // 1. Comenzi de client din perioada selectată (data producție sau, dacă lipsește, data creării)
       const fetchAll = async (build: () => any) => {
@@ -262,12 +281,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const suggestedQty = Math.max(avgDaily * leadTime - stock - orderedQty, 0);
         const totalAfterOrder = stock + orderedQty + suggestedQty;
         const coverAfterOrder = avgDaily > 0 ? totalAfterOrder / avgDaily : null;
+        const name = p?.name || v.name;
         return {
           perDayBrut,
           perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
           key,
           productId: p?.id || null,
-          name: p?.name || v.name,
+          name,
+          group: groupOf(name),
           unit: p?.default_unit || "kg",
           net: v.qty,
           pt,
@@ -287,7 +308,6 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         };
       });
 
-
       result.sort((a, b) => a.diff - b.diff);
       setRows(result);
     } catch (e) {
@@ -303,6 +323,30 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryType]);
 
+  const applyPreset = (days: string) => {
+    setPreset(days);
+    if (days === "custom") return;
+    const n = Number(days);
+    const to = subDays(new Date(), 1);
+    const from = subDays(to, n - 1);
+    setFromDate(from);
+    setToDate(to);
+    fetchData(from, to);
+  };
+
+  const switchMode = (m: "live" | "istoric") => {
+    setMode(m);
+    if (m === "istoric") {
+      applyPreset(preset === "custom" ? "7" : preset);
+    } else {
+      const from = subDays(new Date(), 30);
+      const to = new Date();
+      setFromDate(from);
+      setToDate(to);
+      fetchData(from, to);
+    }
+  };
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [orderOpen, setOrderOpen] = useState(false);
 
@@ -311,6 +355,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     const s = searchTerm.toLowerCase();
     return rows.filter((r) => r.name.toLowerCase().includes(s));
   }, [rows, searchTerm]);
+
+  const grouped = useMemo(() => {
+    return GROUP_ORDER.map((g) => ({ group: g, items: filtered.filter((r) => r.group === g) })).filter(
+      (g) => g.items.length > 0
+    );
+  }, [filtered]);
 
   const orderLines: OrderLineInput[] = useMemo(
     () =>
@@ -326,10 +376,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     [filtered, selected]
   );
 
-
   const exportExcel = () => {
     const data = filtered.map((r) => {
       const base: Record<string, any> = {
+        Grupă: r.group,
         Materie: r.name,
         UM: r.unit,
         "Necesar net": Math.round(r.net * 100) / 100,
@@ -356,20 +406,66 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     XLSX.writeFile(wb, `ForecastComenziClient_${format(fromDate, "yyyyMMdd")}_${format(toDate, "yyyyMMdd")}.xlsx`);
   };
 
+  const stickyHead = "sticky top-0 z-20 bg-background h-8 px-2 border-b text-muted-foreground font-medium";
+  const cornerHead = "sticky top-0 left-0 z-30 bg-background h-8 px-2 border-b";
+  const nameHead = "sticky top-0 left-[40px] z-30 bg-background h-8 px-2 border-b text-left min-w-[180px]";
+  const cellCheck = "sticky left-0 z-10 bg-background p-2";
+  const cellName = "sticky left-[40px] z-10 bg-background p-2 font-medium min-w-[180px]";
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-end">
+        <div className="flex gap-1">
+          <Button size="sm" variant={mode === "live" ? "default" : "outline"} onClick={() => switchMode("live")}>
+            <Activity className="h-4 w-4 mr-1" /> Live
+          </Button>
+          <Button size="sm" variant={mode === "istoric" ? "default" : "outline"} onClick={() => switchMode("istoric")}>
+            <History className="h-4 w-4 mr-1" /> Istoric
+          </Button>
+        </div>
+
+        {mode === "istoric" && (
+          <div className="flex gap-1">
+            {[
+              { v: "7", l: "1 săpt." },
+              { v: "14", l: "2 săpt." },
+              { v: "21", l: "3 săpt." },
+              { v: "28", l: "4 săpt." },
+              { v: "custom", l: "Personalizat" },
+            ].map((p) => (
+              <Button
+                key={p.v}
+                size="sm"
+                variant={preset === p.v ? "secondary" : "outline"}
+                onClick={() => applyPreset(p.v)}
+              >
+                {p.l}
+              </Button>
+            ))}
+          </div>
+        )}
+
         <div className="space-y-1">
           <label className="text-sm font-medium">De la</label>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal")}>
+              <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {format(fromDate, "dd MMM yyyy", { locale: ro })}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={fromDate} onSelect={(d) => d && setFromDate(d)} initialFocus className="pointer-events-auto" />
+              <Calendar
+                mode="single"
+                selected={fromDate}
+                onSelect={(d) => {
+                  if (!d) return;
+                  setFromDate(d);
+                  setPreset("custom");
+                }}
+                initialFocus
+                className="pointer-events-auto"
+              />
             </PopoverContent>
           </Popover>
         </div>
@@ -377,17 +473,27 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           <label className="text-sm font-medium">Până la</label>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal")}>
+              <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {format(toDate, "dd MMM yyyy", { locale: ro })}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={toDate} onSelect={(d) => d && setToDate(d)} initialFocus className="pointer-events-auto" />
+              <Calendar
+                mode="single"
+                selected={toDate}
+                onSelect={(d) => {
+                  if (!d) return;
+                  setToDate(d);
+                  setPreset("custom");
+                }}
+                initialFocus
+                className="pointer-events-auto"
+              />
             </PopoverContent>
           </Popover>
         </div>
-        <Button onClick={fetchData} disabled={loading}>
+        <Button onClick={() => fetchData()} disabled={loading}>
           {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
           Calculează
         </Button>
@@ -411,8 +517,13 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Necesar calculat din comenzile de client introduse ({ordersCount} comenzi) × rețete active, la care se adaugă pierderea
-        tehnologică (%PT din nomenclatorul de produse).
+        {mode === "live"
+          ? `Live: necesar din comenzile de client curente (${ordersCount} comenzi) × rețete active + pierdere tehnologică (%PT).`
+          : `Istoric: consum de referință din ${format(fromDate, "dd MMM", { locale: ro })} – ${format(
+              toDate,
+              "dd MMM yyyy",
+              { locale: ro }
+            )} (${ordersCount} comenzi). Media zilnică rezultată este proiectată în viitor pentru a estima pe câte zile ajunge stocul.`}
       </p>
 
       {missingRecipes.length > 0 && (
@@ -428,147 +539,159 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       ) : filtered.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">Nu există comenzi de client în perioada selectată.</div>
       ) : (
-        <div className="border rounded-lg overflow-x-auto text-xs [&_th]:h-8 [&_th]:px-2 [&_td]:p-2">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40px]">
+        <div className="border rounded-lg overflow-auto max-h-[70vh] text-xs relative">
+          <table className="w-full caption-bottom border-collapse">
+            <thead>
+              <tr>
+                <th className={cornerHead}>
                   <Checkbox
                     checked={filtered.length > 0 && filtered.every((r) => selected.has(r.key))}
-                    onCheckedChange={(v) =>
-                      setSelected(v ? new Set(filtered.map((r) => r.key)) : new Set())
-                    }
+                    onCheckedChange={(v) => setSelected(v ? new Set(filtered.map((r) => r.key)) : new Set())}
                   />
-                </TableHead>
-                <TableHead className="min-w-[160px]">Materie primă</TableHead>
-                <TableHead>UM</TableHead>
-                <TableHead className="text-right">Necesar net</TableHead>
-                <TableHead className="text-right">% PT</TableHead>
-                <TableHead className="text-right">Necesar cu PT</TableHead>
-                <TableHead className="text-right">Stoc curent</TableHead>
-                <TableHead className="text-right whitespace-nowrap">Comandat</TableHead>
-                <TableHead className="text-right whitespace-nowrap">Termen livrare</TableHead>
-                <TableHead className="text-right whitespace-nowrap">Cant. recomandată</TableHead>
-                <TableHead className="text-right whitespace-nowrap">Zile acoperire</TableHead>
-                <TableHead className="text-right whitespace-nowrap">Ajunge până la</TableHead>
-                <TableHead className="text-right whitespace-nowrap">Zile după comandă</TableHead>
+                </th>
+                <th className={nameHead}>Materie primă</th>
+                <th className={stickyHead}>UM</th>
+                <th className={cn(stickyHead, "text-right")}>Necesar net</th>
+                <th className={cn(stickyHead, "text-right")}>% PT</th>
+                <th className={cn(stickyHead, "text-right")}>Necesar cu PT</th>
+                <th className={cn(stickyHead, "text-right")}>Stoc curent</th>
+                <th className={cn(stickyHead, "text-right whitespace-nowrap")}>Comandat</th>
+                <th className={cn(stickyHead, "text-right whitespace-nowrap")}>Termen livrare</th>
+                <th className={cn(stickyHead, "text-right whitespace-nowrap")}>Cant. recomandată</th>
+                <th className={cn(stickyHead, "text-right whitespace-nowrap")}>Zile acoperire</th>
+                <th className={cn(stickyHead, "text-right whitespace-nowrap")}>Ajunge până la</th>
+                <th className={cn(stickyHead, "text-right whitespace-nowrap")}>Zile după comandă</th>
                 {view === "weekday" ? (
                   WEEKDAYS.map((w, i) => (
-                    <TableHead key={w} className="text-right whitespace-nowrap">
+                    <th key={w} className={cn(stickyHead, "text-right whitespace-nowrap")}>
                       {w}
                       <span className="block text-[10px] font-normal text-muted-foreground">{dayCounts[i]} zile</span>
-                    </TableHead>
+                    </th>
                   ))
                 ) : (
-                  <TableHead className="text-right">Diferență</TableHead>
+                  <th className={cn(stickyHead, "text-right")}>Diferență</th>
                 )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((r) => (
-                <TableRow key={r.key}>
-                  <TableCell>
-                    <Checkbox
-                      checked={selected.has(r.key)}
-                      onCheckedChange={(v) =>
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          if (v) next.add(r.key);
-                          else next.delete(r.key);
-                          return next;
-                        })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {r.name}
-                    {!r.matched && (
-                      <Badge variant="outline" className="ml-2 text-[10px]">
-                        fără corespondent în stoc
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{r.unit}</TableCell>
-                  <TableCell className="text-right">{r.net.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
-                  <TableCell className="text-right">{r.pt.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}%</TableCell>
-                  <TableCell className="text-right font-semibold text-primary">
-                    {r.brut.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
-                    {r.ordered > 0 ? (
-                      <>
-                        <Badge className="bg-blue-500 hover:bg-blue-600">
-                          <Truck className="h-3 w-3 mr-1" />
-                          {r.ordered.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
-                        </Badge>
-                        {r.orderedEta && (
-                          <span className="block text-[10px] text-muted-foreground mt-0.5">
-                            {format(r.orderedEta, "dd MMM", { locale: ro })}
-                          </span>
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.map((g) => (
+                <React.Fragment key={g.group}>
+                  <tr className="bg-muted/60">
+                    <td className="sticky left-0 z-10 bg-muted/60 p-2" />
+                    <td
+                      className="sticky left-[40px] z-10 bg-muted/60 p-2 font-semibold uppercase tracking-wide text-[11px]"
+                      colSpan={1}
+                    >
+                      {g.group} ({g.items.length})
+                    </td>
+                    <td colSpan={view === "weekday" ? 18 : 12} className="p-2" />
+                  </tr>
+                  {g.items.map((r) => (
+                    <tr key={r.key} className="border-b hover:bg-muted/40">
+                      <td className={cellCheck}>
+                        <Checkbox
+                          checked={selected.has(r.key)}
+                          onCheckedChange={(v) =>
+                            setSelected((prev) => {
+                              const next = new Set(prev);
+                              if (v) next.add(r.key);
+                              else next.delete(r.key);
+                              return next;
+                            })
+                          }
+                        />
+                      </td>
+                      <td className={cellName}>
+                        {r.name}
+                        {!r.matched && (
+                          <Badge variant="outline" className="ml-2 text-[10px]">
+                            fără corespondent în stoc
+                          </Badge>
                         )}
-                      </>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">{r.leadTime} zile</TableCell>
-                  <TableCell className="text-right font-semibold">
-                    {r.suggestedQty > 0
-                      ? r.suggestedQty.toLocaleString("ro-RO", { maximumFractionDigits: 2 })
-                      : "—"}
-                  </TableCell>
-                  <TableCell
-                    className={cn(
-                      "text-right font-semibold",
-                      r.coverDays === null
-                        ? "text-muted-foreground"
-                        : r.coverDays < 3
-                        ? "text-destructive"
-                        : r.coverDays < 7
-                        ? "text-amber-600"
-                        : "text-emerald-600"
-                    )}
-                  >
-                    {r.coverDays === null ? "—" : `${r.coverDays.toLocaleString("ro-RO", { maximumFractionDigits: 1 })} zile`}
-                  </TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
-                    {r.coverDate ? format(r.coverDate, "dd MMM yyyy", { locale: ro }) : "—"}
-                  </TableCell>
-                  <TableCell
-                    className={cn(
-                      "text-right font-semibold whitespace-nowrap",
-                      r.coverAfterOrder === null
-                        ? "text-muted-foreground"
-                        : r.coverAfterOrder < 3
-                        ? "text-destructive"
-                        : r.coverAfterOrder < 7
-                        ? "text-amber-600"
-                        : "text-emerald-600"
-                    )}
-                  >
-                    {r.coverAfterOrder === null ? "—" : `${r.coverAfterOrder.toLocaleString("ro-RO", { maximumFractionDigits: 1 })} zile`}
-                  </TableCell>
-                  {view === "weekday" ? (
-                    WEEKDAYS.map((w, i) => (
-                      <TableCell key={w} className="text-right">
-                        <span className="font-medium">
-                          {r.perDayBrut[i].toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
-                        </span>
-                        <span className="block text-[11px] text-primary">
-                          ø {r.perDayAvg[i].toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
-                        </span>
-                      </TableCell>
-                    ))
-                  ) : (
-                    <TableCell className={cn("text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
-                      {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
-                    </TableCell>
-                  )}
-                </TableRow>
+                      </td>
+                      <td className="p-2">{r.unit}</td>
+                      <td className="p-2 text-right">{r.net.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</td>
+                      <td className="p-2 text-right">{r.pt.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}%</td>
+                      <td className="p-2 text-right font-semibold text-primary">
+                        {r.brut.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-2 text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</td>
+                      <td className="p-2 text-right whitespace-nowrap">
+                        {r.ordered > 0 ? (
+                          <>
+                            <Badge className="bg-blue-500 hover:bg-blue-600">
+                              <Truck className="h-3 w-3 mr-1" />
+                              {r.ordered.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                            </Badge>
+                            {r.orderedEta && (
+                              <span className="block text-[10px] text-muted-foreground mt-0.5">
+                                {format(r.orderedEta, "dd MMM", { locale: ro })}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="p-2 text-right whitespace-nowrap text-muted-foreground">{r.leadTime} zile</td>
+                      <td className="p-2 text-right font-semibold">
+                        {r.suggestedQty > 0 ? r.suggestedQty.toLocaleString("ro-RO", { maximumFractionDigits: 2 }) : "—"}
+                      </td>
+                      <td
+                        className={cn(
+                          "p-2 text-right font-semibold",
+                          r.coverDays === null
+                            ? "text-muted-foreground"
+                            : r.coverDays < 3
+                            ? "text-destructive"
+                            : r.coverDays < 7
+                            ? "text-amber-600"
+                            : "text-emerald-600"
+                        )}
+                      >
+                        {r.coverDays === null ? "—" : `${r.coverDays.toLocaleString("ro-RO", { maximumFractionDigits: 1 })} zile`}
+                      </td>
+                      <td className="p-2 text-right whitespace-nowrap">
+                        {r.coverDate ? format(r.coverDate, "dd MMM yyyy", { locale: ro }) : "—"}
+                      </td>
+                      <td
+                        className={cn(
+                          "p-2 text-right font-semibold whitespace-nowrap",
+                          r.coverAfterOrder === null
+                            ? "text-muted-foreground"
+                            : r.coverAfterOrder < 3
+                            ? "text-destructive"
+                            : r.coverAfterOrder < 7
+                            ? "text-amber-600"
+                            : "text-emerald-600"
+                        )}
+                      >
+                        {r.coverAfterOrder === null
+                          ? "—"
+                          : `${r.coverAfterOrder.toLocaleString("ro-RO", { maximumFractionDigits: 1 })} zile`}
+                      </td>
+                      {view === "weekday" ? (
+                        WEEKDAYS.map((w, i) => (
+                          <td key={w} className="p-2 text-right">
+                            <span className="font-medium">
+                              {r.perDayBrut[i].toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                            </span>
+                            <span className="block text-[11px] text-primary">
+                              ø {r.perDayAvg[i].toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                            </span>
+                          </td>
+                        ))
+                      ) : (
+                        <td className={cn("p-2 text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
+                          {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </React.Fragment>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -582,7 +705,6 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           fetchData();
         }}
       />
-
     </div>
   );
 };
