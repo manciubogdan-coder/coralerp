@@ -109,19 +109,22 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     }
   };
 
-  const fetchData = async (rangeFrom: Date = fromDate, rangeTo: Date = toDate) => {
+  const fetchData = async (
+    rangeFrom: Date = fromDate,
+    rangeTo: Date = toDate,
+    m: "live" | "istoric" = mode
+  ) => {
     setLoading(true);
     try {
       const tables = getTableNames();
-      const fromStr = format(startOfDay(rangeFrom), "yyyy-MM-dd");
-      const toStr = format(startOfDay(rangeTo), "yyyy-MM-dd");
-      const fromTs = startOfDay(rangeFrom).toISOString();
-      const counts = [0, 0, 0, 0, 0, 0, 0];
-      eachDayOfInterval({ start: startOfDay(rangeFrom), end: startOfDay(rangeTo) }).forEach((d) => {
-        counts[isoDay(d)] += 1;
-      });
-      setDayCounts(counts);
-      const toTs = endOfDay(rangeTo).toISOString();
+      // Live = doar comenzile existente de azi înainte.
+      // Istoric = doar comenzile din perioada de referință selectată (trecut).
+      const effFrom = m === "live" ? startOfDay(new Date()) : startOfDay(rangeFrom);
+      const effTo = m === "live" ? startOfDay(addDays(new Date(), 60)) : startOfDay(rangeTo);
+      const fromStr = format(effFrom, "yyyy-MM-dd");
+      const toStr = format(effTo, "yyyy-MM-dd");
+      const fromTs = effFrom.toISOString();
+      const toTs = endOfDay(effTo).toISOString();
 
       // 1. Comenzi de client din perioada selectată (data producție sau, dacă lipsește, data creării)
       const fetchAll = async (build: () => any) => {
