@@ -694,9 +694,22 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       <span className="block text-[10px] font-normal text-muted-foreground">{dayCounts[i]} zile</span>
                     </th>
                   ))
+                ) : view === "proiectie" ? (
+                  <>
+                    <th className={cn(stickyHead, "text-right whitespace-nowrap")}>Rămâne fără stoc</th>
+                    {projDays.map((d) => (
+                      <th key={d.toISOString()} className={cn(stickyHead, "text-right whitespace-nowrap")}>
+                        {format(d, "dd MMM", { locale: ro })}
+                        <span className="block text-[10px] font-normal text-muted-foreground">
+                          {WEEKDAYS[isoDay(d)].slice(0, 3)}
+                        </span>
+                      </th>
+                    ))}
+                  </>
                 ) : (
                   <th className={cn(stickyHead, "text-right")}>Diferență</th>
                 )}
+
               </tr>
             </thead>
             <tbody>
