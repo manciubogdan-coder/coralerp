@@ -96,7 +96,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   const [ordersCount, setOrdersCount] = useState(0);
   const [missingRecipes, setMissingRecipes] = useState<string[]>([]);
   const [dayCounts, setDayCounts] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
-  const [view, setView] = useState<"total" | "weekday">("weekday");
+  const [view, setView] = useState<"total" | "weekday" | "proiectie">("weekday");
+  // Perioada de proiecție (viitor) — independentă de perioada de referință
+  const [projFrom, setProjFrom] = useState<Date>(startOfDay(new Date()));
+  const [projTo, setProjTo] = useState<Date>(startOfDay(addDays(new Date(), 6)));
+
 
   const getTableNames = () => {
     switch (inventoryType) {
@@ -380,6 +384,41 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     );
   }, [filtered]);
 
+  // ==== Proiecție viitoare: descărcarea stocului zi de zi ====
+  const projDays = useMemo(() => {
+    const start = startOfDay(projFrom);
+    const end = startOfDay(projTo);
+    if (end < start) return [start];
+    const list = eachDayOfInterval({ start, end });
+    return list.slice(0, 60);
+  }, [projFrom, projTo]);
+
+  const projection = useMemo(() => {
+    const map = new Map<string, { remaining: number[]; consum: number[]; outDate: Date | null }>();
+    filtered.forEach((r) => {
+      let running = r.stock;
+      let incomingLeft = r.ordered;
+      const remaining: number[] = [];
+      const consum: number[] = [];
+      let outDate: Date | null = null;
+      projDays.forEach((d) => {
+        if (incomingLeft > 0 && r.orderedEta && startOfDay(r.orderedEta) <= d) {
+          running += incomingLeft;
+          incomingLeft = 0;
+        }
+        const need = r.perDayAvg[isoDay(d)] || 0;
+        running -= need;
+        consum.push(need);
+        remaining.push(running);
+        if (running < 0 && !outDate) outDate = d;
+      });
+      map.set(r.key, { remaining, consum, outDate });
+    });
+    return map;
+  }, [filtered, projDays]);
+
+
+
   const orderLines: OrderLineInput[] = useMemo(
     () =>
       filtered
@@ -535,8 +574,66 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           <Button size="sm" variant={view === "total" ? "default" : "outline"} onClick={() => setView("total")}>
             Total perioadă
           </Button>
+          <Button size="sm" variant={view === "proiectie" ? "default" : "outline"} onClick={() => setView("proiectie")}>
+            Proiecție zi cu zi
+          </Button>
         </div>
       </div>
+
+      {view === "proiectie" && (
+        <div className="flex flex-wrap gap-3 items-end border rounded-md p-3 bg-muted/30">
+          <div className="text-sm font-medium w-full">
+            Perioada de proiecție (viitor) — cât și până când îmi ajunge marfa
+          </div>
+          <div className="flex gap-1">
+            {[
+              { v: 7, l: "Următoarea săpt." },
+              { v: 14, l: "2 săpt." },
+              { v: 30, l: "30 zile" },
+            ].map((p) => (
+              <Button
+                key={p.v}
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setProjFrom(startOfDay(new Date()));
+                  setProjTo(startOfDay(addDays(new Date(), p.v - 1)));
+                }}
+              >
+                {p.l}
+              </Button>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium block">Proiecție de la</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="w-[150px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(projFrom, "dd MMM yyyy", { locale: ro })}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={projFrom} onSelect={(d) => d && setProjFrom(startOfDay(d))} initialFocus className="pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium block">Proiecție până la</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="w-[150px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(projTo, "dd MMM yyyy", { locale: ro })}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={projTo} onSelect={(d) => d && setProjTo(startOfDay(d))} initialFocus className="pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+      )}
 
       <p className="text-xs text-muted-foreground">
         {mode === "live"
@@ -546,7 +643,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
               "dd MMM yyyy",
               { locale: ro }
             )} (${ordersCount} comenzi) și este proiectată în viitor pentru a estima necesarul și pe câte zile ajunge stocul.`}
+        {view === "proiectie" &&
+          ` Proiecție: stoc curent (+ comenzi furnizor cu ETA în interval) minus consumul mediu pe fiecare zi din ${format(
+            projFrom,
+            "dd MMM",
+            { locale: ro }
+          )} – ${format(projTo, "dd MMM yyyy", { locale: ro })}.`}
       </p>
+
 
       {missingRecipes.length > 0 && (
         <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
@@ -590,9 +694,22 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       <span className="block text-[10px] font-normal text-muted-foreground">{dayCounts[i]} zile</span>
                     </th>
                   ))
+                ) : view === "proiectie" ? (
+                  <>
+                    <th className={cn(stickyHead, "text-right whitespace-nowrap")}>Rămâne fără stoc</th>
+                    {projDays.map((d) => (
+                      <th key={d.toISOString()} className={cn(stickyHead, "text-right whitespace-nowrap")}>
+                        {format(d, "dd MMM", { locale: ro })}
+                        <span className="block text-[10px] font-normal text-muted-foreground">
+                          {WEEKDAYS[isoDay(d)].slice(0, 3)}
+                        </span>
+                      </th>
+                    ))}
+                  </>
                 ) : (
                   <th className={cn(stickyHead, "text-right")}>Diferență</th>
                 )}
+
               </tr>
             </thead>
             <tbody>
@@ -606,7 +723,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     >
                       {g.group} ({g.items.length})
                     </td>
-                    <td colSpan={view === "weekday" ? 18 : 12} className="p-2" />
+                    <td
+                      colSpan={view === "weekday" ? 18 : view === "proiectie" ? 12 + projDays.length : 12}
+                      className="p-2"
+                    />
+
                   </tr>
                   {g.items.map((r) => (
                     <tr key={r.key} className="border-b hover:bg-muted/40">
@@ -703,11 +824,48 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                             </span>
                           </td>
                         ))
+                      ) : view === "proiectie" ? (
+                        (() => {
+                          const pr = projection.get(r.key);
+                          return (
+                            <>
+                              <td
+                                className={cn(
+                                  "p-2 text-right whitespace-nowrap font-semibold",
+                                  pr?.outDate ? "text-destructive" : "text-emerald-600"
+                                )}
+                              >
+                                {pr?.outDate ? format(pr.outDate, "dd MMM yyyy", { locale: ro }) : "OK în interval"}
+                              </td>
+                              {projDays.map((d, i) => {
+                                const rest = pr?.remaining[i] ?? 0;
+                                const need = pr?.consum[i] ?? 0;
+                                return (
+                                  <td
+                                    key={d.toISOString()}
+                                    className={cn(
+                                      "p-2 text-right whitespace-nowrap",
+                                      rest < 0 ? "bg-destructive/10 text-destructive font-semibold" : ""
+                                    )}
+                                  >
+                                    <span className="block">
+                                      {rest.toLocaleString("ro-RO", { maximumFractionDigits: 1 })}
+                                    </span>
+                                    <span className="block text-[10px] text-muted-foreground">
+                                      -{need.toLocaleString("ro-RO", { maximumFractionDigits: 1 })}
+                                    </span>
+                                  </td>
+                                );
+                              })}
+                            </>
+                          );
+                        })()
                       ) : (
                         <td className={cn("p-2 text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
                           {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                         </td>
                       )}
+
                     </tr>
                   ))}
                 </React.Fragment>
