@@ -394,25 +394,34 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   }, [projFrom, projTo]);
 
   const projection = useMemo(() => {
-    const map = new Map<string, { remaining: number[]; consum: number[]; outDate: Date | null }>();
+    const map = new Map<
+      string,
+      { start: number[]; incoming: number[]; remaining: number[]; consum: number[]; outDate: Date | null }
+    >();
     filtered.forEach((r) => {
       let running = r.stock;
       let incomingLeft = r.ordered;
+      const start: number[] = [];
+      const incoming: number[] = [];
       const remaining: number[] = [];
       const consum: number[] = [];
       let outDate: Date | null = null;
       projDays.forEach((d) => {
+        start.push(running);
+        let inQty = 0;
         if (incomingLeft > 0 && r.orderedEta && startOfDay(r.orderedEta) <= d) {
+          inQty = incomingLeft;
           running += incomingLeft;
           incomingLeft = 0;
         }
+        incoming.push(inQty);
         const need = r.perDayAvg[isoDay(d)] || 0;
         running -= need;
         consum.push(need);
         remaining.push(running);
         if (running < 0 && !outDate) outDate = d;
       });
-      map.set(r.key, { remaining, consum, outDate });
+      map.set(r.key, { start, incoming, remaining, consum, outDate });
     });
     return map;
   }, [filtered, projDays]);
@@ -664,6 +673,118 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">Nu există comenzi de client în perioada selectată.</div>
+      ) : view === "proiectie" ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground items-center">
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-400" /> Stoc început zi</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Comandă (intrare)</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-400" /> Consum</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Stoc final zi</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-destructive" /> Sub zero ⚠</span>
+          </div>
+
+          {grouped.map((g) => (
+            <div key={g.group} className="border rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b">
+                <span className="font-semibold text-sm">{g.group}</span>
+                <Badge variant="secondary" className="text-[10px]">{g.items.length} materiale</Badge>
+              </div>
+              <div className="overflow-auto max-h-[65vh] text-xs relative">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr>
+                      <th
+                        rowSpan={2}
+                        className="sticky top-0 left-0 z-30 bg-background border-b border-r px-2 h-8 text-left min-w-[190px]"
+                      >
+                        Material
+                      </th>
+                      <th
+                        rowSpan={2}
+                        className="sticky top-0 left-[190px] z-30 bg-background border-b border-r px-2 h-8 text-left w-[56px]"
+                      >
+                        U.M.
+                      </th>
+                      {projDays.map((d) => (
+                        <th
+                          key={d.toISOString()}
+                          colSpan={4}
+                          className="sticky top-0 z-20 bg-background border-b border-r px-2 h-8 text-center whitespace-nowrap font-semibold"
+                        >
+                          {WEEKDAYS[isoDay(d)].slice(0, 3).toLowerCase()} {format(d, "d MMM", { locale: ro })}
+                        </th>
+                      ))}
+                    </tr>
+                    <tr>
+                      {projDays.map((d) => (
+                        <React.Fragment key={d.toISOString()}>
+                          <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-sky-600 whitespace-nowrap">
+                            Stoc înc.
+                          </th>
+                          <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-amber-600 whitespace-nowrap">
+                            Comandă
+                          </th>
+                          <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-rose-600 whitespace-nowrap">
+                            Consum
+                          </th>
+                          <th className="sticky top-8 z-20 bg-background border-b border-r px-2 h-7 text-right text-[10px] font-medium text-emerald-600 whitespace-nowrap">
+                            Stoc final
+                          </th>
+                        </React.Fragment>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {g.items.map((r) => {
+                      const pr = projection.get(r.key);
+                      return (
+                        <tr key={r.key} className="border-b hover:bg-muted/40">
+                          <td className="sticky left-0 z-10 bg-background border-r p-2 font-medium min-w-[190px]">
+                            {r.name}
+                            {pr?.outDate && (
+                              <span className="block text-[10px] text-destructive font-normal">
+                                fără stoc din {format(pr.outDate, "d MMM", { locale: ro })}
+                              </span>
+                            )}
+                          </td>
+                          <td className="sticky left-[190px] z-10 bg-background border-r p-2 text-muted-foreground uppercase">
+                            {r.unit}
+                          </td>
+                          {projDays.map((d, i) => {
+                            const st = pr?.start[i] ?? 0;
+                            const inQty = pr?.incoming[i] ?? 0;
+                            const cons = pr?.consum[i] ?? 0;
+                            const end = pr?.remaining[i] ?? 0;
+                            const fmt = (n: number) => n.toLocaleString("ro-RO", { maximumFractionDigits: 1 });
+                            return (
+                              <React.Fragment key={d.toISOString()}>
+                                <td className="p-1.5 text-right text-sky-700 whitespace-nowrap">{fmt(st)}</td>
+                                <td className="p-1.5 text-right whitespace-nowrap">
+                                  {inQty > 0 ? <span className="text-amber-600 font-medium">+{fmt(inQty)}</span> : <span className="text-muted-foreground">—</span>}
+                                </td>
+                                <td className="p-1.5 text-right whitespace-nowrap">
+                                  {cons > 0 ? <span className="text-rose-600">-{fmt(cons)}</span> : <span className="text-muted-foreground">—</span>}
+                                </td>
+                                <td
+                                  className={cn(
+                                    "p-1.5 text-right border-r whitespace-nowrap font-semibold",
+                                    end < 0 ? "bg-destructive/10 text-destructive" : "text-emerald-700"
+                                  )}
+                                >
+                                  {fmt(end)}
+                                </td>
+                              </React.Fragment>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="border rounded-lg overflow-auto max-h-[70vh] text-xs relative">
           <table className="w-full caption-bottom border-collapse">
@@ -694,18 +815,6 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       <span className="block text-[10px] font-normal text-muted-foreground">{dayCounts[i]} zile</span>
                     </th>
                   ))
-                ) : view === "proiectie" ? (
-                  <>
-                    <th className={cn(stickyHead, "text-right whitespace-nowrap")}>Rămâne fără stoc</th>
-                    {projDays.map((d) => (
-                      <th key={d.toISOString()} className={cn(stickyHead, "text-right whitespace-nowrap")}>
-                        {format(d, "dd MMM", { locale: ro })}
-                        <span className="block text-[10px] font-normal text-muted-foreground">
-                          {WEEKDAYS[isoDay(d)].slice(0, 3)}
-                        </span>
-                      </th>
-                    ))}
-                  </>
                 ) : (
                   <th className={cn(stickyHead, "text-right")}>Diferență</th>
                 )}
@@ -724,7 +833,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       {g.group} ({g.items.length})
                     </td>
                     <td
-                      colSpan={view === "weekday" ? 18 : view === "proiectie" ? 12 + projDays.length : 12}
+                      colSpan={view === "weekday" ? 18 : 12}
                       className="p-2"
                     />
 
@@ -824,42 +933,6 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                             </span>
                           </td>
                         ))
-                      ) : view === "proiectie" ? (
-                        (() => {
-                          const pr = projection.get(r.key);
-                          return (
-                            <>
-                              <td
-                                className={cn(
-                                  "p-2 text-right whitespace-nowrap font-semibold",
-                                  pr?.outDate ? "text-destructive" : "text-emerald-600"
-                                )}
-                              >
-                                {pr?.outDate ? format(pr.outDate, "dd MMM yyyy", { locale: ro }) : "OK în interval"}
-                              </td>
-                              {projDays.map((d, i) => {
-                                const rest = pr?.remaining[i] ?? 0;
-                                const need = pr?.consum[i] ?? 0;
-                                return (
-                                  <td
-                                    key={d.toISOString()}
-                                    className={cn(
-                                      "p-2 text-right whitespace-nowrap",
-                                      rest < 0 ? "bg-destructive/10 text-destructive font-semibold" : ""
-                                    )}
-                                  >
-                                    <span className="block">
-                                      {rest.toLocaleString("ro-RO", { maximumFractionDigits: 1 })}
-                                    </span>
-                                    <span className="block text-[10px] text-muted-foreground">
-                                      -{need.toLocaleString("ro-RO", { maximumFractionDigits: 1 })}
-                                    </span>
-                                  </td>
-                                );
-                              })}
-                            </>
-                          );
-                        })()
                       ) : (
                         <td className={cn("p-2 text-right font-semibold", r.diff < 0 ? "text-destructive" : "text-emerald-600")}>
                           {r.diff.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
