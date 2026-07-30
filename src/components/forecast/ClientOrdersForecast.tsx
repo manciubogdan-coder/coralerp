@@ -833,7 +833,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       {g.group} ({g.items.length})
                     </td>
                     <td
-                      colSpan={view === "weekday" ? 18 : view === "proiectie" ? 12 + projDays.length : 12}
+                      colSpan={view === "weekday" ? 18 : 12}
                       className="p-2"
                     />
 
