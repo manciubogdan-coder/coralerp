@@ -513,6 +513,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
             </PopoverContent>
           </Popover>
         </div>
+        </>
+        )}
         <Button onClick={() => fetchData()} disabled={loading}>
           {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
           Calculează
