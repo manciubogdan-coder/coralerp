@@ -723,7 +723,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     >
                       {g.group} ({g.items.length})
                     </td>
-                    <td colSpan={view === "weekday" ? 18 : 12} className="p-2" />
+                    <td
+                      colSpan={view === "weekday" ? 18 : view === "proiectie" ? 12 + projDays.length : 12}
+                      className="p-2"
+                    />
+
                   </tr>
                   {g.items.map((r) => (
                     <tr key={r.key} className="border-b hover:bg-muted/40">
