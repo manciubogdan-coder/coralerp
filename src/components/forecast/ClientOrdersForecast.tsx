@@ -353,7 +353,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     const from = subDays(to, n - 1);
     setFromDate(from);
     setToDate(to);
-    fetchData(from, to);
+    fetchData(from, to, "istoric");
   };
 
   const switchMode = (m: "live" | "istoric") => {
@@ -361,11 +361,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     if (m === "istoric") {
       applyPreset(preset === "custom" ? "7" : preset);
     } else {
-      const from = subDays(new Date(), 30);
-      const to = new Date();
-      setFromDate(from);
-      setToDate(to);
-      fetchData(from, to);
+      fetchData(fromDate, toDate, "live");
     }
   };
 
