@@ -514,7 +514,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         {mode === "istoric" && (
         <>
         <div className="space-y-1">
-          <label className="text-sm font-medium">De la</label>
+          <label className="text-sm font-medium">Referință de la</label>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal")}>
@@ -526,6 +526,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
               <Calendar
                 mode="single"
                 selected={fromDate}
+                disabled={(d) => d > new Date()}
                 onSelect={(d) => {
                   if (!d) return;
                   setFromDate(d);
@@ -538,7 +539,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           </Popover>
         </div>
         <div className="space-y-1">
-          <label className="text-sm font-medium">Până la</label>
+          <label className="text-sm font-medium">Referință până la</label>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal")}>
@@ -550,6 +551,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
               <Calendar
                 mode="single"
                 selected={toDate}
+                disabled={(d) => d > new Date()}
                 onSelect={(d) => {
                   if (!d) return;
                   setToDate(d);
@@ -563,6 +565,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         </div>
         </>
         )}
+
         <Button onClick={() => fetchData()} disabled={loading}>
           {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
           Calculează
