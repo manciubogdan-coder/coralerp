@@ -92,6 +92,22 @@ export const StockCountManagement: React.FC = () => {
   const [applying, setApplying] = useState(false);
   const [confirmApply, setConfirmApply] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [savingRow, setSavingRow] = useState(false);
+  const [newRow, setNewRow] = useState({
+    name: "",
+    lot_number: "",
+    supplier: "",
+    manufacturer: "",
+    unit: "kg",
+    fizic: "",
+  });
+  const [nomen, setNomen] = useState<{ products: string[]; suppliers: string[]; manufacturers: string[] }>({
+    products: [],
+    suppliers: [],
+    manufacturers: [],
+  });
+
 
   const legacyTable =
     inventoryType === "ambalaje"
