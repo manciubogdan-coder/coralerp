@@ -361,6 +361,98 @@ export type Database = {
         }
         Relationships: []
       }
+      inventar_session_items: {
+        Row: {
+          applied: boolean
+          created_at: string
+          fizic: number | null
+          id: string
+          inventory_row_id: string | null
+          lot_number: string | null
+          manufacturer: string | null
+          name: string
+          scriptic: number
+          session_id: string
+          supplier: string | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          applied?: boolean
+          created_at?: string
+          fizic?: number | null
+          id?: string
+          inventory_row_id?: string | null
+          lot_number?: string | null
+          manufacturer?: string | null
+          name: string
+          scriptic?: number
+          session_id: string
+          supplier?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          applied?: boolean
+          created_at?: string
+          fizic?: number | null
+          id?: string
+          inventory_row_id?: string | null
+          lot_number?: string | null
+          manufacturer?: string | null
+          name?: string
+          scriptic?: number
+          session_id?: string
+          supplier?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventar_session_items_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "inventar_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventar_sessions: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          created_by_email: string | null
+          id: string
+          inventory_type: string
+          name: string
+          notes: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          created_by_email?: string | null
+          id?: string
+          inventory_type: string
+          name: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          created_by_email?: string | null
+          id?: string
+          inventory_type?: string
+          name?: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notif_events_catalog: {
         Row: {
           description: string | null
