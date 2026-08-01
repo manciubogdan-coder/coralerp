@@ -700,13 +700,27 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-destructive" /> Sub zero ⚠</span>
           </div>
 
-          {grouped.map((g) => (
+          {grouped.map((g) => {
+            const isCollapsed = collapsed.has(g.group);
+            return (
             <div key={g.group} className="border rounded-lg overflow-hidden">
-              <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b">
+              <button
+                type="button"
+                onClick={() =>
+                  setCollapsed((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(g.group)) next.delete(g.group);
+                    else next.add(g.group);
+                    return next;
+                  })
+                }
+                className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b w-full text-left hover:bg-muted/70 transition-colors"
+              >
+                {isCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 <span className="font-semibold text-sm">{g.group}</span>
                 <Badge variant="secondary" className="text-[10px]">{g.items.length} materiale</Badge>
-              </div>
-              <div className="overflow-auto max-h-[65vh] text-xs relative">
+              </button>
+              {!isCollapsed && <div className="overflow-auto max-h-[65vh] text-xs relative">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr>
