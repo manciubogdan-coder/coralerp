@@ -813,7 +813,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                   </tbody>
                 </table>
               </div>
-            )}
+            }
             </div>
           )})}
         </div>
