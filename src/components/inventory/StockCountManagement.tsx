@@ -291,17 +291,111 @@ export const StockCountManagement: React.FC = () => {
     [items]
   );
 
+  const addManualRow = async () => {
+    if (!active) return;
+    if (!newRow.name.trim()) {
+      toast({ variant: "destructive", title: "Produs lipsă", description: "Alege sau scrie denumirea produsului." });
+      return;
+    }
+    setSavingRow(true);
+    try {
+      const { data, error } = await supabaseCloud
+        .from("inventar_session_items")
+        .insert({
+          session_id: active.id,
+          inventory_row_id: null,
+          name: newRow.name.trim(),
+          lot_number: newRow.lot_number.trim() || null,
+          supplier: newRow.supplier.trim() || null,
+          manufacturer: newRow.manufacturer.trim() || null,
+          unit: newRow.unit.trim() || null,
+          scriptic: 0,
+          fizic: newRow.fizic === "" ? null : Number(newRow.fizic.replace(",", ".")),
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      setItems((prev) => [...prev, data as SessionItem]);
+      setNewRow({ name: "", lot_number: "", supplier: "", manufacturer: "", unit: newRow.unit, fizic: "" });
+      setAddOpen(false);
+      toast({ title: "Rând adăugat", description: "Poziția a fost adăugată în lista de numărare." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Eroare", description: e.message });
+    } finally {
+      setSavingRow(false);
+    }
+  };
+
+  const deleteItem = async (id: string) => {
+    const { error } = await supabaseCloud.from("inventar_session_items").delete().eq("id", id);
+    if (error) {
+      toast({ variant: "destructive", title: "Eroare", description: error.message });
+      return;
+    }
+    setItems((prev) => prev.filter((x) => x.id !== id));
+  };
+
+  const changeStatus = async (session: Session, status: "open" | "closed") => {
+    const { error } = await supabaseCloud
+      .from("inventar_sessions")
+      .update({ status, closed_at: status === "closed" ? new Date().toISOString() : null })
+      .eq("id", session.id);
+    if (error) {
+      toast({ variant: "destructive", title: "Eroare", description: error.message });
+      return;
+    }
+    const updated = { ...session, status, closed_at: status === "closed" ? new Date().toISOString() : null };
+    if (active?.id === session.id) setActive(updated);
+    setSessions((prev) => prev.map((s) => (s.id === session.id ? updated : s)));
+    toast({ title: status === "closed" ? "Inventar finalizat" : "Inventar redeschis" });
+  };
+
+  const resolveId = async (table: string, name: string): Promise<string | null> => {
+    if (!name) return null;
+    const { data } = await supabase.from(table).select("id, name").ilike("name", name).limit(1);
+    return (data as any[])?.[0]?.id || null;
+  };
+
   const applyAdjustments = async () => {
     if (!active) return;
     setApplying(true);
     try {
       for (const it of diffs) {
-        if (!it.inventory_row_id) continue;
-        const { error } = await supabase
-          .from(legacyTable)
-          .update({ quantity: it.fizic })
-          .eq("id", it.inventory_row_id);
-        if (error) throw error;
+        if (it.inventory_row_id) {
+          const { error } = await supabase
+            .from(legacyTable)
+            .update({ quantity: it.fizic })
+            .eq("id", it.inventory_row_id);
+          if (error) throw error;
+        } else {
+          if (!it.fizic || Number(it.fizic) <= 0) continue;
+          const [product_id, supplier_id, manufacturer_id] = await Promise.all([
+            resolveId(productsTable, it.name),
+            resolveId(suppliersTable, it.supplier || ""),
+            resolveId(manufacturersTable, it.manufacturer || ""),
+          ]);
+          const { data: inserted, error } = await supabase
+            .from(legacyTable)
+            .insert({
+              name: it.name,
+              product_id,
+              supplier_id,
+              supplier: it.supplier || null,
+              manufacturer_id,
+              lot_number: it.lot_number || null,
+              quantity: it.fizic,
+              unit: it.unit || "kg",
+              document_number: "INVENTAR",
+              receipt_date: new Date().toISOString(),
+            } as any)
+            .select("id")
+            .single();
+          if (error) throw error;
+          await supabaseCloud
+            .from("inventar_session_items")
+            .update({ inventory_row_id: (inserted as any).id })
+            .eq("id", it.id);
+        }
         await supabaseCloud.from("inventar_session_items").update({ applied: true }).eq("id", it.id);
       }
       await supabaseCloud
@@ -333,6 +427,7 @@ export const StockCountManagement: React.FC = () => {
     setDeleteId(null);
     fetchSessions();
   };
+
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
