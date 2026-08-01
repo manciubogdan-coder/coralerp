@@ -466,6 +466,43 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
         </div>
       </div>
 
+      {/* Bulk actions */}
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between gap-3 border rounded-lg p-3 bg-muted/40">
+          <span className="text-sm font-medium">{selected.size} rânduri selectate</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
+              Deselectează
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="destructive">
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Șterge selectate
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Șterge {selected.size} comenzi?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Această acțiune nu poate fi anulată.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Anulează</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteIds(Array.from(selected))}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Șterge
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      )}
+
       {/* Orders grouped by supplier */}
       <div className="space-y-3">
         {supplierGroups.length === 0 ? (
@@ -476,6 +513,8 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
           supplierGroups.map(group => {
             const key = group.supplier_id || "no-supplier";
             const isExpanded = expandedSuppliers.has(key);
+            const groupIds = group.orders.map(o => o.id);
+            const allSelected = groupIds.every(id => selected.has(id));
 
             return (
               <Collapsible key={key} open={isExpanded} onOpenChange={() => toggleSupplier(key)}>
@@ -483,6 +522,13 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                   <CollapsibleTrigger asChild>
                     <div className="flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 cursor-pointer">
                       <div className="flex items-center gap-3">
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={allSelected}
+                            onCheckedChange={(c) => toggleSelectGroup(group, !!c)}
+                            aria-label="Selectează toată comanda"
+                          />
+                        </div>
                         {isExpanded ? (
                           <ChevronDown className="h-5 w-5 text-muted-foreground" />
                         ) : (
@@ -504,6 +550,36 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                           <FileSpreadsheet className="h-4 w-4 mr-1" />
                           Export Comandă
                         </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Șterge comanda
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Șterge toată comanda?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Se vor șterge toate cele {groupIds.length} rânduri pentru "{group.supplier_name}". Această acțiune nu poate fi anulată.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Anulează</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteIds(groupIds)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Șterge
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   </CollapsibleTrigger>
@@ -512,6 +588,13 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[40px]">
+                            <Checkbox
+                              checked={allSelected}
+                              onCheckedChange={(c) => toggleSelectGroup(group, !!c)}
+                              aria-label="Selectează tot"
+                            />
+                          </TableHead>
                           <TableHead>Data Comandă</TableHead>
                           <TableHead>Cod</TableHead>
                           <TableHead>Produs</TableHead>
@@ -524,7 +607,15 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                       </TableHeader>
                       <TableBody>
                         {group.orders.map(order => (
-                          <TableRow key={order.id}>
+                          <TableRow key={order.id} data-state={selected.has(order.id) ? "selected" : undefined}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selected.has(order.id)}
+                                onCheckedChange={() => toggleSelect(order.id)}
+                                aria-label="Selectează rând"
+                              />
+                            </TableCell>
+
                             <TableCell>{format(order.order_date, "dd.MM.yyyy")}</TableCell>
                             <TableCell className="font-mono text-sm">{order.product_code || "-"}</TableCell>
                             <TableCell className="font-medium">{order.product_name}</TableCell>
