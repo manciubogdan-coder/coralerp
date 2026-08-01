@@ -48,32 +48,64 @@ const InventoryTable = ({
   const isMobile = useIsMobile();
   
   const handleExportExcel = () => {
-    console.log('Export started - displayedInventory length:', displayedInventory.length);
+    const resolveSupplier = (it: any) => (it.supplier_id ? suppliers[it.supplier_id]?.name : it.supplier) || '-';
+    const resolveManufacturer = (it: any) => (it.manufacturer_id ? manufacturers[it.manufacturer_id]?.name : it.manufacturer) || '-';
+    const resolveCode = (it: any) =>
+      it.products?.cod_produs || (it.product_id ? products[it.product_id]?.cod_produs : undefined) || '-';
 
-    const dataForExport = displayedInventory.map(item => {
-      // IMPORTANT: use item.name (the name stored in inventory table) to keep consistency
-      // between "Stoc Live" and "Stoc Curent" (products table name can differ).
-      const productName = item.name;
-      const supplierName = item.supplier_id ? suppliers[item.supplier_id]?.name : item.supplier;
-      const manufacturerName = item.manufacturer_id ? manufacturers[item.manufacturer_id]?.name : item.manufacturer;
-      const productCode =
-        item.products?.cod_produs ||
-        (item.product_id ? products[item.product_id]?.cod_produs : undefined) ||
-        "-";
-
-      return {
-        'Nr.': item.entry_number ?? '-',
-        'Data': item.receipt_date ? format(new Date(item.receipt_date), 'dd.MM.yyyy') : '-',
-        'Produs': productName || '-',
-        'Cod': productCode,
-        'Cantitate': Number(item.quantity ?? 0),
-        'U.M.': item.unit || '-',
-        'Furnizor': supplierName || '-',
-        'Producător': manufacturerName || '-',
-        'Lot': item.lot_number || '-',
-        'Document': item.document_number || '-'
-      };
+    // Expand aggregated groups back to their underlying entries so the export
+    // shows a separate line per Produs + Lot + Furnizor + Producător.
+    const flatItems: any[] = [];
+    displayedInventory.forEach((item: any) => {
+      if (item.isHeader && Array.isArray(item.items) && item.items.length > 0) {
+        flatItems.push(...item.items);
+      } else if (!item.isHeader) {
+        flatItems.push(item);
+      } else if (Array.isArray(item.items) && item.items.length > 0) {
+        flatItems.push(...item.items);
+      }
     });
+
+    const splitMap = new Map<string, any>();
+    flatItems.forEach((it) => {
+      const productName = it.name || '-';
+      const lot = it.lot_number || '-';
+      const supplierName = resolveSupplier(it);
+      const manufacturerName = resolveManufacturer(it);
+      const key = [productName, lot, supplierName, manufacturerName, it.unit || ''].join('||').toLowerCase();
+
+      if (!splitMap.has(key)) {
+        splitMap.set(key, {
+          'Data': it.receipt_date ? format(new Date(it.receipt_date), 'dd.MM.yyyy') : '-',
+          'Produs': productName,
+          'Cod': resolveCode(it),
+          'Lot': lot,
+          'Furnizor': supplierName,
+          'Producător': manufacturerName,
+          'Cantitate': 0,
+          'U.M.': it.unit || '-',
+          'Documente': new Set<string>(),
+        });
+      }
+      const row = splitMap.get(key);
+      row['Cantitate'] += Number(it.quantity ?? 0);
+      if (it.document_number) row['Documente'].add(it.document_number);
+    });
+
+    const dataForExport = Array.from(splitMap.values())
+      .sort(
+        (a, b) =>
+          String(a['Produs']).localeCompare(String(b['Produs']), 'ro') ||
+          String(a['Lot']).localeCompare(String(b['Lot']), 'ro') ||
+          String(a['Furnizor']).localeCompare(String(b['Furnizor']), 'ro') ||
+          String(a['Producător']).localeCompare(String(b['Producător']), 'ro')
+      )
+      .map((row) => ({
+        ...row,
+        'Cantitate': Number(Number(row['Cantitate']).toFixed(2)),
+        'Documente': Array.from(row['Documente'] as Set<string>).join(', ') || '-',
+      }));
+
 
     console.log('Data prepared for export:', dataForExport.length, dataForExport.slice(0, 3));
 
