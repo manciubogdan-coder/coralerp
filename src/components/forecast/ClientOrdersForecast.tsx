@@ -854,10 +854,24 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
               </tr>
             </thead>
             <tbody>
-              {grouped.map((g) => (
+              {grouped.map((g) => {
+                const isCollapsed = collapsed.has(g.group);
+                return (
                 <React.Fragment key={g.group}>
-                  <tr className="bg-muted/60">
-                    <td className="sticky left-0 z-10 bg-muted/60 p-2" />
+                  <tr
+                    className="bg-muted/60 cursor-pointer hover:bg-muted/80 transition-colors"
+                    onClick={() =>
+                      setCollapsed((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(g.group)) next.delete(g.group);
+                        else next.add(g.group);
+                        return next;
+                      })
+                    }
+                  >
+                    <td className="sticky left-0 z-10 bg-muted/60 p-2">
+                      {isCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                    </td>
                     <td
                       className="sticky left-[40px] z-10 bg-muted/60 p-2 font-semibold uppercase tracking-wide text-[11px]"
                       colSpan={1}
@@ -870,7 +884,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     />
 
                   </tr>
-                  {g.items.map((r) => (
+                  {!isCollapsed && g.items.map((r) => (
                     <tr key={r.key} className="border-b hover:bg-muted/40">
                       <td className={cellCheck}>
                         <Checkbox
