@@ -813,8 +813,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                   </tbody>
                 </table>
               </div>
+            )}
             </div>
-          ))}
+          )})}
         </div>
       ) : (
         <div className="border rounded-lg overflow-auto max-h-[70vh] text-xs relative">
