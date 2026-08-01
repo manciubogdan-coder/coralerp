@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Loader2, FileDown, Truck, Activity, History } from "lucide-react";
+import { CalendarIcon, Loader2, FileDown, Truck, Activity, History, ChevronDown, ChevronRight } from "lucide-react";
 import { format, startOfDay, endOfDay, eachDayOfInterval, subDays, addDays } from "date-fns";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
