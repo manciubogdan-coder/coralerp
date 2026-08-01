@@ -650,19 +650,24 @@ export const StockCountManagement: React.FC = () => {
               <th className="p-2 text-right">Scriptic</th>
               <th className="p-2 text-right w-28">Fizic</th>
               <th className="p-2 text-right">Diferență</th>
+              <th className="p-2 w-8"></th>
             </tr>
           </thead>
           <tbody>
             {itemsLoading ? (
-              <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">Se încarcă...</td></tr>
+              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">Se încarcă...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">Nicio poziție.</td></tr>
+              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">Nicio poziție.</td></tr>
             ) : (
               filtered.map((it) => {
                 const diff = it.fizic === null ? null : Number(it.fizic) - Number(it.scriptic);
+                const isNew = !it.inventory_row_id;
                 return (
                   <tr key={it.id} className={`border-t ${diff ? "bg-amber-50" : ""}`}>
-                    <td className="p-2">{it.name}</td>
+                    <td className="p-2">
+                      {it.name}
+                      {isNew && <Badge variant="outline" className="ml-2 text-[10px]">nou</Badge>}
+                    </td>
                     <td className="p-2">{it.lot_number || "-"}</td>
                     <td className="p-2">{it.supplier || "-"}</td>
                     <td className="p-2">{it.manufacturer || "-"}</td>
@@ -681,6 +686,13 @@ export const StockCountManagement: React.FC = () => {
                     <td className={`p-2 text-right font-medium ${diff === null ? "" : diff < 0 ? "text-destructive" : diff > 0 ? "text-green-600" : "text-muted-foreground"}`}>
                       {diff === null ? "-" : fmt(diff)}
                     </td>
+                    <td className="p-2 text-right">
+                      {!readOnly && isNew && (
+                        <button onClick={() => deleteItem(it.id)} title="Șterge rândul">
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })
@@ -689,13 +701,86 @@ export const StockCountManagement: React.FC = () => {
         </table>
       </div>
 
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Adaugă poziție nouă</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Produs *</Label>
+              <Input
+                list="inv-products"
+                value={newRow.name}
+                onChange={(e) => setNewRow({ ...newRow, name: e.target.value })}
+                placeholder="Alege sau scrie produsul"
+              />
+              <datalist id="inv-products">
+                {nomen.products.map((n) => <option key={n} value={n} />)}
+              </datalist>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Lot</Label>
+                <Input value={newRow.lot_number} onChange={(e) => setNewRow({ ...newRow, lot_number: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">UM</Label>
+                <Input value={newRow.unit} onChange={(e) => setNewRow({ ...newRow, unit: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Furnizor</Label>
+              <Input
+                list="inv-suppliers"
+                value={newRow.supplier}
+                onChange={(e) => setNewRow({ ...newRow, supplier: e.target.value })}
+              />
+              <datalist id="inv-suppliers">
+                {nomen.suppliers.map((n) => <option key={n} value={n} />)}
+              </datalist>
+            </div>
+            <div>
+              <Label className="text-xs">Producător</Label>
+              <Input
+                list="inv-manufacturers"
+                value={newRow.manufacturer}
+                onChange={(e) => setNewRow({ ...newRow, manufacturer: e.target.value })}
+              />
+              <datalist id="inv-manufacturers">
+                {nomen.manufacturers.map((n) => <option key={n} value={n} />)}
+              </datalist>
+            </div>
+            <div>
+              <Label className="text-xs">Cantitate fizică găsită</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={newRow.fizic}
+                onChange={(e) => setNewRow({ ...newRow, fizic: e.target.value })}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Scripticul este 0 – la reglare se va crea o intrare nouă în depozit cu această cantitate.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Anulează</Button>
+            <Button onClick={addManualRow} disabled={savingRow}>
+              {savingRow ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+              Adaugă
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={confirmApply} onOpenChange={setConfirmApply}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Reglezi stocul din depozit?</AlertDialogTitle>
             <AlertDialogDescription>
-              {diffs.length} poziții vor fi actualizate la cantitatea fizică numărată. Inventarul va fi marcat ca
-              finalizat. Acțiunea nu poate fi anulată automat.
+              {diffs.length} poziții vor fi actualizate la cantitatea fizică numărată. Pozițiile noi vor fi
+              adăugate ca intrări în depozit. Inventarul va fi marcat ca finalizat.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -704,6 +789,7 @@ export const StockCountManagement: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </div>
   );
 };
