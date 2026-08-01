@@ -988,7 +988,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     </tr>
                   ))}
                 </React.Fragment>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
