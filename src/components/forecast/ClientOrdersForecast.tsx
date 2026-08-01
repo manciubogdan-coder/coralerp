@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Loader2, FileDown, Truck, Activity, History } from "lucide-react";
+import { CalendarIcon, Loader2, FileDown, Truck, Activity, History, ChevronDown, ChevronRight } from "lucide-react";
 import { format, startOfDay, endOfDay, eachDayOfInterval, subDays, addDays } from "date-fns";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -97,6 +97,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   // Perioada de proiecție (viitor) — independentă de perioada de referință
   const [projFrom, setProjFrom] = useState<Date>(startOfDay(new Date()));
   const [projTo, setProjTo] = useState<Date>(startOfDay(addDays(new Date(), 6)));
+  // Grupe minimizate în tabel
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
 
   const getTableNames = () => {
@@ -698,13 +700,27 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-destructive" /> Sub zero ⚠</span>
           </div>
 
-          {grouped.map((g) => (
+          {grouped.map((g) => {
+            const isCollapsed = collapsed.has(g.group);
+            return (
             <div key={g.group} className="border rounded-lg overflow-hidden">
-              <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b">
+              <button
+                type="button"
+                onClick={() =>
+                  setCollapsed((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(g.group)) next.delete(g.group);
+                    else next.add(g.group);
+                    return next;
+                  })
+                }
+                className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b w-full text-left hover:bg-muted/70 transition-colors"
+              >
+                {isCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 <span className="font-semibold text-sm">{g.group}</span>
                 <Badge variant="secondary" className="text-[10px]">{g.items.length} materiale</Badge>
-              </div>
-              <div className="overflow-auto max-h-[65vh] text-xs relative">
+              </button>
+              {!isCollapsed && <div className="overflow-auto max-h-[65vh] text-xs relative">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr>
@@ -797,8 +813,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                   </tbody>
                 </table>
               </div>
+            }
             </div>
-          ))}
+          )})}
         </div>
       ) : (
         <div className="border rounded-lg overflow-auto max-h-[70vh] text-xs relative">
@@ -837,10 +854,24 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
               </tr>
             </thead>
             <tbody>
-              {grouped.map((g) => (
+              {grouped.map((g) => {
+                const isCollapsed = collapsed.has(g.group);
+                return (
                 <React.Fragment key={g.group}>
-                  <tr className="bg-muted/60">
-                    <td className="sticky left-0 z-10 bg-muted/60 p-2" />
+                  <tr
+                    className="bg-muted/60 cursor-pointer hover:bg-muted/80 transition-colors"
+                    onClick={() =>
+                      setCollapsed((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(g.group)) next.delete(g.group);
+                        else next.add(g.group);
+                        return next;
+                      })
+                    }
+                  >
+                    <td className="sticky left-0 z-10 bg-muted/60 p-2">
+                      {isCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                    </td>
                     <td
                       className="sticky left-[40px] z-10 bg-muted/60 p-2 font-semibold uppercase tracking-wide text-[11px]"
                       colSpan={1}
@@ -853,7 +884,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     />
 
                   </tr>
-                  {g.items.map((r) => (
+                  {!isCollapsed && g.items.map((r) => (
                     <tr key={r.key} className="border-b hover:bg-muted/40">
                       <td className={cellCheck}>
                         <Checkbox
@@ -957,7 +988,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     </tr>
                   ))}
                 </React.Fragment>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
