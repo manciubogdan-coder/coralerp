@@ -593,7 +593,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         <div className="flex flex-wrap gap-3 items-end border rounded-md p-3 bg-muted/30">
           <div className="text-sm font-medium w-full">
             Perioada de proiecție (viitor) — cât și până când îmi ajunge marfa
+            <span className="ml-2 font-normal text-xs text-muted-foreground">
+              Referință medie:{" "}
+              {mode === "live"
+                ? "comenzile client existente (Live)"
+                : `${format(fromDate, "dd MMM", { locale: ro })} – ${format(toDate, "dd MMM yyyy", { locale: ro })} (Istoric)`}
+            </span>
           </div>
+
           <div className="flex gap-1">
             {[
               { v: 7, l: "Următoarea săpt." },
