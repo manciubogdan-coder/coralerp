@@ -54,23 +54,20 @@ const norm = (s: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
 
-const SALATE_KEYS = [
-  "salata", "salate", "lollo", "rucola", "rukola", "spanac", "valeriana", "babyleaf", "baby",
-  "iceberg", "batavia", "frisee", "radicchio", "romana", "mix", "mesclun", "andive", "creta",
-];
 const AROMATE_KEYS = [
   "menta", "busuioc", "patrunjel", "marar", "cimbru", "cimbrisor", "rozmarin", "oregano",
   "leustean", "tarhon", "coriandru", "arpagic", "ceapaverde", "salvie", "melisa", "roinita",
   "lavanda", "sovarv", "aromat",
 ];
 
+// Tot ce nu este plantă aromatică se consideră salată (mono sau mix).
 const groupOf = (name: string): string => {
   const n = norm(name);
   if (AROMATE_KEYS.some((k) => n.includes(k))) return "Aromate";
-  if (SALATE_KEYS.some((k) => n.includes(k))) return "Salate";
-  return "Altele";
+  return "Salate";
 };
-const GROUP_ORDER = ["Salate", "Aromate", "Altele"];
+const GROUP_ORDER = ["Salate", "Aromate"];
+
 
 const toKg = (q: number, u?: string) => {
   switch ((u || "").toLowerCase()) {
