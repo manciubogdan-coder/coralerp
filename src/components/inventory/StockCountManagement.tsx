@@ -392,8 +392,8 @@ export const StockCountManagement: React.FC = () => {
               <AlertDialogCancel>Anulează</AlertDialogCancel>
               <AlertDialogAction onClick={() => deleteId && deleteSession(deleteId)}>Șterge</AlertDialogAction>
             </AlertDialogFooter>
-          </AlertDialogFooter>
           </AlertDialogContent>
+
         </AlertDialog>
       </div>
     );
