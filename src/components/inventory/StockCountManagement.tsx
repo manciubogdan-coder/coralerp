@@ -287,9 +287,10 @@ export const StockCountManagement: React.FC = () => {
   };
 
   const diffs = useMemo(
-    () => items.filter((it) => it.fizic !== null && Number(it.fizic) !== Number(it.scriptic)),
+    () => items.filter((it) => !it.applied && it.fizic !== null && Number(it.fizic) !== Number(it.scriptic)),
     [items]
   );
+
 
   const addManualRow = async () => {
     if (!active) return;
@@ -598,12 +599,13 @@ export const StockCountManagement: React.FC = () => {
               <Button variant="outline" size="sm" onClick={copyScriptic}>
                 <Wand2 className="h-4 w-4 mr-1" /> Completează cu scripticul
               </Button>
-              <Button size="sm" onClick={() => setConfirmApply(true)} disabled={diffs.length === 0 || applying}>
-                {applying ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-                Reglează stocul ({diffs.length})
-              </Button>
             </>
           )}
+          <Button size="sm" onClick={() => setConfirmApply(true)} disabled={diffs.length === 0 || applying}>
+            {applying ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+            Reglează stocul ({diffs.length})
+          </Button>
+
         </div>
       </div>
 
