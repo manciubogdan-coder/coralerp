@@ -566,7 +566,12 @@ export const StockCountManagement: React.FC = () => {
             Înapoi
           </Button>
           <div className="min-w-0">
-            <div className="font-medium text-sm truncate">{active.name}</div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm truncate">{active.name}</span>
+              <Badge variant={active.status === "open" ? "secondary" : "default"}>
+                {active.status === "open" ? "În lucru" : "Finalizat"}
+              </Badge>
+            </div>
             <div className="text-xs text-muted-foreground">
               {items.length} poziții · {totals.counted} numărate · {diffs.length} diferențe
             </div>
@@ -576,8 +581,20 @@ export const StockCountManagement: React.FC = () => {
           <Button variant="outline" size="sm" onClick={exportSession}>
             <Download className="h-4 w-4 mr-1" /> Export
           </Button>
+          {active.status === "open" ? (
+            <Button variant="outline" size="sm" onClick={() => changeStatus(active, "closed")}>
+              <CheckCircle2 className="h-4 w-4 mr-1" /> Finalizează
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => changeStatus(active, "open")}>
+              <RotateCcw className="h-4 w-4 mr-1" /> Redeschide
+            </Button>
+          )}
           {!readOnly && (
             <>
+              <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Adaugă rând
+              </Button>
               <Button variant="outline" size="sm" onClick={copyScriptic}>
                 <Wand2 className="h-4 w-4 mr-1" /> Completează cu scripticul
               </Button>
@@ -589,6 +606,7 @@ export const StockCountManagement: React.FC = () => {
           )}
         </div>
       </div>
+
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <Card className="p-2">
