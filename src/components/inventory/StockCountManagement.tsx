@@ -19,16 +19,28 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
   ArrowLeft,
+  CheckCircle2,
   ClipboardList,
   Download,
   Loader2,
   Play,
+  Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Trash2,
   Wand2,
 } from "lucide-react";
+
 
 interface Session {
   id: string;
