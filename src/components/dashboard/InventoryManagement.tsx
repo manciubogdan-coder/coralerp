@@ -11,12 +11,13 @@ import { ReceptionHistory } from "@/components/inventory/ReceptionHistory";
 import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView";
 import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
 import DailyStockQuality from "@/components/inventory/DailyStockQuality";
+import { StockCountManagement } from "@/components/inventory/StockCountManagement";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const InventoryManagement = () => {
   const { inventoryType } = useInventoryType();
   const [activeTab, setActiveTab] = useState("all");
-  const [viewMode, setViewMode] = useState<"inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption" | "daily-quality">("inventory");
+  const [viewMode, setViewMode] = useState<"inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption" | "daily-quality" | "inventar">("inventory");
   const [refreshKey, setRefreshKey] = useState(0);
   
   const { 
