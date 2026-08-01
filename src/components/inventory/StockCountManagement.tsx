@@ -516,10 +516,20 @@ export const StockCountManagement: React.FC = () => {
                   <Button size="sm" variant="outline" onClick={() => loadItems(s)}>
                     Deschide
                   </Button>
+                  {s.status === "open" ? (
+                    <Button size="sm" variant="ghost" onClick={() => changeStatus(s, "closed")}>
+                      <CheckCircle2 className="h-4 w-4 mr-1" /> Finalizează
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="ghost" onClick={() => changeStatus(s, "open")}>
+                      <RotateCcw className="h-4 w-4 mr-1" /> Redeschide
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={() => setDeleteId(s.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
+
               </Card>
             ))}
           </div>
