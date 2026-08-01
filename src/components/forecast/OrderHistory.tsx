@@ -57,6 +57,8 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
   const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
   const [pendingExportGroup, setPendingExportGroup] = useState<SupplierOrderGroup | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
 
   const getTableNames = () => {
     switch (inventoryType) {
