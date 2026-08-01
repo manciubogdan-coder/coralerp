@@ -116,12 +116,34 @@ export const StockCountManagement: React.FC = () => {
       ? "etichete_inventory"
       : "inventory";
 
+  const prefix =
+    inventoryType === "ambalaje" ? "ambalaje_" : inventoryType === "etichete" ? "etichete_" : "";
+  const productsTable = `${prefix}products`;
+  const suppliersTable = `${prefix}suppliers`;
+  const manufacturersTable = `${prefix}manufacturers`;
+
   const typeLabel =
     inventoryType === "ambalaje"
       ? "Ambalaje"
       : inventoryType === "etichete"
       ? "Etichete"
       : "Materii Prime";
+
+  useEffect(() => {
+    (async () => {
+      const [p, s, m] = await Promise.all([
+        supabase.from(productsTable).select("name").order("name"),
+        supabase.from(suppliersTable).select("name").order("name"),
+        supabase.from(manufacturersTable).select("name").order("name"),
+      ]);
+      setNomen({
+        products: ((p.data as any[]) || []).map((x) => x.name).filter(Boolean),
+        suppliers: ((s.data as any[]) || []).map((x) => x.name).filter(Boolean),
+        manufacturers: ((m.data as any[]) || []).map((x) => x.name).filter(Boolean),
+      });
+    })();
+  }, [productsTable, suppliersTable, manufacturersTable]);
+
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
