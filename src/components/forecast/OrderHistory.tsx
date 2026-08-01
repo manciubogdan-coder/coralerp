@@ -240,23 +240,49 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
     toast({ title: `Comandă ${orderNumber} exportată pentru ${supplierName}` });
   };
 
-  const handleDeleteOrder = async (orderId: string) => {
+  const deleteIds = async (ids: string[]) => {
+    if (ids.length === 0) return;
     try {
       const tables = getTableNames();
       const { error } = await supabase
         .from(tables.orders)
         .delete()
-        .eq("id", orderId);
+        .in("id", ids);
 
       if (error) throw error;
 
-      toast({ title: "Comanda a fost ștearsă" });
+      setSelected(prev => {
+        const next = new Set(prev);
+        ids.forEach(id => next.delete(id));
+        return next;
+      });
+      toast({ title: ids.length === 1 ? "Comanda a fost ștearsă" : `${ids.length} comenzi șterse` });
       fetchOrders();
     } catch (error) {
-      console.error("Error deleting order:", error);
-      toast({ title: "Eroare la ștergerea comenzii", variant: "destructive" });
+      console.error("Error deleting orders:", error);
+      toast({ title: "Eroare la ștergerea comenzilor", variant: "destructive" });
     }
   };
+
+  const handleDeleteOrder = (orderId: string) => deleteIds([orderId]);
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectGroup = (group: SupplierOrderGroup, checked: boolean) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      group.orders.forEach(o => (checked ? next.add(o.id) : next.delete(o.id)));
+      return next;
+    });
+  };
+
 
   const handleExportAll = () => {
     if (filteredOrders.length === 0) {
