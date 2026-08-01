@@ -97,6 +97,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   // Perioada de proiecție (viitor) — independentă de perioada de referință
   const [projFrom, setProjFrom] = useState<Date>(startOfDay(new Date()));
   const [projTo, setProjTo] = useState<Date>(startOfDay(addDays(new Date(), 6)));
+  // Grupe minimizate în tabel
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
 
   const getTableNames = () => {
