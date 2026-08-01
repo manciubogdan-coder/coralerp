@@ -19,16 +19,28 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
   ArrowLeft,
+  CheckCircle2,
   ClipboardList,
   Download,
   Loader2,
   Play,
+  Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Trash2,
   Wand2,
 } from "lucide-react";
+
 
 interface Session {
   id: string;
@@ -80,6 +92,22 @@ export const StockCountManagement: React.FC = () => {
   const [applying, setApplying] = useState(false);
   const [confirmApply, setConfirmApply] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [savingRow, setSavingRow] = useState(false);
+  const [newRow, setNewRow] = useState({
+    name: "",
+    lot_number: "",
+    supplier: "",
+    manufacturer: "",
+    unit: "kg",
+    fizic: "",
+  });
+  const [nomen, setNomen] = useState<{ products: string[]; suppliers: string[]; manufacturers: string[] }>({
+    products: [],
+    suppliers: [],
+    manufacturers: [],
+  });
+
 
   const legacyTable =
     inventoryType === "ambalaje"
@@ -88,12 +116,34 @@ export const StockCountManagement: React.FC = () => {
       ? "etichete_inventory"
       : "inventory";
 
+  const prefix =
+    inventoryType === "ambalaje" ? "ambalaje_" : inventoryType === "etichete" ? "etichete_" : "";
+  const productsTable = `${prefix}products`;
+  const suppliersTable = `${prefix}suppliers`;
+  const manufacturersTable = `${prefix}manufacturers`;
+
   const typeLabel =
     inventoryType === "ambalaje"
       ? "Ambalaje"
       : inventoryType === "etichete"
       ? "Etichete"
       : "Materii Prime";
+
+  useEffect(() => {
+    (async () => {
+      const [p, s, m] = await Promise.all([
+        supabase.from(productsTable).select("name").order("name"),
+        supabase.from(suppliersTable).select("name").order("name"),
+        supabase.from(manufacturersTable).select("name").order("name"),
+      ]);
+      setNomen({
+        products: ((p.data as any[]) || []).map((x) => x.name).filter(Boolean),
+        suppliers: ((s.data as any[]) || []).map((x) => x.name).filter(Boolean),
+        manufacturers: ((m.data as any[]) || []).map((x) => x.name).filter(Boolean),
+      });
+    })();
+  }, [productsTable, suppliersTable, manufacturersTable]);
+
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
@@ -241,17 +291,111 @@ export const StockCountManagement: React.FC = () => {
     [items]
   );
 
+  const addManualRow = async () => {
+    if (!active) return;
+    if (!newRow.name.trim()) {
+      toast({ variant: "destructive", title: "Produs lipsă", description: "Alege sau scrie denumirea produsului." });
+      return;
+    }
+    setSavingRow(true);
+    try {
+      const { data, error } = await supabaseCloud
+        .from("inventar_session_items")
+        .insert({
+          session_id: active.id,
+          inventory_row_id: null,
+          name: newRow.name.trim(),
+          lot_number: newRow.lot_number.trim() || null,
+          supplier: newRow.supplier.trim() || null,
+          manufacturer: newRow.manufacturer.trim() || null,
+          unit: newRow.unit.trim() || null,
+          scriptic: 0,
+          fizic: newRow.fizic === "" ? null : Number(newRow.fizic.replace(",", ".")),
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      setItems((prev) => [...prev, data as SessionItem]);
+      setNewRow({ name: "", lot_number: "", supplier: "", manufacturer: "", unit: newRow.unit, fizic: "" });
+      setAddOpen(false);
+      toast({ title: "Rând adăugat", description: "Poziția a fost adăugată în lista de numărare." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Eroare", description: e.message });
+    } finally {
+      setSavingRow(false);
+    }
+  };
+
+  const deleteItem = async (id: string) => {
+    const { error } = await supabaseCloud.from("inventar_session_items").delete().eq("id", id);
+    if (error) {
+      toast({ variant: "destructive", title: "Eroare", description: error.message });
+      return;
+    }
+    setItems((prev) => prev.filter((x) => x.id !== id));
+  };
+
+  const changeStatus = async (session: Session, status: "open" | "closed") => {
+    const { error } = await supabaseCloud
+      .from("inventar_sessions")
+      .update({ status, closed_at: status === "closed" ? new Date().toISOString() : null })
+      .eq("id", session.id);
+    if (error) {
+      toast({ variant: "destructive", title: "Eroare", description: error.message });
+      return;
+    }
+    const updated = { ...session, status, closed_at: status === "closed" ? new Date().toISOString() : null };
+    if (active?.id === session.id) setActive(updated);
+    setSessions((prev) => prev.map((s) => (s.id === session.id ? updated : s)));
+    toast({ title: status === "closed" ? "Inventar finalizat" : "Inventar redeschis" });
+  };
+
+  const resolveId = async (table: string, name: string): Promise<string | null> => {
+    if (!name) return null;
+    const { data } = await supabase.from(table).select("id, name").ilike("name", name).limit(1);
+    return (data as any[])?.[0]?.id || null;
+  };
+
   const applyAdjustments = async () => {
     if (!active) return;
     setApplying(true);
     try {
       for (const it of diffs) {
-        if (!it.inventory_row_id) continue;
-        const { error } = await supabase
-          .from(legacyTable)
-          .update({ quantity: it.fizic })
-          .eq("id", it.inventory_row_id);
-        if (error) throw error;
+        if (it.inventory_row_id) {
+          const { error } = await supabase
+            .from(legacyTable)
+            .update({ quantity: it.fizic })
+            .eq("id", it.inventory_row_id);
+          if (error) throw error;
+        } else {
+          if (!it.fizic || Number(it.fizic) <= 0) continue;
+          const [product_id, supplier_id, manufacturer_id] = await Promise.all([
+            resolveId(productsTable, it.name),
+            resolveId(suppliersTable, it.supplier || ""),
+            resolveId(manufacturersTable, it.manufacturer || ""),
+          ]);
+          const { data: inserted, error } = await supabase
+            .from(legacyTable)
+            .insert({
+              name: it.name,
+              product_id,
+              supplier_id,
+              supplier: it.supplier || null,
+              manufacturer_id,
+              lot_number: it.lot_number || null,
+              quantity: it.fizic,
+              unit: it.unit || "kg",
+              document_number: "INVENTAR",
+              receipt_date: new Date().toISOString(),
+            } as any)
+            .select("id")
+            .single();
+          if (error) throw error;
+          await supabaseCloud
+            .from("inventar_session_items")
+            .update({ inventory_row_id: (inserted as any).id })
+            .eq("id", it.id);
+        }
         await supabaseCloud.from("inventar_session_items").update({ applied: true }).eq("id", it.id);
       }
       await supabaseCloud
@@ -283,6 +427,7 @@ export const StockCountManagement: React.FC = () => {
     setDeleteId(null);
     fetchSessions();
   };
+
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -371,10 +516,20 @@ export const StockCountManagement: React.FC = () => {
                   <Button size="sm" variant="outline" onClick={() => loadItems(s)}>
                     Deschide
                   </Button>
+                  {s.status === "open" ? (
+                    <Button size="sm" variant="ghost" onClick={() => changeStatus(s, "closed")}>
+                      <CheckCircle2 className="h-4 w-4 mr-1" /> Finalizează
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="ghost" onClick={() => changeStatus(s, "open")}>
+                      <RotateCcw className="h-4 w-4 mr-1" /> Redeschide
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={() => setDeleteId(s.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
+
               </Card>
             ))}
           </div>
@@ -411,7 +566,12 @@ export const StockCountManagement: React.FC = () => {
             Înapoi
           </Button>
           <div className="min-w-0">
-            <div className="font-medium text-sm truncate">{active.name}</div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm truncate">{active.name}</span>
+              <Badge variant={active.status === "open" ? "secondary" : "default"}>
+                {active.status === "open" ? "În lucru" : "Finalizat"}
+              </Badge>
+            </div>
             <div className="text-xs text-muted-foreground">
               {items.length} poziții · {totals.counted} numărate · {diffs.length} diferențe
             </div>
@@ -421,8 +581,20 @@ export const StockCountManagement: React.FC = () => {
           <Button variant="outline" size="sm" onClick={exportSession}>
             <Download className="h-4 w-4 mr-1" /> Export
           </Button>
+          {active.status === "open" ? (
+            <Button variant="outline" size="sm" onClick={() => changeStatus(active, "closed")}>
+              <CheckCircle2 className="h-4 w-4 mr-1" /> Finalizează
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => changeStatus(active, "open")}>
+              <RotateCcw className="h-4 w-4 mr-1" /> Redeschide
+            </Button>
+          )}
           {!readOnly && (
             <>
+              <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Adaugă rând
+              </Button>
               <Button variant="outline" size="sm" onClick={copyScriptic}>
                 <Wand2 className="h-4 w-4 mr-1" /> Completează cu scripticul
               </Button>
@@ -434,6 +606,7 @@ export const StockCountManagement: React.FC = () => {
           )}
         </div>
       </div>
+
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <Card className="p-2">
@@ -477,19 +650,24 @@ export const StockCountManagement: React.FC = () => {
               <th className="p-2 text-right">Scriptic</th>
               <th className="p-2 text-right w-28">Fizic</th>
               <th className="p-2 text-right">Diferență</th>
+              <th className="p-2 w-8"></th>
             </tr>
           </thead>
           <tbody>
             {itemsLoading ? (
-              <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">Se încarcă...</td></tr>
+              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">Se încarcă...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">Nicio poziție.</td></tr>
+              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">Nicio poziție.</td></tr>
             ) : (
               filtered.map((it) => {
                 const diff = it.fizic === null ? null : Number(it.fizic) - Number(it.scriptic);
+                const isNew = !it.inventory_row_id;
                 return (
                   <tr key={it.id} className={`border-t ${diff ? "bg-amber-50" : ""}`}>
-                    <td className="p-2">{it.name}</td>
+                    <td className="p-2">
+                      {it.name}
+                      {isNew && <Badge variant="outline" className="ml-2 text-[10px]">nou</Badge>}
+                    </td>
                     <td className="p-2">{it.lot_number || "-"}</td>
                     <td className="p-2">{it.supplier || "-"}</td>
                     <td className="p-2">{it.manufacturer || "-"}</td>
@@ -508,6 +686,13 @@ export const StockCountManagement: React.FC = () => {
                     <td className={`p-2 text-right font-medium ${diff === null ? "" : diff < 0 ? "text-destructive" : diff > 0 ? "text-green-600" : "text-muted-foreground"}`}>
                       {diff === null ? "-" : fmt(diff)}
                     </td>
+                    <td className="p-2 text-right">
+                      {!readOnly && isNew && (
+                        <button onClick={() => deleteItem(it.id)} title="Șterge rândul">
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })
@@ -516,13 +701,86 @@ export const StockCountManagement: React.FC = () => {
         </table>
       </div>
 
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Adaugă poziție nouă</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Produs *</Label>
+              <Input
+                list="inv-products"
+                value={newRow.name}
+                onChange={(e) => setNewRow({ ...newRow, name: e.target.value })}
+                placeholder="Alege sau scrie produsul"
+              />
+              <datalist id="inv-products">
+                {nomen.products.map((n) => <option key={n} value={n} />)}
+              </datalist>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Lot</Label>
+                <Input value={newRow.lot_number} onChange={(e) => setNewRow({ ...newRow, lot_number: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">UM</Label>
+                <Input value={newRow.unit} onChange={(e) => setNewRow({ ...newRow, unit: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Furnizor</Label>
+              <Input
+                list="inv-suppliers"
+                value={newRow.supplier}
+                onChange={(e) => setNewRow({ ...newRow, supplier: e.target.value })}
+              />
+              <datalist id="inv-suppliers">
+                {nomen.suppliers.map((n) => <option key={n} value={n} />)}
+              </datalist>
+            </div>
+            <div>
+              <Label className="text-xs">Producător</Label>
+              <Input
+                list="inv-manufacturers"
+                value={newRow.manufacturer}
+                onChange={(e) => setNewRow({ ...newRow, manufacturer: e.target.value })}
+              />
+              <datalist id="inv-manufacturers">
+                {nomen.manufacturers.map((n) => <option key={n} value={n} />)}
+              </datalist>
+            </div>
+            <div>
+              <Label className="text-xs">Cantitate fizică găsită</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={newRow.fizic}
+                onChange={(e) => setNewRow({ ...newRow, fizic: e.target.value })}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Scripticul este 0 – la reglare se va crea o intrare nouă în depozit cu această cantitate.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Anulează</Button>
+            <Button onClick={addManualRow} disabled={savingRow}>
+              {savingRow ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+              Adaugă
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={confirmApply} onOpenChange={setConfirmApply}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Reglezi stocul din depozit?</AlertDialogTitle>
             <AlertDialogDescription>
-              {diffs.length} poziții vor fi actualizate la cantitatea fizică numărată. Inventarul va fi marcat ca
-              finalizat. Acțiunea nu poate fi anulată automat.
+              {diffs.length} poziții vor fi actualizate la cantitatea fizică numărată. Pozițiile noi vor fi
+              adăugate ca intrări în depozit. Inventarul va fi marcat ca finalizat.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -531,6 +789,7 @@ export const StockCountManagement: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </div>
   );
 };
