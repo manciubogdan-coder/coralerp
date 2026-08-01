@@ -287,9 +287,10 @@ export const StockCountManagement: React.FC = () => {
   };
 
   const diffs = useMemo(
-    () => items.filter((it) => it.fizic !== null && Number(it.fizic) !== Number(it.scriptic)),
+    () => items.filter((it) => !it.applied && it.fizic !== null && Number(it.fizic) !== Number(it.scriptic)),
     [items]
   );
+
 
   const addManualRow = async () => {
     if (!active) return;
