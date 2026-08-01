@@ -54,23 +54,20 @@ const norm = (s: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
 
-const SALATE_KEYS = [
-  "salata", "salate", "lollo", "rucola", "rukola", "spanac", "valeriana", "babyleaf", "baby",
-  "iceberg", "batavia", "frisee", "radicchio", "romana", "mix", "mesclun", "andive", "creta",
-];
 const AROMATE_KEYS = [
   "menta", "busuioc", "patrunjel", "marar", "cimbru", "cimbrisor", "rozmarin", "oregano",
   "leustean", "tarhon", "coriandru", "arpagic", "ceapaverde", "salvie", "melisa", "roinita",
   "lavanda", "sovarv", "aromat",
 ];
 
+// Tot ce nu este plantă aromatică se consideră salată (mono sau mix).
 const groupOf = (name: string): string => {
   const n = norm(name);
   if (AROMATE_KEYS.some((k) => n.includes(k))) return "Aromate";
-  if (SALATE_KEYS.some((k) => n.includes(k))) return "Salate";
-  return "Altele";
+  return "Salate";
 };
-const GROUP_ORDER = ["Salate", "Aromate", "Altele"];
+const GROUP_ORDER = ["Salate", "Aromate"];
+
 
 const toKg = (q: number, u?: string) => {
   switch ((u || "").toLowerCase()) {
@@ -123,8 +120,16 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const tables = getTableNames();
       // Live = doar comenzile existente de azi înainte.
       // Istoric = doar comenzile din perioada de referință selectată (trecut).
-      const effFrom = m === "live" ? startOfDay(new Date()) : startOfDay(rangeFrom);
-      const effTo = m === "live" ? startOfDay(addDays(new Date(), 60)) : startOfDay(rangeTo);
+      const today = startOfDay(new Date());
+      // În Istoric perioada de referință este strict în trecut (nu depășim ziua curentă).
+      const effFrom = m === "live" ? today : startOfDay(rangeFrom) > today ? today : startOfDay(rangeFrom);
+      const effTo =
+        m === "live"
+          ? startOfDay(addDays(new Date(), 60))
+          : startOfDay(rangeTo) > today
+            ? today
+            : startOfDay(rangeTo);
+
       const fromStr = format(effFrom, "yyyy-MM-dd");
       const toStr = format(effTo, "yyyy-MM-dd");
       const fromTs = effFrom.toISOString();
@@ -514,7 +519,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         {mode === "istoric" && (
         <>
         <div className="space-y-1">
-          <label className="text-sm font-medium">De la</label>
+          <label className="text-sm font-medium">Referință de la</label>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal")}>
@@ -526,6 +531,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
               <Calendar
                 mode="single"
                 selected={fromDate}
+                disabled={(d) => d > new Date()}
                 onSelect={(d) => {
                   if (!d) return;
                   setFromDate(d);
@@ -538,7 +544,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           </Popover>
         </div>
         <div className="space-y-1">
-          <label className="text-sm font-medium">Până la</label>
+          <label className="text-sm font-medium">Referință până la</label>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal")}>
@@ -550,6 +556,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
               <Calendar
                 mode="single"
                 selected={toDate}
+                disabled={(d) => d > new Date()}
                 onSelect={(d) => {
                   if (!d) return;
                   setToDate(d);
@@ -563,6 +570,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         </div>
         </>
         )}
+
         <Button onClick={() => fetchData()} disabled={loading}>
           {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
           Calculează
@@ -593,7 +601,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         <div className="flex flex-wrap gap-3 items-end border rounded-md p-3 bg-muted/30">
           <div className="text-sm font-medium w-full">
             Perioada de proiecție (viitor) — cât și până când îmi ajunge marfa
+            <span className="ml-2 font-normal text-xs text-muted-foreground">
+              Referință medie:{" "}
+              {mode === "live"
+                ? "comenzile client existente (Live)"
+                : `${format(fromDate, "dd MMM", { locale: ro })} – ${format(toDate, "dd MMM yyyy", { locale: ro })} (Istoric)`}
+            </span>
           </div>
+
           <div className="flex gap-1">
             {[
               { v: 7, l: "Următoarea săpt." },
