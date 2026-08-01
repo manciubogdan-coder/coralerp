@@ -120,8 +120,16 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const tables = getTableNames();
       // Live = doar comenzile existente de azi înainte.
       // Istoric = doar comenzile din perioada de referință selectată (trecut).
-      const effFrom = m === "live" ? startOfDay(new Date()) : startOfDay(rangeFrom);
-      const effTo = m === "live" ? startOfDay(addDays(new Date(), 60)) : startOfDay(rangeTo);
+      const today = startOfDay(new Date());
+      // În Istoric perioada de referință este strict în trecut (nu depășim ziua curentă).
+      const effFrom = m === "live" ? today : startOfDay(rangeFrom) > today ? today : startOfDay(rangeFrom);
+      const effTo =
+        m === "live"
+          ? startOfDay(addDays(new Date(), 60))
+          : startOfDay(rangeTo) > today
+            ? today
+            : startOfDay(rangeTo);
+
       const fromStr = format(effFrom, "yyyy-MM-dd");
       const toStr = format(effTo, "yyyy-MM-dd");
       const fromTs = effFrom.toISOString();
