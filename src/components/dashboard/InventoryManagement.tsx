@@ -95,7 +95,7 @@ const InventoryManagement = () => {
 
       <Tabs 
         value={viewMode} 
-        onValueChange={(value) => setViewMode(value as "inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption" | "daily-quality")}
+        onValueChange={(value) => setViewMode(value as typeof viewMode)}
         className="mb-4"
       >
         <TabsList className="flex w-full overflow-x-auto gap-1 h-auto p-1">
@@ -105,7 +105,9 @@ const InventoryManagement = () => {
           <TabsTrigger value="daily-stock" className="flex-shrink-0 text-xs md:text-sm">Stoc Început Zi</TabsTrigger>
           <TabsTrigger value="daily-quality" className="flex-shrink-0 text-xs md:text-sm">Stoc Zilnic Calitate</TabsTrigger>
           <TabsTrigger value="daily-consumption" className="flex-shrink-0 text-xs md:text-sm">Consum Zilnic pe Loturi</TabsTrigger>
+          <TabsTrigger value="inventar" className="flex-shrink-0 text-xs md:text-sm">Inventar</TabsTrigger>
         </TabsList>
+
         
         <TabsContent value="inventory">
           <InventoryViewOptions
