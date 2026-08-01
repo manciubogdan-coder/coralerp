@@ -93,6 +93,8 @@ const InventoryTable = ({
     });
 
     const dataForExport = Array.from(splitMap.values())
+      // Nu exportăm liniile fără stoc (cantitate 0 sau negativă)
+      .filter((row) => Number(row['Cantitate']) > 0.0001)
       .sort(
         (a, b) =>
           String(a['Produs']).localeCompare(String(b['Produs']), 'ro') ||
