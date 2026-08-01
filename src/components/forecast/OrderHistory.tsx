@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -57,6 +59,8 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
   const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
   const [pendingExportGroup, setPendingExportGroup] = useState<SupplierOrderGroup | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
 
   const getTableNames = () => {
     switch (inventoryType) {
@@ -240,23 +244,49 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
     toast({ title: `Comandă ${orderNumber} exportată pentru ${supplierName}` });
   };
 
-  const handleDeleteOrder = async (orderId: string) => {
+  const deleteIds = async (ids: string[]) => {
+    if (ids.length === 0) return;
     try {
       const tables = getTableNames();
       const { error } = await supabase
         .from(tables.orders)
         .delete()
-        .eq("id", orderId);
+        .in("id", ids);
 
       if (error) throw error;
 
-      toast({ title: "Comanda a fost ștearsă" });
+      setSelected(prev => {
+        const next = new Set(prev);
+        ids.forEach(id => next.delete(id));
+        return next;
+      });
+      toast({ title: ids.length === 1 ? "Comanda a fost ștearsă" : `${ids.length} comenzi șterse` });
       fetchOrders();
     } catch (error) {
-      console.error("Error deleting order:", error);
-      toast({ title: "Eroare la ștergerea comenzii", variant: "destructive" });
+      console.error("Error deleting orders:", error);
+      toast({ title: "Eroare la ștergerea comenzilor", variant: "destructive" });
     }
   };
+
+  const handleDeleteOrder = (orderId: string) => deleteIds([orderId]);
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectGroup = (group: SupplierOrderGroup, checked: boolean) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      group.orders.forEach(o => (checked ? next.add(o.id) : next.delete(o.id)));
+      return next;
+    });
+  };
+
 
   const handleExportAll = () => {
     if (filteredOrders.length === 0) {
@@ -438,6 +468,43 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
         </div>
       </div>
 
+      {/* Bulk actions */}
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between gap-3 border rounded-lg p-3 bg-muted/40">
+          <span className="text-sm font-medium">{selected.size} rânduri selectate</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
+              Deselectează
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="destructive">
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Șterge selectate
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Șterge {selected.size} comenzi?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Această acțiune nu poate fi anulată.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Anulează</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteIds(Array.from(selected))}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Șterge
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      )}
+
       {/* Orders grouped by supplier */}
       <div className="space-y-3">
         {supplierGroups.length === 0 ? (
@@ -448,6 +515,8 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
           supplierGroups.map(group => {
             const key = group.supplier_id || "no-supplier";
             const isExpanded = expandedSuppliers.has(key);
+            const groupIds = group.orders.map(o => o.id);
+            const allSelected = groupIds.every(id => selected.has(id));
 
             return (
               <Collapsible key={key} open={isExpanded} onOpenChange={() => toggleSupplier(key)}>
@@ -455,6 +524,13 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                   <CollapsibleTrigger asChild>
                     <div className="flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 cursor-pointer">
                       <div className="flex items-center gap-3">
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={allSelected}
+                            onCheckedChange={(c) => toggleSelectGroup(group, !!c)}
+                            aria-label="Selectează toată comanda"
+                          />
+                        </div>
                         {isExpanded ? (
                           <ChevronDown className="h-5 w-5 text-muted-foreground" />
                         ) : (
@@ -476,6 +552,36 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                           <FileSpreadsheet className="h-4 w-4 mr-1" />
                           Export Comandă
                         </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Șterge comanda
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Șterge toată comanda?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Se vor șterge toate cele {groupIds.length} rânduri pentru "{group.supplier_name}". Această acțiune nu poate fi anulată.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Anulează</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteIds(groupIds)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Șterge
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   </CollapsibleTrigger>
@@ -484,6 +590,13 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[40px]">
+                            <Checkbox
+                              checked={allSelected}
+                              onCheckedChange={(c) => toggleSelectGroup(group, !!c)}
+                              aria-label="Selectează tot"
+                            />
+                          </TableHead>
                           <TableHead>Data Comandă</TableHead>
                           <TableHead>Cod</TableHead>
                           <TableHead>Produs</TableHead>
@@ -496,7 +609,15 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                       </TableHeader>
                       <TableBody>
                         {group.orders.map(order => (
-                          <TableRow key={order.id}>
+                          <TableRow key={order.id} data-state={selected.has(order.id) ? "selected" : undefined}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selected.has(order.id)}
+                                onCheckedChange={() => toggleSelect(order.id)}
+                                aria-label="Selectează rând"
+                              />
+                            </TableCell>
+
                             <TableCell>{format(order.order_date, "dd.MM.yyyy")}</TableCell>
                             <TableCell className="font-mono text-sm">{order.product_code || "-"}</TableCell>
                             <TableCell className="font-medium">{order.product_name}</TableCell>
