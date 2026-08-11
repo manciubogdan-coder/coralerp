@@ -43,6 +43,12 @@ export const AUX_POSTS = [
   "Recepție",
   "Curățenie",
   "Mentenanță",
+  "Calitate",
+  "Cutii manuale",
+  "Cutii automate",
+  "Salate 3",
+  "Magazie",
+  "Tunel",
 ];
 
 export const isAuxSlot = (v?: string | null) => !!v && v.startsWith("aux:");
