@@ -372,12 +372,15 @@ ${matrix.slice(4).map((r) => {
         e.dataTransfer.setData("text/plain", p.id);
         setDragId(p.id);
       }}
+      title={p.post || undefined}
       className="inline-flex items-center gap-1 rounded-full border bg-secondary px-2 py-0.5 text-xs cursor-grab active:cursor-grabbing"
     >
       {p.nume}
-      <button type="button" onClick={() => (p.assigned ? assignPerson(p.id, null) : removePerson(p.id))}>
-        <X className="h-3 w-3 opacity-60 hover:opacity-100" />
-      </button>
+      {slotOf(p) && (
+        <button type="button" onClick={() => assignPerson(p.id, null)}>
+          <X className="h-3 w-3 opacity-60 hover:opacity-100" />
+        </button>
+      )}
     </span>
   );
 
