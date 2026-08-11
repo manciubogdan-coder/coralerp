@@ -781,7 +781,5 @@ ${matrix.slice(4).map((r) => {
     </div>
   );
 };
-  );
-};
 
 export default ProductionPlanner;
