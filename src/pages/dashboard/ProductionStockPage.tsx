@@ -11,6 +11,7 @@ import ProductionDashboardReal from "@/components/productie/ProductionDashboardR
 import OrderManagementReal from "@/components/productie/OrderManagementReal";
 import AdvanceProductionManagement from "@/components/productie/AdvanceProductionManagement";
 import ProductionForecast from "@/components/productie/ProductionForecast";
+import ProductionPlanner from "@/components/productie/ProductionPlanner";
 import ReportsOrders from "@/components/productie/ReportsOrders";
 import ReportsMirror from "@/components/productie/ReportsMirror";
 import OrderOCR from "@/components/productie/OrderOCR";
@@ -55,6 +56,7 @@ const ProductionStockPage = () => {
             <TabsTrigger value="orders">Comenzi</TabsTrigger>
             <TabsTrigger value="advance">Prod. Avans</TabsTrigger>
             <TabsTrigger value="forecast">Forecast</TabsTrigger>
+            <TabsTrigger value="planner">Planificator</TabsTrigger>
             <TabsTrigger value="ocr">OCR</TabsTrigger>
             <TabsTrigger value="operator">Operator</TabsTrigger>
             <TabsTrigger value="stoc-transferat">Stoc Transferat</TabsTrigger>
@@ -96,6 +98,12 @@ const ProductionStockPage = () => {
               </TabsContent>
             </Tabs>
           </TabsContent>
+
+          <TabsContent value="planner">
+            <ProductionPlanner />
+          </TabsContent>
+
+
 
           <TabsContent value="ocr">
             <OrderOCR />
