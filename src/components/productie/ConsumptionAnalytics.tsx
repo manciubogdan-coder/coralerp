@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,13 +9,24 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, TrendingDown, Package, AlertCircle, FileText, Clock, Filter } from "lucide-react";
+import { Calendar, TrendingDown, Package, AlertCircle, FileText, Clock, Filter, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIngredients } from "@/hooks/productie/useIngredients";
 import ExportConsumptionDialog from "./ExportConsumptionDialog";
 import { DateRange } from "react-day-picker";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+
+interface OrderDetail {
+  comanda_id: string;
+  produs: string;
+  magazin: string;
+  data: string;
+  status: string;
+  cantitate_comanda: number;
+  cantitate_kg: number;
+  sursa: 'custom' | 'reteta';
+}
 
 interface ConsumptionData {
   ingredient_nume: string;
@@ -26,7 +37,17 @@ interface ConsumptionData {
   comenzi_finalizate: number;
   comenzi_pending: number;
   produse_list: string;
+  detalii: OrderDetail[];
 }
+
+// Normalizare nume pentru potrivirea ingredient <-> stoc depozit
+const normalizeName = (s: string) =>
+  (s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 
 const ConsumptionAnalytics = () => {
   // Înlocuim cele două state-uri pentru date cu un singur state pentru range
@@ -35,6 +56,7 @@ const ConsumptionAnalytics = () => {
     to: new Date(),
   });
   const [selectedIngredient, setSelectedIngredient] = useState<string>('all');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const { data: ingredients } = useIngredients();
 
@@ -76,6 +98,7 @@ const ConsumptionAnalytics = () => {
           created_at,
           cantitate_din_restock,
           magazin,
+          data_productie,
           productie_produse!inner(
             id,
             nume,
@@ -236,12 +259,23 @@ const ConsumptionAnalytics = () => {
                 unitate_masura_originala: ingredientCustom.unitate_masura,
                 comenzi_finalizate: 0,
                 comenzi_pending: 0,
-                produse_list: produs.nume
+                produse_list: produs.nume,
+                detalii: []
               });
             }
             
             const existing = consumptionMap.get(key)!;
             existing.cantitate_totala += cantitateKg;
+            existing.detalii.push({
+              comanda_id: comanda.id,
+              produs: produs.nume,
+              magazin: comanda.magazin || '-',
+              data: comanda.data_productie || comanda.created_at,
+              status: statusComanda,
+              cantitate_comanda: cantitateEfectivProdusa,
+              cantitate_kg: cantitateKg,
+              sursa: 'custom'
+            });
             
             if (statusComanda === 'completed') {
               existing.cantitate_consumata += cantitateKg;
@@ -291,12 +325,23 @@ const ConsumptionAnalytics = () => {
                 unitate_masura_originala: ingredientReteta.unitate_masura,
                 comenzi_finalizate: 0,
                 comenzi_pending: 0,
-                produse_list: produs.nume
+                produse_list: produs.nume,
+                detalii: []
               });
             }
             
             const existing = consumptionMap.get(key)!;
             existing.cantitate_totala += cantitateKg;
+            existing.detalii.push({
+              comanda_id: comanda.id,
+              produs: produs.nume,
+              magazin: comanda.magazin || '-',
+              data: comanda.data_productie || comanda.created_at,
+              status: statusComanda,
+              cantitate_comanda: cantitateEfectivProdusa,
+              cantitate_kg: cantitateKg,
+              sursa: 'reteta'
+            });
             
             if (statusComanda === 'completed') {
               existing.cantitate_consumata += cantitateKg;
@@ -324,6 +369,60 @@ const ConsumptionAnalytics = () => {
       return result;
     }
   });
+
+  // Stoc din depozitul de materii prime (agregat pe denumire produs)
+  const { data: stocDepozit } = useQuery({
+    queryKey: ['consumption-warehouse-stock'],
+    queryFn: async () => {
+      const pageSize = 1000;
+      let offset = 0;
+      let hasMore = true;
+      const rows: any[] = [];
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('name, quantity, unit')
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          rows.push(...data);
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+      const map = new Map<string, number>();
+      rows.forEach((r) => {
+        const qty = Number(r.quantity) || 0;
+        if (qty <= 0) return;
+        const key = normalizeName(r.name);
+        if (!key) return;
+        map.set(key, (map.get(key) || 0) + qty);
+      });
+      return map;
+    },
+    staleTime: 60_000,
+  });
+
+  const getStoc = (ingredientNume: string): number | null => {
+    if (!stocDepozit) return null;
+    const key = normalizeName(ingredientNume);
+    if (!key) return null;
+    if (stocDepozit.has(key)) return stocDepozit.get(key)!;
+    // potrivire parțială
+    let total = 0;
+    let found = false;
+    stocDepozit.forEach((qty, name) => {
+      if (name.includes(key) || key.includes(name)) {
+        total += qty;
+        found = true;
+      }
+    });
+    return found ? total : null;
+  };
+
+
 
   const handleExport = () => {
     if (!consumptionData || consumptionData.length === 0) {
@@ -508,18 +607,34 @@ const ConsumptionAnalytics = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8"></TableHead>
                   <TableHead>Ingredient</TableHead>
                   <TableHead>Consumat (kg)</TableHead>
                   <TableHead>Necesar Pending (kg)</TableHead>
                   <TableHead>Total (kg)</TableHead>
+                  <TableHead>Stoc depozit (kg)</TableHead>
+                  <TableHead>Diferență (kg)</TableHead>
                   <TableHead>Comenzi Finalizate</TableHead>
                   <TableHead>Comenzi Pending</TableHead>
                   <TableHead>Produse Care Folosesc</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {consumptionData.map((item, index) => (
-                  <TableRow key={index}>
+                {consumptionData.map((item, index) => {
+                  const stoc = getStoc(item.ingredient_nume);
+                  const diferenta = stoc === null ? null : stoc - item.cantitate_totala;
+                  const isOpen = !!expanded[item.ingredient_nume];
+                  return (
+                  <React.Fragment key={index}>
+                  <TableRow
+                    className="cursor-pointer"
+                    onClick={() =>
+                      setExpanded((prev) => ({ ...prev, [item.ingredient_nume]: !prev[item.ingredient_nume] }))
+                    }
+                  >
+                    <TableCell className="p-1 text-muted-foreground">
+                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </TableCell>
                     <TableCell className="font-medium">{item.ingredient_nume}</TableCell>
                     <TableCell className="font-mono text-green-600">
                       {formatValueInKg(item.cantitate_consumata)}
@@ -529,6 +644,18 @@ const ConsumptionAnalytics = () => {
                     </TableCell>
                     <TableCell className="font-mono font-bold">
                       {formatValueInKg(item.cantitate_totala)}
+                    </TableCell>
+                    <TableCell className="font-mono">
+                      {stoc === null ? <span className="text-muted-foreground">-</span> : formatValueInKg(stoc)}
+                    </TableCell>
+                    <TableCell className="font-mono">
+                      {diferenta === null ? (
+                        <span className="text-muted-foreground">-</span>
+                      ) : (
+                        <Badge variant={diferenta < 0 ? 'destructive' : 'secondary'}>
+                          {formatValueInKg(diferenta)}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant="default">{item.comenzi_finalizate}</Badge>
@@ -540,7 +667,55 @@ const ConsumptionAnalytics = () => {
                       {item.produse_list}
                     </TableCell>
                   </TableRow>
-                ))}
+                  {isOpen && (
+                    <TableRow>
+                      <TableCell colSpan={10} className="bg-muted/40 p-2">
+                        <div className="text-xs font-medium mb-2">
+                          Comenzi care generează necesarul pentru „{item.ingredient_nume}"
+                        </div>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs">Data</TableHead>
+                              <TableHead className="text-xs">Produs</TableHead>
+                              <TableHead className="text-xs">Client / Magazin</TableHead>
+                              <TableHead className="text-xs">Status</TableHead>
+                              <TableHead className="text-xs">Cant. comandă</TableHead>
+                              <TableHead className="text-xs">Necesar (kg)</TableHead>
+                              <TableHead className="text-xs">Sursă</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {[...item.detalii]
+                              .sort((a, b) => b.cantitate_kg - a.cantitate_kg)
+                              .map((d, i) => (
+                                <TableRow key={i}>
+                                  <TableCell className="text-xs">
+                                    {d.data ? new Date(d.data).toLocaleDateString('ro-RO') : '-'}
+                                  </TableCell>
+                                  <TableCell className="text-xs">{d.produs}</TableCell>
+                                  <TableCell className="text-xs">{d.magazin}</TableCell>
+                                  <TableCell className="text-xs">
+                                    <Badge variant={d.status === 'completed' ? 'default' : 'secondary'}>
+                                      {d.status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-xs font-mono">{d.cantitate_comanda}</TableCell>
+                                  <TableCell className="text-xs font-mono font-bold">
+                                    {formatValueInKg(d.cantitate_kg)}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">
+                                    {d.sursa === 'custom' ? 'rețetă custom' : 'rețetă standard'}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                          </TableBody>
+                        </Table>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </React.Fragment>
+                );})}
               </TableBody>
             </Table>
           )}
