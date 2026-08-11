@@ -606,18 +606,34 @@ const ConsumptionAnalytics = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8"></TableHead>
                   <TableHead>Ingredient</TableHead>
                   <TableHead>Consumat (kg)</TableHead>
                   <TableHead>Necesar Pending (kg)</TableHead>
                   <TableHead>Total (kg)</TableHead>
+                  <TableHead>Stoc depozit (kg)</TableHead>
+                  <TableHead>Diferență (kg)</TableHead>
                   <TableHead>Comenzi Finalizate</TableHead>
                   <TableHead>Comenzi Pending</TableHead>
                   <TableHead>Produse Care Folosesc</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {consumptionData.map((item, index) => (
-                  <TableRow key={index}>
+                {consumptionData.map((item, index) => {
+                  const stoc = getStoc(item.ingredient_nume);
+                  const diferenta = stoc === null ? null : stoc - item.cantitate_totala;
+                  const isOpen = !!expanded[item.ingredient_nume];
+                  return (
+                  <React.Fragment key={index}>
+                  <TableRow
+                    className="cursor-pointer"
+                    onClick={() =>
+                      setExpanded((prev) => ({ ...prev, [item.ingredient_nume]: !prev[item.ingredient_nume] }))
+                    }
+                  >
+                    <TableCell className="p-1 text-muted-foreground">
+                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </TableCell>
                     <TableCell className="font-medium">{item.ingredient_nume}</TableCell>
                     <TableCell className="font-mono text-green-600">
                       {formatValueInKg(item.cantitate_consumata)}
@@ -627,6 +643,18 @@ const ConsumptionAnalytics = () => {
                     </TableCell>
                     <TableCell className="font-mono font-bold">
                       {formatValueInKg(item.cantitate_totala)}
+                    </TableCell>
+                    <TableCell className="font-mono">
+                      {stoc === null ? <span className="text-muted-foreground">-</span> : formatValueInKg(stoc)}
+                    </TableCell>
+                    <TableCell className="font-mono">
+                      {diferenta === null ? (
+                        <span className="text-muted-foreground">-</span>
+                      ) : (
+                        <Badge variant={diferenta < 0 ? 'destructive' : 'secondary'}>
+                          {formatValueInKg(diferenta)}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant="default">{item.comenzi_finalizate}</Badge>
@@ -638,7 +666,55 @@ const ConsumptionAnalytics = () => {
                       {item.produse_list}
                     </TableCell>
                   </TableRow>
-                ))}
+                  {isOpen && (
+                    <TableRow>
+                      <TableCell colSpan={10} className="bg-muted/40 p-2">
+                        <div className="text-xs font-medium mb-2">
+                          Comenzi care generează necesarul pentru „{item.ingredient_nume}"
+                        </div>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs">Data</TableHead>
+                              <TableHead className="text-xs">Produs</TableHead>
+                              <TableHead className="text-xs">Client / Magazin</TableHead>
+                              <TableHead className="text-xs">Status</TableHead>
+                              <TableHead className="text-xs">Cant. comandă</TableHead>
+                              <TableHead className="text-xs">Necesar (kg)</TableHead>
+                              <TableHead className="text-xs">Sursă</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {[...item.detalii]
+                              .sort((a, b) => b.cantitate_kg - a.cantitate_kg)
+                              .map((d, i) => (
+                                <TableRow key={i}>
+                                  <TableCell className="text-xs">
+                                    {d.data ? new Date(d.data).toLocaleDateString('ro-RO') : '-'}
+                                  </TableCell>
+                                  <TableCell className="text-xs">{d.produs}</TableCell>
+                                  <TableCell className="text-xs">{d.magazin}</TableCell>
+                                  <TableCell className="text-xs">
+                                    <Badge variant={d.status === 'completed' ? 'default' : 'secondary'}>
+                                      {d.status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-xs font-mono">{d.cantitate_comanda}</TableCell>
+                                  <TableCell className="text-xs font-mono font-bold">
+                                    {formatValueInKg(d.cantitate_kg)}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">
+                                    {d.sursa === 'custom' ? 'rețetă custom' : 'rețetă standard'}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                          </TableBody>
+                        </Table>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </React.Fragment>
+                );})}
               </TableBody>
             </Table>
           )}
