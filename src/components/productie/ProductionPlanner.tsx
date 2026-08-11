@@ -386,6 +386,13 @@ ${matrix.slice(4).map((r) => {
 
   return (
     <div className="space-y-4">
+      <Tabs defaultValue="plan">
+        <TabsList>
+          <TabsTrigger value="plan">Planificare</TabsTrigger>
+          <TabsTrigger value="personal">Personal</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="plan" className="space-y-4 mt-4">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
