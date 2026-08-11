@@ -189,6 +189,7 @@ const ProductionPlanner: React.FC = () => {
     const ov = dayAssign[p.id];
     if (ov === "none") return null;
     if (ov) return ov;
+    if (isAuxSlot(p.linie_id)) return `extra:${p.linie_id}`;
     return p.linie_id || null;
   };
   const activePeople = people.filter((p) => p.status === "activ");
@@ -196,15 +197,36 @@ const ProductionPlanner: React.FC = () => {
   const peopleFor = (slot: string) => activePeople.filter((p) => slotOf(p) === slot);
   const unassignedPeople = activePeople.filter((p) => !slotOf(p));
 
+  // Posturile neproductive folosite de personal apar automat ca rânduri auxiliare
+  useEffect(() => {
+    const needed = Array.from(
+      new Set(activePeople.map((p) => p.linie_id).filter((v) => isAuxSlot(v)) as string[])
+    );
+    if (!needed.length) return;
+    setExtras((prev) => {
+      const missing = needed.filter((n) => !prev.some((e) => e.id === n));
+      if (!missing.length) return prev;
+      return [...prev, ...missing.map((n) => ({ id: n, nume: auxLabel(n) }))];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [people]);
+
   const assignPerson = async (id: string, slot: string | null) => {
     setDayAssign((prev) => ({ ...prev, [id]: slot ?? "none" }));
     if (saveAsDefault) {
-      const isLine = slot && !slot.startsWith("extra:");
+      const isExtra = !!slot && slot.startsWith("extra:");
+      const extraKey = isExtra ? slot!.slice("extra:".length) : null;
+      const isAux = isAuxSlot(extraKey);
+      const isLine = !!slot && !isExtra;
       await supabaseCloud
         .from("planner_personal")
         .update({
-          linie_id: isLine ? slot : null,
-          linie_nume: isLine ? (lines as any[]).find((l) => l.id === slot)?.nume || null : null,
+          linie_id: isLine ? slot : isAux ? extraKey : null,
+          linie_nume: isLine
+            ? (lines as any[]).find((l) => l.id === slot)?.nume || null
+            : isAux
+            ? auxLabel(extraKey!)
+            : null,
         })
         .eq("id", id);
       qc.invalidateQueries({ queryKey: ["planner-personnel"] });
