@@ -271,7 +271,13 @@ const ProductionPlanner: React.FC = () => {
     setExtras((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   const removeExtra = (id: string) => {
     setExtras((prev) => prev.filter((e) => e.id !== id));
-    setPeople((prev) => prev.map((p) => (p.assigned === `extra:${id}` ? { ...p, assigned: null } : p)));
+    setDayAssign((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((k) => {
+        if (next[k] === `extra:${id}`) next[k] = "none";
+      });
+      return next;
+    });
   };
 
   const buildMatrix = () => {
