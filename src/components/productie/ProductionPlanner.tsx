@@ -765,7 +765,15 @@ ${matrix.slice(4).map((r) => {
           </div>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="personal">
+          <PersonnelManagement />
+        </TabsContent>
+      </Tabs>
     </div>
+  );
+};
   );
 };
 
