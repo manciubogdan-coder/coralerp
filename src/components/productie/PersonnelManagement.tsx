@@ -172,7 +172,12 @@ const PersonnelManagement: React.FC = () => {
                           id: p.id,
                           patch: {
                             linie_id: v === "none" ? null : v,
-                            linie_nume: v === "none" ? null : lines.find((l: any) => l.id === v)?.nume || null,
+                            linie_nume:
+                              v === "none"
+                                ? null
+                                : isAuxSlot(v)
+                                ? auxLabel(v)
+                                : lines.find((l: any) => l.id === v)?.nume || null,
                           },
                         })
                       }
@@ -182,13 +187,27 @@ const PersonnelManagement: React.FC = () => {
                       </SelectTrigger>
                       <SelectContent className="max-h-64 overflow-y-auto">
                         <SelectItem value="none">Fără linie</SelectItem>
+                        <div className="px-2 py-1 text-[10px] uppercase text-muted-foreground">Linii producție</div>
                         {lines.map((l: any) => (
                           <SelectItem key={l.id} value={l.id}>
                             {l.nume}
                           </SelectItem>
                         ))}
+                        <div className="px-2 py-1 text-[10px] uppercase text-muted-foreground">
+                          Posturi neproductive
+                        </div>
+                        {AUX_POSTS.map((a) => (
+                          <SelectItem key={a} value={`aux:${a}`}>
+                            {a}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                    {isAuxSlot(p.linie_id) && (
+                      <Badge variant="secondary" className="mt-1 text-[10px]">
+                        neproductiv
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Input
