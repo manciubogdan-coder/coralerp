@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { useProductionLines } from "@/hooks/productie/useProductionData";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import PersonnelManagement, { PlannerPerson, statusLabel, usePlannerPersonnel } from "./PersonnelManagement";
+import PersonnelManagement, { PlannerPerson, statusLabel, usePlannerPersonnel, isAuxSlot, auxLabel } from "./PersonnelManagement";
 import { AlertTriangle, ClipboardList, Clock, Download, Plus, Printer, Trash2, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
