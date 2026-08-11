@@ -17,6 +17,17 @@ import ExportConsumptionDialog from "./ExportConsumptionDialog";
 import { DateRange } from "react-day-picker";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 
+interface OrderDetail {
+  comanda_id: string;
+  produs: string;
+  magazin: string;
+  data: string;
+  status: string;
+  cantitate_comanda: number;
+  cantitate_kg: number;
+  sursa: 'custom' | 'reteta';
+}
+
 interface ConsumptionData {
   ingredient_nume: string;
   cantitate_consumata: number; // în kg
@@ -26,7 +37,17 @@ interface ConsumptionData {
   comenzi_finalizate: number;
   comenzi_pending: number;
   produse_list: string;
+  detalii: OrderDetail[];
 }
+
+// Normalizare nume pentru potrivirea ingredient <-> stoc depozit
+const normalizeName = (s: string) =>
+  (s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 
 const ConsumptionAnalytics = () => {
   // Înlocuim cele două state-uri pentru date cu un singur state pentru range
