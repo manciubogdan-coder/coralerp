@@ -184,18 +184,32 @@ const ProductionPlanner: React.FC = () => {
     setOverrides((prev) => ({ ...prev, [lineId]: { ...prev[lineId], ...patch } }));
 
   // ---- Oameni ----
-  const peopleFor = (slot: string) => people.filter((p) => p.assigned === slot);
-  const unassignedPeople = people.filter((p) => !p.assigned);
-
-  const addPerson = () => {
-    const nume = newPerson.trim();
-    if (!nume) return;
-    setPeople((prev) => [...prev, { id: crypto.randomUUID(), nume, assigned: null }]);
-    setNewPerson("");
+  // slotul curent: override de zi, altfel linia implicită din nomenclatorul de personal
+  const slotOf = (p: Person): string | null => {
+    const ov = dayAssign[p.id];
+    if (ov === "none") return null;
+    if (ov) return ov;
+    return p.linie_id || null;
   };
-  const removePerson = (id: string) => setPeople((prev) => prev.filter((p) => p.id !== id));
-  const assignPerson = (id: string, slot: string | null) =>
-    setPeople((prev) => prev.map((p) => (p.id === id ? { ...p, assigned: slot } : p)));
+  const activePeople = people.filter((p) => p.status === "activ");
+  const unavailablePeople = people.filter((p) => p.status !== "activ");
+  const peopleFor = (slot: string) => activePeople.filter((p) => slotOf(p) === slot);
+  const unassignedPeople = activePeople.filter((p) => !slotOf(p));
+
+  const assignPerson = async (id: string, slot: string | null) => {
+    setDayAssign((prev) => ({ ...prev, [id]: slot ?? "none" }));
+    if (saveAsDefault) {
+      const isLine = slot && !slot.startsWith("extra:");
+      await supabaseCloud
+        .from("planner_personal")
+        .update({
+          linie_id: isLine ? slot : null,
+          linie_nume: isLine ? (lines as any[]).find((l) => l.id === slot)?.nume || null : null,
+        })
+        .eq("id", id);
+      qc.invalidateQueries({ queryKey: ["planner-personnel"] });
+    }
+  };
 
   const onDrop = (slot: string | null) => (e: React.DragEvent) => {
     e.preventDefault();
