@@ -643,7 +643,6 @@ ${matrix.slice(4).map((r) => {
             Oamenii apar automat pe linia lor implicită (setată în sub-tab-ul Personal). Trage numele pe altă linie sau pe un post auxiliar pentru a-l muta; X îl scoate de pe linie.
           </p>
         </CardContent>
-        </CardContent>
       </Card>
 
       <Card>
