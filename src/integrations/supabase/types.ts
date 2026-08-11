@@ -548,6 +548,51 @@ export type Database = {
         }
         Relationships: []
       }
+      planner_personal: {
+        Row: {
+          created_at: string
+          id: string
+          linie_id: string | null
+          linie_nume: string | null
+          nume: string
+          order_index: number
+          post: string | null
+          status: string
+          status_from: string | null
+          status_note: string | null
+          status_to: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          linie_id?: string | null
+          linie_nume?: string | null
+          nume: string
+          order_index?: number
+          post?: string | null
+          status?: string
+          status_from?: string | null
+          status_note?: string | null
+          status_to?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          linie_id?: string | null
+          linie_nume?: string | null
+          nume?: string
+          order_index?: number
+          post?: string | null
+          status?: string
+          status_from?: string | null
+          status_note?: string | null
+          status_to?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       productie_grupare_ambalare: {
         Row: {
           created_at: string

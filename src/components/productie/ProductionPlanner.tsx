@@ -7,10 +7,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useQuery } from "@tanstack/react-query";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { useProductionLines } from "@/hooks/productie/useProductionData";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import PersonnelManagement, { PlannerPerson, statusLabel, usePlannerPersonnel } from "./PersonnelManagement";
 import { AlertTriangle, ClipboardList, Clock, Download, Plus, Printer, Trash2, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -53,25 +56,25 @@ interface ExtraRow {
   personal?: string;
 }
 
-interface Person {
-  id: string;
-  nume: string;
-  assigned: string | null; // line id, `extra:<id>` sau null
-}
+type Person = PlannerPerson;
 
 const ProductionPlanner: React.FC = () => {
   const today = fmtDate(new Date());
+  const qc = useQueryClient();
   const [startDate, setStartDate] = usePersistentState("planner-start", today);
   const [endDate, setEndDate] = usePersistentState("planner-end", today);
   const [excluded, setExcluded] = usePersistentState<string[]>("planner-excluded-clients", []);
   const [overrides, setOverrides] = usePersistentState<Record<string, LineOverride>>("planner-line-overrides", {});
   const [extras, setExtras] = usePersistentState<ExtraRow[]>("planner-extra-rows", []);
   const [shiftHours, setShiftHours] = usePersistentState<number>("planner-shift-hours", 8);
-  const [people, setPeople] = usePersistentState<Person[]>("planner-people", []);
+  // mutări valabile doar pentru ziua planificată: personId -> slot ("none" = scos de pe linie)
+  const [dayAssign, setDayAssign] = usePersistentState<Record<string, string>>(`planner-day-assign-${startDate}`, {});
+  const [saveAsDefault, setSaveAsDefault] = usePersistentState<boolean>("planner-save-default-line", false);
   const [showClients, setShowClients] = useState(true);
-  const [newPerson, setNewPerson] = useState("");
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
+
+  const { data: people = [] } = usePlannerPersonnel();
 
   const { data: lines = [] } = useProductionLines();
 
@@ -181,18 +184,32 @@ const ProductionPlanner: React.FC = () => {
     setOverrides((prev) => ({ ...prev, [lineId]: { ...prev[lineId], ...patch } }));
 
   // ---- Oameni ----
-  const peopleFor = (slot: string) => people.filter((p) => p.assigned === slot);
-  const unassignedPeople = people.filter((p) => !p.assigned);
-
-  const addPerson = () => {
-    const nume = newPerson.trim();
-    if (!nume) return;
-    setPeople((prev) => [...prev, { id: crypto.randomUUID(), nume, assigned: null }]);
-    setNewPerson("");
+  // slotul curent: override de zi, altfel linia implicită din nomenclatorul de personal
+  const slotOf = (p: Person): string | null => {
+    const ov = dayAssign[p.id];
+    if (ov === "none") return null;
+    if (ov) return ov;
+    return p.linie_id || null;
   };
-  const removePerson = (id: string) => setPeople((prev) => prev.filter((p) => p.id !== id));
-  const assignPerson = (id: string, slot: string | null) =>
-    setPeople((prev) => prev.map((p) => (p.id === id ? { ...p, assigned: slot } : p)));
+  const activePeople = people.filter((p) => p.status === "activ");
+  const unavailablePeople = people.filter((p) => p.status !== "activ");
+  const peopleFor = (slot: string) => activePeople.filter((p) => slotOf(p) === slot);
+  const unassignedPeople = activePeople.filter((p) => !slotOf(p));
+
+  const assignPerson = async (id: string, slot: string | null) => {
+    setDayAssign((prev) => ({ ...prev, [id]: slot ?? "none" }));
+    if (saveAsDefault) {
+      const isLine = slot && !slot.startsWith("extra:");
+      await supabaseCloud
+        .from("planner_personal")
+        .update({
+          linie_id: isLine ? slot : null,
+          linie_nume: isLine ? (lines as any[]).find((l) => l.id === slot)?.nume || null : null,
+        })
+        .eq("id", id);
+      qc.invalidateQueries({ queryKey: ["planner-personnel"] });
+    }
+  };
 
   const onDrop = (slot: string | null) => (e: React.DragEvent) => {
     e.preventDefault();
@@ -209,7 +226,7 @@ const ProductionPlanner: React.FC = () => {
       const autoCant = data?.total || 0;
       const cantitate = ov.cantitate != null ? ov.cantitate : autoCant;
       const norma = ov.norma != null ? ov.norma : Number(line.capacitate_ora) || 0;
-      const assigned = people.filter((p) => p.assigned === line.id);
+      const assigned = peopleFor(line.id);
       const oameni = ov.oameni != null ? ov.oameni : assigned.length;
       const ore = norma > 0 ? cantitate / norma : 0;
       const topProdus = data
@@ -254,7 +271,13 @@ const ProductionPlanner: React.FC = () => {
     setExtras((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   const removeExtra = (id: string) => {
     setExtras((prev) => prev.filter((e) => e.id !== id));
-    setPeople((prev) => prev.map((p) => (p.assigned === `extra:${id}` ? { ...p, assigned: null } : p)));
+    setDayAssign((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((k) => {
+        if (next[k] === `extra:${id}`) next[k] = "none";
+      });
+      return next;
+    });
   };
 
   const buildMatrix = () => {
@@ -349,17 +372,27 @@ ${matrix.slice(4).map((r) => {
         e.dataTransfer.setData("text/plain", p.id);
         setDragId(p.id);
       }}
+      title={p.post || undefined}
       className="inline-flex items-center gap-1 rounded-full border bg-secondary px-2 py-0.5 text-xs cursor-grab active:cursor-grabbing"
     >
       {p.nume}
-      <button type="button" onClick={() => (p.assigned ? assignPerson(p.id, null) : removePerson(p.id))}>
-        <X className="h-3 w-3 opacity-60 hover:opacity-100" />
-      </button>
+      {slotOf(p) && (
+        <button type="button" onClick={() => assignPerson(p.id, null)}>
+          <X className="h-3 w-3 opacity-60 hover:opacity-100" />
+        </button>
+      )}
     </span>
   );
 
   return (
     <div className="space-y-4">
+      <Tabs defaultValue="plan">
+        <TabsList>
+          <TabsTrigger value="plan">Planificare</TabsTrigger>
+          <TabsTrigger value="personal">Personal</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="plan" className="space-y-4 mt-4">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
@@ -584,18 +617,10 @@ ${matrix.slice(4).map((r) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex gap-2">
-            <Input
-              className="h-9 max-w-xs"
-              placeholder="Nume persoană"
-              value={newPerson}
-              onChange={(e) => setNewPerson(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addPerson()}
-            />
-            <Button size="sm" onClick={addPerson}>
-              <Plus className="h-4 w-4 mr-1" /> Adaugă
-            </Button>
-          </div>
+          <label className="flex items-center gap-2 text-xs">
+            <Checkbox checked={saveAsDefault} onCheckedChange={(v) => setSaveAsDefault(!!v)} />
+            Salvează mutările ca linie implicită (altfel se aplică doar pentru {fmtRo(startDate)})
+          </label>
           <div
             onDragOver={allowDrop}
             onDrop={onDrop(null)}
@@ -605,11 +630,24 @@ ${matrix.slice(4).map((r) => {
               <PersonChip key={p.id} p={p} />
             ))}
             {unassignedPeople.length === 0 && (
-              <span className="text-xs text-muted-foreground">Toți oamenii sunt alocați. Trage aici ca să eliberezi pe cineva.</span>
+              <span className="text-xs text-muted-foreground">Toți oamenii activi sunt alocați. Trage aici ca să eliberezi pe cineva.</span>
             )}
           </div>
+          {unavailablePeople.length > 0 && (
+            <div>
+              <div className="text-xs font-medium mb-1">Indisponibili ({unavailablePeople.length})</div>
+              <div className="flex flex-wrap gap-1">
+                {unavailablePeople.map((p) => (
+                  <Badge key={p.id} variant="outline" className="text-[10px] font-normal">
+                    {p.nume} – {statusLabel(p.status)}
+                    {p.status_note ? ` (${p.status_note})` : ""}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
-            Trage numele pe o linie sau pe un post auxiliar pentru a-l aloca. Click pe X îl scoate de pe linie (sau îl șterge din listă dacă e nealocat).
+            Oamenii apar automat pe linia lor implicită (setată în sub-tab-ul Personal). Trage numele pe altă linie sau pe un post auxiliar pentru a-l muta; X îl scoate de pe linie.
           </p>
         </CardContent>
       </Card>
@@ -734,6 +772,12 @@ ${matrix.slice(4).map((r) => {
           </div>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="personal">
+          <PersonnelManagement />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
