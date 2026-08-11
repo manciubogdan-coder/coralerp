@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, TrendingDown, Package, AlertCircle, FileText, Clock, Filter } from "lucide-react";
+import { Calendar, TrendingDown, Package, AlertCircle, FileText, Clock, Filter, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIngredients } from "@/hooks/productie/useIngredients";
@@ -56,6 +56,7 @@ const ConsumptionAnalytics = () => {
     to: new Date(),
   });
   const [selectedIngredient, setSelectedIngredient] = useState<string>('all');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const { data: ingredients } = useIngredients();
 
