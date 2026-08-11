@@ -226,7 +226,7 @@ const ProductionPlanner: React.FC = () => {
       const autoCant = data?.total || 0;
       const cantitate = ov.cantitate != null ? ov.cantitate : autoCant;
       const norma = ov.norma != null ? ov.norma : Number(line.capacitate_ora) || 0;
-      const assigned = people.filter((p) => p.assigned === line.id);
+      const assigned = peopleFor(line.id);
       const oameni = ov.oameni != null ? ov.oameni : assigned.length;
       const ore = norma > 0 ? cantitate / norma : 0;
       const topProdus = data
