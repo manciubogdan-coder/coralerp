@@ -610,18 +610,10 @@ ${matrix.slice(4).map((r) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex gap-2">
-            <Input
-              className="h-9 max-w-xs"
-              placeholder="Nume persoană"
-              value={newPerson}
-              onChange={(e) => setNewPerson(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addPerson()}
-            />
-            <Button size="sm" onClick={addPerson}>
-              <Plus className="h-4 w-4 mr-1" /> Adaugă
-            </Button>
-          </div>
+          <label className="flex items-center gap-2 text-xs">
+            <Checkbox checked={saveAsDefault} onCheckedChange={(v) => setSaveAsDefault(!!v)} />
+            Salvează mutările ca linie implicită (altfel se aplică doar pentru {fmtRo(startDate)})
+          </label>
           <div
             onDragOver={allowDrop}
             onDrop={onDrop(null)}
@@ -631,12 +623,26 @@ ${matrix.slice(4).map((r) => {
               <PersonChip key={p.id} p={p} />
             ))}
             {unassignedPeople.length === 0 && (
-              <span className="text-xs text-muted-foreground">Toți oamenii sunt alocați. Trage aici ca să eliberezi pe cineva.</span>
+              <span className="text-xs text-muted-foreground">Toți oamenii activi sunt alocați. Trage aici ca să eliberezi pe cineva.</span>
             )}
           </div>
+          {unavailablePeople.length > 0 && (
+            <div>
+              <div className="text-xs font-medium mb-1">Indisponibili ({unavailablePeople.length})</div>
+              <div className="flex flex-wrap gap-1">
+                {unavailablePeople.map((p) => (
+                  <Badge key={p.id} variant="outline" className="text-[10px] font-normal">
+                    {p.nume} – {statusLabel(p.status)}
+                    {p.status_note ? ` (${p.status_note})` : ""}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
-            Trage numele pe o linie sau pe un post auxiliar pentru a-l aloca. Click pe X îl scoate de pe linie (sau îl șterge din listă dacă e nealocat).
+            Oamenii apar automat pe linia lor implicită (setată în sub-tab-ul Personal). Trage numele pe altă linie sau pe un post auxiliar pentru a-l muta; X îl scoate de pe linie.
           </p>
+        </CardContent>
         </CardContent>
       </Card>
 
