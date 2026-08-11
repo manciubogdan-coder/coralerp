@@ -324,12 +324,23 @@ const ConsumptionAnalytics = () => {
                 unitate_masura_originala: ingredientReteta.unitate_masura,
                 comenzi_finalizate: 0,
                 comenzi_pending: 0,
-                produse_list: produs.nume
+                produse_list: produs.nume,
+                detalii: []
               });
             }
             
             const existing = consumptionMap.get(key)!;
             existing.cantitate_totala += cantitateKg;
+            existing.detalii.push({
+              comanda_id: comanda.id,
+              produs: produs.nume,
+              magazin: comanda.magazin || '-',
+              data: comanda.data_productie || comanda.created_at,
+              status: statusComanda,
+              cantitate_comanda: cantitateEfectivProdusa,
+              cantitate_kg: cantitateKg,
+              sursa: 'reteta'
+            });
             
             if (statusComanda === 'completed') {
               existing.cantitate_consumata += cantitateKg;
