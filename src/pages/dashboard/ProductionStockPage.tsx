@@ -11,6 +11,7 @@ import ProductionDashboardReal from "@/components/productie/ProductionDashboardR
 import OrderManagementReal from "@/components/productie/OrderManagementReal";
 import AdvanceProductionManagement from "@/components/productie/AdvanceProductionManagement";
 import ProductionForecast from "@/components/productie/ProductionForecast";
+import ProductionPlanner from "@/components/productie/ProductionPlanner";
 import ReportsOrders from "@/components/productie/ReportsOrders";
 import ReportsMirror from "@/components/productie/ReportsMirror";
 import OrderOCR from "@/components/productie/OrderOCR";
