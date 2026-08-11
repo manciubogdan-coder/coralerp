@@ -97,6 +97,7 @@ const ConsumptionAnalytics = () => {
           created_at,
           cantitate_din_restock,
           magazin,
+          data_productie,
           productie_produse!inner(
             id,
             nume,
