@@ -99,6 +99,12 @@ const ProductionStockPage = () => {
             </Tabs>
           </TabsContent>
 
+          <TabsContent value="planner">
+            <ProductionPlanner />
+          </TabsContent>
+
+
+
           <TabsContent value="ocr">
             <OrderOCR />
           </TabsContent>
