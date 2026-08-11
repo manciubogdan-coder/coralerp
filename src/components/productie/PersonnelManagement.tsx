@@ -33,6 +33,21 @@ export const STATUS_OPTIONS = [
 
 export const statusLabel = (s: string) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s;
 
+/** Posturi neproductive (nu țin de liniile de producție) */
+export const AUX_POSTS = [
+  "Etichete",
+  "Picking",
+  "Spălat",
+  "Sortat",
+  "Depozit",
+  "Recepție",
+  "Curățenie",
+  "Mentenanță",
+];
+
+export const isAuxSlot = (v?: string | null) => !!v && v.startsWith("aux:");
+export const auxLabel = (v: string) => v.replace(/^aux:/, "");
+
 export const usePlannerPersonnel = () =>
   useQuery({
     queryKey: ["planner-personnel"],
