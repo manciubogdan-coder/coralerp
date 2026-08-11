@@ -33,6 +33,21 @@ export const STATUS_OPTIONS = [
 
 export const statusLabel = (s: string) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s;
 
+/** Posturi neproductive (nu țin de liniile de producție) */
+export const AUX_POSTS = [
+  "Etichete",
+  "Picking",
+  "Spălat",
+  "Sortat",
+  "Depozit",
+  "Recepție",
+  "Curățenie",
+  "Mentenanță",
+];
+
+export const isAuxSlot = (v?: string | null) => !!v && v.startsWith("aux:");
+export const auxLabel = (v: string) => v.replace(/^aux:/, "");
+
 export const usePlannerPersonnel = () =>
   useQuery({
     queryKey: ["planner-personnel"],
@@ -127,7 +142,7 @@ const PersonnelManagement: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="min-w-[160px]">Nume</TableHead>
-                <TableHead className="min-w-[180px]">Linie implicită</TableHead>
+                <TableHead className="min-w-[180px]">Linie / post implicit</TableHead>
                 <TableHead className="min-w-[140px]">Post / rol</TableHead>
                 <TableHead className="min-w-[140px]">Status</TableHead>
                 <TableHead className="w-[130px]">De la</TableHead>
@@ -157,7 +172,12 @@ const PersonnelManagement: React.FC = () => {
                           id: p.id,
                           patch: {
                             linie_id: v === "none" ? null : v,
-                            linie_nume: v === "none" ? null : lines.find((l: any) => l.id === v)?.nume || null,
+                            linie_nume:
+                              v === "none"
+                                ? null
+                                : isAuxSlot(v)
+                                ? auxLabel(v)
+                                : lines.find((l: any) => l.id === v)?.nume || null,
                           },
                         })
                       }
@@ -167,13 +187,27 @@ const PersonnelManagement: React.FC = () => {
                       </SelectTrigger>
                       <SelectContent className="max-h-64 overflow-y-auto">
                         <SelectItem value="none">Fără linie</SelectItem>
+                        <div className="px-2 py-1 text-[10px] uppercase text-muted-foreground">Linii producție</div>
                         {lines.map((l: any) => (
                           <SelectItem key={l.id} value={l.id}>
                             {l.nume}
                           </SelectItem>
                         ))}
+                        <div className="px-2 py-1 text-[10px] uppercase text-muted-foreground">
+                          Posturi neproductive
+                        </div>
+                        {AUX_POSTS.map((a) => (
+                          <SelectItem key={a} value={`aux:${a}`}>
+                            {a}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                    {isAuxSlot(p.linie_id) && (
+                      <Badge variant="secondary" className="mt-1 text-[10px]">
+                        neproductiv
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Input
