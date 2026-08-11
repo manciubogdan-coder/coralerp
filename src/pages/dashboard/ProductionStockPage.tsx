@@ -56,6 +56,7 @@ const ProductionStockPage = () => {
             <TabsTrigger value="orders">Comenzi</TabsTrigger>
             <TabsTrigger value="advance">Prod. Avans</TabsTrigger>
             <TabsTrigger value="forecast">Forecast</TabsTrigger>
+            <TabsTrigger value="planner">Planificator</TabsTrigger>
             <TabsTrigger value="ocr">OCR</TabsTrigger>
             <TabsTrigger value="operator">Operator</TabsTrigger>
             <TabsTrigger value="stoc-transferat">Stoc Transferat</TabsTrigger>
