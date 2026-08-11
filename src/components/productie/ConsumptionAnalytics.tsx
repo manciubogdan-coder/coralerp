@@ -369,6 +369,60 @@ const ConsumptionAnalytics = () => {
     }
   });
 
+  // Stoc din depozitul de materii prime (agregat pe denumire produs)
+  const { data: stocDepozit } = useQuery({
+    queryKey: ['consumption-warehouse-stock'],
+    queryFn: async () => {
+      const pageSize = 1000;
+      let offset = 0;
+      let hasMore = true;
+      const rows: any[] = [];
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('name, quantity, unit')
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          rows.push(...data);
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+      const map = new Map<string, number>();
+      rows.forEach((r) => {
+        const qty = Number(r.quantity) || 0;
+        if (qty <= 0) return;
+        const key = normalizeName(r.name);
+        if (!key) return;
+        map.set(key, (map.get(key) || 0) + qty);
+      });
+      return map;
+    },
+    staleTime: 60_000,
+  });
+
+  const getStoc = (ingredientNume: string): number | null => {
+    if (!stocDepozit) return null;
+    const key = normalizeName(ingredientNume);
+    if (!key) return null;
+    if (stocDepozit.has(key)) return stocDepozit.get(key)!;
+    // potrivire parțială
+    let total = 0;
+    let found = false;
+    stocDepozit.forEach((qty, name) => {
+      if (name.includes(key) || key.includes(name)) {
+        total += qty;
+        found = true;
+      }
+    });
+    return found ? total : null;
+  };
+
+
+
   const handleExport = () => {
     if (!consumptionData || consumptionData.length === 0) {
       toast({
