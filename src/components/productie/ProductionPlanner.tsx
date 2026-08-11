@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useProductionLines } from "@/hooks/productie/useProductionData";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { ClipboardList, Download, Plus, Printer, Trash2, Users } from "lucide-react";
+import { AlertTriangle, ClipboardList, Clock, Download, Plus, Printer, Trash2, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 
@@ -52,6 +53,12 @@ interface ExtraRow {
   personal?: string;
 }
 
+interface Person {
+  id: string;
+  nume: string;
+  assigned: string | null; // line id, `extra:<id>` sau null
+}
+
 const ProductionPlanner: React.FC = () => {
   const today = fmtDate(new Date());
   const [startDate, setStartDate] = usePersistentState("planner-start", today);
@@ -59,7 +66,12 @@ const ProductionPlanner: React.FC = () => {
   const [excluded, setExcluded] = usePersistentState<string[]>("planner-excluded-clients", []);
   const [overrides, setOverrides] = usePersistentState<Record<string, LineOverride>>("planner-line-overrides", {});
   const [extras, setExtras] = usePersistentState<ExtraRow[]>("planner-extra-rows", []);
+  const [shiftHours, setShiftHours] = usePersistentState<number>("planner-shift-hours", 8);
+  const [people, setPeople] = usePersistentState<Person[]>("planner-people", []);
   const [showClients, setShowClients] = useState(true);
+  const [newPerson, setNewPerson] = useState("");
+  const [showUnassigned, setShowUnassigned] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
 
   const { data: lines = [] } = useProductionLines();
 
@@ -155,13 +167,40 @@ const ProductionPlanner: React.FC = () => {
     return map;
   }, [filteredOrders]);
 
-  const nealocate = useMemo(
-    () => filteredOrders.filter((o) => !o.linie_id).reduce((s, o) => s + (Number(o.cantitate) || 0), 0),
+  const unassignedOrders = useMemo(
+    () => filteredOrders.filter((o) => !o.linie_id),
     [filteredOrders]
+  );
+
+  const nealocate = useMemo(
+    () => unassignedOrders.reduce((s, o) => s + (Number(o.cantitate) || 0), 0),
+    [unassignedOrders]
   );
 
   const setOverride = (lineId: string, patch: LineOverride) =>
     setOverrides((prev) => ({ ...prev, [lineId]: { ...prev[lineId], ...patch } }));
+
+  // ---- Oameni ----
+  const peopleFor = (slot: string) => people.filter((p) => p.assigned === slot);
+  const unassignedPeople = people.filter((p) => !p.assigned);
+
+  const addPerson = () => {
+    const nume = newPerson.trim();
+    if (!nume) return;
+    setPeople((prev) => [...prev, { id: crypto.randomUUID(), nume, assigned: null }]);
+    setNewPerson("");
+  };
+  const removePerson = (id: string) => setPeople((prev) => prev.filter((p) => p.id !== id));
+  const assignPerson = (id: string, slot: string | null) =>
+    setPeople((prev) => prev.map((p) => (p.id === id ? { ...p, assigned: slot } : p)));
+
+  const onDrop = (slot: string | null) => (e: React.DragEvent) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData("text/plain") || dragId;
+    if (id) assignPerson(id, slot);
+    setDragId(null);
+  };
+  const allowDrop = (e: React.DragEvent) => e.preventDefault();
 
   const rows = useMemo(() => {
     return lines.map((line) => {
@@ -170,7 +209,8 @@ const ProductionPlanner: React.FC = () => {
       const autoCant = data?.total || 0;
       const cantitate = ov.cantitate != null ? ov.cantitate : autoCant;
       const norma = ov.norma != null ? ov.norma : Number(line.capacitate_ora) || 0;
-      const oameni = ov.oameni != null ? ov.oameni : 0;
+      const assigned = people.filter((p) => p.assigned === line.id);
+      const oameni = ov.oameni != null ? ov.oameni : assigned.length;
       const ore = norma > 0 ? cantitate / norma : 0;
       const topProdus = data
         ? Array.from(data.produse.entries()).sort((a, b) => b[1] - a[1])[0]
@@ -182,48 +222,73 @@ const ProductionPlanner: React.FC = () => {
         cantitate,
         autoCant,
         ore,
+        assigned,
+        overHours: shiftHours > 0 && ore > shiftHours,
         personal: ov.personal || "",
         startProdus: ov.startProdus || (topProdus ? `${topProdus[0]} – ${Math.round(topProdus[1]).toLocaleString()} buc` : ""),
       };
     });
-  }, [lines, overrides, perLine]);
+  }, [lines, overrides, perLine, people, shiftHours]);
+
+  const overLines = rows.filter((r) => r.overHours);
 
   const totals = useMemo(() => {
     const norma = rows.reduce((s, r) => s + (r.norma || 0), 0);
     const oameniLinii = rows.reduce((s, r) => s + (r.oameni || 0), 0);
     const cantitate = rows.reduce((s, r) => s + (r.cantitate || 0), 0);
-    const oameniExtra = extras.reduce((s, e) => s + (e.oameni || 0), 0);
+    const oameniExtra = extras.reduce(
+      (s, e) => s + (e.oameni != null && e.oameni > 0 ? e.oameni : peopleFor(`extra:${e.id}`).length),
+      0
+    );
     return { norma, oameniLinii, cantitate, oameniExtra, oameniTotal: oameniLinii + oameniExtra };
-  }, [rows, extras]);
+  }, [rows, extras, people]);
+
+  const personalText = (slot: string, manual: string) => {
+    const names = peopleFor(slot).map((p) => p.nume);
+    return [names.join(", "), manual].filter(Boolean).join(" | ");
+  };
 
   const addExtra = () =>
     setExtras((prev) => [...prev, { id: crypto.randomUUID(), nume: "", oameni: 0, personal: "" }]);
   const updateExtra = (id: string, patch: Partial<ExtraRow>) =>
     setExtras((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-  const removeExtra = (id: string) => setExtras((prev) => prev.filter((e) => e.id !== id));
+  const removeExtra = (id: string) => {
+    setExtras((prev) => prev.filter((e) => e.id !== id));
+    setPeople((prev) => prev.map((p) => (p.assigned === `extra:${id}` ? { ...p, assigned: null } : p)));
+  };
 
   const buildMatrix = () => {
     const header = ["Linie", "Norma/oră", "Oameni", "Cant. necesară", "Nr. ore necesar", "Personal", "Se începe producția cu produsul"];
     const body: any[][] = rows.map((r) => [
-      r.line.nume,
+      r.line.nume + (r.overHours ? " (!)" : ""),
       r.norma || "",
       r.oameni || "",
       r.cantitate || "",
       r.norma > 0 && r.cantitate > 0 ? Number(r.ore.toFixed(2)) : "",
-      r.personal,
+      personalText(r.line.id, r.personal),
       r.startProdus,
     ]);
     body.push(["TOTAL LINII", totals.norma, totals.oameniLinii, totals.cantitate, "", "", ""]);
     if (extras.length) {
       body.push([]);
-      extras.forEach((e) => body.push([e.nume, e.norma || "", e.oameni || "", "", "", e.personal, ""]));
+      extras.forEach((e) =>
+        body.push([
+          e.nume,
+          e.norma || "",
+          e.oameni || peopleFor(`extra:${e.id}`).length || "",
+          "",
+          "",
+          personalText(`extra:${e.id}`, e.personal || ""),
+          "",
+        ])
+      );
       body.push(["TOTAL AUXILIAR", "", totals.oameniExtra, "", "", "", ""]);
     }
     body.push([]);
     body.push(["TOTAL OAMENI", "", totals.oameniTotal, "", "", "", ""]);
     return [
       [`Planificator producție ${fmtRo(startDate)} - ${fmtRo(endDate)}`],
-      [`Clienți incluși: ${clients.filter((c) => isIncluded(c.key)).length}/${clients.length}`],
+      [`Clienți incluși: ${clients.filter((c) => isIncluded(c.key)).length}/${clients.length} | Program schimb: ${shiftHours}h`],
       [],
       header,
       ...body,
@@ -277,6 +342,22 @@ ${matrix.slice(4).map((r) => {
     setTimeout(() => w.print(), 300);
   };
 
+  const PersonChip: React.FC<{ p: Person }> = ({ p }) => (
+    <span
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", p.id);
+        setDragId(p.id);
+      }}
+      className="inline-flex items-center gap-1 rounded-full border bg-secondary px-2 py-0.5 text-xs cursor-grab active:cursor-grabbing"
+    >
+      {p.nume}
+      <button type="button" onClick={() => (p.assigned ? assignPerson(p.id, null) : removePerson(p.id))}>
+        <X className="h-3 w-3 opacity-60 hover:opacity-100" />
+      </button>
+    </span>
+  );
+
   return (
     <div className="space-y-4">
       <Card>
@@ -322,9 +403,25 @@ ${matrix.slice(4).map((r) => {
             >
               Mâine
             </Button>
+            <div>
+              <Label className="text-xs flex items-center gap-1"><Clock className="h-3 w-3" /> Program schimb (ore)</Label>
+              <Input
+                type="number"
+                step="0.5"
+                min="1"
+                className="w-24"
+                value={shiftHours || ""}
+                onChange={(e) => setShiftHours(Number(e.target.value) || 0)}
+              />
+            </div>
             <Badge variant="secondary" className="flex items-center gap-1">
               <Users className="h-3 w-3" /> Total oameni: {totals.oameniTotal}
             </Badge>
+            {overLines.length > 0 && (
+              <Badge variant="destructive" className="flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> {overLines.length} linii peste {shiftHours}h
+              </Badge>
+            )}
           </div>
 
           <div className="border rounded-md">
@@ -372,14 +469,24 @@ ${matrix.slice(4).map((r) => {
                     <TableHead className="w-[90px] text-center">Oameni</TableHead>
                     <TableHead className="w-[130px] text-center">Cant. necesară</TableHead>
                     <TableHead className="w-[120px] text-center">Nr. ore</TableHead>
-                    <TableHead className="min-w-[220px]">Personal</TableHead>
+                    <TableHead className="min-w-[240px]">Personal</TableHead>
                     <TableHead className="min-w-[200px]">Se începe cu produsul</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rows.map((r) => (
-                    <TableRow key={r.line.id}>
-                      <TableCell className="font-medium">{r.line.nume}</TableCell>
+                    <TableRow
+                      key={r.line.id}
+                      onDragOver={allowDrop}
+                      onDrop={onDrop(r.line.id)}
+                      className={r.overHours ? "bg-destructive/10" : undefined}
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-1">
+                          {r.overHours && <AlertTriangle className="h-4 w-4 text-destructive" />}
+                          {r.line.nume}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Input
                           type="number"
@@ -409,11 +516,21 @@ ${matrix.slice(4).map((r) => {
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="text-center text-sm">{formatOre(r.ore)}</TableCell>
+                      <TableCell className={`text-center text-sm ${r.overHours ? "text-destructive font-semibold" : ""}`}>
+                        {formatOre(r.ore)}
+                        {r.overHours && (
+                          <div className="text-[10px]">+{formatOre(r.ore - shiftHours)} peste program</div>
+                        )}
+                      </TableCell>
                       <TableCell>
+                        <div className="flex flex-wrap gap-1 mb-1">
+                          {r.assigned.map((p) => (
+                            <PersonChip key={p.id} p={p} />
+                          ))}
+                        </div>
                         <Input
                           className="h-8"
-                          placeholder="Nume operatori"
+                          placeholder="Trage oameni aici sau scrie"
                           value={r.personal}
                           onChange={(e) => setOverride(r.line.id, { personal: e.target.value })}
                         />
@@ -448,10 +565,52 @@ ${matrix.slice(4).map((r) => {
           )}
 
           {nealocate > 0 && (
-            <p className="text-xs text-amber-700">
-              ⚠️ {Math.round(nealocate).toLocaleString()} buc din comenzi nu sunt alocate pe nicio linie.
-            </p>
+            <button
+              type="button"
+              onClick={() => setShowUnassigned(true)}
+              className="text-xs text-amber-700 underline underline-offset-2 hover:text-amber-900"
+            >
+              ⚠️ {Math.round(nealocate).toLocaleString()} buc din comenzi nu sunt alocate pe nicio linie ({unassignedOrders.length} comenzi) – click pentru detalii
+            </button>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Oameni disponibili */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Users className="h-4 w-4" /> Oameni disponibili ({unassignedPeople.length} nealocați / {people.length} total)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <Input
+              className="h-9 max-w-xs"
+              placeholder="Nume persoană"
+              value={newPerson}
+              onChange={(e) => setNewPerson(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addPerson()}
+            />
+            <Button size="sm" onClick={addPerson}>
+              <Plus className="h-4 w-4 mr-1" /> Adaugă
+            </Button>
+          </div>
+          <div
+            onDragOver={allowDrop}
+            onDrop={onDrop(null)}
+            className="min-h-[64px] rounded-md border border-dashed p-2 flex flex-wrap gap-1"
+          >
+            {unassignedPeople.map((p) => (
+              <PersonChip key={p.id} p={p} />
+            ))}
+            {unassignedPeople.length === 0 && (
+              <span className="text-xs text-muted-foreground">Toți oamenii sunt alocați. Trage aici ca să eliberezi pe cineva.</span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Trage numele pe o linie sau pe un post auxiliar pentru a-l aloca. Click pe X îl scoate de pe linie (sau îl șterge din listă dacă e nealocat).
+          </p>
         </CardContent>
       </Card>
 
@@ -480,7 +639,7 @@ ${matrix.slice(4).map((r) => {
               </TableHeader>
               <TableBody>
                 {extras.map((e) => (
-                  <TableRow key={e.id}>
+                  <TableRow key={e.id} onDragOver={allowDrop} onDrop={onDrop(`extra:${e.id}`)}>
                     <TableCell>
                       <Input className="h-8" placeholder="ex. Linie Spălat" value={e.nume} onChange={(ev) => updateExtra(e.id, { nume: ev.target.value })} />
                     </TableCell>
@@ -488,10 +647,20 @@ ${matrix.slice(4).map((r) => {
                       <Input type="number" className="h-8 text-center" value={e.norma || ""} onChange={(ev) => updateExtra(e.id, { norma: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
                     </TableCell>
                     <TableCell>
-                      <Input type="number" className="h-8 text-center" value={e.oameni || ""} onChange={(ev) => updateExtra(e.id, { oameni: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
+                      <Input
+                        type="number"
+                        className="h-8 text-center"
+                        value={e.oameni || peopleFor(`extra:${e.id}`).length || ""}
+                        onChange={(ev) => updateExtra(e.id, { oameni: ev.target.value === "" ? undefined : Number(ev.target.value) })}
+                      />
                     </TableCell>
                     <TableCell>
-                      <Input className="h-8" placeholder="Nume operatori" value={e.personal || ""} onChange={(ev) => updateExtra(e.id, { personal: ev.target.value })} />
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {peopleFor(`extra:${e.id}`).map((p) => (
+                          <PersonChip key={p.id} p={p} />
+                        ))}
+                      </div>
+                      <Input className="h-8" placeholder="Trage oameni aici sau scrie" value={e.personal || ""} onChange={(ev) => updateExtra(e.id, { personal: ev.target.value })} />
                     </TableCell>
                     <TableCell>
                       <Button size="icon" variant="ghost" onClick={() => removeExtra(e.id)}>
@@ -517,6 +686,54 @@ ${matrix.slice(4).map((r) => {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showUnassigned} onOpenChange={setShowUnassigned}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              Comenzi nealocate pe linie ({unassignedOrders.length} • {Math.round(nealocate).toLocaleString()} buc)
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data producție</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Produs</TableHead>
+                  <TableHead className="text-right">Cantitate</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {unassignedOrders
+                  .slice()
+                  .sort((a, b) => String(a.data_productie).localeCompare(String(b.data_productie)))
+                  .map((o) => {
+                    const key = `${o.magazin || "—"}||${o.punct_livrare || ""}`;
+                    const nick = nickMap.get(key);
+                    return (
+                      <TableRow key={o.id}>
+                        <TableCell className="whitespace-nowrap">{o.data_productie ? fmtRo(o.data_productie) : "-"}</TableCell>
+                        <TableCell>{nick ? `${nick} (${o.magazin})` : `${o.magazin || "—"}${o.punct_livrare ? ` – ${o.punct_livrare}` : ""}`}</TableCell>
+                        <TableCell>{o.productie_produse?.nume || "—"}</TableCell>
+                        <TableCell className="text-right">
+                          {Math.round(Number(o.cantitate) || 0).toLocaleString()} {o.productie_produse?.unitate_masura || ""}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                {unassignedOrders.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
+                      Toate comenzile sunt alocate.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
