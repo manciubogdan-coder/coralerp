@@ -53,25 +53,25 @@ interface ExtraRow {
   personal?: string;
 }
 
-interface Person {
-  id: string;
-  nume: string;
-  assigned: string | null; // line id, `extra:<id>` sau null
-}
+type Person = PlannerPerson;
 
 const ProductionPlanner: React.FC = () => {
   const today = fmtDate(new Date());
+  const qc = useQueryClient();
   const [startDate, setStartDate] = usePersistentState("planner-start", today);
   const [endDate, setEndDate] = usePersistentState("planner-end", today);
   const [excluded, setExcluded] = usePersistentState<string[]>("planner-excluded-clients", []);
   const [overrides, setOverrides] = usePersistentState<Record<string, LineOverride>>("planner-line-overrides", {});
   const [extras, setExtras] = usePersistentState<ExtraRow[]>("planner-extra-rows", []);
   const [shiftHours, setShiftHours] = usePersistentState<number>("planner-shift-hours", 8);
-  const [people, setPeople] = usePersistentState<Person[]>("planner-people", []);
+  // mutări valabile doar pentru ziua planificată: personId -> slot ("none" = scos de pe linie)
+  const [dayAssign, setDayAssign] = usePersistentState<Record<string, string>>(`planner-day-assign-${startDate}`, {});
+  const [saveAsDefault, setSaveAsDefault] = usePersistentState<boolean>("planner-save-default-line", false);
   const [showClients, setShowClients] = useState(true);
-  const [newPerson, setNewPerson] = useState("");
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
+
+  const { data: people = [] } = usePlannerPersonnel();
 
   const { data: lines = [] } = useProductionLines();
 
