@@ -611,30 +611,52 @@ const ProductionPlanner: React.FC = () => {
       const qty = prods.reduce((s, p) => s + p.qty, 0);
       const ore = norma > 0 ? qty / norma : 0;
 
-      // Repartizare automată pe liniile grupului: umple fiecare linie până la capacitatea
-      // schimbului, restul se mută singur pe următoarea linie din aceeași grupă.
+      // Repartizare automată echilibrată: fiecare linie din grup primește proporțional cu
+      // norma ei, astfel încât toate liniile să termine cam la aceeași oră (fără surplus
+      // pe o linie și timp liber pe alta). Se depășește ținta doar dacă nu mai e loc.
       const buckets = g.lines.map((l: any) => ({
         line: l,
         norma: rowsByLine.get(l.id)?.norma || 0,
         items: [] as { nume: string; qty: number }[],
         qty: 0,
         ore: 0,
+        target: 0,
       }));
       let rest = 0;
       const usable = buckets.filter((b) => b.norma > 0);
       if (usable.length) {
-        let bi = 0;
+        const totalNorma = usable.reduce((s, b) => s + b.norma, 0);
+        // ora țintă comună (limitată la durata schimbului)
+        const targetOre = shiftHours > 0 ? Math.min(qty / totalNorma, shiftHours) : qty / totalNorma;
+        usable.forEach((b) => { b.target = b.norma * targetOre; });
+
+        const capOf = (b: typeof usable[number], strict: boolean) => {
+          const limit = strict
+            ? b.target
+            : shiftHours > 0
+              ? b.norma * shiftHours
+              : Infinity;
+          return Math.max(0, limit - b.qty);
+        };
+
         prods.forEach((p) => {
           let remaining = p.qty;
-          while (remaining > 0.5 && bi < usable.length) {
-            const b = usable[bi];
-            const cap = shiftHours > 0 ? Math.max(0, b.norma * shiftHours - b.qty) : Infinity;
-            if (cap <= 0.5) { bi += 1; continue; }
-            const take = Math.min(remaining, cap);
-            b.items.push({ nume: p.nume, qty: take });
-            b.qty += take;
-            b.ore = b.norma > 0 ? b.qty / b.norma : 0;
-            remaining -= take;
+          // 1) umplem până la ținta proporțională (linia cea mai liberă în ore prima)
+          for (const strict of [true, false]) {
+            while (remaining > 0.5) {
+              const cands = usable
+                .filter((b) => capOf(b, strict) > 0.5)
+                .sort((a, b) => a.qty / a.norma - b.qty / b.norma);
+              if (!cands.length) break;
+              const b = cands[0];
+              const take = Math.min(remaining, capOf(b, strict));
+              const ex = b.items.find((it) => it.nume === p.nume);
+              if (ex) ex.qty += take; else b.items.push({ nume: p.nume, qty: take });
+              b.qty += take;
+              b.ore = b.qty / b.norma;
+              remaining -= take;
+            }
+            if (remaining <= 0.5) break;
           }
           if (remaining > 0.5) rest += remaining;
         });
@@ -642,6 +664,7 @@ const ProductionPlanner: React.FC = () => {
         rest = qty;
       }
       const moved = buckets.some((b, i) => i > 0 && b.qty > 0);
+
 
       return {
         ...g,
