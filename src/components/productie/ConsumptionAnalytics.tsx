@@ -726,6 +726,8 @@ const ConsumptionAnalytics = () => {
                               <TableHead className="text-xs">Client / Magazin</TableHead>
                               <TableHead className="text-xs">Status</TableHead>
                               <TableHead className="text-xs">Cant. comandă</TableHead>
+                              <TableHead className="text-xs">Tăiat</TableHead>
+                              <TableHead className="text-xs w-[190px]">Taie cantitate</TableHead>
                               <TableHead className="text-xs">Necesar (kg)</TableHead>
                               <TableHead className="text-xs">Sursă</TableHead>
                             </TableRow>
@@ -745,7 +747,54 @@ const ConsumptionAnalytics = () => {
                                       {d.status}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="text-xs font-mono">{d.cantitate_comanda}</TableCell>
+                                  <TableCell className="text-xs font-mono">
+                                    {d.cantitate_comanda}
+                                    {d.cantitate_taiata > 0 && (
+                                      <span className="text-muted-foreground line-through ml-1">{d.cantitate_originala}</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-xs">
+                                    {d.cantitate_taiata > 0 ? (
+                                      <Badge variant="destructive">-{d.cantitate_taiata}</Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-xs" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        type="number"
+                                        className="h-7 w-20 text-xs"
+                                        placeholder="0"
+                                        value={cutDraft[d.comanda_id] ?? (d.cantitate_taiata || '')}
+                                        onChange={(ev) =>
+                                          setCutDraft((prev) => ({ ...prev, [d.comanda_id]: ev.target.value }))
+                                        }
+                                      />
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 px-2"
+                                        onClick={() =>
+                                          saveCut(
+                                            d.comanda_id,
+                                            d.produs,
+                                            Math.max(0, Math.min(Number(cutDraft[d.comanda_id] ?? d.cantitate_taiata) || 0, d.cantitate_originala))
+                                          )
+                                        }
+                                      >
+                                        <Scissors className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => saveCut(d.comanda_id, d.produs, d.cantitate_originala)}
+                                      >
+                                        tot
+                                      </Button>
+                                    </div>
+                                  </TableCell>
                                   <TableCell className="text-xs font-mono font-bold">
                                     {formatValueInKg(d.cantitate_kg)}
                                   </TableCell>
