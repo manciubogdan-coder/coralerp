@@ -202,16 +202,8 @@ const ProductionPlanner: React.FC = () => {
     }
   };
 
-  const applyProductCut = async (prod: { nume: string; orders: any[]; original: number }, totalCut: number) => {
-    await applyCutOrders(prod.nume, prod.orders, totalCut);
-    setProdCutDraft((prev) => {
-      const next = { ...prev };
-      delete next[prod.orders[0]?.produs_id || prod.nume];
-      return next;
-    });
-  };
 
-  const totalTaiat = useMemo(() => products.reduce((s, p) => s + p.taiat, 0), [products]);
+
 
 
   // Cantitate necesară + produs principal per linie
