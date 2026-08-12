@@ -16,6 +16,8 @@ import { useIngredients } from "@/hooks/productie/useIngredients";
 import ExportConsumptionDialog from "./ExportConsumptionDialog";
 import { DateRange } from "react-day-picker";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { useOrderCuts, useSetOrderCut } from "@/hooks/productie/useOrderCuts";
+import { Scissors } from "lucide-react";
 
 interface OrderDetail {
   comanda_id: string;
@@ -110,7 +112,8 @@ const ConsumptionAnalytics = () => {
 
   // Query pentru consumurile și necesarul
   const { data: consumptionData, isLoading } = useQuery({
-    queryKey: ['consumption-analytics', startDate, endDate, selectedIngredient],
+    enabled: !!cuts,
+    queryKey: ['consumption-analytics', startDate, endDate, selectedIngredient, cutsKey],
     queryFn: async () => {
       console.log('🔍 === ÎNCEPE ANALIZA CONSUMURILOR ===');
       console.log('📅 Perioada:', startDate, 'to', endDate, 'ingredient:', selectedIngredient);
@@ -243,6 +246,17 @@ const ConsumptionAnalytics = () => {
           }
         }
         
+        // TĂIERE MANUALĂ: scădem cantitatea tăiată de utilizator
+        const cantitateTaiata = Number(cuts?.get(comanda.id)?.cantitate_taiata) || 0;
+        const cantitateInitiala = cantitateEfectivProdusa;
+        if (cantitateTaiata > 0) {
+          cantitateEfectivProdusa = Math.max(0, cantitateEfectivProdusa - cantitateTaiata);
+          if (cantitateEfectivProdusa <= 0) {
+            console.log(`✂️ SKIP CONSUM - comandă tăiată integral: ${comanda.id}`);
+            return;
+          }
+        }
+
         // Verificăm dacă există ingrediente custom pentru această comandă
         const customIngredientsForThisOrder = customIngredientsMap.get(comanda.id) || [];
         console.log(`🔧 Ingrediente CUSTOM pentru comanda ${comanda.id}:`, customIngredientsForThisOrder.length);
@@ -300,6 +314,8 @@ const ConsumptionAnalytics = () => {
               data: comanda.data_productie || comanda.created_at,
               status: statusComanda,
               cantitate_comanda: cantitateEfectivProdusa,
+              cantitate_originala: cantitateInitiala,
+              cantitate_taiata: cantitateTaiata,
               cantitate_kg: cantitateKg,
               sursa: 'custom'
             });
@@ -366,6 +382,8 @@ const ConsumptionAnalytics = () => {
               data: comanda.data_productie || comanda.created_at,
               status: statusComanda,
               cantitate_comanda: cantitateEfectivProdusa,
+              cantitate_originala: cantitateInitiala,
+              cantitate_taiata: cantitateTaiata,
               cantitate_kg: cantitateKg,
               sursa: 'reteta'
             });
