@@ -106,6 +106,7 @@ const ProductionPlanner: React.FC = () => {
   const [saveAsDefault, setSaveAsDefault] = usePersistentState<boolean>("planner-save-default-line", false);
   const [showClients, setShowClients] = useState(true);
   const [groupDialog, setGroupDialog] = useState<string | null>(null);
+  const [lineDialog, setLineDialog] = useState<string | null>(null);
 
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
