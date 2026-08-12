@@ -468,18 +468,8 @@ const ProductionPlanner: React.FC = () => {
     });
   }, [lines, overrides, perLine, people, shiftHours, cuts]);
 
-  const overLines = rows.filter((r) => r.overHours);
 
-  const totals = useMemo(() => {
-    const norma = rows.reduce((s, r) => s + (r.norma || 0), 0);
-    const oameniLinii = rows.reduce((s, r) => s + (r.oameni || 0), 0);
-    const cantitate = rows.reduce((s, r) => s + (r.cantitate || 0), 0);
-    const oameniExtra = extras.reduce(
-      (s, e) => s + (e.oameni != null && e.oameni > 0 ? e.oameni : peopleFor(`extra:${e.id}`).length),
-      0
-    );
-    return { norma, oameniLinii, cantitate, oameniExtra, oameniTotal: oameniLinii + oameniExtra };
-  }, [rows, extras, people]);
+
 
   const personalText = (slot: string, manual: string) => {
     const names = peopleFor(slot).map((p) => p.nume);
@@ -679,6 +669,52 @@ const ProductionPlanner: React.FC = () => {
       };
     });
   }, [groups, lineProducts, lineOrder, rowsByLine, shiftHours]);
+
+  // Rândurile din tabelul principal folosesc repartizarea automată echilibrată pe liniile grupului
+  const balancedRows = useMemo(() => {
+    const bal = new Map<string, { qty: number; items: { nume: string; qty: number }[] }>();
+    groupPlans.forEach((g: any) =>
+      g.buckets.forEach((b: any) => bal.set(b.line.id, { qty: b.qty, items: b.items }))
+    );
+    return rows.map((r) => {
+      const ov = overrides[r.line.id] || {};
+      const b = bal.get(r.line.id);
+      if (ov.cantitate != null || !b) return { ...r, balanced: false };
+      const cantitate = Math.round(b.qty);
+      const ore = r.norma > 0 ? cantitate / r.norma : 0;
+      const top = [...b.items].sort((a, c) => c.qty - a.qty)[0];
+      return {
+        ...r,
+        cantitate,
+        ore,
+        overHours: shiftHours > 0 && ore > shiftHours,
+        startProdus:
+          ov.startProdus ||
+          (top ? `${top.nume} – ${Math.round(top.qty).toLocaleString()} buc` : r.startProdus),
+        balanced: Math.abs(cantitate - r.autoCant) > 1,
+      };
+    });
+  }, [rows, groupPlans, overrides, shiftHours]);
+
+  const balancedByLine = useMemo(
+    () => new Map(balancedRows.map((r) => [r.line.id, r])),
+    [balancedRows]
+  );
+
+  const overLines = balancedRows.filter((r) => r.overHours);
+
+  const totals = useMemo(() => {
+    const norma = balancedRows.reduce((s, r) => s + (r.norma || 0), 0);
+    const oameniLinii = balancedRows.reduce((s, r) => s + (r.oameni || 0), 0);
+    const cantitate = balancedRows.reduce((s, r) => s + (r.cantitate || 0), 0);
+    const oameniExtra = extras.reduce(
+      (s, e) => s + (e.oameni != null && e.oameni > 0 ? e.oameni : peopleFor(`extra:${e.id}`).length),
+      0
+    );
+    return { norma, oameniLinii, cantitate, oameniExtra, oameniTotal: oameniLinii + oameniExtra };
+  }, [balancedRows, extras, people]);
+
+
 
   // Detaliu deschis: fie un grup, fie o singură linie
   const detail = useMemo(() => {
@@ -904,7 +940,7 @@ const ProductionPlanner: React.FC = () => {
                 </TableHeader>
                 <TableBody>
                   {groups.map((g) => {
-                    const gRows = g.lines.map((l) => rowsByLine.get(l.id)).filter(Boolean) as typeof rows;
+                    const gRows = g.lines.map((l) => balancedByLine.get(l.id)).filter(Boolean) as typeof balancedRows;
                     const sub = {
                       norma: gRows.reduce((s, r) => s + (r.norma || 0), 0),
                       oameni: gRows.reduce((s, r) => s + (r.oameni || 0), 0),
