@@ -14,7 +14,8 @@ import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { useProductionLines } from "@/hooks/productie/useProductionData";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import PersonnelManagement, { PlannerPerson, statusLabel, usePlannerPersonnel, isAuxSlot, auxLabel } from "./PersonnelManagement";
-import { AlertTriangle, ClipboardList, Clock, Download, Plus, Printer, Trash2, Users, X } from "lucide-react";
+import { AlertTriangle, ClipboardList, Clock, Download, Plus, Printer, Scissors, Trash2, Users, X } from "lucide-react";
+import { useOrderCuts, useSetOrderCut, distributeCut } from "@/hooks/productie/useOrderCuts";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 
@@ -71,10 +72,16 @@ const ProductionPlanner: React.FC = () => {
   const [dayAssign, setDayAssign] = usePersistentState<Record<string, string>>(`planner-day-assign-${startDate}`, {});
   const [saveAsDefault, setSaveAsDefault] = usePersistentState<boolean>("planner-save-default-line", false);
   const [showClients, setShowClients] = useState(true);
+  const [showProducts, setShowProducts] = useState(false);
+  const [prodCutDraft, setProdCutDraft] = useState<Record<string, string>>({});
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
 
   const { data: people = [] } = usePlannerPersonnel();
+  const { data: cuts } = useOrderCuts();
+  const setCutMutation = useSetOrderCut();
+  const cutOf = (id: string) => Number(cuts?.get(id)?.cantitate_taiata) || 0;
+  const effQty = (o: any) => Math.max(0, (Number(o.cantitate) || 0) - cutOf(o.id));
 
   const { data: lines = [] } = useProductionLines();
 
@@ -155,20 +162,62 @@ const ProductionPlanner: React.FC = () => {
     [orders, excluded]
   );
 
+  // Produse din perioadă (după filtrul de clienți) – pentru tăieri / excluderi parțiale
+  const products = useMemo(() => {
+    const map = new Map<string, { key: string; nume: string; orders: any[]; original: number; taiat: number; efectiv: number }>();
+    for (const o of filteredOrders) {
+      const key = o.produs_id || o.productie_produse?.nume || "—";
+      const e = map.get(key) || { key, nume: o.productie_produse?.nume || "—", orders: [], original: 0, taiat: 0, efectiv: 0 };
+      e.orders.push(o);
+      e.original += Number(o.cantitate) || 0;
+      e.taiat += cutOf(o.id);
+      e.efectiv += effQty(o);
+      map.set(key, e);
+    }
+    return Array.from(map.values()).sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
+  }, [filteredOrders, cuts]);
+
+  const applyProductCut = async (prod: { nume: string; orders: any[]; original: number }, totalCut: number) => {
+    const dist = distributeCut(
+      prod.orders.map((o: any) => ({ id: o.id, cantitate: Number(o.cantitate) || 0 })),
+      Math.max(0, Math.min(totalCut, prod.original))
+    );
+    try {
+      await setCutMutation.mutateAsync(
+        prod.orders.map((o: any) => ({
+          comanda_id: o.id,
+          cantitate_taiata: dist[o.id] || 0,
+          produs_nume: prod.nume,
+        }))
+      );
+      setProdCutDraft((prev) => {
+        const next = { ...prev };
+        delete next[prod.orders[0]?.produs_id || prod.nume];
+        return next;
+      });
+      toast.success(totalCut > 0 ? `Tăiat ${Math.round(totalCut)} buc din „${prod.nume}”` : `Tăierea pentru „${prod.nume}” a fost anulată`);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const totalTaiat = useMemo(() => products.reduce((s, p) => s + p.taiat, 0), [products]);
+
   // Cantitate necesară + produs principal per linie
   const perLine = useMemo(() => {
     const map = new Map<string, { total: number; produse: Map<string, number> }>();
     for (const o of filteredOrders) {
       if (!o.linie_id) continue;
       const e = map.get(o.linie_id) || { total: 0, produse: new Map<string, number>() };
-      const qty = Number(o.cantitate) || 0;
+      const qty = effQty(o);
+      if (qty <= 0) continue;
       e.total += qty;
       const nume = o.productie_produse?.nume || "—";
       e.produse.set(nume, (e.produse.get(nume) || 0) + qty);
       map.set(o.linie_id, e);
     }
     return map;
-  }, [filteredOrders]);
+  }, [filteredOrders, cuts]);
 
   const unassignedOrders = useMemo(
     () => filteredOrders.filter((o) => !o.linie_id),
@@ -176,8 +225,8 @@ const ProductionPlanner: React.FC = () => {
   );
 
   const nealocate = useMemo(
-    () => unassignedOrders.reduce((s, o) => s + (Number(o.cantitate) || 0), 0),
-    [unassignedOrders]
+    () => unassignedOrders.reduce((s, o) => s + effQty(o), 0),
+    [unassignedOrders, cuts]
   );
 
   const setOverride = (lineId: string, patch: LineOverride) =>
@@ -267,7 +316,7 @@ const ProductionPlanner: React.FC = () => {
         startProdus: ov.startProdus || (topProdus ? `${topProdus[0]} – ${Math.round(topProdus[1]).toLocaleString()} buc` : ""),
       };
     });
-  }, [lines, overrides, perLine, people, shiftHours]);
+  }, [lines, overrides, perLine, people, shiftHours, cuts]);
 
   const overLines = rows.filter((r) => r.overHours);
 
@@ -505,6 +554,72 @@ ${matrix.slice(4).map((r) => {
                     </label>
                   ))}
                   {clients.length === 0 && (
+                    <div className="text-sm text-muted-foreground py-2">Nicio comandă în perioada selectată.</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="border rounded-md">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium"
+              onClick={() => setShowProducts((v) => !v)}
+            >
+              <span className="flex items-center gap-2">
+                <Scissors className="h-4 w-4" /> Produse în perioadă: {products.length}
+                {totalTaiat > 0 && (
+                  <Badge variant="destructive">-{Math.round(totalTaiat).toLocaleString()} buc tăiate</Badge>
+                )}
+              </span>
+              <span className="text-muted-foreground text-xs">{showProducts ? "ascunde" : "arată"}</span>
+            </button>
+            {showProducts && (
+              <div className="px-3 pb-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Taie complet sau parțial cantitatea unui produs. Tăierea se salvează pe comenzi și se vede și în Consumuri.
+                </p>
+                <div className="max-h-72 overflow-y-auto divide-y">
+                  {products.map((p) => {
+                    const draftKey = p.orders[0]?.produs_id || p.nume;
+                    const excluded = p.efectiv <= 0;
+                    return (
+                      <div key={p.key} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
+                        <span className={`flex-1 min-w-[180px] truncate ${excluded ? "line-through text-muted-foreground" : ""}`}>
+                          {p.nume}
+                        </span>
+                        <span className="text-xs text-muted-foreground w-28 text-right">
+                          {Math.round(p.efectiv).toLocaleString()}
+                          {p.taiat > 0 && <span className="line-through ml-1">{Math.round(p.original).toLocaleString()}</span>}
+                        </span>
+                        <Input
+                          type="number"
+                          className="h-7 w-24 text-xs"
+                          placeholder="taie..."
+                          value={prodCutDraft[draftKey] ?? (p.taiat || "")}
+                          onChange={(e) => setProdCutDraft((prev) => ({ ...prev, [draftKey]: e.target.value }))}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2"
+                          onClick={() => applyProductCut(p, Number(prodCutDraft[draftKey] ?? p.taiat) || 0)}
+                        >
+                          <Scissors className="h-3 w-3" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => applyProductCut(p, p.original)}>
+                          exclude tot
+                        </Button>
+                        {p.taiat > 0 && (
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => applyProductCut(p, 0)}>
+                            anulează
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {products.length === 0 && (
                     <div className="text-sm text-muted-foreground py-2">Nicio comandă în perioada selectată.</div>
                   )}
                 </div>

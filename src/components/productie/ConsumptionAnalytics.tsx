@@ -16,6 +16,8 @@ import { useIngredients } from "@/hooks/productie/useIngredients";
 import ExportConsumptionDialog from "./ExportConsumptionDialog";
 import { DateRange } from "react-day-picker";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { useOrderCuts, useSetOrderCut } from "@/hooks/productie/useOrderCuts";
+import { Scissors } from "lucide-react";
 
 interface OrderDetail {
   comanda_id: string;
@@ -24,9 +26,12 @@ interface OrderDetail {
   data: string;
   status: string;
   cantitate_comanda: number;
+  cantitate_originala: number;
+  cantitate_taiata: number;
   cantitate_kg: number;
   sursa: 'custom' | 'reteta';
 }
+
 
 interface ConsumptionData {
   ingredient_nume: string;
@@ -57,8 +62,32 @@ const ConsumptionAnalytics = () => {
   });
   const [selectedIngredient, setSelectedIngredient] = useState<string>('all');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [cutDraft, setCutDraft] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const { data: ingredients } = useIngredients();
+  const { data: cuts } = useOrderCuts();
+  const setCutMutation = useSetOrderCut();
+  const cutsKey = React.useMemo(
+    () => (cuts ? Array.from(cuts.entries()).map(([k, v]) => `${k}:${v.cantitate_taiata}`).sort().join(',') : ''),
+    [cuts]
+  );
+
+  const saveCut = async (comandaId: string, produs: string, value: number) => {
+    try {
+      await setCutMutation.mutateAsync([
+        { comanda_id: comandaId, cantitate_taiata: value, produs_nume: produs },
+      ]);
+      setCutDraft((prev) => {
+        const next = { ...prev };
+        delete next[comandaId];
+        return next;
+      });
+      toast({ title: 'Tăiere salvată', description: value > 0 ? `S-au tăiat ${value} buc din comandă` : 'Tăierea a fost anulată' });
+    } catch (e: any) {
+      toast({ title: 'Eroare', description: e.message, variant: 'destructive' });
+    }
+  };
+
 
   // Extragem datele de start/final folosind data LOCALĂ (nu UTC) pentru a evita
   // probleme de fus orar care fac ca "azi" să nu apară în rezultate.
@@ -83,7 +112,8 @@ const ConsumptionAnalytics = () => {
 
   // Query pentru consumurile și necesarul
   const { data: consumptionData, isLoading } = useQuery({
-    queryKey: ['consumption-analytics', startDate, endDate, selectedIngredient],
+    enabled: !!cuts,
+    queryKey: ['consumption-analytics', startDate, endDate, selectedIngredient, cutsKey],
     queryFn: async () => {
       console.log('🔍 === ÎNCEPE ANALIZA CONSUMURILOR ===');
       console.log('📅 Perioada:', startDate, 'to', endDate, 'ingredient:', selectedIngredient);
@@ -216,6 +246,17 @@ const ConsumptionAnalytics = () => {
           }
         }
         
+        // TĂIERE MANUALĂ: scădem cantitatea tăiată de utilizator
+        const cantitateTaiata = Number(cuts?.get(comanda.id)?.cantitate_taiata) || 0;
+        const cantitateInitiala = cantitateEfectivProdusa;
+        if (cantitateTaiata > 0) {
+          cantitateEfectivProdusa = Math.max(0, cantitateEfectivProdusa - cantitateTaiata);
+          if (cantitateEfectivProdusa <= 0) {
+            console.log(`✂️ SKIP CONSUM - comandă tăiată integral: ${comanda.id}`);
+            return;
+          }
+        }
+
         // Verificăm dacă există ingrediente custom pentru această comandă
         const customIngredientsForThisOrder = customIngredientsMap.get(comanda.id) || [];
         console.log(`🔧 Ingrediente CUSTOM pentru comanda ${comanda.id}:`, customIngredientsForThisOrder.length);
@@ -273,6 +314,8 @@ const ConsumptionAnalytics = () => {
               data: comanda.data_productie || comanda.created_at,
               status: statusComanda,
               cantitate_comanda: cantitateEfectivProdusa,
+              cantitate_originala: cantitateInitiala,
+              cantitate_taiata: cantitateTaiata,
               cantitate_kg: cantitateKg,
               sursa: 'custom'
             });
@@ -339,6 +382,8 @@ const ConsumptionAnalytics = () => {
               data: comanda.data_productie || comanda.created_at,
               status: statusComanda,
               cantitate_comanda: cantitateEfectivProdusa,
+              cantitate_originala: cantitateInitiala,
+              cantitate_taiata: cantitateTaiata,
               cantitate_kg: cantitateKg,
               sursa: 'reteta'
             });
@@ -681,6 +726,8 @@ const ConsumptionAnalytics = () => {
                               <TableHead className="text-xs">Client / Magazin</TableHead>
                               <TableHead className="text-xs">Status</TableHead>
                               <TableHead className="text-xs">Cant. comandă</TableHead>
+                              <TableHead className="text-xs">Tăiat</TableHead>
+                              <TableHead className="text-xs w-[190px]">Taie cantitate</TableHead>
                               <TableHead className="text-xs">Necesar (kg)</TableHead>
                               <TableHead className="text-xs">Sursă</TableHead>
                             </TableRow>
@@ -700,7 +747,54 @@ const ConsumptionAnalytics = () => {
                                       {d.status}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="text-xs font-mono">{d.cantitate_comanda}</TableCell>
+                                  <TableCell className="text-xs font-mono">
+                                    {d.cantitate_comanda}
+                                    {d.cantitate_taiata > 0 && (
+                                      <span className="text-muted-foreground line-through ml-1">{d.cantitate_originala}</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-xs">
+                                    {d.cantitate_taiata > 0 ? (
+                                      <Badge variant="destructive">-{d.cantitate_taiata}</Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-xs" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        type="number"
+                                        className="h-7 w-20 text-xs"
+                                        placeholder="0"
+                                        value={cutDraft[d.comanda_id] ?? (d.cantitate_taiata || '')}
+                                        onChange={(ev) =>
+                                          setCutDraft((prev) => ({ ...prev, [d.comanda_id]: ev.target.value }))
+                                        }
+                                      />
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 px-2"
+                                        onClick={() =>
+                                          saveCut(
+                                            d.comanda_id,
+                                            d.produs,
+                                            Math.max(0, Math.min(Number(cutDraft[d.comanda_id] ?? d.cantitate_taiata) || 0, d.cantitate_originala))
+                                          )
+                                        }
+                                      >
+                                        <Scissors className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => saveCut(d.comanda_id, d.produs, d.cantitate_originala)}
+                                      >
+                                        tot
+                                      </Button>
+                                    </div>
+                                  </TableCell>
                                   <TableCell className="text-xs font-mono font-bold">
                                     {formatValueInKg(d.cantitate_kg)}
                                   </TableCell>
