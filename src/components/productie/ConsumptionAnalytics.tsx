@@ -60,8 +60,32 @@ const ConsumptionAnalytics = () => {
   });
   const [selectedIngredient, setSelectedIngredient] = useState<string>('all');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [cutDraft, setCutDraft] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const { data: ingredients } = useIngredients();
+  const { data: cuts } = useOrderCuts();
+  const setCutMutation = useSetOrderCut();
+  const cutsKey = React.useMemo(
+    () => (cuts ? Array.from(cuts.entries()).map(([k, v]) => `${k}:${v.cantitate_taiata}`).sort().join(',') : ''),
+    [cuts]
+  );
+
+  const saveCut = async (comandaId: string, produs: string, value: number) => {
+    try {
+      await setCutMutation.mutateAsync([
+        { comanda_id: comandaId, cantitate_taiata: value, produs_nume: produs },
+      ]);
+      setCutDraft((prev) => {
+        const next = { ...prev };
+        delete next[comandaId];
+        return next;
+      });
+      toast({ title: 'Tăiere salvată', description: value > 0 ? `S-au tăiat ${value} buc din comandă` : 'Tăierea a fost anulată' });
+    } catch (e: any) {
+      toast({ title: 'Eroare', description: e.message, variant: 'destructive' });
+    }
+  };
+
 
   // Extragem datele de start/final folosind data LOCALĂ (nu UTC) pentru a evita
   // probleme de fus orar care fac ca "azi" să nu apară în rezultate.
