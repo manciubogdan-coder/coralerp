@@ -72,8 +72,8 @@ const ProductionPlanner: React.FC = () => {
   const [dayAssign, setDayAssign] = usePersistentState<Record<string, string>>(`planner-day-assign-${startDate}`, {});
   const [saveAsDefault, setSaveAsDefault] = usePersistentState<boolean>("planner-save-default-line", false);
   const [showClients, setShowClients] = useState(true);
-  const [showProducts, setShowProducts] = useState(false);
-  const [prodCutDraft, setProdCutDraft] = useState<Record<string, string>>({});
+  const [groupDialog, setGroupDialog] = useState<string | null>(null);
+
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [clientDialog, setClientDialog] = useState<string | null>(null);
