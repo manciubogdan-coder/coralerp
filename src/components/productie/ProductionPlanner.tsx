@@ -493,7 +493,7 @@ const ProductionPlanner: React.FC = () => {
 
   const buildMatrix = () => {
     const header = ["Linie", "Norma/oră", "Oameni", "Cant. necesară", "Nr. ore necesar", "Personal", "Se începe producția cu produsul"];
-    const body: any[][] = rows.map((r) => [
+    const body: any[][] = balancedRows.map((r) => [
       r.line.nume + (r.overHours ? " (!)" : ""),
       r.norma || "",
       r.oameni || "",
