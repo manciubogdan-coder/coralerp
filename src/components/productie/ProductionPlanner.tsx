@@ -1301,10 +1301,10 @@ const ProductionPlanner: React.FC = () => {
       </Card>
 
       {/* Comenzile unui grup de linii + acoperire materie primă */}
-      <Dialog open={!!groupDialog} onOpenChange={(v) => !v && setGroupDialog(null)}>
+      <Dialog open={!!detail} onOpenChange={(v) => { if (!v) { setGroupDialog(null); setLineDialog(null); } }}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>{activeGroup?.label || "Linie"} – comenzi și acoperire marfă</DialogTitle>
+            <DialogTitle>{detail?.label || "Linie"} – comenzi și acoperire marfă</DialogTitle>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-y-auto space-y-4">
             <div>
