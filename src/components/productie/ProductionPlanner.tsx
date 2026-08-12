@@ -76,6 +76,11 @@ const ProductionPlanner: React.FC = () => {
   const [prodCutDraft, setProdCutDraft] = useState<Record<string, string>>({});
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [clientDialog, setClientDialog] = useState<string | null>(null);
+  const [clientCutDraft, setClientCutDraft] = useState<Record<string, string>>({});
+  const [lineOrder, setLineOrder] = usePersistentState<Record<string, string[]>>(`planner-line-order-${startDate}`, {});
+  const [dragProd, setDragProd] = useState<{ lineId: string; key: string } | null>(null);
+  const [lineCutDraft, setLineCutDraft] = useState<Record<string, string>>({});
 
   const { data: people = [] } = usePlannerPersonnel();
   const { data: cuts } = useOrderCuts();
