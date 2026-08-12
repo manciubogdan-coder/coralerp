@@ -681,77 +681,99 @@ const ProductionPlanner: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((r) => (
-                    <TableRow
-                      key={r.line.id}
-                      onDragOver={allowDrop}
-                      onDrop={onDrop(r.line.id)}
-                      className={r.overHours ? "bg-destructive/10" : undefined}
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-1">
-                          {r.overHours && <AlertTriangle className="h-4 w-4 text-destructive" />}
-                          {r.line.nume}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          className="h-8 text-center"
-                          value={r.norma || ""}
-                          onChange={(e) => setOverride(r.line.id, { norma: e.target.value === "" ? undefined : Number(e.target.value) })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          className="h-8 text-center"
-                          value={r.oameni || ""}
-                          onChange={(e) => setOverride(r.line.id, { oameni: e.target.value === "" ? undefined : Number(e.target.value) })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          className="h-8 text-center"
-                          value={r.cantitate || ""}
-                          onChange={(e) => setOverride(r.line.id, { cantitate: e.target.value === "" ? undefined : Number(e.target.value) })}
-                        />
-                        {r.autoCant !== r.cantitate && (
-                          <div className="text-[10px] text-muted-foreground text-center mt-0.5">
-                            din comenzi: {Math.round(r.autoCant).toLocaleString()}
-                          </div>
+                  {groups.map((g) => {
+                    const gRows = g.lines.map((l) => rowsByLine.get(l.id)).filter(Boolean) as typeof rows;
+                    const sub = {
+                      norma: gRows.reduce((s, r) => s + (r.norma || 0), 0),
+                      oameni: gRows.reduce((s, r) => s + (r.oameni || 0), 0),
+                      cantitate: gRows.reduce((s, r) => s + (r.cantitate || 0), 0),
+                    };
+                    return (
+                      <React.Fragment key={g.id}>
+                        {gRows.map((r) => (
+                          <TableRow
+                            key={r.line.id}
+                            onDragOver={allowDrop}
+                            onDrop={onDrop(r.line.id)}
+                            className={r.overHours ? "bg-destructive/10" : undefined}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-1">
+                                {r.overHours && <AlertTriangle className="h-4 w-4 text-destructive" />}
+                                {r.line.nume}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                className="h-8 text-center"
+                                value={r.norma || ""}
+                                onChange={(e) => setOverride(r.line.id, { norma: e.target.value === "" ? undefined : Number(e.target.value) })}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                className="h-8 text-center"
+                                value={r.oameni || ""}
+                                onChange={(e) => setOverride(r.line.id, { oameni: e.target.value === "" ? undefined : Number(e.target.value) })}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                className="h-8 text-center"
+                                value={r.cantitate || ""}
+                                onChange={(e) => setOverride(r.line.id, { cantitate: e.target.value === "" ? undefined : Number(e.target.value) })}
+                              />
+                              {r.autoCant !== r.cantitate && (
+                                <div className="text-[10px] text-muted-foreground text-center mt-0.5">
+                                  din comenzi: {Math.round(r.autoCant).toLocaleString()}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className={`text-center text-sm ${r.overHours ? "text-destructive font-semibold" : ""}`}>
+                              {formatOre(r.ore)}
+                              {r.overHours && (
+                                <div className="text-[10px]">+{formatOre(r.ore - shiftHours)} peste program</div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1 mb-1">
+                                {r.assigned.map((p) => (
+                                  <PersonChip key={p.id} p={p} />
+                                ))}
+                              </div>
+                              <Input
+                                className="h-8"
+                                placeholder="Trage oameni aici sau scrie"
+                                value={r.personal}
+                                onChange={(e) => setOverride(r.line.id, { personal: e.target.value })}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                className="h-8"
+                                placeholder="Produs de start"
+                                value={r.startProdus}
+                                onChange={(e) => setOverride(r.line.id, { startProdus: e.target.value })}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {g.lines.length > 1 && (
+                          <TableRow className="bg-muted/30 text-sm">
+                            <TableCell className="font-medium">Subtotal: {g.label}</TableCell>
+                            <TableCell className="text-center">{sub.norma.toLocaleString()}</TableCell>
+                            <TableCell className="text-center">{sub.oameni}</TableCell>
+                            <TableCell className="text-center">{Math.round(sub.cantitate).toLocaleString()}</TableCell>
+                            <TableCell className="text-center">{formatOre(sub.norma > 0 ? sub.cantitate / sub.norma : 0)}</TableCell>
+                            <TableCell colSpan={2} />
+                          </TableRow>
                         )}
-                      </TableCell>
-                      <TableCell className={`text-center text-sm ${r.overHours ? "text-destructive font-semibold" : ""}`}>
-                        {formatOre(r.ore)}
-                        {r.overHours && (
-                          <div className="text-[10px]">+{formatOre(r.ore - shiftHours)} peste program</div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1 mb-1">
-                          {r.assigned.map((p) => (
-                            <PersonChip key={p.id} p={p} />
-                          ))}
-                        </div>
-                        <Input
-                          className="h-8"
-                          placeholder="Trage oameni aici sau scrie"
-                          value={r.personal}
-                          onChange={(e) => setOverride(r.line.id, { personal: e.target.value })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          className="h-8"
-                          placeholder="Produs de start"
-                          value={r.startProdus}
-                          onChange={(e) => setOverride(r.line.id, { startProdus: e.target.value })}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                      </React.Fragment>
+                    );
+                  })}
                   <TableRow className="bg-muted/50 font-semibold">
                     <TableCell>TOTAL LINII</TableCell>
                     <TableCell className="text-center">{totals.norma.toLocaleString()}</TableCell>
@@ -759,6 +781,7 @@ const ProductionPlanner: React.FC = () => {
                     <TableCell className="text-center">{Math.round(totals.cantitate).toLocaleString()}</TableCell>
                     <TableCell colSpan={3} />
                   </TableRow>
+
                   {lines.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
