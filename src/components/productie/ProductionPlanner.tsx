@@ -14,7 +14,7 @@ import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { useProductionLines } from "@/hooks/productie/useProductionData";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import PersonnelManagement, { PlannerPerson, statusLabel, usePlannerPersonnel, isAuxSlot, auxLabel } from "./PersonnelManagement";
-import { AlertTriangle, ClipboardList, Clock, Download, GripVertical, Plus, Scissors, Trash2, Users, X } from "lucide-react";
+import { AlertTriangle, ClipboardList, Clock, Download, GripVertical, Plus, Printer, Scissors, Trash2, Users, X } from "lucide-react";
 import { useOrderCuts, useSetOrderCut, distributeCut } from "@/hooks/productie/useOrderCuts";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
