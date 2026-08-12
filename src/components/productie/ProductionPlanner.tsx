@@ -460,43 +460,14 @@ const ProductionPlanner: React.FC = () => {
     toast.success("Export Excel generat");
   };
 
-  const handlePrint = () => {
-    const matrix = buildMatrix();
-    const esc = (v: any) => String(v ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
-    const html = `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Planificator producție</title>
-<style>
-  body{font-family:Arial,Helvetica,sans-serif;padding:16px;color:#111}
-  h1{font-size:18px;margin:0 0 4px}
-  p{font-size:12px;margin:0 0 12px;color:#555}
-  table{border-collapse:collapse;width:100%;font-size:11px}
-  th,td{border:1px solid #999;padding:4px 6px;vertical-align:top}
-  th{background:#eee;text-align:left}
-  td.num{text-align:right}
-  tr.total td{font-weight:bold;background:#f4f4f4}
-  @page{size:A4 landscape;margin:10mm}
-</style></head><body>
-<h1>${esc(matrix[0][0])}</h1><p>${esc(matrix[1][0])}</p>
-<table><thead><tr>${(matrix[3] as any[]).map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>
-${matrix.slice(4).map((r) => {
-      if (!r || r.length === 0) return `<tr><td colspan="7" style="border:none;height:8px"></td></tr>`;
-      const isTotal = String(r[0]).startsWith("TOTAL");
-      return `<tr class="${isTotal ? "total" : ""}">${Array.from({ length: 7 }, (_, i) => {
-        const v = r[i];
-        const num = typeof v === "number";
-        return `<td class="${num ? "num" : ""}">${esc(num ? v.toLocaleString("ro-RO") : v)}</td>`;
-      }).join("")}</tr>`;
-    }).join("")}
-</tbody></table></body></html>`;
-    const w = window.open("", "_blank");
-    if (!w) {
-      toast.error("Permite ferestrele pop-up pentru a putea lista.");
-      return;
-    }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
+  const moveProduct = (lineId: string, keys: string[], from: number, to: number) => {
+    if (from === to || to < 0 || to >= keys.length) return;
+    const next = keys.slice();
+    const [it] = next.splice(from, 1);
+    next.splice(to, 0, it);
+    setLineOrder((prev) => ({ ...prev, [lineId]: next }));
   };
+
 
   const PersonChip: React.FC<{ p: Person }> = ({ p }) => (
     <span
