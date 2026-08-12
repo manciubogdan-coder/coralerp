@@ -468,6 +468,127 @@ const ProductionPlanner: React.FC = () => {
     setLineOrder((prev) => ({ ...prev, [lineId]: next }));
   };
 
+  // ---- Grupuri de linii echivalente (un produs de pe o linie poate merge pe oricare din grup) ----
+  const rowsByLine = useMemo(() => {
+    const m = new Map<string, (typeof rows)[number]>();
+    rows.forEach((r) => m.set(r.line.id, r));
+    return m;
+  }, [rows]);
+
+  const groups = useMemo(() => {
+    const out: { id: string; label: string; lines: typeof lines }[] = [];
+    const used = new Set<string>();
+    GROUP_DEFS.forEach((g) => {
+      const ls = (lines as any[]).filter((l) => g.test(normName(l.nume)));
+      if (!ls.length) return;
+      ls.forEach((l) => used.add(l.id));
+      out.push({ id: g.id, label: g.label, lines: ls as any });
+    });
+    (lines as any[])
+      .filter((l) => !used.has(l.id))
+      .forEach((l) => out.push({ id: `single:${l.id}`, label: l.nume, lines: [l] as any }));
+    return out;
+  }, [lines]);
+
+  const groupOfLine = useMemo(() => {
+    const m = new Map<string, string>();
+    groups.forEach((g) => g.lines.forEach((l: any) => m.set(l.id, g.id)));
+    return m;
+  }, [groups]);
+
+  // Produse agregate pe grup (comenzile se împart pe liniile grupului)
+  const groupPlans = useMemo(() => {
+    return groups.map((g) => {
+      const map = new Map<string, { key: string; nume: string; qty: number; original: number; taiat: number; orders: any[] }>();
+      g.lines.forEach((l: any) => {
+        (lineProducts.get(l.id) || []).forEach((p) => {
+          const e = map.get(p.key) || { key: p.key, nume: p.nume, qty: 0, original: 0, taiat: 0, orders: [] };
+          e.qty += p.qty;
+          e.original += p.original;
+          e.taiat += p.taiat;
+          e.orders.push(...p.orders);
+          map.set(p.key, e);
+        });
+      });
+      const order = lineOrder[g.id] || [];
+      const prods = Array.from(map.values()).sort((a, b) => {
+        const ia = order.indexOf(a.key);
+        const ib = order.indexOf(b.key);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return b.qty - a.qty;
+      });
+      const norma = g.lines.reduce((s: number, l: any) => s + (rowsByLine.get(l.id)?.norma || 0), 0);
+      const qty = prods.reduce((s, p) => s + p.qty, 0);
+      const ore = norma > 0 ? qty / norma : 0;
+      return { ...g, prods, norma, qty, ore, over: shiftHours > 0 && ore > shiftHours };
+    });
+  }, [groups, lineProducts, lineOrder, rowsByLine, shiftHours]);
+
+  const activeGroup = useMemo(() => groupPlans.find((g) => g.id === groupDialog) || null, [groupPlans, groupDialog]);
+
+  const groupOrders = useMemo(() => {
+    if (!activeGroup) return [] as any[];
+    const ids = new Set(activeGroup.lines.map((l: any) => l.id));
+    return filteredOrders
+      .filter((o: any) => o.linie_id && ids.has(o.linie_id))
+      .sort((a: any, b: any) => String(a.data_productie).localeCompare(String(b.data_productie)));
+  }, [activeGroup, filteredOrders]);
+
+  // Necesar materie primă pentru grupul deschis
+  const groupNeeds = useMemo(() => {
+    if (!activeGroup || !recipeMap) return [] as { nume: string; necesar: number; unit: string; stoc: number | null }[];
+    const acc = new Map<string, { nume: string; necesar: number; unit: string }>();
+    groupOrders.forEach((o: any) => {
+      const ings = recipeMap.get(o.produs_id) || [];
+      const q = effQty(o);
+      ings.forEach((i) => {
+        let qty = i.qty * q;
+        let unit = (i.unit || "").toLowerCase();
+        if (unit === "g") { qty = qty / 1000; unit = "kg"; }
+        if (unit === "ml") { qty = qty / 1000; unit = "l"; }
+        const e = acc.get(i.nume) || { nume: i.nume, necesar: 0, unit };
+        e.necesar += qty;
+        acc.set(i.nume, e);
+      });
+    });
+    return Array.from(acc.values())
+      .map((e) => ({ ...e, stoc: getStoc(e.nume) }))
+      .sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
+  }, [activeGroup, groupOrders, recipeMap, stocDepozit, cuts]);
+
+  const printGroups = (gs: typeof groupPlans) => {
+    const html = gs
+      .map((g) => {
+        let cum = 0;
+        const rowsHtml = g.prods
+          .map((p, i) => {
+            const ore = g.norma > 0 ? p.qty / g.norma : 0;
+            cum += ore;
+            return `<tr><td>${i + 1}</td><td>${p.nume}</td><td style="text-align:right">${Math.round(p.qty).toLocaleString()}</td><td style="text-align:right">${formatOre(ore)}</td><td style="text-align:right">${formatOre(cum)}</td></tr>`;
+          })
+          .join("");
+        return `<h3>${g.label} – ${g.norma || 0} buc/oră</h3>
+        <table><thead><tr><th>#</th><th>Produs</th><th>Cantitate</th><th>Ore</th><th>Gata la</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot><tr><th colspan="2">Subtotal</th><th style="text-align:right">${Math.round(g.qty).toLocaleString()}</th><th colspan="2" style="text-align:right">${formatOre(g.ore)} / ${shiftHours}h</th></tr></tfoot></table>`;
+      })
+      .join("");
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) return;
+    w.document.write(`<html><head><title>Ordinea comenzilor pe linii</title>
+      <style>body{font-family:Arial,sans-serif;padding:16px;font-size:12px}h2{margin:0 0 8px}h3{margin:16px 0 4px}
+      table{width:100%;border-collapse:collapse;margin-bottom:8px}th,td{border:1px solid #999;padding:4px}
+      thead th{background:#eee}</style></head><body>
+      <h2>Ordinea comenzilor pe linii – ${fmtRo(startDate)} - ${fmtRo(endDate)}</h2>${html}</body></html>`);
+    w.document.close();
+    w.focus();
+    w.print();
+  };
+
+
+
 
   const PersonChip: React.FC<{ p: Person }> = ({ p }) => (
     <span
