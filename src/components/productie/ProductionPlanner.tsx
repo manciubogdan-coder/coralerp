@@ -598,71 +598,8 @@ const ProductionPlanner: React.FC = () => {
             )}
           </div>
 
-          <div className="border rounded-md">
-            <button
-              type="button"
-              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium"
-              onClick={() => setShowProducts((v) => !v)}
-            >
-              <span className="flex items-center gap-2">
-                <Scissors className="h-4 w-4" /> Produse în perioadă: {products.length}
-                {totalTaiat > 0 && (
-                  <Badge variant="destructive">-{Math.round(totalTaiat).toLocaleString()} buc tăiate</Badge>
-                )}
-              </span>
-              <span className="text-muted-foreground text-xs">{showProducts ? "ascunde" : "arată"}</span>
-            </button>
-            {showProducts && (
-              <div className="px-3 pb-3 space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Taie complet sau parțial cantitatea unui produs. Tăierea se salvează pe comenzi și se vede și în Consumuri.
-                </p>
-                <div className="max-h-72 overflow-y-auto divide-y">
-                  {products.map((p) => {
-                    const draftKey = p.orders[0]?.produs_id || p.nume;
-                    const excluded = p.efectiv <= 0;
-                    return (
-                      <div key={p.key} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
-                        <span className={`flex-1 min-w-[180px] truncate ${excluded ? "line-through text-muted-foreground" : ""}`}>
-                          {p.nume}
-                        </span>
-                        <span className="text-xs text-muted-foreground w-28 text-right">
-                          {Math.round(p.efectiv).toLocaleString()}
-                          {p.taiat > 0 && <span className="line-through ml-1">{Math.round(p.original).toLocaleString()}</span>}
-                        </span>
-                        <Input
-                          type="number"
-                          className="h-7 w-24 text-xs"
-                          placeholder="taie..."
-                          value={prodCutDraft[draftKey] ?? (p.taiat || "")}
-                          onChange={(e) => setProdCutDraft((prev) => ({ ...prev, [draftKey]: e.target.value }))}
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2"
-                          onClick={() => applyProductCut(p, Number(prodCutDraft[draftKey] ?? p.taiat) || 0)}
-                        >
-                          <Scissors className="h-3 w-3" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => applyProductCut(p, p.original)}>
-                          exclude tot
-                        </Button>
-                        {p.taiat > 0 && (
-                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => applyProductCut(p, 0)}>
-                            anulează
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {products.length === 0 && (
-                    <div className="text-sm text-muted-foreground py-2">Nicio comandă în perioada selectată.</div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+
+
 
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Se încarcă...</div>
