@@ -90,6 +90,80 @@ const ProductionPlanner: React.FC = () => {
 
   const { data: lines = [] } = useProductionLines();
 
+  // Rețete (produs -> ingrediente) pentru verificarea acoperirii cu materie primă
+  const { data: recipeMap } = useQuery({
+    queryKey: ["planner-recipes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("productie_produse")
+        .select(
+          `id, nume, productie_retete(productie_retete_ingrediente(cantitate_necesara, unitate_masura, productie_ingrediente(nume, unitate_masura)))`
+        );
+      if (error) throw error;
+      const m = new Map<string, { nume: string; qty: number; unit: string }[]>();
+      ((data as any[]) || []).forEach((p) => {
+        const ing: { nume: string; qty: number; unit: string }[] = [];
+        (p.productie_retete || []).forEach((r: any) =>
+          (r.productie_retete_ingrediente || []).forEach((i: any) =>
+            ing.push({
+              nume: i.productie_ingrediente?.nume || "—",
+              qty: Number(i.cantitate_necesara) || 0,
+              unit: i.unitate_masura || i.productie_ingrediente?.unitate_masura || "",
+            })
+          )
+        );
+        m.set(p.id, ing);
+      });
+      return m;
+    },
+    staleTime: 300_000,
+  });
+
+  // Stoc depozit materii prime (agregat pe denumire)
+  const { data: stocDepozit } = useQuery({
+    queryKey: ["planner-warehouse-stock"],
+    queryFn: async () => {
+      const rows: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase.from("inventory").select("name, quantity").range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        rows.push(...data);
+        if (data.length < pageSize) break;
+        offset += pageSize;
+      }
+      const map = new Map<string, number>();
+      rows.forEach((r) => {
+        const qty = Number(r.quantity) || 0;
+        if (qty <= 0) return;
+        const key = normName(r.name);
+        if (!key) return;
+        map.set(key, (map.get(key) || 0) + qty);
+      });
+      return map;
+    },
+    staleTime: 60_000,
+  });
+
+  const getStoc = (nume: string): number | null => {
+    if (!stocDepozit) return null;
+    const key = normName(nume);
+    if (!key) return null;
+    if (stocDepozit.has(key)) return stocDepozit.get(key)!;
+    let total = 0;
+    let found = false;
+    stocDepozit.forEach((qty, n) => {
+      if (n.includes(key) || key.includes(n)) {
+        total += qty;
+        found = true;
+      }
+    });
+    return found ? total : null;
+  };
+
+
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["planner-orders", startDate, endDate],
     queryFn: async () => {
