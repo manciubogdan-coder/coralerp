@@ -106,6 +106,7 @@ const ProductionPlanner: React.FC = () => {
   const [saveAsDefault, setSaveAsDefault] = usePersistentState<boolean>("planner-save-default-line", false);
   const [showClients, setShowClients] = useState(true);
   const [groupDialog, setGroupDialog] = useState<string | null>(null);
+  const [lineDialog, setLineDialog] = useState<string | null>(null);
 
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -609,23 +610,76 @@ const ProductionPlanner: React.FC = () => {
       const norma = g.lines.reduce((s: number, l: any) => s + (rowsByLine.get(l.id)?.norma || 0), 0);
       const qty = prods.reduce((s, p) => s + p.qty, 0);
       const ore = norma > 0 ? qty / norma : 0;
-      return { ...g, prods, norma, qty, ore, over: shiftHours > 0 && ore > shiftHours };
+
+      // Repartizare automată pe liniile grupului: umple fiecare linie până la capacitatea
+      // schimbului, restul se mută singur pe următoarea linie din aceeași grupă.
+      const buckets = g.lines.map((l: any) => ({
+        line: l,
+        norma: rowsByLine.get(l.id)?.norma || 0,
+        items: [] as { nume: string; qty: number }[],
+        qty: 0,
+        ore: 0,
+      }));
+      let rest = 0;
+      const usable = buckets.filter((b) => b.norma > 0);
+      if (usable.length) {
+        let bi = 0;
+        prods.forEach((p) => {
+          let remaining = p.qty;
+          while (remaining > 0.5 && bi < usable.length) {
+            const b = usable[bi];
+            const cap = shiftHours > 0 ? Math.max(0, b.norma * shiftHours - b.qty) : Infinity;
+            if (cap <= 0.5) { bi += 1; continue; }
+            const take = Math.min(remaining, cap);
+            b.items.push({ nume: p.nume, qty: take });
+            b.qty += take;
+            b.ore = b.norma > 0 ? b.qty / b.norma : 0;
+            remaining -= take;
+          }
+          if (remaining > 0.5) rest += remaining;
+        });
+      } else {
+        rest = qty;
+      }
+      const moved = buckets.some((b, i) => i > 0 && b.qty > 0);
+
+      return {
+        ...g,
+        prods,
+        norma,
+        qty,
+        ore,
+        over: shiftHours > 0 && ore > shiftHours,
+        buckets,
+        rest,
+        moved,
+      };
     });
   }, [groups, lineProducts, lineOrder, rowsByLine, shiftHours]);
+
+  // Detaliu deschis: fie un grup, fie o singură linie
+  const detail = useMemo(() => {
+    if (lineDialog) {
+      const l = (lines as any[]).find((x) => x.id === lineDialog);
+      return l ? { label: l.nume, lineIds: [l.id] } : null;
+    }
+    const g = groupPlans.find((x) => x.id === groupDialog);
+    return g ? { label: g.label, lineIds: g.lines.map((l: any) => l.id) } : null;
+  }, [lineDialog, groupDialog, groupPlans, lines]);
 
   const activeGroup = useMemo(() => groupPlans.find((g) => g.id === groupDialog) || null, [groupPlans, groupDialog]);
 
   const groupOrders = useMemo(() => {
-    if (!activeGroup) return [] as any[];
-    const ids = new Set(activeGroup.lines.map((l: any) => l.id));
+    if (!detail) return [] as any[];
+    const ids = new Set(detail.lineIds);
     return filteredOrders
       .filter((o: any) => o.linie_id && ids.has(o.linie_id))
       .sort((a: any, b: any) => String(a.data_productie).localeCompare(String(b.data_productie)));
-  }, [activeGroup, filteredOrders]);
+  }, [detail, filteredOrders]);
 
-  // Necesar materie primă pentru grupul deschis
+  // Necesar materie primă pentru grupul / linia deschisă
   const groupNeeds = useMemo(() => {
-    if (!activeGroup || !recipeMap) return [] as { nume: string; necesar: number; unit: string; stoc: number | null }[];
+    if (!detail || !recipeMap) return [] as { nume: string; necesar: number; unit: string; stoc: number | null }[];
     const acc = new Map<string, { nume: string; necesar: number; unit: string }>();
     groupOrders.forEach((o: any) => {
       const ings = recipeMap.get(o.produs_id) || [];
@@ -643,7 +697,7 @@ const ProductionPlanner: React.FC = () => {
     return Array.from(acc.values())
       .map((e) => ({ ...e, stoc: getStoc(e.nume) }))
       .sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
-  }, [activeGroup, groupOrders, recipeMap, stocDepozit, cuts]);
+  }, [detail, groupOrders, recipeMap, stocDepozit, cuts]);
 
   const printGroups = (gs: typeof groupPlans) => {
     const html = gs
@@ -835,6 +889,24 @@ const ProductionPlanner: React.FC = () => {
                     };
                     return (
                       <React.Fragment key={g.id}>
+                        <TableRow className="border-0 hover:bg-transparent">
+                          <TableCell colSpan={7} className="p-0">
+                            <div className="h-3" />
+                          </TableCell>
+                        </TableRow>
+                        {g.lines.length > 1 && (
+                          <TableRow className="bg-primary/5 hover:bg-primary/10">
+                            <TableCell colSpan={7} className="py-1.5">
+                              <button
+                                type="button"
+                                className="text-xs font-semibold uppercase tracking-wide text-primary hover:underline"
+                                onClick={() => { setLineDialog(null); setGroupDialog(g.id); }}
+                              >
+                                {g.label}
+                              </button>
+                            </TableCell>
+                          </TableRow>
+                        )}
                         {gRows.map((r) => (
                           <TableRow
                             key={r.line.id}
@@ -845,7 +917,14 @@ const ProductionPlanner: React.FC = () => {
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-1">
                                 {r.overHours && <AlertTriangle className="h-4 w-4 text-destructive" />}
-                                {r.line.nume}
+                                <button
+                                  type="button"
+                                  className="text-left hover:underline"
+                                  title="Vezi comenzile de pe această linie"
+                                  onClick={() => { setGroupDialog(null); setLineDialog(r.line.id); }}
+                                >
+                                  {r.line.nume}
+                                </button>
                               </div>
                             </TableCell>
                             <TableCell>
@@ -907,8 +986,8 @@ const ProductionPlanner: React.FC = () => {
                           </TableRow>
                         ))}
                         {g.lines.length > 1 && (
-                          <TableRow className="bg-muted/30 text-sm">
-                            <TableCell className="font-medium">Subtotal: {g.label}</TableCell>
+                          <TableRow className="bg-primary/5 border-b-2 border-primary/30 text-sm">
+                            <TableCell className="font-semibold">Subtotal: {g.label}</TableCell>
                             <TableCell className="text-center">{sub.norma.toLocaleString()}</TableCell>
                             <TableCell className="text-center">{sub.oameni}</TableCell>
                             <TableCell className="text-center">{Math.round(sub.cantitate).toLocaleString()}</TableCell>
@@ -1088,9 +1167,9 @@ const ProductionPlanner: React.FC = () => {
             const keys = g.prods.map((p) => p.key);
             let cum = 0;
             return (
-              <div key={g.id} className="border rounded-md">
-                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-muted/40 text-sm font-medium">
-                  <button type="button" className="text-left hover:underline" onClick={() => setGroupDialog(g.id)}>
+              <div key={g.id} className="border-2 rounded-lg shadow-sm overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-primary/10 text-sm font-medium">
+                  <button type="button" className="text-left hover:underline" onClick={() => { setLineDialog(null); setGroupDialog(g.id); }}>
                     {g.label} • {g.norma || 0} buc/oră
                     {g.lines.length > 1 && <Badge variant="secondary" className="ml-2 font-normal">{g.lines.length} linii</Badge>}
                   </button>
@@ -1104,7 +1183,43 @@ const ProductionPlanner: React.FC = () => {
                     </Button>
                   </span>
                 </div>
+                {g.lines.length > 1 && (
+                  <div className="px-3 py-2 bg-muted/30 border-b text-xs space-y-1">
+                    <div className="font-medium">
+                      Repartizare automată pe liniile grupului (max {shiftHours}h / linie)
+                    </div>
+                    {g.buckets.map((b: any) => (
+                      <div key={b.line.id} className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          className="w-48 truncate text-left hover:underline"
+                          onClick={() => { setGroupDialog(null); setLineDialog(b.line.id); }}
+                        >
+                          {b.line.nume}
+                        </button>
+                        <span className="w-24 text-right">{Math.round(b.qty).toLocaleString()} buc</span>
+                        <span className={`w-20 text-right ${shiftHours > 0 && b.ore > shiftHours + 0.01 ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                          {formatOre(b.ore)}
+                        </span>
+                        <span className="flex-1 min-w-[160px] truncate text-muted-foreground">
+                          {b.items.length ? b.items.map((i: any) => `${i.nume} (${Math.round(i.qty).toLocaleString()})`).join(" · ") : "—"}
+                        </span>
+                      </div>
+                    ))}
+                    {g.rest > 0.5 && (
+                      <div className="text-destructive font-medium">
+                        ⚠️ {Math.round(g.rest).toLocaleString()} buc nu încap nici după mutarea pe celelalte linii din grupă – trebuie tăiate sau lucrate în ore suplimentare.
+                      </div>
+                    )}
+                    {g.rest <= 0.5 && g.moved && (
+                      <div className="text-emerald-700">
+                        ✔ Totul încape în program prin mutarea automată pe liniile din aceeași grupă.
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="divide-y">
+
                   {g.prods.map((p, idx) => {
                     const ore = g.norma > 0 ? p.qty / g.norma : 0;
                     cum += ore;
@@ -1186,10 +1301,10 @@ const ProductionPlanner: React.FC = () => {
       </Card>
 
       {/* Comenzile unui grup de linii + acoperire materie primă */}
-      <Dialog open={!!groupDialog} onOpenChange={(v) => !v && setGroupDialog(null)}>
+      <Dialog open={!!detail} onOpenChange={(v) => { if (!v) { setGroupDialog(null); setLineDialog(null); } }}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>{activeGroup?.label || "Linie"} – comenzi și acoperire marfă</DialogTitle>
+            <DialogTitle>{detail?.label || "Linie"} – comenzi și acoperire marfă</DialogTitle>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-y-auto space-y-4">
             <div>
