@@ -899,6 +899,179 @@ const ProductionPlanner: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Ordinea produselor pe linii */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ClipboardList className="h-4 w-4" /> Ordinea comenzilor pe linii
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Trage produsele (sau folosește săgețile) ca să stabilești ordinea de producție. „Gata la” arată ora cumulată de la începutul
+            schimbului; ce depășește {shiftHours}h e marcat roșu și poți tăia direct cât nu încape.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {rows.filter((r) => (lineProducts.get(r.line.id) || []).length > 0).map((r) => {
+            const prods = lineProducts.get(r.line.id) || [];
+            const keys = prods.map((p) => p.key);
+            let cum = 0;
+            return (
+              <div key={r.line.id} className="border rounded-md">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-muted/40 text-sm font-medium">
+                  <span>{r.line.nume} • {r.norma || 0} buc/oră</span>
+                  <span className={r.overHours ? "text-destructive" : "text-muted-foreground"}>
+                    {Math.round(r.cantitate).toLocaleString()} buc • {formatOre(r.ore)} / {shiftHours}h
+                    {r.overHours && ` (+${formatOre(r.ore - shiftHours)})`}
+                  </span>
+                </div>
+                <div className="divide-y">
+                  {prods.map((p, idx) => {
+                    const ore = r.norma > 0 ? p.qty / r.norma : 0;
+                    const start = cum;
+                    cum += ore;
+                    const over = shiftHours > 0 && cum > shiftHours;
+                    const surplus = over && r.norma > 0 ? Math.max(0, Math.round((cum - shiftHours) * r.norma)) : 0;
+                    const fitCut = Math.min(p.qty, surplus);
+                    const dk = `${r.line.id}::${p.key}`;
+                    return (
+                      <div
+                        key={p.key}
+                        draggable
+                        onDragStart={() => setDragProd({ lineId: r.line.id, key: p.key })}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (dragProd && dragProd.lineId === r.line.id) {
+                            moveProduct(r.line.id, keys, keys.indexOf(dragProd.key), idx);
+                          }
+                          setDragProd(null);
+                        }}
+                        className={`flex flex-wrap items-center gap-2 px-3 py-1.5 text-sm ${over ? "bg-destructive/10" : ""}`}
+                      >
+                        <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
+                        <span className="w-6 text-xs text-muted-foreground">{idx + 1}.</span>
+                        <span className={`flex-1 min-w-[160px] truncate ${p.qty <= 0 ? "line-through text-muted-foreground" : ""}`}>
+                          {p.nume}
+                        </span>
+                        <span className="text-xs w-24 text-right">
+                          {Math.round(p.qty).toLocaleString()}
+                          {p.taiat > 0 && <span className="line-through ml-1 text-muted-foreground">{Math.round(p.original).toLocaleString()}</span>}
+                        </span>
+                        <span className="text-xs w-20 text-right text-muted-foreground">{formatOre(ore)}</span>
+                        <span className={`text-xs w-24 text-right ${over ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                          gata la {formatOre(cum)}
+                        </span>
+                        <Input
+                          type="number"
+                          className="h-7 w-20 text-xs"
+                          placeholder="taie"
+                          value={lineCutDraft[dk] ?? (p.taiat || "")}
+                          onChange={(e) => setLineCutDraft((prev) => ({ ...prev, [dk]: e.target.value }))}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2"
+                          onClick={async () => {
+                            await applyCutOrders(p.nume, p.orders, Number(lineCutDraft[dk] ?? p.taiat) || 0);
+                            setLineCutDraft((prev) => { const n = { ...prev }; delete n[dk]; return n; });
+                          }}
+                        >
+                          <Scissors className="h-3 w-3" />
+                        </Button>
+                        {fitCut > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-destructive"
+                            onClick={() => applyCutOrders(p.nume, p.orders, p.taiat + fitCut)}
+                          >
+                            taie {fitCut.toLocaleString()} ca să încapă
+                          </Button>
+                        )}
+                        <div className="flex gap-0.5">
+                          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={() => moveProduct(r.line.id, keys, idx, idx - 1)}>↑</Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={() => moveProduct(r.line.id, keys, idx, idx + 1)}>↓</Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {rows.every((r) => (lineProducts.get(r.line.id) || []).length === 0) && (
+            <div className="text-sm text-muted-foreground py-4 text-center">Nicio comandă alocată pe linii în perioada selectată.</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Produsele unui magazin */}
+      <Dialog open={!!clientDialog} onOpenChange={(v) => !v && setClientDialog(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {clients.find((c) => c.key === clientDialog)?.label || "Magazin"} – produse ({clientProducts.length})
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto divide-y">
+            {clientProducts.map((p) => {
+              const dk = `cl::${clientDialog}::${p.key}`;
+              return (
+                <div key={p.key} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
+                  <span className={`flex-1 min-w-[160px] truncate ${p.qty <= 0 ? "line-through text-muted-foreground" : ""}`}>{p.nume}</span>
+                  <span className="text-xs w-24 text-right">
+                    {Math.round(p.qty).toLocaleString()}
+                    {p.taiat > 0 && <span className="line-through ml-1 text-muted-foreground">{Math.round(p.original).toLocaleString()}</span>}
+                  </span>
+                  <Input
+                    type="number"
+                    className="h-7 w-24 text-xs"
+                    placeholder="taie..."
+                    value={clientCutDraft[dk] ?? (p.taiat || "")}
+                    onChange={(e) => setClientCutDraft((prev) => ({ ...prev, [dk]: e.target.value }))}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2"
+                    onClick={async () => {
+                      await applyCutOrders(p.nume, p.orders, Number(clientCutDraft[dk] ?? p.taiat) || 0);
+                      setClientCutDraft((prev) => { const n = { ...prev }; delete n[dk]; return n; });
+                    }}
+                  >
+                    <Scissors className="h-3 w-3" />
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => applyCutOrders(p.nume, p.orders, p.original)}>
+                    exclude tot
+                  </Button>
+                  {p.taiat > 0 && (
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => applyCutOrders(p.nume, p.orders, 0)}>
+                      anulează
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            {clientProducts.length === 0 && (
+              <div className="text-sm text-muted-foreground py-4 text-center">Nicio comandă pentru acest magazin.</div>
+            )}
+          </div>
+          <div className="flex justify-between items-center pt-2 border-t text-xs">
+            <label className="flex items-center gap-2">
+              <Checkbox
+                checked={!!clientDialog && isIncluded(clientDialog)}
+                onCheckedChange={() => clientDialog && toggleClient(clientDialog)}
+              />
+              Include acest magazin în plan
+            </label>
+            <Button size="sm" variant="outline" onClick={() => setClientDialog(null)}>Închide</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+
+
       <Dialog open={showUnassigned} onOpenChange={setShowUnassigned}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
