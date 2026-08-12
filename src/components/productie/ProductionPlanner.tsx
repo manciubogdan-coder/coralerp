@@ -1252,23 +1252,26 @@ const ProductionPlanner: React.FC = () => {
                       Repartizare automată pe liniile grupului (max {shiftHours}h / linie)
                     </div>
                     {g.buckets.map((b: any) => (
-                      <div key={b.line.id} className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          className="w-48 truncate text-left hover:underline"
-                          onClick={() => { setGroupDialog(null); setLineDialog(b.line.id); }}
-                        >
-                          {b.line.nume}
-                        </button>
-                        <span className="w-24 text-right">{Math.round(b.qty).toLocaleString()} buc</span>
-                        <span className={`w-20 text-right ${shiftHours > 0 && b.ore > shiftHours + 0.01 ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                          {formatOre(b.ore)}
-                        </span>
-                        <span className="flex-1 min-w-[160px] truncate text-muted-foreground">
+                      <div key={b.line.id} className="rounded border bg-background/60 px-2 py-1">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="flex-1 min-w-0 truncate text-left font-medium hover:underline"
+                            onClick={() => { setGroupDialog(null); setLineDialog(b.line.id); }}
+                          >
+                            {b.line.nume}
+                          </button>
+                          <span className="shrink-0 tabular-nums">{Math.round(b.qty).toLocaleString()} buc</span>
+                          <span className={`shrink-0 tabular-nums ${shiftHours > 0 && b.ore > shiftHours + 0.01 ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                            {formatOre(b.ore)}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 text-muted-foreground break-words line-clamp-2">
                           {b.items.length ? b.items.map((i: any) => `${i.nume} (${Math.round(i.qty).toLocaleString()})`).join(" · ") : "—"}
-                        </span>
+                        </div>
                       </div>
                     ))}
+
                     {g.rest > 0.5 && (
                       <div className="text-destructive font-medium">
                         ⚠️ {Math.round(g.rest).toLocaleString()} buc nu încap nici după mutarea pe celelalte linii din grupă – trebuie tăiate sau lucrate în ore suplimentare.
