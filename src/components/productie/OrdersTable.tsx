@@ -8,6 +8,7 @@ import { ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/usePr
 import { Package, AlertTriangle, CheckCircle, Clock, Factory, Archive, Play, Users } from "lucide-react";
 import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
+import { useOrderCuts } from "@/hooks/productie/useOrderCuts";
 
 interface OrdersTableProps {
   orders: ProductieComanda[];
@@ -38,6 +39,8 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
     handlePageSizeChange,
     resetPagination
   } = useOrdersPagination({ orders, initialPageSize: 25 });
+  const { data: orderCuts } = useOrderCuts();
+  const cutOf = (id: string) => Number(orderCuts?.get(id)?.cantitate_taiata) || 0;
 
   // Reset pagination when orders change (e.g., after filtering)
   React.useEffect(() => {
@@ -104,8 +107,11 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`text-xl font-bold ${getProgressColor(procentProgres)}`}>{cantitateAcoperitaTotal}</span>
                   <span className="text-gray-400">/</span>
-                  <span className="text-base font-semibold">{cantitateComandată}</span>
+                  <span className="text-base font-semibold">{cantitateComandată - cutOf(order.id)}</span>
                   <span className="text-xs text-gray-500">{order.productie_produse?.unitate_masura}</span>
+                  {cutOf(order.id) > 0 && (
+                    <Badge variant="destructive" className="text-[10px]">✂ -{cutOf(order.id)}</Badge>
+                  )}
                   <div className={`ml-auto px-2 py-1 rounded-full text-xs font-bold ${getProgressColor(procentProgres)}`}
                     style={{ backgroundColor: procentProgres >= 100 ? '#dcfce7' : procentProgres >= 50 ? '#dbeafe' : '#fef3c7' }}>
                     {procentProgres}%
@@ -210,8 +216,14 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                   <TableCell>
                     <div className="space-y-1">
                       <div className="font-medium">{order.productie_produse?.nume}</div>
-                      <div className="text-sm text-gray-500">
-                        {cantitateComandată} {order.productie_produse?.unitate_masura}
+                      <div className="text-sm text-gray-500 flex items-center gap-1">
+                        {cantitateComandată - cutOf(order.id)} {order.productie_produse?.unitate_masura}
+                        {cutOf(order.id) > 0 && (
+                          <>
+                            <span className="line-through">{cantitateComandată}</span>
+                            <Badge variant="destructive" className="text-[10px]">✂ -{cutOf(order.id)}</Badge>
+                          </>
+                        )}
                       </div>
                       {(order as any).baxare && (
                         <div className="text-xs px-2 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 font-medium">
