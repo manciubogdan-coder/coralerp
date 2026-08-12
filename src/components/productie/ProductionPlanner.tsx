@@ -889,6 +889,24 @@ const ProductionPlanner: React.FC = () => {
                     };
                     return (
                       <React.Fragment key={g.id}>
+                        <TableRow className="border-0 hover:bg-transparent">
+                          <TableCell colSpan={7} className="p-0">
+                            <div className="h-3" />
+                          </TableCell>
+                        </TableRow>
+                        {g.lines.length > 1 && (
+                          <TableRow className="bg-primary/5 hover:bg-primary/10">
+                            <TableCell colSpan={7} className="py-1.5">
+                              <button
+                                type="button"
+                                className="text-xs font-semibold uppercase tracking-wide text-primary hover:underline"
+                                onClick={() => { setLineDialog(null); setGroupDialog(g.id); }}
+                              >
+                                {g.label}
+                              </button>
+                            </TableCell>
+                          </TableRow>
+                        )}
                         {gRows.map((r) => (
                           <TableRow
                             key={r.line.id}
@@ -899,7 +917,14 @@ const ProductionPlanner: React.FC = () => {
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-1">
                                 {r.overHours && <AlertTriangle className="h-4 w-4 text-destructive" />}
-                                {r.line.nume}
+                                <button
+                                  type="button"
+                                  className="text-left hover:underline"
+                                  title="Vezi comenzile de pe această linie"
+                                  onClick={() => { setGroupDialog(null); setLineDialog(r.line.id); }}
+                                >
+                                  {r.line.nume}
+                                </button>
                               </div>
                             </TableCell>
                             <TableCell>
