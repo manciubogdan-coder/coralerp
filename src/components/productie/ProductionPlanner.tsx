@@ -745,13 +745,17 @@ const ProductionPlanner: React.FC = () => {
       const q = effQty(o);
       ings.forEach((i) => {
         let qty = i.qty * q;
-        let unit = (i.unit || "").toLowerCase();
-        if (unit === "g") { qty = qty / 1000; unit = "kg"; }
-        if (unit === "ml") { qty = qty / 1000; unit = "l"; }
+        const u = (i.unit || "").trim().toLowerCase();
+        let unit = u;
+        if (["g", "gr", "grame", "gram"].includes(u)) { qty = qty / 1000; unit = "kg"; }
+        else if (["ml", "mililitri"].includes(u)) { qty = qty / 1000; unit = "l"; }
+        else if (["kilograme", "kg"].includes(u)) { unit = "kg"; }
+        else if (["litri", "l"].includes(u)) { unit = "l"; }
         const e = acc.get(i.nume) || { nume: i.nume, necesar: 0, unit };
         e.necesar += qty;
         acc.set(i.nume, e);
       });
+
     });
     return Array.from(acc.values())
       .map((e) => ({ ...e, stoc: getStoc(e.nume) }))
