@@ -177,31 +177,37 @@ const ProductionPlanner: React.FC = () => {
     return Array.from(map.values()).sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
   }, [filteredOrders, cuts]);
 
-  const applyProductCut = async (prod: { nume: string; orders: any[]; original: number }, totalCut: number) => {
+  const applyCutOrders = async (nume: string, ords: any[], totalCut: number) => {
+    const original = ords.reduce((s, o) => s + (Number(o.cantitate) || 0), 0);
     const dist = distributeCut(
-      prod.orders.map((o: any) => ({ id: o.id, cantitate: Number(o.cantitate) || 0 })),
-      Math.max(0, Math.min(totalCut, prod.original))
+      ords.map((o: any) => ({ id: o.id, cantitate: Number(o.cantitate) || 0 })),
+      Math.max(0, Math.min(totalCut, original))
     );
     try {
       await setCutMutation.mutateAsync(
-        prod.orders.map((o: any) => ({
+        ords.map((o: any) => ({
           comanda_id: o.id,
           cantitate_taiata: dist[o.id] || 0,
-          produs_nume: prod.nume,
+          produs_nume: nume,
         }))
       );
-      setProdCutDraft((prev) => {
-        const next = { ...prev };
-        delete next[prod.orders[0]?.produs_id || prod.nume];
-        return next;
-      });
-      toast.success(totalCut > 0 ? `Tăiat ${Math.round(totalCut)} buc din „${prod.nume}”` : `Tăierea pentru „${prod.nume}” a fost anulată`);
+      toast.success(totalCut > 0 ? `Tăiat ${Math.round(totalCut)} buc din „${nume}”` : `Tăierea pentru „${nume}” a fost anulată`);
     } catch (e: any) {
       toast.error(e.message);
     }
   };
 
+  const applyProductCut = async (prod: { nume: string; orders: any[]; original: number }, totalCut: number) => {
+    await applyCutOrders(prod.nume, prod.orders, totalCut);
+    setProdCutDraft((prev) => {
+      const next = { ...prev };
+      delete next[prod.orders[0]?.produs_id || prod.nume];
+      return next;
+    });
+  };
+
   const totalTaiat = useMemo(() => products.reduce((s, p) => s + p.taiat, 0), [products]);
+
 
   // Cantitate necesară + produs principal per linie
   const perLine = useMemo(() => {
