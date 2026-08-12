@@ -41,7 +41,40 @@ const formatOre = (h: number) => {
   return `${hh}h ${mm}min`;
 };
 
+const normName = (s: string) =>
+  (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+// Linii echivalente la ambalare: un produs de pe una din ele poate merge pe oricare
+const GROUP_DEFS: { id: string; label: string; test: (n: string) => boolean }[] = [
+  {
+    id: "grp-aromate-mica",
+    label: "Aromate mică (automată + manuală)",
+    test: (n) => /aromat/.test(n) && /mic/.test(n),
+  },
+  {
+    id: "grp-flowpack-giostra",
+    label: "Flowpack mare + Giostra",
+    test: (n) => (/flowpack/.test(n) && /mare/.test(n)) || /giostra/.test(n),
+  },
+  {
+    id: "grp-salate",
+    label: "Salate 1 (verticala mare) + Salate 2 + Salate bio / coleslaw / fructe",
+    test: (n) =>
+      /salate\s*1/.test(n) ||
+      /salate\s*2/.test(n) ||
+      /verticala mare/.test(n) ||
+      (/salate/.test(n) && /(bio|coleslo|colesla|fructe)/.test(n)) ||
+      /coleslo|colesla/.test(n),
+  },
+];
+
 interface LineOverride {
+
   norma?: number;
   oameni?: number;
   personal?: string;
