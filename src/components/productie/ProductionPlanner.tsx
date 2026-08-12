@@ -577,11 +577,18 @@ const ProductionPlanner: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1 max-h-64 overflow-y-auto">
                   {clients.map((c) => (
-                    <label key={c.key} className="flex items-center gap-2 text-sm py-1 cursor-pointer">
+                    <div key={c.key} className="flex items-center gap-2 text-sm py-1">
                       <Checkbox checked={isIncluded(c.key)} onCheckedChange={() => toggleClient(c.key)} />
-                      <span className="flex-1 truncate">{c.label}</span>
+                      <button
+                        type="button"
+                        onClick={() => setClientDialog(c.key)}
+                        className="flex-1 truncate text-left hover:underline"
+                        title="Vezi produsele acestui magazin"
+                      >
+                        {c.label}
+                      </button>
                       <span className="text-xs text-muted-foreground">{Math.round(c.total).toLocaleString()}</span>
-                    </label>
+                    </div>
                   ))}
                   {clients.length === 0 && (
                     <div className="text-sm text-muted-foreground py-2">Nicio comandă în perioada selectată.</div>
