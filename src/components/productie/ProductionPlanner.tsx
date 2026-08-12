@@ -610,23 +610,76 @@ const ProductionPlanner: React.FC = () => {
       const norma = g.lines.reduce((s: number, l: any) => s + (rowsByLine.get(l.id)?.norma || 0), 0);
       const qty = prods.reduce((s, p) => s + p.qty, 0);
       const ore = norma > 0 ? qty / norma : 0;
-      return { ...g, prods, norma, qty, ore, over: shiftHours > 0 && ore > shiftHours };
+
+      // Repartizare automată pe liniile grupului: umple fiecare linie până la capacitatea
+      // schimbului, restul se mută singur pe următoarea linie din aceeași grupă.
+      const buckets = g.lines.map((l: any) => ({
+        line: l,
+        norma: rowsByLine.get(l.id)?.norma || 0,
+        items: [] as { nume: string; qty: number }[],
+        qty: 0,
+        ore: 0,
+      }));
+      let rest = 0;
+      const usable = buckets.filter((b) => b.norma > 0);
+      if (usable.length) {
+        let bi = 0;
+        prods.forEach((p) => {
+          let remaining = p.qty;
+          while (remaining > 0.5 && bi < usable.length) {
+            const b = usable[bi];
+            const cap = shiftHours > 0 ? Math.max(0, b.norma * shiftHours - b.qty) : Infinity;
+            if (cap <= 0.5) { bi += 1; continue; }
+            const take = Math.min(remaining, cap);
+            b.items.push({ nume: p.nume, qty: take });
+            b.qty += take;
+            b.ore = b.norma > 0 ? b.qty / b.norma : 0;
+            remaining -= take;
+          }
+          if (remaining > 0.5) rest += remaining;
+        });
+      } else {
+        rest = qty;
+      }
+      const moved = buckets.some((b, i) => i > 0 && b.qty > 0);
+
+      return {
+        ...g,
+        prods,
+        norma,
+        qty,
+        ore,
+        over: shiftHours > 0 && ore > shiftHours,
+        buckets,
+        rest,
+        moved,
+      };
     });
   }, [groups, lineProducts, lineOrder, rowsByLine, shiftHours]);
+
+  // Detaliu deschis: fie un grup, fie o singură linie
+  const detail = useMemo(() => {
+    if (lineDialog) {
+      const l = (lines as any[]).find((x) => x.id === lineDialog);
+      return l ? { label: l.nume, lineIds: [l.id] } : null;
+    }
+    const g = groupPlans.find((x) => x.id === groupDialog);
+    return g ? { label: g.label, lineIds: g.lines.map((l: any) => l.id) } : null;
+  }, [lineDialog, groupDialog, groupPlans, lines]);
 
   const activeGroup = useMemo(() => groupPlans.find((g) => g.id === groupDialog) || null, [groupPlans, groupDialog]);
 
   const groupOrders = useMemo(() => {
-    if (!activeGroup) return [] as any[];
-    const ids = new Set(activeGroup.lines.map((l: any) => l.id));
+    if (!detail) return [] as any[];
+    const ids = new Set(detail.lineIds);
     return filteredOrders
       .filter((o: any) => o.linie_id && ids.has(o.linie_id))
       .sort((a: any, b: any) => String(a.data_productie).localeCompare(String(b.data_productie)));
-  }, [activeGroup, filteredOrders]);
+  }, [detail, filteredOrders]);
 
-  // Necesar materie primă pentru grupul deschis
+  // Necesar materie primă pentru grupul / linia deschisă
   const groupNeeds = useMemo(() => {
-    if (!activeGroup || !recipeMap) return [] as { nume: string; necesar: number; unit: string; stoc: number | null }[];
+    if (!detail || !recipeMap) return [] as { nume: string; necesar: number; unit: string; stoc: number | null }[];
     const acc = new Map<string, { nume: string; necesar: number; unit: string }>();
     groupOrders.forEach((o: any) => {
       const ings = recipeMap.get(o.produs_id) || [];
@@ -644,7 +697,7 @@ const ProductionPlanner: React.FC = () => {
     return Array.from(acc.values())
       .map((e) => ({ ...e, stoc: getStoc(e.nume) }))
       .sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
-  }, [activeGroup, groupOrders, recipeMap, stocDepozit, cuts]);
+  }, [detail, groupOrders, recipeMap, stocDepozit, cuts]);
 
   const printGroups = (gs: typeof groupPlans) => {
     const html = gs
