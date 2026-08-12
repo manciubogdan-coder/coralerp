@@ -1310,7 +1310,7 @@ const ProductionPlanner: React.FC = () => {
                       >
                         <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                         <span className="w-6 text-xs text-muted-foreground">{idx + 1}.</span>
-                        <span className={`flex-1 min-w-[160px] truncate ${p.qty <= 0 ? "line-through text-muted-foreground" : ""}`}>
+                        <span className={`flex-1 min-w-[120px] truncate ${p.qty <= 0 ? "line-through text-muted-foreground" : ""}`}>
                           {p.nume}
                         </span>
                         <span className="text-xs w-24 text-right">
