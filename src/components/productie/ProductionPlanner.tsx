@@ -986,8 +986,8 @@ const ProductionPlanner: React.FC = () => {
                           </TableRow>
                         ))}
                         {g.lines.length > 1 && (
-                          <TableRow className="bg-muted/30 text-sm">
-                            <TableCell className="font-medium">Subtotal: {g.label}</TableCell>
+                          <TableRow className="bg-primary/5 border-b-2 border-primary/30 text-sm">
+                            <TableCell className="font-semibold">Subtotal: {g.label}</TableCell>
                             <TableCell className="text-center">{sub.norma.toLocaleString()}</TableCell>
                             <TableCell className="text-center">{sub.oameni}</TableCell>
                             <TableCell className="text-center">{Math.round(sub.cantitate).toLocaleString()}</TableCell>
