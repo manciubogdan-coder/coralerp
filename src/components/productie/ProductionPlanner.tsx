@@ -899,50 +899,61 @@ const ProductionPlanner: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Ordinea produselor pe linii */}
+      {/* Ordinea produselor pe grupuri de linii */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ClipboardList className="h-4 w-4" /> Ordinea comenzilor pe linii
+          <CardTitle className="flex items-center justify-between gap-2 text-base flex-wrap">
+            <span className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" /> Ordinea comenzilor pe linii
+            </span>
+            <Button size="sm" variant="outline" onClick={() => printGroups(groupPlans.filter((g) => g.prods.length > 0))}>
+              <Printer className="h-4 w-4 mr-1" /> Printează tot
+            </Button>
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Trage produsele (sau folosește săgețile) ca să stabilești ordinea de producție. „Gata la” arată ora cumulată de la începutul
-            schimbului; ce depășește {shiftHours}h e marcat roșu și poți tăia direct cât nu încape.
+            Liniile echivalente sunt grupate (produsul poate merge pe oricare din ele), cu subtotal pe grup. Trage produsele ca să
+            stabilești ordinea; ce depășește {shiftHours}h e marcat roșu. Click pe numele grupului ca să vezi comenzile și dacă ajunge marfa.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {rows.filter((r) => (lineProducts.get(r.line.id) || []).length > 0).map((r) => {
-            const prods = lineProducts.get(r.line.id) || [];
-            const keys = prods.map((p) => p.key);
+          {groupPlans.filter((g) => g.prods.length > 0).map((g) => {
+            const keys = g.prods.map((p) => p.key);
             let cum = 0;
             return (
-              <div key={r.line.id} className="border rounded-md">
+              <div key={g.id} className="border rounded-md">
                 <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-muted/40 text-sm font-medium">
-                  <span>{r.line.nume} • {r.norma || 0} buc/oră</span>
-                  <span className={r.overHours ? "text-destructive" : "text-muted-foreground"}>
-                    {Math.round(r.cantitate).toLocaleString()} buc • {formatOre(r.ore)} / {shiftHours}h
-                    {r.overHours && ` (+${formatOre(r.ore - shiftHours)})`}
+                  <button type="button" className="text-left hover:underline" onClick={() => setGroupDialog(g.id)}>
+                    {g.label} • {g.norma || 0} buc/oră
+                    {g.lines.length > 1 && <Badge variant="secondary" className="ml-2 font-normal">{g.lines.length} linii</Badge>}
+                  </button>
+                  <span className="flex items-center gap-2">
+                    <span className={g.over ? "text-destructive" : "text-muted-foreground"}>
+                      Subtotal {Math.round(g.qty).toLocaleString()} buc • {formatOre(g.ore)} / {shiftHours}h
+                      {g.over && ` (+${formatOre(g.ore - shiftHours)})`}
+                    </span>
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => printGroups([g])} title="Printează grupul">
+                      <Printer className="h-3.5 w-3.5" />
+                    </Button>
                   </span>
                 </div>
                 <div className="divide-y">
-                  {prods.map((p, idx) => {
-                    const ore = r.norma > 0 ? p.qty / r.norma : 0;
-                    const start = cum;
+                  {g.prods.map((p, idx) => {
+                    const ore = g.norma > 0 ? p.qty / g.norma : 0;
                     cum += ore;
                     const over = shiftHours > 0 && cum > shiftHours;
-                    const surplus = over && r.norma > 0 ? Math.max(0, Math.round((cum - shiftHours) * r.norma)) : 0;
+                    const surplus = over && g.norma > 0 ? Math.max(0, Math.round((cum - shiftHours) * g.norma)) : 0;
                     const fitCut = Math.min(p.qty, surplus);
-                    const dk = `${r.line.id}::${p.key}`;
+                    const dk = `${g.id}::${p.key}`;
                     return (
                       <div
                         key={p.key}
                         draggable
-                        onDragStart={() => setDragProd({ lineId: r.line.id, key: p.key })}
+                        onDragStart={() => setDragProd({ lineId: g.id, key: p.key })}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => {
                           e.preventDefault();
-                          if (dragProd && dragProd.lineId === r.line.id) {
-                            moveProduct(r.line.id, keys, keys.indexOf(dragProd.key), idx);
+                          if (dragProd && dragProd.lineId === g.id) {
+                            moveProduct(g.id, keys, keys.indexOf(dragProd.key), idx);
                           }
                           setDragProd(null);
                         }}
@@ -990,8 +1001,8 @@ const ProductionPlanner: React.FC = () => {
                           </Button>
                         )}
                         <div className="flex gap-0.5">
-                          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={() => moveProduct(r.line.id, keys, idx, idx - 1)}>↑</Button>
-                          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={() => moveProduct(r.line.id, keys, idx, idx + 1)}>↓</Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={() => moveProduct(g.id, keys, idx, idx - 1)}>↑</Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={() => moveProduct(g.id, keys, idx, idx + 1)}>↓</Button>
                         </div>
                       </div>
                     );
@@ -1000,11 +1011,82 @@ const ProductionPlanner: React.FC = () => {
               </div>
             );
           })}
-          {rows.every((r) => (lineProducts.get(r.line.id) || []).length === 0) && (
+          {groupPlans.every((g) => g.prods.length === 0) && (
             <div className="text-sm text-muted-foreground py-4 text-center">Nicio comandă alocată pe linii în perioada selectată.</div>
           )}
         </CardContent>
       </Card>
+
+      {/* Comenzile unui grup de linii + acoperire materie primă */}
+      <Dialog open={!!groupDialog} onOpenChange={(v) => !v && setGroupDialog(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{activeGroup?.label || "Linie"} – comenzi și acoperire marfă</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto space-y-4">
+            <div>
+              <div className="text-sm font-medium mb-1">Necesar materie primă vs stoc depozit</div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Ingredient</TableHead>
+                    <TableHead className="text-right">Necesar</TableHead>
+                    <TableHead className="text-right">Stoc</TableHead>
+                    <TableHead className="text-right">Diferență</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groupNeeds.map((n) => (
+                    <TableRow key={n.nume} className={n.stoc != null && n.stoc < n.necesar ? "bg-destructive/10" : ""}>
+                      <TableCell>{n.nume}</TableCell>
+                      <TableCell className="text-right">{n.necesar.toFixed(2)} {n.unit}</TableCell>
+                      <TableCell className="text-right">{n.stoc == null ? "-" : n.stoc.toFixed(2)}</TableCell>
+                      <TableCell className={`text-right ${n.stoc != null && n.stoc < n.necesar ? "text-destructive font-semibold" : ""}`}>
+                        {n.stoc == null ? "-" : (n.stoc - n.necesar).toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {groupNeeds.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-4">
+                        Nicio rețetă definită pentru produsele din acest grup.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <div>
+              <div className="text-sm font-medium mb-1">Comenzi ({groupOrders.length})</div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Produs</TableHead>
+                    <TableHead className="text-right">Cantitate</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groupOrders.map((o: any) => {
+                    const key = `${o.magazin || "—"}||${o.punct_livrare || ""}`;
+                    const nick = nickMap.get(key);
+                    return (
+                      <TableRow key={o.id}>
+                        <TableCell className="whitespace-nowrap">{o.data_productie ? fmtRo(o.data_productie) : "-"}</TableCell>
+                        <TableCell>{nick ? `${nick} (${o.magazin})` : `${o.magazin || "—"}${o.punct_livrare ? ` – ${o.punct_livrare}` : ""}`}</TableCell>
+                        <TableCell>{o.productie_produse?.nume || "—"}</TableCell>
+                        <TableCell className="text-right">{Math.round(effQty(o)).toLocaleString()}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Produsele unui magazin */}
       <Dialog open={!!clientDialog} onOpenChange={(v) => !v && setClientDialog(null)}>
