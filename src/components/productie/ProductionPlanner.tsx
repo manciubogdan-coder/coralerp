@@ -1167,9 +1167,9 @@ const ProductionPlanner: React.FC = () => {
             const keys = g.prods.map((p) => p.key);
             let cum = 0;
             return (
-              <div key={g.id} className="border rounded-md">
-                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-muted/40 text-sm font-medium">
-                  <button type="button" className="text-left hover:underline" onClick={() => setGroupDialog(g.id)}>
+              <div key={g.id} className="border-2 rounded-lg shadow-sm overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-primary/10 text-sm font-medium">
+                  <button type="button" className="text-left hover:underline" onClick={() => { setLineDialog(null); setGroupDialog(g.id); }}>
                     {g.label} • {g.norma || 0} buc/oră
                     {g.lines.length > 1 && <Badge variant="secondary" className="ml-2 font-normal">{g.lines.length} linii</Badge>}
                   </button>
@@ -1183,7 +1183,43 @@ const ProductionPlanner: React.FC = () => {
                     </Button>
                   </span>
                 </div>
+                {g.lines.length > 1 && (
+                  <div className="px-3 py-2 bg-muted/30 border-b text-xs space-y-1">
+                    <div className="font-medium">
+                      Repartizare automată pe liniile grupului (max {shiftHours}h / linie)
+                    </div>
+                    {g.buckets.map((b: any) => (
+                      <div key={b.line.id} className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          className="w-48 truncate text-left hover:underline"
+                          onClick={() => { setGroupDialog(null); setLineDialog(b.line.id); }}
+                        >
+                          {b.line.nume}
+                        </button>
+                        <span className="w-24 text-right">{Math.round(b.qty).toLocaleString()} buc</span>
+                        <span className={`w-20 text-right ${shiftHours > 0 && b.ore > shiftHours + 0.01 ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                          {formatOre(b.ore)}
+                        </span>
+                        <span className="flex-1 min-w-[160px] truncate text-muted-foreground">
+                          {b.items.length ? b.items.map((i: any) => `${i.nume} (${Math.round(i.qty).toLocaleString()})`).join(" · ") : "—"}
+                        </span>
+                      </div>
+                    ))}
+                    {g.rest > 0.5 && (
+                      <div className="text-destructive font-medium">
+                        ⚠️ {Math.round(g.rest).toLocaleString()} buc nu încap nici după mutarea pe celelalte linii din grupă – trebuie tăiate sau lucrate în ore suplimentare.
+                      </div>
+                    )}
+                    {g.rest <= 0.5 && g.moved && (
+                      <div className="text-emerald-700">
+                        ✔ Totul încape în program prin mutarea automată pe liniile din aceeași grupă.
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="divide-y">
+
                   {g.prods.map((p, idx) => {
                     const ore = g.norma > 0 ? p.qty / g.norma : 0;
                     cum += ore;
