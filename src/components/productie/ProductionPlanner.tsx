@@ -14,7 +14,7 @@ import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { useProductionLines } from "@/hooks/productie/useProductionData";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import PersonnelManagement, { PlannerPerson, statusLabel, usePlannerPersonnel, isAuxSlot, auxLabel } from "./PersonnelManagement";
-import { AlertTriangle, ClipboardList, Clock, Download, GripVertical, Plus, Scissors, Trash2, Users, X } from "lucide-react";
+import { AlertTriangle, ClipboardList, Clock, Download, GripVertical, Plus, Printer, Scissors, Trash2, Users, X } from "lucide-react";
 import { useOrderCuts, useSetOrderCut, distributeCut } from "@/hooks/productie/useOrderCuts";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -41,7 +41,40 @@ const formatOre = (h: number) => {
   return `${hh}h ${mm}min`;
 };
 
+const normName = (s: string) =>
+  (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+// Linii echivalente la ambalare: un produs de pe una din ele poate merge pe oricare
+const GROUP_DEFS: { id: string; label: string; test: (n: string) => boolean }[] = [
+  {
+    id: "grp-aromate-mica",
+    label: "Aromate mică (automată + manuală)",
+    test: (n) => /aromat/.test(n) && /mic/.test(n),
+  },
+  {
+    id: "grp-flowpack-giostra",
+    label: "Flowpack mare + Giostra",
+    test: (n) => (/flowpack/.test(n) && /mare/.test(n)) || /giostra/.test(n),
+  },
+  {
+    id: "grp-salate",
+    label: "Salate 1 (verticala mare) + Salate 2 + Salate bio / coleslaw / fructe",
+    test: (n) =>
+      /salate\s*1/.test(n) ||
+      /salate\s*2/.test(n) ||
+      /verticala mare/.test(n) ||
+      (/salate/.test(n) && /(bio|coleslo|colesla|fructe)/.test(n)) ||
+      /coleslo|colesla/.test(n),
+  },
+];
+
 interface LineOverride {
+
   norma?: number;
   oameni?: number;
   personal?: string;
@@ -72,8 +105,8 @@ const ProductionPlanner: React.FC = () => {
   const [dayAssign, setDayAssign] = usePersistentState<Record<string, string>>(`planner-day-assign-${startDate}`, {});
   const [saveAsDefault, setSaveAsDefault] = usePersistentState<boolean>("planner-save-default-line", false);
   const [showClients, setShowClients] = useState(true);
-  const [showProducts, setShowProducts] = useState(false);
-  const [prodCutDraft, setProdCutDraft] = useState<Record<string, string>>({});
+  const [groupDialog, setGroupDialog] = useState<string | null>(null);
+
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [clientDialog, setClientDialog] = useState<string | null>(null);
@@ -89,6 +122,80 @@ const ProductionPlanner: React.FC = () => {
   const effQty = (o: any) => Math.max(0, (Number(o.cantitate) || 0) - cutOf(o.id));
 
   const { data: lines = [] } = useProductionLines();
+
+  // Rețete (produs -> ingrediente) pentru verificarea acoperirii cu materie primă
+  const { data: recipeMap } = useQuery({
+    queryKey: ["planner-recipes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("productie_produse")
+        .select(
+          `id, nume, productie_retete(productie_retete_ingrediente(cantitate_necesara, unitate_masura, productie_ingrediente(nume, unitate_masura)))`
+        );
+      if (error) throw error;
+      const m = new Map<string, { nume: string; qty: number; unit: string }[]>();
+      ((data as any[]) || []).forEach((p) => {
+        const ing: { nume: string; qty: number; unit: string }[] = [];
+        (p.productie_retete || []).forEach((r: any) =>
+          (r.productie_retete_ingrediente || []).forEach((i: any) =>
+            ing.push({
+              nume: i.productie_ingrediente?.nume || "—",
+              qty: Number(i.cantitate_necesara) || 0,
+              unit: i.unitate_masura || i.productie_ingrediente?.unitate_masura || "",
+            })
+          )
+        );
+        m.set(p.id, ing);
+      });
+      return m;
+    },
+    staleTime: 300_000,
+  });
+
+  // Stoc depozit materii prime (agregat pe denumire)
+  const { data: stocDepozit } = useQuery({
+    queryKey: ["planner-warehouse-stock"],
+    queryFn: async () => {
+      const rows: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase.from("inventory").select("name, quantity").range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        rows.push(...data);
+        if (data.length < pageSize) break;
+        offset += pageSize;
+      }
+      const map = new Map<string, number>();
+      rows.forEach((r) => {
+        const qty = Number(r.quantity) || 0;
+        if (qty <= 0) return;
+        const key = normName(r.name);
+        if (!key) return;
+        map.set(key, (map.get(key) || 0) + qty);
+      });
+      return map;
+    },
+    staleTime: 60_000,
+  });
+
+  const getStoc = (nume: string): number | null => {
+    if (!stocDepozit) return null;
+    const key = normName(nume);
+    if (!key) return null;
+    if (stocDepozit.has(key)) return stocDepozit.get(key)!;
+    let total = 0;
+    let found = false;
+    stocDepozit.forEach((qty, n) => {
+      if (n.includes(key) || key.includes(n)) {
+        total += qty;
+        found = true;
+      }
+    });
+    return found ? total : null;
+  };
+
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["planner-orders", startDate, endDate],
@@ -167,20 +274,8 @@ const ProductionPlanner: React.FC = () => {
     [orders, excluded]
   );
 
-  // Produse din perioadă (după filtrul de clienți) – pentru tăieri / excluderi parțiale
-  const products = useMemo(() => {
-    const map = new Map<string, { key: string; nume: string; orders: any[]; original: number; taiat: number; efectiv: number }>();
-    for (const o of filteredOrders) {
-      const key = o.produs_id || o.productie_produse?.nume || "—";
-      const e = map.get(key) || { key, nume: o.productie_produse?.nume || "—", orders: [], original: 0, taiat: 0, efectiv: 0 };
-      e.orders.push(o);
-      e.original += Number(o.cantitate) || 0;
-      e.taiat += cutOf(o.id);
-      e.efectiv += effQty(o);
-      map.set(key, e);
-    }
-    return Array.from(map.values()).sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
-  }, [filteredOrders, cuts]);
+
+
 
   const applyCutOrders = async (nume: string, ords: any[], totalCut: number) => {
     const original = ords.reduce((s, o) => s + (Number(o.cantitate) || 0), 0);
@@ -202,16 +297,8 @@ const ProductionPlanner: React.FC = () => {
     }
   };
 
-  const applyProductCut = async (prod: { nume: string; orders: any[]; original: number }, totalCut: number) => {
-    await applyCutOrders(prod.nume, prod.orders, totalCut);
-    setProdCutDraft((prev) => {
-      const next = { ...prev };
-      delete next[prod.orders[0]?.produs_id || prod.nume];
-      return next;
-    });
-  };
 
-  const totalTaiat = useMemo(() => products.reduce((s, p) => s + p.taiat, 0), [products]);
+
 
 
   // Cantitate necesară + produs principal per linie
@@ -468,6 +555,127 @@ const ProductionPlanner: React.FC = () => {
     setLineOrder((prev) => ({ ...prev, [lineId]: next }));
   };
 
+  // ---- Grupuri de linii echivalente (un produs de pe o linie poate merge pe oricare din grup) ----
+  const rowsByLine = useMemo(() => {
+    const m = new Map<string, (typeof rows)[number]>();
+    rows.forEach((r) => m.set(r.line.id, r));
+    return m;
+  }, [rows]);
+
+  const groups = useMemo(() => {
+    const out: { id: string; label: string; lines: typeof lines }[] = [];
+    const used = new Set<string>();
+    GROUP_DEFS.forEach((g) => {
+      const ls = (lines as any[]).filter((l) => g.test(normName(l.nume)));
+      if (!ls.length) return;
+      ls.forEach((l) => used.add(l.id));
+      out.push({ id: g.id, label: g.label, lines: ls as any });
+    });
+    (lines as any[])
+      .filter((l) => !used.has(l.id))
+      .forEach((l) => out.push({ id: `single:${l.id}`, label: l.nume, lines: [l] as any }));
+    return out;
+  }, [lines]);
+
+  const groupOfLine = useMemo(() => {
+    const m = new Map<string, string>();
+    groups.forEach((g) => g.lines.forEach((l: any) => m.set(l.id, g.id)));
+    return m;
+  }, [groups]);
+
+  // Produse agregate pe grup (comenzile se împart pe liniile grupului)
+  const groupPlans = useMemo(() => {
+    return groups.map((g) => {
+      const map = new Map<string, { key: string; nume: string; qty: number; original: number; taiat: number; orders: any[] }>();
+      g.lines.forEach((l: any) => {
+        (lineProducts.get(l.id) || []).forEach((p) => {
+          const e = map.get(p.key) || { key: p.key, nume: p.nume, qty: 0, original: 0, taiat: 0, orders: [] };
+          e.qty += p.qty;
+          e.original += p.original;
+          e.taiat += p.taiat;
+          e.orders.push(...p.orders);
+          map.set(p.key, e);
+        });
+      });
+      const order = lineOrder[g.id] || [];
+      const prods = Array.from(map.values()).sort((a, b) => {
+        const ia = order.indexOf(a.key);
+        const ib = order.indexOf(b.key);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return b.qty - a.qty;
+      });
+      const norma = g.lines.reduce((s: number, l: any) => s + (rowsByLine.get(l.id)?.norma || 0), 0);
+      const qty = prods.reduce((s, p) => s + p.qty, 0);
+      const ore = norma > 0 ? qty / norma : 0;
+      return { ...g, prods, norma, qty, ore, over: shiftHours > 0 && ore > shiftHours };
+    });
+  }, [groups, lineProducts, lineOrder, rowsByLine, shiftHours]);
+
+  const activeGroup = useMemo(() => groupPlans.find((g) => g.id === groupDialog) || null, [groupPlans, groupDialog]);
+
+  const groupOrders = useMemo(() => {
+    if (!activeGroup) return [] as any[];
+    const ids = new Set(activeGroup.lines.map((l: any) => l.id));
+    return filteredOrders
+      .filter((o: any) => o.linie_id && ids.has(o.linie_id))
+      .sort((a: any, b: any) => String(a.data_productie).localeCompare(String(b.data_productie)));
+  }, [activeGroup, filteredOrders]);
+
+  // Necesar materie primă pentru grupul deschis
+  const groupNeeds = useMemo(() => {
+    if (!activeGroup || !recipeMap) return [] as { nume: string; necesar: number; unit: string; stoc: number | null }[];
+    const acc = new Map<string, { nume: string; necesar: number; unit: string }>();
+    groupOrders.forEach((o: any) => {
+      const ings = recipeMap.get(o.produs_id) || [];
+      const q = effQty(o);
+      ings.forEach((i) => {
+        let qty = i.qty * q;
+        let unit = (i.unit || "").toLowerCase();
+        if (unit === "g") { qty = qty / 1000; unit = "kg"; }
+        if (unit === "ml") { qty = qty / 1000; unit = "l"; }
+        const e = acc.get(i.nume) || { nume: i.nume, necesar: 0, unit };
+        e.necesar += qty;
+        acc.set(i.nume, e);
+      });
+    });
+    return Array.from(acc.values())
+      .map((e) => ({ ...e, stoc: getStoc(e.nume) }))
+      .sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
+  }, [activeGroup, groupOrders, recipeMap, stocDepozit, cuts]);
+
+  const printGroups = (gs: typeof groupPlans) => {
+    const html = gs
+      .map((g) => {
+        let cum = 0;
+        const rowsHtml = g.prods
+          .map((p, i) => {
+            const ore = g.norma > 0 ? p.qty / g.norma : 0;
+            cum += ore;
+            return `<tr><td>${i + 1}</td><td>${p.nume}</td><td style="text-align:right">${Math.round(p.qty).toLocaleString()}</td><td style="text-align:right">${formatOre(ore)}</td><td style="text-align:right">${formatOre(cum)}</td></tr>`;
+          })
+          .join("");
+        return `<h3>${g.label} – ${g.norma || 0} buc/oră</h3>
+        <table><thead><tr><th>#</th><th>Produs</th><th>Cantitate</th><th>Ore</th><th>Gata la</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot><tr><th colspan="2">Subtotal</th><th style="text-align:right">${Math.round(g.qty).toLocaleString()}</th><th colspan="2" style="text-align:right">${formatOre(g.ore)} / ${shiftHours}h</th></tr></tfoot></table>`;
+      })
+      .join("");
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) return;
+    w.document.write(`<html><head><title>Ordinea comenzilor pe linii</title>
+      <style>body{font-family:Arial,sans-serif;padding:16px;font-size:12px}h2{margin:0 0 8px}h3{margin:16px 0 4px}
+      table{width:100%;border-collapse:collapse;margin-bottom:8px}th,td{border:1px solid #999;padding:4px}
+      thead th{background:#eee}</style></head><body>
+      <h2>Ordinea comenzilor pe linii – ${fmtRo(startDate)} - ${fmtRo(endDate)}</h2>${html}</body></html>`);
+    w.document.close();
+    w.focus();
+    w.print();
+  };
+
+
+
 
   const PersonChip: React.FC<{ p: Person }> = ({ p }) => (
     <span
@@ -598,71 +806,8 @@ const ProductionPlanner: React.FC = () => {
             )}
           </div>
 
-          <div className="border rounded-md">
-            <button
-              type="button"
-              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium"
-              onClick={() => setShowProducts((v) => !v)}
-            >
-              <span className="flex items-center gap-2">
-                <Scissors className="h-4 w-4" /> Produse în perioadă: {products.length}
-                {totalTaiat > 0 && (
-                  <Badge variant="destructive">-{Math.round(totalTaiat).toLocaleString()} buc tăiate</Badge>
-                )}
-              </span>
-              <span className="text-muted-foreground text-xs">{showProducts ? "ascunde" : "arată"}</span>
-            </button>
-            {showProducts && (
-              <div className="px-3 pb-3 space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Taie complet sau parțial cantitatea unui produs. Tăierea se salvează pe comenzi și se vede și în Consumuri.
-                </p>
-                <div className="max-h-72 overflow-y-auto divide-y">
-                  {products.map((p) => {
-                    const draftKey = p.orders[0]?.produs_id || p.nume;
-                    const excluded = p.efectiv <= 0;
-                    return (
-                      <div key={p.key} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
-                        <span className={`flex-1 min-w-[180px] truncate ${excluded ? "line-through text-muted-foreground" : ""}`}>
-                          {p.nume}
-                        </span>
-                        <span className="text-xs text-muted-foreground w-28 text-right">
-                          {Math.round(p.efectiv).toLocaleString()}
-                          {p.taiat > 0 && <span className="line-through ml-1">{Math.round(p.original).toLocaleString()}</span>}
-                        </span>
-                        <Input
-                          type="number"
-                          className="h-7 w-24 text-xs"
-                          placeholder="taie..."
-                          value={prodCutDraft[draftKey] ?? (p.taiat || "")}
-                          onChange={(e) => setProdCutDraft((prev) => ({ ...prev, [draftKey]: e.target.value }))}
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2"
-                          onClick={() => applyProductCut(p, Number(prodCutDraft[draftKey] ?? p.taiat) || 0)}
-                        >
-                          <Scissors className="h-3 w-3" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => applyProductCut(p, p.original)}>
-                          exclude tot
-                        </Button>
-                        {p.taiat > 0 && (
-                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => applyProductCut(p, 0)}>
-                            anulează
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {products.length === 0 && (
-                    <div className="text-sm text-muted-foreground py-2">Nicio comandă în perioada selectată.</div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+
+
 
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Se încarcă...</div>
@@ -681,77 +826,99 @@ const ProductionPlanner: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((r) => (
-                    <TableRow
-                      key={r.line.id}
-                      onDragOver={allowDrop}
-                      onDrop={onDrop(r.line.id)}
-                      className={r.overHours ? "bg-destructive/10" : undefined}
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-1">
-                          {r.overHours && <AlertTriangle className="h-4 w-4 text-destructive" />}
-                          {r.line.nume}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          className="h-8 text-center"
-                          value={r.norma || ""}
-                          onChange={(e) => setOverride(r.line.id, { norma: e.target.value === "" ? undefined : Number(e.target.value) })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          className="h-8 text-center"
-                          value={r.oameni || ""}
-                          onChange={(e) => setOverride(r.line.id, { oameni: e.target.value === "" ? undefined : Number(e.target.value) })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          className="h-8 text-center"
-                          value={r.cantitate || ""}
-                          onChange={(e) => setOverride(r.line.id, { cantitate: e.target.value === "" ? undefined : Number(e.target.value) })}
-                        />
-                        {r.autoCant !== r.cantitate && (
-                          <div className="text-[10px] text-muted-foreground text-center mt-0.5">
-                            din comenzi: {Math.round(r.autoCant).toLocaleString()}
-                          </div>
+                  {groups.map((g) => {
+                    const gRows = g.lines.map((l) => rowsByLine.get(l.id)).filter(Boolean) as typeof rows;
+                    const sub = {
+                      norma: gRows.reduce((s, r) => s + (r.norma || 0), 0),
+                      oameni: gRows.reduce((s, r) => s + (r.oameni || 0), 0),
+                      cantitate: gRows.reduce((s, r) => s + (r.cantitate || 0), 0),
+                    };
+                    return (
+                      <React.Fragment key={g.id}>
+                        {gRows.map((r) => (
+                          <TableRow
+                            key={r.line.id}
+                            onDragOver={allowDrop}
+                            onDrop={onDrop(r.line.id)}
+                            className={r.overHours ? "bg-destructive/10" : undefined}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-1">
+                                {r.overHours && <AlertTriangle className="h-4 w-4 text-destructive" />}
+                                {r.line.nume}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                className="h-8 text-center"
+                                value={r.norma || ""}
+                                onChange={(e) => setOverride(r.line.id, { norma: e.target.value === "" ? undefined : Number(e.target.value) })}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                className="h-8 text-center"
+                                value={r.oameni || ""}
+                                onChange={(e) => setOverride(r.line.id, { oameni: e.target.value === "" ? undefined : Number(e.target.value) })}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                className="h-8 text-center"
+                                value={r.cantitate || ""}
+                                onChange={(e) => setOverride(r.line.id, { cantitate: e.target.value === "" ? undefined : Number(e.target.value) })}
+                              />
+                              {r.autoCant !== r.cantitate && (
+                                <div className="text-[10px] text-muted-foreground text-center mt-0.5">
+                                  din comenzi: {Math.round(r.autoCant).toLocaleString()}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className={`text-center text-sm ${r.overHours ? "text-destructive font-semibold" : ""}`}>
+                              {formatOre(r.ore)}
+                              {r.overHours && (
+                                <div className="text-[10px]">+{formatOre(r.ore - shiftHours)} peste program</div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1 mb-1">
+                                {r.assigned.map((p) => (
+                                  <PersonChip key={p.id} p={p} />
+                                ))}
+                              </div>
+                              <Input
+                                className="h-8"
+                                placeholder="Trage oameni aici sau scrie"
+                                value={r.personal}
+                                onChange={(e) => setOverride(r.line.id, { personal: e.target.value })}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                className="h-8"
+                                placeholder="Produs de start"
+                                value={r.startProdus}
+                                onChange={(e) => setOverride(r.line.id, { startProdus: e.target.value })}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {g.lines.length > 1 && (
+                          <TableRow className="bg-muted/30 text-sm">
+                            <TableCell className="font-medium">Subtotal: {g.label}</TableCell>
+                            <TableCell className="text-center">{sub.norma.toLocaleString()}</TableCell>
+                            <TableCell className="text-center">{sub.oameni}</TableCell>
+                            <TableCell className="text-center">{Math.round(sub.cantitate).toLocaleString()}</TableCell>
+                            <TableCell className="text-center">{formatOre(sub.norma > 0 ? sub.cantitate / sub.norma : 0)}</TableCell>
+                            <TableCell colSpan={2} />
+                          </TableRow>
                         )}
-                      </TableCell>
-                      <TableCell className={`text-center text-sm ${r.overHours ? "text-destructive font-semibold" : ""}`}>
-                        {formatOre(r.ore)}
-                        {r.overHours && (
-                          <div className="text-[10px]">+{formatOre(r.ore - shiftHours)} peste program</div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1 mb-1">
-                          {r.assigned.map((p) => (
-                            <PersonChip key={p.id} p={p} />
-                          ))}
-                        </div>
-                        <Input
-                          className="h-8"
-                          placeholder="Trage oameni aici sau scrie"
-                          value={r.personal}
-                          onChange={(e) => setOverride(r.line.id, { personal: e.target.value })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          className="h-8"
-                          placeholder="Produs de start"
-                          value={r.startProdus}
-                          onChange={(e) => setOverride(r.line.id, { startProdus: e.target.value })}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                      </React.Fragment>
+                    );
+                  })}
                   <TableRow className="bg-muted/50 font-semibold">
                     <TableCell>TOTAL LINII</TableCell>
                     <TableCell className="text-center">{totals.norma.toLocaleString()}</TableCell>
@@ -759,6 +926,7 @@ const ProductionPlanner: React.FC = () => {
                     <TableCell className="text-center">{Math.round(totals.cantitate).toLocaleString()}</TableCell>
                     <TableCell colSpan={3} />
                   </TableRow>
+
                   {lines.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
@@ -899,50 +1067,61 @@ const ProductionPlanner: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Ordinea produselor pe linii */}
+      {/* Ordinea produselor pe grupuri de linii */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ClipboardList className="h-4 w-4" /> Ordinea comenzilor pe linii
+          <CardTitle className="flex items-center justify-between gap-2 text-base flex-wrap">
+            <span className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" /> Ordinea comenzilor pe linii
+            </span>
+            <Button size="sm" variant="outline" onClick={() => printGroups(groupPlans.filter((g) => g.prods.length > 0))}>
+              <Printer className="h-4 w-4 mr-1" /> Printează tot
+            </Button>
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Trage produsele (sau folosește săgețile) ca să stabilești ordinea de producție. „Gata la” arată ora cumulată de la începutul
-            schimbului; ce depășește {shiftHours}h e marcat roșu și poți tăia direct cât nu încape.
+            Liniile echivalente sunt grupate (produsul poate merge pe oricare din ele), cu subtotal pe grup. Trage produsele ca să
+            stabilești ordinea; ce depășește {shiftHours}h e marcat roșu. Click pe numele grupului ca să vezi comenzile și dacă ajunge marfa.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {rows.filter((r) => (lineProducts.get(r.line.id) || []).length > 0).map((r) => {
-            const prods = lineProducts.get(r.line.id) || [];
-            const keys = prods.map((p) => p.key);
+          {groupPlans.filter((g) => g.prods.length > 0).map((g) => {
+            const keys = g.prods.map((p) => p.key);
             let cum = 0;
             return (
-              <div key={r.line.id} className="border rounded-md">
+              <div key={g.id} className="border rounded-md">
                 <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-muted/40 text-sm font-medium">
-                  <span>{r.line.nume} • {r.norma || 0} buc/oră</span>
-                  <span className={r.overHours ? "text-destructive" : "text-muted-foreground"}>
-                    {Math.round(r.cantitate).toLocaleString()} buc • {formatOre(r.ore)} / {shiftHours}h
-                    {r.overHours && ` (+${formatOre(r.ore - shiftHours)})`}
+                  <button type="button" className="text-left hover:underline" onClick={() => setGroupDialog(g.id)}>
+                    {g.label} • {g.norma || 0} buc/oră
+                    {g.lines.length > 1 && <Badge variant="secondary" className="ml-2 font-normal">{g.lines.length} linii</Badge>}
+                  </button>
+                  <span className="flex items-center gap-2">
+                    <span className={g.over ? "text-destructive" : "text-muted-foreground"}>
+                      Subtotal {Math.round(g.qty).toLocaleString()} buc • {formatOre(g.ore)} / {shiftHours}h
+                      {g.over && ` (+${formatOre(g.ore - shiftHours)})`}
+                    </span>
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => printGroups([g])} title="Printează grupul">
+                      <Printer className="h-3.5 w-3.5" />
+                    </Button>
                   </span>
                 </div>
                 <div className="divide-y">
-                  {prods.map((p, idx) => {
-                    const ore = r.norma > 0 ? p.qty / r.norma : 0;
-                    const start = cum;
+                  {g.prods.map((p, idx) => {
+                    const ore = g.norma > 0 ? p.qty / g.norma : 0;
                     cum += ore;
                     const over = shiftHours > 0 && cum > shiftHours;
-                    const surplus = over && r.norma > 0 ? Math.max(0, Math.round((cum - shiftHours) * r.norma)) : 0;
+                    const surplus = over && g.norma > 0 ? Math.max(0, Math.round((cum - shiftHours) * g.norma)) : 0;
                     const fitCut = Math.min(p.qty, surplus);
-                    const dk = `${r.line.id}::${p.key}`;
+                    const dk = `${g.id}::${p.key}`;
                     return (
                       <div
                         key={p.key}
                         draggable
-                        onDragStart={() => setDragProd({ lineId: r.line.id, key: p.key })}
+                        onDragStart={() => setDragProd({ lineId: g.id, key: p.key })}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => {
                           e.preventDefault();
-                          if (dragProd && dragProd.lineId === r.line.id) {
-                            moveProduct(r.line.id, keys, keys.indexOf(dragProd.key), idx);
+                          if (dragProd && dragProd.lineId === g.id) {
+                            moveProduct(g.id, keys, keys.indexOf(dragProd.key), idx);
                           }
                           setDragProd(null);
                         }}
@@ -990,8 +1169,8 @@ const ProductionPlanner: React.FC = () => {
                           </Button>
                         )}
                         <div className="flex gap-0.5">
-                          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={() => moveProduct(r.line.id, keys, idx, idx - 1)}>↑</Button>
-                          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={() => moveProduct(r.line.id, keys, idx, idx + 1)}>↓</Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={() => moveProduct(g.id, keys, idx, idx - 1)}>↑</Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={() => moveProduct(g.id, keys, idx, idx + 1)}>↓</Button>
                         </div>
                       </div>
                     );
@@ -1000,11 +1179,82 @@ const ProductionPlanner: React.FC = () => {
               </div>
             );
           })}
-          {rows.every((r) => (lineProducts.get(r.line.id) || []).length === 0) && (
+          {groupPlans.every((g) => g.prods.length === 0) && (
             <div className="text-sm text-muted-foreground py-4 text-center">Nicio comandă alocată pe linii în perioada selectată.</div>
           )}
         </CardContent>
       </Card>
+
+      {/* Comenzile unui grup de linii + acoperire materie primă */}
+      <Dialog open={!!groupDialog} onOpenChange={(v) => !v && setGroupDialog(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{activeGroup?.label || "Linie"} – comenzi și acoperire marfă</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto space-y-4">
+            <div>
+              <div className="text-sm font-medium mb-1">Necesar materie primă vs stoc depozit</div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Ingredient</TableHead>
+                    <TableHead className="text-right">Necesar</TableHead>
+                    <TableHead className="text-right">Stoc</TableHead>
+                    <TableHead className="text-right">Diferență</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groupNeeds.map((n) => (
+                    <TableRow key={n.nume} className={n.stoc != null && n.stoc < n.necesar ? "bg-destructive/10" : ""}>
+                      <TableCell>{n.nume}</TableCell>
+                      <TableCell className="text-right">{n.necesar.toFixed(2)} {n.unit}</TableCell>
+                      <TableCell className="text-right">{n.stoc == null ? "-" : n.stoc.toFixed(2)}</TableCell>
+                      <TableCell className={`text-right ${n.stoc != null && n.stoc < n.necesar ? "text-destructive font-semibold" : ""}`}>
+                        {n.stoc == null ? "-" : (n.stoc - n.necesar).toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {groupNeeds.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-4">
+                        Nicio rețetă definită pentru produsele din acest grup.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <div>
+              <div className="text-sm font-medium mb-1">Comenzi ({groupOrders.length})</div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Produs</TableHead>
+                    <TableHead className="text-right">Cantitate</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groupOrders.map((o: any) => {
+                    const key = `${o.magazin || "—"}||${o.punct_livrare || ""}`;
+                    const nick = nickMap.get(key);
+                    return (
+                      <TableRow key={o.id}>
+                        <TableCell className="whitespace-nowrap">{o.data_productie ? fmtRo(o.data_productie) : "-"}</TableCell>
+                        <TableCell>{nick ? `${nick} (${o.magazin})` : `${o.magazin || "—"}${o.punct_livrare ? ` – ${o.punct_livrare}` : ""}`}</TableCell>
+                        <TableCell>{o.productie_produse?.nume || "—"}</TableCell>
+                        <TableCell className="text-right">{Math.round(effQty(o)).toLocaleString()}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Produsele unui magazin */}
       <Dialog open={!!clientDialog} onOpenChange={(v) => !v && setClientDialog(null)}>
