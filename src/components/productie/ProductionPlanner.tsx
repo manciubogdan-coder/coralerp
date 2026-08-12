@@ -167,20 +167,8 @@ const ProductionPlanner: React.FC = () => {
     [orders, excluded]
   );
 
-  // Produse din perioadă (după filtrul de clienți) – pentru tăieri / excluderi parțiale
-  const products = useMemo(() => {
-    const map = new Map<string, { key: string; nume: string; orders: any[]; original: number; taiat: number; efectiv: number }>();
-    for (const o of filteredOrders) {
-      const key = o.produs_id || o.productie_produse?.nume || "—";
-      const e = map.get(key) || { key, nume: o.productie_produse?.nume || "—", orders: [], original: 0, taiat: 0, efectiv: 0 };
-      e.orders.push(o);
-      e.original += Number(o.cantitate) || 0;
-      e.taiat += cutOf(o.id);
-      e.efectiv += effQty(o);
-      map.set(key, e);
-    }
-    return Array.from(map.values()).sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
-  }, [filteredOrders, cuts]);
+
+
 
   const applyCutOrders = async (nume: string, ords: any[], totalCut: number) => {
     const original = ords.reduce((s, o) => s + (Number(o.cantitate) || 0), 0);
