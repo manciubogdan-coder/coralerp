@@ -225,6 +225,57 @@ const ProductionPlanner: React.FC = () => {
     return map;
   }, [filteredOrders, cuts]);
 
+  // Produse per linie (pentru secvențiere + tăieri)
+  const lineProducts = useMemo(() => {
+    const map = new Map<string, Map<string, { key: string; nume: string; qty: number; original: number; taiat: number; orders: any[] }>>();
+    for (const o of filteredOrders) {
+      if (!o.linie_id) continue;
+      const key = o.produs_id || o.productie_produse?.nume || "—";
+      const inner = map.get(o.linie_id) || new Map();
+      const e = inner.get(key) || { key, nume: o.productie_produse?.nume || "—", qty: 0, original: 0, taiat: 0, orders: [] };
+      e.qty += effQty(o);
+      e.original += Number(o.cantitate) || 0;
+      e.taiat += cutOf(o.id);
+      e.orders.push(o);
+      inner.set(key, e);
+      map.set(o.linie_id, inner);
+    }
+    const out = new Map<string, { key: string; nume: string; qty: number; original: number; taiat: number; orders: any[] }[]>();
+    map.forEach((inner, lineId) => {
+      const arr = Array.from(inner.values());
+      const order = lineOrder[lineId] || [];
+      arr.sort((a, b) => {
+        const ia = order.indexOf(a.key);
+        const ib = order.indexOf(b.key);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return b.qty - a.qty;
+      });
+      out.set(lineId, arr);
+    });
+    return out;
+  }, [filteredOrders, cuts, lineOrder]);
+
+  // Produse pentru clientul deschis în dialog
+  const clientProducts = useMemo(() => {
+    if (!clientDialog) return [] as { key: string; nume: string; qty: number; original: number; taiat: number; orders: any[] }[];
+    const map = new Map<string, { key: string; nume: string; qty: number; original: number; taiat: number; orders: any[] }>();
+    for (const o of orders as any[]) {
+      if (`${o.magazin || "—"}||${o.punct_livrare || ""}` !== clientDialog) continue;
+      const key = o.produs_id || o.productie_produse?.nume || "—";
+      const e = map.get(key) || { key, nume: o.productie_produse?.nume || "—", qty: 0, original: 0, taiat: 0, orders: [] };
+      e.qty += effQty(o);
+      e.original += Number(o.cantitate) || 0;
+      e.taiat += cutOf(o.id);
+      e.orders.push(o);
+      map.set(key, e);
+    }
+    return Array.from(map.values()).sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
+  }, [clientDialog, orders, cuts]);
+
+
+
   const unassignedOrders = useMemo(
     () => filteredOrders.filter((o) => !o.linie_id),
     [filteredOrders]
