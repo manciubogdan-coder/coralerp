@@ -614,6 +614,33 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_order_cuts: {
+        Row: {
+          cantitate_taiata: number
+          comanda_id: string
+          created_at: string
+          motiv: string | null
+          produs_nume: string | null
+          updated_at: string
+        }
+        Insert: {
+          cantitate_taiata?: number
+          comanda_id: string
+          created_at?: string
+          motiv?: string | null
+          produs_nume?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cantitate_taiata?: number
+          comanda_id?: string
+          created_at?: string
+          motiv?: string | null
+          produs_nume?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       productie_trasabilitate: {
         Row: {
           cod: string
