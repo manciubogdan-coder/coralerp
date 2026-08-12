@@ -505,9 +505,6 @@ const ProductionPlanner: React.FC = () => {
               Planificator producție
             </span>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={handlePrint}>
-                <Printer className="h-4 w-4 mr-1" /> Listează / PDF
-              </Button>
               <Button size="sm" onClick={handleExport}>
                 <Download className="h-4 w-4 mr-1" /> Excel
               </Button>
