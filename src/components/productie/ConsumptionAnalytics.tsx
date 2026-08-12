@@ -24,9 +24,12 @@ interface OrderDetail {
   data: string;
   status: string;
   cantitate_comanda: number;
+  cantitate_originala: number;
+  cantitate_taiata: number;
   cantitate_kg: number;
   sursa: 'custom' | 'reteta';
 }
+
 
 interface ConsumptionData {
   ingredient_nume: string;
