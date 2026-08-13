@@ -233,6 +233,23 @@ const PersonnelManagement: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>
+                    <Select
+                      value={p.schimb || "none"}
+                      onValueChange={(v) => updateMut.mutate({ id: p.id, patch: { schimb: v === "none" ? null : v } })}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SHIFT_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
                     <Select value={p.status} onValueChange={(v) => updateMut.mutate({ id: p.id, patch: { status: v } })}>
                       <SelectTrigger className="h-8">
                         <SelectValue />
