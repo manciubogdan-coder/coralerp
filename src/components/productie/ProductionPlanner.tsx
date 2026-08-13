@@ -590,7 +590,7 @@ const ProductionPlanner: React.FC = () => {
     body.push(["TOTAL OAMENI", "", totals.oameniTotal, "", "", "", ""]);
     return [
       [`Planificator producție ${fmtRo(startDate)} - ${fmtRo(endDate)}`],
-      [`Clienți incluși: ${clients.filter((c) => isIncluded(c.key)).length}/${clients.length} | Program schimb: ${shiftHours}h`],
+      [`Clienți incluși: ${clients.filter((c) => isIncluded(c.key)).length}/${clients.length} | Program: ${shifts.map((s) => `${s.nume} ${s.start} ${s.hours}h (pauze ${s.pauza}min)`).join("; ")} = ${formatOre(shiftHours)} efectiv`],
       [],
       header,
       ...body,
@@ -842,15 +842,16 @@ const ProductionPlanner: React.FC = () => {
         let cum = 0;
         const rowsHtml = g.prods
           .map((p, i) => {
-            const ore = g.norma > 0 ? p.qty / g.norma : 0;
+            const gn = (g as any).normaActiva || g.norma;
+            const ore = gn > 0 ? p.qty / gn : 0;
             cum += ore;
-            return `<tr><td>${i + 1}</td><td>${p.nume}</td><td style="text-align:right">${Math.round(p.qty).toLocaleString()}</td><td style="text-align:right">${formatOre(ore)}</td><td style="text-align:right">${formatOre(cum)}</td></tr>`;
+            return `<tr><td>${i + 1}</td><td>${p.nume}</td><td style="text-align:right">${Math.round(p.qty).toLocaleString()}</td><td style="text-align:right">${formatOre(ore)}</td><td style="text-align:right">${clockAfter(cum)}</td></tr>`;
           })
           .join("");
-        return `<h3>${g.label} – ${g.norma || 0} buc/oră</h3>
+        return `<h3>${g.label} – ${(g as any).normaActiva || g.norma || 0} buc/oră (linii cu oameni: ${(g as any).usableCount ?? g.lines.length}/${g.lines.length})</h3>
         <table><thead><tr><th>#</th><th>Produs</th><th>Cantitate</th><th>Ore</th><th>Gata la</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
-        <tfoot><tr><th colspan="2">Subtotal</th><th style="text-align:right">${Math.round(g.qty).toLocaleString()}</th><th colspan="2" style="text-align:right">${formatOre(g.ore)} / ${shiftHours}h</th></tr></tfoot></table>`;
+        <tfoot><tr><th colspan="2">Subtotal</th><th style="text-align:right">${Math.round(g.qty).toLocaleString()}</th><th colspan="2" style="text-align:right">${formatOre(g.ore)} / ${formatOre((g as any).capHours || 0)}${(g as any).overtime > 0 ? ` (+${formatOre((g as any).overtime)} supl.)` : ""}</th></tr></tfoot></table>`;
       })
       .join("");
     const w = window.open("", "_blank", "width=900,height=700");
@@ -859,7 +860,8 @@ const ProductionPlanner: React.FC = () => {
       <style>body{font-family:Arial,sans-serif;padding:16px;font-size:12px}h2{margin:0 0 8px}h3{margin:16px 0 4px}
       table{width:100%;border-collapse:collapse;margin-bottom:8px}th,td{border:1px solid #999;padding:4px}
       thead th{background:#eee}</style></head><body>
-      <h2>Ordinea comenzilor pe linii – ${fmtRo(startDate)} - ${fmtRo(endDate)}</h2>${html}</body></html>`);
+      <h2>Ordinea comenzilor pe linii – ${fmtRo(startDate)} - ${fmtRo(endDate)}</h2>
+      <p>${shifts.map((s) => `${s.nume}: ${s.start}, ${s.hours}h, pauze ${s.pauza} min (efectiv ${formatOre(effOf(s))})`).join(" | ")}</p>${html}</body></html>`);
     w.document.close();
     w.focus();
     w.print();
@@ -879,6 +881,21 @@ const ProductionPlanner: React.FC = () => {
       className="inline-flex items-center gap-1 rounded-full border bg-secondary px-2 py-0.5 text-xs cursor-grab active:cursor-grabbing"
     >
       {p.nume}
+      {shifts.length > 1 && (
+        <button
+          type="button"
+          title="Schimbă schimbul"
+          className="rounded bg-primary/15 px-1 text-[10px] font-semibold"
+          onClick={() =>
+            setPersonShift((prev) => {
+              const idx = shifts.findIndex((s) => s.id === shiftOf(p));
+              return { ...prev, [p.id]: shifts[(idx + 1) % shifts.length].id };
+            })
+          }
+        >
+          {shifts.findIndex((s) => s.id === shiftOf(p)) + 1}
+        </button>
+      )}
       {slotOf(p) && (
         <button type="button" onClick={() => assignPerson(p.id, null)}>
           <X className="h-3 w-3 opacity-60 hover:opacity-100" />
@@ -1265,6 +1282,25 @@ const ProductionPlanner: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {shifts.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-medium">Trag oamenii în:</span>
+              {shifts.map((s) => (
+                <Button
+                  key={s.id}
+                  size="sm"
+                  variant={currentShift === s.id ? "default" : "outline"}
+                  className="h-7"
+                  onClick={() => setActiveShift(s.id)}
+                >
+                  {s.nume} ({s.start})
+                </Button>
+              ))}
+              <span className="text-muted-foreground">
+                Click pe cifra din dreptul numelui ca să muți omul în celălalt schimb.
+              </span>
+            </div>
+          )}
           <label className="flex items-center gap-2 text-xs">
             <Checkbox checked={saveAsDefault} onCheckedChange={(v) => setSaveAsDefault(!!v)} />
             Salvează mutările ca linie implicită (altfel se aplică doar pentru {fmtRo(startDate)})
@@ -1495,7 +1531,7 @@ const ProductionPlanner: React.FC = () => {
                         </span>
                         <span className="text-xs w-20 text-right text-muted-foreground">{formatOre(ore)}</span>
                         <span className={`text-xs w-24 text-right ${over ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                          gata la {formatOre(cum)}
+                          gata la {formatOre(cum)} ({clockAfter(cum)})
                         </span>
                         <Input
                           type="number"
