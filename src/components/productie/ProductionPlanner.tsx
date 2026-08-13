@@ -1386,7 +1386,8 @@ const ProductionPlanner: React.FC = () => {
           </CardTitle>
           <p className="text-xs text-muted-foreground">
             Liniile echivalente sunt grupate (produsul poate merge pe oricare din ele), cu subtotal pe grup. Trage produsele ca să
-            stabilești ordinea; ce depășește {shiftHours}h e marcat roșu. Click pe numele grupului ca să vezi comenzile și dacă ajunge marfa.
+            stabilești ordinea; ce depășește programul liniilor cu oameni e marcat roșu. Click pe numele grupului ca să vezi
+            comenzile și dacă ajunge marfa.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1397,13 +1398,13 @@ const ProductionPlanner: React.FC = () => {
               <div key={g.id} className="border-2 rounded-lg shadow-sm overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-primary/10 text-sm font-medium">
                   <button type="button" className="text-left hover:underline" onClick={() => { setLineDialog(null); setGroupDialog(g.id); }}>
-                    {g.label} • {g.norma || 0} buc/oră
-                    {g.lines.length > 1 && <Badge variant="secondary" className="ml-2 font-normal">{g.lines.length} linii</Badge>}
+                    {g.label} • {g.normaActiva || 0} buc/oră activ
+                    {g.lines.length > 1 && <Badge variant="secondary" className="ml-2 font-normal">{g.usableCount}/{g.lines.length} linii cu oameni</Badge>}
                   </button>
                   <span className="flex items-center gap-2">
                     <span className={g.over ? "text-destructive" : "text-muted-foreground"}>
-                      Subtotal {Math.round(g.qty).toLocaleString()} buc • {formatOre(g.ore)} / {shiftHours}h
-                      {g.over && ` (+${formatOre(g.ore - shiftHours)})`}
+                      Subtotal {Math.round(g.qty).toLocaleString()} buc • {formatOre(g.ore)} / {formatOre(g.capHours)}
+                      {g.overtime > 0 && ` (+${formatOre(g.overtime)} supl. → ${clockAfter(g.ore)})`}
                     </span>
                     <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => printGroups([g])} title="Printează grupul">
                       <Printer className="h-3.5 w-3.5" />
@@ -1413,10 +1414,10 @@ const ProductionPlanner: React.FC = () => {
                 {g.lines.length > 1 && (
                   <div className="px-3 py-2 bg-muted/30 border-b text-xs space-y-1">
                     <div className="font-medium">
-                      Repartizare automată pe liniile grupului (max {shiftHours}h / linie)
+                      Repartizare automată doar pe liniile cu oameni ({g.usableCount} din {g.lines.length})
                     </div>
                     {g.buckets.map((b: any) => (
-                      <div key={b.line.id} className="rounded border bg-background/60 px-2 py-1">
+                      <div key={b.line.id} className={`rounded border px-2 py-1 ${b.hours > 0 ? "bg-background/60" : "bg-muted/50 opacity-70"}`}>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -1425,25 +1426,34 @@ const ProductionPlanner: React.FC = () => {
                           >
                             {b.line.nume}
                           </button>
-                          <span className="shrink-0 tabular-nums">{Math.round(b.qty).toLocaleString()} buc</span>
-                          <span className={`shrink-0 tabular-nums ${shiftHours > 0 && b.ore > shiftHours + 0.01 ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                            {formatOre(b.ore)}
-                          </span>
+                          {b.hours <= 0 ? (
+                            <span className="shrink-0 text-muted-foreground">fără oameni – nefolosită</span>
+                          ) : (
+                            <>
+                              <span className="shrink-0 tabular-nums">{Math.round(b.qty).toLocaleString()} buc</span>
+                              <span className={`shrink-0 tabular-nums ${b.ore > b.hours + 0.01 ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                                {formatOre(b.ore)} / {formatOre(b.hours)} • gata {clockAfter(b.ore)}
+                              </span>
+                            </>
+                          )}
                         </div>
-                        <div className="mt-0.5 text-muted-foreground break-words line-clamp-2">
-                          {b.items.length ? b.items.map((i: any) => `${i.nume} (${Math.round(i.qty).toLocaleString()})`).join(" · ") : "—"}
-                        </div>
+                        {b.hours > 0 && (
+                          <div className="mt-0.5 text-muted-foreground break-words line-clamp-2">
+                            {b.items.length ? b.items.map((i: any) => `${i.nume} (${Math.round(i.qty).toLocaleString()})`).join(" · ") : "—"}
+                          </div>
+                        )}
                       </div>
                     ))}
 
                     {g.rest > 0.5 && (
                       <div className="text-destructive font-medium">
-                        ⚠️ {Math.round(g.rest).toLocaleString()} buc nu încap nici după mutarea pe celelalte linii din grupă – trebuie tăiate sau lucrate în ore suplimentare.
+                        ⚠️ {Math.round(g.rest).toLocaleString()} buc nu încap pe liniile cu oameni – trebuie{" "}
+                        {formatOre(g.overtime)} ore suplimentare (până la {clockAfter(g.ore)}) sau tăiere.
                       </div>
                     )}
                     {g.rest <= 0.5 && g.moved && (
                       <div className="text-emerald-700">
-                        ✔ Totul încape în program prin mutarea automată pe liniile din aceeași grupă.
+                        ✔ Totul încape în program prin mutarea automată pe liniile din aceeași grupă care au oameni.
                       </div>
                     )}
                   </div>
@@ -1451,12 +1461,14 @@ const ProductionPlanner: React.FC = () => {
                 <div className="divide-y">
 
                   {g.prods.map((p, idx) => {
-                    const ore = g.norma > 0 ? p.qty / g.norma : 0;
+                    const gNorma = g.normaActiva || g.norma;
+                    const ore = gNorma > 0 ? p.qty / gNorma : 0;
                     cum += ore;
-                    const over = shiftHours > 0 && cum > shiftHours;
-                    const surplus = over && g.norma > 0 ? Math.max(0, Math.round((cum - shiftHours) * g.norma)) : 0;
+                    const over = g.capHours > 0 && cum > g.capHours;
+                    const surplus = over && gNorma > 0 ? Math.max(0, Math.round((cum - g.capHours) * gNorma)) : 0;
                     const fitCut = Math.min(p.qty, surplus);
                     const dk = `${g.id}::${p.key}`;
+
                     return (
                       <div
                         key={p.key}
