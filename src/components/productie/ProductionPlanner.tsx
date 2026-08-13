@@ -149,14 +149,14 @@ const ProductionPlanner: React.FC = () => {
   /** ora la care se termină după `h` ore de lucru efectiv (ține cont de pauze și de trecerea în schimbul următor) */
   const clockAfter = (h: number) => {
     let rest = Math.max(0, h);
-    for (const s of shifts) {
+    for (const s of dayShifts) {
       const eff = effOf(s);
       if (rest <= eff + 1e-6) {
         return fmtHM(parseHM(s.start) + rest * 60 + (eff > 0 ? (rest / eff) * (Number(s.pauza) || 0) : 0));
       }
       rest -= eff;
     }
-    const last = shifts[shifts.length - 1];
+    const last = dayShifts[dayShifts.length - 1];
     return last ? fmtHM(parseHM(last.start) + (Number(last.hours) || 0) * 60 + rest * 60) : "-";
   };
   // mutări valabile doar pentru ziua planificată: personId -> slot ("none" = scos de pe linie)
