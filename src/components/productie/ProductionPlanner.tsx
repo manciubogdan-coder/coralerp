@@ -476,6 +476,7 @@ const ProductionPlanner: React.FC = () => {
 
   const assignPerson = async (id: string, slot: string | null) => {
     setDayAssign((prev) => ({ ...prev, [id]: slot ?? "none" }));
+    if (slot) setPersonShift((prev) => ({ ...prev, [id]: currentShift }));
     if (saveAsDefault) {
       const isExtra = !!slot && slot.startsWith("extra:");
       const extraKey = isExtra ? slot!.slice("extra:".length) : null;
@@ -514,6 +515,7 @@ const ProductionPlanner: React.FC = () => {
       const assigned = peopleFor(line.id);
       const oameni = ov.oameni != null ? ov.oameni : assigned.length;
       const ore = norma > 0 ? cantitate / norma : 0;
+      const dispo = lineHours(line.id);
       const topProdus = data
         ? Array.from(data.produse.entries()).sort((a, b) => b[1] - a[1])[0]
         : undefined;
@@ -524,13 +526,15 @@ const ProductionPlanner: React.FC = () => {
         cantitate,
         autoCant,
         ore,
+        dispo,
         assigned,
-        overHours: shiftHours > 0 && ore > shiftHours,
+        overHours: dispo > 0 ? ore > dispo + 0.01 : ore > 0,
         personal: ov.personal || "",
         startProdus: ov.startProdus || (topProdus ? `${topProdus[0]} – ${Math.round(topProdus[1]).toLocaleString()} buc` : ""),
       };
     });
-  }, [lines, overrides, perLine, people, shiftHours, cuts]);
+  }, [lines, overrides, perLine, people, shifts, personShift, dayAssign, cuts]);
+
 
 
 
