@@ -454,21 +454,28 @@ const ProductionPlanner: React.FC = () => {
     if (isAuxSlot(p.linie_id)) return `extra:${p.linie_id}`;
     return p.linie_id || null;
   };
-  const activePeople = people.filter((p) => p.status === "activ");
+  /** schimbul persoanei: override de zi > schimbul permanent din nomenclator > primul schimb al zilei */
+  const shiftOf = (p: Person) => {
+    const ov = personShift[p.id];
+    if (shifts.some((x) => x.id === ov)) return ov;
+    const perm = (p as any).schimb as string | null | undefined;
+    if (perm && shifts.some((x) => x.id === perm)) return perm;
+    return dayShifts[0]?.id || shifts[0]?.id || "s1";
+  };
+  /** în rotația 2 cu 2, cine e alocat permanent pe schimbul liber nu lucrează în ziua planificată */
+  const worksToday = (p: Person) => !rotationShiftId || shiftOf(p) === rotationShiftId;
+  const activePeople = people.filter((p) => p.status === "activ" && worksToday(p));
+  const offTodayPeople = people.filter((p) => p.status === "activ" && !worksToday(p));
   const unavailablePeople = people.filter((p) => p.status !== "activ");
   const peopleFor = (slot: string) => activePeople.filter((p) => slotOf(p) === slot);
   const unassignedPeople = activePeople.filter((p) => !slotOf(p));
-  const shiftOf = (p: Person) => {
-    const s = personShift[p.id];
-    return shifts.some((x) => x.id === s) ? s : shifts[0]?.id || "s1";
-  };
   const peopleForShift = (slot: string, sid: string) => peopleFor(slot).filter((p) => shiftOf(p) === sid);
   /** Orele disponibile efectiv pe o linie: doar schimburile în care linia are oameni.
    *  Dacă nu e nimeni pe linie, linia nu se folosește la repartizarea automată. */
   const lineHours = (lineId: string) => {
     const ov = overrides[lineId] || {};
     if (ov.ore != null) return Math.max(0, ov.ore);
-    const withPeople = shifts.filter((s) => peopleForShift(lineId, s.id).length > 0);
+    const withPeople = dayShifts.filter((s) => peopleForShift(lineId, s.id).length > 0);
     if (withPeople.length) return withPeople.reduce((a, s) => a + effOf(s), 0);
     return (ov.oameni || 0) > 0 ? shiftHours : 0;
   };
