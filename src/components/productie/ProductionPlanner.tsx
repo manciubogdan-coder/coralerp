@@ -936,26 +936,102 @@ const ProductionPlanner: React.FC = () => {
             >
               Mâine
             </Button>
-            <div>
-              <Label className="text-xs flex items-center gap-1"><Clock className="h-3 w-3" /> Program schimb (ore)</Label>
-              <Input
-                type="number"
-                step="0.5"
-                min="1"
-                className="w-24"
-                value={shiftHours || ""}
-                onChange={(e) => setShiftHours(Number(e.target.value) || 0)}
-              />
-            </div>
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Clock className="h-3 w-3" /> Program disponibil: {formatOre(shiftHours)}
+            </Badge>
             <Badge variant="secondary" className="flex items-center gap-1">
               <Users className="h-3 w-3" /> Total oameni: {totals.oameniTotal}
             </Badge>
             {overLines.length > 0 && (
               <Badge variant="destructive" className="flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" /> {overLines.length} linii peste {shiftHours}h
+                <AlertTriangle className="h-3 w-3" /> {overLines.length} linii peste programul lor
               </Badge>
             )}
           </div>
+
+          {/* Program de lucru configurabil (1 sau 2 schimburi, ore de start, pauze) */}
+          <div className="border rounded-md p-3 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium flex items-center gap-1">
+                <Clock className="h-4 w-4" /> Program de lucru
+              </span>
+              <Button size="sm" variant={shifts.length === 1 ? "default" : "outline"} onClick={() => setShiftCount(1)}>
+                1 schimb
+              </Button>
+              <Button size="sm" variant={shifts.length === 2 ? "default" : "outline"} onClick={() => setShiftCount(2)}>
+                2 schimburi
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Total efectiv (fără pauze): {formatOre(shiftHours)}
+              </span>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {shifts.map((s) => (
+                <div key={s.id} className="rounded border p-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      className="h-8 w-32"
+                      value={s.nume}
+                      onChange={(e) => updateShift(s.id, { nume: e.target.value })}
+                    />
+                    {shifts.length > 1 && (
+                      <Badge
+                        variant={currentShift === s.id ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => setActiveShift(s.id)}
+                      >
+                        {currentShift === s.id ? "schimb activ" : "fă activ"}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-end gap-2 text-xs">
+                    <div>
+                      <Label className="text-[10px]">Start</Label>
+                      <Input
+                        type="time"
+                        className="h-8 w-28"
+                        value={s.start}
+                        onChange={(e) => updateShift(s.id, { start: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Ore</Label>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        className="h-8 w-20 text-center"
+                        value={s.hours || ""}
+                        onChange={(e) => updateShift(s.id, { hours: Number(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Pauze (min)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="5"
+                        className="h-8 w-24 text-center"
+                        value={s.pauza || ""}
+                        onChange={(e) => updateShift(s.id, { pauza: Number(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <span className="text-muted-foreground pb-2">
+                      efectiv {formatOre(effOf(s))} • {s.start}–{fmtHM(parseHM(s.start) + (Number(s.hours) || 0) * 60)} •{" "}
+                      {peopleFor("").length === 0 ? "" : ""}
+                      {activePeople.filter((p) => shiftOf(p) === s.id && slotOf(p)).length} oameni
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Oamenii trași pe linii intră în „{shifts.find((s) => s.id === currentShift)?.nume || "schimbul activ"}”. O linie e
+              folosită la repartizarea automată doar dacă are oameni în cel puțin un schimb; altfel marfa rămâne pe liniile
+              acoperite și se calculează orele suplimentare necesare.
+            </p>
+          </div>
+
 
           <div className="border rounded-md">
             <button
