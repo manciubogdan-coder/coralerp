@@ -164,7 +164,7 @@ const ProductionPlanner: React.FC = () => {
   // schimbul în care lucrează fiecare om în ziua planificată
   const [personShift, setPersonShift] = usePersistentState<Record<string, string>>(`planner-person-shift-${startDate}`, {});
   const [activeShift, setActiveShift] = useState<string>("s1");
-  const currentShift = shifts.some((s) => s.id === activeShift) ? activeShift : shifts[0]?.id || "s1";
+  const currentShift = dayShifts.some((s) => s.id === activeShift) ? activeShift : dayShifts[0]?.id || "s1";
   const [saveAsDefault, setSaveAsDefault] = usePersistentState<boolean>("planner-save-default-line", false);
 
   const [showClients, setShowClients] = useState(true);
