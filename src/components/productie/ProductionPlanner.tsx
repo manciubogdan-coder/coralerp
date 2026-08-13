@@ -1003,6 +1003,63 @@ const ProductionPlanner: React.FC = () => {
                 Total efectiv (fără pauze): {formatOre(shiftHours)}
               </span>
             </div>
+
+            {shifts.length > 1 && (
+              <div className="flex flex-wrap items-end gap-2 rounded border bg-muted/30 p-2 text-xs">
+                <span className="font-medium pb-2">Rotație:</span>
+                <Button
+                  size="sm"
+                  className="h-7"
+                  variant={rotation.mode === "zilnic" ? "default" : "outline"}
+                  onClick={() => setRotation((r) => ({ ...r, mode: "zilnic" }))}
+                >
+                  Zilnic (ambele schimburi)
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7"
+                  variant={rotation.mode === "2x2" ? "default" : "outline"}
+                  onClick={() => setRotation((r) => ({ ...r, mode: "2x2" }))}
+                >
+                  2 cu 2 (alternativ)
+                </Button>
+                {rotation.mode === "2x2" && (
+                  <>
+                    <div>
+                      <Label className="text-[10px]">Prima zi de ciclu</Label>
+                      <Input
+                        type="date"
+                        className="h-8 w-36"
+                        value={rotation.ref}
+                        onChange={(e) => setRotation((r) => ({ ...r, ref: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Începe cu</Label>
+                      <select
+                        className="h-8 rounded border bg-background px-2"
+                        value={rotation.first}
+                        onChange={(e) => setRotation((r) => ({ ...r, first: e.target.value }))}
+                      >
+                        {shifts.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nume}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Badge className="mb-1">
+                      {fmtRo(startDate)}: lucrează {shifts.find((s) => s.id === rotationShiftId)?.nume || "-"}
+                    </Badge>
+                    {offTodayPeople.length > 0 && (
+                      <span className="pb-2 text-muted-foreground">
+                        {offTodayPeople.length} oameni liberi azi (celălalt schimb)
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
             <div className="grid gap-2 md:grid-cols-2">
               {shifts.map((s) => (
                 <div key={s.id} className="rounded border p-2 space-y-2">
