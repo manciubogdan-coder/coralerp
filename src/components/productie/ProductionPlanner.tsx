@@ -80,7 +80,31 @@ interface LineOverride {
   personal?: string;
   startProdus?: string;
   cantitate?: number;
+  /** ore disponibile manual pe linie (ore suplimentare / program scurtat) */
+  ore?: number;
 }
+
+export interface ShiftCfg {
+  id: string;
+  nume: string;
+  start: string;
+  hours: number;
+  /** pauze totale în minute */
+  pauza: number;
+}
+
+const DEFAULT_SHIFTS: ShiftCfg[] = [{ id: "s1", nume: "Schimb 1", start: "06:00", hours: 8, pauza: 30 }];
+const SECOND_SHIFT: ShiftCfg = { id: "s2", nume: "Schimb 2", start: "14:00", hours: 8, pauza: 30 };
+
+const parseHM = (s: string) => {
+  const [h, m] = String(s || "0:0").split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+const fmtHM = (mins: number) => {
+  const m = ((Math.round(mins) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+};
+
 
 interface ExtraRow {
   id: string;
