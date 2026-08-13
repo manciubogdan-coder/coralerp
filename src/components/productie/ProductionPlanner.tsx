@@ -1074,14 +1074,18 @@ const ProductionPlanner: React.FC = () => {
                       value={s.nume}
                       onChange={(e) => updateShift(s.id, { nume: e.target.value })}
                     />
-                    {shifts.length > 1 && (
-                      <Badge
-                        variant={currentShift === s.id ? "default" : "outline"}
-                        className="cursor-pointer"
-                        onClick={() => setActiveShift(s.id)}
-                      >
-                        {currentShift === s.id ? "schimb activ" : "fă activ"}
-                      </Badge>
+                    {shifts.length > 1 && rotationShiftId && s.id !== rotationShiftId ? (
+                      <Badge variant="outline">liber azi</Badge>
+                    ) : (
+                      shifts.length > 1 && (
+                        <Badge
+                          variant={currentShift === s.id ? "default" : "outline"}
+                          className="cursor-pointer"
+                          onClick={() => setActiveShift(s.id)}
+                        >
+                          {currentShift === s.id ? "schimb activ" : "fă activ"}
+                        </Badge>
+                      )
                     )}
                   </div>
                   <div className="flex flex-wrap items-end gap-2 text-xs">
