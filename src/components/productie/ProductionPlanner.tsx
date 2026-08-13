@@ -1062,7 +1062,12 @@ const ProductionPlanner: React.FC = () => {
             )}
             <div className="grid gap-2 md:grid-cols-2">
               {shifts.map((s) => (
-                <div key={s.id} className="rounded border p-2 space-y-2">
+                <div
+                  key={s.id}
+                  className={`rounded border p-2 space-y-2 ${
+                    rotationShiftId && s.id !== rotationShiftId ? "opacity-60 bg-muted/40" : ""
+                  }`}
+                >
                   <div className="flex items-center gap-2">
                     <Input
                       className="h-8 w-32"
