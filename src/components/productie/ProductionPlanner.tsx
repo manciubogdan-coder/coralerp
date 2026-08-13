@@ -667,44 +667,40 @@ const ProductionPlanner: React.FC = () => {
       });
       const norma = g.lines.reduce((s: number, l: any) => s + (rowsByLine.get(l.id)?.norma || 0), 0);
       const qty = prods.reduce((s, p) => s + p.qty, 0);
-      const ore = norma > 0 ? qty / norma : 0;
 
-      // Repartizare automată echilibrată: fiecare linie din grup primește proporțional cu
-      // norma ei, astfel încât toate liniile să termine cam la aceeași oră (fără surplus
-      // pe o linie și timp liber pe alta). Se depășește ținta doar dacă nu mai e loc.
+      // Repartizare automată echilibrată DOAR pe liniile care au oameni în ziua respectivă.
+      // Fiecare linie primește proporțional cu capacitatea ei (normă × ore disponibile),
+      // astfel încât toate să termine cam la aceeași oră.
       const buckets = g.lines.map((l: any) => ({
         line: l,
         norma: rowsByLine.get(l.id)?.norma || 0,
+        hours: rowsByLine.get(l.id)?.dispo || 0,
         items: [] as { nume: string; qty: number }[],
         qty: 0,
         ore: 0,
         target: 0,
       }));
+      const usable = buckets.filter((b) => b.norma > 0 && b.hours > 0);
+      const capacity = usable.reduce((s, b) => s + b.norma * b.hours, 0);
+      const normaActiva = usable.reduce((s, b) => s + b.norma, 0);
+      const ore = normaActiva > 0 ? qty / normaActiva : 0;
       let rest = 0;
-      const usable = buckets.filter((b) => b.norma > 0);
       if (usable.length) {
-        const totalNorma = usable.reduce((s, b) => s + b.norma, 0);
-        // ora țintă comună (limitată la durata schimbului)
-        const targetOre = shiftHours > 0 ? Math.min(qty / totalNorma, shiftHours) : qty / totalNorma;
-        usable.forEach((b) => { b.target = b.norma * targetOre; });
+        const frac = capacity > 0 ? Math.min(1, qty / capacity) : 0;
+        usable.forEach((b) => {
+          b.target = b.norma * b.hours * frac;
+        });
 
-        const capOf = (b: typeof usable[number], strict: boolean) => {
-          const limit = strict
-            ? b.target
-            : shiftHours > 0
-              ? b.norma * shiftHours
-              : Infinity;
-          return Math.max(0, limit - b.qty);
-        };
+        const capOf = (b: typeof usable[number], strict: boolean) =>
+          Math.max(0, (strict ? b.target : b.norma * b.hours) - b.qty);
 
         prods.forEach((p) => {
           let remaining = p.qty;
-          // 1) umplem până la ținta proporțională (linia cea mai liberă în ore prima)
           for (const strict of [true, false]) {
             while (remaining > 0.5) {
               const cands = usable
                 .filter((b) => capOf(b, strict) > 0.5)
-                .sort((a, b) => a.qty / a.norma - b.qty / b.norma);
+                .sort((a, b) => a.qty / (a.norma * a.hours) - b.qty / (b.norma * b.hours));
               if (!cands.length) break;
               const b = cands[0];
               const take = Math.min(remaining, capOf(b, strict));
@@ -722,21 +718,30 @@ const ProductionPlanner: React.FC = () => {
         rest = qty;
       }
       const moved = buckets.some((b, i) => i > 0 && b.qty > 0);
-
+      const inactive = buckets.filter((b) => b.norma > 0 && b.hours <= 0);
+      // ore suplimentare necesare dacă marfa nu încape pe liniile cu oameni
+      const overtime = rest > 0.5 && normaActiva > 0 ? rest / normaActiva : 0;
+      const capHours = usable.length ? Math.max(...usable.map((b) => b.hours)) : 0;
 
       return {
         ...g,
         prods,
         norma,
+        normaActiva,
         qty,
         ore,
-        over: shiftHours > 0 && ore > shiftHours,
+        capHours,
+        capacity,
+        over: capacity > 0 ? qty > capacity + 1 : qty > 0,
         buckets,
+        usableCount: usable.length,
+        inactive,
+        overtime,
         rest,
         moved,
       };
     });
-  }, [groups, lineProducts, lineOrder, rowsByLine, shiftHours]);
+  }, [groups, lineProducts, lineOrder, rowsByLine, shifts]);
 
   // Rândurile din tabelul principal folosesc repartizarea automată echilibrată pe liniile grupului
   const balancedRows = useMemo(() => {
@@ -755,14 +760,15 @@ const ProductionPlanner: React.FC = () => {
         ...r,
         cantitate,
         ore,
-        overHours: shiftHours > 0 && ore > shiftHours,
+        overHours: r.dispo > 0 ? ore > r.dispo + 0.01 : ore > 0,
         startProdus:
           ov.startProdus ||
           (top ? `${top.nume} – ${Math.round(top.qty).toLocaleString()} buc` : r.startProdus),
         balanced: Math.abs(cantitate - r.autoCant) > 1,
       };
     });
-  }, [rows, groupPlans, overrides, shiftHours]);
+  }, [rows, groupPlans, overrides, shifts]);
+
 
   const balancedByLine = useMemo(
     () => new Map(balancedRows.map((r) => [r.line.id, r])),
