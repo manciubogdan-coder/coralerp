@@ -1018,7 +1018,6 @@ const ProductionPlanner: React.FC = () => {
                     </div>
                     <span className="text-muted-foreground pb-2">
                       efectiv {formatOre(effOf(s))} • {s.start}–{fmtHM(parseHM(s.start) + (Number(s.hours) || 0) * 60)} •{" "}
-                      {peopleFor("").length === 0 ? "" : ""}
                       {activePeople.filter((p) => shiftOf(p) === s.id && slotOf(p)).length} oameni
                     </span>
                   </div>
