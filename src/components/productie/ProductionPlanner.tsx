@@ -554,7 +554,7 @@ const ProductionPlanner: React.FC = () => {
         startProdus: ov.startProdus || (topProdus ? `${topProdus[0]} – ${Math.round(topProdus[1]).toLocaleString()} buc` : ""),
       };
     });
-  }, [lines, overrides, perLine, people, shifts, personShift, dayAssign, cuts]);
+  }, [lines, overrides, perLine, people, shifts, rotationShiftId, personShift, dayAssign, cuts]);
 
 
 
@@ -762,7 +762,7 @@ const ProductionPlanner: React.FC = () => {
         moved,
       };
     });
-  }, [groups, lineProducts, lineOrder, rowsByLine, shifts]);
+  }, [groups, lineProducts, lineOrder, rowsByLine, shifts, rotationShiftId]);
 
   // Rândurile din tabelul principal folosesc repartizarea automată echilibrată pe liniile grupului
   const balancedRows = useMemo(() => {
@@ -788,7 +788,7 @@ const ProductionPlanner: React.FC = () => {
         balanced: Math.abs(cantitate - r.autoCant) > 1,
       };
     });
-  }, [rows, groupPlans, overrides, shifts]);
+  }, [rows, groupPlans, overrides, shifts, rotationShiftId]);
 
 
   const balancedByLine = useMemo(
