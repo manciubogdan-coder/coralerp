@@ -127,7 +127,21 @@ const ProductionPlanner: React.FC = () => {
   // ---- Program de lucru (1 sau 2 schimburi, configurabil) ----
   const [shifts, setShifts] = usePersistentState<ShiftCfg[]>("planner-shifts-cfg", DEFAULT_SHIFTS);
   const effOf = (s: ShiftCfg) => Math.max(0, (Number(s.hours) || 0) - (Number(s.pauza) || 0) / 60);
-  const shiftHours = shifts.reduce((a, s) => a + effOf(s), 0);
+  // ---- Rotație: „zilnic” (toți lucrează în fiecare zi) sau „2 cu 2” (schimburile alternează) ----
+  const [rotation, setRotation] = usePersistentState<{ mode: "zilnic" | "2x2"; ref: string; first: string }>(
+    "planner-rotation",
+    { mode: "zilnic", ref: today, first: "s1" }
+  );
+  const rotationShiftId = useMemo(() => {
+    if (rotation.mode !== "2x2" || shifts.length < 2) return null;
+    const d = Math.floor((Date.parse(startDate) - Date.parse(rotation.ref)) / 86400000);
+    const cycle = ((d % 4) + 4) % 4;
+    const other = shifts.find((s) => s.id !== rotation.first)?.id || "s2";
+    return cycle < 2 ? rotation.first : other;
+  }, [rotation, shifts, startDate]);
+  /** schimburile care lucrează efectiv în ziua planificată */
+  const dayShifts = rotationShiftId ? shifts.filter((s) => s.id === rotationShiftId) : shifts;
+  const shiftHours = dayShifts.reduce((a, s) => a + effOf(s), 0);
   const updateShift = (id: string, patch: Partial<ShiftCfg>) =>
     setShifts((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   const setShiftCount = (n: number) =>
@@ -135,14 +149,14 @@ const ProductionPlanner: React.FC = () => {
   /** ora la care se termină după `h` ore de lucru efectiv (ține cont de pauze și de trecerea în schimbul următor) */
   const clockAfter = (h: number) => {
     let rest = Math.max(0, h);
-    for (const s of shifts) {
+    for (const s of dayShifts) {
       const eff = effOf(s);
       if (rest <= eff + 1e-6) {
         return fmtHM(parseHM(s.start) + rest * 60 + (eff > 0 ? (rest / eff) * (Number(s.pauza) || 0) : 0));
       }
       rest -= eff;
     }
-    const last = shifts[shifts.length - 1];
+    const last = dayShifts[dayShifts.length - 1];
     return last ? fmtHM(parseHM(last.start) + (Number(last.hours) || 0) * 60 + rest * 60) : "-";
   };
   // mutări valabile doar pentru ziua planificată: personId -> slot ("none" = scos de pe linie)
@@ -150,7 +164,7 @@ const ProductionPlanner: React.FC = () => {
   // schimbul în care lucrează fiecare om în ziua planificată
   const [personShift, setPersonShift] = usePersistentState<Record<string, string>>(`planner-person-shift-${startDate}`, {});
   const [activeShift, setActiveShift] = useState<string>("s1");
-  const currentShift = shifts.some((s) => s.id === activeShift) ? activeShift : shifts[0]?.id || "s1";
+  const currentShift = dayShifts.some((s) => s.id === activeShift) ? activeShift : dayShifts[0]?.id || "s1";
   const [saveAsDefault, setSaveAsDefault] = usePersistentState<boolean>("planner-save-default-line", false);
 
   const [showClients, setShowClients] = useState(true);
@@ -440,21 +454,28 @@ const ProductionPlanner: React.FC = () => {
     if (isAuxSlot(p.linie_id)) return `extra:${p.linie_id}`;
     return p.linie_id || null;
   };
-  const activePeople = people.filter((p) => p.status === "activ");
+  /** schimbul persoanei: override de zi > schimbul permanent din nomenclator > primul schimb al zilei */
+  const shiftOf = (p: Person) => {
+    const ov = personShift[p.id];
+    if (shifts.some((x) => x.id === ov)) return ov;
+    const perm = (p as any).schimb as string | null | undefined;
+    if (perm && shifts.some((x) => x.id === perm)) return perm;
+    return dayShifts[0]?.id || shifts[0]?.id || "s1";
+  };
+  /** în rotația 2 cu 2, cine e alocat permanent pe schimbul liber nu lucrează în ziua planificată */
+  const worksToday = (p: Person) => !rotationShiftId || shiftOf(p) === rotationShiftId;
+  const activePeople = people.filter((p) => p.status === "activ" && worksToday(p));
+  const offTodayPeople = people.filter((p) => p.status === "activ" && !worksToday(p));
   const unavailablePeople = people.filter((p) => p.status !== "activ");
   const peopleFor = (slot: string) => activePeople.filter((p) => slotOf(p) === slot);
   const unassignedPeople = activePeople.filter((p) => !slotOf(p));
-  const shiftOf = (p: Person) => {
-    const s = personShift[p.id];
-    return shifts.some((x) => x.id === s) ? s : shifts[0]?.id || "s1";
-  };
   const peopleForShift = (slot: string, sid: string) => peopleFor(slot).filter((p) => shiftOf(p) === sid);
   /** Orele disponibile efectiv pe o linie: doar schimburile în care linia are oameni.
    *  Dacă nu e nimeni pe linie, linia nu se folosește la repartizarea automată. */
   const lineHours = (lineId: string) => {
     const ov = overrides[lineId] || {};
     if (ov.ore != null) return Math.max(0, ov.ore);
-    const withPeople = shifts.filter((s) => peopleForShift(lineId, s.id).length > 0);
+    const withPeople = dayShifts.filter((s) => peopleForShift(lineId, s.id).length > 0);
     if (withPeople.length) return withPeople.reduce((a, s) => a + effOf(s), 0);
     return (ov.oameni || 0) > 0 ? shiftHours : 0;
   };
@@ -533,7 +554,7 @@ const ProductionPlanner: React.FC = () => {
         startProdus: ov.startProdus || (topProdus ? `${topProdus[0]} – ${Math.round(topProdus[1]).toLocaleString()} buc` : ""),
       };
     });
-  }, [lines, overrides, perLine, people, shifts, personShift, dayAssign, cuts]);
+  }, [lines, overrides, perLine, people, shifts, rotationShiftId, personShift, dayAssign, cuts]);
 
 
 
@@ -741,7 +762,7 @@ const ProductionPlanner: React.FC = () => {
         moved,
       };
     });
-  }, [groups, lineProducts, lineOrder, rowsByLine, shifts]);
+  }, [groups, lineProducts, lineOrder, rowsByLine, shifts, rotationShiftId]);
 
   // Rândurile din tabelul principal folosesc repartizarea automată echilibrată pe liniile grupului
   const balancedRows = useMemo(() => {
@@ -767,7 +788,7 @@ const ProductionPlanner: React.FC = () => {
         balanced: Math.abs(cantitate - r.autoCant) > 1,
       };
     });
-  }, [rows, groupPlans, overrides, shifts]);
+  }, [rows, groupPlans, overrides, shifts, rotationShiftId]);
 
 
   const balancedByLine = useMemo(
@@ -982,23 +1003,89 @@ const ProductionPlanner: React.FC = () => {
                 Total efectiv (fără pauze): {formatOre(shiftHours)}
               </span>
             </div>
+
+            {shifts.length > 1 && (
+              <div className="flex flex-wrap items-end gap-2 rounded border bg-muted/30 p-2 text-xs">
+                <span className="font-medium pb-2">Rotație:</span>
+                <Button
+                  size="sm"
+                  className="h-7"
+                  variant={rotation.mode === "zilnic" ? "default" : "outline"}
+                  onClick={() => setRotation((r) => ({ ...r, mode: "zilnic" }))}
+                >
+                  Zilnic (ambele schimburi)
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7"
+                  variant={rotation.mode === "2x2" ? "default" : "outline"}
+                  onClick={() => setRotation((r) => ({ ...r, mode: "2x2" }))}
+                >
+                  2 cu 2 (alternativ)
+                </Button>
+                {rotation.mode === "2x2" && (
+                  <>
+                    <div>
+                      <Label className="text-[10px]">Prima zi de ciclu</Label>
+                      <Input
+                        type="date"
+                        className="h-8 w-36"
+                        value={rotation.ref}
+                        onChange={(e) => setRotation((r) => ({ ...r, ref: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Începe cu</Label>
+                      <select
+                        className="h-8 rounded border bg-background px-2"
+                        value={rotation.first}
+                        onChange={(e) => setRotation((r) => ({ ...r, first: e.target.value }))}
+                      >
+                        {shifts.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nume}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Badge className="mb-1">
+                      {fmtRo(startDate)}: lucrează {shifts.find((s) => s.id === rotationShiftId)?.nume || "-"}
+                    </Badge>
+                    {offTodayPeople.length > 0 && (
+                      <span className="pb-2 text-muted-foreground">
+                        {offTodayPeople.length} oameni liberi azi (celălalt schimb)
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
             <div className="grid gap-2 md:grid-cols-2">
               {shifts.map((s) => (
-                <div key={s.id} className="rounded border p-2 space-y-2">
+                <div
+                  key={s.id}
+                  className={`rounded border p-2 space-y-2 ${
+                    rotationShiftId && s.id !== rotationShiftId ? "opacity-60 bg-muted/40" : ""
+                  }`}
+                >
                   <div className="flex items-center gap-2">
                     <Input
                       className="h-8 w-32"
                       value={s.nume}
                       onChange={(e) => updateShift(s.id, { nume: e.target.value })}
                     />
-                    {shifts.length > 1 && (
-                      <Badge
-                        variant={currentShift === s.id ? "default" : "outline"}
-                        className="cursor-pointer"
-                        onClick={() => setActiveShift(s.id)}
-                      >
-                        {currentShift === s.id ? "schimb activ" : "fă activ"}
-                      </Badge>
+                    {shifts.length > 1 && rotationShiftId && s.id !== rotationShiftId ? (
+                      <Badge variant="outline">liber azi</Badge>
+                    ) : (
+                      shifts.length > 1 && (
+                        <Badge
+                          variant={currentShift === s.id ? "default" : "outline"}
+                          className="cursor-pointer"
+                          onClick={() => setActiveShift(s.id)}
+                        >
+                          {currentShift === s.id ? "schimb activ" : "fă activ"}
+                        </Badge>
+                      )
                     )}
                   </div>
                   <div className="flex flex-wrap items-end gap-2 text-xs">
@@ -1285,7 +1372,7 @@ const ProductionPlanner: React.FC = () => {
           {shifts.length > 1 && (
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="font-medium">Trag oamenii în:</span>
-              {shifts.map((s) => (
+              {dayShifts.map((s) => (
                 <Button
                   key={s.id}
                   size="sm"

@@ -1,0 +1,1 @@
+ALTER TABLE public.planner_personal ADD COLUMN IF NOT EXISTS schimb text;

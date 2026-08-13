@@ -21,7 +21,15 @@ export interface PlannerPerson {
   status_note: string | null;
   status_from: string | null;
   status_to: string | null;
+  /** schimbul permanent al persoanei: "s1" | "s2" | null (ambele/nedefinit) */
+  schimb?: string | null;
 }
+
+export const SHIFT_OPTIONS = [
+  { value: "none", label: "Ambele / nedefinit" },
+  { value: "s1", label: "Schimb 1" },
+  { value: "s2", label: "Schimb 2" },
+];
 
 export const STATUS_OPTIONS = [
   { value: "activ", label: "Activ" },
@@ -150,6 +158,7 @@ const PersonnelManagement: React.FC = () => {
                 <TableHead className="min-w-[160px]">Nume</TableHead>
                 <TableHead className="min-w-[180px]">Linie / post implicit</TableHead>
                 <TableHead className="min-w-[140px]">Post / rol</TableHead>
+                <TableHead className="min-w-[140px]">Schimb</TableHead>
                 <TableHead className="min-w-[140px]">Status</TableHead>
                 <TableHead className="w-[130px]">De la</TableHead>
                 <TableHead className="w-[130px]">Până la</TableHead>
@@ -224,6 +233,23 @@ const PersonnelManagement: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>
+                    <Select
+                      value={p.schimb || "none"}
+                      onValueChange={(v) => updateMut.mutate({ id: p.id, patch: { schimb: v === "none" ? null : v } })}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SHIFT_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
                     <Select value={p.status} onValueChange={(v) => updateMut.mutate({ id: p.id, patch: { status: v } })}>
                       <SelectTrigger className="h-8">
                         <SelectValue />
@@ -275,7 +301,7 @@ const PersonnelManagement: React.FC = () => {
               ))}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     Nicio persoană în listă.
                   </TableCell>
                 </TableRow>
