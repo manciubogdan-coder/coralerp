@@ -1170,10 +1170,25 @@ const ProductionPlanner: React.FC = () => {
                             </TableCell>
                             <TableCell className={`text-center text-sm ${r.overHours ? "text-destructive font-semibold" : ""}`}>
                               {formatOre(r.ore)}
-                              {r.overHours && (
-                                <div className="text-[10px]">+{formatOre(r.ore - shiftHours)} peste program</div>
+                              <div className="text-[10px] text-muted-foreground">
+                                din {formatOre(r.dispo)} {r.dispo > 0 ? `• gata ${clockAfter(r.ore)}` : "• fără oameni"}
+                              </div>
+                              {r.overHours && r.dispo > 0 && (
+                                <div className="text-[10px]">+{formatOre(r.ore - r.dispo)} suplimentar</div>
                               )}
+                              <Input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                className="h-7 mt-1 text-center text-xs"
+                                placeholder="ore disp."
+                                value={(overrides[r.line.id] || {}).ore ?? ""}
+                                onChange={(e) =>
+                                  setOverride(r.line.id, { ore: e.target.value === "" ? undefined : Number(e.target.value) })
+                                }
+                              />
                             </TableCell>
+
                             <TableCell>
                               <div className="flex flex-wrap gap-1 mb-1">
                                 {r.assigned.map((p) => (
