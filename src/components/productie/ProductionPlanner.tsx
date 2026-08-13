@@ -124,10 +124,35 @@ const ProductionPlanner: React.FC = () => {
   const [excluded, setExcluded] = usePersistentState<string[]>("planner-excluded-clients", []);
   const [overrides, setOverrides] = usePersistentState<Record<string, LineOverride>>("planner-line-overrides", {});
   const [extras, setExtras] = usePersistentState<ExtraRow[]>("planner-extra-rows", []);
-  const [shiftHours, setShiftHours] = usePersistentState<number>("planner-shift-hours", 8);
+  // ---- Program de lucru (1 sau 2 schimburi, configurabil) ----
+  const [shifts, setShifts] = usePersistentState<ShiftCfg[]>("planner-shifts-cfg", DEFAULT_SHIFTS);
+  const effOf = (s: ShiftCfg) => Math.max(0, (Number(s.hours) || 0) - (Number(s.pauza) || 0) / 60);
+  const shiftHours = shifts.reduce((a, s) => a + effOf(s), 0);
+  const updateShift = (id: string, patch: Partial<ShiftCfg>) =>
+    setShifts((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  const setShiftCount = (n: number) =>
+    setShifts((prev) => (n === 1 ? [prev[0] || DEFAULT_SHIFTS[0]] : [prev[0] || DEFAULT_SHIFTS[0], prev[1] || SECOND_SHIFT]));
+  /** ora la care se termină după `h` ore de lucru efectiv (ține cont de pauze și de trecerea în schimbul următor) */
+  const clockAfter = (h: number) => {
+    let rest = Math.max(0, h);
+    for (const s of shifts) {
+      const eff = effOf(s);
+      if (rest <= eff + 1e-6) {
+        return fmtHM(parseHM(s.start) + rest * 60 + (eff > 0 ? (rest / eff) * (Number(s.pauza) || 0) : 0));
+      }
+      rest -= eff;
+    }
+    const last = shifts[shifts.length - 1];
+    return last ? fmtHM(parseHM(last.start) + (Number(last.hours) || 0) * 60 + rest * 60) : "-";
+  };
   // mutări valabile doar pentru ziua planificată: personId -> slot ("none" = scos de pe linie)
   const [dayAssign, setDayAssign] = usePersistentState<Record<string, string>>(`planner-day-assign-${startDate}`, {});
+  // schimbul în care lucrează fiecare om în ziua planificată
+  const [personShift, setPersonShift] = usePersistentState<Record<string, string>>(`planner-person-shift-${startDate}`, {});
+  const [activeShift, setActiveShift] = useState<string>("s1");
+  const currentShift = shifts.some((s) => s.id === activeShift) ? activeShift : shifts[0]?.id || "s1";
   const [saveAsDefault, setSaveAsDefault] = usePersistentState<boolean>("planner-save-default-line", false);
+
   const [showClients, setShowClients] = useState(true);
   const [groupDialog, setGroupDialog] = useState<string | null>(null);
   const [lineDialog, setLineDialog] = useState<string | null>(null);
