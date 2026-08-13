@@ -21,7 +21,15 @@ export interface PlannerPerson {
   status_note: string | null;
   status_from: string | null;
   status_to: string | null;
+  /** schimbul permanent al persoanei: "s1" | "s2" | null (ambele/nedefinit) */
+  schimb?: string | null;
 }
+
+export const SHIFT_OPTIONS = [
+  { value: "none", label: "Ambele / nedefinit" },
+  { value: "s1", label: "Schimb 1" },
+  { value: "s2", label: "Schimb 2" },
+];
 
 export const STATUS_OPTIONS = [
   { value: "activ", label: "Activ" },
