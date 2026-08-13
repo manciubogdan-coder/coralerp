@@ -127,7 +127,21 @@ const ProductionPlanner: React.FC = () => {
   // ---- Program de lucru (1 sau 2 schimburi, configurabil) ----
   const [shifts, setShifts] = usePersistentState<ShiftCfg[]>("planner-shifts-cfg", DEFAULT_SHIFTS);
   const effOf = (s: ShiftCfg) => Math.max(0, (Number(s.hours) || 0) - (Number(s.pauza) || 0) / 60);
-  const shiftHours = shifts.reduce((a, s) => a + effOf(s), 0);
+  // ---- Rotație: „zilnic” (toți lucrează în fiecare zi) sau „2 cu 2” (schimburile alternează) ----
+  const [rotation, setRotation] = usePersistentState<{ mode: "zilnic" | "2x2"; ref: string; first: string }>(
+    "planner-rotation",
+    { mode: "zilnic", ref: today, first: "s1" }
+  );
+  const rotationShiftId = useMemo(() => {
+    if (rotation.mode !== "2x2" || shifts.length < 2) return null;
+    const d = Math.floor((Date.parse(startDate) - Date.parse(rotation.ref)) / 86400000);
+    const cycle = ((d % 4) + 4) % 4;
+    const other = shifts.find((s) => s.id !== rotation.first)?.id || "s2";
+    return cycle < 2 ? rotation.first : other;
+  }, [rotation, shifts, startDate]);
+  /** schimburile care lucrează efectiv în ziua planificată */
+  const dayShifts = rotationShiftId ? shifts.filter((s) => s.id === rotationShiftId) : shifts;
+  const shiftHours = dayShifts.reduce((a, s) => a + effOf(s), 0);
   const updateShift = (id: string, patch: Partial<ShiftCfg>) =>
     setShifts((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   const setShiftCount = (n: number) =>
