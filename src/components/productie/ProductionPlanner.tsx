@@ -80,7 +80,31 @@ interface LineOverride {
   personal?: string;
   startProdus?: string;
   cantitate?: number;
+  /** ore disponibile manual pe linie (ore suplimentare / program scurtat) */
+  ore?: number;
 }
+
+export interface ShiftCfg {
+  id: string;
+  nume: string;
+  start: string;
+  hours: number;
+  /** pauze totale în minute */
+  pauza: number;
+}
+
+const DEFAULT_SHIFTS: ShiftCfg[] = [{ id: "s1", nume: "Schimb 1", start: "06:00", hours: 8, pauza: 30 }];
+const SECOND_SHIFT: ShiftCfg = { id: "s2", nume: "Schimb 2", start: "14:00", hours: 8, pauza: 30 };
+
+const parseHM = (s: string) => {
+  const [h, m] = String(s || "0:0").split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+const fmtHM = (mins: number) => {
+  const m = ((Math.round(mins) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+};
+
 
 interface ExtraRow {
   id: string;
@@ -100,10 +124,35 @@ const ProductionPlanner: React.FC = () => {
   const [excluded, setExcluded] = usePersistentState<string[]>("planner-excluded-clients", []);
   const [overrides, setOverrides] = usePersistentState<Record<string, LineOverride>>("planner-line-overrides", {});
   const [extras, setExtras] = usePersistentState<ExtraRow[]>("planner-extra-rows", []);
-  const [shiftHours, setShiftHours] = usePersistentState<number>("planner-shift-hours", 8);
+  // ---- Program de lucru (1 sau 2 schimburi, configurabil) ----
+  const [shifts, setShifts] = usePersistentState<ShiftCfg[]>("planner-shifts-cfg", DEFAULT_SHIFTS);
+  const effOf = (s: ShiftCfg) => Math.max(0, (Number(s.hours) || 0) - (Number(s.pauza) || 0) / 60);
+  const shiftHours = shifts.reduce((a, s) => a + effOf(s), 0);
+  const updateShift = (id: string, patch: Partial<ShiftCfg>) =>
+    setShifts((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  const setShiftCount = (n: number) =>
+    setShifts((prev) => (n === 1 ? [prev[0] || DEFAULT_SHIFTS[0]] : [prev[0] || DEFAULT_SHIFTS[0], prev[1] || SECOND_SHIFT]));
+  /** ora la care se termină după `h` ore de lucru efectiv (ține cont de pauze și de trecerea în schimbul următor) */
+  const clockAfter = (h: number) => {
+    let rest = Math.max(0, h);
+    for (const s of shifts) {
+      const eff = effOf(s);
+      if (rest <= eff + 1e-6) {
+        return fmtHM(parseHM(s.start) + rest * 60 + (eff > 0 ? (rest / eff) * (Number(s.pauza) || 0) : 0));
+      }
+      rest -= eff;
+    }
+    const last = shifts[shifts.length - 1];
+    return last ? fmtHM(parseHM(last.start) + (Number(last.hours) || 0) * 60 + rest * 60) : "-";
+  };
   // mutări valabile doar pentru ziua planificată: personId -> slot ("none" = scos de pe linie)
   const [dayAssign, setDayAssign] = usePersistentState<Record<string, string>>(`planner-day-assign-${startDate}`, {});
+  // schimbul în care lucrează fiecare om în ziua planificată
+  const [personShift, setPersonShift] = usePersistentState<Record<string, string>>(`planner-person-shift-${startDate}`, {});
+  const [activeShift, setActiveShift] = useState<string>("s1");
+  const currentShift = shifts.some((s) => s.id === activeShift) ? activeShift : shifts[0]?.id || "s1";
   const [saveAsDefault, setSaveAsDefault] = usePersistentState<boolean>("planner-save-default-line", false);
+
   const [showClients, setShowClients] = useState(true);
   const [groupDialog, setGroupDialog] = useState<string | null>(null);
   const [lineDialog, setLineDialog] = useState<string | null>(null);
@@ -395,6 +444,21 @@ const ProductionPlanner: React.FC = () => {
   const unavailablePeople = people.filter((p) => p.status !== "activ");
   const peopleFor = (slot: string) => activePeople.filter((p) => slotOf(p) === slot);
   const unassignedPeople = activePeople.filter((p) => !slotOf(p));
+  const shiftOf = (p: Person) => {
+    const s = personShift[p.id];
+    return shifts.some((x) => x.id === s) ? s : shifts[0]?.id || "s1";
+  };
+  const peopleForShift = (slot: string, sid: string) => peopleFor(slot).filter((p) => shiftOf(p) === sid);
+  /** Orele disponibile efectiv pe o linie: doar schimburile în care linia are oameni.
+   *  Dacă nu e nimeni pe linie, linia nu se folosește la repartizarea automată. */
+  const lineHours = (lineId: string) => {
+    const ov = overrides[lineId] || {};
+    if (ov.ore != null) return Math.max(0, ov.ore);
+    const withPeople = shifts.filter((s) => peopleForShift(lineId, s.id).length > 0);
+    if (withPeople.length) return withPeople.reduce((a, s) => a + effOf(s), 0);
+    return (ov.oameni || 0) > 0 ? shiftHours : 0;
+  };
+
 
   // Posturile neproductive folosite de personal apar automat ca rânduri auxiliare
   useEffect(() => {
@@ -412,6 +476,7 @@ const ProductionPlanner: React.FC = () => {
 
   const assignPerson = async (id: string, slot: string | null) => {
     setDayAssign((prev) => ({ ...prev, [id]: slot ?? "none" }));
+    if (slot) setPersonShift((prev) => ({ ...prev, [id]: currentShift }));
     if (saveAsDefault) {
       const isExtra = !!slot && slot.startsWith("extra:");
       const extraKey = isExtra ? slot!.slice("extra:".length) : null;
@@ -450,6 +515,7 @@ const ProductionPlanner: React.FC = () => {
       const assigned = peopleFor(line.id);
       const oameni = ov.oameni != null ? ov.oameni : assigned.length;
       const ore = norma > 0 ? cantitate / norma : 0;
+      const dispo = lineHours(line.id);
       const topProdus = data
         ? Array.from(data.produse.entries()).sort((a, b) => b[1] - a[1])[0]
         : undefined;
@@ -460,13 +526,15 @@ const ProductionPlanner: React.FC = () => {
         cantitate,
         autoCant,
         ore,
+        dispo,
         assigned,
-        overHours: shiftHours > 0 && ore > shiftHours,
+        overHours: dispo > 0 ? ore > dispo + 0.01 : ore > 0,
         personal: ov.personal || "",
         startProdus: ov.startProdus || (topProdus ? `${topProdus[0]} – ${Math.round(topProdus[1]).toLocaleString()} buc` : ""),
       };
     });
-  }, [lines, overrides, perLine, people, shiftHours, cuts]);
+  }, [lines, overrides, perLine, people, shifts, personShift, dayAssign, cuts]);
+
 
 
 
@@ -522,7 +590,7 @@ const ProductionPlanner: React.FC = () => {
     body.push(["TOTAL OAMENI", "", totals.oameniTotal, "", "", "", ""]);
     return [
       [`Planificator producție ${fmtRo(startDate)} - ${fmtRo(endDate)}`],
-      [`Clienți incluși: ${clients.filter((c) => isIncluded(c.key)).length}/${clients.length} | Program schimb: ${shiftHours}h`],
+      [`Clienți incluși: ${clients.filter((c) => isIncluded(c.key)).length}/${clients.length} | Program: ${shifts.map((s) => `${s.nume} ${s.start} ${s.hours}h (pauze ${s.pauza}min)`).join("; ")} = ${formatOre(shiftHours)} efectiv`],
       [],
       header,
       ...body,
@@ -599,44 +667,40 @@ const ProductionPlanner: React.FC = () => {
       });
       const norma = g.lines.reduce((s: number, l: any) => s + (rowsByLine.get(l.id)?.norma || 0), 0);
       const qty = prods.reduce((s, p) => s + p.qty, 0);
-      const ore = norma > 0 ? qty / norma : 0;
 
-      // Repartizare automată echilibrată: fiecare linie din grup primește proporțional cu
-      // norma ei, astfel încât toate liniile să termine cam la aceeași oră (fără surplus
-      // pe o linie și timp liber pe alta). Se depășește ținta doar dacă nu mai e loc.
+      // Repartizare automată echilibrată DOAR pe liniile care au oameni în ziua respectivă.
+      // Fiecare linie primește proporțional cu capacitatea ei (normă × ore disponibile),
+      // astfel încât toate să termine cam la aceeași oră.
       const buckets = g.lines.map((l: any) => ({
         line: l,
         norma: rowsByLine.get(l.id)?.norma || 0,
+        hours: rowsByLine.get(l.id)?.dispo || 0,
         items: [] as { nume: string; qty: number }[],
         qty: 0,
         ore: 0,
         target: 0,
       }));
+      const usable = buckets.filter((b) => b.norma > 0 && b.hours > 0);
+      const capacity = usable.reduce((s, b) => s + b.norma * b.hours, 0);
+      const normaActiva = usable.reduce((s, b) => s + b.norma, 0);
+      const ore = normaActiva > 0 ? qty / normaActiva : 0;
       let rest = 0;
-      const usable = buckets.filter((b) => b.norma > 0);
       if (usable.length) {
-        const totalNorma = usable.reduce((s, b) => s + b.norma, 0);
-        // ora țintă comună (limitată la durata schimbului)
-        const targetOre = shiftHours > 0 ? Math.min(qty / totalNorma, shiftHours) : qty / totalNorma;
-        usable.forEach((b) => { b.target = b.norma * targetOre; });
+        const frac = capacity > 0 ? Math.min(1, qty / capacity) : 0;
+        usable.forEach((b) => {
+          b.target = b.norma * b.hours * frac;
+        });
 
-        const capOf = (b: typeof usable[number], strict: boolean) => {
-          const limit = strict
-            ? b.target
-            : shiftHours > 0
-              ? b.norma * shiftHours
-              : Infinity;
-          return Math.max(0, limit - b.qty);
-        };
+        const capOf = (b: typeof usable[number], strict: boolean) =>
+          Math.max(0, (strict ? b.target : b.norma * b.hours) - b.qty);
 
         prods.forEach((p) => {
           let remaining = p.qty;
-          // 1) umplem până la ținta proporțională (linia cea mai liberă în ore prima)
           for (const strict of [true, false]) {
             while (remaining > 0.5) {
               const cands = usable
                 .filter((b) => capOf(b, strict) > 0.5)
-                .sort((a, b) => a.qty / a.norma - b.qty / b.norma);
+                .sort((a, b) => a.qty / (a.norma * a.hours) - b.qty / (b.norma * b.hours));
               if (!cands.length) break;
               const b = cands[0];
               const take = Math.min(remaining, capOf(b, strict));
@@ -654,21 +718,30 @@ const ProductionPlanner: React.FC = () => {
         rest = qty;
       }
       const moved = buckets.some((b, i) => i > 0 && b.qty > 0);
-
+      const inactive = buckets.filter((b) => b.norma > 0 && b.hours <= 0);
+      // ore suplimentare necesare dacă marfa nu încape pe liniile cu oameni
+      const overtime = rest > 0.5 && normaActiva > 0 ? rest / normaActiva : 0;
+      const capHours = usable.length ? Math.max(...usable.map((b) => b.hours)) : 0;
 
       return {
         ...g,
         prods,
         norma,
+        normaActiva,
         qty,
         ore,
-        over: shiftHours > 0 && ore > shiftHours,
+        capHours,
+        capacity,
+        over: capacity > 0 ? qty > capacity + 1 : qty > 0,
         buckets,
+        usableCount: usable.length,
+        inactive,
+        overtime,
         rest,
         moved,
       };
     });
-  }, [groups, lineProducts, lineOrder, rowsByLine, shiftHours]);
+  }, [groups, lineProducts, lineOrder, rowsByLine, shifts]);
 
   // Rândurile din tabelul principal folosesc repartizarea automată echilibrată pe liniile grupului
   const balancedRows = useMemo(() => {
@@ -687,14 +760,15 @@ const ProductionPlanner: React.FC = () => {
         ...r,
         cantitate,
         ore,
-        overHours: shiftHours > 0 && ore > shiftHours,
+        overHours: r.dispo > 0 ? ore > r.dispo + 0.01 : ore > 0,
         startProdus:
           ov.startProdus ||
           (top ? `${top.nume} – ${Math.round(top.qty).toLocaleString()} buc` : r.startProdus),
         balanced: Math.abs(cantitate - r.autoCant) > 1,
       };
     });
-  }, [rows, groupPlans, overrides, shiftHours]);
+  }, [rows, groupPlans, overrides, shifts]);
+
 
   const balancedByLine = useMemo(
     () => new Map(balancedRows.map((r) => [r.line.id, r])),
@@ -768,15 +842,16 @@ const ProductionPlanner: React.FC = () => {
         let cum = 0;
         const rowsHtml = g.prods
           .map((p, i) => {
-            const ore = g.norma > 0 ? p.qty / g.norma : 0;
+            const gn = (g as any).normaActiva || g.norma;
+            const ore = gn > 0 ? p.qty / gn : 0;
             cum += ore;
-            return `<tr><td>${i + 1}</td><td>${p.nume}</td><td style="text-align:right">${Math.round(p.qty).toLocaleString()}</td><td style="text-align:right">${formatOre(ore)}</td><td style="text-align:right">${formatOre(cum)}</td></tr>`;
+            return `<tr><td>${i + 1}</td><td>${p.nume}</td><td style="text-align:right">${Math.round(p.qty).toLocaleString()}</td><td style="text-align:right">${formatOre(ore)}</td><td style="text-align:right">${clockAfter(cum)}</td></tr>`;
           })
           .join("");
-        return `<h3>${g.label} – ${g.norma || 0} buc/oră</h3>
+        return `<h3>${g.label} – ${(g as any).normaActiva || g.norma || 0} buc/oră (linii cu oameni: ${(g as any).usableCount ?? g.lines.length}/${g.lines.length})</h3>
         <table><thead><tr><th>#</th><th>Produs</th><th>Cantitate</th><th>Ore</th><th>Gata la</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
-        <tfoot><tr><th colspan="2">Subtotal</th><th style="text-align:right">${Math.round(g.qty).toLocaleString()}</th><th colspan="2" style="text-align:right">${formatOre(g.ore)} / ${shiftHours}h</th></tr></tfoot></table>`;
+        <tfoot><tr><th colspan="2">Subtotal</th><th style="text-align:right">${Math.round(g.qty).toLocaleString()}</th><th colspan="2" style="text-align:right">${formatOre(g.ore)} / ${formatOre((g as any).capHours || 0)}${(g as any).overtime > 0 ? ` (+${formatOre((g as any).overtime)} supl.)` : ""}</th></tr></tfoot></table>`;
       })
       .join("");
     const w = window.open("", "_blank", "width=900,height=700");
@@ -785,7 +860,8 @@ const ProductionPlanner: React.FC = () => {
       <style>body{font-family:Arial,sans-serif;padding:16px;font-size:12px}h2{margin:0 0 8px}h3{margin:16px 0 4px}
       table{width:100%;border-collapse:collapse;margin-bottom:8px}th,td{border:1px solid #999;padding:4px}
       thead th{background:#eee}</style></head><body>
-      <h2>Ordinea comenzilor pe linii – ${fmtRo(startDate)} - ${fmtRo(endDate)}</h2>${html}</body></html>`);
+      <h2>Ordinea comenzilor pe linii – ${fmtRo(startDate)} - ${fmtRo(endDate)}</h2>
+      <p>${shifts.map((s) => `${s.nume}: ${s.start}, ${s.hours}h, pauze ${s.pauza} min (efectiv ${formatOre(effOf(s))})`).join(" | ")}</p>${html}</body></html>`);
     w.document.close();
     w.focus();
     w.print();
@@ -805,6 +881,21 @@ const ProductionPlanner: React.FC = () => {
       className="inline-flex items-center gap-1 rounded-full border bg-secondary px-2 py-0.5 text-xs cursor-grab active:cursor-grabbing"
     >
       {p.nume}
+      {shifts.length > 1 && (
+        <button
+          type="button"
+          title="Schimbă schimbul"
+          className="rounded bg-primary/15 px-1 text-[10px] font-semibold"
+          onClick={() =>
+            setPersonShift((prev) => {
+              const idx = shifts.findIndex((s) => s.id === shiftOf(p));
+              return { ...prev, [p.id]: shifts[(idx + 1) % shifts.length].id };
+            })
+          }
+        >
+          {shifts.findIndex((s) => s.id === shiftOf(p)) + 1}
+        </button>
+      )}
       {slotOf(p) && (
         <button type="button" onClick={() => assignPerson(p.id, null)}>
           <X className="h-3 w-3 opacity-60 hover:opacity-100" />
@@ -862,26 +953,101 @@ const ProductionPlanner: React.FC = () => {
             >
               Mâine
             </Button>
-            <div>
-              <Label className="text-xs flex items-center gap-1"><Clock className="h-3 w-3" /> Program schimb (ore)</Label>
-              <Input
-                type="number"
-                step="0.5"
-                min="1"
-                className="w-24"
-                value={shiftHours || ""}
-                onChange={(e) => setShiftHours(Number(e.target.value) || 0)}
-              />
-            </div>
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Clock className="h-3 w-3" /> Program disponibil: {formatOre(shiftHours)}
+            </Badge>
             <Badge variant="secondary" className="flex items-center gap-1">
               <Users className="h-3 w-3" /> Total oameni: {totals.oameniTotal}
             </Badge>
             {overLines.length > 0 && (
               <Badge variant="destructive" className="flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" /> {overLines.length} linii peste {shiftHours}h
+                <AlertTriangle className="h-3 w-3" /> {overLines.length} linii peste programul lor
               </Badge>
             )}
           </div>
+
+          {/* Program de lucru configurabil (1 sau 2 schimburi, ore de start, pauze) */}
+          <div className="border rounded-md p-3 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium flex items-center gap-1">
+                <Clock className="h-4 w-4" /> Program de lucru
+              </span>
+              <Button size="sm" variant={shifts.length === 1 ? "default" : "outline"} onClick={() => setShiftCount(1)}>
+                1 schimb
+              </Button>
+              <Button size="sm" variant={shifts.length === 2 ? "default" : "outline"} onClick={() => setShiftCount(2)}>
+                2 schimburi
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Total efectiv (fără pauze): {formatOre(shiftHours)}
+              </span>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {shifts.map((s) => (
+                <div key={s.id} className="rounded border p-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      className="h-8 w-32"
+                      value={s.nume}
+                      onChange={(e) => updateShift(s.id, { nume: e.target.value })}
+                    />
+                    {shifts.length > 1 && (
+                      <Badge
+                        variant={currentShift === s.id ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => setActiveShift(s.id)}
+                      >
+                        {currentShift === s.id ? "schimb activ" : "fă activ"}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-end gap-2 text-xs">
+                    <div>
+                      <Label className="text-[10px]">Start</Label>
+                      <Input
+                        type="time"
+                        className="h-8 w-28"
+                        value={s.start}
+                        onChange={(e) => updateShift(s.id, { start: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Ore</Label>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        className="h-8 w-20 text-center"
+                        value={s.hours || ""}
+                        onChange={(e) => updateShift(s.id, { hours: Number(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Pauze (min)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="5"
+                        className="h-8 w-24 text-center"
+                        value={s.pauza || ""}
+                        onChange={(e) => updateShift(s.id, { pauza: Number(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <span className="text-muted-foreground pb-2">
+                      efectiv {formatOre(effOf(s))} • {s.start}–{fmtHM(parseHM(s.start) + (Number(s.hours) || 0) * 60)} •{" "}
+                      {activePeople.filter((p) => shiftOf(p) === s.id && slotOf(p)).length} oameni
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Oamenii trași pe linii intră în „{shifts.find((s) => s.id === currentShift)?.nume || "schimbul activ"}”. O linie e
+              folosită la repartizarea automată doar dacă are oameni în cel puțin un schimb; altfel marfa rămâne pe liniile
+              acoperite și se calculează orele suplimentare necesare.
+            </p>
+          </div>
+
 
           <div className="border rounded-md">
             <button
@@ -1021,10 +1187,25 @@ const ProductionPlanner: React.FC = () => {
                             </TableCell>
                             <TableCell className={`text-center text-sm ${r.overHours ? "text-destructive font-semibold" : ""}`}>
                               {formatOre(r.ore)}
-                              {r.overHours && (
-                                <div className="text-[10px]">+{formatOre(r.ore - shiftHours)} peste program</div>
+                              <div className="text-[10px] text-muted-foreground">
+                                din {formatOre(r.dispo)} {r.dispo > 0 ? `• gata ${clockAfter(r.ore)}` : "• fără oameni"}
+                              </div>
+                              {r.overHours && r.dispo > 0 && (
+                                <div className="text-[10px]">+{formatOre(r.ore - r.dispo)} suplimentar</div>
                               )}
+                              <Input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                className="h-7 mt-1 text-center text-xs"
+                                placeholder="ore disp."
+                                value={(overrides[r.line.id] || {}).ore ?? ""}
+                                onChange={(e) =>
+                                  setOverride(r.line.id, { ore: e.target.value === "" ? undefined : Number(e.target.value) })
+                                }
+                              />
                             </TableCell>
+
                             <TableCell>
                               <div className="flex flex-wrap gap-1 mb-1">
                                 {r.assigned.map((p) => (
@@ -1101,6 +1282,25 @@ const ProductionPlanner: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {shifts.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-medium">Trag oamenii în:</span>
+              {shifts.map((s) => (
+                <Button
+                  key={s.id}
+                  size="sm"
+                  variant={currentShift === s.id ? "default" : "outline"}
+                  className="h-7"
+                  onClick={() => setActiveShift(s.id)}
+                >
+                  {s.nume} ({s.start})
+                </Button>
+              ))}
+              <span className="text-muted-foreground">
+                Click pe cifra din dreptul numelui ca să muți omul în celălalt schimb.
+              </span>
+            </div>
+          )}
           <label className="flex items-center gap-2 text-xs">
             <Checkbox checked={saveAsDefault} onCheckedChange={(v) => setSaveAsDefault(!!v)} />
             Salvează mutările ca linie implicită (altfel se aplică doar pentru {fmtRo(startDate)})
@@ -1222,7 +1422,8 @@ const ProductionPlanner: React.FC = () => {
           </CardTitle>
           <p className="text-xs text-muted-foreground">
             Liniile echivalente sunt grupate (produsul poate merge pe oricare din ele), cu subtotal pe grup. Trage produsele ca să
-            stabilești ordinea; ce depășește {shiftHours}h e marcat roșu. Click pe numele grupului ca să vezi comenzile și dacă ajunge marfa.
+            stabilești ordinea; ce depășește programul liniilor cu oameni e marcat roșu. Click pe numele grupului ca să vezi
+            comenzile și dacă ajunge marfa.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1233,13 +1434,13 @@ const ProductionPlanner: React.FC = () => {
               <div key={g.id} className="border-2 rounded-lg shadow-sm overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-primary/10 text-sm font-medium">
                   <button type="button" className="text-left hover:underline" onClick={() => { setLineDialog(null); setGroupDialog(g.id); }}>
-                    {g.label} • {g.norma || 0} buc/oră
-                    {g.lines.length > 1 && <Badge variant="secondary" className="ml-2 font-normal">{g.lines.length} linii</Badge>}
+                    {g.label} • {g.normaActiva || 0} buc/oră activ
+                    {g.lines.length > 1 && <Badge variant="secondary" className="ml-2 font-normal">{g.usableCount}/{g.lines.length} linii cu oameni</Badge>}
                   </button>
                   <span className="flex items-center gap-2">
                     <span className={g.over ? "text-destructive" : "text-muted-foreground"}>
-                      Subtotal {Math.round(g.qty).toLocaleString()} buc • {formatOre(g.ore)} / {shiftHours}h
-                      {g.over && ` (+${formatOre(g.ore - shiftHours)})`}
+                      Subtotal {Math.round(g.qty).toLocaleString()} buc • {formatOre(g.ore)} / {formatOre(g.capHours)}
+                      {g.overtime > 0 && ` (+${formatOre(g.overtime)} supl. → ${clockAfter(g.ore)})`}
                     </span>
                     <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => printGroups([g])} title="Printează grupul">
                       <Printer className="h-3.5 w-3.5" />
@@ -1249,10 +1450,10 @@ const ProductionPlanner: React.FC = () => {
                 {g.lines.length > 1 && (
                   <div className="px-3 py-2 bg-muted/30 border-b text-xs space-y-1">
                     <div className="font-medium">
-                      Repartizare automată pe liniile grupului (max {shiftHours}h / linie)
+                      Repartizare automată doar pe liniile cu oameni ({g.usableCount} din {g.lines.length})
                     </div>
                     {g.buckets.map((b: any) => (
-                      <div key={b.line.id} className="rounded border bg-background/60 px-2 py-1">
+                      <div key={b.line.id} className={`rounded border px-2 py-1 ${b.hours > 0 ? "bg-background/60" : "bg-muted/50 opacity-70"}`}>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -1261,25 +1462,34 @@ const ProductionPlanner: React.FC = () => {
                           >
                             {b.line.nume}
                           </button>
-                          <span className="shrink-0 tabular-nums">{Math.round(b.qty).toLocaleString()} buc</span>
-                          <span className={`shrink-0 tabular-nums ${shiftHours > 0 && b.ore > shiftHours + 0.01 ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                            {formatOre(b.ore)}
-                          </span>
+                          {b.hours <= 0 ? (
+                            <span className="shrink-0 text-muted-foreground">fără oameni – nefolosită</span>
+                          ) : (
+                            <>
+                              <span className="shrink-0 tabular-nums">{Math.round(b.qty).toLocaleString()} buc</span>
+                              <span className={`shrink-0 tabular-nums ${b.ore > b.hours + 0.01 ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                                {formatOre(b.ore)} / {formatOre(b.hours)} • gata {clockAfter(b.ore)}
+                              </span>
+                            </>
+                          )}
                         </div>
-                        <div className="mt-0.5 text-muted-foreground break-words line-clamp-2">
-                          {b.items.length ? b.items.map((i: any) => `${i.nume} (${Math.round(i.qty).toLocaleString()})`).join(" · ") : "—"}
-                        </div>
+                        {b.hours > 0 && (
+                          <div className="mt-0.5 text-muted-foreground break-words line-clamp-2">
+                            {b.items.length ? b.items.map((i: any) => `${i.nume} (${Math.round(i.qty).toLocaleString()})`).join(" · ") : "—"}
+                          </div>
+                        )}
                       </div>
                     ))}
 
                     {g.rest > 0.5 && (
                       <div className="text-destructive font-medium">
-                        ⚠️ {Math.round(g.rest).toLocaleString()} buc nu încap nici după mutarea pe celelalte linii din grupă – trebuie tăiate sau lucrate în ore suplimentare.
+                        ⚠️ {Math.round(g.rest).toLocaleString()} buc nu încap pe liniile cu oameni – trebuie{" "}
+                        {formatOre(g.overtime)} ore suplimentare (până la {clockAfter(g.ore)}) sau tăiere.
                       </div>
                     )}
                     {g.rest <= 0.5 && g.moved && (
                       <div className="text-emerald-700">
-                        ✔ Totul încape în program prin mutarea automată pe liniile din aceeași grupă.
+                        ✔ Totul încape în program prin mutarea automată pe liniile din aceeași grupă care au oameni.
                       </div>
                     )}
                   </div>
@@ -1287,12 +1497,14 @@ const ProductionPlanner: React.FC = () => {
                 <div className="divide-y">
 
                   {g.prods.map((p, idx) => {
-                    const ore = g.norma > 0 ? p.qty / g.norma : 0;
+                    const gNorma = g.normaActiva || g.norma;
+                    const ore = gNorma > 0 ? p.qty / gNorma : 0;
                     cum += ore;
-                    const over = shiftHours > 0 && cum > shiftHours;
-                    const surplus = over && g.norma > 0 ? Math.max(0, Math.round((cum - shiftHours) * g.norma)) : 0;
+                    const over = g.capHours > 0 && cum > g.capHours;
+                    const surplus = over && gNorma > 0 ? Math.max(0, Math.round((cum - g.capHours) * gNorma)) : 0;
                     const fitCut = Math.min(p.qty, surplus);
                     const dk = `${g.id}::${p.key}`;
+
                     return (
                       <div
                         key={p.key}
@@ -1319,7 +1531,7 @@ const ProductionPlanner: React.FC = () => {
                         </span>
                         <span className="text-xs w-20 text-right text-muted-foreground">{formatOre(ore)}</span>
                         <span className={`text-xs w-24 text-right ${over ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                          gata la {formatOre(cum)}
+                          gata la {formatOre(cum)} ({clockAfter(cum)})
                         </span>
                         <Input
                           type="number"
