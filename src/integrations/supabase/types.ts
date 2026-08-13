@@ -557,6 +557,7 @@ export type Database = {
           nume: string
           order_index: number
           post: string | null
+          schimb: string | null
           status: string
           status_from: string | null
           status_note: string | null
@@ -571,6 +572,7 @@ export type Database = {
           nume: string
           order_index?: number
           post?: string | null
+          schimb?: string | null
           status?: string
           status_from?: string | null
           status_note?: string | null
@@ -585,6 +587,7 @@ export type Database = {
           nume?: string
           order_index?: number
           post?: string | null
+          schimb?: string | null
           status?: string
           status_from?: string | null
           status_note?: string | null
