@@ -158,6 +158,7 @@ const PersonnelManagement: React.FC = () => {
                 <TableHead className="min-w-[160px]">Nume</TableHead>
                 <TableHead className="min-w-[180px]">Linie / post implicit</TableHead>
                 <TableHead className="min-w-[140px]">Post / rol</TableHead>
+                <TableHead className="min-w-[140px]">Schimb</TableHead>
                 <TableHead className="min-w-[140px]">Status</TableHead>
                 <TableHead className="w-[130px]">De la</TableHead>
                 <TableHead className="w-[130px]">Până la</TableHead>
