@@ -1372,7 +1372,7 @@ const ProductionPlanner: React.FC = () => {
           {shifts.length > 1 && (
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="font-medium">Trag oamenii în:</span>
-              {shifts.map((s) => (
+              {dayShifts.map((s) => (
                 <Button
                   key={s.id}
                   size="sm"
