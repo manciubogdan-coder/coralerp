@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import PickingManagementSimple from "@/components/productie/PickingManagementSimple";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
+import DepozitMP from "@/components/productie/DepozitMP";
 
 const PickingPage = () => {
   const navigate = useNavigate();
@@ -21,11 +22,16 @@ const PickingPage = () => {
           <h1 className="text-xl md:text-2xl font-bold">Picking</h1>
         </div>
 
-        <Tabs defaultValue="picking" className="w-full">
+        <Tabs defaultValue="depozit" className="w-full">
           <TabsList className="mb-4">
+            <TabsTrigger value="depozit">Depozit MP</TabsTrigger>
             <TabsTrigger value="picking">Picking</TabsTrigger>
             <TabsTrigger value="restocking">Marfă Restocată</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="depozit">
+            <DepozitMP />
+          </TabsContent>
 
           <TabsContent value="picking">
             <PickingManagementSimple />
@@ -35,6 +41,7 @@ const PickingPage = () => {
             <MarfaRestocataView />
           </TabsContent>
         </Tabs>
+
       </main>
     </div>
   );
