@@ -69,6 +69,20 @@ const toLocalInput = (d: Date) => {
   )}:${pad(d.getMinutes())}`;
 };
 
+// Lot automat: nr. săptămână ISO (2 cifre) + nr. zi din săptămână (1 = luni ... 7 = duminică)
+export const autoLot = (date: Date) => {
+  const d = new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+  );
+  const dayNum = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(
+    ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
+  );
+  return `${String(week).padStart(2, "0")}${dayNum}`;
+};
+
 /* ---------------- data hooks ---------------- */
 
 const useNomenclatoare = () =>
@@ -76,10 +90,13 @@ const useNomenclatoare = () =>
     queryKey: ["depozit-mp-nomenclatoare"],
     queryFn: async () => {
       const [{ data: produse }, { data: clienti }] = await Promise.all([
-        supabase.from("products").select("id, name, default_unit").order("name"),
+        supabase
+          .from("productie_produse")
+          .select("id, nume, unitate_masura")
+          .order("nume"),
         supabase
           .from("productie_clienti")
-          .select("id, nume_magazin, punct_livrare")
+          .select("id, nume_magazin, punct_livrare, nickname")
           .order("nume_magazin"),
       ]);
       return {
@@ -89,6 +106,7 @@ const useNomenclatoare = () =>
     },
     staleTime: 5 * 60 * 1000,
   });
+
 
 const useIntrari = () =>
   useQuery({
@@ -198,10 +216,8 @@ const MovementDialog = ({
     occurred_at: toLocalInput(new Date()),
     produs_nume: "",
     cantitate: "",
-    unitate: "kg",
-    lot: "",
+    unitate: "bucati",
     partener: "",
-    document: "",
     observatii: "",
   });
 
@@ -210,12 +226,15 @@ const MovementDialog = ({
       occurred_at: toLocalInput(new Date()),
       produs_nume: "",
       cantitate: "",
-      unitate: "kg",
-      lot: "",
+      unitate: "bucati",
       partener: "",
-      document: "",
       observatii: "",
     });
+
+  const lot = useMemo(
+    () => autoLot(form.occurred_at ? new Date(form.occurred_at) : new Date()),
+    [form.occurred_at]
+  );
 
   const save = useMutation({
     mutationFn: async () => {
@@ -227,16 +246,15 @@ const MovementDialog = ({
         occurred_at: new Date(form.occurred_at).toISOString(),
         produs_nume: form.produs_nume.trim(),
         cantitate: qty,
-        unitate: form.unitate || "kg",
-        lot: form.lot || null,
-        document: form.document || null,
+        unitate: form.unitate || "bucati",
+        lot,
         observatii: form.observatii || null,
       };
       const table =
         type === "intrare" ? "depozit_mp_intrari" : "depozit_mp_iesiri";
       const payload =
         type === "intrare"
-          ? { ...base, furnizor: form.partener || null }
+          ? base
           : { ...base, client: form.partener || null };
 
       const { error } = await supabaseCloud.from(table).insert(payload);
@@ -278,12 +296,8 @@ const MovementDialog = ({
               />
             </div>
             <div>
-              <Label>Lot</Label>
-              <Input
-                value={form.lot}
-                onChange={(e) => setForm({ ...form, lot: e.target.value })}
-                placeholder="opțional"
-              />
+              <Label>Lot (automat)</Label>
+              <Input value={lot} readOnly className="bg-muted" />
             </div>
           </div>
 
@@ -295,19 +309,19 @@ const MovementDialog = ({
               onChange={(e) => {
                 const name = e.target.value;
                 const p = (nom?.produse || []).find(
-                  (x: any) => x.name === name
+                  (x: any) => x.nume === name
                 );
                 setForm((f) => ({
                   ...f,
                   produs_nume: name,
-                  unitate: p?.default_unit || f.unitate,
+                  unitate: p?.unitate_masura || f.unitate,
                 }));
               }}
-              placeholder="Caută produs..."
+              placeholder="Caută produs finit..."
             />
             <datalist id="depozit-mp-produse">
               {(nom?.produse || []).map((p: any) => (
-                <option key={p.id} value={p.name} />
+                <option key={p.id} value={p.nume} />
               ))}
             </datalist>
           </div>
@@ -317,7 +331,7 @@ const MovementDialog = ({
               <Label>Cantitate</Label>
               <Input
                 type="number"
-                step="0.001"
+                step="1"
                 value={form.cantitate}
                 onChange={(e) =>
                   setForm({ ...form, cantitate: e.target.value })
@@ -333,61 +347,42 @@ const MovementDialog = ({
             </div>
           </div>
 
-          <div>
-            <Label>{type === "intrare" ? "Furnizor" : "Client"}</Label>
-            {type === "intrare" ? (
+          {type === "iesire" && (
+            <div>
+              <Label>Client</Label>
               <Input
+                list="depozit-mp-clienti"
                 value={form.partener}
                 onChange={(e) =>
                   setForm({ ...form, partener: e.target.value })
                 }
-                placeholder="opțional"
+                placeholder="Caută client..."
               />
-            ) : (
-              <>
-                <Input
-                  list="depozit-mp-clienti"
-                  value={form.partener}
-                  onChange={(e) =>
-                    setForm({ ...form, partener: e.target.value })
-                  }
-                  placeholder="Caută client..."
-                />
-                <datalist id="depozit-mp-clienti">
-                  {(nom?.clienti || []).map((c: any) => (
-                    <option
-                      key={c.id}
-                      value={`${c.nume_magazin}${
-                        c.punct_livrare ? ` - ${c.punct_livrare}` : ""
-                      }`}
-                    />
-                  ))}
-                </datalist>
-              </>
-            )}
-          </div>
+              <datalist id="depozit-mp-clienti">
+                {(nom?.clienti || []).map((c: any) => (
+                  <option
+                    key={c.id}
+                    value={`${c.nume_magazin}${
+                      c.punct_livrare ? ` - ${c.punct_livrare}` : ""
+                    }`}
+                  />
+                ))}
+              </datalist>
+            </div>
+          )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Document</Label>
-              <Input
-                value={form.document}
-                onChange={(e) => setForm({ ...form, document: e.target.value })}
-                placeholder="nr. document"
-              />
-            </div>
-            <div>
-              <Label>Observații</Label>
-              <Textarea
-                rows={1}
-                value={form.observatii}
-                onChange={(e) =>
-                  setForm({ ...form, observatii: e.target.value })
-                }
-              />
-            </div>
+          <div>
+            <Label>Observații</Label>
+            <Textarea
+              rows={2}
+              value={form.observatii}
+              onChange={(e) =>
+                setForm({ ...form, observatii: e.target.value })
+              }
+            />
           </div>
         </div>
+
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -583,8 +578,6 @@ const DepozitMP: React.FC = () => {
                       Cantitate: Number(r.cantitate || 0),
                       UM: r.unitate,
                       Lot: r.lot || "",
-                      Furnizor: r.furnizor || "",
-                      Document: r.document || "",
                       Observații: r.observatii || "",
                     })),
                     "intrari-depozit-mp.xlsx",
@@ -602,21 +595,22 @@ const DepozitMP: React.FC = () => {
                       <TableHead>Produs</TableHead>
                       <TableHead className="text-right">Cantitate</TableHead>
                       <TableHead>Lot</TableHead>
-                      <TableHead>Furnizor</TableHead>
-                      <TableHead>Document</TableHead>
+                      <TableHead>Observații</TableHead>
                       <TableHead />
+
+
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loadingIn && (
                       <TableRow>
-                        <TableCell colSpan={7}>Se încarcă...</TableCell>
+                        <TableCell colSpan={6}>Se încarcă...</TableCell>
                       </TableRow>
                     )}
                     {!loadingIn && filteredIn.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={7}
+                          colSpan={6}
                           className="text-muted-foreground"
                         >
                           Nicio intrare înregistrată.
@@ -634,8 +628,8 @@ const DepozitMP: React.FC = () => {
                           {r.unitate}
                         </TableCell>
                         <TableCell>{r.lot || "-"}</TableCell>
-                        <TableCell>{r.furnizor || "-"}</TableCell>
-                        <TableCell>{r.document || "-"}</TableCell>
+                        <TableCell>{r.observatii || "-"}</TableCell>
+
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"
