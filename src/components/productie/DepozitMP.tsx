@@ -69,6 +69,20 @@ const toLocalInput = (d: Date) => {
   )}:${pad(d.getMinutes())}`;
 };
 
+// Lot automat: nr. săptămână ISO (2 cifre) + nr. zi din săptămână (1 = luni ... 7 = duminică)
+export const autoLot = (date: Date) => {
+  const d = new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+  );
+  const dayNum = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(
+    ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
+  );
+  return `${String(week).padStart(2, "0")}${dayNum}`;
+};
+
 /* ---------------- data hooks ---------------- */
 
 const useNomenclatoare = () =>
@@ -76,10 +90,13 @@ const useNomenclatoare = () =>
     queryKey: ["depozit-mp-nomenclatoare"],
     queryFn: async () => {
       const [{ data: produse }, { data: clienti }] = await Promise.all([
-        supabase.from("products").select("id, name, default_unit").order("name"),
+        supabase
+          .from("productie_produse")
+          .select("id, nume, unitate_masura")
+          .order("nume"),
         supabase
           .from("productie_clienti")
-          .select("id, nume_magazin, punct_livrare")
+          .select("id, nume_magazin, punct_livrare, nickname")
           .order("nume_magazin"),
       ]);
       return {
@@ -89,6 +106,7 @@ const useNomenclatoare = () =>
     },
     staleTime: 5 * 60 * 1000,
   });
+
 
 const useIntrari = () =>
   useQuery({
