@@ -373,17 +373,16 @@ const MovementDialog = ({
 
           <div>
             <Label>Observații</Label>
-
-              <Textarea
-                rows={1}
-                value={form.observatii}
-                onChange={(e) =>
-                  setForm({ ...form, observatii: e.target.value })
-                }
-              />
-            </div>
+            <Textarea
+              rows={2}
+              value={form.observatii}
+              onChange={(e) =>
+                setForm({ ...form, observatii: e.target.value })
+              }
+            />
           </div>
         </div>
+
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
