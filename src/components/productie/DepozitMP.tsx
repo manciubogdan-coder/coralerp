@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, FileDown, Trash2 } from "lucide-react";
+import { Plus, Search, FileDown, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -622,6 +622,7 @@ const DepozitMP: React.FC = () => {
   const [sizeOut, setSizeOut] = useState(25);
 
   const [searchStock, setSearchStock] = useState("");
+  const [expandedStock, setExpandedStock] = useState<string | null>(null);
   const [pageStock, setPageStock] = useState(1);
   const [sizeStock, setSizeStock] = useState(25);
 
