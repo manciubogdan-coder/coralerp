@@ -223,6 +223,102 @@ export type Database = {
           },
         ]
       }
+      depozit_mp_iesiri: {
+        Row: {
+          cantitate: number
+          client: string | null
+          created_at: string
+          created_by_email: string | null
+          document: string | null
+          id: string
+          lot: string | null
+          observatii: string | null
+          occurred_at: string
+          produs_id: string | null
+          produs_nume: string
+          unitate: string
+          updated_at: string
+        }
+        Insert: {
+          cantitate?: number
+          client?: string | null
+          created_at?: string
+          created_by_email?: string | null
+          document?: string | null
+          id?: string
+          lot?: string | null
+          observatii?: string | null
+          occurred_at?: string
+          produs_id?: string | null
+          produs_nume: string
+          unitate?: string
+          updated_at?: string
+        }
+        Update: {
+          cantitate?: number
+          client?: string | null
+          created_at?: string
+          created_by_email?: string | null
+          document?: string | null
+          id?: string
+          lot?: string | null
+          observatii?: string | null
+          occurred_at?: string
+          produs_id?: string | null
+          produs_nume?: string
+          unitate?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      depozit_mp_intrari: {
+        Row: {
+          cantitate: number
+          created_at: string
+          created_by_email: string | null
+          document: string | null
+          furnizor: string | null
+          id: string
+          lot: string | null
+          observatii: string | null
+          occurred_at: string
+          produs_id: string | null
+          produs_nume: string
+          unitate: string
+          updated_at: string
+        }
+        Insert: {
+          cantitate?: number
+          created_at?: string
+          created_by_email?: string | null
+          document?: string | null
+          furnizor?: string | null
+          id?: string
+          lot?: string | null
+          observatii?: string | null
+          occurred_at?: string
+          produs_id?: string | null
+          produs_nume: string
+          unitate?: string
+          updated_at?: string
+        }
+        Update: {
+          cantitate?: number
+          created_at?: string
+          created_by_email?: string | null
+          document?: string | null
+          furnizor?: string | null
+          id?: string
+          lot?: string | null
+          observatii?: string | null
+          occurred_at?: string
+          produs_id?: string | null
+          produs_nume?: string
+          unitate?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       evidenta_andrada_access: {
         Row: {
           created_at: string
