@@ -292,6 +292,8 @@ const MovementDialog = ({
 }) => {
   const qc = useQueryClient();
   const { data: nom } = useNomenclatoare();
+  const { data: intrari = [] } = useIntrari();
+  const { data: iesiri = [] } = useIesiri();
   const [form, setForm] = useState({
     occurred_at: toLocalInput(new Date()),
     produs_nume: "",
@@ -299,6 +301,7 @@ const MovementDialog = ({
     unitate: "bucati",
     partener: "",
     observatii: "",
+    lot_sel: "",
   });
 
   const reset = () =>
@@ -309,12 +312,34 @@ const MovementDialog = ({
       unitate: "bucati",
       partener: "",
       observatii: "",
+      lot_sel: "",
     });
 
-  const lot = useMemo(
+  const stock = useMemo(
+    () => computeStock(intrari as any, iesiri as any).filter((s) => s.stoc > 0),
+    [intrari, iesiri]
+  );
+  const stockForProduct = useMemo(
+    () => stock.find((s) => s.produs_nume === form.produs_nume.trim()),
+    [stock, form.produs_nume]
+  );
+  const lotsAvailable = useMemo(
+    () => (stockForProduct?.loturi || []).filter((l) => l.stoc > 0),
+    [stockForProduct]
+  );
+  const selectedLot = useMemo(
+    () =>
+      lotsAvailable.find((l) => l.lot === form.lot_sel) ||
+      lotsAvailable[0] ||
+      null,
+    [lotsAvailable, form.lot_sel]
+  );
+
+  const autoLotValue = useMemo(
     () => autoLot(form.occurred_at ? new Date(form.occurred_at) : new Date()),
     [form.occurred_at]
   );
+  const lot = type === "intrare" ? autoLotValue : selectedLot?.lot || "";
 
   const save = useMutation({
     mutationFn: async () => {
@@ -322,11 +347,24 @@ const MovementDialog = ({
       const qty = Number(form.cantitate);
       if (!qty || qty <= 0) throw new Error("Cantitatea trebuie să fie > 0");
 
+      if (type === "iesire") {
+        if (!stockForProduct)
+          throw new Error("Produsul nu există în stocul depozitului");
+        if (!selectedLot) throw new Error("Alege lotul din care scoți marfa");
+        if (qty > selectedLot.stoc)
+          throw new Error(
+            `Stoc insuficient pe lotul ${selectedLot.lot}: disponibil ${selectedLot.stoc}`
+          );
+      }
+
       const base = {
         occurred_at: new Date(form.occurred_at).toISOString(),
         produs_nume: form.produs_nume.trim(),
         cantitate: qty,
-        unitate: form.unitate || "bucati",
+        unitate:
+          (type === "iesire" ? stockForProduct?.unitate : form.unitate) ||
+          form.unitate ||
+          "bucati",
         lot,
         observatii: form.observatii || null,
       };
