@@ -831,7 +831,9 @@ const DepozitMP: React.FC = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-8" />
                       <TableHead>Produs</TableHead>
+                      <TableHead className="text-right">Loturi</TableHead>
                       <TableHead className="text-right">Intrat</TableHead>
                       <TableHead className="text-right">Ieșit</TableHead>
                       <TableHead className="text-right">Stoc</TableHead>
@@ -843,37 +845,116 @@ const DepozitMP: React.FC = () => {
                     {stock.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={6}
+                          colSpan={8}
                           className="text-muted-foreground"
                         >
                           Nu există stoc înregistrat.
                         </TableCell>
                       </TableRow>
                     )}
-                    {page(stock, pageStock, sizeStock).map((r) => (
-                      <TableRow key={`${r.produs_nume}|${r.unitate}`}>
-                        <TableCell>{r.produs_nume}</TableCell>
-                        <TableCell className="text-right">
-                          {r.intrat.toLocaleString("ro-RO")} {r.unitate}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {r.iesit.toLocaleString("ro-RO")} {r.unitate}
-                        </TableCell>
-                        <TableCell
-                          className={`text-right font-semibold ${
-                            r.stoc <= 0 ? "text-destructive" : ""
-                          }`}
-                        >
-                          {r.stoc.toLocaleString("ro-RO")} {r.unitate}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {r.prima ? fmtDate(r.prima) : "-"}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {r.ultima ? fmtDate(r.ultima) : "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {page(stock, pageStock, sizeStock).map((r) => {
+                      const key = `${r.produs_nume}|${r.unitate}`;
+                      const open = expandedStock === key;
+                      const loturiCuStoc = r.loturi.filter((l) => l.stoc !== 0);
+                      return (
+                        <React.Fragment key={key}>
+                          <TableRow
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() =>
+                              setExpandedStock(open ? null : key)
+                            }
+                          >
+                            <TableCell className="w-8 text-muted-foreground">
+                              {open ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </TableCell>
+                            <TableCell>{r.produs_nume}</TableCell>
+                            <TableCell className="text-right">
+                              {loturiCuStoc.length}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {r.intrat.toLocaleString("ro-RO")} {r.unitate}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {r.iesit.toLocaleString("ro-RO")} {r.unitate}
+                            </TableCell>
+                            <TableCell
+                              className={`text-right font-semibold ${
+                                r.stoc <= 0 ? "text-destructive" : ""
+                              }`}
+                            >
+                              {r.stoc.toLocaleString("ro-RO")} {r.unitate}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {r.prima ? fmtDate(r.prima) : "-"}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {r.ultima ? fmtDate(r.ultima) : "-"}
+                            </TableCell>
+                          </TableRow>
+                          {open && (
+                            <TableRow className="bg-muted/30 hover:bg-muted/30">
+                              <TableCell colSpan={8} className="p-0">
+                                <div className="p-3">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Lot</TableHead>
+                                        <TableHead className="text-right">
+                                          Intrat
+                                        </TableHead>
+                                        <TableHead className="text-right">
+                                          Ieșit
+                                        </TableHead>
+                                        <TableHead className="text-right">
+                                          Stoc
+                                        </TableHead>
+                                        <TableHead>Prima intrare</TableHead>
+                                        <TableHead>Ultima intrare</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {r.loturi.map((l) => (
+                                        <TableRow key={l.lot}>
+                                          <TableCell className="font-mono">
+                                            {l.lot}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            {l.intrat.toLocaleString("ro-RO")}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            {l.iesit.toLocaleString("ro-RO")}
+                                          </TableCell>
+                                          <TableCell
+                                            className={`text-right font-semibold ${
+                                              l.stoc <= 0
+                                                ? "text-muted-foreground"
+                                                : ""
+                                            }`}
+                                          >
+                                            {l.stoc.toLocaleString("ro-RO")}{" "}
+                                            {r.unitate}
+                                          </TableCell>
+                                          <TableCell className="whitespace-nowrap">
+                                            {l.prima ? fmtDate(l.prima) : "-"}
+                                          </TableCell>
+                                          <TableCell className="whitespace-nowrap">
+                                            {l.ultima ? fmtDate(l.ultima) : "-"}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
