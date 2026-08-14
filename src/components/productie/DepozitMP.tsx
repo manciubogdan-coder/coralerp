@@ -579,8 +579,6 @@ const DepozitMP: React.FC = () => {
                       UM: r.unitate,
                       Lot: r.lot || "",
                       Observații: r.observatii || "",
-
-                      Observații: r.observatii || "",
                     })),
                     "intrari-depozit-mp.xlsx",
                     "Intrari"
