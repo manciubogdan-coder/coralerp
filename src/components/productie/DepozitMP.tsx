@@ -604,13 +604,13 @@ const DepozitMP: React.FC = () => {
                   <TableBody>
                     {loadingIn && (
                       <TableRow>
-                        <TableCell colSpan={7}>Se încarcă...</TableCell>
+                        <TableCell colSpan={6}>Se încarcă...</TableCell>
                       </TableRow>
                     )}
                     {!loadingIn && filteredIn.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={7}
+                          colSpan={6}
                           className="text-muted-foreground"
                         >
                           Nicio intrare înregistrată.
