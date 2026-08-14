@@ -668,52 +668,15 @@ const DepozitMP: React.FC = () => {
     [iesiri, searchOut]
   );
 
-  const stock = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        produs_nume: string;
-        unitate: string;
-        intrat: number;
-        iesit: number;
-        stoc: number;
-        prima: string | null;
-        ultima: string | null;
-      }
-    >();
-    const get = (name: string, unit: string) => {
-      const key = `${name}|${unit}`;
-      if (!map.has(key))
-        map.set(key, {
-          produs_nume: name,
-          unitate: unit,
-          intrat: 0,
-          iesit: 0,
-          stoc: 0,
-          prima: null,
-          ultima: null,
-        });
-      return map.get(key)!;
-    };
-    intrari.forEach((r) => {
-      const e = get(r.produs_nume, r.unitate || "kg");
-      e.intrat += Number(r.cantitate || 0);
-      if (!e.prima || r.occurred_at < e.prima) e.prima = r.occurred_at;
-      if (!e.ultima || r.occurred_at > e.ultima) e.ultima = r.occurred_at;
-    });
-    iesiri.forEach((r) => {
-      const e = get(r.produs_nume, r.unitate || "kg");
-      e.iesit += Number(r.cantitate || 0);
-    });
-    return Array.from(map.values())
-      .map((e) => ({ ...e, stoc: e.intrat - e.iesit }))
-      .filter((e) =>
+  const stock = useMemo(
+    () =>
+      computeStock(intrari as any, iesiri as any).filter((e) =>
         !searchStock.trim()
           ? true
           : e.produs_nume.toLowerCase().includes(searchStock.toLowerCase())
-      )
-      .sort((a, b) => a.produs_nume.localeCompare(b.produs_nume));
-  }, [intrari, iesiri, searchStock]);
+      ),
+    [intrari, iesiri, searchStock]
+  );
 
   const page = <T,>(rows: T[], p: number, s: number) =>
     rows.slice((p - 1) * s, p * s);
