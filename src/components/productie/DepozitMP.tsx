@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, FileDown, Trash2 } from "lucide-react";
+import { Plus, Search, FileDown, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -69,7 +69,7 @@ const toLocalInput = (d: Date) => {
   )}:${pad(d.getMinutes())}`;
 };
 
-// Lot automat: nr. săptămână ISO (2 cifre) + nr. zi din săptămână (1 = luni ... 7 = duminică)
+// Lot automat: nr. săptămână ISO (2 cifre) + nr. zi din săptămână pe 2 cifre (01 = luni ... 07 = duminică)
 export const autoLot = (date: Date) => {
   const d = new Date(
     Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
@@ -80,7 +80,87 @@ export const autoLot = (date: Date) => {
   const week = Math.ceil(
     ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
   );
-  return `${String(week).padStart(2, "0")}${dayNum}`;
+  return `${String(week).padStart(2, "0")}${String(dayNum).padStart(2, "0")}`;
+};
+
+/* ---------------- stock computation ---------------- */
+
+export type StockLot = {
+  lot: string;
+  intrat: number;
+  iesit: number;
+  stoc: number;
+  prima: string | null;
+  ultima: string | null;
+};
+
+export type StockRow = {
+  produs_nume: string;
+  unitate: string;
+  intrat: number;
+  iesit: number;
+  stoc: number;
+  prima: string | null;
+  ultima: string | null;
+  loturi: StockLot[];
+};
+
+export const computeStock = (
+  intrari: { produs_nume: string; unitate?: string | null; cantitate: number; lot?: string | null; occurred_at: string }[],
+  iesiri: { produs_nume: string; unitate?: string | null; cantitate: number; lot?: string | null; occurred_at: string }[]
+): StockRow[] => {
+  const map = new Map<string, StockRow>();
+  const get = (name: string, unit: string) => {
+    const key = `${name}|${unit}`;
+    if (!map.has(key))
+      map.set(key, {
+        produs_nume: name,
+        unitate: unit,
+        intrat: 0,
+        iesit: 0,
+        stoc: 0,
+        prima: null,
+        ultima: null,
+        loturi: [],
+      });
+    return map.get(key)!;
+  };
+  const getLot = (row: StockRow, lot: string) => {
+    let l = row.loturi.find((x) => x.lot === lot);
+    if (!l) {
+      l = { lot, intrat: 0, iesit: 0, stoc: 0, prima: null, ultima: null };
+      row.loturi.push(l);
+    }
+    return l;
+  };
+
+  intrari.forEach((r) => {
+    const e = get(r.produs_nume, r.unitate || "bucati");
+    const qty = Number(r.cantitate || 0);
+    e.intrat += qty;
+    if (!e.prima || r.occurred_at < e.prima) e.prima = r.occurred_at;
+    if (!e.ultima || r.occurred_at > e.ultima) e.ultima = r.occurred_at;
+    const l = getLot(e, r.lot || "-");
+    l.intrat += qty;
+    if (!l.prima || r.occurred_at < l.prima) l.prima = r.occurred_at;
+    if (!l.ultima || r.occurred_at > l.ultima) l.ultima = r.occurred_at;
+  });
+  iesiri.forEach((r) => {
+    const e = get(r.produs_nume, r.unitate || "bucati");
+    const qty = Number(r.cantitate || 0);
+    e.iesit += qty;
+    getLot(e, r.lot || "-").iesit += qty;
+  });
+
+  return Array.from(map.values())
+    .map((e) => ({
+      ...e,
+      stoc: e.intrat - e.iesit,
+      loturi: e.loturi
+        .map((l) => ({ ...l, stoc: l.intrat - l.iesit }))
+        .sort((a, b) => a.lot.localeCompare(b.lot)),
+    }))
+    .sort((a, b) => a.produs_nume.localeCompare(b.produs_nume));
 };
 
 /* ---------------- data hooks ---------------- */
@@ -212,6 +292,8 @@ const MovementDialog = ({
 }) => {
   const qc = useQueryClient();
   const { data: nom } = useNomenclatoare();
+  const { data: intrari = [] } = useIntrari();
+  const { data: iesiri = [] } = useIesiri();
   const [form, setForm] = useState({
     occurred_at: toLocalInput(new Date()),
     produs_nume: "",
@@ -219,6 +301,7 @@ const MovementDialog = ({
     unitate: "bucati",
     partener: "",
     observatii: "",
+    lot_sel: "",
   });
 
   const reset = () =>
@@ -229,12 +312,34 @@ const MovementDialog = ({
       unitate: "bucati",
       partener: "",
       observatii: "",
+      lot_sel: "",
     });
 
-  const lot = useMemo(
+  const stock = useMemo(
+    () => computeStock(intrari as any, iesiri as any).filter((s) => s.stoc > 0),
+    [intrari, iesiri]
+  );
+  const stockForProduct = useMemo(
+    () => stock.find((s) => s.produs_nume === form.produs_nume.trim()),
+    [stock, form.produs_nume]
+  );
+  const lotsAvailable = useMemo(
+    () => (stockForProduct?.loturi || []).filter((l) => l.stoc > 0),
+    [stockForProduct]
+  );
+  const selectedLot = useMemo(
+    () =>
+      lotsAvailable.find((l) => l.lot === form.lot_sel) ||
+      lotsAvailable[0] ||
+      null,
+    [lotsAvailable, form.lot_sel]
+  );
+
+  const autoLotValue = useMemo(
     () => autoLot(form.occurred_at ? new Date(form.occurred_at) : new Date()),
     [form.occurred_at]
   );
+  const lot = type === "intrare" ? autoLotValue : selectedLot?.lot || "";
 
   const save = useMutation({
     mutationFn: async () => {
@@ -242,11 +347,24 @@ const MovementDialog = ({
       const qty = Number(form.cantitate);
       if (!qty || qty <= 0) throw new Error("Cantitatea trebuie să fie > 0");
 
+      if (type === "iesire") {
+        if (!stockForProduct)
+          throw new Error("Produsul nu există în stocul depozitului");
+        if (!selectedLot) throw new Error("Alege lotul din care scoți marfa");
+        if (qty > selectedLot.stoc)
+          throw new Error(
+            `Stoc insuficient pe lotul ${selectedLot.lot}: disponibil ${selectedLot.stoc}`
+          );
+      }
+
       const base = {
         occurred_at: new Date(form.occurred_at).toISOString(),
         produs_nume: form.produs_nume.trim(),
         cantitate: qty,
-        unitate: form.unitate || "bucati",
+        unitate:
+          (type === "iesire" ? stockForProduct?.unitate : form.unitate) ||
+          form.unitate ||
+          "bucati",
         lot,
         observatii: form.observatii || null,
       };
@@ -296,8 +414,30 @@ const MovementDialog = ({
               />
             </div>
             <div>
-              <Label>Lot (automat)</Label>
-              <Input value={lot} readOnly className="bg-muted" />
+              <Label>
+                {type === "intrare" ? "Lot (automat)" : "Lot din stoc"}
+              </Label>
+              {type === "intrare" ? (
+                <Input value={lot} readOnly className="bg-muted" />
+              ) : (
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={selectedLot?.lot || ""}
+                  onChange={(e) =>
+                    setForm({ ...form, lot_sel: e.target.value })
+                  }
+                  disabled={lotsAvailable.length === 0}
+                >
+                  {lotsAvailable.length === 0 && (
+                    <option value="">Fără stoc</option>
+                  )}
+                  {lotsAvailable.map((l) => (
+                    <option key={l.lot} value={l.lot}>
+                      {l.lot} ({l.stoc.toLocaleString("ro-RO")})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -308,22 +448,52 @@ const MovementDialog = ({
               value={form.produs_nume}
               onChange={(e) => {
                 const name = e.target.value;
+                const s = stock.find((x) => x.produs_nume === name);
                 const p = (nom?.produse || []).find(
                   (x: any) => x.nume === name
                 );
                 setForm((f) => ({
                   ...f,
                   produs_nume: name,
-                  unitate: p?.unitate_masura || f.unitate,
+                  lot_sel: "",
+                  unitate:
+                    (type === "iesire" ? s?.unitate : p?.unitate_masura) ||
+                    p?.unitate_masura ||
+                    f.unitate,
                 }));
               }}
-              placeholder="Caută produs finit..."
+              placeholder={
+                type === "intrare"
+                  ? "Caută produs finit..."
+                  : "Caută produs din stoc..."
+              }
             />
             <datalist id="depozit-mp-produse">
-              {(nom?.produse || []).map((p: any) => (
-                <option key={p.id} value={p.nume} />
-              ))}
+              {type === "intrare"
+                ? (nom?.produse || []).map((p: any) => (
+                    <option key={p.id} value={p.nume} />
+                  ))
+                : stock.map((s) => (
+                    <option
+                      key={`${s.produs_nume}|${s.unitate}`}
+                      value={s.produs_nume}
+                    >
+                      {`stoc ${s.stoc.toLocaleString("ro-RO")} ${s.unitate}`}
+                    </option>
+                  ))}
             </datalist>
+            {type === "iesire" && form.produs_nume.trim() && !stockForProduct && (
+              <p className="text-xs text-destructive mt-1">
+                Acest produs nu există în stocul depozitului.
+              </p>
+            )}
+            {type === "iesire" && selectedLot && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Disponibil pe lot {selectedLot.lot}:{" "}
+                {selectedLot.stoc.toLocaleString("ro-RO")}{" "}
+                {stockForProduct?.unitate}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -452,6 +622,7 @@ const DepozitMP: React.FC = () => {
   const [sizeOut, setSizeOut] = useState(25);
 
   const [searchStock, setSearchStock] = useState("");
+  const [expandedStock, setExpandedStock] = useState<string | null>(null);
   const [pageStock, setPageStock] = useState(1);
   const [sizeStock, setSizeStock] = useState(25);
 
@@ -498,52 +669,15 @@ const DepozitMP: React.FC = () => {
     [iesiri, searchOut]
   );
 
-  const stock = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        produs_nume: string;
-        unitate: string;
-        intrat: number;
-        iesit: number;
-        stoc: number;
-        prima: string | null;
-        ultima: string | null;
-      }
-    >();
-    const get = (name: string, unit: string) => {
-      const key = `${name}|${unit}`;
-      if (!map.has(key))
-        map.set(key, {
-          produs_nume: name,
-          unitate: unit,
-          intrat: 0,
-          iesit: 0,
-          stoc: 0,
-          prima: null,
-          ultima: null,
-        });
-      return map.get(key)!;
-    };
-    intrari.forEach((r) => {
-      const e = get(r.produs_nume, r.unitate || "kg");
-      e.intrat += Number(r.cantitate || 0);
-      if (!e.prima || r.occurred_at < e.prima) e.prima = r.occurred_at;
-      if (!e.ultima || r.occurred_at > e.ultima) e.ultima = r.occurred_at;
-    });
-    iesiri.forEach((r) => {
-      const e = get(r.produs_nume, r.unitate || "kg");
-      e.iesit += Number(r.cantitate || 0);
-    });
-    return Array.from(map.values())
-      .map((e) => ({ ...e, stoc: e.intrat - e.iesit }))
-      .filter((e) =>
+  const stock = useMemo(
+    () =>
+      computeStock(intrari as any, iesiri as any).filter((e) =>
         !searchStock.trim()
           ? true
           : e.produs_nume.toLowerCase().includes(searchStock.toLowerCase())
-      )
-      .sort((a, b) => a.produs_nume.localeCompare(b.produs_nume));
-  }, [intrari, iesiri, searchStock]);
+      ),
+    [intrari, iesiri, searchStock]
+  );
 
   const page = <T,>(rows: T[], p: number, s: number) =>
     rows.slice((p - 1) * s, p * s);
@@ -698,7 +832,9 @@ const DepozitMP: React.FC = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-8" />
                       <TableHead>Produs</TableHead>
+                      <TableHead className="text-right">Loturi</TableHead>
                       <TableHead className="text-right">Intrat</TableHead>
                       <TableHead className="text-right">Ieșit</TableHead>
                       <TableHead className="text-right">Stoc</TableHead>
@@ -710,37 +846,116 @@ const DepozitMP: React.FC = () => {
                     {stock.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={6}
+                          colSpan={8}
                           className="text-muted-foreground"
                         >
                           Nu există stoc înregistrat.
                         </TableCell>
                       </TableRow>
                     )}
-                    {page(stock, pageStock, sizeStock).map((r) => (
-                      <TableRow key={`${r.produs_nume}|${r.unitate}`}>
-                        <TableCell>{r.produs_nume}</TableCell>
-                        <TableCell className="text-right">
-                          {r.intrat.toLocaleString("ro-RO")} {r.unitate}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {r.iesit.toLocaleString("ro-RO")} {r.unitate}
-                        </TableCell>
-                        <TableCell
-                          className={`text-right font-semibold ${
-                            r.stoc <= 0 ? "text-destructive" : ""
-                          }`}
-                        >
-                          {r.stoc.toLocaleString("ro-RO")} {r.unitate}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {r.prima ? fmtDate(r.prima) : "-"}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {r.ultima ? fmtDate(r.ultima) : "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {page(stock, pageStock, sizeStock).map((r) => {
+                      const key = `${r.produs_nume}|${r.unitate}`;
+                      const open = expandedStock === key;
+                      const loturiCuStoc = r.loturi.filter((l) => l.stoc !== 0);
+                      return (
+                        <React.Fragment key={key}>
+                          <TableRow
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() =>
+                              setExpandedStock(open ? null : key)
+                            }
+                          >
+                            <TableCell className="w-8 text-muted-foreground">
+                              {open ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </TableCell>
+                            <TableCell>{r.produs_nume}</TableCell>
+                            <TableCell className="text-right">
+                              {loturiCuStoc.length}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {r.intrat.toLocaleString("ro-RO")} {r.unitate}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {r.iesit.toLocaleString("ro-RO")} {r.unitate}
+                            </TableCell>
+                            <TableCell
+                              className={`text-right font-semibold ${
+                                r.stoc <= 0 ? "text-destructive" : ""
+                              }`}
+                            >
+                              {r.stoc.toLocaleString("ro-RO")} {r.unitate}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {r.prima ? fmtDate(r.prima) : "-"}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {r.ultima ? fmtDate(r.ultima) : "-"}
+                            </TableCell>
+                          </TableRow>
+                          {open && (
+                            <TableRow className="bg-muted/30 hover:bg-muted/30">
+                              <TableCell colSpan={8} className="p-0">
+                                <div className="p-3">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Lot</TableHead>
+                                        <TableHead className="text-right">
+                                          Intrat
+                                        </TableHead>
+                                        <TableHead className="text-right">
+                                          Ieșit
+                                        </TableHead>
+                                        <TableHead className="text-right">
+                                          Stoc
+                                        </TableHead>
+                                        <TableHead>Prima intrare</TableHead>
+                                        <TableHead>Ultima intrare</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {r.loturi.map((l) => (
+                                        <TableRow key={l.lot}>
+                                          <TableCell className="font-mono">
+                                            {l.lot}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            {l.intrat.toLocaleString("ro-RO")}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            {l.iesit.toLocaleString("ro-RO")}
+                                          </TableCell>
+                                          <TableCell
+                                            className={`text-right font-semibold ${
+                                              l.stoc <= 0
+                                                ? "text-muted-foreground"
+                                                : ""
+                                            }`}
+                                          >
+                                            {l.stoc.toLocaleString("ro-RO")}{" "}
+                                            {r.unitate}
+                                          </TableCell>
+                                          <TableCell className="whitespace-nowrap">
+                                            {l.prima ? fmtDate(l.prima) : "-"}
+                                          </TableCell>
+                                          <TableCell className="whitespace-nowrap">
+                                            {l.ultima ? fmtDate(l.ultima) : "-"}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
