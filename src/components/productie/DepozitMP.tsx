@@ -69,7 +69,7 @@ const toLocalInput = (d: Date) => {
   )}:${pad(d.getMinutes())}`;
 };
 
-// Lot automat: nr. săptămână ISO (2 cifre) + nr. zi din săptămână (1 = luni ... 7 = duminică)
+// Lot automat: nr. săptămână ISO (2 cifre) + nr. zi din săptămână pe 2 cifre (01 = luni ... 07 = duminică)
 export const autoLot = (date: Date) => {
   const d = new Date(
     Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
@@ -80,7 +80,87 @@ export const autoLot = (date: Date) => {
   const week = Math.ceil(
     ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
   );
-  return `${String(week).padStart(2, "0")}${dayNum}`;
+  return `${String(week).padStart(2, "0")}${String(dayNum).padStart(2, "0")}`;
+};
+
+/* ---------------- stock computation ---------------- */
+
+export type StockLot = {
+  lot: string;
+  intrat: number;
+  iesit: number;
+  stoc: number;
+  prima: string | null;
+  ultima: string | null;
+};
+
+export type StockRow = {
+  produs_nume: string;
+  unitate: string;
+  intrat: number;
+  iesit: number;
+  stoc: number;
+  prima: string | null;
+  ultima: string | null;
+  loturi: StockLot[];
+};
+
+export const computeStock = (
+  intrari: { produs_nume: string; unitate?: string | null; cantitate: number; lot?: string | null; occurred_at: string }[],
+  iesiri: { produs_nume: string; unitate?: string | null; cantitate: number; lot?: string | null; occurred_at: string }[]
+): StockRow[] => {
+  const map = new Map<string, StockRow>();
+  const get = (name: string, unit: string) => {
+    const key = `${name}|${unit}`;
+    if (!map.has(key))
+      map.set(key, {
+        produs_nume: name,
+        unitate: unit,
+        intrat: 0,
+        iesit: 0,
+        stoc: 0,
+        prima: null,
+        ultima: null,
+        loturi: [],
+      });
+    return map.get(key)!;
+  };
+  const getLot = (row: StockRow, lot: string) => {
+    let l = row.loturi.find((x) => x.lot === lot);
+    if (!l) {
+      l = { lot, intrat: 0, iesit: 0, stoc: 0, prima: null, ultima: null };
+      row.loturi.push(l);
+    }
+    return l;
+  };
+
+  intrari.forEach((r) => {
+    const e = get(r.produs_nume, r.unitate || "bucati");
+    const qty = Number(r.cantitate || 0);
+    e.intrat += qty;
+    if (!e.prima || r.occurred_at < e.prima) e.prima = r.occurred_at;
+    if (!e.ultima || r.occurred_at > e.ultima) e.ultima = r.occurred_at;
+    const l = getLot(e, r.lot || "-");
+    l.intrat += qty;
+    if (!l.prima || r.occurred_at < l.prima) l.prima = r.occurred_at;
+    if (!l.ultima || r.occurred_at > l.ultima) l.ultima = r.occurred_at;
+  });
+  iesiri.forEach((r) => {
+    const e = get(r.produs_nume, r.unitate || "bucati");
+    const qty = Number(r.cantitate || 0);
+    e.iesit += qty;
+    getLot(e, r.lot || "-").iesit += qty;
+  });
+
+  return Array.from(map.values())
+    .map((e) => ({
+      ...e,
+      stoc: e.intrat - e.iesit,
+      loturi: e.loturi
+        .map((l) => ({ ...l, stoc: l.intrat - l.iesit }))
+        .sort((a, b) => a.lot.localeCompare(b.lot)),
+    }))
+    .sort((a, b) => a.produs_nume.localeCompare(b.produs_nume));
 };
 
 /* ---------------- data hooks ---------------- */
