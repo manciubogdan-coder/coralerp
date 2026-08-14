@@ -628,8 +628,8 @@ const DepozitMP: React.FC = () => {
                           {r.unitate}
                         </TableCell>
                         <TableCell>{r.lot || "-"}</TableCell>
-                        <TableCell>{r.furnizor || "-"}</TableCell>
-                        <TableCell>{r.document || "-"}</TableCell>
+                        <TableCell>{r.observatii || "-"}</TableCell>
+
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"
