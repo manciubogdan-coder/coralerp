@@ -595,9 +595,8 @@ const DepozitMP: React.FC = () => {
                       <TableHead>Produs</TableHead>
                       <TableHead className="text-right">Cantitate</TableHead>
                       <TableHead>Lot</TableHead>
-                      <TableHead>Furnizor</TableHead>
-                      <TableHead>Document</TableHead>
-                      <TableHead />
+                      <TableHead>Observații</TableHead>
+
                     </TableRow>
                   </TableHeader>
                   <TableBody>
