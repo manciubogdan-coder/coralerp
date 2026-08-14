@@ -216,10 +216,8 @@ const MovementDialog = ({
     occurred_at: toLocalInput(new Date()),
     produs_nume: "",
     cantitate: "",
-    unitate: "kg",
-    lot: "",
+    unitate: "bucati",
     partener: "",
-    document: "",
     observatii: "",
   });
 
@@ -228,12 +226,15 @@ const MovementDialog = ({
       occurred_at: toLocalInput(new Date()),
       produs_nume: "",
       cantitate: "",
-      unitate: "kg",
-      lot: "",
+      unitate: "bucati",
       partener: "",
-      document: "",
       observatii: "",
     });
+
+  const lot = useMemo(
+    () => autoLot(form.occurred_at ? new Date(form.occurred_at) : new Date()),
+    [form.occurred_at]
+  );
 
   const save = useMutation({
     mutationFn: async () => {
@@ -245,16 +246,15 @@ const MovementDialog = ({
         occurred_at: new Date(form.occurred_at).toISOString(),
         produs_nume: form.produs_nume.trim(),
         cantitate: qty,
-        unitate: form.unitate || "kg",
-        lot: form.lot || null,
-        document: form.document || null,
+        unitate: form.unitate || "bucati",
+        lot,
         observatii: form.observatii || null,
       };
       const table =
         type === "intrare" ? "depozit_mp_intrari" : "depozit_mp_iesiri";
       const payload =
         type === "intrare"
-          ? { ...base, furnizor: form.partener || null }
+          ? base
           : { ...base, client: form.partener || null };
 
       const { error } = await supabaseCloud.from(table).insert(payload);
@@ -296,12 +296,8 @@ const MovementDialog = ({
               />
             </div>
             <div>
-              <Label>Lot</Label>
-              <Input
-                value={form.lot}
-                onChange={(e) => setForm({ ...form, lot: e.target.value })}
-                placeholder="opțional"
-              />
+              <Label>Lot (automat)</Label>
+              <Input value={lot} readOnly className="bg-muted" />
             </div>
           </div>
 
@@ -313,19 +309,19 @@ const MovementDialog = ({
               onChange={(e) => {
                 const name = e.target.value;
                 const p = (nom?.produse || []).find(
-                  (x: any) => x.name === name
+                  (x: any) => x.nume === name
                 );
                 setForm((f) => ({
                   ...f,
                   produs_nume: name,
-                  unitate: p?.default_unit || f.unitate,
+                  unitate: p?.unitate_masura || f.unitate,
                 }));
               }}
-              placeholder="Caută produs..."
+              placeholder="Caută produs finit..."
             />
             <datalist id="depozit-mp-produse">
               {(nom?.produse || []).map((p: any) => (
-                <option key={p.id} value={p.name} />
+                <option key={p.id} value={p.nume} />
               ))}
             </datalist>
           </div>
@@ -335,7 +331,7 @@ const MovementDialog = ({
               <Label>Cantitate</Label>
               <Input
                 type="number"
-                step="0.001"
+                step="1"
                 value={form.cantitate}
                 onChange={(e) =>
                   setForm({ ...form, cantitate: e.target.value })
@@ -351,51 +347,33 @@ const MovementDialog = ({
             </div>
           </div>
 
-          <div>
-            <Label>{type === "intrare" ? "Furnizor" : "Client"}</Label>
-            {type === "intrare" ? (
+          {type === "iesire" && (
+            <div>
+              <Label>Client</Label>
               <Input
+                list="depozit-mp-clienti"
                 value={form.partener}
                 onChange={(e) =>
                   setForm({ ...form, partener: e.target.value })
                 }
-                placeholder="opțional"
+                placeholder="Caută client..."
               />
-            ) : (
-              <>
-                <Input
-                  list="depozit-mp-clienti"
-                  value={form.partener}
-                  onChange={(e) =>
-                    setForm({ ...form, partener: e.target.value })
-                  }
-                  placeholder="Caută client..."
-                />
-                <datalist id="depozit-mp-clienti">
-                  {(nom?.clienti || []).map((c: any) => (
-                    <option
-                      key={c.id}
-                      value={`${c.nume_magazin}${
-                        c.punct_livrare ? ` - ${c.punct_livrare}` : ""
-                      }`}
-                    />
-                  ))}
-                </datalist>
-              </>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Document</Label>
-              <Input
-                value={form.document}
-                onChange={(e) => setForm({ ...form, document: e.target.value })}
-                placeholder="nr. document"
-              />
+              <datalist id="depozit-mp-clienti">
+                {(nom?.clienti || []).map((c: any) => (
+                  <option
+                    key={c.id}
+                    value={`${c.nume_magazin}${
+                      c.punct_livrare ? ` - ${c.punct_livrare}` : ""
+                    }`}
+                  />
+                ))}
+              </datalist>
             </div>
-            <div>
-              <Label>Observații</Label>
+          )}
+
+          <div>
+            <Label>Observații</Label>
+
               <Textarea
                 rows={1}
                 value={form.observatii}
