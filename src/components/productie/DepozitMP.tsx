@@ -414,8 +414,30 @@ const MovementDialog = ({
               />
             </div>
             <div>
-              <Label>Lot (automat)</Label>
-              <Input value={lot} readOnly className="bg-muted" />
+              <Label>
+                {type === "intrare" ? "Lot (automat)" : "Lot din stoc"}
+              </Label>
+              {type === "intrare" ? (
+                <Input value={lot} readOnly className="bg-muted" />
+              ) : (
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={selectedLot?.lot || ""}
+                  onChange={(e) =>
+                    setForm({ ...form, lot_sel: e.target.value })
+                  }
+                  disabled={lotsAvailable.length === 0}
+                >
+                  {lotsAvailable.length === 0 && (
+                    <option value="">Fără stoc</option>
+                  )}
+                  {lotsAvailable.map((l) => (
+                    <option key={l.lot} value={l.lot}>
+                      {l.lot} ({l.stoc.toLocaleString("ro-RO")})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -426,22 +448,52 @@ const MovementDialog = ({
               value={form.produs_nume}
               onChange={(e) => {
                 const name = e.target.value;
+                const s = stock.find((x) => x.produs_nume === name);
                 const p = (nom?.produse || []).find(
                   (x: any) => x.nume === name
                 );
                 setForm((f) => ({
                   ...f,
                   produs_nume: name,
-                  unitate: p?.unitate_masura || f.unitate,
+                  lot_sel: "",
+                  unitate:
+                    (type === "iesire" ? s?.unitate : p?.unitate_masura) ||
+                    p?.unitate_masura ||
+                    f.unitate,
                 }));
               }}
-              placeholder="Caută produs finit..."
+              placeholder={
+                type === "intrare"
+                  ? "Caută produs finit..."
+                  : "Caută produs din stoc..."
+              }
             />
             <datalist id="depozit-mp-produse">
-              {(nom?.produse || []).map((p: any) => (
-                <option key={p.id} value={p.nume} />
-              ))}
+              {type === "intrare"
+                ? (nom?.produse || []).map((p: any) => (
+                    <option key={p.id} value={p.nume} />
+                  ))
+                : stock.map((s) => (
+                    <option
+                      key={`${s.produs_nume}|${s.unitate}`}
+                      value={s.produs_nume}
+                    >
+                      {`stoc ${s.stoc.toLocaleString("ro-RO")} ${s.unitate}`}
+                    </option>
+                  ))}
             </datalist>
+            {type === "iesire" && form.produs_nume.trim() && !stockForProduct && (
+              <p className="text-xs text-destructive mt-1">
+                Acest produs nu există în stocul depozitului.
+              </p>
+            )}
+            {type === "iesire" && selectedLot && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Disponibil pe lot {selectedLot.lot}:{" "}
+                {selectedLot.stoc.toLocaleString("ro-RO")}{" "}
+                {stockForProduct?.unitate}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
