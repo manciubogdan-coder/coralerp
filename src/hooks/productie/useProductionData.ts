@@ -485,55 +485,58 @@ export const useDeleteClient = () => {
 export const useOrders = () => {
   return useQuery({
     queryKey: ['orders'],
-    staleTime: 15_000,
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
     queryFn: async () => {
-      // PAGINARE — bypass limita de 1000 rânduri din Supabase
       const PAGE = 1000;
-      let from = 0;
-      let allOrders: any[] = [];
-      while (true) {
+      const selectStr =
+        '*, productie_produse(id, nume, unitate_masura, created_at, updated_at), productie_linii(id, nume)';
+
+      const fetchPage = async (from: number) => {
         const { data, error } = await supabase
           .from('productie_comenzi')
-          .select(`
-            *,
-            productie_produse(id, nume, unitate_masura, created_at, updated_at),
-            productie_linii(id, nume)
-          `)
+          .select(selectStr)
           .order('updated_at', { ascending: false })
           .order('created_at', { ascending: false })
           .range(from, from + PAGE - 1);
         if (error) throw error;
-        if (!data || data.length === 0) break;
-        allOrders = allOrders.concat(data);
-        if (data.length < PAGE) break;
-        from += PAGE;
-      }
-      const data = allOrders;
+        return data || [];
+      };
 
-      // BATCH FETCH clienți: un singur query pentru toți clienții (lista e mică)
-      const { data: clientiData } = await supabase
-        .from('productie_clienti')
-        .select(`*, productie_zone_livrare(*)`);
+      // Prima pagină + numărul total, ca să putem cere restul paginilor ÎN PARALEL
+      const { count } = await supabase
+        .from('productie_comenzi')
+        .select('id', { count: 'exact', head: true });
+
+      const total = count ?? 0;
+      const pageCount = Math.max(1, Math.ceil(total / PAGE));
+
+      // Comenzi, clienți și sesiuni — toate în paralel (nu secvențial)
+      const [pages, clientiRes, sesiuniRes] = await Promise.all([
+        Promise.all(
+          Array.from({ length: pageCount }, (_, i) => fetchPage(i * PAGE))
+        ),
+        supabase.from('productie_clienti').select('*, productie_zone_livrare(*)'),
+        supabase
+          .from('productie_sesiuni_lucru')
+          .select('comanda_id, cantitate_produsa, status')
+          .in('status', ['finalizata', 'partial']),
+      ]);
+
+      const data = pages.flat();
+
       const clientiMap = new Map<string, any>();
-      (clientiData || []).forEach((c: any) => {
+      (clientiRes.data || []).forEach((c: any) => {
         clientiMap.set(`${c.nume_magazin}||${c.punct_livrare}`, c);
       });
 
-      // BATCH FETCH sesiuni: în loturi de 50 ID-uri pentru a evita URL-uri prea lungi
+      // Un singur query pentru sesiuni (înainte: câte un request la fiecare 50 de comenzi)
       const sesiuniMap = new Map<string, number>();
-      const orderIds = data.map((o: any) => o.id);
-      for (let i = 0; i < orderIds.length; i += 50) {
-        const chunk = orderIds.slice(i, i + 50);
-        const { data: sesiuni } = await supabase
-          .from('productie_sesiuni_lucru')
-          .select('comanda_id, cantitate_produsa, status')
-          .in('comanda_id', chunk)
-          .in('status', ['finalizata', 'partial']);
-        (sesiuni || []).forEach((s: any) => {
-          const prev = sesiuniMap.get(s.comanda_id) || 0;
-          sesiuniMap.set(s.comanda_id, prev + Number(s.cantitate_produsa || 0));
-        });
-      }
+      (sesiuniRes.data || []).forEach((s: any) => {
+        const prev = sesiuniMap.get(s.comanda_id) || 0;
+        sesiuniMap.set(s.comanda_id, prev + Number(s.cantitate_produsa || 0));
+      });
+
 
       const comandiCuClienti = data.map((comanda: any) => {
         const client = clientiMap.get(`${comanda.magazin}||${comanda.punct_livrare}`) || null;
