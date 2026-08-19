@@ -573,22 +573,23 @@ export const useOrders = () => {
 
       if (uncoveredByProduct.size > 0) {
         const produsIds = Array.from(uncoveredByProduct.keys());
-        // Fetch în loturi pentru toate restocările disponibile
+        // Un singur query pentru toate restocările disponibile (lista e mică)
         const restocariByProduct = new Map<string, any[]>();
-        for (let i = 0; i < produsIds.length; i += 50) {
-          const chunk = produsIds.slice(i, i + 50);
-          const { data: rows } = await supabase
-            .from('productie_restocari')
-            .select('*')
-            .in('produs_id', chunk)
-            .eq('status', 'disponibil')
-            .gt('cantitate_surplus', 0)
-            .order('data_productie', { ascending: true });
-          (rows || []).forEach((r: any) => {
-            if (!restocariByProduct.has(r.produs_id)) restocariByProduct.set(r.produs_id, []);
-            restocariByProduct.get(r.produs_id)!.push(r);
-          });
-        }
+        const { data: rows } = await supabase
+          .from('productie_restocari')
+          .select('*')
+          .eq('status', 'disponibil')
+          .gt('cantitate_surplus', 0)
+          .order('data_productie', { ascending: true });
+        const produsIdSet = new Set(produsIds);
+        (rows || []).forEach((r: any) => {
+          if (!produsIdSet.has(r.produs_id)) return;
+          if (!restocariByProduct.has(r.produs_id)) restocariByProduct.set(r.produs_id, []);
+          restocariByProduct.get(r.produs_id)!.push(r);
+        });
+
+        // Colectăm update-urile și le executăm în paralel (înainte: secvențial)
+        const pendingWrites: Promise<any>[] = [];
 
         for (const [produsId, comenzi] of uncoveredByProduct.entries()) {
           const restocari = restocariByProduct.get(produsId);
@@ -605,10 +606,14 @@ export const useOrders = () => {
               const take = Math.min(necesar, surplus);
               if (take <= 0) continue;
               if (take >= surplus) {
-                await supabase.from('productie_restocari').update({ status: 'folosit', cantitate_surplus: 0 }).eq('id', r.id);
+                pendingWrites.push(
+                  supabase.from('productie_restocari').update({ status: 'folosit', cantitate_surplus: 0 }).eq('id', r.id) as any
+                );
                 r.cantitate_surplus = 0;
               } else {
-                await supabase.from('productie_restocari').update({ cantitate_surplus: surplus - take }).eq('id', r.id);
+                pendingWrites.push(
+                  supabase.from('productie_restocari').update({ cantitate_surplus: surplus - take }).eq('id', r.id) as any
+                );
                 r.cantitate_surplus = surplus - take;
               }
               folosit += take;
@@ -616,15 +621,20 @@ export const useOrders = () => {
             }
             if (folosit > 0) {
               const cantVeche = Number((com as any).cantitate_din_restock || 0);
-              await supabase
-                .from('productie_comenzi')
-                .update({ cantitate_din_restock: cantVeche + folosit, updated_at: new Date().toISOString() })
-                .eq('id', (com as any).id);
+              pendingWrites.push(
+                supabase
+                  .from('productie_comenzi')
+                  .update({ cantitate_din_restock: cantVeche + folosit, updated_at: new Date().toISOString() })
+                  .eq('id', (com as any).id) as any
+              );
               (com as any).cantitate_din_restock = cantVeche + folosit;
             }
           }
         }
+
+        if (pendingWrites.length > 0) await Promise.all(pendingWrites);
       }
+
 
       // Sortăm comenzile după prioritatea zonei de livrare, apoi după data actualizării
       const sortedData = comandiCuClienti.sort((a, b) => {
