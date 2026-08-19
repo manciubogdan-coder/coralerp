@@ -107,13 +107,13 @@ const refreshProductionCaches = async (queryClient: QueryClient) => {
     ['lines'],
   ];
 
-  queryKeys.forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
-  await Promise.all(
-    queryKeys.map((queryKey) =>
-      queryClient.refetchQueries({ queryKey, type: 'active' })
-    )
+  // Invalidăm doar query-urile ACTIVE și nu așteptăm refetch-ul complet:
+  // UI-ul se actualizează în fundal, iar acțiunea utilizatorului se termină instant.
+  queryKeys.forEach((queryKey) =>
+    queryClient.invalidateQueries({ queryKey, refetchType: 'active' })
   );
 };
+
 
 // Hook pentru încărcarea liniilor de producție
 export const useProductionLines = () => {
