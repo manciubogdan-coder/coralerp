@@ -134,7 +134,7 @@ const GroupedOrdersView: React.FC<Props> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground mr-auto">
           Finalizatele din zilele anterioare sunt ascunse automat
         </span>
@@ -170,33 +170,35 @@ const GroupedOrdersView: React.FC<Props> = ({
 
           <Card key={g.key} className={`border-coral-200 shadow ${hasActive ? "border-l-4 border-l-green-500 bg-emerald-50/40" : ""}`}>
             <CardHeader className="p-3 md:p-4 pb-2">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 md:gap-3">
                 <button
                   onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !prev[g.key] }))}
-                  className="flex items-center gap-2 text-left flex-1 min-w-0"
+                  className="flex items-start gap-2 text-left flex-1 min-w-0 flex-wrap"
                 >
-                  {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-                  <CardTitle className="text-base md:text-lg text-coral-primary truncate">
+                  {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0 mt-1" /> : <ChevronRight className="h-4 w-4 shrink-0 mt-1" />}
+                  <CardTitle className="text-sm md:text-lg text-coral-primary break-words min-w-0 flex-1 basis-full md:basis-auto">
                     {g.nume}
                   </CardTitle>
-                  {g.isMerged && (
-                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 shrink-0">grup</Badge>
-                  )}
-                  <Badge variant="outline" className="ml-2 shrink-0">
-                    {g.orders.length} comenzi
-                  </Badge>
-                  {doneCount > 0 && (
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shrink-0">
-                      {doneCount} finalizate
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {g.isMerged && (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5">grup</Badge>
+                    )}
+                    <Badge variant="outline" className="text-[10px] px-1.5">
+                      {g.orders.length} comenzi
                     </Badge>
-                  )}
+                    {doneCount > 0 && (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5">
+                        {doneCount} finalizate
+                      </Badge>
+                    )}
+                  </div>
                 </button>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full md:w-auto">
                   {hasActive ? (
                     <Button
                       size="sm"
                       onClick={() => openFinish(orderIds, g.nume)}
-                      className="bg-green-600 hover:bg-green-700 text-white"
+                      className="bg-green-600 hover:bg-green-700 text-white w-full md:w-auto"
                     >
                       <CheckCircle className="h-4 w-4 mr-1" />
                       Finalizează grup
@@ -206,7 +208,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                       <Button
                         size="sm"
                         onClick={() => openStart(orderIds, g.nume)}
-                        className="bg-coral-primary hover:bg-coral-600 text-white"
+                        className="bg-coral-primary hover:bg-coral-600 text-white w-full md:w-auto"
                       >
                         <Play className="h-4 w-4 mr-1" />
                         Pornește sesiune grup
@@ -214,6 +216,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                     )
                   )}
                 </div>
+
               </div>
             </CardHeader>
             <CardContent className="p-3 md:p-4 pt-0">

@@ -740,19 +740,21 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
     return (
       <div className="space-y-6" key={`orders-${refreshKey}-${forceRefreshKey}`}>
-        <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-start gap-2 md:gap-4 flex-wrap">
           <Button
             variant="outline"
+            size="sm"
             onClick={() => setView('lines')}
             className="border-coral-primary text-coral-primary hover:bg-coral-50"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Înapoi la linii
           </Button>
-          <h2 className="text-2xl font-bold text-coral-primary">
+          <h2 className="text-base md:text-2xl font-bold text-coral-primary break-words min-w-0 w-full md:w-auto">
             Comenzi pentru {currentLine?.nume} - {totalItems} comenzi (ordinea livrării)
           </h2>
         </div>
+
 
         {/* Sumar linie: bucăți rămase + timp estimat */}
         <Card className="border-coral-200">
@@ -798,12 +800,13 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             type="single"
             value={ordersViewMode}
             onValueChange={(v) => v && setOrdersViewMode(v as 'individual' | 'grouped')}
-            className="border rounded-md"
+            className="border rounded-md flex-1 md:flex-none min-w-0"
           >
-            <ToggleGroupItem value="individual" className="px-3">Individual</ToggleGroupItem>
-            <ToggleGroupItem value="grouped" className="px-3">Grupat pe produs</ToggleGroupItem>
+            <ToggleGroupItem value="individual" className="px-3 flex-1 md:flex-none">Individual</ToggleGroupItem>
+            <ToggleGroupItem value="grouped" className="px-3 flex-1 md:flex-none">Grupat pe produs</ToggleGroupItem>
           </ToggleGroup>
         </div>
+
 
         {totalItems > 0 ? (
           ordersViewMode === 'grouped' ? (
