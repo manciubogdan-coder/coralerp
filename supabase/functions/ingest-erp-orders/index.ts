@@ -174,6 +174,29 @@ Deno.serve(async (req) => {
     }
   });
 
+  // Fallback: dacă produsul nu are regulă, folosim ultima linie pe care a fost
+  // alocat același produs (istoric). Astfel comenzile noi nu mai rămân "pending".
+  const linieByIstoric = new Map<string, string>();
+  try {
+    const { data: istoric } = await supabase
+      .from("productie_comenzi")
+      .select("produs_id, linie_id, created_at")
+      .not("linie_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(3000);
+    for (const row of (istoric || []) as any[]) {
+      if (!row.produs_id || !row.linie_id) continue;
+      if (linieByIstoric.has(row.produs_id)) continue;
+      if (!liniiActiveIds.has(row.linie_id)) continue;
+      linieByIstoric.set(row.produs_id, row.linie_id);
+    }
+  } catch (e: any) {
+    errors.push({ istoric_linii: e.message || String(e) });
+  }
+  const produseFaraLinie: string[] = [];
+
+
+
   // Backfill lazy: aliniem numar_comanda + data_productie pe rândurile senior-erp mai vechi.
   try {
     const { data: toFix } = await supabase
