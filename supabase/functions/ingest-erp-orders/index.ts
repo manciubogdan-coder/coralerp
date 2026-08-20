@@ -708,6 +708,9 @@ Deno.serve(async (req) => {
     linii_create: lines,
     linii_actualizate: updated,
     linii_sterse: deleted,
+    restock_alocat: restockAlocat,
+    produse_fara_linie: produseFaraLinie,
+
     skipped_duplicat: skipped,
     produse_auto_create: autoCreatedProduse,
     produse_auto_map: autoMappedProduse,
