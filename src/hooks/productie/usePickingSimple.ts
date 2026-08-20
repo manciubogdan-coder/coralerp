@@ -507,3 +507,39 @@ export const useFinalizareSesiune = () => {
     }
   });
 };
+
+// Alocare manuală din pool-ul de marfă produsă („Ia din restocări")
+export const useAlocaDinPool = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      comanda_id: string;
+      produs_id: string;
+      cantitate_alocata: number;
+      cantitate: number;
+    }) => {
+      const luat = await consumaDinPool(params.produs_id, params.cantitate);
+      if (luat > 0) {
+        const { error } = await supabase
+          .from('productie_comenzi')
+          .update({
+            cantitate_din_restock: Number(params.cantitate_alocata || 0) + luat,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', params.comanda_id);
+        if (error) throw error;
+      }
+      return luat;
+    },
+    onSuccess: (luat) => {
+      queryClient.invalidateQueries({ queryKey: ['picking-produse'] });
+      queryClient.invalidateQueries({ queryKey: ['comenzi-disponibile-picking'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
+      queryClient.invalidateQueries({ queryKey: ['pool-redistribuire'] });
+      if (luat > 0) toast.success(`Alocat ${luat} din restocări`);
+      else toast.error('Nu există marfă disponibilă în restocări');
+    },
+    onError: (error: Error) => toast.error(`Eroare: ${error.message}`),
+  });
+};
