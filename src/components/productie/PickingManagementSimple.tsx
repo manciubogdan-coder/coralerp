@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, ShoppingCart, CheckCircle, ArrowLeft, AlertCircle, ClipboardCheck, PackagePlus } from 'lucide-react';
+import { Package, ShoppingCart, CheckCircle, ArrowLeft, AlertCircle, ClipboardCheck, PackagePlus, Scale } from 'lucide-react';
 import { format } from 'date-fns';
 import { ro } from 'date-fns/locale';
 import {
@@ -16,14 +16,17 @@ import {
   usePickingProduse,
   useUpdatePickingProdus,
   useFinalizareSesiune,
+  useAlocaDinPool,
   type ComenziDisponibile
 } from '@/hooks/productie/usePickingSimple';
 import { useAuth } from '@/contexts/productie/AuthContext';
 import MarfaRestocataView from './MarfaRestocataView';
+import RedistribuireProductie from './RedistribuireProductie';
+
 
 const PickingManagementSimple = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'disponibile' | 'finalizate' | 'restocata'>('disponibile');
+  const [activeTab, setActiveTab] = useState<'disponibile' | 'finalizate' | 'restocata' | 'redistribuire'>('disponibile');
   const [step, setStep] = useState<'comenzi' | 'produse' | 'sesiuni'>('comenzi');
   const [selectedComanda, setSelectedComanda] = useState<ComenziDisponibile | null>(null);
   const [sesiuneActivaId, setSesiuneActivaId] = useState<string | null>(null);
@@ -42,6 +45,8 @@ const PickingManagementSimple = () => {
   const createSesiune = useCreatePickingSesiune();
   const updateProdus = useUpdatePickingProdus();
   const finalizareSesiune = useFinalizareSesiune();
+  const alocaDinPool = useAlocaDinPool();
+
 
   const restante = (comenziDisponibile || []).filter(c => c.data && c.data < todayKey);
   const comenziAfisate = (comenziDisponibile || []).filter(c => {
@@ -78,16 +83,29 @@ const PickingManagementSimple = () => {
     });
   };
 
-  const handleMarcareProdus = (produsId: string, cantitateNumarata: number, cantLipsa: number, obs?: string) => {
+  const handleMarcareProdus = (produs: any, cantitateNumarata: number, cantLipsa: number, obs?: string) => {
     const newStatus = cantLipsa > 0 ? 'lipsa_partiala' : 'numarat';
     updateProdus.mutate({
-      id: produsId,
+      id: produs.id,
       cantitate_numarata: cantitateNumarata,
       cantitate_lipsa: cantLipsa,
       status: newStatus,
-      observatii: obs
+      observatii: obs,
+      comanda_id: produs.comanda_id || produs.sesiune_lucru_id,
+      produs_id: produs.produs_id,
+      cantitate_alocata: Number(produs.cantitate_alocata || 0)
     });
   };
+
+  const handleIaDinRestocari = (produs: any, cantitate: number) => {
+    alocaDinPool.mutate({
+      comanda_id: produs.comanda_id || produs.sesiune_lucru_id,
+      produs_id: produs.produs_id,
+      cantitate_alocata: Number(produs.cantitate_alocata || 0),
+      cantitate
+    });
+  };
+
 
   const handleFinalizare = () => {
     if (!sesiuneActivaId) return;
@@ -129,11 +147,15 @@ const PickingManagementSimple = () => {
           </CardContent>
         </Card>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'disponibile' | 'finalizate' | 'restocata')}>
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'disponibile' | 'finalizate' | 'restocata' | 'redistribuire')}>
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
             <TabsTrigger value="disponibile" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               Disponibile
+            </TabsTrigger>
+            <TabsTrigger value="redistribuire" className="flex items-center gap-2">
+              <Scale className="h-4 w-4" />
+              Redistribuire
             </TabsTrigger>
             <TabsTrigger value="finalizate" className="flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4" />
@@ -144,6 +166,7 @@ const PickingManagementSimple = () => {
               Marfă Restocată
             </TabsTrigger>
           </TabsList>
+
 
           {/* Tab: Comenzi Disponibile */}
           <TabsContent value="disponibile" className="mt-6">
@@ -409,10 +432,16 @@ const PickingManagementSimple = () => {
             </Card>
           </TabsContent>
 
+          {/* Tab: Redistribuire producție */}
+          <TabsContent value="redistribuire" className="mt-6">
+            <RedistribuireProductie />
+          </TabsContent>
+
           {/* Tab: Marfă Restocată */}
           <TabsContent value="restocata" className="mt-6">
             <MarfaRestocataView />
           </TabsContent>
+
         </Tabs>
       </div>
     );
@@ -463,7 +492,7 @@ const PickingManagementSimple = () => {
               )}
               {inProductie.length > 0 && (
                 <p className="text-sm text-amber-700 dark:text-amber-500 mt-2">
-                  Nu se pot număra (încă în producție): {inProductie.map(p => p.nume_produs).join(', ')}
+                  Fără stoc suficient în restocări: {inProductie.map(p => p.nume_produs).join(', ')}
                 </p>
               )}
             </div>
@@ -473,7 +502,9 @@ const PickingManagementSimple = () => {
                   key={produs.id}
                   produs={produs}
                   onMarcheaza={handleMarcareProdus}
+                  onIaDinRestocari={handleIaDinRestocari}
                 />
+
               ))}
             </div>
 
@@ -517,21 +548,27 @@ const PickingManagementSimple = () => {
 // Componenta pentru fiecare produs
 const ProdusPickingCard = ({
   produs,
-  onMarcheaza
+  onMarcheaza,
+  onIaDinRestocari
 }: {
   produs: any;
-  onMarcheaza: (id: string, numarata: number, lipsa: number, obs?: string) => void;
+  onMarcheaza: (produs: any, numarata: number, lipsa: number, obs?: string) => void;
+  onIaDinRestocari?: (produs: any, cantitate: number) => void;
 }) => {
   const inProductie = produs.gata_productie === false;
   const [cantitateNumarata, setCantitateNumarata] = useState(produs.cantitate_numarata || 0);
   const [cantLipsa, setCantLipsa] = useState(produs.cantitate_lipsa || 0);
   const [observatii, setObservatii] = useState(produs.observatii || '');
   const [editing, setEditing] = useState(produs.status === 'asteptare' && !inProductie);
+  const poolDisponibil = Number(produs.pool_disponibil || 0);
+  const cantitateAlocata = Number(produs.cantitate_alocata || 0);
+  const deAlocat = Math.max(0, Number(produs.cantitate_comandata || 0) - cantitateAlocata);
 
   const handleSave = () => {
-    onMarcheaza(produs.id, cantitateNumarata, cantLipsa, observatii);
+    onMarcheaza(produs, cantitateNumarata, cantLipsa, observatii);
     setEditing(false);
   };
+
 
   const getStatusBadge = () => {
     if (inProductie) return <Badge className="bg-amber-500">În producție</Badge>;
@@ -577,17 +614,35 @@ const ProdusPickingCard = ({
                   <span className="font-medium">Realizat în producție:</span> {produs.cantitate_realizata} / {produs.cantitate_totala_comanda ?? produs.cantitate_comandata} {produs.unitate_masura}
                 </p>
               )}
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium">Alocat din restocări:</span> {cantitateAlocata} {produs.unitate_masura}
+                {' • '}
+                <span className="font-medium">Disponibil în restocări:</span> {poolDisponibil} {produs.unitate_masura}
+              </p>
             </div>
           </div>
           {getStatusBadge()}
         </div>
 
         {inProductie ? (
-          <div className="flex items-center gap-2 p-3 rounded-lg border border-amber-300 bg-amber-100/50 dark:bg-amber-950/40 text-sm">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <span>Produsul nu este finalizat pe linia de producție — nu poate fi numărat încă.</span>
+          <div className="space-y-3 p-3 rounded-lg border border-amber-300 bg-amber-100/50 dark:bg-amber-950/40 text-sm">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <span>Nu există încă marfă suficientă în restocări pentru această comandă.</span>
+            </div>
+            {onIaDinRestocari && poolDisponibil > 0 && deAlocat > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onIaDinRestocari(produs, Math.min(poolDisponibil, deAlocat))}
+              >
+                <PackagePlus className="h-4 w-4 mr-2" />
+                Ia {Math.min(poolDisponibil, deAlocat)} din restocări
+              </Button>
+            )}
           </div>
         ) : editing ? (
+
 
           <div className="space-y-4">
             {/* Indicator clar pentru cantitatea de numărat */}
