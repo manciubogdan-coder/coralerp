@@ -59,9 +59,15 @@ const chunk = <T,>(arr: T[], size = 50): T[][] => {
 export const useComenziDisponibile = () => {
   return useQuery({
     queryKey: ['comenzi-disponibile-picking'],
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
+      // Doar comenzile de azi înainte — cele din zilele trecute sunt considerate deja finalizate.
+      const todayKey = new Date().toLocaleDateString('en-CA');
+      const todayStartIso = new Date(`${todayKey}T00:00:00`).toISOString();
+
       // Iau comenzile de CLIENT (NU avans) care au ajuns cel puțin în producție.
-      // Paginez ca să nu mă lovesc de limita de 1000 de rânduri.
       const comenzi: any[] = [];
       const PAGE = 1000;
       for (let from = 0; ; from += PAGE) {
@@ -75,6 +81,7 @@ export const useComenziDisponibile = () => {
           .neq('magazin', 'PRODUCȚIE_AVANS')
           .in('status', ['assigned', 'in_progress', 'partial', 'completed'])
           .gt('cantitate', 0)
+          .or(`data_productie.gte.${todayKey},and(data_productie.is.null,created_at.gte.${todayStartIso})`)
           .order('created_at', { ascending: false })
           .range(from, from + PAGE - 1);
         if (error) throw error;
@@ -84,18 +91,21 @@ export const useComenziDisponibile = () => {
 
       if (comenzi.length === 0) return [] as ComenziDisponibile[];
 
-      // Verific pentru fiecare comandă cantitatea produsă efectiv (batch-uri de 50 ID-uri)
+      // Verific pentru fiecare comandă cantitatea produsă efectiv (batch-uri paralele)
       const comenziIds = comenzi.map((c: any) => c.id);
-      const sesiuniLucru: any[] = [];
-      for (const ids of chunk(comenziIds)) {
-        const { data, error } = await supabase
-          .from('productie_sesiuni_lucru')
-          .select('comanda_id, cantitate_produsa')
-          .in('comanda_id', ids)
-          .in('status', ['finalizata', 'partial']);
-        if (error) throw error;
-        sesiuniLucru.push(...(data || []));
-      }
+      const sesiuniBatches = await Promise.all(
+        chunk(comenziIds, 100).map(async (ids) => {
+          const { data, error } = await supabase
+            .from('productie_sesiuni_lucru')
+            .select('comanda_id, cantitate_produsa')
+            .in('comanda_id', ids)
+            .in('status', ['finalizata', 'partial']);
+          if (error) throw error;
+          return data || [];
+        })
+      );
+      const sesiuniLucru: any[] = sesiuniBatches.flat();
+
 
       // Calculez cantitatea produsă pentru fiecare comandă
       const cantitateProdusaMap = new Map<string, number>();
@@ -109,17 +119,19 @@ export const useComenziDisponibile = () => {
 
       if (comenziProduse.length === 0) return [] as ComenziDisponibile[];
 
-      // Exclud comenzile deja preluate în picking
+      // Exclud comenzile deja preluate în picking (batch-uri paralele)
       const comenziProduseIds = comenziProduse.map((c: any) => c.id);
-      const pickingRows: any[] = [];
-      for (const ids of chunk(comenziProduseIds)) {
-        const { data, error } = await supabase
-          .from('picking_produse')
-          .select('sesiune_lucru_id')
-          .in('sesiune_lucru_id', ids);
-        if (error) throw error;
-        pickingRows.push(...(data || []));
-      }
+      const pickingBatches = await Promise.all(
+        chunk(comenziProduseIds, 100).map(async (ids) => {
+          const { data, error } = await supabase
+            .from('picking_produse')
+            .select('sesiune_lucru_id')
+            .in('sesiune_lucru_id', ids);
+          if (error) throw error;
+          return data || [];
+        })
+      );
+      const pickingRows: any[] = pickingBatches.flat();
 
       const pickedSet = new Set((pickingRows || []).map((r: any) => r.sesiune_lucru_id));
       const comenziDisponibile = comenziProduse.filter((c: any) => !pickedSet.has(c.id));
@@ -129,16 +141,19 @@ export const useComenziDisponibile = () => {
       // Încarc detalii de produs separat (nu avem FK declarat)
       const productIds = Array.from(new Set(
         comenziDisponibile.map((c: any) => c.produs_id).filter(Boolean)
-      ));
-      const produseDetalii: any[] = [];
-      for (const ids of chunk(productIds as string[])) {
-        const { data, error } = await supabase
-          .from('productie_produse')
-          .select('id, nume, unitate_masura')
-          .in('id', ids);
-        if (error) throw error;
-        produseDetalii.push(...(data || []));
-      }
+      )) as string[];
+      const produseBatches = await Promise.all(
+        chunk(productIds, 100).map(async (ids) => {
+          const { data, error } = await supabase
+            .from('productie_produse')
+            .select('id, nume, unitate_masura')
+            .in('id', ids);
+          if (error) throw error;
+          return data || [];
+        })
+      );
+      const produseDetalii: any[] = produseBatches.flat();
+
 
       const produseMap = new Map<string, { nume: string; unitate_masura: string }>();
       (produseDetalii || []).forEach((p: any) => {
