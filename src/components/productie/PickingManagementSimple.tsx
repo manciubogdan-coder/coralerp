@@ -548,21 +548,27 @@ const PickingManagementSimple = () => {
 // Componenta pentru fiecare produs
 const ProdusPickingCard = ({
   produs,
-  onMarcheaza
+  onMarcheaza,
+  onIaDinRestocari
 }: {
   produs: any;
-  onMarcheaza: (id: string, numarata: number, lipsa: number, obs?: string) => void;
+  onMarcheaza: (produs: any, numarata: number, lipsa: number, obs?: string) => void;
+  onIaDinRestocari?: (produs: any, cantitate: number) => void;
 }) => {
   const inProductie = produs.gata_productie === false;
   const [cantitateNumarata, setCantitateNumarata] = useState(produs.cantitate_numarata || 0);
   const [cantLipsa, setCantLipsa] = useState(produs.cantitate_lipsa || 0);
   const [observatii, setObservatii] = useState(produs.observatii || '');
   const [editing, setEditing] = useState(produs.status === 'asteptare' && !inProductie);
+  const poolDisponibil = Number(produs.pool_disponibil || 0);
+  const cantitateAlocata = Number(produs.cantitate_alocata || 0);
+  const deAlocat = Math.max(0, Number(produs.cantitate_comandata || 0) - cantitateAlocata);
 
   const handleSave = () => {
-    onMarcheaza(produs.id, cantitateNumarata, cantLipsa, observatii);
+    onMarcheaza(produs, cantitateNumarata, cantLipsa, observatii);
     setEditing(false);
   };
+
 
   const getStatusBadge = () => {
     if (inProductie) return <Badge className="bg-amber-500">În producție</Badge>;
