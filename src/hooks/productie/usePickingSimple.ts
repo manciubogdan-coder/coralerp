@@ -162,6 +162,11 @@ export const useComenziDisponibile = () => {
         produseMap.set(p.id, { nume: p.nume, unitate_masura: p.unitate_masura });
       });
 
+      // POOL_MODE: disponibilul real vine din pool-ul de marfă produsă (restocări),
+      // plus ce e deja alocat comenzii (cantitate_din_restock).
+      const poolTotals = POOL_MODE ? await fetchPoolTotals(productIds) : new Map<string, number>();
+      const poolRamas = new Map(poolTotals);
+
       // Grupare pe magazin|punct_livrare (fiecare comandă rămâne separată)
       const grouped = new Map<string, ComenziDisponibile>();
       comenziDisponibile.forEach((com: any) => {
@@ -182,7 +187,16 @@ export const useComenziDisponibile = () => {
         const det = produseMap.get(com.produs_id) || { nume: 'Produs', unitate_masura: '' };
 
         const cantitateComanda = Number(com.cantitate || 0);
-        const realizat = (cantitateProdusaMap.get(com.id) || 0) + Number(com.cantitate_din_restock || 0);
+        const alocat = Number(com.cantitate_din_restock || 0);
+        let realizat: number;
+        if (POOL_MODE) {
+          const disponibilPool = poolRamas.get(com.produs_id) || 0;
+          const poateLua = Math.min(Math.max(0, cantitateComanda - alocat), disponibilPool);
+          poolRamas.set(com.produs_id, disponibilPool - poateLua);
+          realizat = alocat + poateLua;
+        } else {
+          realizat = (cantitateProdusaMap.get(com.id) || 0) + alocat;
+        }
         const gata = realizat >= cantitateComanda - 1e-6;
 
         // Adaug fiecare comandă ca un produs separat (nu mai agreghez)
@@ -198,6 +212,7 @@ export const useComenziDisponibile = () => {
           unitate_masura: det.unitate_masura
         });
       });
+
 
 
       // Returnez toate grupările (comenzile individuale deja excluse mai sus)
