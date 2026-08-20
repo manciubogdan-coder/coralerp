@@ -1060,7 +1060,7 @@ export const useFinishWorkSession = () => {
       let necesarDinRestocari = Math.max(0, Number(comanda.cantitate || 0) - totalProdus - restockDejaAlocat);
       let alocatDinRestocari = 0;
 
-      if (!esteComandeAvans && !esteReambalareCom && necesarDinRestocari > 0) {
+      if (!POOL_MODE && !esteComandeAvans && !esteReambalareCom && necesarDinRestocari > 0) {
         console.log('📦 Trebuie alocat din restocări:', necesarDinRestocari);
         // 2) Ia restocările disponibile FIFO
         const { data: restocariDisponibile, error: restocariError } = await supabase
