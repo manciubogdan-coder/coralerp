@@ -415,7 +415,10 @@ const PickingManagementSimple = () => {
 
   // Pagina 2: Lista produse pentru numărare
   if (step === 'produse' && sesiuneActivaId) {
-    const toateProduseleNumarate = produse?.every(p => p.status !== 'asteptare');
+    const lista = produse || [];
+    const facute = lista.filter(p => p.status !== 'asteptare');
+    const ramase = lista.filter(p => p.status === 'asteptare');
+    const toateProduseleNumarate = lista.length > 0 && ramase.length === 0;
 
     return (
       <div className="space-y-6">
@@ -436,6 +439,18 @@ const PickingManagementSimple = () => {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 p-3 rounded-lg border bg-muted/40">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Badge className="bg-green-600">Pregătite: {facute.length}</Badge>
+                <Badge variant={ramase.length > 0 ? 'destructive' : 'outline'}>Rămase: {ramase.length}</Badge>
+                <span className="text-muted-foreground">din {lista.length} produse</span>
+              </div>
+              {ramase.length > 0 && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Nepregătite: {ramase.map(p => p.nume_produs).join(', ')}
+                </p>
+              )}
+            </div>
             <div className="space-y-4">
               {produse?.map(produs => (
                 <ProdusPickingCard
@@ -446,20 +461,33 @@ const PickingManagementSimple = () => {
               ))}
             </div>
 
-            {toateProduseleNumarate && (
-              <div className="mt-6 p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    <span className="font-medium">Toate produsele au fost procesate</span>
-                  </div>
-                  <Button onClick={handleFinalizare}>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Finalizează Comanda
-                  </Button>
+            <div className={`mt-6 p-4 rounded-lg border ${toateProduseleNumarate ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' : 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800'}`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center">
+                  {toateProduseleNumarate ? (
+                    <>
+                      <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                      <span className="font-medium">Toate produsele au fost procesate</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-5 w-5 text-orange-600 mr-2" />
+                      <span className="font-medium">Mai ai {ramase.length} produse nepregătite</span>
+                    </>
+                  )}
                 </div>
+                <Button
+                  onClick={() => {
+                    if (!toateProduseleNumarate && !window.confirm(`Mai sunt ${ramase.length} produse nepregătite. Finalizezi comanda oricum?`)) return;
+                    handleFinalizare();
+                  }}
+                  variant={toateProduseleNumarate ? 'default' : 'outline'}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Finalizează Comanda
+                </Button>
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
       </div>
