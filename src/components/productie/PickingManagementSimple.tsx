@@ -26,7 +26,7 @@ import RedistribuireProductie from './RedistribuireProductie';
 
 const PickingManagementSimple = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'disponibile' | 'finalizate' | 'restocata'>('disponibile');
+  const [activeTab, setActiveTab] = useState<'disponibile' | 'finalizate' | 'restocata' | 'redistribuire'>('disponibile');
   const [step, setStep] = useState<'comenzi' | 'produse' | 'sesiuni'>('comenzi');
   const [selectedComanda, setSelectedComanda] = useState<ComenziDisponibile | null>(null);
   const [sesiuneActivaId, setSesiuneActivaId] = useState<string | null>(null);
@@ -45,6 +45,8 @@ const PickingManagementSimple = () => {
   const createSesiune = useCreatePickingSesiune();
   const updateProdus = useUpdatePickingProdus();
   const finalizareSesiune = useFinalizareSesiune();
+  const alocaDinPool = useAlocaDinPool();
+
 
   const restante = (comenziDisponibile || []).filter(c => c.data && c.data < todayKey);
   const comenziAfisate = (comenziDisponibile || []).filter(c => {
