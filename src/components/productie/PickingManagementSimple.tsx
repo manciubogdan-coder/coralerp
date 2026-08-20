@@ -432,10 +432,16 @@ const PickingManagementSimple = () => {
             </Card>
           </TabsContent>
 
+          {/* Tab: Redistribuire producție */}
+          <TabsContent value="redistribuire" className="mt-6">
+            <RedistribuireProductie />
+          </TabsContent>
+
           {/* Tab: Marfă Restocată */}
           <TabsContent value="restocata" className="mt-6">
             <MarfaRestocataView />
           </TabsContent>
+
         </Tabs>
       </div>
     );
