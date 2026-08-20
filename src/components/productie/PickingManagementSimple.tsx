@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, ShoppingCart, CheckCircle, ArrowLeft, AlertCircle, ClipboardCheck, PackagePlus } from 'lucide-react';
+import { Package, ShoppingCart, CheckCircle, ArrowLeft, AlertCircle, ClipboardCheck, PackagePlus, Scale } from 'lucide-react';
 import { format } from 'date-fns';
 import { ro } from 'date-fns/locale';
 import {
@@ -16,10 +16,13 @@ import {
   usePickingProduse,
   useUpdatePickingProdus,
   useFinalizareSesiune,
+  useAlocaDinPool,
   type ComenziDisponibile
 } from '@/hooks/productie/usePickingSimple';
 import { useAuth } from '@/contexts/productie/AuthContext';
 import MarfaRestocataView from './MarfaRestocataView';
+import RedistribuireProductie from './RedistribuireProductie';
+
 
 const PickingManagementSimple = () => {
   const { user } = useAuth();
