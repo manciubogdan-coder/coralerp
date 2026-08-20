@@ -220,6 +220,11 @@ const PickingManagementSimple = () => {
                             <p className="text-sm text-muted-foreground">{comanda.punct_livrare}</p>
                             <div className="flex flex-wrap gap-2 mt-2">
                               <Badge variant="secondary">{comanda.total_produse} produse</Badge>
+                              <Badge className="bg-green-600">Gata: {comanda.produse_gata}</Badge>
+                              {comanda.produse_in_productie > 0 && (
+                                <Badge className="bg-amber-500">În producție: {comanda.produse_in_productie}</Badge>
+                              )}
+
                               {comanda.data && (
                                 <Badge variant={comanda.data < todayKey ? 'destructive' : 'outline'}>
                                   {format(new Date(comanda.data), 'dd MMM yyyy', { locale: ro })}
