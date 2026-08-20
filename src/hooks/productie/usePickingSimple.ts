@@ -8,14 +8,19 @@ export interface ComenziDisponibile {
   punct_livrare: string;
   data: string; // YYYY-MM-DD
   total_produse: number;
+  produse_gata: number;
+  produse_in_productie: number;
   produse: {
     sesiune_lucru_id: string;
     produs_id: string;
     nume_produs: string;
     cantitate_produsa: number;
+    cantitate_realizata: number;
+    gata: boolean;
     unitate_masura: string;
   }[];
 }
+
 
 export interface PickingSesiune {
   id: string;
