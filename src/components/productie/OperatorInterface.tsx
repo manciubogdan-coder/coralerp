@@ -800,12 +800,13 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             type="single"
             value={ordersViewMode}
             onValueChange={(v) => v && setOrdersViewMode(v as 'individual' | 'grouped')}
-            className="border rounded-md"
+            className="border rounded-md flex-1 md:flex-none min-w-0"
           >
-            <ToggleGroupItem value="individual" className="px-3">Individual</ToggleGroupItem>
-            <ToggleGroupItem value="grouped" className="px-3">Grupat pe produs</ToggleGroupItem>
+            <ToggleGroupItem value="individual" className="px-3 flex-1 md:flex-none">Individual</ToggleGroupItem>
+            <ToggleGroupItem value="grouped" className="px-3 flex-1 md:flex-none">Grupat pe produs</ToggleGroupItem>
           </ToggleGroup>
         </div>
+
 
         {totalItems > 0 ? (
           ordersViewMode === 'grouped' ? (
