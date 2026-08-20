@@ -446,6 +446,9 @@ const PickingManagementSimple = () => {
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge className="bg-green-600">Pregătite: {facute.length}</Badge>
                 <Badge variant={ramase.length > 0 ? 'destructive' : 'outline'}>Rămase: {ramase.length}</Badge>
+                {inProductie.length > 0 && (
+                  <Badge className="bg-amber-500">Încă în producție: {inProductie.length}</Badge>
+                )}
                 <span className="text-muted-foreground">din {lista.length} produse</span>
               </div>
               {ramase.length > 0 && (
@@ -453,9 +456,14 @@ const PickingManagementSimple = () => {
                   Nepregătite: {ramase.map(p => p.nume_produs).join(', ')}
                 </p>
               )}
+              {inProductie.length > 0 && (
+                <p className="text-sm text-amber-700 dark:text-amber-500 mt-2">
+                  Nu se pot număra (încă în producție): {inProductie.map(p => p.nume_produs).join(', ')}
+                </p>
+              )}
             </div>
             <div className="space-y-4">
-              {produse?.map(produs => (
+              {[...gataDeNumarat, ...inProductie].map(produs => (
                 <ProdusPickingCard
                   key={produs.id}
                   produs={produs}
@@ -463,6 +471,7 @@ const PickingManagementSimple = () => {
                 />
               ))}
             </div>
+
 
             <div className={`mt-6 p-4 rounded-lg border ${toateProduseleNumarate ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' : 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800'}`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
