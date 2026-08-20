@@ -147,11 +147,15 @@ const PickingManagementSimple = () => {
           </CardContent>
         </Card>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'disponibile' | 'finalizate' | 'restocata')}>
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'disponibile' | 'finalizate' | 'restocata' | 'redistribuire')}>
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
             <TabsTrigger value="disponibile" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               Disponibile
+            </TabsTrigger>
+            <TabsTrigger value="redistribuire" className="flex items-center gap-2">
+              <Scale className="h-4 w-4" />
+              Redistribuire
             </TabsTrigger>
             <TabsTrigger value="finalizate" className="flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4" />
@@ -162,6 +166,7 @@ const PickingManagementSimple = () => {
               Marfă Restocată
             </TabsTrigger>
           </TabsList>
+
 
           {/* Tab: Comenzi Disponibile */}
           <TabsContent value="disponibile" className="mt-6">
