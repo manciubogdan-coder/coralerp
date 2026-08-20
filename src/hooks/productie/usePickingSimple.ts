@@ -44,39 +44,56 @@ export interface PickingProdus {
 }
 
 // Hook pentru comenzile disponibile - toate comenzile de client (inclusiv cele din restocări)
+const chunk = <T,>(arr: T[], size = 50): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+};
+
 export const useComenziDisponibile = () => {
   return useQuery({
     queryKey: ['comenzi-disponibile-picking'],
     queryFn: async () => {
-      // Iau toate comenzile de CLIENT (NU avans) cu produsul direct pe comandă
-      const { data: comenzi, error: comenziErr } = await supabase
-        .from('productie_comenzi')
-        .select('id, magazin, punct_livrare, status, numar_comanda, produs_id, cantitate, cantitate_din_restock')
-        .neq('magazin', 'Producție în avans')
-        .neq('magazin', 'Productie in avans')
-        .neq('magazin', 'AVANS')
-        .neq('magazin', 'PRODUCTIE_AVANS')
-        .neq('magazin', 'PRODUCȚIE_AVANS')
-        .neq('status', 'draft')
-        .neq('status', 'canceled')
-        .order('created_at', { ascending: false });
+      // Iau comenzile de CLIENT (NU avans) care au ajuns cel puțin în producție.
+      // Paginez ca să nu mă lovesc de limita de 1000 de rânduri.
+      const comenzi: any[] = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('productie_comenzi')
+          .select('id, magazin, punct_livrare, status, numar_comanda, produs_id, cantitate, cantitate_din_restock')
+          .neq('magazin', 'Producție în avans')
+          .neq('magazin', 'Productie in avans')
+          .neq('magazin', 'AVANS')
+          .neq('magazin', 'PRODUCTIE_AVANS')
+          .neq('magazin', 'PRODUCȚIE_AVANS')
+          .in('status', ['assigned', 'in_progress', 'partial', 'completed'])
+          .gt('cantitate', 0)
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        comenzi.push(...(data || []));
+        if (!data || data.length < PAGE) break;
+      }
 
-      if (comenziErr) throw comenziErr;
-      if (!comenzi || comenzi.length === 0) return [] as ComenziDisponibile[];
+      if (comenzi.length === 0) return [] as ComenziDisponibile[];
 
-      // Verific pentru fiecare comandă cantitatea produsă efectiv
+      // Verific pentru fiecare comandă cantitatea produsă efectiv (batch-uri de 50 ID-uri)
       const comenziIds = comenzi.map((c: any) => c.id);
-      const { data: sesiuniLucru, error: sesiuniErr } = await supabase
-        .from('productie_sesiuni_lucru')
-        .select('comanda_id, cantitate_produsa')
-        .in('comanda_id', comenziIds)
-        .in('status', ['finalizata', 'partial']);
-      
-      if (sesiuniErr) throw sesiuniErr;
+      const sesiuniLucru: any[] = [];
+      for (const ids of chunk(comenziIds)) {
+        const { data, error } = await supabase
+          .from('productie_sesiuni_lucru')
+          .select('comanda_id, cantitate_produsa')
+          .in('comanda_id', ids)
+          .in('status', ['finalizata', 'partial']);
+        if (error) throw error;
+        sesiuniLucru.push(...(data || []));
+      }
 
       // Calculez cantitatea produsă pentru fiecare comandă
       const cantitateProdusaMap = new Map<string, number>();
-      (sesiuniLucru || []).forEach((s: any) => {
+      sesiuniLucru.forEach((s: any) => {
         const current = cantitateProdusaMap.get(s.comanda_id) || 0;
         cantitateProdusaMap.set(s.comanda_id, current + Number(s.cantitate_produsa || 0));
       });
@@ -86,20 +103,25 @@ export const useComenziDisponibile = () => {
         const cantitateProducta = cantitateProdusaMap.get(com.id) || 0;
         const cantitateComanda = Number(com.cantitate || 0);
         const cantitateDinRestock = Number(com.cantitate_din_restock || 0);
-        
+
         // Disponibil pentru picking dacă producția + restocările acoperă 100%
-        return (cantitateProducta + cantitateDinRestock) >= cantitateComanda;
+        return cantitateComanda > 0 && (cantitateProducta + cantitateDinRestock) >= cantitateComanda - 1e-6;
       });
 
       if (comenziProduse.length === 0) return [] as ComenziDisponibile[];
 
       // Exclud comenzile deja preluate în picking
       const comenziProduseIds = comenziProduse.map((c: any) => c.id);
-      const { data: pickingRows, error: pickingErr } = await supabase
-        .from('picking_produse')
-        .select('sesiune_lucru_id')
-        .in('sesiune_lucru_id', comenziProduseIds);
-      if (pickingErr) throw pickingErr;
+      const pickingRows: any[] = [];
+      for (const ids of chunk(comenziProduseIds)) {
+        const { data, error } = await supabase
+          .from('picking_produse')
+          .select('sesiune_lucru_id')
+          .in('sesiune_lucru_id', ids);
+        if (error) throw error;
+        pickingRows.push(...(data || []));
+      }
+
       const pickedSet = new Set((pickingRows || []).map((r: any) => r.sesiune_lucru_id));
       const comenziDisponibile = comenziProduse.filter((c: any) => !pickedSet.has(c.id));
 
