@@ -30,6 +30,9 @@ const PickingManagementSimple = () => {
   const [sesiuneFinalizataSelectata, setSesiuneFinalizataSelectata] = useState<string | null>(null);
   const [operatorNume, setOperatorNume] = useState(user?.email?.split('@')[0] || '');
   const [dataFiltru, setDataFiltru] = useState<string>('');
+  const todayKey = new Date().toLocaleDateString('en-CA');
+  const [dataDisponibile, setDataDisponibile] = useState<string>(todayKey);
+  const [modDisponibile, setModDisponibile] = useState<'zi' | 'restante' | 'toate'>('zi');
 
   const { data: comenziDisponibile, isLoading: loadingComenzi } = useComenziDisponibile();
   const { data: sesiuniActive } = usePickingSesiuni('in_lucru');
@@ -39,6 +42,13 @@ const PickingManagementSimple = () => {
   const createSesiune = useCreatePickingSesiune();
   const updateProdus = useUpdatePickingProdus();
   const finalizareSesiune = useFinalizareSesiune();
+
+  const restante = (comenziDisponibile || []).filter(c => c.data && c.data < todayKey);
+  const comenziAfisate = (comenziDisponibile || []).filter(c => {
+    if (modDisponibile === 'toate') return true;
+    if (modDisponibile === 'restante') return c.data && c.data < todayKey;
+    return c.data === dataDisponibile;
+  });
 
   // Filtrare sesiuni finalizate după dată
   const sesiuniFiltrate = dataFiltru
@@ -146,28 +156,77 @@ const PickingManagementSimple = () => {
                 <CardDescription>
                   Selectați un magazin pentru a începe procesul de picking
                 </CardDescription>
+                <div className="flex flex-wrap items-center gap-2 pt-3">
+                  <Button
+                    size="sm"
+                    variant={modDisponibile === 'zi' && dataDisponibile === todayKey ? 'default' : 'outline'}
+                    onClick={() => { setModDisponibile('zi'); setDataDisponibile(todayKey); }}
+                  >
+                    Azi
+                  </Button>
+                  <Input
+                    type="date"
+                    value={dataDisponibile}
+                    onChange={(e) => { setDataDisponibile(e.target.value); setModDisponibile('zi'); }}
+                    className="w-40 h-9"
+                  />
+                  <Button
+                    size="sm"
+                    variant={modDisponibile === 'restante' ? 'default' : 'outline'}
+                    onClick={() => setModDisponibile('restante')}
+                  >
+                    Restanțe ({restante.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={modDisponibile === 'toate' ? 'default' : 'outline'}
+                    onClick={() => setModDisponibile('toate')}
+                  >
+                    Toate
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {loadingComenzi && <p>Se încarcă...</p>}
-                
-                {!loadingComenzi && comenziDisponibile && comenziDisponibile.length === 0 && (
+
+                {!loadingComenzi && restante.length > 0 && modDisponibile !== 'restante' && (
+                  <button
+                    onClick={() => setModDisponibile('restante')}
+                    className="w-full text-left mb-4 p-3 rounded-lg border border-orange-300 bg-orange-50 dark:bg-orange-950/30 hover:border-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 text-orange-600" />
+                      <span className="font-medium">
+                        Ai {restante.length} comen{restante.length === 1 ? 'dă' : 'zi'} din zilele trecute care nu au fost pregătite. Click pentru a le vedea →
+                      </span>
+                    </div>
+                  </button>
+                )}
+
+                {!loadingComenzi && comenziAfisate.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
                     <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Nu există comenzi disponibile pentru picking</p>
+                    <p>Nu există comenzi disponibile pentru picking{modDisponibile === 'zi' ? ' în data selectată' : ''}</p>
                   </div>
                 )}
 
                 <div className="grid gap-4">
-                  {comenziDisponibile?.map((comanda, idx) => (
+                  {comenziAfisate.map((comanda, idx) => (
                     <Card key={idx} className="border-2 hover:border-primary transition-colors">
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                           <div>
                             <h3 className="font-bold text-lg">{comanda.magazin}</h3>
                             <p className="text-sm text-muted-foreground">{comanda.punct_livrare}</p>
-                            <Badge variant="secondary" className="mt-2">
-                              {comanda.total_produse} produse
-                            </Badge>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              <Badge variant="secondary">{comanda.total_produse} produse</Badge>
+                              {comanda.data && (
+                                <Badge variant={comanda.data < todayKey ? 'destructive' : 'outline'}>
+                                  {format(new Date(comanda.data), 'dd MMM yyyy', { locale: ro })}
+                                  {comanda.data < todayKey ? ' • restanță' : ''}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           <Button
                             onClick={() => handleSelectMagazin(comanda)}
@@ -356,7 +415,10 @@ const PickingManagementSimple = () => {
 
   // Pagina 2: Lista produse pentru numărare
   if (step === 'produse' && sesiuneActivaId) {
-    const toateProduseleNumarate = produse?.every(p => p.status !== 'asteptare');
+    const lista = produse || [];
+    const facute = lista.filter(p => p.status !== 'asteptare');
+    const ramase = lista.filter(p => p.status === 'asteptare');
+    const toateProduseleNumarate = lista.length > 0 && ramase.length === 0;
 
     return (
       <div className="space-y-6">
@@ -377,6 +439,18 @@ const PickingManagementSimple = () => {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 p-3 rounded-lg border bg-muted/40">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Badge className="bg-green-600">Pregătite: {facute.length}</Badge>
+                <Badge variant={ramase.length > 0 ? 'destructive' : 'outline'}>Rămase: {ramase.length}</Badge>
+                <span className="text-muted-foreground">din {lista.length} produse</span>
+              </div>
+              {ramase.length > 0 && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Nepregătite: {ramase.map(p => p.nume_produs).join(', ')}
+                </p>
+              )}
+            </div>
             <div className="space-y-4">
               {produse?.map(produs => (
                 <ProdusPickingCard
@@ -387,20 +461,33 @@ const PickingManagementSimple = () => {
               ))}
             </div>
 
-            {toateProduseleNumarate && (
-              <div className="mt-6 p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    <span className="font-medium">Toate produsele au fost procesate</span>
-                  </div>
-                  <Button onClick={handleFinalizare}>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Finalizează Comanda
-                  </Button>
+            <div className={`mt-6 p-4 rounded-lg border ${toateProduseleNumarate ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' : 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800'}`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center">
+                  {toateProduseleNumarate ? (
+                    <>
+                      <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                      <span className="font-medium">Toate produsele au fost procesate</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-5 w-5 text-orange-600 mr-2" />
+                      <span className="font-medium">Mai ai {ramase.length} produse nepregătite</span>
+                    </>
+                  )}
                 </div>
+                <Button
+                  onClick={() => {
+                    if (!toateProduseleNumarate && !window.confirm(`Mai sunt ${ramase.length} produse nepregătite. Finalizezi comanda oricum?`)) return;
+                    handleFinalizare();
+                  }}
+                  variant={toateProduseleNumarate ? 'default' : 'outline'}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Finalizează Comanda
+                </Button>
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
       </div>
