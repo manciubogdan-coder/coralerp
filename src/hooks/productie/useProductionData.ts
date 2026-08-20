@@ -571,7 +571,10 @@ export const useOrders = () => {
         uncoveredByProduct.get(produsId)!.push(com);
       }
 
-      if (uncoveredByProduct.size > 0) {
+      // În POOL_MODE nu mai alocăm automat din pool către comenzi:
+      // alocarea se face doar la picking (numărare) sau manual din redistribuire.
+      if (!POOL_MODE && uncoveredByProduct.size > 0) {
+
         const produsIds = Array.from(uncoveredByProduct.keys());
         // Un singur query pentru toate restocările disponibile (lista e mică)
         const restocariByProduct = new Map<string, any[]>();
