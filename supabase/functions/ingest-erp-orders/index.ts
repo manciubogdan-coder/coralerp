@@ -613,6 +613,73 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ------------------------------------------------------------------
+  // Pass final: descarc surplusul din restocări pe comenzile deschise
+  // (inclusiv comenzi create anterior care nu au primit alocare la insert).
+  // ------------------------------------------------------------------
+  let restockAlocat = 0;
+  try {
+    const { data: restDisp } = await supabase
+      .from("productie_restocari")
+      .select("id, produs_id, cantitate_surplus")
+      .eq("status", "disponibil")
+      .gt("cantitate_surplus", 0)
+      .order("created_at");
+
+    const restByProdus = new Map<string, any[]>();
+    for (const r of (restDisp || []) as any[]) {
+      const arr = restByProdus.get(r.produs_id) || [];
+      arr.push(r);
+      restByProdus.set(r.produs_id, arr);
+    }
+
+    if (restByProdus.size > 0) {
+      const { data: openOrders } = await supabase
+        .from("productie_comenzi")
+        .select("id, produs_id, cantitate, cantitate_din_restock, status")
+        .in("status", ["pending", "assigned"])
+        .in("produs_id", Array.from(restByProdus.keys()))
+        .gt("cantitate", 0)
+        .order("data_productie", { ascending: true })
+        .limit(500);
+
+      for (const o of (openOrders || []) as any[]) {
+        const pool = restByProdus.get(o.produs_id) || [];
+        let necesar = Number(o.cantitate || 0) - Number(o.cantitate_din_restock || 0);
+        if (necesar <= 0) continue;
+        let folositTotal = 0;
+        for (const r of pool) {
+          if (necesar <= 0) break;
+          const surplus = Number(r.cantitate_surplus || 0);
+          if (surplus <= 0) continue;
+          const folosit = Math.min(necesar, surplus);
+          r.cantitate_surplus = surplus - folosit;
+          necesar -= folosit;
+          folositTotal += folosit;
+          if (r.cantitate_surplus <= 0) {
+            await supabase
+              .from("productie_restocari")
+              .update({ status: "redistribuit", cantitate_surplus: 0 })
+              .eq("id", r.id);
+          } else {
+            await supabase
+              .from("productie_restocari")
+              .update({ cantitate_surplus: r.cantitate_surplus })
+              .eq("id", r.id);
+          }
+        }
+        if (folositTotal > 0) {
+          const nouRestock = Number(o.cantitate_din_restock || 0) + folositTotal;
+          const patch: any = { cantitate_din_restock: nouRestock };
+          if (nouRestock >= Number(o.cantitate || 0) - 0.0001) patch.status = "completed";
+          await supabase.from("productie_comenzi").update(patch).eq("id", o.id);
+          restockAlocat += folositTotal;
+        }
+      }
+    }
+  } catch (e: any) {
+    errors.push({ restock_pass: e.message || String(e) });
+  }
 
 
   // Log rulare
