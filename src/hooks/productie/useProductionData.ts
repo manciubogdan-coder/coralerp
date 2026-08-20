@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { POOL_MODE } from "@/lib/productie/stockPool";
+
 
 // Types pentru datele de producție
 export interface ProductieLinie {
