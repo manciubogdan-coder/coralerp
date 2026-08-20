@@ -134,7 +134,7 @@ const GroupedOrdersView: React.FC<Props> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground mr-auto">
           Finalizatele din zilele anterioare sunt ascunse automat
         </span>
