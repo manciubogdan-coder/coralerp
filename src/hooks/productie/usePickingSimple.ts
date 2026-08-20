@@ -119,17 +119,19 @@ export const useComenziDisponibile = () => {
 
       if (comenziProduse.length === 0) return [] as ComenziDisponibile[];
 
-      // Exclud comenzile deja preluate în picking
+      // Exclud comenzile deja preluate în picking (batch-uri paralele)
       const comenziProduseIds = comenziProduse.map((c: any) => c.id);
-      const pickingRows: any[] = [];
-      for (const ids of chunk(comenziProduseIds)) {
-        const { data, error } = await supabase
-          .from('picking_produse')
-          .select('sesiune_lucru_id')
-          .in('sesiune_lucru_id', ids);
-        if (error) throw error;
-        pickingRows.push(...(data || []));
-      }
+      const pickingBatches = await Promise.all(
+        chunk(comenziProduseIds, 100).map(async (ids) => {
+          const { data, error } = await supabase
+            .from('picking_produse')
+            .select('sesiune_lucru_id')
+            .in('sesiune_lucru_id', ids);
+          if (error) throw error;
+          return data || [];
+        })
+      );
+      const pickingRows: any[] = pickingBatches.flat();
 
       const pickedSet = new Set((pickingRows || []).map((r: any) => r.sesiune_lucru_id));
       const comenziDisponibile = comenziProduse.filter((c: any) => !pickedSet.has(c.id));
@@ -139,16 +141,19 @@ export const useComenziDisponibile = () => {
       // Încarc detalii de produs separat (nu avem FK declarat)
       const productIds = Array.from(new Set(
         comenziDisponibile.map((c: any) => c.produs_id).filter(Boolean)
-      ));
-      const produseDetalii: any[] = [];
-      for (const ids of chunk(productIds as string[])) {
-        const { data, error } = await supabase
-          .from('productie_produse')
-          .select('id, nume, unitate_masura')
-          .in('id', ids);
-        if (error) throw error;
-        produseDetalii.push(...(data || []));
-      }
+      )) as string[];
+      const produseBatches = await Promise.all(
+        chunk(productIds, 100).map(async (ids) => {
+          const { data, error } = await supabase
+            .from('productie_produse')
+            .select('id, nume, unitate_masura')
+            .in('id', ids);
+          if (error) throw error;
+          return data || [];
+        })
+      );
+      const produseDetalii: any[] = produseBatches.flat();
+
 
       const produseMap = new Map<string, { nume: string; unitate_masura: string }>();
       (produseDetalii || []).forEach((p: any) => {
