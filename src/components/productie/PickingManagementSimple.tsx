@@ -83,16 +83,29 @@ const PickingManagementSimple = () => {
     });
   };
 
-  const handleMarcareProdus = (produsId: string, cantitateNumarata: number, cantLipsa: number, obs?: string) => {
+  const handleMarcareProdus = (produs: any, cantitateNumarata: number, cantLipsa: number, obs?: string) => {
     const newStatus = cantLipsa > 0 ? 'lipsa_partiala' : 'numarat';
     updateProdus.mutate({
-      id: produsId,
+      id: produs.id,
       cantitate_numarata: cantitateNumarata,
       cantitate_lipsa: cantLipsa,
       status: newStatus,
-      observatii: obs
+      observatii: obs,
+      comanda_id: produs.comanda_id || produs.sesiune_lucru_id,
+      produs_id: produs.produs_id,
+      cantitate_alocata: Number(produs.cantitate_alocata || 0)
     });
   };
+
+  const handleIaDinRestocari = (produs: any, cantitate: number) => {
+    alocaDinPool.mutate({
+      comanda_id: produs.comanda_id || produs.sesiune_lucru_id,
+      produs_id: produs.produs_id,
+      cantitate_alocata: Number(produs.cantitate_alocata || 0),
+      cantitate
+    });
+  };
+
 
   const handleFinalizare = () => {
     if (!sesiuneActivaId) return;
