@@ -504,12 +504,18 @@ Deno.serve(async (req) => {
         if (cantitateRamasa === 0 && cantitate > 0) {
           statusFinal = "completed";
         } else {
-          const linieRegula = reguliByProdus.get(produsId);
+          const linieRegula = reguliByProdus.get(produsId) || linieByIstoric.get(produsId);
           if (linieRegula) {
             linieId = linieRegula;
             statusFinal = "assigned";
+            // memorez pentru liniile următoare din același import
+            if (!reguliByProdus.has(produsId)) reguliByProdus.set(produsId, linieRegula);
+          } else {
+            const nume = (linie.denumire_produs || linie.cod_produs || "").trim();
+            if (nume && !produseFaraLinie.includes(nume)) produseFaraLinie.push(nume);
           }
         }
+
 
         // 3) INSERT
         const { data: inserted, error } = await supabase
