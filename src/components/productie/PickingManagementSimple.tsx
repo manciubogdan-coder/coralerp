@@ -492,7 +492,7 @@ const PickingManagementSimple = () => {
               )}
               {inProductie.length > 0 && (
                 <p className="text-sm text-amber-700 dark:text-amber-500 mt-2">
-                  Nu se pot număra (încă în producție): {inProductie.map(p => p.nume_produs).join(', ')}
+                  Fără stoc suficient în restocări: {inProductie.map(p => p.nume_produs).join(', ')}
                 </p>
               )}
             </div>
@@ -502,7 +502,9 @@ const PickingManagementSimple = () => {
                   key={produs.id}
                   produs={produs}
                   onMarcheaza={handleMarcareProdus}
+                  onIaDinRestocari={handleIaDinRestocari}
                 />
+
               ))}
             </div>
 
