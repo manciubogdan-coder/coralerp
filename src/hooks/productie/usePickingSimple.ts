@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 export interface ComenziDisponibile {
   magazin: string;
   punct_livrare: string;
+  data: string; // YYYY-MM-DD
   total_produse: number;
   produse: {
     sesiune_lucru_id: string;
