@@ -114,7 +114,7 @@ export const useQuantityCorrection = () => {
             .from('productie_restocari')
             .update({
               cantitate_surplus: cantitateNoua,
-              status: cantitateNoua > 0 ? 'disponibil' : 'epuizat'
+              status: cantitateNoua > 0 ? 'disponibil' : 'redistribuit'
             })
             .eq('id', existingRestock.id);
           
@@ -163,7 +163,7 @@ export const useQuantityCorrection = () => {
             .from('productie_restocari')
             .update({
               cantitate_surplus: surplus,
-              status: surplus > 0 ? 'disponibil' : 'epuizat'
+              status: surplus > 0 ? 'disponibil' : 'redistribuit'
             })
             .eq('id', existingRestock.id);
           

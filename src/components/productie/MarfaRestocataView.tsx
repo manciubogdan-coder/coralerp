@@ -310,8 +310,8 @@ const MarfaRestocataView = () => {
       };
 
       if (esteTotal) {
-        // Status permis de check constraint: 'disponibil' | 'epuizat'
-        await tryUpdate(lot.id, { status: 'epuizat', cantitate_surplus: 0, ...meta });
+        // Status permis de check constraint: 'disponibil' | 'redistribuit'
+        await tryUpdate(lot.id, { status: 'redistribuit', cantitate_surplus: 0, ...meta });
       } else {
         // Scoatere parțială: reduc lotul original și clonez o linie de istoric
         const { data: originalRow, error: selErr } = await (supabase as any)
@@ -328,7 +328,7 @@ const MarfaRestocataView = () => {
           delete clone.id;
           delete clone.created_at;
           delete clone.updated_at;
-          clone.status = 'epuizat';
+          clone.status = 'redistribuit';
           clone.cantitate_surplus = 0;
           clone.motiv_scoatere = meta.motiv_scoatere;
           clone.observatii_scoatere = `[${cantScoasa} ${lot.unitate_masura}] ${meta.observatii_scoatere || ''}`.trim();
