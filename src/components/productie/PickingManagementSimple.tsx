@@ -416,9 +416,12 @@ const PickingManagementSimple = () => {
   // Pagina 2: Lista produse pentru numărare
   if (step === 'produse' && sesiuneActivaId) {
     const lista = produse || [];
-    const facute = lista.filter(p => p.status !== 'asteptare');
-    const ramase = lista.filter(p => p.status === 'asteptare');
-    const toateProduseleNumarate = lista.length > 0 && ramase.length === 0;
+    const inProductie = lista.filter(p => p.gata_productie === false);
+    const gataDeNumarat = lista.filter(p => p.gata_productie !== false);
+    const facute = gataDeNumarat.filter(p => p.status !== 'asteptare');
+    const ramase = gataDeNumarat.filter(p => p.status === 'asteptare');
+    const toateProduseleNumarate = gataDeNumarat.length > 0 && ramase.length === 0;
+
 
     return (
       <div className="space-y-6">
