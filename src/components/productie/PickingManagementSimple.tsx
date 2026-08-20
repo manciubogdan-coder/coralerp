@@ -614,17 +614,35 @@ const ProdusPickingCard = ({
                   <span className="font-medium">Realizat în producție:</span> {produs.cantitate_realizata} / {produs.cantitate_totala_comanda ?? produs.cantitate_comandata} {produs.unitate_masura}
                 </p>
               )}
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium">Alocat din restocări:</span> {cantitateAlocata} {produs.unitate_masura}
+                {' • '}
+                <span className="font-medium">Disponibil în restocări:</span> {poolDisponibil} {produs.unitate_masura}
+              </p>
             </div>
           </div>
           {getStatusBadge()}
         </div>
 
         {inProductie ? (
-          <div className="flex items-center gap-2 p-3 rounded-lg border border-amber-300 bg-amber-100/50 dark:bg-amber-950/40 text-sm">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <span>Produsul nu este finalizat pe linia de producție — nu poate fi numărat încă.</span>
+          <div className="space-y-3 p-3 rounded-lg border border-amber-300 bg-amber-100/50 dark:bg-amber-950/40 text-sm">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <span>Nu există încă marfă suficientă în restocări pentru această comandă.</span>
+            </div>
+            {onIaDinRestocari && poolDisponibil > 0 && deAlocat > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onIaDinRestocari(produs, Math.min(poolDisponibil, deAlocat))}
+              >
+                <PackagePlus className="h-4 w-4 mr-2" />
+                Ia {Math.min(poolDisponibil, deAlocat)} din restocări
+              </Button>
+            )}
           </div>
         ) : editing ? (
+
 
           <div className="space-y-4">
             {/* Indicator clar pentru cantitatea de numărat */}
