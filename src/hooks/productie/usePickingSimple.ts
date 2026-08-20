@@ -303,17 +303,38 @@ export const usePickingProduse = (sesiuneId?: string) => {
 
       if (comenziErr) throw comenziErr;
 
+      // Cantitatea efectiv produsă pe linie (sesiuni de lucru)
+      const sesiuniLucru: any[] = [];
+      for (const ids of chunk(comandaIds)) {
+        const { data: s, error: sErr } = await supabase
+          .from('productie_sesiuni_lucru')
+          .select('comanda_id, cantitate_produsa')
+          .in('comanda_id', ids)
+          .in('status', ['finalizata', 'partial']);
+        if (sErr) throw sErr;
+        sesiuniLucru.push(...(s || []));
+      }
+      const produsMap = new Map<string, number>();
+      sesiuniLucru.forEach((s: any) => {
+        produsMap.set(s.comanda_id, (produsMap.get(s.comanda_id) || 0) + Number(s.cantitate_produsa || 0));
+      });
+
       const map = new Map((comenziDetalii || []).map((c: any) => [c.id, c]));
       const enriched = (data || []).map((p: any) => {
         const c = map.get(p.sesiune_lucru_id);
+        const total = Number(c?.cantitate ?? p.cantitate_comandata ?? 0);
+        const realizat = (produsMap.get(p.sesiune_lucru_id) || 0) + Number(c?.cantitate_din_restock || 0);
         return {
           ...p,
           cantitate_totala_comanda: c?.cantitate ?? p.cantitate_comandata,
           cantitate_din_restock: c?.cantitate_din_restock ?? 0,
+          cantitate_realizata: Math.min(realizat, total),
+          gata_productie: realizat >= total - 1e-6,
         };
       });
 
       return enriched as any[];
+
     },
     enabled: !!sesiuneId
   });
