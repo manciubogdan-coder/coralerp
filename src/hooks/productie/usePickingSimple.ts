@@ -62,7 +62,7 @@ export const useComenziDisponibile = () => {
       for (let from = 0; ; from += PAGE) {
         const { data, error } = await supabase
           .from('productie_comenzi')
-          .select('id, magazin, punct_livrare, status, numar_comanda, produs_id, cantitate, cantitate_din_restock')
+          .select('id, magazin, punct_livrare, status, numar_comanda, produs_id, cantitate, cantitate_din_restock, data_productie, created_at')
           .neq('magazin', 'Producție în avans')
           .neq('magazin', 'Productie in avans')
           .neq('magazin', 'AVANS')
@@ -150,11 +150,13 @@ export const useComenziDisponibile = () => {
       // Grupare pe magazin|punct_livrare (fiecare comandă rămâne separată)
       const grouped = new Map<string, ComenziDisponibile>();
       comenziDisponibile.forEach((com: any) => {
-        const key = `${com.magazin}|${com.punct_livrare}`;
+        const zi = (com.data_productie || com.created_at || '').toString().slice(0, 10);
+        const key = `${com.magazin}|${com.punct_livrare}|${zi}`;
         if (!grouped.has(key)) {
           grouped.set(key, {
             magazin: com.magazin,
             punct_livrare: com.punct_livrare,
+            data: zi,
             total_produse: 0,
             produse: []
           });
@@ -174,7 +176,7 @@ export const useComenziDisponibile = () => {
       });
 
       // Returnez toate grupările (comenzile individuale deja excluse mai sus)
-      const rezultat = Array.from(grouped.values());
+      const rezultat = Array.from(grouped.values()).sort((a, b) => b.data.localeCompare(a.data));
       return rezultat;
     }
   });
