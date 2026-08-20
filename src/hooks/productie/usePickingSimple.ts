@@ -131,11 +131,16 @@ export const useComenziDisponibile = () => {
       const productIds = Array.from(new Set(
         comenziDisponibile.map((c: any) => c.produs_id).filter(Boolean)
       ));
-      const { data: produseDetalii, error: produseErr } = await supabase
-        .from('productie_produse')
-        .select('id, nume, unitate_masura')
-        .in('id', productIds);
-      if (produseErr) throw produseErr;
+      const produseDetalii: any[] = [];
+      for (const ids of chunk(productIds as string[])) {
+        const { data, error } = await supabase
+          .from('productie_produse')
+          .select('id, nume, unitate_masura')
+          .in('id', ids);
+        if (error) throw error;
+        produseDetalii.push(...(data || []));
+      }
+
       const produseMap = new Map<string, { nume: string; unitate_masura: string }>();
       (produseDetalii || []).forEach((p: any) => {
         produseMap.set(p.id, { nume: p.nume, unitate_masura: p.unitate_masura });
