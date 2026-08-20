@@ -1131,7 +1131,11 @@ export const useFinishWorkSession = () => {
       // Recalculez corect acoperirea comenzii: producția contează doar până la necesarul rămas după restocări
       // Cantitatea din restocări folosită după alocarea de mai sus
       const restockFolositFinal = esteReambalareCom ? 0 : Number(comanda.cantitate_din_restock || 0) + alocatDinRestocari;
-      const necesarDinProductie = Math.max(0, Number(comanda.cantitate || 0) - restockFolositFinal);
+      // În POOL_MODE, `cantitate_din_restock` reprezintă marfa ALOCATĂ pentru livrare
+      // (se scade din pool doar la picking), deci nu reduce necesarul de producție.
+      const necesarDinProductie = POOL_MODE
+        ? Number(comanda.cantitate || 0)
+        : Math.max(0, Number(comanda.cantitate || 0) - restockFolositFinal);
 
       // Producția totală (toate sesiunile) care poate fi luată în considerare pentru această comandă
       const produsConsideratPentruComanda = Math.min(totalProdus, necesarDinProductie);
@@ -1149,10 +1153,10 @@ export const useFinishWorkSession = () => {
       }
 
       // Calculez surplusul acestei sesiuni (ce nu încape în comandă)
-      // Pentru REAMBALARE: toată cantitatea produsă devine restocare nouă (revine ca surplus disponibil)
+      // POOL_MODE: TOT ce se produce intră în pool (restocări) și se scade abia la picking.
       const produsAnteriorPentruComanda = Number(comanda.cantitate_reala_produsa || 0);
       const alocatDinAceastaSesiuneLaComanda = Math.max(0, produsConsideratPentruComanda - produsAnteriorPentruComanda);
-      const surplusDinAceastaSesiune = (esteComandeAvans || esteReambalareCom)
+      const surplusDinAceastaSesiune = (POOL_MODE || esteComandeAvans || esteReambalareCom)
         ? Number(cantitate_produsa || 0)
         : Math.max(0, Number(cantitate_produsa || 0) - alocatDinAceastaSesiuneLaComanda);
 
@@ -1164,7 +1168,7 @@ export const useFinishWorkSession = () => {
           data_productie: new Date().toISOString().split('T')[0],
           status: 'disponibil'
         };
-        console.log('📦 Creez restocare pentru surplusul sesiunii:', restockingData);
+        console.log('📦 Producția intră în pool (restocări):', restockingData);
         const { error: restockingError } = await supabase
           .from('productie_restocari')
           .insert([restockingData]);
@@ -1174,8 +1178,11 @@ export const useFinishWorkSession = () => {
       }
 
       // Actualizez statusul comenzii în funcție de acoperire totală (producție considerată + restocări)
-      const totalAcoperit = produsConsideratPentruComanda + restockFolositFinal;
+      const totalAcoperit = POOL_MODE
+        ? produsConsideratPentruComanda
+        : produsConsideratPentruComanda + restockFolositFinal;
       const esteCompletAcoperita = totalAcoperit >= Number(comanda.cantitate || 0);
+
 
       if (esteCompletAcoperita) {
         const { error: updateError } = await supabase
