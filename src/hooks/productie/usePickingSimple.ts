@@ -8,14 +8,19 @@ export interface ComenziDisponibile {
   punct_livrare: string;
   data: string; // YYYY-MM-DD
   total_produse: number;
+  produse_gata: number;
+  produse_in_productie: number;
   produse: {
     sesiune_lucru_id: string;
     produs_id: string;
     nume_produs: string;
     cantitate_produsa: number;
+    cantitate_realizata: number;
+    gata: boolean;
     unitate_masura: string;
   }[];
 }
+
 
 export interface PickingSesiune {
   id: string;
@@ -99,15 +104,8 @@ export const useComenziDisponibile = () => {
         cantitateProdusaMap.set(s.comanda_id, current + Number(s.cantitate_produsa || 0));
       });
 
-      // Filtrez comenzile acoperite COMPLET (producție + restocări)
-      const comenziProduse = comenzi.filter((com: any) => {
-        const cantitateProducta = cantitateProdusaMap.get(com.id) || 0;
-        const cantitateComanda = Number(com.cantitate || 0);
-        const cantitateDinRestock = Number(com.cantitate_din_restock || 0);
-
-        // Disponibil pentru picking dacă producția + restocările acoperă 100%
-        return cantitateComanda > 0 && (cantitateProducta + cantitateDinRestock) >= cantitateComanda - 1e-6;
-      });
+      // Nu mai filtrez comenzile neproduse: le arăt pe toate, dar marcate ca „în producție”
+      const comenziProduse = comenzi.filter((com: any) => Number(com.cantitate || 0) > 0);
 
       if (comenziProduse.length === 0) return [] as ComenziDisponibile[];
 
@@ -158,22 +156,32 @@ export const useComenziDisponibile = () => {
             punct_livrare: com.punct_livrare,
             data: zi,
             total_produse: 0,
+            produse_gata: 0,
+            produse_in_productie: 0,
             produse: []
           });
         }
         const entry = grouped.get(key)!;
         const det = produseMap.get(com.produs_id) || { nume: 'Produs', unitate_masura: '' };
 
+        const cantitateComanda = Number(com.cantitate || 0);
+        const realizat = (cantitateProdusaMap.get(com.id) || 0) + Number(com.cantitate_din_restock || 0);
+        const gata = realizat >= cantitateComanda - 1e-6;
+
         // Adaug fiecare comandă ca un produs separat (nu mai agreghez)
         entry.total_produse += 1;
+        if (gata) entry.produse_gata += 1; else entry.produse_in_productie += 1;
         entry.produse.push({
           sesiune_lucru_id: com.id, // folosim id-ul comenzii
           produs_id: com.produs_id,
           nume_produs: `${det.nume} (${com.numar_comanda})`, // adaug și numărul comenzii pentru claritate
-          cantitate_produsa: Number(com.cantitate || 0),
+          cantitate_produsa: cantitateComanda,
+          cantitate_realizata: Math.min(realizat, cantitateComanda),
+          gata,
           unitate_masura: det.unitate_masura
         });
       });
+
 
       // Returnez toate grupările (comenzile individuale deja excluse mai sus)
       const rezultat = Array.from(grouped.values()).sort((a, b) => b.data.localeCompare(a.data));
@@ -295,17 +303,38 @@ export const usePickingProduse = (sesiuneId?: string) => {
 
       if (comenziErr) throw comenziErr;
 
+      // Cantitatea efectiv produsă pe linie (sesiuni de lucru)
+      const sesiuniLucru: any[] = [];
+      for (const ids of chunk(comandaIds)) {
+        const { data: s, error: sErr } = await supabase
+          .from('productie_sesiuni_lucru')
+          .select('comanda_id, cantitate_produsa')
+          .in('comanda_id', ids)
+          .in('status', ['finalizata', 'partial']);
+        if (sErr) throw sErr;
+        sesiuniLucru.push(...(s || []));
+      }
+      const produsMap = new Map<string, number>();
+      sesiuniLucru.forEach((s: any) => {
+        produsMap.set(s.comanda_id, (produsMap.get(s.comanda_id) || 0) + Number(s.cantitate_produsa || 0));
+      });
+
       const map = new Map((comenziDetalii || []).map((c: any) => [c.id, c]));
       const enriched = (data || []).map((p: any) => {
         const c = map.get(p.sesiune_lucru_id);
+        const total = Number(c?.cantitate ?? p.cantitate_comandata ?? 0);
+        const realizat = (produsMap.get(p.sesiune_lucru_id) || 0) + Number(c?.cantitate_din_restock || 0);
         return {
           ...p,
           cantitate_totala_comanda: c?.cantitate ?? p.cantitate_comandata,
           cantitate_din_restock: c?.cantitate_din_restock ?? 0,
+          cantitate_realizata: Math.min(realizat, total),
+          gata_productie: realizat >= total - 1e-6,
         };
       });
 
       return enriched as any[];
+
     },
     enabled: !!sesiuneId
   });

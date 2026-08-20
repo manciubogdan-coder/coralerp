@@ -220,6 +220,11 @@ const PickingManagementSimple = () => {
                             <p className="text-sm text-muted-foreground">{comanda.punct_livrare}</p>
                             <div className="flex flex-wrap gap-2 mt-2">
                               <Badge variant="secondary">{comanda.total_produse} produse</Badge>
+                              <Badge className="bg-green-600">Gata: {comanda.produse_gata}</Badge>
+                              {comanda.produse_in_productie > 0 && (
+                                <Badge className="bg-amber-500">În producție: {comanda.produse_in_productie}</Badge>
+                              )}
+
                               {comanda.data && (
                                 <Badge variant={comanda.data < todayKey ? 'destructive' : 'outline'}>
                                   {format(new Date(comanda.data), 'dd MMM yyyy', { locale: ro })}
@@ -416,9 +421,12 @@ const PickingManagementSimple = () => {
   // Pagina 2: Lista produse pentru numărare
   if (step === 'produse' && sesiuneActivaId) {
     const lista = produse || [];
-    const facute = lista.filter(p => p.status !== 'asteptare');
-    const ramase = lista.filter(p => p.status === 'asteptare');
-    const toateProduseleNumarate = lista.length > 0 && ramase.length === 0;
+    const inProductie = lista.filter(p => p.gata_productie === false);
+    const gataDeNumarat = lista.filter(p => p.gata_productie !== false);
+    const facute = gataDeNumarat.filter(p => p.status !== 'asteptare');
+    const ramase = gataDeNumarat.filter(p => p.status === 'asteptare');
+    const toateProduseleNumarate = gataDeNumarat.length > 0 && ramase.length === 0;
+
 
     return (
       <div className="space-y-6">
@@ -443,6 +451,9 @@ const PickingManagementSimple = () => {
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge className="bg-green-600">Pregătite: {facute.length}</Badge>
                 <Badge variant={ramase.length > 0 ? 'destructive' : 'outline'}>Rămase: {ramase.length}</Badge>
+                {inProductie.length > 0 && (
+                  <Badge className="bg-amber-500">Încă în producție: {inProductie.length}</Badge>
+                )}
                 <span className="text-muted-foreground">din {lista.length} produse</span>
               </div>
               {ramase.length > 0 && (
@@ -450,9 +461,14 @@ const PickingManagementSimple = () => {
                   Nepregătite: {ramase.map(p => p.nume_produs).join(', ')}
                 </p>
               )}
+              {inProductie.length > 0 && (
+                <p className="text-sm text-amber-700 dark:text-amber-500 mt-2">
+                  Nu se pot număra (încă în producție): {inProductie.map(p => p.nume_produs).join(', ')}
+                </p>
+              )}
             </div>
             <div className="space-y-4">
-              {produse?.map(produs => (
+              {[...gataDeNumarat, ...inProductie].map(produs => (
                 <ProdusPickingCard
                   key={produs.id}
                   produs={produs}
@@ -460,6 +476,7 @@ const PickingManagementSimple = () => {
                 />
               ))}
             </div>
+
 
             <div className={`mt-6 p-4 rounded-lg border ${toateProduseleNumarate ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' : 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800'}`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -505,10 +522,11 @@ const ProdusPickingCard = ({
   produs: any;
   onMarcheaza: (id: string, numarata: number, lipsa: number, obs?: string) => void;
 }) => {
+  const inProductie = produs.gata_productie === false;
   const [cantitateNumarata, setCantitateNumarata] = useState(produs.cantitate_numarata || 0);
   const [cantLipsa, setCantLipsa] = useState(produs.cantitate_lipsa || 0);
   const [observatii, setObservatii] = useState(produs.observatii || '');
-  const [editing, setEditing] = useState(produs.status === 'asteptare');
+  const [editing, setEditing] = useState(produs.status === 'asteptare' && !inProductie);
 
   const handleSave = () => {
     onMarcheaza(produs.id, cantitateNumarata, cantLipsa, observatii);
@@ -516,18 +534,19 @@ const ProdusPickingCard = ({
   };
 
   const getStatusBadge = () => {
+    if (inProductie) return <Badge className="bg-amber-500">În producție</Badge>;
     switch (produs.status) {
       case 'numarat':
         return <Badge className="bg-green-500">✓ Numarat</Badge>;
       case 'lipsa_partiala':
         return <Badge variant="destructive">Lipsă Parțială</Badge>;
       default:
-        return <Badge variant="outline">În așteptare</Badge>;
+        return <Badge className="bg-blue-600">Gata de numărat</Badge>;
     }
   };
 
   return (
-    <Card className={produs.status !== 'asteptare' ? 'border-green-200 bg-green-50/50 dark:bg-green-950/20' : ''}>
+    <Card className={inProductie ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 opacity-90' : (produs.status !== 'asteptare' ? 'border-green-200 bg-green-50/50 dark:bg-green-950/20' : '')}>
       <CardContent className="pt-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
@@ -553,12 +572,23 @@ const ProdusPickingCard = ({
                   Comandat: {produs.cantitate_comandata} {produs.unitate_masura}
                 </p>
               )}
+              {produs.cantitate_realizata !== undefined && (
+                <p className={`text-sm ${inProductie ? 'text-amber-700 dark:text-amber-500' : 'text-green-700 dark:text-green-500'}`}>
+                  <span className="font-medium">Realizat în producție:</span> {produs.cantitate_realizata} / {produs.cantitate_totala_comanda ?? produs.cantitate_comandata} {produs.unitate_masura}
+                </p>
+              )}
             </div>
           </div>
           {getStatusBadge()}
         </div>
 
-        {editing ? (
+        {inProductie ? (
+          <div className="flex items-center gap-2 p-3 rounded-lg border border-amber-300 bg-amber-100/50 dark:bg-amber-950/40 text-sm">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <span>Produsul nu este finalizat pe linia de producție — nu poate fi numărat încă.</span>
+          </div>
+        ) : editing ? (
+
           <div className="space-y-4">
             {/* Indicator clar pentru cantitatea de numărat */}
             <div className="p-4 bg-primary/10 border-2 border-primary rounded-lg">
