@@ -517,10 +517,11 @@ const ProdusPickingCard = ({
   produs: any;
   onMarcheaza: (id: string, numarata: number, lipsa: number, obs?: string) => void;
 }) => {
+  const inProductie = produs.gata_productie === false;
   const [cantitateNumarata, setCantitateNumarata] = useState(produs.cantitate_numarata || 0);
   const [cantLipsa, setCantLipsa] = useState(produs.cantitate_lipsa || 0);
   const [observatii, setObservatii] = useState(produs.observatii || '');
-  const [editing, setEditing] = useState(produs.status === 'asteptare');
+  const [editing, setEditing] = useState(produs.status === 'asteptare' && !inProductie);
 
   const handleSave = () => {
     onMarcheaza(produs.id, cantitateNumarata, cantLipsa, observatii);
@@ -528,18 +529,19 @@ const ProdusPickingCard = ({
   };
 
   const getStatusBadge = () => {
+    if (inProductie) return <Badge className="bg-amber-500">În producție</Badge>;
     switch (produs.status) {
       case 'numarat':
         return <Badge className="bg-green-500">✓ Numarat</Badge>;
       case 'lipsa_partiala':
         return <Badge variant="destructive">Lipsă Parțială</Badge>;
       default:
-        return <Badge variant="outline">În așteptare</Badge>;
+        return <Badge className="bg-blue-600">Gata de numărat</Badge>;
     }
   };
 
   return (
-    <Card className={produs.status !== 'asteptare' ? 'border-green-200 bg-green-50/50 dark:bg-green-950/20' : ''}>
+    <Card className={inProductie ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 opacity-90' : (produs.status !== 'asteptare' ? 'border-green-200 bg-green-50/50 dark:bg-green-950/20' : '')}>
       <CardContent className="pt-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
@@ -565,12 +567,23 @@ const ProdusPickingCard = ({
                   Comandat: {produs.cantitate_comandata} {produs.unitate_masura}
                 </p>
               )}
+              {produs.cantitate_realizata !== undefined && (
+                <p className={`text-sm ${inProductie ? 'text-amber-700 dark:text-amber-500' : 'text-green-700 dark:text-green-500'}`}>
+                  <span className="font-medium">Realizat în producție:</span> {produs.cantitate_realizata} / {produs.cantitate_totala_comanda ?? produs.cantitate_comandata} {produs.unitate_masura}
+                </p>
+              )}
             </div>
           </div>
           {getStatusBadge()}
         </div>
 
-        {editing ? (
+        {inProductie ? (
+          <div className="flex items-center gap-2 p-3 rounded-lg border border-amber-300 bg-amber-100/50 dark:bg-amber-950/40 text-sm">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <span>Produsul nu este finalizat pe linia de producție — nu poate fi numărat încă.</span>
+          </div>
+        ) : editing ? (
+
           <div className="space-y-4">
             {/* Indicator clar pentru cantitatea de numărat */}
             <div className="p-4 bg-primary/10 border-2 border-primary rounded-lg">
