@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { POOL_MODE, fetchPoolTotals, consumaDinPool } from '@/lib/productie/stockPool';
+
 
 // Tipuri
 export interface ComenziDisponibile {
