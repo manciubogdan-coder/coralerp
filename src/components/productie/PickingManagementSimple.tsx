@@ -549,20 +549,24 @@ const PickingManagementSimple = () => {
 const ProdusPickingCard = ({
   produs,
   onMarcheaza,
-  onIaDinRestocari
+  onIaDinRestocari,
+  onAlocaManual
 }: {
   produs: any;
   onMarcheaza: (produs: any, numarata: number, lipsa: number, obs?: string) => void;
   onIaDinRestocari?: (produs: any, cantitate: number) => void;
+  onAlocaManual?: (produs: any, produsIdSursa: string, cantitate: number) => void;
 }) => {
   const inProductie = produs.gata_productie === false;
   const [cantitateNumarata, setCantitateNumarata] = useState(produs.cantitate_numarata || 0);
   const [cantLipsa, setCantLipsa] = useState(produs.cantitate_lipsa || 0);
   const [observatii, setObservatii] = useState(produs.observatii || '');
   const [editing, setEditing] = useState(produs.status === 'asteptare' && !inProductie);
+  const [cautaOpen, setCautaOpen] = useState(false);
   const poolDisponibil = Number(produs.pool_disponibil || 0);
   const cantitateAlocata = Number(produs.cantitate_alocata || 0);
   const deAlocat = Math.max(0, Number(produs.cantitate_comandata || 0) - cantitateAlocata);
+
 
   const handleSave = () => {
     onMarcheaza(produs, cantitateNumarata, cantLipsa, observatii);
