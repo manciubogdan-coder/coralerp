@@ -628,22 +628,38 @@ const ProdusPickingCard = ({
           {getStatusBadge()}
         </div>
 
+        <CautaInRestocariDialog
+          open={cautaOpen}
+          onOpenChange={setCautaOpen}
+          numeProdus={produs.nume_produs}
+          cantitateNecesara={deAlocat}
+          onAloca={(produsIdSursa, cantitate) => onAlocaManual?.(produs, produsIdSursa, cantitate)}
+        />
+
         {inProductie ? (
           <div className="space-y-3 p-3 rounded-lg border border-amber-300 bg-amber-100/50 dark:bg-amber-950/40 text-sm">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-amber-600" />
               <span>Nu există încă marfă suficientă în restocări pentru această comandă.</span>
             </div>
-            {onIaDinRestocari && poolDisponibil > 0 && deAlocat > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onIaDinRestocari(produs, Math.min(poolDisponibil, deAlocat))}
-              >
-                <PackagePlus className="h-4 w-4 mr-2" />
-                Ia {Math.min(poolDisponibil, deAlocat)} din restocări
-              </Button>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {onIaDinRestocari && poolDisponibil > 0 && deAlocat > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onIaDinRestocari(produs, Math.min(poolDisponibil, deAlocat))}
+                >
+                  <PackagePlus className="h-4 w-4 mr-2" />
+                  Ia {Math.min(poolDisponibil, deAlocat)} din restocări
+                </Button>
+              )}
+              {onAlocaManual && (
+                <Button size="sm" variant="outline" onClick={() => setCautaOpen(true)}>
+                  <Search className="h-4 w-4 mr-2" />
+                  Caută manual în restocări
+                </Button>
+              )}
+            </div>
           </div>
         ) : editing ? (
 
