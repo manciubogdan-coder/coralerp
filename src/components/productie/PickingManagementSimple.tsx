@@ -635,6 +635,12 @@ const ProdusPickingCard = ({
                 {' • '}
                 <span className="font-medium">Disponibil în restocări:</span> {poolDisponibil} {produs.unitate_masura}
               </p>
+              {onAlocaManual && !inProductie && deAlocat > 0 && (
+                <Button size="sm" variant="ghost" className="h-7 px-2 -ml-2" onClick={() => setCautaOpen(true)}>
+                  <Search className="h-3.5 w-3.5 mr-1" />
+                  Caută manual în restocări
+                </Button>
+              )}
             </div>
           </div>
           {getStatusBadge()}
