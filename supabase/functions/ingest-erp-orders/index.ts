@@ -44,6 +44,47 @@ function json(body: unknown, status = 200) {
   });
 }
 
+/**
+ * Setează (idempotent) cantitatea din pool pentru o comandă/produs/zi.
+ * Dacă lotul există deja, doar îl actualizează — nu mai inserează duplicate
+ * la fiecare rulare a sincronizării.
+ */
+async function setRestockLot(
+  supabase: any,
+  comandaId: string,
+  produsId: string,
+  dataOnly: string,
+  cantitate: number
+) {
+  const { data: existent } = await supabase
+    .from("productie_restocari")
+    .select("id, cantitate_surplus")
+    .eq("comanda_originala_id", comandaId)
+    .eq("produs_id", produsId)
+    .eq("data_productie", dataOnly)
+    .eq("status", "disponibil")
+    .limit(1)
+    .maybeSingle();
+
+  if (existent?.id) {
+    if (Number(existent.cantitate_surplus || 0) !== cantitate) {
+      await supabase
+        .from("productie_restocari")
+        .update({ cantitate_surplus: cantitate })
+        .eq("id", existent.id);
+    }
+    return;
+  }
+
+  await supabase.from("productie_restocari").insert({
+    comanda_originala_id: comandaId,
+    produs_id: produsId,
+    cantitate_surplus: cantitate,
+    data_productie: dataOnly,
+    status: "disponibil",
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
