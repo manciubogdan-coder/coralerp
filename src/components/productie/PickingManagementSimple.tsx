@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, ShoppingCart, CheckCircle, ArrowLeft, AlertCircle, ClipboardCheck, PackagePlus, Scale } from 'lucide-react';
+import { Package, ShoppingCart, CheckCircle, ArrowLeft, AlertCircle, ClipboardCheck, PackagePlus, Scale, Search } from 'lucide-react';
+import CautaInRestocariDialog from './CautaInRestocariDialog';
 import { format } from 'date-fns';
 import { ro } from 'date-fns/locale';
 import {
