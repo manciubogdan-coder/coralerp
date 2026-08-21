@@ -514,6 +514,7 @@ const PickingManagementSimple = () => {
                   produs={produs}
                   onMarcheaza={handleMarcareProdus}
                   onIaDinRestocari={handleIaDinRestocari}
+                  onAlocaManual={handleAlocaManual}
                 />
 
               ))}
