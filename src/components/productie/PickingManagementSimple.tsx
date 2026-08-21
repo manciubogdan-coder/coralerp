@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, ShoppingCart, CheckCircle, ArrowLeft, AlertCircle, ClipboardCheck, PackagePlus, Scale } from 'lucide-react';
+import { Package, ShoppingCart, CheckCircle, ArrowLeft, AlertCircle, ClipboardCheck, PackagePlus, Scale, Search } from 'lucide-react';
+import CautaInRestocariDialog from './CautaInRestocariDialog';
 import { format } from 'date-fns';
 import { ro } from 'date-fns/locale';
 import {
@@ -101,6 +102,16 @@ const PickingManagementSimple = () => {
     alocaDinPool.mutate({
       comanda_id: produs.comanda_id || produs.sesiune_lucru_id,
       produs_id: produs.produs_id,
+      cantitate_alocata: Number(produs.cantitate_alocata || 0),
+      cantitate
+    });
+  };
+
+  // Alocare manuală: iau marfa din alt produs din restocări (același produs, denumire diferită)
+  const handleAlocaManual = (produs: any, produsIdSursa: string, cantitate: number) => {
+    alocaDinPool.mutate({
+      comanda_id: produs.comanda_id || produs.sesiune_lucru_id,
+      produs_id: produsIdSursa,
       cantitate_alocata: Number(produs.cantitate_alocata || 0),
       cantitate
     });
@@ -503,6 +514,7 @@ const PickingManagementSimple = () => {
                   produs={produs}
                   onMarcheaza={handleMarcareProdus}
                   onIaDinRestocari={handleIaDinRestocari}
+                  onAlocaManual={handleAlocaManual}
                 />
 
               ))}
@@ -549,20 +561,24 @@ const PickingManagementSimple = () => {
 const ProdusPickingCard = ({
   produs,
   onMarcheaza,
-  onIaDinRestocari
+  onIaDinRestocari,
+  onAlocaManual
 }: {
   produs: any;
   onMarcheaza: (produs: any, numarata: number, lipsa: number, obs?: string) => void;
   onIaDinRestocari?: (produs: any, cantitate: number) => void;
+  onAlocaManual?: (produs: any, produsIdSursa: string, cantitate: number) => void;
 }) => {
   const inProductie = produs.gata_productie === false;
   const [cantitateNumarata, setCantitateNumarata] = useState(produs.cantitate_numarata || 0);
   const [cantLipsa, setCantLipsa] = useState(produs.cantitate_lipsa || 0);
   const [observatii, setObservatii] = useState(produs.observatii || '');
   const [editing, setEditing] = useState(produs.status === 'asteptare' && !inProductie);
+  const [cautaOpen, setCautaOpen] = useState(false);
   const poolDisponibil = Number(produs.pool_disponibil || 0);
   const cantitateAlocata = Number(produs.cantitate_alocata || 0);
   const deAlocat = Math.max(0, Number(produs.cantitate_comandata || 0) - cantitateAlocata);
+
 
   const handleSave = () => {
     onMarcheaza(produs, cantitateNumarata, cantLipsa, observatii);
@@ -619,10 +635,24 @@ const ProdusPickingCard = ({
                 {' • '}
                 <span className="font-medium">Disponibil în restocări:</span> {poolDisponibil} {produs.unitate_masura}
               </p>
+              {onAlocaManual && !inProductie && deAlocat > 0 && (
+                <Button size="sm" variant="ghost" className="h-7 px-2 -ml-2" onClick={() => setCautaOpen(true)}>
+                  <Search className="h-3.5 w-3.5 mr-1" />
+                  Caută manual în restocări
+                </Button>
+              )}
             </div>
           </div>
           {getStatusBadge()}
         </div>
+
+        <CautaInRestocariDialog
+          open={cautaOpen}
+          onOpenChange={setCautaOpen}
+          numeProdus={produs.nume_produs}
+          cantitateNecesara={deAlocat}
+          onAloca={(produsIdSursa, cantitate) => onAlocaManual?.(produs, produsIdSursa, cantitate)}
+        />
 
         {inProductie ? (
           <div className="space-y-3 p-3 rounded-lg border border-amber-300 bg-amber-100/50 dark:bg-amber-950/40 text-sm">
@@ -630,16 +660,24 @@ const ProdusPickingCard = ({
               <AlertCircle className="h-4 w-4 text-amber-600" />
               <span>Nu există încă marfă suficientă în restocări pentru această comandă.</span>
             </div>
-            {onIaDinRestocari && poolDisponibil > 0 && deAlocat > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onIaDinRestocari(produs, Math.min(poolDisponibil, deAlocat))}
-              >
-                <PackagePlus className="h-4 w-4 mr-2" />
-                Ia {Math.min(poolDisponibil, deAlocat)} din restocări
-              </Button>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {onIaDinRestocari && poolDisponibil > 0 && deAlocat > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onIaDinRestocari(produs, Math.min(poolDisponibil, deAlocat))}
+                >
+                  <PackagePlus className="h-4 w-4 mr-2" />
+                  Ia {Math.min(poolDisponibil, deAlocat)} din restocări
+                </Button>
+              )}
+              {onAlocaManual && (
+                <Button size="sm" variant="outline" onClick={() => setCautaOpen(true)}>
+                  <Search className="h-4 w-4 mr-2" />
+                  Caută manual în restocări
+                </Button>
+              )}
+            </div>
           </div>
         ) : editing ? (
 
