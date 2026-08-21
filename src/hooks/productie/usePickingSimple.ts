@@ -65,9 +65,13 @@ export const useComenziDisponibile = () => {
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      // Doar comenzile de azi înainte — cele din zilele trecute sunt considerate deja finalizate.
+      // Aduc comenzile din ultimele 14 zile + cele viitoare, ca să se vadă și
+      // restanțele din zilele trecute (filtrarea pe zi se face în UI).
       const todayKey = new Date().toLocaleDateString('en-CA');
-      const todayStartIso = new Date(`${todayKey}T00:00:00`).toISOString();
+      const lookback = new Date();
+      lookback.setDate(lookback.getDate() - 14);
+      const fromKey = lookback.toLocaleDateString('en-CA');
+      const fromIso = new Date(`${fromKey}T00:00:00`).toISOString();
 
       // Iau comenzile de CLIENT (NU avans) care au ajuns cel puțin în producție.
       const comenzi: any[] = [];
@@ -83,13 +87,15 @@ export const useComenziDisponibile = () => {
           .neq('magazin', 'PRODUCȚIE_AVANS')
           .in('status', ['assigned', 'in_progress', 'partial', 'completed'])
           .gt('cantitate', 0)
-          .or(`data_productie.gte.${todayKey},and(data_productie.is.null,created_at.gte.${todayStartIso})`)
+          .or(`data_productie.gte.${fromKey},and(data_productie.is.null,created_at.gte.${fromIso})`)
           .order('created_at', { ascending: false })
           .range(from, from + PAGE - 1);
         if (error) throw error;
         comenzi.push(...(data || []));
         if (!data || data.length < PAGE) break;
       }
+      void todayKey;
+
 
       if (comenzi.length === 0) return [] as ComenziDisponibile[];
 

@@ -1161,21 +1161,39 @@ export const useFinishWorkSession = () => {
         : Math.max(0, Number(cantitate_produsa || 0) - alocatDinAceastaSesiuneLaComanda);
 
       if (surplusDinAceastaSesiune > 0) {
-        const restockingData = {
-          comanda_originala_id: comanda_id,
-          produs_id: comanda.produs_id,
-          cantitate_surplus: surplusDinAceastaSesiune,
-          data_productie: new Date().toISOString().split('T')[0],
-          status: 'disponibil'
-        };
-        console.log('📦 Producția intră în pool (restocări):', restockingData);
-        const { error: restockingError } = await supabase
+        const ziPool = new Date().toISOString().split('T')[0];
+        // Consolidez într-un singur lot pe (comandă, produs, zi) ca să nu se
+        // umple pool-ul cu zeci de rânduri identice.
+        const { data: lotExistent } = await supabase
           .from('productie_restocari')
-          .insert([restockingData]);
-        if (restockingError) {
-          console.error('❌ EROARE la crearea restocării:', restockingError);
+          .select('id, cantitate_surplus')
+          .eq('comanda_originala_id', comanda_id)
+          .eq('produs_id', comanda.produs_id)
+          .eq('data_productie', ziPool)
+          .eq('status', 'disponibil')
+          .limit(1)
+          .maybeSingle();
+
+        if (lotExistent?.id) {
+          const { error: updPoolErr } = await supabase
+            .from('productie_restocari')
+            .update({ cantitate_surplus: Number(lotExistent.cantitate_surplus || 0) + surplusDinAceastaSesiune })
+            .eq('id', lotExistent.id);
+          if (updPoolErr) console.error('❌ EROARE la actualizarea restocării:', updPoolErr);
+        } else {
+          const { error: restockingError } = await supabase
+            .from('productie_restocari')
+            .insert([{
+              comanda_originala_id: comanda_id,
+              produs_id: comanda.produs_id,
+              cantitate_surplus: surplusDinAceastaSesiune,
+              data_productie: ziPool,
+              status: 'disponibil'
+            }]);
+          if (restockingError) console.error('❌ EROARE la crearea restocării:', restockingError);
         }
       }
+
 
       // Actualizez statusul comenzii în funcție de acoperire totală (producție considerată + restocări)
       const totalAcoperit = POOL_MODE

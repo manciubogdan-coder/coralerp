@@ -114,20 +114,27 @@ const MarfaRestocataView = () => {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('productie_restocari')
-        .select(`
-          *,
-          productie_produse!inner(nume, unitate_masura),
-          productie_comenzi(numar_comanda)
-        `)
-        .eq('status', 'disponibil')
-        .gt('cantitate_surplus', 0)
-        .order('data_productie', { ascending: false });
+      // Paginare — altfel Supabase taie la 1000 de rânduri și stocul apare greșit.
+      const rows: any[] = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await (supabase as any)
+          .from('productie_restocari')
+          .select(`
+            *,
+            productie_produse!inner(nume, unitate_masura),
+            productie_comenzi(numar_comanda)
+          `)
+          .eq('status', 'disponibil')
+          .gt('cantitate_surplus', 0)
+          .order('data_productie', { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < PAGE) break;
+      }
 
-      if (error) throw error;
-
-      return (data || []).map((item: any) => ({
+      return rows.map((item: any) => ({
         id: item.id,
         produs_id: item.produs_id,
         nume_produs: item.productie_produse?.nume || 'N/A',
@@ -137,6 +144,7 @@ const MarfaRestocataView = () => {
         comanda_originala: item.productie_comenzi?.numar_comanda || null,
       })) as MarfaRestocata[];
     },
+
   });
 
   // Istoric loturi scoase (status != disponibil + motiv setat)
