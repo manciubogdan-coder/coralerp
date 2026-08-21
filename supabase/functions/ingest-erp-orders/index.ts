@@ -471,13 +471,7 @@ Deno.serve(async (req) => {
               const excedent = Math.max(0, cantitateFacuta - cantitate);
               if (excedent > 0) {
                 try {
-                  await supabase.from("productie_restocari").insert({
-                    comanda_originala_id: ex.id,
-                    produs_id: ex.produs_id,
-                    cantitate_surplus: excedent,
-                    data_productie: dataOnly,
-                    status: "disponibil",
-                  });
+                  await setRestockLot(supabase, ex.id, ex.produs_id, dataOnly, excedent);
                 } catch (e: any) {
                   errors.push({ aviz: aviz.nr_aviz, produs: linie.cod_produs, restock_reduce: e.message });
                 }
@@ -605,6 +599,8 @@ Deno.serve(async (req) => {
           (r: any) => !currentKeys.includes(r.extern_nr_aviz)
         );
         for (const r of disparute as any[]) {
+          // deja procesată la o rulare anterioară — nu o mai reprocesăm
+          if (r.status === "canceled_by_erp") continue;
           if (r.status === "pending") {
             const { error: dErr } = await supabase
               .from("productie_comenzi")
@@ -627,13 +623,7 @@ Deno.serve(async (req) => {
           } catch (_) {}
           if (cantitateFacuta > 0) {
             try {
-              await supabase.from("productie_restocari").insert({
-                comanda_originala_id: r.id,
-                produs_id: r.produs_id,
-                cantitate_surplus: cantitateFacuta,
-                data_productie: dataOnly,
-                status: "disponibil",
-              });
+              await setRestockLot(supabase, r.id, r.produs_id, dataOnly, cantitateFacuta);
             } catch (e: any) {
               errors.push({ aviz: aviz.nr_aviz, restock_delete: e.message });
             }
