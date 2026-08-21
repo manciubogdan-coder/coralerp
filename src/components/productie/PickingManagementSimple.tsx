@@ -107,6 +107,16 @@ const PickingManagementSimple = () => {
     });
   };
 
+  // Alocare manuală: iau marfa din alt produs din restocări (același produs, denumire diferită)
+  const handleAlocaManual = (produs: any, produsIdSursa: string, cantitate: number) => {
+    alocaDinPool.mutate({
+      comanda_id: produs.comanda_id || produs.sesiune_lucru_id,
+      produs_id: produsIdSursa,
+      cantitate_alocata: Number(produs.cantitate_alocata || 0),
+      cantitate
+    });
+  };
+
 
   const handleFinalizare = () => {
     if (!sesiuneActivaId) return;
