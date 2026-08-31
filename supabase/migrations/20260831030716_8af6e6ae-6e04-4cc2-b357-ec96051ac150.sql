@@ -1,0 +1,1 @@
+ALTER TABLE public.inventar_session_items ADD COLUMN IF NOT EXISTS product_code text;
