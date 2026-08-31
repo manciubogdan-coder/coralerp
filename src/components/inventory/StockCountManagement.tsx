@@ -57,6 +57,7 @@ interface SessionItem {
   session_id: string;
   inventory_row_id: string | null;
   name: string;
+  product_code: string | null;
   lot_number: string | null;
   supplier: string | null;
   manufacturer: string | null;
@@ -102,10 +103,11 @@ export const StockCountManagement: React.FC = () => {
     unit: "kg",
     fizic: "",
   });
-  const [nomen, setNomen] = useState<{ products: string[]; suppliers: string[]; manufacturers: string[] }>({
+  const [nomen, setNomen] = useState<{ products: string[]; suppliers: string[]; manufacturers: string[]; productCodes: Record<string, string> }>({
     products: [],
     suppliers: [],
     manufacturers: [],
+    productCodes: {},
   });
 
 
@@ -132,14 +134,19 @@ export const StockCountManagement: React.FC = () => {
   useEffect(() => {
     (async () => {
       const [p, s, m] = await Promise.all([
-        supabase.from(productsTable).select("name").order("name"),
+        supabase.from(productsTable).select("name, cod_produs").order("name"),
         supabase.from(suppliersTable).select("name").order("name"),
         supabase.from(manufacturersTable).select("name").order("name"),
       ]);
+      const productCodes: Record<string, string> = {};
+      ((p.data as any[]) || []).forEach((x) => {
+        if (x.name && x.cod_produs && !productCodes[x.name]) productCodes[x.name] = x.cod_produs;
+      });
       setNomen({
         products: ((p.data as any[]) || []).map((x) => x.name).filter(Boolean),
         suppliers: ((s.data as any[]) || []).map((x) => x.name).filter(Boolean),
         manufacturers: ((m.data as any[]) || []).map((x) => x.name).filter(Boolean),
+        productCodes,
       });
     })();
   }, [productsTable, suppliersTable, manufacturersTable]);
@@ -206,6 +213,7 @@ export const StockCountManagement: React.FC = () => {
           .select(
             `id, name, quantity, unit, lot_number, supplier,
              suppliers:supplier_id (name),
+             products:product_id (cod_produs),
              manufacturers:manufacturer_id (name)`
           )
           .gt("quantity", 0)
@@ -237,6 +245,7 @@ export const StockCountManagement: React.FC = () => {
         session_id: (sess as any).id,
         inventory_row_id: r.id,
         name: r.name,
+        product_code: r.products?.cod_produs || null,
         lot_number: r.lot_number || null,
         supplier: r.suppliers?.name || r.supplier || null,
         manufacturer: r.manufacturers?.name || null,
@@ -451,6 +460,7 @@ export const StockCountManagement: React.FC = () => {
     if (!active) return;
     exportToExcel(
       items.map((it) => ({
+        "Cod Produs": it.product_code || nomen.productCodes[it.name] || "-",
         Produs: it.name,
         Lot: it.lot_number || "-",
         Furnizor: it.supplier || "-",
@@ -645,6 +655,7 @@ export const StockCountManagement: React.FC = () => {
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-muted z-10">
             <tr>
+              <th className="p-2 text-left">Cod</th>
               <th className="p-2 text-left">Produs</th>
               <th className="p-2 text-left">Lot</th>
               <th className="p-2 text-left">Furnizor</th>
