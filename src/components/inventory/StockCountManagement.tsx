@@ -443,11 +443,11 @@ export const StockCountManagement: React.FC = () => {
     const q = search.trim().toLowerCase();
     if (!q) return items;
     return items.filter((it) =>
-      [it.name, it.lot_number, it.supplier, it.manufacturer]
+      [it.name, it.product_code || nomen.productCodes[it.name], it.lot_number, it.supplier, it.manufacturer]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q))
     );
-  }, [items, search]);
+  }, [items, search, nomen.productCodes]);
 
   const totals = useMemo(() => {
     const scriptic = items.reduce((s, i) => s + Number(i.scriptic || 0), 0);
