@@ -668,15 +668,16 @@ export const StockCountManagement: React.FC = () => {
           </thead>
           <tbody>
             {itemsLoading ? (
-              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">Se încarcă...</td></tr>
+              <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">Se încarcă...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">Nicio poziție.</td></tr>
+              <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">Nicio poziție.</td></tr>
             ) : (
               filtered.map((it) => {
                 const diff = it.fizic === null ? null : Number(it.fizic) - Number(it.scriptic);
                 const isNew = !it.inventory_row_id;
                 return (
                   <tr key={it.id} className={`border-t ${diff ? "bg-amber-50" : ""}`}>
+                    <td className="p-2 text-muted-foreground">{it.product_code || nomen.productCodes[it.name] || "-"}</td>
                     <td className="p-2">
                       {it.name}
                       {isNew && <Badge variant="outline" className="ml-2 text-[10px]">nou</Badge>}
