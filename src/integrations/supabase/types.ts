@@ -467,6 +467,7 @@ export type Database = {
           lot_number: string | null
           manufacturer: string | null
           name: string
+          product_code: string | null
           scriptic: number
           session_id: string
           supplier: string | null
@@ -482,6 +483,7 @@ export type Database = {
           lot_number?: string | null
           manufacturer?: string | null
           name: string
+          product_code?: string | null
           scriptic?: number
           session_id: string
           supplier?: string | null
@@ -497,6 +499,7 @@ export type Database = {
           lot_number?: string | null
           manufacturer?: string | null
           name?: string
+          product_code?: string | null
           scriptic?: number
           session_id?: string
           supplier?: string | null
