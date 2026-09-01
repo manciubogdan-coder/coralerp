@@ -13,6 +13,7 @@ export interface TransferLabelData {
   supplier?: string | null;
   manufacturer?: string | null;
   document_number?: string | null;
+  ggn_code?: string | null;
 }
 
 const formatDate = (d?: string | null) => {
@@ -38,6 +39,7 @@ const SingleLabel: React.FC<{ data: TransferLabelData; pageBreak?: boolean }> = 
           {data.destination || "—"}
         </div>
         <div className="row">Lot: {data.lot_number || "—"}</div>
+        {data.ggn_code && <div className="row" style={{ fontWeight: 700 }}>GGN: {data.ggn_code}</div>}
         {data.supplier && <div className="row">F: {data.supplier}</div>}
         {data.manufacturer && <div className="row">P: {data.manufacturer}</div>}
         <div className="row">{formatDate(data.transfer_date)}</div>
