@@ -91,7 +91,11 @@ export const LotQRLabel: React.FC<{ data: LotLabelData }> = ({ data }) => {
       .lot-label .info .row {
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
-      .lot-label .info .ggn { font-weight: 700; }
+      .lot-label .info .ggn {
+        font-weight: 700;
+        white-space: normal; overflow: visible; text-overflow: clip;
+        word-break: break-all;
+      }
       .lot-label .info .badge {
         display: inline-block; font-size: 5.5pt; font-weight: 700;
         padding: 0.2mm 0.8mm; border: 0.3mm solid #000;
