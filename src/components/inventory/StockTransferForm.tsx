@@ -634,7 +634,10 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       });
 
       // Pregătim etichetele QR (câte una pentru fiecare linie de transfer)
-      const labels: TransferLabelData[] = selectedItems.map((it) => ({
+      const labels: TransferLabelData[] = await Promise.all(selectedItems.map(async (it) => ({
+        ggn_code:
+          (await fetchGgnCode("supplier", inventoryType, it.supplier)) ||
+          (await fetchGgnCode("manufacturer", inventoryType, it.manufacturer)),
         inventory_item_id: it.items[0]?.id || "",
         product_name: it.productName,
         lot_number: it.lot_number,

@@ -27,6 +27,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { exportToExcel } from "@/lib/excelExport";
 import { TransferReturnForm } from "./TransferReturnForm";
 import { useInventoryType } from "@/context/inventory-type";
+import { fetchGgnCode } from "@/lib/ggnCodes";
 
 interface TransferHistoryProps {
   onTransferReturned?: () => void;
@@ -73,8 +74,12 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   const [qrOpen, setQrOpen] = useState(false);
   const [qrLabels, setQrLabels] = useState<TransferLabelData[]>([]);
 
-  const openQrFor = (transfer: TransferItem) => {
+  const openQrFor = async (transfer: TransferItem) => {
+    const ggn =
+      (await fetchGgnCode("supplier", inventoryType, transfer.supplier_name)) ||
+      (await fetchGgnCode("manufacturer", inventoryType, transfer.manufacturer_name));
     setQrLabels([{
+      ggn_code: ggn,
       inventory_item_id: transfer.inventory_item_id,
       product_name: transfer.product_name,
       lot_number: transfer.lot_number,
