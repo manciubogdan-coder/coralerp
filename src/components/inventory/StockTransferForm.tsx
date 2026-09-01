@@ -649,7 +649,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         supplier: it.supplier,
         manufacturer: it.manufacturer,
         document_number: it.items[0]?.document_number,
-      }));
+      })));
 
       setShowConfirm(false);
       setIsOpen(false);
