@@ -24,6 +24,7 @@ import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
 import { emitNotification } from "@/lib/notifications";
 import { TransferQRDialog } from "./TransferQRDialog";
+import { fetchGgnCode } from "@/lib/ggnCodes";
 import type { TransferLabelData } from "./TransferQRLabel";
 
 interface StockTransferFormProps {
@@ -634,7 +635,10 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       });
 
       // Pregătim etichetele QR (câte una pentru fiecare linie de transfer)
-      const labels: TransferLabelData[] = selectedItems.map((it) => ({
+      const labels: TransferLabelData[] = await Promise.all(selectedItems.map(async (it) => ({
+        ggn_code:
+          (await fetchGgnCode("supplier", inventoryType, it.supplier)) ||
+          (await fetchGgnCode("manufacturer", inventoryType, it.manufacturer)),
         inventory_item_id: it.items[0]?.id || "",
         product_name: it.productName,
         lot_number: it.lot_number,
@@ -645,7 +649,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         supplier: it.supplier,
         manufacturer: it.manufacturer,
         document_number: it.items[0]?.document_number,
-      }));
+      })));
 
       setShowConfirm(false);
       setIsOpen(false);
