@@ -14,12 +14,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useInventoryType } from "@/context/inventory-type";
+import { fetchGgnMap, saveGgnCode, ggnKey } from "@/lib/ggnCodes";
 
 interface Manufacturer {
   id: string;
   name: string;
   country?: string;
   description?: string;
+  ggn_code?: string;
 }
 
 const ManufacturersTable = () => {
@@ -55,8 +57,8 @@ const ManufacturersTable = () => {
         throw error;
       }
 
-      console.log(`Loading ${inventoryType} manufacturers from table:`, tableName, data);
-      setManufacturers(data || []);
+      const ggnMap = await fetchGgnMap("manufacturer", inventoryType);
+      setManufacturers((data || []).map((m: any) => ({ ...m, ggn_code: ggnMap[ggnKey(m.name)] || "" })));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -70,7 +72,7 @@ const ManufacturersTable = () => {
 
   const handleAddNew = () => {
     setIsAddingNew(true);
-    setNewItem({ name: "", country: "", description: "" });
+    setNewItem({ name: "", country: "", description: "", ggn_code: "" });
   };
 
   const handleCancelAdd = () => {
@@ -113,6 +115,8 @@ const ManufacturersTable = () => {
       if (error) {
         throw error;
       }
+
+      await saveGgnCode("manufacturer", inventoryType, newItem.name!, newItem.ggn_code || null);
 
       toast({
         title: "Producător adăugat",
@@ -157,6 +161,8 @@ const ManufacturersTable = () => {
       if (error) {
         throw error;
       }
+
+      await saveGgnCode("manufacturer", inventoryType, editItem.name, editItem.ggn_code || null);
 
       toast({
         title: "Producător actualizat",
@@ -216,6 +222,7 @@ const ManufacturersTable = () => {
         <TableHeader>
           <TableRow>
             <TableHead>Nume</TableHead>
+            <TableHead>Cod GGN</TableHead>
             <TableHead>Țară</TableHead>
             <TableHead>Descriere</TableHead>
             <TableHead className="w-[150px]">Acțiuni</TableHead>
@@ -229,6 +236,13 @@ const ManufacturersTable = () => {
                   value={newItem.name}
                   onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
                   placeholder="Nume producător"
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  value={newItem.ggn_code || ""}
+                  onChange={(e) => setNewItem({ ...newItem, ggn_code: e.target.value })}
+                  placeholder="Cod GGN"
                 />
               </TableCell>
               <TableCell>
@@ -268,6 +282,17 @@ const ManufacturersTable = () => {
                   />
                 ) : (
                   manufacturer.name
+                )}
+              </TableCell>
+              <TableCell>
+                {editingId === manufacturer.id ? (
+                  <Input
+                    value={editItem?.ggn_code || ""}
+                    onChange={(e) => setEditItem({ ...editItem!, ggn_code: e.target.value })}
+                    placeholder="Cod GGN"
+                  />
+                ) : (
+                  manufacturer.ggn_code || "-"
                 )}
               </TableCell>
               <TableCell>
@@ -321,7 +346,7 @@ const ManufacturersTable = () => {
 
           {manufacturers.length === 0 && !isAddingNew && !loading && (
             <TableRow>
-              <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                 Nu există producători. Adăugați unul nou folosind butonul de mai sus.
               </TableCell>
             </TableRow>
@@ -329,7 +354,7 @@ const ManufacturersTable = () => {
 
           {loading && (
             <TableRow>
-              <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                 Se încarcă producătorii...
               </TableCell>
             </TableRow>

@@ -457,6 +457,39 @@ export type Database = {
         }
         Relationships: []
       }
+      ggn_codes: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          ggn_code: string | null
+          id: string
+          inventory_type: string
+          kind: string
+          name_key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          ggn_code?: string | null
+          id?: string
+          inventory_type: string
+          kind: string
+          name_key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          ggn_code?: string | null
+          id?: string
+          inventory_type?: string
+          kind?: string
+          name_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inventar_session_items: {
         Row: {
           applied: boolean

@@ -5,6 +5,7 @@ import { Printer, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { LotQRLabel, type LotLabelData } from "./LotQRLabel";
 import type { InventoryType } from "@/context/inventory-type";
+import { fetchGgnCode } from "@/lib/ggnCodes";
 
 interface LotQRDialogProps {
   open: boolean;
@@ -39,6 +40,11 @@ export const LotQRDialog: React.FC<LotQRDialogProps> = ({
         .eq("id", inventoryId)
         .maybeSingle();
       if (!error && row) {
+        const supplierName = row.suppliers?.name || null;
+        const manufacturerName = row.manufacturers?.name || null;
+        const ggn =
+          (await fetchGgnCode("supplier", inventoryType, supplierName)) ||
+          (await fetchGgnCode("manufacturer", inventoryType, manufacturerName));
         setData({
           id: row.id,
           name: row.name,
@@ -48,8 +54,9 @@ export const LotQRDialog: React.FC<LotQRDialogProps> = ({
           receipt_date: row.receipt_date,
           entry_number: row.entry_number,
           document_number: row.document_number,
-          supplier: row.suppliers?.name || null,
-          manufacturer: row.manufacturers?.name || null,
+          supplier: supplierName,
+          manufacturer: manufacturerName,
+          ggn_code: ggn,
           inventory_type: inventoryType,
         });
       }

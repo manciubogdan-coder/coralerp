@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useInventoryType } from "@/context/inventory-type";
+import { fetchGgnMap, saveGgnCode, ggnKey } from "@/lib/ggnCodes";
 
 interface Supplier {
   id: string;
@@ -21,6 +22,7 @@ interface Supplier {
   phone?: string;
   email?: string;
   supplier_code?: string;
+  ggn_code?: string;
 }
 
 const SuppliersTable = () => {
@@ -56,8 +58,8 @@ const SuppliersTable = () => {
         throw error;
       }
 
-      console.log(`Loading ${inventoryType} suppliers from table:`, tableName, data);
-      setSuppliers(data || []);
+      const ggnMap = await fetchGgnMap("supplier", inventoryType);
+      setSuppliers((data || []).map((s: any) => ({ ...s, ggn_code: ggnMap[ggnKey(s.name)] || "" })));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -71,7 +73,7 @@ const SuppliersTable = () => {
 
   const handleAddNew = () => {
     setIsAddingNew(true);
-    setNewItem({ name: "", contact: "", phone: "", email: "", supplier_code: "" });
+    setNewItem({ name: "", contact: "", phone: "", email: "", supplier_code: "", ggn_code: "" });
   };
 
   const handleCancelAdd = () => {
@@ -116,6 +118,8 @@ const SuppliersTable = () => {
       if (error) {
         throw error;
       }
+
+      await saveGgnCode("supplier", inventoryType, newItem.name, newItem.ggn_code || null);
 
       toast({
         title: "Furnizor adăugat",
@@ -162,6 +166,8 @@ const SuppliersTable = () => {
       if (error) {
         throw error;
       }
+
+      await saveGgnCode("supplier", inventoryType, editItem.name, editItem.ggn_code || null);
 
       toast({
         title: "Furnizor actualizat",
@@ -222,6 +228,7 @@ const SuppliersTable = () => {
           <TableRow>
             <TableHead>Nume</TableHead>
             <TableHead>Cod Furnizor</TableHead>
+            <TableHead>Cod GGN</TableHead>
             <TableHead>Persoana de contact</TableHead>
             <TableHead>Telefon</TableHead>
             <TableHead>Email</TableHead>
@@ -243,6 +250,13 @@ const SuppliersTable = () => {
                   value={newItem.supplier_code || ""}
                   onChange={(e) => setNewItem({ ...newItem, supplier_code: e.target.value })}
                   placeholder="Cod furnizor"
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  value={newItem.ggn_code || ""}
+                  onChange={(e) => setNewItem({ ...newItem, ggn_code: e.target.value })}
+                  placeholder="Cod GGN"
                 />
               </TableCell>
               <TableCell>
@@ -299,6 +313,17 @@ const SuppliersTable = () => {
                   />
                 ) : (
                   supplier.supplier_code || "-"
+                )}
+              </TableCell>
+              <TableCell>
+                {editingId === supplier.id ? (
+                  <Input
+                    value={editItem?.ggn_code || ""}
+                    onChange={(e) => setEditItem({ ...editItem!, ggn_code: e.target.value })}
+                    placeholder="Cod GGN"
+                  />
+                ) : (
+                  supplier.ggn_code || "-"
                 )}
               </TableCell>
               <TableCell>
@@ -362,7 +387,7 @@ const SuppliersTable = () => {
 
           {suppliers.length === 0 && !isAddingNew && !loading && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                 Nu există furnizori. Adăugați unul nou folosind butonul de mai sus.
               </TableCell>
             </TableRow>
@@ -370,7 +395,7 @@ const SuppliersTable = () => {
 
           {loading && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                 Se încarcă furnizorii...
               </TableCell>
             </TableRow>
