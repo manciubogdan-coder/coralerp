@@ -24,6 +24,7 @@ import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
 import { emitNotification } from "@/lib/notifications";
 import { TransferQRDialog } from "./TransferQRDialog";
+import { fetchGgnCode } from "@/lib/ggnCodes";
 import type { TransferLabelData } from "./TransferQRLabel";
 
 interface StockTransferFormProps {
