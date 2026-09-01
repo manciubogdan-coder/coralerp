@@ -13,6 +13,7 @@ export interface LotLabelData {
   receipt_date?: string | null;
   entry_number?: number | null;
   document_number?: string | null;
+  ggn_code?: string | null;
   inventory_type: "materii-prime" | "ambalaje" | "etichete";
 }
 
@@ -50,6 +51,7 @@ export const LotQRLabel: React.FC<{ data: LotLabelData }> = ({ data }) => {
           <span className="badge">{typeLabel(data.inventory_type)}</span>
           Lot: {data.lot_number || "—"}
         </div>
+        {data.ggn_code && <div className="row ggn">GGN: {data.ggn_code}</div>}
         {data.supplier && <div className="row">F: {data.supplier}</div>}
         {data.manufacturer && <div className="row">P: {data.manufacturer}</div>}
         <div className="row">
@@ -89,6 +91,7 @@ export const LotQRLabel: React.FC<{ data: LotLabelData }> = ({ data }) => {
       .lot-label .info .row {
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
+      .lot-label .info .ggn { font-weight: 700; }
       .lot-label .info .badge {
         display: inline-block; font-size: 5.5pt; font-weight: 700;
         padding: 0.2mm 0.8mm; border: 0.3mm solid #000;
