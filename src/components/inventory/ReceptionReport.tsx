@@ -1348,7 +1348,8 @@ const ReceptionReport: React.FC = () => {
     const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : calcDiferenta(r);
     const lossKg = r.is_missing ? null : calcPierdereKg(r);
     const shortageKg = dif != null && dif < 0 ? Math.abs(dif) : 0;
-    const creditKg = shortageKg + (lossKg != null && lossKg > 0 ? lossKg : 0);
+    // Nota de credit se raportează rotunjit la întreg, ca și Pierd. (kg)
+    const creditKg = Math.round(shortageKg + (lossKg != null && lossKg > 0 ? lossKg : 0));
     const lossPercent = parseFloat(r.pierdere_calitativa_procent);
     const unit = r.unit || "kg";
     const rawDefects = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim();
@@ -1387,7 +1388,8 @@ const ReceptionReport: React.FC = () => {
       const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : calcDiferenta(r);
       const lossKg = r.is_missing ? null : calcPierdereKg(r);
       const shortageKg = dif != null && dif < 0 ? Math.abs(dif) : 0;
-      const creditKg = shortageKg + (lossKg != null && lossKg > 0 ? lossKg : 0);
+      // Nota de credit se raportează rotunjit la întreg, ca și Pierd. (kg)
+      const creditKg = Math.round(shortageKg + (lossKg != null && lossKg > 0 ? lossKg : 0));
       const unit = r.unit || "kg";
       const rawDefects = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim();
       const defectsText = emailDefectTranslations[rawDefects]?.[lang] || translateKnownTerms(rawDefects, lang) || "-";
