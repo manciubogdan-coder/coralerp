@@ -1421,16 +1421,16 @@ const ReceptionReport: React.FC = () => {
   };
 
   const emailHeaders = (lang: EmailLang) => lang === "ro"
-    ? ["Produs", "Producător", "Cantitate document", "Cantitate recepționată", "Diferență cantitativă", "Pierdere calitativă", "Notă de credit", "Kg considerate", "Defecte", "Poze"]
+    ? ["Produs", "Producător", "Cantitate document", "Cantitate recepționată", "Diferență cantitativă", "Pierdere calitativă", "Notă de credit", "Defecte", "Poze"]
     : lang === "it"
-      ? ["Prodotto", "Produttore", "Quantità documento", "Quantità ricevuta", "Differenza quantitativa", "Perdita qualitativa", "Nota di credito", "Kg considerati", "Difetti", "Foto"]
-      : ["Product", "Producer", "Document quantity", "Received quantity", "Quantitative difference", "Quality loss", "Credit note", "Considered kg", "Defects", "Photos"];
+      ? ["Prodotto", "Produttore", "Quantità documento", "Quantità ricevuta", "Differenza quantitativa", "Perdita qualitativa", "Nota di credito", "Difetti", "Foto"]
+      : ["Product", "Producer", "Document quantity", "Received quantity", "Quantitative difference", "Quality loss", "Credit note", "Defects", "Photos"];
 
   const emailHeadersV2 = (lang: EmailLang) => lang === "ro"
-    ? ["Data", "Furnizor", "Nr. Document", "Denumire produs", "Producător", "Cant. Document\n(kg/buc)", "Cant. Recepționată\n(kg/buc)", "Diferență\nCantitativă", "Probleme Calitative\nConstatate", "Notă Credit\nCalitativă (kg)", "Kg\nConsiderate"]
+    ? ["Data", "Furnizor", "Nr. Document", "Denumire produs", "Producător", "Cant. Document\n(kg/buc)", "Cant. Recepționată\n(kg/buc)", "Diferență\nCantitativă", "Probleme Calitative\nConstatate", "Notă Credit\nCalitativă (kg)"]
     : lang === "it"
-      ? ["Data", "Fornitore", "N. Documento", "Nome prodotto", "Produttore", "Q.tà Documento\n(kg/pz)", "Q.tà Ricevuta\n(kg/pz)", "Differenza\nQuantitativa", "Difetti Qualitativi\nRiscontrati", "Nota Credito\nQualitativo (kg)", "Kg\nConsiderati"]
-      : ["Date", "Supplier", "Document No.", "Product name", "Producer", "Document Qty\n(kg/pcs)", "Received Qty\n(kg/pcs)", "Quantity\nDifference", "Quality Defects\nIdentified", "Quality Credit\nNote (kg)", "Considered\nkg"];
+      ? ["Data", "Fornitore", "N. Documento", "Nome prodotto", "Produttore", "Q.tà Documento\n(kg/pz)", "Q.tà Ricevuta\n(kg/pz)", "Differenza\nQuantitativa", "Difetti Qualitativi\nRiscontrati", "Nota Credito\nQualitativo (kg)"]
+      : ["Date", "Supplier", "Document No.", "Product name", "Producer", "Document Qty\n(kg/pcs)", "Received Qty\n(kg/pcs)", "Quantity\nDifference", "Quality Defects\nIdentified", "Quality Credit\nNote (kg)"];
 
   const buildEmailPlainText = (group: SupplierGroup) => {
     const isV2 = emailVersion === "v2";
@@ -1442,8 +1442,8 @@ const ReceptionReport: React.FC = () => {
         ? (isV2 ? "Report qualitativo:" : "Tabella ricevimento:")
         : (isV2 ? "Quality report:" : "Reception table:");
     const rowLines = isV2
-      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit, r.kgConsid].join(" | "))
-      : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.kgConsid, r.defects, r.photos].join(" | "));
+      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit].join(" | "))
+      : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos].join(" | "));
     return [
       buildBodyWithPhotos(),
       "",
@@ -1464,8 +1464,8 @@ const ReceptionReport: React.FC = () => {
         ? (isV2 ? "Report qualitativo" : "Tabella ricevimento")
         : (isV2 ? "Quality report" : "Reception table");
     const bodyCells = isV2
-      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit, r.kgConsid])
-      : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.kgConsid, r.defects, r.photos]);
+      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit])
+      : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos]);
     return `
       <div style="font-family: Arial, sans-serif; color:#111827; font-size:14px; line-height:1.45;">
         ${buildBodyWithPhotos().split("\n").map((line) => line.trim() ? `<p style="margin:0 0 12px;">${escapeHtml(line)}</p>` : `<br />`).join("")}
