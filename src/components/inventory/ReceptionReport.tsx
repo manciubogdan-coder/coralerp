@@ -1226,7 +1226,7 @@ const ReceptionReport: React.FC = () => {
           ""
         );
         qualityRows.forEach((r) => {
-          const lossKg = calcPierdereKg(r);
+          const lossKg = calcPierdereKgRotunjit(r);
           const lossTxt = lossKg != null && lossKg > 0
             ? lang === "ro" ? ` Solicităm notă de credit pentru ${fmtKg(lossKg)}${r.unit || "kg"}.`
               : lang === "it" ? ` Chiediamo una nota di credito per ${fmtKg(lossKg)}${r.unit || "kg"}.`
