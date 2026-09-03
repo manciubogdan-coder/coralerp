@@ -2365,8 +2365,8 @@ const ReceptionReport: React.FC = () => {
                         {previewRows.map((r: any, i) => (
                           <tr key={i}>
                             {(isV2
-                              ? [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit, r.kgConsid]
-                              : [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.kgConsid, r.defects, r.photos]
+                              ? [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit]
+                              : [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos]
                             ).map((v, j) => (
                               <td key={j} className="border px-2 py-2 align-top">{v}</td>
                             ))}
