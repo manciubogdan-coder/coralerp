@@ -1364,7 +1364,7 @@ const ReceptionReport: React.FC = () => {
               : `${fmtKg(dif)}${unit} extra`
           : `0${unit}`;
     const qualityLossText = !isNaN(lossPercent) && lossPercent > 0 && lossKg != null
-      ? `${fmtKg(lossPercent)}% = ${fmtKg(lossKg)}${unit}`
+      ? `${fmtKg(lossPercent)}% = ${fmtKg(Math.round(lossKg))}${unit}`
       : "—";
     return {
       product: r.denumire_produs,
