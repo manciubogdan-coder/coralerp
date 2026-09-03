@@ -650,6 +650,11 @@ const ReceptionReport: React.FC = () => {
     const base = isUnderTolerance(r) && !isNaN(doc) ? doc : effectiveReceived(r);
     return (base * proc) / 100;
   };
+  // Pierdere (kg) se afișează/raportează rotunjit la întreg (1.34 -> 1, 1.55 -> 2)
+  const calcPierdereKgRotunjit = (r: ReportRow) => {
+    const v = calcPierdereKg(r);
+    return v != null ? Math.round(v) : null;
+  };
   const calcKgConsiderate = (r: ReportRow) => {
     // Folosim cantitatea recepționată brută (fără surplus declarat) și aplicăm pierderea în procente
     const base = r.cantitate_receptionata;
@@ -954,7 +959,7 @@ const ReceptionReport: React.FC = () => {
 
     group.rows.forEach((r, idx) => {
       const dif = r.is_missing ? null : calcDiferenta(r);
-      const pkg = r.is_missing ? null : calcPierdereKg(r);
+      const pkg = r.is_missing ? null : calcPierdereKgRotunjit(r);
       const { p: pDoc, l: lDoc, tip: tipDoc } = parsePalDoc(r.paleti_lazi_document || "");
       aoa.push([
         idx + 1,
@@ -1221,7 +1226,7 @@ const ReceptionReport: React.FC = () => {
           ""
         );
         qualityRows.forEach((r) => {
-          const lossKg = calcPierdereKg(r);
+          const lossKg = calcPierdereKgRotunjit(r);
           const lossTxt = lossKg != null && lossKg > 0
             ? lang === "ro" ? ` Solicităm notă de credit pentru ${fmtKg(lossKg)}${r.unit || "kg"}.`
               : lang === "it" ? ` Chiediamo una nota di credito per ${fmtKg(lossKg)}${r.unit || "kg"}.`
@@ -1359,7 +1364,7 @@ const ReceptionReport: React.FC = () => {
               : `${fmtKg(dif)}${unit} extra`
           : `0${unit}`;
     const qualityLossText = !isNaN(lossPercent) && lossPercent > 0 && lossKg != null
-      ? `${fmtKg(lossPercent)}% = ${fmtKg(lossKg)}${unit}`
+      ? `${fmtKg(lossPercent)}% = ${fmtKg(Math.round(lossKg))}${unit}`
       : "—";
     return {
       product: r.denumire_produs,
@@ -1649,7 +1654,7 @@ const ReceptionReport: React.FC = () => {
               <div className="space-y-3 md:hidden">
                 {group.rows.map((r, rIdx) => {
                   const dif = r.is_missing ? null : calcDiferenta(r);
-                  const pkg = r.is_missing ? null : calcPierdereKg(r);
+                  const pkg = r.is_missing ? null : calcPierdereKgRotunjit(r);
                   const { bd } = parsePalDoc(r.paleti_lazi_document || "");
                   const recC = bd.rec_crates;
                   const recP = bd.rec_pallets;
@@ -1721,7 +1726,7 @@ const ReceptionReport: React.FC = () => {
                           <Input type="number" step="0.01" disabled={r.is_missing} value={r.pierdere_calitativa_procent}
                             onChange={(e) => updateRow(gIdx, rIdx, "pierdere_calitativa_procent", e.target.value)} className="h-11 text-base" />
                         </div>
-                        {renderMobileInfo("Pierdere kg", pkg != null ? pkg.toFixed(2) : "—")}
+                        {renderMobileInfo("Pierdere kg", pkg != null ? String(pkg) : "—")}
                         {renderMobileInfo("Kg considerate", r.is_missing ? "—" : String(calcKgConsiderateRotunjit(r)), "text-primary")}
                         <label className="col-span-2 flex h-11 items-center justify-between rounded-md border bg-muted/30 px-3">
                           <span className="text-sm font-medium">Transmis furnizor</span>
@@ -1789,7 +1794,7 @@ const ReceptionReport: React.FC = () => {
                 <TableBody>
                   {group.rows.map((r, rIdx) => {
                     const dif = r.is_missing ? null : calcDiferenta(r);
-                    const pkg = r.is_missing ? null : calcPierdereKg(r);
+                    const pkg = r.is_missing ? null : calcPierdereKgRotunjit(r);
                     return (
                       <TableRow key={r.inventory_id} className={cn(r.is_missing && "bg-red-50 dark:bg-red-950/20")}>
                         <TableCell>{rIdx + 1}</TableCell>
@@ -1935,7 +1940,7 @@ const ReceptionReport: React.FC = () => {
                           <Checkbox checked={r.transmis_la_furnizor} disabled={r.is_missing}
                             onCheckedChange={(v) => updateRow(gIdx, rIdx, "transmis_la_furnizor", Boolean(v))} />
                         </TableCell>
-                        <TableCell className="font-semibold">{pkg != null ? pkg.toFixed(2) : "—"}</TableCell>
+                        <TableCell className="font-semibold">{pkg != null ? pkg : "—"}</TableCell>
                         <TableCell className="font-semibold text-green-700 dark:text-green-500">
                           {r.is_missing ? "—" : calcKgConsiderateRotunjit(r)}
                         </TableCell>
