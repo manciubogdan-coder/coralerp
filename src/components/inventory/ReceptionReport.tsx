@@ -1940,7 +1940,7 @@ const ReceptionReport: React.FC = () => {
                           <Checkbox checked={r.transmis_la_furnizor} disabled={r.is_missing}
                             onCheckedChange={(v) => updateRow(gIdx, rIdx, "transmis_la_furnizor", Boolean(v))} />
                         </TableCell>
-                        <TableCell className="font-semibold">{pkg != null ? pkg.toFixed(2) : "—"}</TableCell>
+                        <TableCell className="font-semibold">{pkg != null ? pkg : "—"}</TableCell>
                         <TableCell className="font-semibold text-green-700 dark:text-green-500">
                           {r.is_missing ? "—" : calcKgConsiderateRotunjit(r)}
                         </TableCell>
