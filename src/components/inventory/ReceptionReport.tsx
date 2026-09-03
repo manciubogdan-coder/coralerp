@@ -650,6 +650,11 @@ const ReceptionReport: React.FC = () => {
     const base = isUnderTolerance(r) && !isNaN(doc) ? doc : effectiveReceived(r);
     return (base * proc) / 100;
   };
+  // Pierdere (kg) se afișează/raportează rotunjit la întreg (1.34 -> 1, 1.55 -> 2)
+  const calcPierdereKgRotunjit = (r: ReportRow) => {
+    const v = calcPierdereKg(r);
+    return v != null ? Math.round(v) : null;
+  };
   const calcKgConsiderate = (r: ReportRow) => {
     // Folosim cantitatea recepționată brută (fără surplus declarat) și aplicăm pierderea în procente
     const base = r.cantitate_receptionata;
