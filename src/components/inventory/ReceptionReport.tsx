@@ -1794,7 +1794,7 @@ const ReceptionReport: React.FC = () => {
                 <TableBody>
                   {group.rows.map((r, rIdx) => {
                     const dif = r.is_missing ? null : calcDiferenta(r);
-                    const pkg = r.is_missing ? null : calcPierdereKg(r);
+                    const pkg = r.is_missing ? null : calcPierdereKgRotunjit(r);
                     return (
                       <TableRow key={r.inventory_id} className={cn(r.is_missing && "bg-red-50 dark:bg-red-950/20")}>
                         <TableCell>{rIdx + 1}</TableCell>
