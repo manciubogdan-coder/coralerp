@@ -959,7 +959,7 @@ const ReceptionReport: React.FC = () => {
 
     group.rows.forEach((r, idx) => {
       const dif = r.is_missing ? null : calcDiferenta(r);
-      const pkg = r.is_missing ? null : calcPierdereKg(r);
+      const pkg = r.is_missing ? null : calcPierdereKgRotunjit(r);
       const { p: pDoc, l: lDoc, tip: tipDoc } = parsePalDoc(r.paleti_lazi_document || "");
       aoa.push([
         idx + 1,
