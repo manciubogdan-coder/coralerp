@@ -657,6 +657,8 @@ const ReceptionReport: React.FC = () => {
     if (isNaN(proc)) return base;
     return base - (base * proc) / 100;
   };
+  // Kg considerate se afișează/rapoartează rotunjit la întreg (1.34 -> 1, 1.55 -> 2)
+  const calcKgConsiderateRotunjit = (r: ReportRow) => Math.round(calcKgConsiderate(r));
 
   const handleSaveGroup = async (group: SupplierGroup) => {
     const key = `${group.supplierName}__${group.documentNumber}`;
@@ -971,7 +973,7 @@ const ReceptionReport: React.FC = () => {
         r.pierdere_calitativa_procent !== "" ? parseFloat(r.pierdere_calitativa_procent) : null,
         r.transmis_la_furnizor ? "DA" : "NU",
         pkg,
-        r.is_missing ? 0 : calcKgConsiderate(r),
+        r.is_missing ? 0 : calcKgConsiderateRotunjit(r),
         (r.defects || []).join(", "),
         r.observations || "",
         r.is_missing ? "LIPSĂ" : "OK",
@@ -1368,6 +1370,7 @@ const ReceptionReport: React.FC = () => {
       loss: qualityLossText,
       credit: creditKg > 0 ? `${fmtKg(creditKg)}${unit}` : "—",
       defects: emailDefectTranslations[rawDefects]?.[lang] || translateKnownTerms(rawDefects, lang) || "—",
+      kgConsid: r.is_missing ? "—" : `${calcKgConsiderateRotunjit(r)}${unit}`,
       photos: (r.photos || []).length > 0 ? `${r.photos.length} link` : "—",
     };
   });
@@ -1405,21 +1408,22 @@ const ReceptionReport: React.FC = () => {
         diff: diffText,
         defects: defectsText || "-",
         credit: creditKg > 0 ? `${fmtKg(creditKg)}${unit}` : "-",
+        kgConsid: r.is_missing ? "-" : `${calcKgConsiderateRotunjit(r)}${unit}`,
       };
     });
   };
 
   const emailHeaders = (lang: EmailLang) => lang === "ro"
-    ? ["Produs", "Producător", "Cantitate document", "Cantitate recepționată", "Diferență cantitativă", "Pierdere calitativă", "Notă de credit", "Defecte", "Poze"]
+    ? ["Produs", "Producător", "Cantitate document", "Cantitate recepționată", "Diferență cantitativă", "Pierdere calitativă", "Notă de credit", "Kg considerate", "Defecte", "Poze"]
     : lang === "it"
-      ? ["Prodotto", "Produttore", "Quantità documento", "Quantità ricevuta", "Differenza quantitativa", "Perdita qualitativa", "Nota di credito", "Difetti", "Foto"]
-      : ["Product", "Producer", "Document quantity", "Received quantity", "Quantitative difference", "Quality loss", "Credit note", "Defects", "Photos"];
+      ? ["Prodotto", "Produttore", "Quantità documento", "Quantità ricevuta", "Differenza quantitativa", "Perdita qualitativa", "Nota di credito", "Kg considerati", "Difetti", "Foto"]
+      : ["Product", "Producer", "Document quantity", "Received quantity", "Quantitative difference", "Quality loss", "Credit note", "Considered kg", "Defects", "Photos"];
 
   const emailHeadersV2 = (lang: EmailLang) => lang === "ro"
-    ? ["Data", "Furnizor", "Nr. Document", "Denumire produs", "Producător", "Cant. Document\n(kg/buc)", "Cant. Recepționată\n(kg/buc)", "Diferență\nCantitativă", "Probleme Calitative\nConstatate", "Notă Credit\nCalitativă (kg)"]
+    ? ["Data", "Furnizor", "Nr. Document", "Denumire produs", "Producător", "Cant. Document\n(kg/buc)", "Cant. Recepționată\n(kg/buc)", "Diferență\nCantitativă", "Probleme Calitative\nConstatate", "Notă Credit\nCalitativă (kg)", "Kg\nConsiderate"]
     : lang === "it"
-      ? ["Data", "Fornitore", "N. Documento", "Nome prodotto", "Produttore", "Q.tà Documento\n(kg/pz)", "Q.tà Ricevuta\n(kg/pz)", "Differenza\nQuantitativa", "Difetti Qualitativi\nRiscontrati", "Nota Credito\nQualitativo (kg)"]
-      : ["Date", "Supplier", "Document No.", "Product name", "Producer", "Document Qty\n(kg/pcs)", "Received Qty\n(kg/pcs)", "Quantity\nDifference", "Quality Defects\nIdentified", "Quality Credit\nNote (kg)"];
+      ? ["Data", "Fornitore", "N. Documento", "Nome prodotto", "Produttore", "Q.tà Documento\n(kg/pz)", "Q.tà Ricevuta\n(kg/pz)", "Differenza\nQuantitativa", "Difetti Qualitativi\nRiscontrati", "Nota Credito\nQualitativo (kg)", "Kg\nConsiderati"]
+      : ["Date", "Supplier", "Document No.", "Product name", "Producer", "Document Qty\n(kg/pcs)", "Received Qty\n(kg/pcs)", "Quantity\nDifference", "Quality Defects\nIdentified", "Quality Credit\nNote (kg)", "Considered\nkg"];
 
   const buildEmailPlainText = (group: SupplierGroup) => {
     const isV2 = emailVersion === "v2";
@@ -1431,8 +1435,8 @@ const ReceptionReport: React.FC = () => {
         ? (isV2 ? "Report qualitativo:" : "Tabella ricevimento:")
         : (isV2 ? "Quality report:" : "Reception table:");
     const rowLines = isV2
-      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit].join(" | "))
-      : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos].join(" | "));
+      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit, r.kgConsid].join(" | "))
+      : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.kgConsid, r.defects, r.photos].join(" | "));
     return [
       buildBodyWithPhotos(),
       "",
@@ -1453,8 +1457,8 @@ const ReceptionReport: React.FC = () => {
         ? (isV2 ? "Report qualitativo" : "Tabella ricevimento")
         : (isV2 ? "Quality report" : "Reception table");
     const bodyCells = isV2
-      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit])
-      : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos]);
+      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit, r.kgConsid])
+      : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.kgConsid, r.defects, r.photos]);
     return `
       <div style="font-family: Arial, sans-serif; color:#111827; font-size:14px; line-height:1.45;">
         ${buildBodyWithPhotos().split("\n").map((line) => line.trim() ? `<p style="margin:0 0 12px;">${escapeHtml(line)}</p>` : `<br />`).join("")}
@@ -1463,7 +1467,7 @@ const ReceptionReport: React.FC = () => {
           <thead><tr>${headers.map((h) => `<th style="border:1px solid #d1d5db; padding:8px; background:#f3f4f6; text-align:left; white-space:pre-line;">${escapeHtml(h)}</th>`).join("")}</tr></thead>
           <tbody>${bodyCells.map((cells) => `<tr>${cells.map((v) => `<td style="border:1px solid #d1d5db; padding:8px; vertical-align:top;">${escapeHtml(v)}</td>`).join("")}</tr>`).join("")}</tbody>
         </table>
-        ${!isV2 && photos.length ? `<h3 style="margin:18px 0 8px; font-size:16px;">${emailLang === "ro" ? "Poze" : emailLang === "it" ? "Foto" : "Photos"}</h3><ul style="padding-left:18px;">${photos.map((p) => `<li><a href="${escapeHtml(getReceptionPhotoUrl(p.photo))}">${escapeHtml(p.row.denumire_produs)}</a></li>`).join("")}</ul>` : ""}
+        ${photos.length ? `<h3 style="margin:18px 0 8px; font-size:16px;">${emailLang === "ro" ? "Poze" : emailLang === "it" ? "Foto" : "Photos"}</h3><ul style="padding-left:18px;">${photos.map((p) => `<li><a href="${escapeHtml(getReceptionPhotoUrl(p.photo))}">${escapeHtml(p.row.denumire_produs)}</a></li>`).join("")}</ul>` : ""}
       </div>`;
   };
 
@@ -1718,7 +1722,7 @@ const ReceptionReport: React.FC = () => {
                             onChange={(e) => updateRow(gIdx, rIdx, "pierdere_calitativa_procent", e.target.value)} className="h-11 text-base" />
                         </div>
                         {renderMobileInfo("Pierdere kg", pkg != null ? pkg.toFixed(2) : "—")}
-                        {renderMobileInfo("Kg considerate", r.is_missing ? "—" : calcKgConsiderate(r).toFixed(2), "text-primary")}
+                        {renderMobileInfo("Kg considerate", r.is_missing ? "—" : String(calcKgConsiderateRotunjit(r)), "text-primary")}
                         <label className="col-span-2 flex h-11 items-center justify-between rounded-md border bg-muted/30 px-3">
                           <span className="text-sm font-medium">Transmis furnizor</span>
                           <Checkbox checked={r.transmis_la_furnizor} disabled={r.is_missing} onCheckedChange={(v) => updateRow(gIdx, rIdx, "transmis_la_furnizor", Boolean(v))} />
@@ -1933,7 +1937,7 @@ const ReceptionReport: React.FC = () => {
                         </TableCell>
                         <TableCell className="font-semibold">{pkg != null ? pkg.toFixed(2) : "—"}</TableCell>
                         <TableCell className="font-semibold text-green-700 dark:text-green-500">
-                          {r.is_missing ? "—" : calcKgConsiderate(r).toFixed(2)}
+                          {r.is_missing ? "—" : calcKgConsiderateRotunjit(r)}
                         </TableCell>
                         <TableCell>
                           <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
@@ -2354,8 +2358,8 @@ const ReceptionReport: React.FC = () => {
                         {previewRows.map((r: any, i) => (
                           <tr key={i}>
                             {(isV2
-                              ? [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit]
-                              : [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos]
+                              ? [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit, r.kgConsid]
+                              : [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.kgConsid, r.defects, r.photos]
                             ).map((v, j) => (
                               <td key={j} className="border px-2 py-2 align-top">{v}</td>
                             ))}
