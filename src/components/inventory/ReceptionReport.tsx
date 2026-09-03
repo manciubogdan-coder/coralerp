@@ -1726,7 +1726,7 @@ const ReceptionReport: React.FC = () => {
                           <Input type="number" step="0.01" disabled={r.is_missing} value={r.pierdere_calitativa_procent}
                             onChange={(e) => updateRow(gIdx, rIdx, "pierdere_calitativa_procent", e.target.value)} className="h-11 text-base" />
                         </div>
-                        {renderMobileInfo("Pierdere kg", pkg != null ? pkg.toFixed(2) : "—")}
+                        {renderMobileInfo("Pierdere kg", pkg != null ? String(pkg) : "—")}
                         {renderMobileInfo("Kg considerate", r.is_missing ? "—" : String(calcKgConsiderateRotunjit(r)), "text-primary")}
                         <label className="col-span-2 flex h-11 items-center justify-between rounded-md border bg-muted/30 px-3">
                           <span className="text-sm font-medium">Transmis furnizor</span>
