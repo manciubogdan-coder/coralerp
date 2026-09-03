@@ -1654,7 +1654,7 @@ const ReceptionReport: React.FC = () => {
               <div className="space-y-3 md:hidden">
                 {group.rows.map((r, rIdx) => {
                   const dif = r.is_missing ? null : calcDiferenta(r);
-                  const pkg = r.is_missing ? null : calcPierdereKg(r);
+                  const pkg = r.is_missing ? null : calcPierdereKgRotunjit(r);
                   const { bd } = parsePalDoc(r.paleti_lazi_document || "");
                   const recC = bd.rec_crates;
                   const recP = bd.rec_pallets;
