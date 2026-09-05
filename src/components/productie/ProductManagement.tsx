@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useProductionLines } from '@/hooks/productie/useProductionData';
 import { useIngredients } from '@/hooks/productie/useIngredients';
 import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe, useRecipes } from '@/hooks/productie/useRecipes';
-import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct } from '@/hooks/productie/useDistributionRules';
+import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct, useAllDistributionRules } from '@/hooks/productie/useDistributionRules';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle } from 'lucide-react';
