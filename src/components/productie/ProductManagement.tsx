@@ -495,17 +495,26 @@ const ProductManagement = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center">Se incarca...</TableCell>
+                    <TableCell colSpan={5} className="text-center">Se incarca...</TableCell>
                   </TableRow>
                 ) : filteredProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center">Nu exista produse</TableCell>
+                    <TableCell colSpan={5} className="text-center">Nu exista produse</TableCell>
                   </TableRow>
                 ) : (
                   filteredProducts.map((product) => (
                     <TableRow key={product.id}>
                       <TableCell>{product.nume}</TableCell>
                       <TableCell>{product.unitate_masura}</TableCell>
+                      <TableCell>
+                        {(productLinesMap.get(product.id) || []).length > 0 ? (
+                          <span className="text-sm text-coral-primary font-medium">
+                            {productLinesMap.get(product.id)!.join(', ')}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {productsWithRecipe.has(product.id) ? (
                           <Badge variant="outline" className="border-emerald-500 text-emerald-600">
