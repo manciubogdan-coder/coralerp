@@ -76,7 +76,9 @@ const ProductManagement = () => {
   const [searchName, setSearchName] = useState('');
   const [searchUm, setSearchUm] = useState('');
   const [recipeFilter, setRecipeFilter] = useState('all');
+  const [lineFilter, setLineFilter] = useState('all');
   const { data: allRecipes } = useRecipes();
+  const { data: allDistributionRules } = useAllDistributionRules();
 
   const productsWithRecipe = React.useMemo(() => {
     const set = new Set<string>();
@@ -86,6 +88,19 @@ const ProductManagement = () => {
     return set;
   }, [allRecipes]);
 
+  // Map produs_id -> nume liniilor pe care e distribuit
+  const productLinesMap = React.useMemo(() => {
+    const map = new Map<string, string[]>();
+    (allDistributionRules || []).forEach((rule: any) => {
+      const numeLinie = rule.productie_linii?.nume;
+      if (!numeLinie) return;
+      const existing = map.get(rule.produs_id) || [];
+      if (!existing.includes(numeLinie)) existing.push(numeLinie);
+      map.set(rule.produs_id, existing);
+    });
+    return map;
+  }, [allDistributionRules]);
+
   const filteredProducts = React.useMemo(() => {
     return (products || []).filter((p: any) => {
       if (searchName && !(p.nume || '').toLowerCase().includes(searchName.toLowerCase())) return false;
@@ -93,9 +108,12 @@ const ProductManagement = () => {
       const has = productsWithRecipe.has(p.id);
       if (recipeFilter === 'with' && !has) return false;
       if (recipeFilter === 'without' && has) return false;
+      const linii = productLinesMap.get(p.id) || [];
+      if (lineFilter === 'none' && linii.length > 0) return false;
+      if (lineFilter !== 'all' && lineFilter !== 'none' && !linii.includes(lineFilter)) return false;
       return true;
     });
-  }, [products, searchName, searchUm, recipeFilter, productsWithRecipe]);
+  }, [products, searchName, searchUm, recipeFilter, lineFilter, productsWithRecipe, productLinesMap]);
 
 
 
