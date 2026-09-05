@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useProductionLines } from '@/hooks/productie/useProductionData';
 import { useIngredients } from '@/hooks/productie/useIngredients';
 import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe, useRecipes } from '@/hooks/productie/useRecipes';
-import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct } from '@/hooks/productie/useDistributionRules';
+import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct, useAllDistributionRules } from '@/hooks/productie/useDistributionRules';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle } from 'lucide-react';
@@ -76,7 +76,9 @@ const ProductManagement = () => {
   const [searchName, setSearchName] = useState('');
   const [searchUm, setSearchUm] = useState('');
   const [recipeFilter, setRecipeFilter] = useState('all');
+  const [lineFilter, setLineFilter] = useState('all');
   const { data: allRecipes } = useRecipes();
+  const { data: allDistributionRules } = useAllDistributionRules();
 
   const productsWithRecipe = React.useMemo(() => {
     const set = new Set<string>();
@@ -86,6 +88,19 @@ const ProductManagement = () => {
     return set;
   }, [allRecipes]);
 
+  // Map produs_id -> nume liniilor pe care e distribuit
+  const productLinesMap = React.useMemo(() => {
+    const map = new Map<string, string[]>();
+    (allDistributionRules || []).forEach((rule: any) => {
+      const numeLinie = rule.productie_linii?.nume;
+      if (!numeLinie) return;
+      const existing = map.get(rule.produs_id) || [];
+      if (!existing.includes(numeLinie)) existing.push(numeLinie);
+      map.set(rule.produs_id, existing);
+    });
+    return map;
+  }, [allDistributionRules]);
+
   const filteredProducts = React.useMemo(() => {
     return (products || []).filter((p: any) => {
       if (searchName && !(p.nume || '').toLowerCase().includes(searchName.toLowerCase())) return false;
@@ -93,9 +108,12 @@ const ProductManagement = () => {
       const has = productsWithRecipe.has(p.id);
       if (recipeFilter === 'with' && !has) return false;
       if (recipeFilter === 'without' && has) return false;
+      const linii = productLinesMap.get(p.id) || [];
+      if (lineFilter === 'none' && linii.length > 0) return false;
+      if (lineFilter !== 'all' && lineFilter !== 'none' && !linii.includes(lineFilter)) return false;
       return true;
     });
-  }, [products, searchName, searchUm, recipeFilter, productsWithRecipe]);
+  }, [products, searchName, searchUm, recipeFilter, lineFilter, productsWithRecipe, productLinesMap]);
 
 
 
@@ -422,6 +440,7 @@ const ProductManagement = () => {
                 <TableRow>
                   <TableHead>Nume</TableHead>
                   <TableHead>Unitate de Masura</TableHead>
+                  <TableHead>Linie</TableHead>
                   <TableHead>Rețetă</TableHead>
                   <TableHead>Actiuni</TableHead>
                 </TableRow>
@@ -443,6 +462,20 @@ const ProductManagement = () => {
                     />
                   </TableHead>
                   <TableHead className="py-2">
+                    <Select value={lineFilter} onValueChange={setLineFilter}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Toate liniile</SelectItem>
+                        <SelectItem value="none">Fără linie</SelectItem>
+                        {(productionLines || []).map((line: any) => (
+                          <SelectItem key={line.id} value={line.nume}>{line.nume}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableHead>
+                  <TableHead className="py-2">
                     <Select value={recipeFilter} onValueChange={setRecipeFilter}>
                       <SelectTrigger className="h-8">
                         <SelectValue />
@@ -462,17 +495,26 @@ const ProductManagement = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center">Se incarca...</TableCell>
+                    <TableCell colSpan={5} className="text-center">Se incarca...</TableCell>
                   </TableRow>
                 ) : filteredProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center">Nu exista produse</TableCell>
+                    <TableCell colSpan={5} className="text-center">Nu exista produse</TableCell>
                   </TableRow>
                 ) : (
                   filteredProducts.map((product) => (
                     <TableRow key={product.id}>
                       <TableCell>{product.nume}</TableCell>
                       <TableCell>{product.unitate_masura}</TableCell>
+                      <TableCell>
+                        {(productLinesMap.get(product.id) || []).length > 0 ? (
+                          <span className="text-sm text-coral-primary font-medium">
+                            {productLinesMap.get(product.id)!.join(', ')}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {productsWithRecipe.has(product.id) ? (
                           <Badge variant="outline" className="border-emerald-500 text-emerald-600">
