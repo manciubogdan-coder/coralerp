@@ -15,6 +15,30 @@ export interface DistributionRule {
   };
 }
 
+// Hook pentru încărcarea tuturor regulilor de distribuire (produs -> linii)
+export const useAllDistributionRules = () => {
+  return useQuery({
+    queryKey: ['distribution-rules', 'all'],
+    queryFn: async () => {
+      const all: any[] = [];
+      const pageSize = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from('productie_reguli_distribuire')
+          .select(`*, productie_linii(id, nume)`)
+          .order('prioritate')
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        all.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+      return all as DistributionRule[];
+    }
+  });
+};
+
 // Hook pentru încărcarea regulilor de distribuire pentru un produs
 export const useDistributionRulesByProduct = (productId: string) => {
   return useQuery({
