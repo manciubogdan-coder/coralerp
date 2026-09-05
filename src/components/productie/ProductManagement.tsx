@@ -440,6 +440,7 @@ const ProductManagement = () => {
                 <TableRow>
                   <TableHead>Nume</TableHead>
                   <TableHead>Unitate de Masura</TableHead>
+                  <TableHead>Linie</TableHead>
                   <TableHead>Rețetă</TableHead>
                   <TableHead>Actiuni</TableHead>
                 </TableRow>
@@ -459,6 +460,20 @@ const ProductManagement = () => {
                       onChange={(e) => setSearchUm(e.target.value)}
                       className="h-8"
                     />
+                  </TableHead>
+                  <TableHead className="py-2">
+                    <Select value={lineFilter} onValueChange={setLineFilter}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Toate liniile</SelectItem>
+                        <SelectItem value="none">Fără linie</SelectItem>
+                        {(productionLines || []).map((line: any) => (
+                          <SelectItem key={line.id} value={line.nume}>{line.nume}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </TableHead>
                   <TableHead className="py-2">
                     <Select value={recipeFilter} onValueChange={setRecipeFilter}>
