@@ -34,6 +34,7 @@ import {
   Settings,
   Users,
   FileClock,
+  Clock,
   PackageSearch,
   Building2,
   Layers,
@@ -132,6 +133,7 @@ const GROUPS: DeptGroup[] = [
       { name: 'Hub Administrativ', icon: Settings, path: '/administrativ' },
       { name: 'Utilizatori', icon: Users, path: '/administrativ/users' },
       { name: 'Audit', icon: FileClock, path: '/administrativ/audit' },
+      { name: 'Activitate utilizatori', icon: Clock, path: '/administrativ/activitate' },
     ],
   },
 ];

@@ -47,6 +47,8 @@ import AuthPage from "./pages/AuthPage";
 import PendingApprovalPage from "./pages/PendingApprovalPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import AuditLogPage from "./pages/AuditLogPage";
+import ActivityTrackingPage from "./pages/ActivityTrackingPage";
+import { useActivityTracker } from "@/hooks/use-activity-tracker";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { InventoryTypeProvider, ForceInventoryType } from "@/context/inventory-type";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -91,6 +93,7 @@ const AppShell = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [scanOpen, setScanOpen] = React.useState(false);
+  useActivityTracker();
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -403,6 +406,14 @@ const AppShell = () => {
                   element={
                     <ProtectedRoute requireAdmin>
                       <AuditLogPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/administrativ/activitate"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <ActivityTrackingPage />
                     </ProtectedRoute>
                   }
                 />
