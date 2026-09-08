@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_activity_pings: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          occurred_at: string
+          path: string
+          seconds: number
+          tab: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          occurred_at?: string
+          path: string
+          seconds?: number
+          tab?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          occurred_at?: string
+          path?: string
+          seconds?: number
+          tab?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_task_checklist: {
         Row: {
           created_at: string
