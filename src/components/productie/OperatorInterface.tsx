@@ -16,6 +16,7 @@ import { useGrupareAmbalare } from "@/hooks/productie/useGrupareAmbalare";
 import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 import TrasabilitateCard from "./TrasabilitateCard";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useOperatorT } from "@/lib/operatorI18n";
 
 interface OperatorInterfaceProps {
   selectedLine: string;
@@ -35,6 +36,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const [forceRefreshKey, setForceRefreshKey] = useState(0);
   const [selectedDay, setSelectedDay] = useState<string>(todayISO());
   const [ordersViewMode, setOrdersViewMode] = useState<'individual' | 'grouped'>('individual');
+  const { t } = useOperatorT();
 
   const {
     data: lines,
@@ -187,8 +189,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     const validOperators = operatorNames.filter(n => n.trim() !== '');
     if (validOperators.length === 0 || !currentOrderId || !currentLineId) {
       toast({
-        title: "Eroare",
-        description: "Te rog completează cel puțin un nume de operator.",
+        title: t("error"),
+        description: t("errNoOperator"),
         variant: "destructive"
       });
       return;
@@ -204,15 +206,15 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
       const order = orders?.find(o => o.id === currentOrderId);
       toast({
-        title: "Sesiune pornită",
-        description: `Sesiunea a fost pornită pentru comanda ${order?.numar_comanda}.`
+        title: t("sessionStarted"),
+        description: `${t("sessionStartedFor")} ${order?.numar_comanda}.`
       });
 
       setProducedQuantity(0);
     } catch (error) {
       toast({
-        title: "Eroare",
-        description: "Nu s-a putut porni sesiunea.",
+        title: t("error"),
+        description: t("errStartSession"),
         variant: "destructive"
       });
     }
@@ -235,7 +237,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     const status: 'finalizata' | 'partial' = (acoperitPrev + cantitate) >= cantitateComandă ? 'finalizata' : 'partial';
 
     if (cantitate <= 0) {
-      const ok = window.confirm('Ai introdus 0 bucăți produse. Ești sigur că vrei să finalizezi sesiunea fără producție?');
+      const ok = window.confirm(t("confirmZero"));
       if (!ok) return;
     }
 
@@ -248,16 +250,16 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       });
 
       toast({
-        title: status === 'finalizata' ? "✅ Sesiune finalizată complet" : "⚠️ Sesiune finalizată parțial",
-        description: `${cantitate} buc produse în această sesiune. ${status === 'partial' ? `Mai rămân de produs ~${Math.max(0, ramasDeAcoperit - cantitate)} buc.` : 'Comanda este acoperită integral.'}`
+        title: status === 'finalizata' ? t("sessionDoneFull") : t("sessionDonePartial"),
+        description: `${cantitate} ${t("producedThisSession")} ${status === 'partial' ? `${t("remainsToProduce")} ~${Math.max(0, ramasDeAcoperit - cantitate)} ${t("pcs")}.` : t("orderFullyCovered")}`
       });
 
       setOperatorNames([""]);
       setProducedQuantity(0);
     } catch (error) {
       toast({
-        title: "Eroare",
-        description: "Nu s-a putut finaliza sesiunea.",
+        title: t("error"),
+        description: t("errFinishSession"),
         variant: "destructive"
       });
     }
@@ -292,7 +294,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const handleStartGroupSession = async (orderIds: string[], operatorList: string[]) => {
     const validOperators = operatorList.map(n => n.trim()).filter(Boolean);
     if (validOperators.length === 0 || !currentLineId) {
-      toast({ title: "Eroare", description: "Completează cel puțin un operator.", variant: "destructive" });
+      toast({ title: t("error"), description: t("errFillOperator"), variant: "destructive" });
       return;
     }
     const idSet = new Set(orderIds);
@@ -313,8 +315,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       }
     }
     toast({
-      title: "Sesiuni pornite",
-      description: `S-au pornit ${created} sesiuni pentru grup.`,
+      title: t("sessionsStarted"),
+      description: t("sessionsStartedCount", { n: created }),
     });
   };
 
@@ -328,12 +330,12 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       .filter(x => !!x.session);
 
     if (withSession.length === 0) {
-      toast({ title: "Nicio sesiune activă", description: "Grupul nu are sesiuni active de finalizat.", variant: "destructive" });
+      toast({ title: t("noActiveSession"), description: t("noActiveSessionDesc"), variant: "destructive" });
       return;
     }
 
     if (totalQty === 0) {
-      const ok = window.confirm('Ai introdus 0 bucăți produse pentru tot grupul. Continui?');
+      const ok = window.confirm(t("confirmZeroGroup"));
       if (!ok) return;
     }
 
@@ -360,8 +362,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       }
     }
     toast({
-      title: "Grup finalizat",
-      description: `Distribuit ${totalQty} buc pe ${withSession.length} comenzi.`,
+      title: t("groupFinished"),
+      description: t("groupDistributed", { q: totalQty, n: withSession.length }),
     });
   };
 
@@ -398,10 +400,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             className="border-coral-primary text-coral-primary hover:bg-coral-50"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Înapoi la comenzi
+            {t("backToOrders")}
           </Button>
           <h2 className="text-2xl font-bold text-coral-primary">
-            Gestionare Sesiune - {currentOrder?.numar_comanda}
+            {t("sessionManagement")} - {currentOrder?.numar_comanda}
           </h2>
         </div>
 
@@ -409,25 +411,25 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         {currentOrder && (
           <Card className="border-coral-200 shadow-lg">
             <CardHeader className="bg-gradient-to-r from-coral-primary to-bio-primary text-white">
-              <CardTitle className="text-xl">Progres Comandă</CardTitle>
+              <CardTitle className="text-xl">{t("orderProgress")}</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-6">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-600">Produs:</span>
+                    <span className="text-gray-600">{t("product")}:</span>
                     <p className="font-medium text-coral-primary text-lg">{currentOrder.productie_produse?.nume}</p>
                   </div>
                   <div>
-                    <span className="text-gray-600">Magazin:</span>
+                    <span className="text-gray-600">{t("store")}:</span>
                     <p className="font-medium text-coral-primary">{currentOrder.magazin}</p>
                   </div>
                   <div>
-                    <span className="text-gray-600">Punct Livrare:</span>
+                    <span className="text-gray-600">{t("deliveryPoint")}:</span>
                     <p className="font-medium text-coral-primary">{currentOrder.punct_livrare}</p>
                   </div>
                   <div>
-                    <span className="text-gray-600">Unitate:</span>
+                    <span className="text-gray-600">{t("unit")}:</span>
                     <p className="font-medium text-coral-primary">{currentOrder.productie_produse?.unitate_masura}</p>
                   </div>
                 </div>
@@ -445,10 +447,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                         {currentOrder.productie_clienti.productie_zone_livrare.nume_zona}
                       </div>
                       <div className="text-sm text-gray-600">
-                        🚛 Plecare: {currentOrder.productie_clienti.productie_zone_livrare.ora_limita_plecare || 'Nu specificat'}
+                        🚛 {t("departure")}: {currentOrder.productie_clienti.productie_zone_livrare.ora_limita_plecare || t("notSpecified")}
                       </div>
                       <div className="text-sm text-blue-600 font-medium">
-                        Prioritate: {currentOrder.productie_clienti.productie_zone_livrare.prioritate}
+                        {t("priority")}: {currentOrder.productie_clienti.productie_zone_livrare.prioritate}
                       </div>
                     </div>
                   </div>
@@ -467,7 +469,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                       <div className={`text-3xl font-bold ${procentProgres >= 100 ? 'text-green-600' : procentProgres >= 50 ? 'text-blue-600' : 'text-amber-600'}`}>
                         {procentProgres}%
                       </div>
-                      <div className="text-sm text-gray-500">complet</div>
+                      <div className="text-sm text-gray-500">{t("complete")}</div>
                     </div>
                   </div>
 
@@ -476,19 +478,19 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                     <div className="text-xs space-y-1 bg-gray-50 p-2 rounded">
                       {cantitateRealaProadusa > 0 && (
                         <div className="flex justify-between">
-                          <span className="text-green-700">🏭 Produs efectiv:</span>
+                          <span className="text-green-700">🏭 {t("producedEffective")}:</span>
                           <span className="font-medium text-green-700">{cantitateRealaProadusa} {currentOrder.productie_produse?.unitate_masura}</span>
                         </div>
                       )}
                       {cantitatedinRestock > 0 && (
                         <div className="flex justify-between">
-                          <span className="text-blue-700">📦 Din restocări:</span>
+                          <span className="text-blue-700">📦 {t("fromRestock")}:</span>
                           <span className="font-medium text-blue-700">{cantitatedinRestock} {currentOrder.productie_produse?.unitate_masura}</span>
                         </div>
                       )}
                       {cantitateRamasaDeProdus > 0 && (
                         <div className="flex justify-between border-t pt-1">
-                          <span className="text-red-700 font-medium">⚠️ Mai trebuie produs:</span>
+                          <span className="text-red-700 font-medium">⚠️ {t("stillToProduce")}:</span>
                           <span className="font-bold text-red-700">{cantitateRamasaDeProdus} {currentOrder.productie_produse?.unitate_masura}</span>
                         </div>
                       )}
@@ -513,7 +515,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
                         <AlertTriangle className="w-5 h-5 text-amber-600" />
                         <div>
-                          <div className="font-bold text-amber-700">Mai rămâne:</div>
+                          <div className="font-bold text-amber-700">{t("remaining")}:</div>
                           <div className="text-xl font-bold text-amber-800">
                             {cantitateRamasaDeProdus} {currentOrder.productie_produse?.unitate_masura}
                           </div>
@@ -524,7 +526,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                       <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
                         <Package className="w-5 h-5 text-green-600" />
                         <div>
-                          <div className="font-bold text-green-700">Din stoc:</div>
+                          <div className="font-bold text-green-700">{t("fromStock")}:</div>
                           <div className="text-xl font-bold text-green-800">
                             {cantitatedinRestock} {currentOrder.productie_produse?.unitate_masura}
                           </div>
@@ -534,12 +536,12 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                     {procentProgres >= 100 && (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
                         <CheckCircle className="w-5 h-5 text-green-600" />
-                        <div className="font-bold text-green-700 text-lg">Cantitate exactă ✓</div>
+                        <div className="font-bold text-green-700 text-lg">{t("exactQuantity")}</div>
                       </div>
                     )}
                     {cantitateAcoperitaTotal === 0 && (
                       <Badge variant="outline" className="text-xs bg-gray-50 text-gray-600 border-gray-200">
-                        Nu s-a început producția
+                        {t("productionNotStarted")}
                       </Badge>
                     )}
                   </div>
@@ -555,7 +557,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             <CardContent className="p-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600 block">📅 Data creării:</span>
+                  <span className="text-gray-600 block">📅 {t("createdDate")}:</span>
                   <p className="font-medium text-gray-800">
                     {currentOrder.created_at
                       ? new Date(currentOrder.created_at).toLocaleString('ro-RO', {
@@ -566,17 +568,17 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   </p>
                 </div>
                 <div>
-                  <span className="text-gray-600 block">🏭 Data producției:</span>
+                  <span className="text-gray-600 block">🏭 {t("productionDate")}:</span>
                   <p className={`font-medium ${(currentOrder as any).data_productie ? 'text-coral-primary' : 'text-gray-400'}`}>
                     {(currentOrder as any).data_productie
                       ? new Date((currentOrder as any).data_productie).toLocaleDateString('ro-RO')
-                      : 'Nestabilită'}
+                      : t("notSet")}
                   </p>
                 </div>
                 <div>
-                  <span className="text-gray-600 block">📝 Observații:</span>
+                  <span className="text-gray-600 block">📝 {t("observations")}:</span>
                   <p className="font-medium text-gray-800 whitespace-pre-wrap break-words">
-                    {(currentOrder as any).baxare || <span className="text-gray-400 italic">Fără observații</span>}
+                    {(currentOrder as any).baxare || <span className="text-gray-400 italic">{t("noObservations")}</span>}
                   </p>
                 </div>
               </div>
@@ -597,13 +599,13 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             <CardHeader className="bg-gradient-to-r from-green-600 to-green-500 text-white">
               <CardTitle className="flex items-center gap-2">
                 <Play className="h-5 w-5" />
-                🟢 Sesiune Activă - În Desfășurare
+                🟢 {t("activeSession")}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 bg-green-50">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                  <span className="text-gray-600 text-sm">Operatori:</span>
+                  <span className="text-gray-600 text-sm">{t("operators")}:</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {activeSession.nume_operator.split(',').map((name, i) => (
                       <Badge key={i} className="bg-green-600 text-white text-sm">
@@ -613,7 +615,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   </div>
                 </div>
                 <div>
-                  <span className="text-gray-600 text-sm">Pornită la:</span>
+                  <span className="text-gray-600 text-sm">{t("startedAt")}:</span>
                   <p className="font-bold text-green-700 text-lg">
                     <Clock className="inline w-4 h-4 mr-1" />
                     {new Date(activeSession.ora_start).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}
@@ -627,7 +629,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="produced" className="text-coral-primary font-medium">
-                    Cantitate Produsă în această sesiune
+                    {t("producedQtyThisSession")}
                   </Label>
                   <Input
                     id="produced"
@@ -635,7 +637,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                     min="0"
                     value={producedQuantity.toString()}
                     onChange={(e) => setProducedQuantity(parseInt(e.target.value))}
-                    placeholder="Introduceți cantitatea produsă"
+                    placeholder={t("enterProducedQty")}
                     className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
                   />
                 </div>
@@ -646,10 +648,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   className="w-full bg-coral-primary hover:bg-coral-600 text-white h-12 text-base"
                 >
                   <CheckCircle className="h-5 w-5 mr-2" />
-                  Finalizare Sesiune
+                  {t("finishSession")}
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
-                  Sistemul detectează automat dacă comanda e completă sau parțială pe baza cantităților introduse.
+                  {t("autoDetectHint")}
                 </p>
               </div>
             </CardContent>
@@ -659,13 +661,13 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             <CardHeader className="bg-gradient-to-r from-coral-primary to-bio-primary text-white">
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Pornire Sesiune Nouă
+                {t("startNewSession")}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4 mb-6">
                 <div>
-                  <Label className="text-coral-primary font-medium mb-2 block">Operatori</Label>
+                  <Label className="text-coral-primary font-medium mb-2 block">{t("operators")}</Label>
                   {operatorNames.map((name, index) => (
                     <div key={index} className="flex items-center gap-2 mb-2">
                       <Input
@@ -676,7 +678,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                           setOperatorNames(updated);
                         }}
                         className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
-                        placeholder={`Numele operatorului ${index + 1}`}
+                        placeholder={`${t("operatorName")} ${index + 1}`}
                       />
                       {operatorNames.length > 1 && (
                         <Button
@@ -696,7 +698,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                     onClick={() => setOperatorNames([...operatorNames, ""])}
                     className="mt-1 border-coral-200 text-coral-primary hover:bg-coral-50"
                   >
-                    + Adaugă operator
+                    {t("addOperator")}
                   </Button>
                 </div>
               </div>
@@ -707,7 +709,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                 className="w-full bg-coral-primary hover:bg-coral-600 text-white"
               >
                 <Play className="h-4 w-4 mr-2" />
-                Pornire Sesiune
+                {t("startSession")}
               </Button>
             </CardContent>
           </Card>
@@ -748,10 +750,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             className="border-coral-primary text-coral-primary hover:bg-coral-50"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Înapoi la linii
+            {t("backToLines")}
           </Button>
           <h2 className="text-base md:text-2xl font-bold text-coral-primary break-words min-w-0 w-full md:w-auto">
-            Comenzi pentru {currentLine?.nume} - {totalItems} comenzi (ordinea livrării)
+            {t("ordersFor")} {currentLine?.nume} - {totalItems} {t("ordersCount")} ({t("deliveryOrder")})
           </h2>
         </div>
 
@@ -761,21 +763,21 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           <CardContent className="pt-4 flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <Package className="h-5 w-5 text-coral-primary" />
-              <span className="text-sm text-gray-600">Total de produs:</span>
-              <span className="font-bold text-coral-primary text-lg">{totalBucRamase} buc</span>
+              <span className="text-sm text-gray-600">{t("totalToProduce")}:</span>
+              <span className="font-bold text-coral-primary text-lg">{totalBucRamase} {t("pcs")}</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-600" />
-              <span className="text-sm text-gray-600">Timp estimat:</span>
+              <span className="text-sm text-gray-600">{t("estimatedTime")}:</span>
               <span className="font-bold text-blue-700 text-lg">
-                {cap > 0 ? `~${formatDur(totalOreEstimate)}` : 'Fără capacitate'}
+                {cap > 0 ? `~${formatDur(totalOreEstimate)}` : t("noCapacity")}
               </span>
             </div>
             {cap > 0 && (
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-green-600" />
-                <span className="text-sm text-gray-600">Productivitate:</span>
-                <span className="font-medium text-green-700">{cap} buc/h</span>
+                <span className="text-sm text-gray-600">{t("productivity")}:</span>
+                <span className="font-medium text-green-700">{cap} {t("pcs")}/h</span>
               </div>
             )}
           </CardContent>
@@ -788,22 +790,22 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             <CalendarDays className="h-5 w-5 text-coral-primary" />
             <DateProductiePicker value={selectedDay} onChange={setSelectedDay} label="" />
             <span className="text-xs text-muted-foreground ml-2">
-              Comenzile fără dată țintă apar la „Azi".
+              {t("noTargetDate")}
             </span>
           </CardContent>
         </Card>
 
         {/* Toggle vizualizare */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-muted-foreground">Vizualizare:</span>
+          <span className="text-sm text-muted-foreground">{t("viewMode")}:</span>
           <ToggleGroup
             type="single"
             value={ordersViewMode}
             onValueChange={(v) => v && setOrdersViewMode(v as 'individual' | 'grouped')}
             className="border rounded-md flex-1 md:flex-none min-w-0"
           >
-            <ToggleGroupItem value="individual" className="px-3 flex-1 md:flex-none">Individual</ToggleGroupItem>
-            <ToggleGroupItem value="grouped" className="px-3 flex-1 md:flex-none">Grupat pe produs</ToggleGroupItem>
+            <ToggleGroupItem value="individual" className="px-3 flex-1 md:flex-none">{t("individual")}</ToggleGroupItem>
+            <ToggleGroupItem value="grouped" className="px-3 flex-1 md:flex-none">{t("groupedByProduct")}</ToggleGroupItem>
           </ToggleGroup>
         </div>
 
@@ -844,7 +846,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           <Card className="border-coral-200 shadow-md">
             <CardContent className="p-8 text-center">
               <AlertCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-500">Nu există comenzi pentru această linie</p>
+              <p className="text-gray-500">{t("noOrdersForLine")}</p>
             </CardContent>
           </Card>
         )}
@@ -858,9 +860,9 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     <div className="space-y-8" key={`lines-${refreshKey}-${forceRefreshKey}`}>
       <div className="text-center">
         <h2 className="text-3xl font-bold bg-gradient-to-r from-coral-primary to-bio-primary bg-clip-text text-zinc-950">
-          Interfața Operatorului
+          {t("operatorInterface")}
         </h2>
-        <p className="text-coral-primary mt-2">Selectează o linie de producție pentru a continua</p>
+        <p className="text-coral-primary mt-2">{t("selectLine")}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -911,13 +913,13 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   <div className="flex items-center gap-2">
                     <Factory className="h-5 w-5 bg-transparent" />
                     <span className="font-semibold text-zinc-950">
-                      {line.nume || 'Linie fără nume'}
+                      {line.nume || t("lineNoName")}
                     </span>
                   </div>
                   {activeSession && (
                     <div className="flex items-center text-coral-100">
                       <Timer className="h-4 w-4 mr-1 animate-pulse" />
-                      Activă
+                      {t("active")}
                     </div>
                   )}
                 </CardTitle>
@@ -927,42 +929,42 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-600">Status:</span>
+                      <span className="text-gray-600">{t("status")}:</span>
                       <p className={`font-medium ${activeSession ? 'text-coral-600' : 'text-green-600'}`}>
-                        {activeSession ? 'În producție' : 'Disponibilă'}
+                        {activeSession ? t("inProduction") : t("available")}
                       </p>
                     </div>
                     <div>
-                      <span className="text-gray-600">De lucrat:</span>
+                      <span className="text-gray-600">{t("toDo")}:</span>
                       <p className={`font-bold text-lg ${lineOrdersCount > 0 ? 'text-coral-primary' : 'text-gray-400'}`}>
-                        {lineOrdersCount > 0 ? `${lineOrdersCount} comenzi` : 'Nicio comandă'}
+                        {lineOrdersCount > 0 ? `${lineOrdersCount} ${t("ordersCount")}` : t("noOrder")}
                       </p>
                     </div>
                     <div>
                       <span className="text-gray-600 flex items-center gap-1">
-                        <Package className="h-3 w-3" /> Bucăți:
+                        <Package className="h-3 w-3" /> {t("pieces")}:
                       </span>
                       <p className={`font-bold text-lg ${totalBucRamase > 0 ? 'text-coral-primary' : 'text-gray-400'}`}>
-                        {totalBucRamase > 0 ? `${totalBucRamase} buc` : '—'}
+                        {totalBucRamase > 0 ? `${totalBucRamase} ${t("pcs")}` : '—'}
                       </p>
                     </div>
                     <div>
                       <span className="text-gray-600 flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> Timp estimat:
+                        <Clock className="h-3 w-3" /> {t("estimatedTime")}:
                       </span>
                       <p className={`font-bold text-lg ${oreEst > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
-                        {cap > 0 ? (oreEst > 0 ? `~${formatDur(oreEst)}` : '—') : 'Fără cap.'}
+                        {cap > 0 ? (oreEst > 0 ? `~${formatDur(oreEst)}` : '—') : t("noCapacityShort")}
                       </p>
                     </div>
                   </div>
                   {cap > 0 && (
                     <div className="text-xs text-gray-500 flex items-center gap-1">
-                      <TrendingUp className="h-3 w-3" /> Productivitate: {cap} buc/h
+                      <TrendingUp className="h-3 w-3" /> {t("productivity")}: {cap} {t("pcs")}/h
                     </div>
                   )}
                   
                   <Button className="w-full bg-coral-primary hover:bg-coral-600 text-white">
-                    Accesează Linia
+                    {t("accessLine")}
                   </Button>
                 </div>
               </CardContent>
