@@ -23,7 +23,9 @@ export const tomorrowISO = () => {
   return fmt(d);
 };
 
-const DateProductiePicker = ({ value, onChange, label = "Pentru ziua" }: DateProductiePickerProps) => {
+const DateProductiePicker = ({ value, onChange, label }: DateProductiePickerProps) => {
+  const { t } = useOperatorT();
+  const effectiveLabel = label ?? t("forDay");
   const today = todayISO();
   const tomorrow = tomorrowISO();
 
