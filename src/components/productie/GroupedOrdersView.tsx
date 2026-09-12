@@ -313,14 +313,14 @@ const GroupedOrdersView: React.FC<Props> = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-coral-primary" />
-              Pornește sesiune grup: {startDialog.nume}
+              {t("startGroupTitle", { name: startDialog.nume })}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Se va crea o sesiune de lucru identică pentru toate comenzile din grup care nu sunt deja finalizate.
+              {t("startGroupDesc")}
             </p>
-            <Label className="text-coral-primary font-medium">Operatori</Label>
+            <Label className="text-coral-primary font-medium">{t("operators")}</Label>
             {operatorNames.map((name, i) => (
               <div key={i} className="flex items-center gap-2">
                 <Input
@@ -330,7 +330,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                     u[i] = e.target.value;
                     setOperatorNames(u);
                   }}
-                  placeholder={`Numele operatorului ${i + 1}`}
+                  placeholder={`${t("operatorName")} ${i + 1}`}
                 />
                 {operatorNames.length > 1 && (
                   <Button
@@ -350,7 +350,7 @@ const GroupedOrdersView: React.FC<Props> = ({
               onClick={() => setOperatorNames([...operatorNames, ""])}
               className="border-coral-200 text-coral-primary"
             >
-              + Adaugă operator
+              {t("addOperator")}
             </Button>
           </div>
           <DialogFooter>
@@ -359,7 +359,7 @@ const GroupedOrdersView: React.FC<Props> = ({
               onClick={() => setStartDialog({ open: false, orderIds: [], nume: "" })}
               disabled={submitting}
             >
-              Anulează
+              {t("cancel")}
             </Button>
             <Button
               onClick={handleStart}
@@ -367,7 +367,7 @@ const GroupedOrdersView: React.FC<Props> = ({
               className="bg-coral-primary hover:bg-coral-600 text-white"
             >
               <Play className="h-4 w-4 mr-1" />
-              Pornește
+              {t("start")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -379,14 +379,14 @@ const GroupedOrdersView: React.FC<Props> = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
-              Finalizează sesiune grup: {finishDialog.nume}
+              {t("finishGroupTitle", { name: finishDialog.nume })}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Introdu <strong>cantitatea totală produsă</strong> pentru tot grupul. Se distribuie automat pe comenzi în ordinea priorității zonelor; surplusul intră în restocări.
+              {t("finishGroupDesc")}
             </p>
-            <Label className="text-coral-primary font-medium">Cantitate totală produsă</Label>
+            <Label className="text-coral-primary font-medium">{t("totalProducedQty")}</Label>
             <Input
               type="number"
               min={0}
@@ -401,7 +401,7 @@ const GroupedOrdersView: React.FC<Props> = ({
               onClick={() => setFinishDialog({ open: false, orderIds: [], nume: "" })}
               disabled={submitting}
             >
-              Anulează
+              {t("cancel")}
             </Button>
             <Button
               onClick={handleFinish}
@@ -409,7 +409,7 @@ const GroupedOrdersView: React.FC<Props> = ({
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               <CheckCircle className="h-4 w-4 mr-1" />
-              Finalizează
+              {t("finish")}
             </Button>
           </DialogFooter>
         </DialogContent>
