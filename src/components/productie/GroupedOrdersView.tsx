@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Package, Clock, ChevronDown, ChevronRight, Play, CheckCircle, Users, Factory, AlertTriangle } from "lucide-react";
 import { ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/useProductionData";
+import { useOperatorT } from "@/lib/operatorI18n";
 
 interface Props {
   orders: ProductieComanda[];
@@ -55,6 +56,7 @@ const GroupedOrdersView: React.FC<Props> = ({
   onStartGroup,
   onFinishGroup,
 }) => {
+  const { t } = useOperatorT();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [hideDone, setHideDone] = useState(true);
 
