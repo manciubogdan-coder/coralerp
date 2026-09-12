@@ -31,7 +31,7 @@ const DateProductiePicker = ({ value, onChange, label }: DateProductiePickerProp
 
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium">{label}</Label>
+      <Label className="text-sm font-medium">{effectiveLabel}</Label>
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
@@ -39,7 +39,7 @@ const DateProductiePicker = ({ value, onChange, label }: DateProductiePickerProp
           variant={value === today ? "default" : "outline"}
           onClick={() => onChange(today)}
         >
-          Azi
+          {t("today")}
         </Button>
         <Button
           type="button"
@@ -47,7 +47,7 @@ const DateProductiePicker = ({ value, onChange, label }: DateProductiePickerProp
           variant={value === tomorrow ? "default" : "outline"}
           onClick={() => onChange(tomorrow)}
         >
-          Mâine
+          {t("tomorrow")}
         </Button>
         <Input
           type="date"
