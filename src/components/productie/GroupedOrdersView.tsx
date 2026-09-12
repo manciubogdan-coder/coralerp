@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Package, Clock, ChevronDown, ChevronRight, Play, CheckCircle, Users, Factory, AlertTriangle } from "lucide-react";
 import { ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/useProductionData";
+import { useOperatorT } from "@/lib/operatorI18n";
 
 interface Props {
   orders: ProductieComanda[];
@@ -55,6 +56,7 @@ const GroupedOrdersView: React.FC<Props> = ({
   onStartGroup,
   onFinishGroup,
 }) => {
+  const { t } = useOperatorT();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [hideDone, setHideDone] = useState(true);
 
@@ -84,7 +86,7 @@ const GroupedOrdersView: React.FC<Props> = ({
       // Comenzile finalizate din alte zile nu mai apar niciodată în lista grupată
       if (isOrderDone(o) && !isFromToday(o)) continue;
       const produsId = o.produs_id || "";
-      const produsNume = (o as any).productie_produse?.nume || "Fără produs";
+      const produsNume = (o as any).productie_produse?.nume || t("noProduct");
       const grup = produsId && groupMap ? (groupMap[produsId] || "").trim() : "";
       const key = grup ? `grp:${grup}` : (produsId ? `prod:${produsId}` : `noprod-${o.id}`);
       const nume = grup || produsNume;
@@ -136,14 +138,14 @@ const GroupedOrdersView: React.FC<Props> = ({
     <div className="space-y-3">
       <div className="flex items-center justify-end gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground mr-auto">
-          Finalizatele din zilele anterioare sunt ascunse automat
+          {t("hiddenPrevDays")}
         </span>
         <Button
           size="sm"
           variant={hideDone ? "default" : "outline"}
           onClick={() => setHideDone((v) => !v)}
         >
-          {hideDone ? "Arată finalizate de azi" : "Ascunde finalizate de azi"}
+          {hideDone ? t("showDoneToday") : t("hideDoneToday")}
         </Button>
       </div>
 
@@ -181,14 +183,14 @@ const GroupedOrdersView: React.FC<Props> = ({
                   </CardTitle>
                   <div className="flex items-center gap-1 flex-wrap">
                     {g.isMerged && (
-                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5">grup</Badge>
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5">{t("groupBadge")}</Badge>
                     )}
                     <Badge variant="outline" className="text-[10px] px-1.5">
-                      {g.orders.length} comenzi
+                      {g.orders.length} {t("ordersCount")}
                     </Badge>
                     {doneCount > 0 && (
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5">
-                        {doneCount} finalizate
+                        {doneCount} {t("doneBadge")}
                       </Badge>
                     )}
                   </div>
@@ -201,7 +203,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                       className="bg-green-600 hover:bg-green-700 text-white w-full md:w-auto"
                     >
                       <CheckCircle className="h-4 w-4 mr-1" />
-                      Finalizează grup
+                      {t("finishGroup")}
                     </Button>
                   ) : (
                     totalRamas > 0 && (
@@ -211,7 +213,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                         className="bg-coral-primary hover:bg-coral-600 text-white w-full md:w-auto"
                       >
                         <Play className="h-4 w-4 mr-1" />
-                        Pornește sesiune grup
+                        {t("startGroupSession")}
                       </Button>
                     )
                   )}
@@ -222,19 +224,19 @@ const GroupedOrdersView: React.FC<Props> = ({
             <CardContent className="p-3 md:p-4 pt-0">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 <div>
-                  <div className="text-xs text-gray-500 flex items-center gap-1"><Package className="h-3 w-3" /> Total cerut</div>
+                  <div className="text-xs text-gray-500 flex items-center gap-1"><Package className="h-3 w-3" /> {t("totalRequested")}</div>
                   <div className="font-bold text-coral-primary">{totalCerut} {g.unitate}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Acoperit</div>
+                  <div className="text-xs text-gray-500">{t("covered")}</div>
                   <div className="font-bold text-green-700">{totalAcoperit} <span className="text-xs text-gray-400">({procent}%)</span></div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Rămas</div>
+                  <div className="text-xs text-gray-500 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {t("leftLabel")}</div>
                   <div className={`font-bold ${totalRamas > 0 ? "text-red-600" : "text-gray-400"}`}>{totalRamas} {g.unitate}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 flex items-center gap-1"><Clock className="h-3 w-3" /> Timp estimat</div>
+                  <div className="text-xs text-gray-500 flex items-center gap-1"><Clock className="h-3 w-3" /> {t("estimatedTime")}</div>
                   <div className="font-bold text-blue-700">{lineCapacity && lineCapacity > 0 ? `~${formatDur(timp)}` : "—"}</div>
                 </div>
               </div>
@@ -249,10 +251,10 @@ const GroupedOrdersView: React.FC<Props> = ({
               {hasActive && (
                 <div className="mt-3 text-xs text-green-700 flex items-center gap-1">
                   <Play className="w-3 h-3 fill-green-600" />
-                  🟢 Sesiune activă: {groupSessions[0].nume_operator}
+                  🟢 {t("activeSessionLabel")}: {groupSessions[0].nume_operator}
                   {" — "}
                   {new Date(groupSessions[0].ora_start).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })}
-                  {groupSessions.length > 1 && <span className="ml-1">(pe {groupSessions.length} comenzi)</span>}
+                  {groupSessions.length > 1 && <span className="ml-1">{t("onNOrders", { n: groupSessions.length })}</span>}
                 </div>
               )}
 
@@ -286,8 +288,8 @@ const GroupedOrdersView: React.FC<Props> = ({
                             <span className="font-semibold">{o.cantitate}</span>
                             <span className="text-gray-500"> {o.productie_produse?.unitate_masura}</span>
                           </div>
-                          {ramas > 0 && <div className="text-red-600">Lipsă: {ramas}</div>}
-                          {done && <div className="text-green-600">✓ Complet</div>}
+                          {ramas > 0 && <div className="text-red-600">{t("missingLabel", { n: ramas })}</div>}
+                          {done && <div className="text-green-600">{t("completedMark")}</div>}
                         </div>
                       </div>
                     );
@@ -301,7 +303,7 @@ const GroupedOrdersView: React.FC<Props> = ({
 
       {groups.length === 0 && (
         <Card className="border-coral-200">
-          <CardContent className="p-6 text-center text-gray-500">Nu există comenzi de grupat</CardContent>
+          <CardContent className="p-6 text-center text-gray-500">{t("noOrdersToGroup")}</CardContent>
         </Card>
       )}
 
@@ -311,14 +313,14 @@ const GroupedOrdersView: React.FC<Props> = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-coral-primary" />
-              Pornește sesiune grup: {startDialog.nume}
+              {t("startGroupTitle", { name: startDialog.nume })}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Se va crea o sesiune de lucru identică pentru toate comenzile din grup care nu sunt deja finalizate.
+              {t("startGroupDesc")}
             </p>
-            <Label className="text-coral-primary font-medium">Operatori</Label>
+            <Label className="text-coral-primary font-medium">{t("operators")}</Label>
             {operatorNames.map((name, i) => (
               <div key={i} className="flex items-center gap-2">
                 <Input
@@ -328,7 +330,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                     u[i] = e.target.value;
                     setOperatorNames(u);
                   }}
-                  placeholder={`Numele operatorului ${i + 1}`}
+                  placeholder={`${t("operatorName")} ${i + 1}`}
                 />
                 {operatorNames.length > 1 && (
                   <Button
@@ -348,7 +350,7 @@ const GroupedOrdersView: React.FC<Props> = ({
               onClick={() => setOperatorNames([...operatorNames, ""])}
               className="border-coral-200 text-coral-primary"
             >
-              + Adaugă operator
+              {t("addOperator")}
             </Button>
           </div>
           <DialogFooter>
@@ -357,7 +359,7 @@ const GroupedOrdersView: React.FC<Props> = ({
               onClick={() => setStartDialog({ open: false, orderIds: [], nume: "" })}
               disabled={submitting}
             >
-              Anulează
+              {t("cancel")}
             </Button>
             <Button
               onClick={handleStart}
@@ -365,7 +367,7 @@ const GroupedOrdersView: React.FC<Props> = ({
               className="bg-coral-primary hover:bg-coral-600 text-white"
             >
               <Play className="h-4 w-4 mr-1" />
-              Pornește
+              {t("start")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -377,14 +379,14 @@ const GroupedOrdersView: React.FC<Props> = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
-              Finalizează sesiune grup: {finishDialog.nume}
+              {t("finishGroupTitle", { name: finishDialog.nume })}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Introdu <strong>cantitatea totală produsă</strong> pentru tot grupul. Se distribuie automat pe comenzi în ordinea priorității zonelor; surplusul intră în restocări.
+              {t("finishGroupDesc")}
             </p>
-            <Label className="text-coral-primary font-medium">Cantitate totală produsă</Label>
+            <Label className="text-coral-primary font-medium">{t("totalProducedQty")}</Label>
             <Input
               type="number"
               min={0}
@@ -399,7 +401,7 @@ const GroupedOrdersView: React.FC<Props> = ({
               onClick={() => setFinishDialog({ open: false, orderIds: [], nume: "" })}
               disabled={submitting}
             >
-              Anulează
+              {t("cancel")}
             </Button>
             <Button
               onClick={handleFinish}
@@ -407,7 +409,7 @@ const GroupedOrdersView: React.FC<Props> = ({
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               <CheckCircle className="h-4 w-4 mr-1" />
-              Finalizează
+              {t("finish")}
             </Button>
           </DialogFooter>
         </DialogContent>
