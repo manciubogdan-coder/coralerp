@@ -86,7 +86,7 @@ const GroupedOrdersView: React.FC<Props> = ({
       // Comenzile finalizate din alte zile nu mai apar niciodată în lista grupată
       if (isOrderDone(o) && !isFromToday(o)) continue;
       const produsId = o.produs_id || "";
-      const produsNume = (o as any).productie_produse?.nume || "Fără produs";
+      const produsNume = (o as any).productie_produse?.nume || t("noProduct");
       const grup = produsId && groupMap ? (groupMap[produsId] || "").trim() : "";
       const key = grup ? `grp:${grup}` : (produsId ? `prod:${produsId}` : `noprod-${o.id}`);
       const nume = grup || produsNume;
