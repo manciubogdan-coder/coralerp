@@ -138,14 +138,14 @@ const GroupedOrdersView: React.FC<Props> = ({
     <div className="space-y-3">
       <div className="flex items-center justify-end gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground mr-auto">
-          Finalizatele din zilele anterioare sunt ascunse automat
+          {t("hiddenPrevDays")}
         </span>
         <Button
           size="sm"
           variant={hideDone ? "default" : "outline"}
           onClick={() => setHideDone((v) => !v)}
         >
-          {hideDone ? "Arată finalizate de azi" : "Ascunde finalizate de azi"}
+          {hideDone ? t("showDoneToday") : t("hideDoneToday")}
         </Button>
       </div>
 
@@ -183,14 +183,14 @@ const GroupedOrdersView: React.FC<Props> = ({
                   </CardTitle>
                   <div className="flex items-center gap-1 flex-wrap">
                     {g.isMerged && (
-                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5">grup</Badge>
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5">{t("groupBadge")}</Badge>
                     )}
                     <Badge variant="outline" className="text-[10px] px-1.5">
-                      {g.orders.length} comenzi
+                      {g.orders.length} {t("ordersCount")}
                     </Badge>
                     {doneCount > 0 && (
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5">
-                        {doneCount} finalizate
+                        {doneCount} {t("doneBadge")}
                       </Badge>
                     )}
                   </div>
@@ -203,7 +203,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                       className="bg-green-600 hover:bg-green-700 text-white w-full md:w-auto"
                     >
                       <CheckCircle className="h-4 w-4 mr-1" />
-                      Finalizează grup
+                      {t("finishGroup")}
                     </Button>
                   ) : (
                     totalRamas > 0 && (
@@ -213,7 +213,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                         className="bg-coral-primary hover:bg-coral-600 text-white w-full md:w-auto"
                       >
                         <Play className="h-4 w-4 mr-1" />
-                        Pornește sesiune grup
+                        {t("startGroupSession")}
                       </Button>
                     )
                   )}
