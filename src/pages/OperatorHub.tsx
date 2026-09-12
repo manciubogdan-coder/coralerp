@@ -3,10 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OperatorInterface from "@/components/productie/OperatorInterface";
+import {
+  OperatorI18nProvider,
+  OperatorLanguageSelector,
+  useOperatorT,
+} from "@/lib/operatorI18n";
 
-const OperatorHub: React.FC = () => {
+const OperatorHubContent: React.FC = () => {
   const navigate = useNavigate();
   const [selectedLine, setSelectedLine] = useState("");
+  const { t } = useOperatorT();
 
   return (
     <div className="min-h-screen bg-background">
@@ -14,9 +20,12 @@ const OperatorHub: React.FC = () => {
         <div className="mb-4 flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => navigate("/")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Înapoi la panou
+            {t("backToPanel")}
           </Button>
-          <h1 className="text-xl md:text-2xl font-bold">Operator</h1>
+          <h1 className="text-xl md:text-2xl font-bold">{t("operator")}</h1>
+          <div className="ml-auto">
+            <OperatorLanguageSelector />
+          </div>
         </div>
 
         <OperatorInterface
@@ -27,5 +36,11 @@ const OperatorHub: React.FC = () => {
     </div>
   );
 };
+
+const OperatorHub: React.FC = () => (
+  <OperatorI18nProvider>
+    <OperatorHubContent />
+  </OperatorI18nProvider>
+);
 
 export default OperatorHub;
