@@ -2038,7 +2038,7 @@ const ReceptionReport: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row gap-2">
                   <label className="flex-1">
-                    <input type="file" accept="image/*" multiple capture="environment"
+                    <input type="file" accept="image/*" capture="environment"
                       onChange={(e) => { handleUploadPhotos(photoDialog.groupIdx, photoDialog.rowIdx, e.target.files); e.target.value = ""; }}
                       className="hidden" />
                     <span className="block w-full text-center text-sm font-medium px-4 py-2 rounded-md border bg-primary text-primary-foreground cursor-pointer hover:opacity-90">
