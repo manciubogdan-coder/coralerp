@@ -176,9 +176,10 @@ const Reports = () => {
         operatori: Array.from(operatoriSet),
         zileLucratoare: zileLucratoare.size,
         sesiuniActive,
+        totalRebut,
       };
     }).sort((a, b) => b.totalBuc - a.totalBuc);
-  }, [lines, filteredSessions]);
+  }, [lines, filteredSessions, rebutBySession]);
 
   // ─── Per Comandă ──────────────────────────────────────────────────────────
   const perOrderStats = useMemo(() => {
@@ -458,8 +459,9 @@ const Reports = () => {
       operatori: operatoriSet.size,
       sesiuni: filteredSessions.length,
       sesiuniActive: filteredSessions.filter(s => s.status === "activa").length,
+      totalRebut: sumRebut(filteredSessions as any[]),
     };
-  }, [filteredSessions]);
+  }, [filteredSessions, rebutBySession]);
 
   // ─── Export Excel ─────────────────────────────────────────────────────────
   const exportExcel = () => {
@@ -475,6 +477,7 @@ const Reports = () => {
         "Buc/Minut": l.bucPeMinut,
         "Buc/Zi": l.bucPeZi,
         "Zile Lucrate": l.zileLucratoare,
+        Rebut: l.totalRebut,
         "Nr Sesiuni": l.nrSesiuni,
         "Nr Operatori": l.nrOperatori,
         Operatori: l.operatori.join(", "),
@@ -542,7 +545,7 @@ const Reports = () => {
       <ReportsFilters currentFilter={currentFilter} onFilterChange={setCurrentFilter} />
 
       {/* KPI Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-3">
         <KpiCard
           icon={<Package className="h-4 w-4" />}
           label="Total Bucăți"
@@ -656,6 +659,7 @@ const Reports = () => {
                   <TableRow>
                     <TableHead>Linie</TableHead>
                     <TableHead className="text-right">Total Buc</TableHead>
+                    <TableHead className="text-right">Rebut</TableHead>
                     <TableHead className="text-right">Ore Reale</TableHead>
                     <TableHead className="text-right">Buc/Oră (real)</TableHead>
                     <TableHead className="text-right">Buc/Minut</TableHead>
@@ -683,6 +687,9 @@ const Reports = () => {
                       <TableCell className="text-right font-semibold">
                         {l.totalBuc.toLocaleString()}
                       </TableCell>
+                      <TableCell className={`text-right font-semibold ${l.totalRebut > 0 ? "text-red-600" : "text-muted-foreground"}`}>
+                        {l.totalRebut.toLocaleString()}
+                      </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {l.oreReale}h
                       </TableCell>
@@ -701,7 +708,7 @@ const Reports = () => {
                   ))}
                   {perLineStats.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-6">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
                         Nu există linii configurate
                       </TableCell>
                     </TableRow>
