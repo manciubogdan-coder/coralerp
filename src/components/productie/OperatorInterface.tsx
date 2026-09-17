@@ -721,8 +721,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                     id="rebut"
                     type="number"
                     min="0"
+                    step="0.01"
+                    inputMode="decimal"
                     value={rebutQuantity.toString()}
-                    onChange={(e) => setRebutQuantity(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setRebutQuantity(parseFloat(e.target.value) || 0)}
                     placeholder="0"
                     className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
                   />
