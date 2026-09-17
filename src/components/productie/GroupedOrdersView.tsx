@@ -334,7 +334,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                 <Label className="text-coral-primary font-medium">{t("whichLine")}</Label>
                 <Select value={selectedLineId} onValueChange={setSelectedLineId}>
                   <SelectTrigger>
-                    <SelectValue placeholder={t("selectLine")} />
+                    <SelectValue placeholder={t("pickLine")} />
                   </SelectTrigger>
                   <SelectContent>
                     {lineOptions.map((m) => (

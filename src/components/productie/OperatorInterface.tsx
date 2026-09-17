@@ -758,7 +758,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                     <Label className="text-coral-primary font-medium mb-2 block">{t("whichLine")}</Label>
                     <Select value={sessionLineId} onValueChange={setSessionLineId}>
                       <SelectTrigger className="border-coral-200">
-                        <SelectValue placeholder={t("selectLine")} />
+                        <SelectValue placeholder={t("pickLine")} />
                       </SelectTrigger>
                       <SelectContent>
                         {lineOptions.map((m) => (
