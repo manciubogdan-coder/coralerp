@@ -18,6 +18,7 @@ import TrasabilitateCard from "./TrasabilitateCard";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOperatorT } from "@/lib/operatorI18n";
 import { buildDisplayLines } from "@/lib/productie/lineGroups";
+import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
 
 interface OperatorInterfaceProps {
@@ -62,11 +63,12 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
   const { data: groupMap } = useGrupareAmbalare();
   const addRebutMutation = useAddSessionRebut();
+  const { map: lineGroupMap } = useLineGroupMap();
 
   const activeSessions = workSessions?.filter(session => session.status === 'activa') || [];
 
-  // Liniile afișate operatorului: liniile de aromate apar ca o singură grupă
-  const displayLines = buildDisplayLines(lines as any[]);
+  // Liniile afișate operatorului: liniile din aceeași grupă apar ca o singură intrare
+  const displayLines = buildDisplayLines(lines as any[], lineGroupMap);
   const currentLineObj = displayLines.find(l => l.id === currentLineId);
   const lineMemberIds = currentLineObj?.memberIds ?? (currentLineId ? [currentLineId] : []);
   const lineOptions = currentLineObj?.members ?? [];
@@ -721,8 +723,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                     id="rebut"
                     type="number"
                     min="0"
+                    step="0.01"
+                    inputMode="decimal"
                     value={rebutQuantity.toString()}
-                    onChange={(e) => setRebutQuantity(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setRebutQuantity(parseFloat(e.target.value) || 0)}
                     placeholder="0"
                     className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
                   />
