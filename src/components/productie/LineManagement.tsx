@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useProductionLines, useUpdateLine, useCreateLine, useDeleteLine } from "@/hooks/productie/useProductionData";
+import { useLineGroupMap, useSetLineGroup } from "@/hooks/productie/useLineGroups";
+import { defaultGroupForLine, groupForLine } from "@/lib/productie/lineGroups";
 import { Loader2, Settings, Edit, Plus, Trash2 } from "lucide-react";
 
 const LineManagement = () => {
@@ -17,6 +19,7 @@ const LineManagement = () => {
   const [lineName, setLineName] = useState("");
   const [lineCapacity, setLineCapacity] = useState("");
   const [lineStatus, setLineStatus] = useState<'activa' | 'inactiva' | 'mentenanta'>('activa');
+  const [lineGroup, setLineGroup] = useState("");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -25,6 +28,15 @@ const LineManagement = () => {
   const updateLine = useUpdateLine();
   const createLine = useCreateLine();
   const deleteLine = useDeleteLine();
+  const { map: lineGroupMap } = useLineGroupMap();
+  const setLineGroupMutation = useSetLineGroup();
+
+  const existingGroups = Array.from(
+    new Set([
+      ...Object.values(lineGroupMap).filter(Boolean),
+      ...(lines || []).map((l: any) => defaultGroupForLine(l.nume)).filter(Boolean),
+    ])
+  ).sort();
 
   if (isLoading) {
     return (
@@ -57,6 +69,7 @@ const LineManagement = () => {
     setLineName(line.nume);
     setLineCapacity(line.capacitate_ora.toString());
     setLineStatus(line.status as 'activa' | 'inactiva' | 'mentenanta');
+    setLineGroup(groupForLine(line, lineGroupMap));
     setIsEditDialogOpen(true);
   };
 
@@ -65,6 +78,7 @@ const LineManagement = () => {
     setLineName("");
     setLineCapacity("");
     setLineStatus('activa');
+    setLineGroup("");
     setIsCreateDialogOpen(true);
   };
 
@@ -87,6 +101,8 @@ const LineManagement = () => {
           status: lineStatus
         }
       });
+
+      await setLineGroupMutation.mutateAsync({ linieId: editingLine.id, grup: lineGroup });
 
       setIsEditDialogOpen(false);
       setEditingLine(null);
@@ -115,18 +131,24 @@ const LineManagement = () => {
     }
 
     try {
-      await createLine.mutateAsync({
+      const created: any = await createLine.mutateAsync({
         nume: lineName,
         capacitate_ora: parseInt(lineCapacity),
         status: lineStatus
       });
+
+      const createdId = created?.id || created?.[0]?.id;
+      if (createdId) {
+        await setLineGroupMutation.mutateAsync({ linieId: createdId, grup: lineGroup });
+      }
 
       setIsCreateDialogOpen(false);
       setIsCreating(false);
       setLineName("");
       setLineCapacity("");
       setLineStatus('activa');
-      
+      setLineGroup("");
+
       toast({
         title: "Succes",
         description: "Linia a fost creată cu succes",
@@ -201,6 +223,24 @@ const LineManagement = () => {
                   </div>
                   
                   <div className="space-y-2">
+                    <Label>Grupă linie (opțional)</Label>
+                    <Input
+                      placeholder="ex: Salate"
+                      value={lineGroup}
+                      onChange={(e) => setLineGroup(e.target.value)}
+                      list="line-groups"
+                    />
+                    <datalist id="line-groups">
+                      {existingGroups.map((g) => (
+                        <option key={g} value={g} />
+                      ))}
+                    </datalist>
+                    <p className="text-xs text-muted-foreground">
+                      Liniile cu aceeași grupă apar ca una singură pentru operator, care alege linia fizică la pornirea sesiunii.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label>Status Linie</Label>
                     <Select value={lineStatus} onValueChange={(value: 'activa' | 'inactiva' | 'mentenanta') => setLineStatus(value)}>
                       <SelectTrigger>
@@ -255,6 +295,13 @@ const LineManagement = () => {
                     <span className="font-medium">{line.capacitate_ora} buc/oră</span>
                   </div>
                   
+                  {groupForLine(line, lineGroupMap) && (
+                    <div className="flex justify-between text-sm">
+                      <span>Grupă:</span>
+                      <Badge variant="outline">{groupForLine(line, lineGroupMap)}</Badge>
+                    </div>
+                  )}
+
                   <div className="flex justify-between text-sm">
                     <span>ID Linie:</span>
                     <span className="font-mono text-xs">{line.id}</span>
@@ -300,6 +347,24 @@ const LineManagement = () => {
                             />
                           </div>
                           
+                        <div className="space-y-2">
+                          <Label>Grupă linie (opțional)</Label>
+                          <Input
+                            placeholder="ex: Salate"
+                            value={lineGroup}
+                            onChange={(e) => setLineGroup(e.target.value)}
+                            list="line-groups"
+                          />
+                          <datalist id="line-groups">
+                            {existingGroups.map((g) => (
+                              <option key={g} value={g} />
+                            ))}
+                          </datalist>
+                          <p className="text-xs text-muted-foreground">
+                            Liniile cu aceeași grupă apar ca una singură pentru operator, care alege linia fizică la pornirea sesiunii.
+                          </p>
+                        </div>
+
                           <div className="space-y-2">
                             <Label>Status Linie</Label>
                             <Select value={lineStatus} onValueChange={(value: 'activa' | 'inactiva' | 'mentenanta') => setLineStatus(value)}>
