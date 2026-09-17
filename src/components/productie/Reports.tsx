@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useProductionLines, useWorkSessions } from "@/hooks/productie/useProductionData";
 import { useOrdersForReports } from "@/hooks/productie/useOrdersForReports";
+import { useSessionRebut } from "@/hooks/productie/useSessionRebut";
 import { useShifts, calculateShiftDuration } from "@/hooks/productie/useShifts";
 import {
   Loader2,
@@ -60,6 +61,7 @@ const Reports = () => {
   const { data: lines, isLoading: linesLoading } = useProductionLines();
   const { data: orders, isLoading: ordersLoading } = useOrdersForReports();
   const { data: workSessions, isLoading: sessionsLoading } = useWorkSessions();
+  const { data: rebutRows } = useSessionRebut();
   const { data: shifts, isLoading: shiftsLoading } = useShifts();
 
   const [currentFilter, setCurrentFilter] = useState<DateFilter>({
@@ -99,12 +101,29 @@ const Reports = () => {
     });
   }, [workSessions, currentFilter]);
 
+  // Rebut raportat, indexat pe sesiune
+  const rebutBySession = useMemo(() => {
+    const m = new Map<string, number>();
+    (rebutRows || []).forEach(r => {
+      m.set(r.sesiune_id, (m.get(r.sesiune_id) || 0) + Number(r.cantitate || 0));
+    });
+    return m;
+  }, [rebutRows]);
+
+  const sumRebut = (sessions: { id: string }[]) =>
+    sessions.reduce((sum, s) => sum + (rebutBySession.get(s.id) || 0), 0);
+
   // ─── Per Linie ────────────────────────────────────────────────────────────
   const perLineStats = useMemo(() => {
     if (!lines) return [];
 
     return lines.map(line => {
       const lineSessions = filteredSessions.filter(s => s.linie_id === line.id);
+      const totalRebut = lineSessions.reduce(
+        (sum, s) => sum + (rebutBySession.get(s.id) || 0),
+        0
+      );
+
 
       const totalBuc = lineSessions.reduce(
         (sum, s) => sum + (s.cantitate_produsa || 0),
