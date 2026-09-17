@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Package, Clock, ChevronDown, ChevronRight, Play, CheckCircle, Users, Factory, AlertTriangle } from "lucide-react";
 import { ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/useProductionData";
 import { useOperatorT } from "@/lib/operatorI18n";
@@ -14,9 +15,11 @@ interface Props {
   activeSessions: ProductieSesiuneLucru[];
   lineCapacity?: number;
   groupMap?: Record<string, string>;
+  /** Liniile fizice între care operatorul trebuie să aleagă (ex: Aromate automată / manuală) */
+  lineOptions?: { id: string; nume: string }[];
   onOrderSelect: (orderId: string) => void;
-  onStartGroup: (orderIds: string[], operatorNames: string[]) => Promise<void>;
-  onFinishGroup: (orderIds: string[], totalQty: number) => Promise<void>;
+  onStartGroup: (orderIds: string[], operatorNames: string[], lineId?: string) => Promise<void>;
+  onFinishGroup: (orderIds: string[], totalQty: number, rebut?: number) => Promise<void>;
 }
 
 const formatDur = (hours: number) => {
@@ -52,6 +55,7 @@ const GroupedOrdersView: React.FC<Props> = ({
   activeSessions,
   lineCapacity,
   groupMap,
+  lineOptions = [],
   onOrderSelect,
   onStartGroup,
   onFinishGroup,
@@ -72,7 +76,10 @@ const GroupedOrdersView: React.FC<Props> = ({
   });
   const [operatorNames, setOperatorNames] = useState<string[]>([""]);
   const [totalQty, setTotalQty] = useState<number>(0);
+  const [rebutQty, setRebutQty] = useState<number>(0);
+  const [selectedLineId, setSelectedLineId] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const needsLineChoice = lineOptions.length > 1;
 
   const groups = useMemo(() => {
     const map = new Map<string, {
@@ -106,18 +113,20 @@ const GroupedOrdersView: React.FC<Props> = ({
 
   const openStart = (orderIds: string[], nume: string) => {
     setOperatorNames([""]);
+    setSelectedLineId(needsLineChoice ? "" : (lineOptions[0]?.id || ""));
     setStartDialog({ open: true, orderIds, nume });
   };
 
   const openFinish = (orderIds: string[], nume: string) => {
     setTotalQty(0);
+    setRebutQty(0);
     setFinishDialog({ open: true, orderIds, nume });
   };
 
   const handleStart = async () => {
     setSubmitting(true);
     try {
-      await onStartGroup(startDialog.orderIds, operatorNames);
+      await onStartGroup(startDialog.orderIds, operatorNames, selectedLineId || undefined);
       setStartDialog({ open: false, orderIds: [], nume: "" });
     } finally {
       setSubmitting(false);
@@ -127,7 +136,7 @@ const GroupedOrdersView: React.FC<Props> = ({
   const handleFinish = async () => {
     setSubmitting(true);
     try {
-      await onFinishGroup(finishDialog.orderIds, totalQty);
+      await onFinishGroup(finishDialog.orderIds, totalQty, rebutQty);
       setFinishDialog({ open: false, orderIds: [], nume: "" });
     } finally {
       setSubmitting(false);
@@ -320,6 +329,21 @@ const GroupedOrdersView: React.FC<Props> = ({
             <p className="text-sm text-muted-foreground">
               {t("startGroupDesc")}
             </p>
+            {needsLineChoice && (
+              <div className="space-y-1">
+                <Label className="text-coral-primary font-medium">{t("whichLine")}</Label>
+                <Select value={selectedLineId} onValueChange={setSelectedLineId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("pickLine")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {lineOptions.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.nume}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <Label className="text-coral-primary font-medium">{t("operators")}</Label>
             {operatorNames.map((name, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -363,7 +387,7 @@ const GroupedOrdersView: React.FC<Props> = ({
             </Button>
             <Button
               onClick={handleStart}
-              disabled={submitting || operatorNames.every((n) => !n.trim())}
+              disabled={submitting || operatorNames.every((n) => !n.trim()) || (needsLineChoice && !selectedLineId)}
               className="bg-coral-primary hover:bg-coral-600 text-white"
             >
               <Play className="h-4 w-4 mr-1" />
@@ -394,6 +418,15 @@ const GroupedOrdersView: React.FC<Props> = ({
               onChange={(e) => setTotalQty(parseInt(e.target.value) || 0)}
               placeholder="ex: 500"
             />
+            <Label className="text-coral-primary font-medium">{t("rebutQty")}</Label>
+            <Input
+              type="number"
+              min={0}
+              value={rebutQty.toString()}
+              onChange={(e) => setRebutQty(parseInt(e.target.value) || 0)}
+              placeholder="0"
+            />
+            <p className="text-xs text-muted-foreground">{t("rebutHint")}</p>
           </div>
           <DialogFooter>
             <Button

@@ -17,6 +17,8 @@ import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 import TrasabilitateCard from "./TrasabilitateCard";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOperatorT } from "@/lib/operatorI18n";
+import { buildDisplayLines } from "@/lib/productie/lineGroups";
+import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
 
 interface OperatorInterfaceProps {
   selectedLine: string;
@@ -32,6 +34,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const [currentOrderId, setCurrentOrderId] = useState<string>("");
   const [operatorNames, setOperatorNames] = useState<string[]>([""]);
   const [producedQuantity, setProducedQuantity] = useState<number>(0);
+  const [rebutQuantity, setRebutQuantity] = useState<number>(0);
+  const [sessionLineId, setSessionLineId] = useState<string>("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [forceRefreshKey, setForceRefreshKey] = useState(0);
   const [selectedDay, setSelectedDay] = useState<string>(todayISO());
@@ -57,12 +61,24 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   } = useWorkSessions();
 
   const { data: groupMap } = useGrupareAmbalare();
+  const addRebutMutation = useAddSessionRebut();
 
   const activeSessions = workSessions?.filter(session => session.status === 'activa') || [];
 
+  // Liniile afișate operatorului: liniile de aromate apar ca o singură grupă
+  const displayLines = buildDisplayLines(lines as any[]);
+  const currentLineObj = displayLines.find(l => l.id === currentLineId);
+  const lineMemberIds = currentLineObj?.memberIds ?? (currentLineId ? [currentLineId] : []);
+  const lineOptions = currentLineObj?.members ?? [];
+  const needsLineChoice = (currentLineObj?.memberIds.length || 0) > 1;
+  const effectiveSessionLineId = needsLineChoice
+    ? sessionLineId
+    : (lineMemberIds[0] || currentLineId);
+  const sessionLineName =
+    lineOptions.find(m => m.id === effectiveSessionLineId)?.nume || currentLineObj?.nume || '';
+
   // Ordinea fixă pentru produsele de aromate (conform fișei de lucru)
   const AROMATE_ORDER = ['menta', 'rozmarin', 'cimbru', 'coriandru', 'chivas', 'salvie', 'tarhon', 'oregrano', 'busuioc'];
-  const currentLineObj = lines?.find(l => l.id === currentLineId);
   const isAromateLine = (currentLineObj?.nume || '').toLowerCase().includes('arom');
 
   const getAromateIndex = (numeProdus: string | undefined) => {
@@ -93,7 +109,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
   // Prepare orders for pagination - only for the selected line when viewing orders
   const lineOrders = view === 'orders' && currentLineId ? orders?.filter(order => {
-    if (order.linie_id !== currentLineId) return false;
+    if (!order.linie_id || !lineMemberIds.includes(order.linie_id)) return false;
     // Filtrare pe ziua selectată (data_productie); comenzile fără data_productie apar doar la "azi"
     if (!matchesSelectedDay(order)) return false;
     return true;
@@ -176,6 +192,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
   const handleLineSelect = (lineId: string) => {
     setCurrentLineId(lineId);
+    const target = displayLines.find(l => l.id === lineId);
+    setSessionLineId(target && target.memberIds.length === 1 ? target.memberIds[0] : "");
     setView('orders');
     onLineSelect(lineId);
   };
@@ -196,10 +214,19 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       return;
     }
 
+    if (!effectiveSessionLineId) {
+      toast({
+        title: t("error"),
+        description: t("errNoLine"),
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       await createSessionMutation.mutateAsync({
         comanda_id: currentOrderId,
-        linie_id: currentLineId,
+        linie_id: effectiveSessionLineId,
         nume_operator: validOperators.join(', '),
         numar_angajati: validOperators.length
       });
@@ -220,7 +247,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     }
   };
 
-  const handleFinishSession = async (sessionId: string, cantitate: number) => {
+  const handleFinishSession = async (sessionId: string, cantitate: number, rebut: number = 0) => {
     const session = activeSessions.find(s => s.id === sessionId);
     if (!session) return;
 
@@ -249,6 +276,21 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         comanda_id: session.comanda_id
       });
 
+      if (rebut > 0) {
+        const linieNume = (lines || []).find((l: any) => l.id === session.linie_id)?.nume || null;
+        try {
+          await addRebutMutation.mutateAsync({
+            sesiune_id: sessionId,
+            comanda_id: session.comanda_id,
+            linie_id: session.linie_id,
+            linie_nume: linieNume,
+            cantitate: rebut,
+          });
+        } catch (err) {
+          console.error('Eroare salvare rebut', err);
+        }
+      }
+
       toast({
         title: status === 'finalizata' ? t("sessionDoneFull") : t("sessionDonePartial"),
         description: `${cantitate} ${t("producedThisSession")} ${status === 'partial' ? `${t("remainsToProduce")} ~${Math.max(0, ramasDeAcoperit - cantitate)} ${t("pcs")}.` : t("orderFullyCovered")}`
@@ -256,6 +298,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
       setOperatorNames([""]);
       setProducedQuantity(0);
+      setRebutQuantity(0);
     } catch (error) {
       toast({
         title: t("error"),
@@ -291,21 +334,26 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   }, []);
 
   // === Grouped session handlers ===
-  const handleStartGroupSession = async (orderIds: string[], operatorList: string[]) => {
+  const handleStartGroupSession = async (orderIds: string[], operatorList: string[], chosenLineId?: string) => {
     const validOperators = operatorList.map(n => n.trim()).filter(Boolean);
     if (validOperators.length === 0 || !currentLineId) {
       toast({ title: t("error"), description: t("errFillOperator"), variant: "destructive" });
+      return;
+    }
+    const targetLineId = chosenLineId || effectiveSessionLineId;
+    if (!targetLineId) {
+      toast({ title: t("error"), description: t("errNoLine"), variant: "destructive" });
       return;
     }
     const idSet = new Set(orderIds);
     const groupOrders = lineOrders.filter((o: any) => idSet.has(o.id) && !isOrderDone(o));
     let created = 0;
     for (const o of groupOrders) {
-      if (activeSessions.some(s => s.comanda_id === o.id && s.linie_id === currentLineId)) continue;
+      if (activeSessions.some(s => s.comanda_id === o.id && lineMemberIds.includes(s.linie_id))) continue;
       try {
         await createSessionMutation.mutateAsync({
           comanda_id: o.id,
-          linie_id: currentLineId,
+          linie_id: targetLineId,
           nume_operator: validOperators.join(', '),
           numar_angajati: validOperators.length,
         });
@@ -320,13 +368,13 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     });
   };
 
-  const handleFinishGroupSession = async (orderIds: string[], totalQty: number) => {
+  const handleFinishGroupSession = async (orderIds: string[], totalQty: number, rebut: number = 0) => {
     if (totalQty < 0 || !currentLineId) return;
     const idSet = new Set(orderIds);
     const groupOrders = lineOrders.filter((o: any) => idSet.has(o.id));
     // Ordinea existentă (după prioritate zonă) e deja aplicată în lineOrders
     const withSession = groupOrders
-      .map((o: any) => ({ order: o, session: activeSessions.find(s => s.comanda_id === o.id && s.linie_id === currentLineId) }))
+      .map((o: any) => ({ order: o, session: activeSessions.find(s => s.comanda_id === o.id && lineMemberIds.includes(s.linie_id)) }))
       .filter(x => !!x.session);
 
     if (withSession.length === 0) {
@@ -361,6 +409,23 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         console.error('Eroare finalizare sesiune grup pentru comanda', order.numar_comanda, err);
       }
     }
+
+    // Rebutul se înregistrează o singură dată, pe prima sesiune a grupului
+    if (rebut > 0) {
+      const first = withSession[0] as any;
+      const linieNume = (lines || []).find((l: any) => l.id === first.session.linie_id)?.nume || null;
+      try {
+        await addRebutMutation.mutateAsync({
+          sesiune_id: first.session.id,
+          comanda_id: first.order.id,
+          linie_id: first.session.linie_id,
+          linie_nume: linieNume,
+          cantitate: rebut,
+        });
+      } catch (err) {
+        console.error('Eroare salvare rebut grup', err);
+      }
+    }
     toast({
       title: t("groupFinished"),
       description: t("groupDistributed", { q: totalQty, n: withSession.length }),
@@ -380,7 +445,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   // VIEW: Session Management (când e selectată o comandă)
   if (view === 'session' && currentOrderId) {
     const currentOrder = orders?.find(o => o.id === currentOrderId);
-    const activeSession = activeSessions.find(session => session.comanda_id === currentOrderId && session.linie_id === currentLineId);
+    const activeSession = activeSessions.find(session => session.comanda_id === currentOrderId && lineMemberIds.includes(session.linie_id));
     const cantitateComandată = currentOrder?.cantitate || 0;
     const cantitateRealaProadusa = currentOrder?.cantitate_reala_produsa || 0;
     const esteReambalare = (currentOrder as any)?.magazin === 'REAMBALARE' || (currentOrder as any)?.tip_comanda === 'REAMBALARE';
@@ -590,7 +655,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         {currentOrderId && (
           <TrasabilitateCard
             comandaId={currentOrderId}
-            sesiuneId={activeSessions.find(s => s.comanda_id === currentOrderId && s.linie_id === currentLineId)?.id || null}
+            sesiuneId={activeSessions.find(s => s.comanda_id === currentOrderId && lineMemberIds.includes(s.linie_id))?.id || null}
           />
         )}
 
@@ -627,6 +692,12 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
               </div>
               
               <div className="space-y-4">
+                {needsLineChoice && (
+                  <div className="text-sm text-gray-700">
+                    <Factory className="inline h-4 w-4 mr-1 text-coral-primary" />
+                    {(lines || []).find((l: any) => l.id === activeSession.linie_id)?.nume || '—'}
+                  </div>
+                )}
                 <div>
                   <Label htmlFor="produced" className="text-coral-primary font-medium">
                     {t("producedQtyThisSession")}
@@ -641,9 +712,25 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                     className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
                   />
                 </div>
-                
+
+                <div>
+                  <Label htmlFor="rebut" className="text-coral-primary font-medium">
+                    {t("rebutQty")}
+                  </Label>
+                  <Input
+                    id="rebut"
+                    type="number"
+                    min="0"
+                    value={rebutQuantity.toString()}
+                    onChange={(e) => setRebutQuantity(parseInt(e.target.value) || 0)}
+                    placeholder="0"
+                    className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">{t("rebutHint")}</p>
+                </div>
+
                 <Button
-                  onClick={() => handleFinishSession(activeSession.id, producedQuantity)}
+                  onClick={() => handleFinishSession(activeSession.id, producedQuantity, rebutQuantity)}
                   disabled={finishSessionMutation.isPending}
                   className="w-full bg-coral-primary hover:bg-coral-600 text-white h-12 text-base"
                 >
@@ -666,6 +753,21 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4 mb-6">
+                {needsLineChoice && (
+                  <div>
+                    <Label className="text-coral-primary font-medium mb-2 block">{t("whichLine")}</Label>
+                    <Select value={sessionLineId} onValueChange={setSessionLineId}>
+                      <SelectTrigger className="border-coral-200">
+                        <SelectValue placeholder={t("pickLine")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {lineOptions.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>{m.nume}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div>
                   <Label className="text-coral-primary font-medium mb-2 block">{t("operators")}</Label>
                   {operatorNames.map((name, index) => (
@@ -705,7 +807,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
               
               <Button
                 onClick={handleStartSession}
-                disabled={createSessionMutation.isPending || operatorNames.every(n => n.trim() === '')}
+                disabled={createSessionMutation.isPending || operatorNames.every(n => n.trim() === '') || !effectiveSessionLineId}
                 className="w-full bg-coral-primary hover:bg-coral-600 text-white"
               >
                 <Play className="h-4 w-4 mr-2" />
@@ -720,7 +822,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
   // VIEW: Orders for selected line - NOW USING TABLE FORMAT
   if (view === 'orders' && currentLineId) {
-    const currentLine = lines?.find(l => l.id === currentLineId);
+    const currentLine = currentLineObj;
     const cap = currentLine?.capacitate_ora || 0;
 
     // Total bucăți rămase pe linie (pentru toate comenzile filtrate)
@@ -817,6 +919,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
               activeSessions={activeSessions}
               lineCapacity={cap}
               groupMap={groupMap}
+              lineOptions={needsLineChoice ? lineOptions : []}
               onOrderSelect={handleOrderSelect}
               onStartGroup={handleStartGroupSession}
               onFinishGroup={handleFinishGroupSession}
@@ -866,12 +969,12 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {lines?.map((line: ProductieLinie) => {
-          const activeSession = activeSessions.find(session => session.linie_id === line.id);
+        {displayLines.map((line) => {
+          const activeSession = activeSessions.find(session => line.memberIds.includes(session.linie_id));
           // Calculez comenzile pentru fiecare linie individual
           // De lucrat = comenzi care nu sunt completed ȘI nu sunt complet acoperite (din producție + restock)
           const relevantOrders = orders?.filter(order => {
-            if (order.linie_id !== line.id) return false;
+            if (!order.linie_id || !line.memberIds.includes(order.linie_id)) return false;
             if (!matchesSelectedDay(order)) return false;
             if (order.status === 'completed') return false;
             const esteReambalare = (order as any).magazin === 'REAMBALARE' || (order as any).tip_comanda === 'REAMBALARE';

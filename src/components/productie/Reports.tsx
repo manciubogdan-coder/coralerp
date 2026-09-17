@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useProductionLines, useWorkSessions } from "@/hooks/productie/useProductionData";
 import { useOrdersForReports } from "@/hooks/productie/useOrdersForReports";
+import { useSessionRebut } from "@/hooks/productie/useSessionRebut";
 import { useShifts, calculateShiftDuration } from "@/hooks/productie/useShifts";
 import {
   Loader2,
@@ -18,6 +19,7 @@ import {
   Timer,
   Target,
   Gauge,
+  AlertTriangle,
 } from "lucide-react";
 import ReportsFilters, { DateFilter } from "./ReportsFilters";
 import { format, eachDayOfInterval, startOfDay, isSameDay } from "date-fns";
@@ -60,6 +62,7 @@ const Reports = () => {
   const { data: lines, isLoading: linesLoading } = useProductionLines();
   const { data: orders, isLoading: ordersLoading } = useOrdersForReports();
   const { data: workSessions, isLoading: sessionsLoading } = useWorkSessions();
+  const { data: rebutRows } = useSessionRebut();
   const { data: shifts, isLoading: shiftsLoading } = useShifts();
 
   const [currentFilter, setCurrentFilter] = useState<DateFilter>({
@@ -99,12 +102,29 @@ const Reports = () => {
     });
   }, [workSessions, currentFilter]);
 
+  // Rebut raportat, indexat pe sesiune
+  const rebutBySession = useMemo(() => {
+    const m = new Map<string, number>();
+    (rebutRows || []).forEach(r => {
+      m.set(r.sesiune_id, (m.get(r.sesiune_id) || 0) + Number(r.cantitate || 0));
+    });
+    return m;
+  }, [rebutRows]);
+
+  const sumRebut = (sessions: { id: string }[]) =>
+    sessions.reduce((sum, s) => sum + (rebutBySession.get(s.id) || 0), 0);
+
   // ─── Per Linie ────────────────────────────────────────────────────────────
   const perLineStats = useMemo(() => {
     if (!lines) return [];
 
     return lines.map(line => {
       const lineSessions = filteredSessions.filter(s => s.linie_id === line.id);
+      const totalRebut = lineSessions.reduce(
+        (sum, s) => sum + (rebutBySession.get(s.id) || 0),
+        0
+      );
+
 
       const totalBuc = lineSessions.reduce(
         (sum, s) => sum + (s.cantitate_produsa || 0),
@@ -157,9 +177,10 @@ const Reports = () => {
         operatori: Array.from(operatoriSet),
         zileLucratoare: zileLucratoare.size,
         sesiuniActive,
+        totalRebut,
       };
     }).sort((a, b) => b.totalBuc - a.totalBuc);
-  }, [lines, filteredSessions]);
+  }, [lines, filteredSessions, rebutBySession]);
 
   // ─── Per Comandă ──────────────────────────────────────────────────────────
   const perOrderStats = useMemo(() => {
@@ -439,8 +460,9 @@ const Reports = () => {
       operatori: operatoriSet.size,
       sesiuni: filteredSessions.length,
       sesiuniActive: filteredSessions.filter(s => s.status === "activa").length,
+      totalRebut: sumRebut(filteredSessions as any[]),
     };
-  }, [filteredSessions]);
+  }, [filteredSessions, rebutBySession]);
 
   // ─── Export Excel ─────────────────────────────────────────────────────────
   const exportExcel = () => {
@@ -456,6 +478,7 @@ const Reports = () => {
         "Buc/Minut": l.bucPeMinut,
         "Buc/Zi": l.bucPeZi,
         "Zile Lucrate": l.zileLucratoare,
+        Rebut: l.totalRebut,
         "Nr Sesiuni": l.nrSesiuni,
         "Nr Operatori": l.nrOperatori,
         Operatori: l.operatori.join(", "),
@@ -523,12 +546,18 @@ const Reports = () => {
       <ReportsFilters currentFilter={currentFilter} onFilterChange={setCurrentFilter} />
 
       {/* KPI Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-3">
         <KpiCard
           icon={<Package className="h-4 w-4" />}
           label="Total Bucăți"
           value={kpi.totalBuc.toLocaleString()}
           accent="text-primary"
+        />
+        <KpiCard
+          icon={<AlertTriangle className="h-4 w-4" />}
+          label="Rebut Total"
+          value={kpi.totalRebut.toLocaleString()}
+          accent="text-red-600"
         />
         <KpiCard
           icon={<Timer className="h-4 w-4" />}
@@ -637,6 +666,7 @@ const Reports = () => {
                   <TableRow>
                     <TableHead>Linie</TableHead>
                     <TableHead className="text-right">Total Buc</TableHead>
+                    <TableHead className="text-right">Rebut</TableHead>
                     <TableHead className="text-right">Ore Reale</TableHead>
                     <TableHead className="text-right">Buc/Oră (real)</TableHead>
                     <TableHead className="text-right">Buc/Minut</TableHead>
@@ -664,6 +694,9 @@ const Reports = () => {
                       <TableCell className="text-right font-semibold">
                         {l.totalBuc.toLocaleString()}
                       </TableCell>
+                      <TableCell className={`text-right font-semibold ${l.totalRebut > 0 ? "text-red-600" : "text-muted-foreground"}`}>
+                        {l.totalRebut.toLocaleString()}
+                      </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {l.oreReale}h
                       </TableCell>
@@ -682,7 +715,7 @@ const Reports = () => {
                   ))}
                   {perLineStats.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-6">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
                         Nu există linii configurate
                       </TableCell>
                     </TableRow>

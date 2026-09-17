@@ -812,6 +812,45 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_sesiuni_rebut: {
+        Row: {
+          cantitate: number
+          comanda_id: string | null
+          created_at: string
+          created_by_email: string | null
+          id: string
+          linie_id: string | null
+          linie_nume: string | null
+          motiv: string | null
+          sesiune_id: string
+          updated_at: string
+        }
+        Insert: {
+          cantitate?: number
+          comanda_id?: string | null
+          created_at?: string
+          created_by_email?: string | null
+          id?: string
+          linie_id?: string | null
+          linie_nume?: string | null
+          motiv?: string | null
+          sesiune_id: string
+          updated_at?: string
+        }
+        Update: {
+          cantitate?: number
+          comanda_id?: string | null
+          created_at?: string
+          created_by_email?: string | null
+          id?: string
+          linie_id?: string | null
+          linie_nume?: string | null
+          motiv?: string | null
+          sesiune_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       productie_trasabilitate: {
         Row: {
           cod: string
