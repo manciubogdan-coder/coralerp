@@ -19,6 +19,7 @@ import {
   Timer,
   Target,
   Gauge,
+  AlertTriangle,
 } from "lucide-react";
 import ReportsFilters, { DateFilter } from "./ReportsFilters";
 import { format, eachDayOfInterval, startOfDay, isSameDay } from "date-fns";
