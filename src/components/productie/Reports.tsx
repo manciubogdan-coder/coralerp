@@ -553,6 +553,12 @@ const Reports = () => {
           accent="text-primary"
         />
         <KpiCard
+          icon={<AlertTriangle className="h-4 w-4" />}
+          label="Rebut Total"
+          value={kpi.totalRebut.toLocaleString()}
+          accent="text-red-600"
+        />
+        <KpiCard
           icon={<Timer className="h-4 w-4" />}
           label="Ore Reale"
           value={`${kpi.oreReale}h`}
