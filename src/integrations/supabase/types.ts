@@ -785,6 +785,27 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_linii_grupe: {
+        Row: {
+          created_at: string
+          grup_nume: string
+          linie_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          grup_nume?: string
+          linie_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          grup_nume?: string
+          linie_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       productie_order_cuts: {
         Row: {
           cantitate_taiata: number
