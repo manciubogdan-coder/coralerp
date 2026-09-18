@@ -263,6 +263,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                 <div className="mt-3 text-xs text-green-700 flex items-center gap-1">
                   <Play className="w-3 h-3 fill-green-600" />
                   🟢 {t("activeSessionLabel")}: {groupSessions[0].nume_operator}
+                  {` · ${t("totalOperators")}: ${groupSessions[0].numar_angajati || 1}`}
                   {" — "}
                   {new Date(groupSessions[0].ora_start).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })}
                   {groupSessions.length > 1 && <span className="ml-1">{t("onNOrders", { n: groupSessions.length })}</span>}

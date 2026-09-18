@@ -51,11 +51,6 @@ const minutesBetween = (start?: string | null, end?: string | null) => {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-const countOperators = (numeOperator?: string | null) => {
-  if (!numeOperator) return 0;
-  return numeOperator.split(",").map(s => s.trim()).filter(Boolean).length;
-};
-
 // ─── Component ──────────────────────────────────────────────────────────────
 
 const Reports = () => {
@@ -151,15 +146,16 @@ const Reports = () => {
       const bucPeMinut = totalMinReale > 0 ? totalBuc / totalMinReale : 0;
       const bucPeZi = zileLucratoare.size > 0 ? totalBuc / zileLucratoare.size : 0;
 
-      // Operatori distincti pe această linie
+      // Operatori principali și efectivul mediu/maxim al echipei pe această linie
       const operatoriSet = new Set<string>();
       lineSessions.forEach(s => {
-        (s.nume_operator || "")
-          .split(",")
-          .map(n => n.trim())
-          .filter(Boolean)
-          .forEach(n => operatoriSet.add(n.toLowerCase()));
+        const principal = (s.nume_operator || "").trim();
+        if (principal) operatoriSet.add(principal);
       });
+      const totalOperatoriSesiuni = lineSessions.reduce(
+        (sum, s) => sum + Math.max(1, Number(s.numar_angajati) || 1),
+        0
+      );
 
       const sesiuniActive = lineSessions.filter(s => s.status === "activa").length;
 
@@ -173,7 +169,8 @@ const Reports = () => {
         bucPeMinut: Math.round(bucPeMinut * 100) / 100,
         bucPeZi: round1(bucPeZi),
         nrSesiuni: lineSessions.length,
-        nrOperatori: operatoriSet.size,
+        nrOperatori: lineSessions.length > 0 ? round1(totalOperatoriSesiuni / lineSessions.length) : 0,
+        maxOperatori: lineSessions.reduce((max, s) => Math.max(max, Number(s.numar_angajati) || 1), 0),
         operatori: Array.from(operatoriSet),
         zileLucratoare: zileLucratoare.size,
         sesiuniActive,
@@ -207,12 +204,10 @@ const Reports = () => {
 
         const operatoriSet = new Set<string>();
         orderSessions.forEach(s => {
-          (s.nume_operator || "")
-            .split(",")
-            .map(n => n.trim())
-            .filter(Boolean)
-            .forEach(n => operatoriSet.add(n));
+          const principal = (s.nume_operator || "").trim();
+          if (principal) operatoriSet.add(principal);
         });
+        const efective = Array.from(new Set(orderSessions.map(s => Math.max(1, Number(s.numar_angajati) || 1))));
 
         const procentFinalizat =
           order.cantitate > 0 ? (totalBuc / order.cantitate) * 100 : 0;
@@ -228,7 +223,7 @@ const Reports = () => {
           oreReale: round1(oreReale),
           bucPeOra: round1(bucPeOra),
           operatori: Array.from(operatoriSet),
-          nrOperatori: operatoriSet.size,
+          efective,
           procentFinalizat: round1(procentFinalizat),
           status: order.status,
         };
@@ -480,8 +475,9 @@ const Reports = () => {
         "Zile Lucrate": l.zileLucratoare,
         Rebut: l.totalRebut,
         "Nr Sesiuni": l.nrSesiuni,
-        "Nr Operatori": l.nrOperatori,
-        Operatori: l.operatori.join(", "),
+        "Medie operatori / sesiune": l.nrOperatori,
+        "Maxim operatori / sesiune": l.maxOperatori,
+        "Operatori principali": l.operatori.join(", "),
       }))
     );
     XLSX.utils.book_append_sheet(wb, sheetLinii, "Per Linie");
@@ -497,11 +493,32 @@ const Reports = () => {
         "% Finalizat": o.procentFinalizat,
         "Ore Reale": o.oreReale,
         "Buc/Oră": o.bucPeOra,
-        Operatori: o.operatori.join(", "),
+        "Operator principal": o.operatori.join(", "),
+        "Nr total operatori": o.efective.join(", "),
         Status: o.status,
       }))
     );
     XLSX.utils.book_append_sheet(wb, sheetComenzi, "Per Comandă");
+
+    const sheetSesiuni = XLSX.utils.json_to_sheet(
+      filteredSessions.map(s => {
+        const order = orders?.find(o => o.id === s.comanda_id);
+        const line = lines?.find(l => l.id === s.linie_id);
+        return {
+          "Data pornirii": s.ora_start ? format(new Date(s.ora_start), "yyyy-MM-dd HH:mm") : "",
+          "Data finalizării": s.ora_sfarsit ? format(new Date(s.ora_sfarsit), "yyyy-MM-dd HH:mm") : "",
+          Comandă: order?.numar_comanda || "",
+          Produs: order?.productie_produse?.nume || "",
+          Linie: line?.nume || "",
+          "Cantitate produsă": s.cantitate_produsa || 0,
+          "Rebut (kg)": rebutBySession.get(s.id) || 0,
+          "Operator principal": s.nume_operator || "",
+          "Nr total operatori": Math.max(1, Number(s.numar_angajati) || 1),
+          Status: s.status,
+        };
+      })
+    );
+    XLSX.utils.book_append_sheet(wb, sheetSesiuni, "Per Sesiune");
 
     const sheetZile = XLSX.utils.json_to_sheet(
       dailyComparison.map(d => ({
@@ -671,7 +688,7 @@ const Reports = () => {
                     <TableHead className="text-right">Buc/Oră (real)</TableHead>
                     <TableHead className="text-right">Buc/Minut</TableHead>
                     <TableHead className="text-right">Buc/Zi</TableHead>
-                    <TableHead className="text-right">Operatori</TableHead>
+                    <TableHead className="text-right">Medie operatori</TableHead>
                     <TableHead className="text-right">Sesiuni</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -997,13 +1014,14 @@ const Reports = () => {
                     <TableHead className="text-right">% Final</TableHead>
                     <TableHead className="text-right">Ore</TableHead>
                     <TableHead className="text-right">Buc/Oră</TableHead>
-                    <TableHead>Operatori</TableHead>
+                    <TableHead>Operator principal</TableHead>
+                    <TableHead className="text-right">Nr. total operatori</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {perOrderStats.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-6">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
                         Nu există sesiuni de producție în perioada selectată
                       </TableCell>
                     </TableRow>
@@ -1055,6 +1073,9 @@ const Reports = () => {
                               </Badge>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {o.efective.join(", ")}
                         </TableCell>
                       </TableRow>
                     ))
