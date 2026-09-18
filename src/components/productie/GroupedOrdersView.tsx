@@ -18,7 +18,7 @@ interface Props {
   /** Liniile fizice între care operatorul trebuie să aleagă (ex: Aromate automată / manuală) */
   lineOptions?: { id: string; nume: string }[];
   onOrderSelect: (orderId: string) => void;
-  onStartGroup: (orderIds: string[], operatorNames: string[], lineId?: string) => Promise<void>;
+  onStartGroup: (orderIds: string[], principalOperator: string, totalOperators: number, lineId?: string) => Promise<void>;
   onFinishGroup: (orderIds: string[], totalQty: number, rebut?: number) => Promise<void>;
 }
 
@@ -74,7 +74,8 @@ const GroupedOrdersView: React.FC<Props> = ({
     orderIds: [],
     nume: "",
   });
-  const [operatorNames, setOperatorNames] = useState<string[]>([""]);
+  const [principalOperator, setPrincipalOperator] = useState("");
+  const [totalOperators, setTotalOperators] = useState<number>(1);
   const [totalQty, setTotalQty] = useState<number>(0);
   const [rebutQty, setRebutQty] = useState<number>(0);
   const [selectedLineId, setSelectedLineId] = useState<string>("");
@@ -112,7 +113,8 @@ const GroupedOrdersView: React.FC<Props> = ({
   }, [orders, groupMap]);
 
   const openStart = (orderIds: string[], nume: string) => {
-    setOperatorNames([""]);
+    setPrincipalOperator("");
+    setTotalOperators(1);
     setSelectedLineId(needsLineChoice ? "" : (lineOptions[0]?.id || ""));
     setStartDialog({ open: true, orderIds, nume });
   };
@@ -126,7 +128,7 @@ const GroupedOrdersView: React.FC<Props> = ({
   const handleStart = async () => {
     setSubmitting(true);
     try {
-      await onStartGroup(startDialog.orderIds, operatorNames, selectedLineId || undefined);
+      await onStartGroup(startDialog.orderIds, principalOperator.trim(), totalOperators, selectedLineId || undefined);
       setStartDialog({ open: false, orderIds: [], nume: "" });
     } finally {
       setSubmitting(false);
@@ -261,6 +263,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                 <div className="mt-3 text-xs text-green-700 flex items-center gap-1">
                   <Play className="w-3 h-3 fill-green-600" />
                   🟢 {t("activeSessionLabel")}: {groupSessions[0].nume_operator}
+                  {` · ${t("totalOperators")}: ${groupSessions[0].numar_angajati || 1}`}
                   {" — "}
                   {new Date(groupSessions[0].ora_start).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })}
                   {groupSessions.length > 1 && <span className="ml-1">{t("onNOrders", { n: groupSessions.length })}</span>}
@@ -344,38 +347,25 @@ const GroupedOrdersView: React.FC<Props> = ({
                 </Select>
               </div>
             )}
-            <Label className="text-coral-primary font-medium">{t("operators")}</Label>
-            {operatorNames.map((name, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Input
-                  value={name}
-                  onChange={(e) => {
-                    const u = [...operatorNames];
-                    u[i] = e.target.value;
-                    setOperatorNames(u);
-                  }}
-                  placeholder={`${t("operatorName")} ${i + 1}`}
-                />
-                {operatorNames.length > 1 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setOperatorNames(operatorNames.filter((_, x) => x !== i))}
-                    className="text-red-500"
-                  >
-                    ✕
-                  </Button>
-                )}
-              </div>
-            ))}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setOperatorNames([...operatorNames, ""])}
-              className="border-coral-200 text-coral-primary"
-            >
-              {t("addOperator")}
-            </Button>
+            <div className="space-y-1">
+              <Label className="text-coral-primary font-medium">{t("principalOperator")}</Label>
+              <Input
+                value={principalOperator}
+                onChange={(e) => setPrincipalOperator(e.target.value)}
+                placeholder={t("principalOperator")}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-coral-primary font-medium">{t("totalOperators")}</Label>
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                value={totalOperators}
+                onChange={(e) => setTotalOperators(Math.max(1, parseInt(e.target.value) || 1))}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -387,7 +377,7 @@ const GroupedOrdersView: React.FC<Props> = ({
             </Button>
             <Button
               onClick={handleStart}
-              disabled={submitting || operatorNames.every((n) => !n.trim()) || (needsLineChoice && !selectedLineId)}
+              disabled={submitting || !principalOperator.trim() || totalOperators < 1 || (needsLineChoice && !selectedLineId)}
               className="bg-coral-primary hover:bg-coral-600 text-white"
             >
               <Play className="h-4 w-4 mr-1" />

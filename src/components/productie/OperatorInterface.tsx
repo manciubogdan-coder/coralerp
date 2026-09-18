@@ -33,7 +33,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const [view, setView] = useState<'lines' | 'orders' | 'session'>('lines');
   const [currentLineId, setCurrentLineId] = useState<string>("");
   const [currentOrderId, setCurrentOrderId] = useState<string>("");
-  const [operatorNames, setOperatorNames] = useState<string[]>([""]);
+  const [principalOperator, setPrincipalOperator] = useState("");
+  const [totalOperators, setTotalOperators] = useState<number>(1);
   const [producedQuantity, setProducedQuantity] = useState<number>(0);
   const [rebutQuantity, setRebutQuantity] = useState<number>(0);
   const [sessionLineId, setSessionLineId] = useState<string>("");
@@ -206,8 +207,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   };
 
   const handleStartSession = async () => {
-    const validOperators = operatorNames.filter(n => n.trim() !== '');
-    if (validOperators.length === 0 || !currentOrderId || !currentLineId) {
+    if (!principalOperator.trim() || totalOperators < 1 || !currentOrderId || !currentLineId) {
       toast({
         title: t("error"),
         description: t("errNoOperator"),
@@ -229,8 +229,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       await createSessionMutation.mutateAsync({
         comanda_id: currentOrderId,
         linie_id: effectiveSessionLineId,
-        nume_operator: validOperators.join(', '),
-        numar_angajati: validOperators.length
+        nume_operator: principalOperator.trim(),
+        numar_angajati: totalOperators
       });
 
       const order = orders?.find(o => o.id === currentOrderId);
@@ -298,7 +298,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         description: `${cantitate} ${t("producedThisSession")} ${status === 'partial' ? `${t("remainsToProduce")} ~${Math.max(0, ramasDeAcoperit - cantitate)} ${t("pcs")}.` : t("orderFullyCovered")}`
       });
 
-      setOperatorNames([""]);
+      setPrincipalOperator("");
+      setTotalOperators(1);
       setProducedQuantity(0);
       setRebutQuantity(0);
     } catch (error) {
@@ -336,9 +337,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   }, []);
 
   // === Grouped session handlers ===
-  const handleStartGroupSession = async (orderIds: string[], operatorList: string[], chosenLineId?: string) => {
-    const validOperators = operatorList.map(n => n.trim()).filter(Boolean);
-    if (validOperators.length === 0 || !currentLineId) {
+  const handleStartGroupSession = async (orderIds: string[], mainOperator: string, operatorCount: number, chosenLineId?: string) => {
+    if (!mainOperator.trim() || operatorCount < 1 || !currentLineId) {
       toast({ title: t("error"), description: t("errFillOperator"), variant: "destructive" });
       return;
     }
@@ -356,8 +356,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         await createSessionMutation.mutateAsync({
           comanda_id: o.id,
           linie_id: targetLineId,
-          nume_operator: validOperators.join(', '),
-          numar_angajati: validOperators.length,
+          nume_operator: mainOperator.trim(),
+          numar_angajati: operatorCount,
         });
         created++;
       } catch (err) {
@@ -672,14 +672,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             <CardContent className="p-6 bg-green-50">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                  <span className="text-gray-600 text-sm">{t("operators")}:</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {activeSession.nume_operator.split(',').map((name, i) => (
-                      <Badge key={i} className="bg-green-600 text-white text-sm">
-                        {name.trim()}
-                      </Badge>
-                    ))}
-                  </div>
+                  <span className="text-gray-600 text-sm">{t("principalOperator")}:</span>
+                  <p className="font-bold text-green-700">{activeSession.nume_operator}</p>
+                  <span className="text-gray-600 text-sm">{t("totalOperators")}:</span>
+                  <p className="font-bold text-green-700">{activeSession.numar_angajati || 1}</p>
                 </div>
                 <div>
                   <span className="text-gray-600 text-sm">{t("startedAt")}:</span>
@@ -773,45 +769,31 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   </div>
                 )}
                 <div>
-                  <Label className="text-coral-primary font-medium mb-2 block">{t("operators")}</Label>
-                  {operatorNames.map((name, index) => (
-                    <div key={index} className="flex items-center gap-2 mb-2">
-                      <Input
-                        value={name}
-                        onChange={(e) => {
-                          const updated = [...operatorNames];
-                          updated[index] = e.target.value;
-                          setOperatorNames(updated);
-                        }}
-                        className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
-                        placeholder={`${t("operatorName")} ${index + 1}`}
-                      />
-                      {operatorNames.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setOperatorNames(operatorNames.filter((_, i) => i !== index))}
-                          className="text-red-500 hover:text-red-700 px-2"
-                        >
-                          ✕
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setOperatorNames([...operatorNames, ""])}
-                    className="mt-1 border-coral-200 text-coral-primary hover:bg-coral-50"
-                  >
-                    {t("addOperator")}
-                  </Button>
+                  <Label className="text-coral-primary font-medium mb-2 block">{t("principalOperator")}</Label>
+                  <Input
+                    value={principalOperator}
+                    onChange={(e) => setPrincipalOperator(e.target.value)}
+                    className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
+                    placeholder={t("principalOperator")}
+                  />
+                </div>
+                <div>
+                  <Label className="text-coral-primary font-medium mb-2 block">{t("totalOperators")}</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputMode="numeric"
+                    value={totalOperators}
+                    onChange={(e) => setTotalOperators(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
+                  />
                 </div>
               </div>
               
               <Button
                 onClick={handleStartSession}
-                disabled={createSessionMutation.isPending || operatorNames.every(n => n.trim() === '') || !effectiveSessionLineId}
+                disabled={createSessionMutation.isPending || !principalOperator.trim() || totalOperators < 1 || !effectiveSessionLineId}
                 className="w-full bg-coral-primary hover:bg-coral-600 text-white"
               >
                 <Play className="h-4 w-4 mr-2" />
