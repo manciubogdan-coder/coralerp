@@ -590,7 +590,7 @@ const Reports = () => {
         />
         <KpiCard
           icon={<Users className="h-4 w-4" />}
-          label="Operatori"
+          label="Operatori principali"
           value={kpi.operatori.toString()}
           accent="text-purple-600"
         />
