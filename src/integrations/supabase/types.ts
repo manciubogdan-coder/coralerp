@@ -621,6 +621,30 @@ export type Database = {
         }
         Relationships: []
       }
+      mentenanta_utilaje: {
+        Row: {
+          created_at: string
+          linie_id: string
+          locatie: string | null
+          observatii: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          linie_id: string
+          locatie?: string | null
+          observatii?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          linie_id?: string
+          locatie?: string | null
+          observatii?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notif_events_catalog: {
         Row: {
           description: string | null
