@@ -138,57 +138,132 @@ const LinesTab: React.FC<{
   const [nume, setNume] = useState("");
   const [cap, setCap] = useState("");
   const [status, setStatus] = useState("activa");
+  const [tip, setTip] = useState<"linie" | "utilaj">("linie");
+  const [locatie, setLocatie] = useState("");
+  const [observatii, setObservatii] = useState("");
+  const [utilaje, setUtilaje] = useState<UtilajRow[]>([]);
+
+  const loadUtilaje = async () => {
+    try {
+      setUtilaje(await fetchUtilaje());
+    } catch {
+      setUtilaje([]);
+    }
+  };
+
+  useEffect(() => {
+    loadUtilaje();
+  }, []);
+
+  const utilajMap = useMemo(() => {
+    const m: Record<string, UtilajRow> = {};
+    utilaje.forEach((u) => (m[u.linie_id] = u));
+    return m;
+  }, [utilaje]);
+
+  const productionLines = lines.filter((l) => !utilajMap[l.id]);
+  const equipment = lines.filter((l) => !!utilajMap[l.id]);
 
   const reset = () => {
     setEditing(null);
     setNume("");
     setCap("");
     setStatus("activa");
+    setTip("linie");
+    setLocatie("");
+    setObservatii("");
   };
 
-  const openNew = () => {
+  const openNew = (asTip: "linie" | "utilaj") => {
     reset();
+    setTip(asTip);
     setOpen(true);
   };
   const openEdit = (l: Linie) => {
+    const u = utilajMap[l.id];
     setEditing(l);
     setNume(l.nume);
     setCap(String(l.capacitate_ora ?? ""));
     setStatus(l.status ?? "activa");
+    setTip(u ? "utilaj" : "linie");
+    setLocatie(u?.locatie ?? "");
+    setObservatii(u?.observatii ?? "");
     setOpen(true);
   };
 
   const save = async () => {
     if (!nume.trim()) {
-      toast({ title: "Numele liniei este obligatoriu", variant: "destructive" });
+      toast({
+        title: tip === "utilaj" ? "Numele utilajului este obligatoriu" : "Numele liniei este obligatoriu",
+        variant: "destructive",
+      });
       return;
     }
     const payload: any = {
       nume: nume.trim(),
-      capacitate_ora: cap ? Number(cap) : 0,
+      capacitate_ora: tip === "utilaj" ? 0 : cap ? Number(cap) : 0,
       status,
     };
-    let res;
+    let targetId = editing?.id;
     if (editing) {
-      res = await (supabase as any)
+      const { error } = await (supabase as any)
         .from("productie_linii")
         .update(payload)
         .eq("id", editing.id);
+      if (error) {
+        toast({ title: "Eroare", description: error.message, variant: "destructive" });
+        return;
+      }
     } else {
-      res = await (supabase as any).from("productie_linii").insert(payload);
+      const { data, error } = await (supabase as any)
+        .from("productie_linii")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (error) {
+        toast({ title: "Eroare", description: error.message, variant: "destructive" });
+        return;
+      }
+      targetId = data?.id;
     }
-    if (res.error) {
-      toast({ title: "Eroare", description: res.error.message, variant: "destructive" });
-      return;
+
+    if (targetId) {
+      try {
+        await setUtilaj(targetId, tip === "utilaj", {
+          locatie: locatie.trim() || null,
+          observatii: observatii.trim() || null,
+        });
+      } catch (e: any) {
+        toast({
+          title: "Salvat, dar tipul nu s-a putut actualiza",
+          description: e?.message,
+          variant: "destructive",
+        });
+      }
     }
-    toast({ title: editing ? "Linie actualizată" : "Linie adăugată" });
+
+    toast({
+      title: editing
+        ? tip === "utilaj"
+          ? "Utilaj actualizat"
+          : "Linie actualizată"
+        : tip === "utilaj"
+        ? "Utilaj adăugat"
+        : "Linie adăugată",
+    });
     setOpen(false);
     reset();
+    await loadUtilaje();
     refresh();
   };
 
   const remove = async (l: Linie) => {
-    if (!confirm(`Ștergi linia "${l.nume}"? Defecțiunile asociate vor bloca ștergerea.`))
+    const isUtilaj = !!utilajMap[l.id];
+    if (
+      !confirm(
+        `Ștergi ${isUtilaj ? "utilajul" : "linia"} "${l.nume}"? Defecțiunile asociate vor bloca ștergerea.`
+      )
+    )
       return;
     const { error } = await (supabase as any)
       .from("productie_linii")
@@ -198,112 +273,187 @@ const LinesTab: React.FC<{
       toast({ title: "Nu se poate șterge", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Linie ștearsă" });
+    try {
+      await setUtilaj(l.id, false);
+    } catch {
+      /* ignore */
+    }
+    toast({ title: isUtilaj ? "Utilaj șters" : "Linie ștearsă" });
+    await loadUtilaje();
     refresh();
   };
 
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 p-4 sm:p-6">
-        <CardTitle className="text-base sm:text-lg">Linii de producție</CardTitle>
-        <Button size="sm" onClick={openNew}>
-          <Plus size={16} className="mr-1" /> Linie
-        </Button>
-      </CardHeader>
-      <CardContent className="p-3 sm:p-6 pt-0">
-        {/* Mobile: cards */}
-        <div className="space-y-2 md:hidden">
-          {lines.length === 0 && (
-            <div className="text-center text-muted-foreground text-sm py-6">
-              Nicio linie definită.
-            </div>
-          )}
-          {lines.map((l) => (
-            <div
-              key={l.id}
-              className="border rounded-lg p-3 flex items-center justify-between gap-2"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="font-medium truncate">{l.nume}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {l.capacitate_ora ? `${l.capacitate_ora}/oră` : "Fără capacitate"} ·{" "}
-                  <Badge variant="outline" className="text-[10px] py-0">
-                    {l.status ?? "-"}
-                  </Badge>
-                </div>
-              </div>
-              <div className="flex gap-1 shrink-0">
-                <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => openEdit(l)}>
-                  <Pencil size={16} />
-                </Button>
-                <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => remove(l)}>
-                  <Trash2 size={16} />
-                </Button>
+  const renderList = (rows: Linie[], isEquipment: boolean) => (
+    <>
+      {/* Mobile: cards */}
+      <div className="space-y-2 md:hidden">
+        {rows.length === 0 && (
+          <div className="text-center text-muted-foreground text-sm py-6">
+            {isEquipment ? "Niciun utilaj definit." : "Nicio linie definită."}
+          </div>
+        )}
+        {rows.map((l) => (
+          <div
+            key={l.id}
+            className="border rounded-lg p-3 flex items-center justify-between gap-2"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="font-medium truncate">{l.nume}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {isEquipment
+                  ? utilajMap[l.id]?.locatie || "Fără locație"
+                  : l.capacitate_ora
+                  ? `${l.capacitate_ora}/oră`
+                  : "Fără capacitate"}{" "}
+                ·{" "}
+                <Badge variant="outline" className="text-[10px] py-0">
+                  {l.status ?? "-"}
+                </Badge>
               </div>
             </div>
-          ))}
-        </div>
+            <div className="flex gap-1 shrink-0">
+              <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => openEdit(l)}>
+                <Pencil size={16} />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => remove(l)}>
+                <Trash2 size={16} />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
 
-        {/* Desktop: table */}
-        <div className="hidden md:block">
-          <Table>
-            <TableHeader>
+      {/* Desktop: table */}
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nume</TableHead>
+              <TableHead>{isEquipment ? "Locație" : "Capacitate/oră"}</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Acțiuni</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 && (
               <TableRow>
-                <TableHead>Nume</TableHead>
-                <TableHead>Capacitate/oră</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Acțiuni</TableHead>
+                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                  {isEquipment ? "Niciun utilaj definit." : "Nicio linie definită."}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {lines.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    Nicio linie definită.
-                  </TableCell>
-                </TableRow>
-              )}
-              {lines.map((l) => (
-                <TableRow key={l.id}>
-                  <TableCell className="font-medium">{l.nume}</TableCell>
-                  <TableCell>{l.capacitate_ora ?? "-"}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{l.status ?? "-"}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button size="icon" variant="ghost" onClick={() => openEdit(l)}>
-                      <Pencil size={14} />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={() => remove(l)}>
-                      <Trash2 size={14} />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
+            )}
+            {rows.map((l) => (
+              <TableRow key={l.id}>
+                <TableCell className="font-medium">{l.nume}</TableCell>
+                <TableCell>
+                  {isEquipment ? utilajMap[l.id]?.locatie || "-" : l.capacitate_ora ?? "-"}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">{l.status ?? "-"}</Badge>
+                </TableCell>
+                <TableCell className="text-right space-x-2">
+                  <Button size="icon" variant="ghost" onClick={() => openEdit(l)}>
+                    <Pencil size={14} />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => remove(l)}>
+                    <Trash2 size={14} />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 p-4 sm:p-6">
+          <CardTitle className="text-base sm:text-lg">Linii de producție</CardTitle>
+          <Button size="sm" onClick={() => openNew("linie")}>
+            <Plus size={16} className="mr-1" /> Linie
+          </Button>
+        </CardHeader>
+        <CardContent className="p-3 sm:p-6 pt-0">{renderList(productionLines, false)}</CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 p-4 sm:p-6">
+          <div className="min-w-0">
+            <CardTitle className="text-base sm:text-lg">Utilaje</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Utilaje independente (nu apar în interfața de operator).
+            </p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => openNew("utilaj")}>
+            <Plus size={16} className="mr-1" /> Utilaj
+          </Button>
+        </CardHeader>
+        <CardContent className="p-3 sm:p-6 pt-0">{renderList(equipment, true)}</CardContent>
+      </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md w-[calc(100vw-1rem)] sm:w-full rounded-lg p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>{editing ? "Editare linie" : "Linie nouă"}</DialogTitle>
+            <DialogTitle>
+              {editing
+                ? tip === "utilaj"
+                  ? "Editare utilaj"
+                  : "Editare linie"
+                : tip === "utilaj"
+                ? "Utilaj nou"
+                : "Linie nouă"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <div>
+              <Label>Tip</Label>
+              <Select value={tip} onValueChange={(v) => setTip(v as "linie" | "utilaj")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="linie">Linie de producție</SelectItem>
+                  <SelectItem value="utilaj">Utilaj (independent)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label>Nume *</Label>
               <Input value={nume} onChange={(e) => setNume(e.target.value)} />
             </div>
-            <div>
-              <Label>Capacitate/oră</Label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                value={cap}
-                onChange={(e) => setCap(e.target.value)}
-              />
-            </div>
+            {tip === "linie" ? (
+              <div>
+                <Label>Capacitate/oră</Label>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  value={cap}
+                  onChange={(e) => setCap(e.target.value)}
+                />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <Label>Locație</Label>
+                  <Input
+                    placeholder="ex: Hala 2, Depozit"
+                    value={locatie}
+                    onChange={(e) => setLocatie(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Observații</Label>
+                  <Textarea
+                    rows={2}
+                    value={observatii}
+                    onChange={(e) => setObservatii(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
             <div>
               <Label>Status</Label>
               <Select value={status} onValueChange={setStatus}>
@@ -326,7 +476,7 @@ const LinesTab: React.FC<{
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 };
 
