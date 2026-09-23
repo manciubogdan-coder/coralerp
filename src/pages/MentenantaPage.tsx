@@ -1669,7 +1669,7 @@ const MentenantaPage: React.FC = () => {
               Raport
             </TabsTrigger>
             <TabsTrigger value="linii" className="py-2 text-xs sm:text-sm">
-              Linii
+              Linii și utilaje
             </TabsTrigger>
           </TabsList>
           <TabsContent value="defectiuni" className="mt-3 sm:mt-4">
