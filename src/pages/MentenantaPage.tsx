@@ -59,6 +59,7 @@ import {
 } from "lucide-react";
 import BackToHubButton from "@/components/BackToHubButton";
 import { emitNotification } from "@/lib/notifications";
+import { fetchUtilaje, setUtilaj, type UtilajRow } from "@/hooks/productie/useUtilaje";
 
 // ---------- Types ----------
 interface Linie {
