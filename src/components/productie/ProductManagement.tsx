@@ -139,7 +139,7 @@ const ProductManagement = () => {
       if (lineFilter !== 'all' && lineFilter !== 'none' && !linii.includes(lineFilter)) return false;
       return true;
     });
-  }, [products, searchName, searchUm, recipeFilter, lineFilter, productsWithRecipe, productLinesMap]);
+  }, [products, searchName, searchUm, recipeFilter, lineFilter, productsWithRecipe, productLinesMap, productCodesMap]);
 
 
 
