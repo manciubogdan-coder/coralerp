@@ -562,16 +562,19 @@ const ProductManagement = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">Se incarca...</TableCell>
+                    <TableCell colSpan={6} className="text-center">Se incarca...</TableCell>
                   </TableRow>
                 ) : filteredProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">Nu exista produse</TableCell>
+                    <TableCell colSpan={6} className="text-center">Nu exista produse</TableCell>
                   </TableRow>
                 ) : (
                   filteredProducts.map((product) => (
                     <TableRow key={product.id}>
                       <TableCell>{product.nume}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {(productCodesMap.get(product.id) || []).join(', ') || '—'}
+                      </TableCell>
                       <TableCell>{product.unitate_masura}</TableCell>
                       <TableCell>
                         {(productLinesMap.get(product.id) || []).length > 0 ? (
