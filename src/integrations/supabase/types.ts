@@ -788,6 +788,51 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_comenzi_audit: {
+        Row: {
+          action: string
+          changes: Json | null
+          comanda_ids: string[]
+          created_at: string
+          filter: string | null
+          id: string
+          page_path: string | null
+          record_ids: string[]
+          source: string | null
+          table_name: string
+          user_email: string | null
+          user_name: string | null
+        }
+        Insert: {
+          action: string
+          changes?: Json | null
+          comanda_ids?: string[]
+          created_at?: string
+          filter?: string | null
+          id?: string
+          page_path?: string | null
+          record_ids?: string[]
+          source?: string | null
+          table_name: string
+          user_email?: string | null
+          user_name?: string | null
+        }
+        Update: {
+          action?: string
+          changes?: Json | null
+          comanda_ids?: string[]
+          created_at?: string
+          filter?: string | null
+          id?: string
+          page_path?: string | null
+          record_ids?: string[]
+          source?: string | null
+          table_name?: string
+          user_email?: string | null
+          user_name?: string | null
+        }
+        Relationships: []
+      }
       productie_grupare_ambalare: {
         Row: {
           created_at: string
