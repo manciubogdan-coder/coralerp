@@ -12,8 +12,9 @@ import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe, useRecipes } fro
 import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct, useAllDistributionRules } from '@/hooks/productie/useDistributionRules';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle, Download } from 'lucide-react';
 import GrupareAmbalareDialog from './GrupareAmbalareDialog';
+import { exportToExcel } from '@/lib/excelExport';
 
 interface Ingredient {
   ingredient_id: string;
