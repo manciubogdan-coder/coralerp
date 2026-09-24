@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Package, Clock, ChevronDown, ChevronRight, Play, CheckCircle, Users, Factory, AlertTriangle } from "lucide-react";
 import { ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/useProductionData";
 import { useOperatorT } from "@/lib/operatorI18n";
+import { OrderHistoryButton } from "./OrderHistoryDialog";
 
 interface Props {
   orders: ProductieComanda[];
@@ -192,7 +193,8 @@ const GroupedOrdersView: React.FC<Props> = ({
                   <CardTitle className="text-sm md:text-lg text-coral-primary break-words min-w-0 flex-1 basis-full md:basis-auto">
                     {g.nume}
                   </CardTitle>
-                  <div className="flex items-center gap-1 flex-wrap">
+                  <div className="flex items-center gap-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                    <OrderHistoryButton orderIds={g.orders.map((o) => o.id)} title={g.nume} />
                     {g.isMerged && (
                       <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5">{t("groupBadge")}</Badge>
                     )}
