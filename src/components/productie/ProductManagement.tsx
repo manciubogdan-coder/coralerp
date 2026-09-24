@@ -411,6 +411,40 @@ const ProductManagement = () => {
     }
   };
 
+  const handleExportExcel = () => {
+    const data = filteredProducts.map((p: any) => ({
+      'Nume': p.nume || '',
+      'Unitate de Masura': p.unitate_masura || '',
+      'Linie': (productLinesMap.get(p.id) || []).join(', ') || '-',
+      'Rețetă': productsWithRecipe.has(p.id) ? 'Are rețetă' : 'Fără rețetă'
+    }));
+
+    if (data.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Nu există produse de exportat"
+      });
+      return;
+    }
+
+    exportToExcel(data, 'lista-produse.xlsx', {
+      reportTitle: 'Lista Produse',
+      filters: [
+        searchName ? `Produs: ${searchName}` : '',
+        searchUm ? `UM: ${searchUm}` : '',
+        lineFilter !== 'all' ? `Linie: ${lineFilter === 'none' ? 'Fără linie' : lineFilter}` : '',
+        recipeFilter !== 'all' ? `Rețetă: ${recipeFilter === 'with' ? 'Cu rețetă' : 'Fără rețetă'}` : ''
+      ].filter(Boolean).join(', ')
+    });
+
+    toast({
+      title: "Export realizat",
+      description: "Fișierul Excel a fost generat și descărcat."
+    });
+  };
+
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
