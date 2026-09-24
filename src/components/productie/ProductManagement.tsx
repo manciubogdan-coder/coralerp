@@ -439,6 +439,7 @@ const ProductManagement = () => {
   const handleExportExcel = () => {
     const data = filteredProducts.map((p: any) => ({
       'Nume': p.nume || '',
+      'Cod Produs': (productCodesMap.get(p.id) || []).join(', ') || '-',
       'Unitate de Masura': p.unitate_masura || '',
       'Linie': (productLinesMap.get(p.id) || []).join(', ') || '-',
       'Rețetă': productsWithRecipe.has(p.id) ? 'Are rețetă' : 'Fără rețetă'
@@ -503,6 +504,7 @@ const ProductManagement = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nume</TableHead>
+                  <TableHead>Cod</TableHead>
                   <TableHead>Unitate de Masura</TableHead>
                   <TableHead>Linie</TableHead>
                   <TableHead>Rețetă</TableHead>
