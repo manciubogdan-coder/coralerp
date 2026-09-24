@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle, Download } from 'lucide-react';
 import GrupareAmbalareDialog from './GrupareAmbalareDialog';
 import { exportToExcel } from '@/lib/excelExport';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Ingredient {
   ingredient_id: string;
@@ -102,9 +103,33 @@ const ProductManagement = () => {
     return map;
   }, [allDistributionRules]);
 
+  // Map produs_id -> coduri ERP (din erp_mapping_produse)
+  const [productCodesMap, setProductCodesMap] = React.useState<Map<string, string[]>>(new Map());
+  useEffect(() => {
+    (async () => {
+      const { data } = await (supabase as any)
+        .from('erp_mapping_produse')
+        .select('produs_id, cod_extern')
+        .not('cod_extern', 'is', null);
+      const map = new Map<string, string[]>();
+      (data || []).forEach((row: any) => {
+        const cod = String(row.cod_extern || '').trim();
+        if (!row.produs_id || !cod) return;
+        const existing = map.get(row.produs_id) || [];
+        if (!existing.includes(cod)) existing.push(cod);
+        map.set(row.produs_id, existing);
+      });
+      setProductCodesMap(map);
+    })();
+  }, []);
+
   const filteredProducts = React.useMemo(() => {
     return (products || []).filter((p: any) => {
-      if (searchName && !(p.nume || '').toLowerCase().includes(searchName.toLowerCase())) return false;
+      if (searchName) {
+        const q = searchName.toLowerCase();
+        const codes = (productCodesMap.get(p.id) || []).join(' ').toLowerCase();
+        if (!(p.nume || '').toLowerCase().includes(q) && !codes.includes(q)) return false;
+      }
       if (searchUm && !(p.unitate_masura || '').toLowerCase().includes(searchUm.toLowerCase())) return false;
       const has = productsWithRecipe.has(p.id);
       if (recipeFilter === 'with' && !has) return false;
@@ -114,7 +139,7 @@ const ProductManagement = () => {
       if (lineFilter !== 'all' && lineFilter !== 'none' && !linii.includes(lineFilter)) return false;
       return true;
     });
-  }, [products, searchName, searchUm, recipeFilter, lineFilter, productsWithRecipe, productLinesMap]);
+  }, [products, searchName, searchUm, recipeFilter, lineFilter, productsWithRecipe, productLinesMap, productCodesMap]);
 
 
 
@@ -414,6 +439,7 @@ const ProductManagement = () => {
   const handleExportExcel = () => {
     const data = filteredProducts.map((p: any) => ({
       'Nume': p.nume || '',
+      'Cod Produs': (productCodesMap.get(p.id) || []).join(', ') || '-',
       'Unitate de Masura': p.unitate_masura || '',
       'Linie': (productLinesMap.get(p.id) || []).join(', ') || '-',
       'Rețetă': productsWithRecipe.has(p.id) ? 'Are rețetă' : 'Fără rețetă'
@@ -478,6 +504,7 @@ const ProductManagement = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nume</TableHead>
+                  <TableHead>Cod</TableHead>
                   <TableHead>Unitate de Masura</TableHead>
                   <TableHead>Linie</TableHead>
                   <TableHead>Rețetă</TableHead>
@@ -492,6 +519,7 @@ const ProductManagement = () => {
                       className="h-8"
                     />
                   </TableHead>
+                  <TableHead className="py-2" />
                   <TableHead className="py-2">
                     <Input
                       placeholder="Caută UM..."
@@ -534,16 +562,19 @@ const ProductManagement = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">Se incarca...</TableCell>
+                    <TableCell colSpan={6} className="text-center">Se incarca...</TableCell>
                   </TableRow>
                 ) : filteredProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">Nu exista produse</TableCell>
+                    <TableCell colSpan={6} className="text-center">Nu exista produse</TableCell>
                   </TableRow>
                 ) : (
                   filteredProducts.map((product) => (
                     <TableRow key={product.id}>
                       <TableCell>{product.nume}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {(productCodesMap.get(product.id) || []).join(', ') || '—'}
+                      </TableCell>
                       <TableCell>{product.unitate_masura}</TableCell>
                       <TableCell>
                         {(productLinesMap.get(product.id) || []).length > 0 ? (
