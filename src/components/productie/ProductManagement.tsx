@@ -102,6 +102,26 @@ const ProductManagement = () => {
     return map;
   }, [allDistributionRules]);
 
+  // Map produs_id -> coduri ERP (din erp_mapping_produse)
+  const [productCodesMap, setProductCodesMap] = React.useState<Map<string, string[]>>(new Map());
+  useEffect(() => {
+    (async () => {
+      const { data } = await (supabase as any)
+        .from('erp_mapping_produse')
+        .select('produs_id, cod_extern')
+        .not('cod_extern', 'is', null);
+      const map = new Map<string, string[]>();
+      (data || []).forEach((row: any) => {
+        const cod = String(row.cod_extern || '').trim();
+        if (!row.produs_id || !cod) return;
+        const existing = map.get(row.produs_id) || [];
+        if (!existing.includes(cod)) existing.push(cod);
+        map.set(row.produs_id, existing);
+      });
+      setProductCodesMap(map);
+    })();
+  }, []);
+
   const filteredProducts = React.useMemo(() => {
     return (products || []).filter((p: any) => {
       if (searchName && !(p.nume || '').toLowerCase().includes(searchName.toLowerCase())) return false;
