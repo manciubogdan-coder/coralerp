@@ -453,6 +453,10 @@ const ProductManagement = () => {
           <p className="text-gray-600">Administrează produsele, ingredientele și rețetele</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleExportExcel} className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Export Excel
+          </Button>
           <Button variant="outline" onClick={() => setIsGrupareOpen(true)} className="flex items-center gap-2">
             <Layers className="h-4 w-4" />
             Grupare ambalare
