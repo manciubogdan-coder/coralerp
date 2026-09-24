@@ -519,6 +519,7 @@ const ProductManagement = () => {
                       className="h-8"
                     />
                   </TableHead>
+                  <TableHead className="py-2" />
                   <TableHead className="py-2">
                     <Input
                       placeholder="Caută UM..."
