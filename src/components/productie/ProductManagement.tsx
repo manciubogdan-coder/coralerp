@@ -12,8 +12,9 @@ import { useRecipesByProduct, useCreateRecipe, useUpdateRecipe, useRecipes } fro
 import { useDistributionRulesByProduct, useCreateDistributionRule, useDeleteDistributionRulesByProduct, useAllDistributionRules } from '@/hooks/productie/useDistributionRules';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle, Download } from 'lucide-react';
 import GrupareAmbalareDialog from './GrupareAmbalareDialog';
+import { exportToExcel } from '@/lib/excelExport';
 
 interface Ingredient {
   ingredient_id: string;
@@ -410,6 +411,40 @@ const ProductManagement = () => {
     }
   };
 
+  const handleExportExcel = () => {
+    const data = filteredProducts.map((p: any) => ({
+      'Nume': p.nume || '',
+      'Unitate de Masura': p.unitate_masura || '',
+      'Linie': (productLinesMap.get(p.id) || []).join(', ') || '-',
+      'Rețetă': productsWithRecipe.has(p.id) ? 'Are rețetă' : 'Fără rețetă'
+    }));
+
+    if (data.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Nu există produse de exportat"
+      });
+      return;
+    }
+
+    exportToExcel(data, 'lista-produse.xlsx', {
+      reportTitle: 'Lista Produse',
+      filters: [
+        searchName ? `Produs: ${searchName}` : '',
+        searchUm ? `UM: ${searchUm}` : '',
+        lineFilter !== 'all' ? `Linie: ${lineFilter === 'none' ? 'Fără linie' : lineFilter}` : '',
+        recipeFilter !== 'all' ? `Rețetă: ${recipeFilter === 'with' ? 'Cu rețetă' : 'Fără rețetă'}` : ''
+      ].filter(Boolean).join(', ')
+    });
+
+    toast({
+      title: "Export realizat",
+      description: "Fișierul Excel a fost generat și descărcat."
+    });
+  };
+
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -418,6 +453,10 @@ const ProductManagement = () => {
           <p className="text-gray-600">Administrează produsele, ingredientele și rețetele</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleExportExcel} className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Export Excel
+          </Button>
           <Button variant="outline" onClick={() => setIsGrupareOpen(true)} className="flex items-center gap-2">
             <Layers className="h-4 w-4" />
             Grupare ambalare
