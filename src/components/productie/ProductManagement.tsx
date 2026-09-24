@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle, Download } from 'lucide-react';
 import GrupareAmbalareDialog from './GrupareAmbalareDialog';
 import { exportToExcel } from '@/lib/excelExport';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Ingredient {
   ingredient_id: string;
@@ -124,7 +125,11 @@ const ProductManagement = () => {
 
   const filteredProducts = React.useMemo(() => {
     return (products || []).filter((p: any) => {
-      if (searchName && !(p.nume || '').toLowerCase().includes(searchName.toLowerCase())) return false;
+      if (searchName) {
+        const q = searchName.toLowerCase();
+        const codes = (productCodesMap.get(p.id) || []).join(' ').toLowerCase();
+        if (!(p.nume || '').toLowerCase().includes(q) && !codes.includes(q)) return false;
+      }
       if (searchUm && !(p.unitate_masura || '').toLowerCase().includes(searchUm.toLowerCase())) return false;
       const has = productsWithRecipe.has(p.id);
       if (recipeFilter === 'with' && !has) return false;
