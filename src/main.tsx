@@ -4,6 +4,9 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { clearAppBadge } from './lib/pushNotifications';
+import { installOrderAudit } from './lib/productie/orderAudit';
+
+installOrderAudit();
 
 // La deschiderea aplicației, curăță badge-ul de pe iconiță
 if (typeof window !== 'undefined') {

@@ -7,6 +7,7 @@ import {
   sendActivityPings,
   type ActivityPing,
 } from '@/lib/activityTracking';
+import { setAuditUser } from '@/lib/productie/orderAudit';
 
 const TICK_MS = 15000; // cât de des se măsoară
 const FLUSH_MS = 60000; // cât de des se trimit datele
@@ -26,6 +27,7 @@ export function useActivityTracker() {
   const userRef = useRef<{ id: string; email: string | null; name: string | null } | null>(null);
 
   pathRef.current = location.pathname;
+  setAuditUser(user ? { email: profile?.email ?? user.email ?? null, name: profile?.display_name ?? profile?.name ?? null } : null);
   userRef.current = user
     ? {
         id: user.id,
