@@ -141,6 +141,30 @@ export const TuburiFolieStock: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-lg font-medium mr-auto">Stoc role și tuburi folie</h3>
         <Input className="max-w-xs" placeholder="Caută folie..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Button variant="outline" onClick={exportExcel}>
+          <FileDown className="h-4 w-4 mr-1" /> Export Excel
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3 border rounded-md p-3 bg-muted/30">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">De la data</label>
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[160px]" />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Până la data</label>
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[160px]" />
+        </div>
+        {(dateFrom || dateTo) && (
+          <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>
+            <X className="h-4 w-4 mr-1" /> Resetează
+          </Button>
+        )}
+        <div className="ml-auto flex flex-wrap gap-4 text-sm">
+          <span>Role recepționate: <b>{periodTotals.rec}</b></span>
+          <span>Role date în producție: <b>{periodTotals.date}</b></span>
+          <span>Tuburi returnate: <b>{periodTotals.retur}</b></span>
+        </div>
       </div>
 
       <div className="border rounded-md overflow-x-auto">
@@ -181,7 +205,7 @@ export const TuburiFolieStock: React.FC = () => {
       </div>
 
       <div>
-        <h4 className="font-medium mb-2">Istoric mișcări</h4>
+        <h4 className="font-medium mb-2">Istoric mișcări {(dateFrom || dateTo) && <span className="text-sm font-normal text-muted-foreground">(filtrat pe perioada selectată — {filteredMiscari.length} mișcări)</span>}</h4>
         <div className="border rounded-md overflow-x-auto max-h-[480px] overflow-y-auto">
           <Table>
             <TableHeader>
