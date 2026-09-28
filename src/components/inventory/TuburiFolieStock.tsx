@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-custom-toast";
-import { Loader2, Trash2, Undo2 } from "lucide-react";
+import { Loader2, Trash2, Undo2, FileDown, X } from "lucide-react";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { addTubMiscare, fetchTubMiscari } from "@/lib/tuburi";
+import * as XLSX from "xlsx";
 
 interface Row {
   key: string;
@@ -29,6 +30,8 @@ export const TuburiFolieStock: React.FC = () => {
   const [returDoc, setReturDoc] = useState("");
   const [returObs, setReturObs] = useState("");
   const [saving, setSaving] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const load = async () => {
     setLoading(true);
