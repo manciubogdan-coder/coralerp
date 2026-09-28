@@ -55,6 +55,61 @@ export const TuburiFolieStock: React.FC = () => {
     return [...m.values()].filter(r => !q || r.key.includes(q)).sort((a, b) => a.nume.localeCompare(b.nume));
   }, [miscari, search]);
 
+  const inRange = (d: string) => {
+    const t = new Date(d).getTime();
+    if (dateFrom && t < new Date(dateFrom + "T00:00:00").getTime()) return false;
+    if (dateTo && t > new Date(dateTo + "T23:59:59.999").getTime()) return false;
+    return true;
+  };
+
+  const filteredMiscari = useMemo(
+    () => miscari.filter((x) => inRange(x.created_at)),
+    [miscari, dateFrom, dateTo]
+  );
+
+  const periodTotals = useMemo(() => {
+    let rec = 0, date = 0, retur = 0;
+    for (const x of filteredMiscari) {
+      if (x.tip === "receptie") rec += x.role || 0;
+      if (x.tip === "transfer") date += x.role || 0;
+      if (x.tip === "retur") retur += x.tuburi || 0;
+    }
+    return { rec, date, retur };
+  }, [filteredMiscari]);
+
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const stocData = rows.map((r) => ({
+      "Folie": r.nume,
+      "Role în depozit": r.rolePrimite - r.roleDate,
+      "Tuburi goale (de returnat)": r.tuburiGoale,
+      "Role recepționate": r.rolePrimite,
+      "Role date în producție": r.roleDate,
+      "Tuburi returnate": r.tuburiReturnate,
+    }));
+    const wsStoc = XLSX.utils.json_to_sheet(stocData);
+    wsStoc["!cols"] = [{ wch: 40 }, { wch: 14 }, { wch: 24 }, { wch: 16 }, { wch: 20 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, wsStoc, "Stoc");
+
+    const miscData = filteredMiscari.map((x) => ({
+      "Data": new Date(x.created_at).toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" }),
+      "Tip": tipLabel[x.tip] || x.tip,
+      "Folie": x.produs_nume,
+      "Role": x.role ?? "",
+      "Tuburi": x.tuburi ?? "",
+      "Lot": x.lot || "",
+      "Document": x.document || "",
+      "Observații": x.observatii || "",
+      "Utilizator": x.created_by_email || "",
+    }));
+    const wsMisc = XLSX.utils.json_to_sheet(miscData.length ? miscData : [{ "Data": "Nicio mișcare în perioada selectată" }]);
+    wsMisc["!cols"] = [{ wch: 18 }, { wch: 16 }, { wch: 40 }, { wch: 8 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 30 }, { wch: 26 }];
+    XLSX.utils.book_append_sheet(wb, wsMisc, "Mișcări");
+
+    const suffix = dateFrom || dateTo ? `_${dateFrom || "start"}_${dateTo || "azi"}` : "";
+    XLSX.writeFile(wb, `raport-role-tuburi-folie${suffix}.xlsx`);
+  };
+
   const saveRetur = async () => {
     if (!retur || returQty <= 0) return;
     if (returQty > retur.tuburiGoale) {
