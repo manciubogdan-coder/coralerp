@@ -101,6 +101,7 @@ export function ReceptionRegistration({
   }, [isOpen]);
 
   const selectedProduct = products.find(p => p.id === productId);
+  const needsRole = inventoryType === 'ambalaje' && isFolie(selectedProduct?.name);
 
   // Recalculez cantitatea netă pe baza tuturor tipurilor de lăzi alese
   React.useEffect(() => {
@@ -281,7 +282,6 @@ export function ReceptionRegistration({
             product_id: productId,
             tip: "receptie",
             role: nrRole,
-            lot: (insertedInv as any)?.id ? null : null,
             document: documentNumber,
             furnizor: selectedSupplier?.name ?? null,
           });
