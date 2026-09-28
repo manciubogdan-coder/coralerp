@@ -19,6 +19,7 @@ import {
   summarizeBreakdown,
   totalBreakdown,
 } from "@/lib/receptionBreakdown";
+import { addTubMiscare, isFolie } from "@/lib/tuburi";
 
 interface ReceptionRegistrationProps {
   products: Product[];
@@ -45,6 +46,7 @@ export function ReceptionRegistration({
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [manufacturerId, setManufacturerId] = useState<string | null>(null);
   const [documentNumber, setDocumentNumber] = useState('');
+  const [nrRole, setNrRole] = useState<number>(0);
   
   // Câmpuri pentru calcul - nu se salvează
   const [grossQuantity, setGrossQuantity] = useState<number>(0);
@@ -272,6 +274,23 @@ export function ReceptionRegistration({
         }
       }
 
+      if (needsRole && nrRole > 0) {
+        try {
+          await addTubMiscare({
+            produs_nume: selectedProduct.name,
+            product_id: productId,
+            tip: "receptie",
+            role: nrRole,
+            lot: (insertedInv as any)?.id ? null : null,
+            document: documentNumber,
+            furnizor: selectedSupplier?.name ?? null,
+          });
+        } catch (e) {
+          console.warn("Nu am putut salva rolele:", e);
+          toast({ variant: "destructive", title: "Rolele nu au fost salvate", description: String((e as any)?.message || e) });
+        }
+      }
+
       toast({
         title: "Recepție înregistrată",
         description: `Cantitate stocată: ${quantityToSave.toFixed(isEtichete ? 0 : 2)} ${unitToSave}`
@@ -309,6 +328,7 @@ export function ReceptionRegistration({
       setSupplierId(null);
       setManufacturerId(null);
       setDocumentNumber('');
+      setNrRole(0);
       setGrossQuantity(0);
       setPalletWeight(0);
       setNetQuantity(0);
@@ -536,6 +556,22 @@ export function ReceptionRegistration({
             </div>
           )}
 
+          {needsRole && (
+            <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
+              <h3 className="font-semibold text-lg">Nr. role (tuburi)</h3>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min="1"
+                step="1"
+                value={nrRole || ""}
+                onChange={(e) => setNrRole(parseInt(e.target.value) || 0)}
+                placeholder="Câte role de folie ai recepționat?"
+              />
+              <p className="text-xs text-muted-foreground">Fiecare rolă vine pe un tub — la darea în producție tubul trece la „tuburi goale”.</p>
+            </div>
+          )}
+
           {/* Paleți recepționați - multi-tip */}
           <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
             <div className="flex items-center justify-between">
@@ -605,7 +641,7 @@ export function ReceptionRegistration({
           </Button>
           <Button 
             onClick={handleSubmit} 
-            disabled={!productId || !supplierId || (inventoryType === 'materii-prime' && !manufacturerId) || !documentNumber || (isEtichete ? grossQuantity <= 0 : netQuantity <= 0)}
+            disabled={!productId || !supplierId || (inventoryType === 'materii-prime' && !manufacturerId) || !documentNumber || (isEtichete ? grossQuantity <= 0 : netQuantity <= 0) || (needsRole && nrRole <= 0)}
             className="flex-1 sm:flex-none h-12 sm:h-10"
           >
             <Save className="h-4 w-4 mr-2" />
