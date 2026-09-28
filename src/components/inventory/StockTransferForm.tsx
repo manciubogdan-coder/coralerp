@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { emitNotification } from "@/lib/notifications";
 import { TransferQRDialog } from "./TransferQRDialog";
 import { fetchGgnCode } from "@/lib/ggnCodes";
+import { addTubMiscare, isFolie } from "@/lib/tuburi";
 import type { TransferLabelData } from "./TransferQRLabel";
 
 interface StockTransferFormProps {
@@ -51,6 +52,7 @@ interface TransferItem {
   crateCount?: number;
   crateWeight?: number;
   netQuantity?: number;
+  role?: number;
 }
 
 interface TransferFormValues {
@@ -540,6 +542,26 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         }
       }
 
+      if (inventoryType === "ambalaje") {
+        for (const it of selectedItems) {
+          if (!isFolie(it.productName) || !(it.role && it.role > 0)) continue;
+          try {
+            await addTubMiscare({
+              produs_nume: it.productName,
+              product_id: it.product_id ?? null,
+              tip: "transfer",
+              role: it.role,
+              tuburi: it.role,
+              lot: it.lot_number || null,
+              document: formData.destination || null,
+              furnizor: it.supplier ?? null,
+            });
+          } catch (e) {
+            console.warn("Nu am putut salva tuburile:", e);
+          }
+        }
+      }
+
       const dest = (formData.destination || "").toString();
       const isProductionDest = /produc[țt]ie/i.test(dest);
 
@@ -874,6 +896,24 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                                 placeholder={`Net în ${item.unit}`}
                               />
                             </div>
+                            {inventoryType === "ambalaje" && isFolie(item.productName) && (
+                              <div>
+                                <label className="text-sm font-medium">Nr. role date în producție</label>
+                                <Input
+                                  type="number"
+                                  inputMode="numeric"
+                                  min="0"
+                                  step="1"
+                                  value={item.role || ""}
+                                  onChange={(e) => {
+                                    const v = parseInt(e.target.value) || 0;
+                                    setSelectedItems((prev) => prev.map((x, i) => (i === index ? { ...x, role: v } : x)));
+                                  }}
+                                  className={isMobile ? "h-12 text-lg" : ""}
+                                  placeholder="Câte role (tuburi) ies?"
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
