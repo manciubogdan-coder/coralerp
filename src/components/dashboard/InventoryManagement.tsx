@@ -12,12 +12,13 @@ import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView"
 import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption";
 import DailyStockQuality from "@/components/inventory/DailyStockQuality";
 import { StockCountManagement } from "@/components/inventory/StockCountManagement";
+import { TuburiFolieStock } from "@/components/inventory/TuburiFolieStock";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const InventoryManagement = () => {
   const { inventoryType } = useInventoryType();
   const [activeTab, setActiveTab] = useState("all");
-  const [viewMode, setViewMode] = useState<"inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption" | "daily-quality" | "inventar">("inventory");
+  const [viewMode, setViewMode] = useState<"inventory" | "transfers" | "receptions" | "daily-stock" | "daily-consumption" | "daily-quality" | "inventar" | "tuburi">("inventory");
   const [refreshKey, setRefreshKey] = useState(0);
   
   const { 
@@ -106,6 +107,9 @@ const InventoryManagement = () => {
           <TabsTrigger value="daily-quality" className="flex-shrink-0 text-xs md:text-sm">Stoc Zilnic Calitate</TabsTrigger>
           <TabsTrigger value="daily-consumption" className="flex-shrink-0 text-xs md:text-sm">Consum Zilnic pe Loturi</TabsTrigger>
           <TabsTrigger value="inventar" className="flex-shrink-0 text-xs md:text-sm">Inventar</TabsTrigger>
+          {inventoryType === 'ambalaje' && (
+            <TabsTrigger value="tuburi" className="flex-shrink-0 text-xs md:text-sm">Role / Tuburi folie</TabsTrigger>
+          )}
         </TabsList>
 
         
@@ -169,6 +173,13 @@ const InventoryManagement = () => {
             <StockCountManagement key={refreshKey} />
           </div>
         </TabsContent>
+        {inventoryType === 'ambalaje' && (
+          <TabsContent value="tuburi">
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <TuburiFolieStock key={refreshKey} />
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
     </div>
