@@ -106,6 +106,28 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     return selectedDay === todayISO();
   };
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const matchesSearch = (o: any) => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+    const hay = [o.productie_produse?.nume, o.magazin, o.productie_clienti?.nume, o.numar_comanda]
+      .filter(Boolean).join(" ").toLowerCase();
+    return q.split(/\s+/).every((w) => hay.includes(w));
+  };
+  const searchInput = (
+    <div className="relative">
+      <Input
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder={t("searchOrders")}
+        className="h-11 text-base pr-10"
+      />
+      {searchTerm && (
+        <button type="button" onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label="clear">✕</button>
+      )}
+    </div>
+  );
+
   // Helper: o comandă este "finalizată/acoperită" pentru sortare
   const isOrderDone = (o: any) => {
     if (o.status === 'completed') return true;
@@ -119,6 +141,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     if (!order.linie_id || !lineMemberIds.includes(order.linie_id)) return false;
     // Filtrare pe ziua selectată (data_productie); comenzile fără data_productie apar doar la "azi"
     if (!matchesSelectedDay(order)) return false;
+    if (!matchesSearch(order)) return false;
     return true;
   }).sort((a, b) => {
     // Comenzile finalizate/acoperite merg la coadă întotdeauna
@@ -901,6 +924,9 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           </ToggleGroup>
         </div>
 
+        {searchInput}
+
+
 
         {totalItems > 0 ? (
           ordersViewMode === 'grouped' ? (
@@ -957,6 +983,42 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         </h2>
         <p className="text-coral-primary mt-2">{t("selectLine")}</p>
       </div>
+
+      <div className="max-w-xl mx-auto">
+        {searchInput}
+      </div>
+
+      {searchTerm.trim() && (() => {
+        const results = (orders || []).filter((o: any) => {
+          if (!o.linie_id || !matchesSelectedDay(o) || !matchesSearch(o)) return false;
+          return displayLines.some(l => l.memberIds.includes(o.linie_id));
+        }).sort((a: any, b: any) => Number(isOrderDone(a)) - Number(isOrderDone(b)));
+        return (
+          <Card className="border-coral-200">
+            <CardContent className="pt-4 space-y-2">
+              <p className="text-sm font-medium">{t("searchResults")}: {results.length}</p>
+              {results.slice(0, 50).map((o: any) => {
+                const dl = displayLines.find(l => l.memberIds.includes(o.linie_id));
+                const done = isOrderDone(o);
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => dl && handleLineSelect(dl.id)}
+                    className={`w-full text-left border rounded-md p-3 hover:bg-muted flex flex-wrap gap-x-4 gap-y-1 items-center ${done ? 'opacity-60' : ''}`}
+                  >
+                    <span className="font-semibold">{o.productie_produse?.nume || '-'}</span>
+                    <span className="text-sm text-muted-foreground">{o.magazin || o.productie_clienti?.nume || ''}</span>
+                    <span className="text-sm">{o.cantitate} {t("pcs")}</span>
+                    <Badge variant="outline" className="ml-auto">{dl?.nume}</Badge>
+                    {done && <CheckCircle className="h-4 w-4 text-green-600" />}
+                  </button>
+                );
+              })}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {displayLines.map((line) => {
