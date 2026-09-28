@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      ambalaje_tuburi_miscari: {
+        Row: {
+          created_at: string
+          created_by_email: string | null
+          document: string | null
+          furnizor: string | null
+          id: string
+          lot: string | null
+          observatii: string | null
+          product_id: string | null
+          produs_nume: string
+          role: number
+          tip: string
+          tuburi: number
+        }
+        Insert: {
+          created_at?: string
+          created_by_email?: string | null
+          document?: string | null
+          furnizor?: string | null
+          id?: string
+          lot?: string | null
+          observatii?: string | null
+          product_id?: string | null
+          produs_nume: string
+          role?: number
+          tip: string
+          tuburi?: number
+        }
+        Update: {
+          created_at?: string
+          created_by_email?: string | null
+          document?: string | null
+          furnizor?: string | null
+          id?: string
+          lot?: string | null
+          observatii?: string | null
+          product_id?: string | null
+          produs_nume?: string
+          role?: number
+          tip?: string
+          tuburi?: number
+        }
+        Relationships: []
+      }
       app_activity_pings: {
         Row: {
           created_at: string
