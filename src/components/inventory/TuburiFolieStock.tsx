@@ -221,7 +221,7 @@ export const TuburiFolieStock: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {miscari.slice(0, 300).map(x => (
+              {filteredMiscari.slice(0, 500).map(x => (
                 <TableRow key={x.id}>
                   <TableCell className="whitespace-nowrap">{new Date(x.created_at).toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</TableCell>
                   <TableCell><Badge variant="outline">{tipLabel[x.tip] || x.tip}</Badge></TableCell>
