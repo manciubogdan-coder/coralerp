@@ -599,6 +599,7 @@ const ConsumptionAnalytics = () => {
                 ...item,
                 scos_depozit: scos,
                 pierdere: scos === null ? null : scos - item.cantitate_totala,
+                pierdere_porcentaje: scos !== null && scos > 0 ? ((scos - item.cantitate_totala) / scos) * 100 : null,
               };
             })}
             fileName={`consumuri_${startDate}_${endDate}${selectedIngredient !== "all" ? "_" + selectedIngredient : ""}`}
@@ -739,6 +740,7 @@ const ConsumptionAnalytics = () => {
                   <TableHead>Total (kg)</TableHead>
                   <TableHead>Scos din depozit (kg)</TableHead>
                   <TableHead>Pierdere (kg)</TableHead>
+                  <TableHead>Pierdere (%)</TableHead>
                   <TableHead>Stoc depozit (kg)</TableHead>
                   <TableHead>Diferență (kg)</TableHead>
                   <TableHead>Comenzi Finalizate</TableHead>
@@ -787,6 +789,15 @@ const ConsumptionAnalytics = () => {
                       )}
                     </TableCell>
                     <TableCell className="font-mono">
+                      {pierdere === null || scos === null || scos <= 0 ? (
+                        <span className="text-muted-foreground">-</span>
+                      ) : (
+                        <span className={pierdere > 0 ? "text-red-600 font-medium" : "text-muted-foreground"}>
+                          {((pierdere / scos) * 100).toFixed(1)}%
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono">
                       {stoc === null ? <span className="text-muted-foreground">-</span> : formatValueInKg(stoc)}
                     </TableCell>
                     <TableCell className="font-mono">
@@ -810,7 +821,7 @@ const ConsumptionAnalytics = () => {
                   </TableRow>
                   {isOpen && (
                     <TableRow>
-                      <TableCell colSpan={12} className="bg-muted/40 p-2">
+                      <TableCell colSpan={13} className="bg-muted/40 p-2">
                         <div className="text-xs font-medium mb-2">
                           Comenzi care generează necesarul pentru „{item.ingredient_nume}"
                         </div>
