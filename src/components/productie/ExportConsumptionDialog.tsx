@@ -11,10 +11,14 @@ const COLUMN_DEFS = [
   { key: "cantitate_consumata", label: "Consumat (kg)" },
   { key: "cantitate_necesara_pending", label: "Necesar Pending (kg)" },
   { key: "cantitate_totala", label: "Total (kg)" },
+  { key: "scos_depozit", label: "Scos din depozit (kg)" },
+  { key: "pierdere", label: "Pierdere (kg)" },
   { key: "comenzi_finalizate", label: "Comenzi Finalizate" },
   { key: "comenzi_pending", label: "Comenzi Pending" },
   { key: "produse_list", label: "Produse" }
 ];
+
+const NUMERIC_KEYS = ["cantitate_consumata", "cantitate_necesara_pending", "cantitate_totala", "scos_depozit", "pierdere"];
 
 interface Props {
   consumptionData: any[];
@@ -46,7 +50,7 @@ const ExportConsumptionDialog: React.FC<Props> = ({ consumptionData, fileName })
             .map(col => {
               // Formatăm valorile în kg cu 2 zecimale
               if (
-                ["cantitate_consumata", "cantitate_necesara_pending", "cantitate_totala"].includes(col.key)
+                NUMERIC_KEYS.includes(col.key)
               ) {
                 return typeof row[col.key] === "number"
                   ? row[col.key].toFixed(2)
@@ -69,7 +73,7 @@ const ExportConsumptionDialog: React.FC<Props> = ({ consumptionData, fileName })
         dataToExport.map(row => 
           COLUMN_DEFS.filter(col => selectedCols.includes(col.key)).map(col => {
             if (
-              ["cantitate_consumata", "cantitate_necesara_pending", "cantitate_totala"].includes(col.key)
+              NUMERIC_KEYS.includes(col.key)
             ) {
               return typeof row[col.key] === "number"
                 ? row[col.key].toFixed(2)

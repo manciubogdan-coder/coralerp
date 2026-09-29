@@ -1,4 +1,5 @@
 // @ts-nocheck
+// colSpan updated to 12 below
 
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -467,6 +468,78 @@ const ConsumptionAnalytics = () => {
     return found ? total : null;
   };
 
+  // Cantități scoase efectiv din depozit (transferuri spre producție) în perioada selectată
+  const { data: scosDepozit } = useQuery({
+    queryKey: ['consumption-transfers-out', startDate, endDate],
+    queryFn: async () => {
+      const pageSize = 1000;
+      const transfers: any[] = [];
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('stock_transfers')
+          .select('id')
+          .gte('transfer_date', startDate)
+          .lte('transfer_date', endDate)
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          transfers.push(...data);
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+      const map = new Map<string, number>();
+      const transferIds = transfers.map((t) => t.id).filter(Boolean);
+      // loturi de câte 50 de id-uri pentru a nu depăși limita URL-ului
+      for (let i = 0; i < transferIds.length; i += 50) {
+        const chunk = transferIds.slice(i, i + 50);
+        const { data: items, error: itemsErr } = await supabase
+          .from('stock_transfer_items')
+          .select('quantity, inventory_item_id')
+          .in('transfer_id', chunk);
+        if (itemsErr) throw itemsErr;
+        const invIds = Array.from(new Set((items ?? []).map((it: any) => it.inventory_item_id).filter(Boolean)));
+        const invById = new Map<string, string>();
+        for (let j = 0; j < invIds.length; j += 50) {
+          const { data: invRows, error: invErr } = await supabase
+            .from('inventory')
+            .select('id, name')
+            .in('id', invIds.slice(j, j + 50));
+          if (invErr) throw invErr;
+          (invRows ?? []).forEach((r: any) => invById.set(r.id, r.name));
+        }
+        (items ?? []).forEach((it: any) => {
+          const name = invById.get(it.inventory_item_id);
+          const key = normalizeName(name || '');
+          if (!key) return;
+          map.set(key, (map.get(key) || 0) + (Number(it.quantity) || 0));
+        });
+      }
+      return map;
+    },
+    staleTime: 60_000,
+  });
+
+  const getScos = (ingredientNume: string): number | null => {
+    if (!scosDepozit) return null;
+    const key = normalizeName(ingredientNume);
+    if (!key) return null;
+    if (scosDepozit.has(key)) return scosDepozit.get(key)!;
+    let total = 0;
+    let found = false;
+    scosDepozit.forEach((qty, name) => {
+      if (name.includes(key) || key.includes(name)) {
+        total += qty;
+        found = true;
+      }
+    });
+    return found ? total : null;
+  };
+
 
 
   const handleExport = () => {
@@ -520,7 +593,14 @@ const ConsumptionAnalytics = () => {
         <div className="flex items-center gap-2">
           <DatePickerWithRange date={dateRange} setDate={setDateRange} />
           <ExportConsumptionDialog
-            consumptionData={consumptionData || []}
+            consumptionData={(consumptionData || []).map((item) => {
+              const scos = getScos(item.ingredient_nume);
+              return {
+                ...item,
+                scos_depozit: scos,
+                pierdere: scos === null ? null : scos - item.cantitate_totala,
+              };
+            })}
             fileName={`consumuri_${startDate}_${endDate}${selectedIngredient !== "all" ? "_" + selectedIngredient : ""}`}
           />
         </div>
@@ -657,6 +737,8 @@ const ConsumptionAnalytics = () => {
                   <TableHead>Consumat (kg)</TableHead>
                   <TableHead>Necesar Pending (kg)</TableHead>
                   <TableHead>Total (kg)</TableHead>
+                  <TableHead>Scos din depozit (kg)</TableHead>
+                  <TableHead>Pierdere (kg)</TableHead>
                   <TableHead>Stoc depozit (kg)</TableHead>
                   <TableHead>Diferență (kg)</TableHead>
                   <TableHead>Comenzi Finalizate</TableHead>
@@ -668,6 +750,8 @@ const ConsumptionAnalytics = () => {
                 {consumptionData.map((item, index) => {
                   const stoc = getStoc(item.ingredient_nume);
                   const diferenta = stoc === null ? null : stoc - item.cantitate_totala;
+                  const scos = getScos(item.ingredient_nume);
+                  const pierdere = scos === null ? null : scos - item.cantitate_totala;
                   const isOpen = !!expanded[item.ingredient_nume];
                   return (
                   <React.Fragment key={index}>
@@ -689,6 +773,18 @@ const ConsumptionAnalytics = () => {
                     </TableCell>
                     <TableCell className="font-mono font-bold">
                       {formatValueInKg(item.cantitate_totala)}
+                    </TableCell>
+                    <TableCell className="font-mono text-blue-600">
+                      {scos === null ? <span className="text-muted-foreground">-</span> : formatValueInKg(scos)}
+                    </TableCell>
+                    <TableCell className="font-mono">
+                      {pierdere === null ? (
+                        <span className="text-muted-foreground">-</span>
+                      ) : (
+                        <Badge variant={pierdere > 0 ? 'destructive' : 'secondary'}>
+                          {formatValueInKg(pierdere)}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="font-mono">
                       {stoc === null ? <span className="text-muted-foreground">-</span> : formatValueInKg(stoc)}
@@ -714,7 +810,7 @@ const ConsumptionAnalytics = () => {
                   </TableRow>
                   {isOpen && (
                     <TableRow>
-                      <TableCell colSpan={10} className="bg-muted/40 p-2">
+                      <TableCell colSpan={12} className="bg-muted/40 p-2">
                         <div className="text-xs font-medium mb-2">
                           Comenzi care generează necesarul pentru „{item.ingredient_nume}"
                         </div>
