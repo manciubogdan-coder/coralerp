@@ -641,6 +641,70 @@ export const useOrders = () => {
       }
 
 
+      // === COMPENSARE PRODUCȚIE ÎN AVANS ↔ COMENZI FERME (calcul de afișare) ===
+      // Comenzile ferme pentru același produs, venite după comanda în avans, se scad
+      // din avans: partea deja produsă în avans acoperă comenzile ferme, iar din
+      // avans rămâne de produs doar diferența — ca să nu se dubleze cantitățile.
+      {
+        const dayOf = (o: any) => String(o?.data_productie || o?.created_at || '').slice(0, 10);
+        const lookback = new Date();
+        lookback.setDate(lookback.getDate() - 21);
+        const minDay = lookback.toISOString().slice(0, 10);
+        const advByProd = new Map<string, any[]>();
+        const firmByProd = new Map<string, any[]>();
+        for (const c of comandiCuClienti as any[]) {
+          if (!c.produs_id || dayOf(c) < minDay) continue;
+          if (esteComandaReambalare(c)) continue;
+          if (esteComandaProductieAvans(c)) {
+            c.cantitate_initiala_avans = Number(c.cantitate || 0);
+            (advByProd.get(c.produs_id) || advByProd.set(c.produs_id, []).get(c.produs_id)!).push(c);
+          } else if (Number(c.cantitate || 0) > 0) {
+            (firmByProd.get(c.produs_id) || firmByProd.set(c.produs_id, []).get(c.produs_id)!).push(c);
+          }
+        }
+        const byCreated = (a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at));
+        for (const [produsId, advs] of advByProd.entries()) {
+          const firms = firmByProd.get(produsId);
+          if (!firms || firms.length === 0) continue;
+          advs.sort(byCreated);
+          firms.sort(byCreated);
+          const st = advs.map((a) => {
+            const A = Number(a.cantitate || 0);
+            const P = Math.min(A, Number(a.cantitate_produsa_sesiuni || 0) + Number(a.cantitate_din_restock || 0));
+            return { a, cap: A, prodLeft: P, reduce: 0 };
+          });
+          for (const f of firms) {
+            let demand = Math.max(0, Number(f.cantitate || 0) - Number(f.cantitate_din_restock || 0));
+            let unmet = Math.max(0, demand - Number(f.cantitate_reala_produsa || 0));
+            let fromAvans = 0;
+            for (const s of st) {
+              if (demand <= 0) break;
+              if (s.cap <= 0) continue;
+              if (String(s.a.created_at) > String(f.created_at) || dayOf(s.a) > dayOf(f)) continue;
+              const take = Math.min(demand, s.cap);
+              const fromProd = Math.min(unmet, s.prodLeft, take);
+              s.cap -= take;
+              s.prodLeft -= fromProd;
+              s.reduce += take - fromProd;
+              demand -= take;
+              unmet -= fromProd;
+              fromAvans += fromProd;
+            }
+            if (fromAvans > 0) {
+              f.cantitate_din_avans = fromAvans;
+              f.cantitate_reala_produsa = Number(f.cantitate_reala_produsa || 0) + fromAvans;
+            }
+          }
+          for (const s of st) {
+            if (s.reduce > 0) {
+              s.a.cantitate_scazuta_din_ferme = s.reduce;
+              s.a.cantitate = Math.max(0, Number(s.a.cantitate || 0) - s.reduce);
+              if (s.a.cantitate <= 0) s.a.status = 'completed';
+            }
+          }
+        }
+      }
+
       // Sortăm comenzile după prioritatea zonei de livrare, apoi după data actualizării
       const sortedData = comandiCuClienti.sort((a, b) => {
         // Primul criteriu: statusul (comenzile în progres și pending primul)
