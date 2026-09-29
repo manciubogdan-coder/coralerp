@@ -729,8 +729,8 @@ const ConsumptionAnalytics = () => {
               </p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
+            <Table wrapperClassName="max-h-[70vh] overflow-auto">
+              <TableHeader className="sticky top-0 z-10 [&_th]:bg-card [&_th]:border-b">
                 <TableRow>
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Ingredient</TableHead>
