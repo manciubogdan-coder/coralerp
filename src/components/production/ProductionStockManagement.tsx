@@ -13,6 +13,7 @@ import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ro } from "date-fns/locale";
 import { CalendarIcon, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export interface ProductionStockItem {
   id: string;
@@ -34,8 +35,8 @@ export interface ProductionStockItem {
   manufacturers?: { name: string } | null;
 }
 
-const ProductionStockManagement = () => {
-  const { inventoryType } = useInventoryType();
+const ProductionStockManagement = ({ showWarehousePicker = false }: { showWarehousePicker?: boolean }) => {
+  const { inventoryType, setInventoryType } = useInventoryType();
   const [stock, setStock] = useState<ProductionStockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -208,11 +209,27 @@ const ProductionStockManagement = () => {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="text-sm text-muted-foreground">
-          Gestionați stocul din producție - consum, modificare, returnare în depozit
-        </p>
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <p className="text-sm text-muted-foreground">
+            Gestionați stocul din producție - consum, modificare, returnare în depozit
+          </p>
+        </div>
+        {showWarehousePicker && (
+          <div className="w-full sm:w-60">
+            <Select value={inventoryType} onValueChange={(v) => setInventoryType(v as any)}>
+              <SelectTrigger aria-label="Depozit">
+                <SelectValue placeholder="Alege depozitul" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="materii-prime">Materii Prime</SelectItem>
+                <SelectItem value="ambalaje">Ambalaje</SelectItem>
+                <SelectItem value="etichete">Etichete</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="stock" className="w-full">

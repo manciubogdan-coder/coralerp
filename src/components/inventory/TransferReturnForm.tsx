@@ -211,10 +211,13 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         let prodStockItem: any = null;
         
         // Caut PRIMA DATĂ după transfer_id (cel mai specific!)
+        // IMPORTANT: un transfer are mai multe produse — căutăm pe transfer + articol,
+        // altfel se scădea din alt produs al aceluiași transfer.
         const { data: byTransferId } = await supabase
           .from(prodStockTable)
           .select('id, quantity')
-          .eq('transfer_id', transfer.transfer_id);
+          .eq('transfer_id', transfer.transfer_id)
+          .eq('inventory_item_id', transfer.inventory_item_id);
         
         console.log('Search by transfer_id:', transfer.transfer_id, '→', byTransferId);
         
