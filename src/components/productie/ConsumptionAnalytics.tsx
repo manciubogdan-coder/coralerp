@@ -467,6 +467,78 @@ const ConsumptionAnalytics = () => {
     return found ? total : null;
   };
 
+  // Cantități scoase efectiv din depozit (transferuri spre producție) în perioada selectată
+  const { data: scosDepozit } = useQuery({
+    queryKey: ['consumption-transfers-out', startDate, endDate],
+    queryFn: async () => {
+      const pageSize = 1000;
+      const transfers: any[] = [];
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('stock_transfers')
+          .select('id')
+          .gte('transfer_date', startDate)
+          .lte('transfer_date', endDate)
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          transfers.push(...data);
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+      const map = new Map<string, number>();
+      const transferIds = transfers.map((t) => t.id).filter(Boolean);
+      // loturi de câte 50 de id-uri pentru a nu depăși limita URL-ului
+      for (let i = 0; i < transferIds.length; i += 50) {
+        const chunk = transferIds.slice(i, i + 50);
+        const { data: items, error: itemsErr } = await supabase
+          .from('stock_transfer_items')
+          .select('quantity, inventory_item_id')
+          .in('transfer_id', chunk);
+        if (itemsErr) throw itemsErr;
+        const invIds = Array.from(new Set((items ?? []).map((it: any) => it.inventory_item_id).filter(Boolean)));
+        const invById = new Map<string, string>();
+        for (let j = 0; j < invIds.length; j += 50) {
+          const { data: invRows, error: invErr } = await supabase
+            .from('inventory')
+            .select('id, name')
+            .in('id', invIds.slice(j, j + 50));
+          if (invErr) throw invErr;
+          (invRows ?? []).forEach((r: any) => invById.set(r.id, r.name));
+        }
+        (items ?? []).forEach((it: any) => {
+          const name = invById.get(it.inventory_item_id);
+          const key = normalizeName(name || '');
+          if (!key) return;
+          map.set(key, (map.get(key) || 0) + (Number(it.quantity) || 0));
+        });
+      }
+      return map;
+    },
+    staleTime: 60_000,
+  });
+
+  const getScos = (ingredientNume: string): number | null => {
+    if (!scosDepozit) return null;
+    const key = normalizeName(ingredientNume);
+    if (!key) return null;
+    if (scosDepozit.has(key)) return scosDepozit.get(key)!;
+    let total = 0;
+    let found = false;
+    scosDepozit.forEach((qty, name) => {
+      if (name.includes(key) || key.includes(name)) {
+        total += qty;
+        found = true;
+      }
+    });
+    return found ? total : null;
+  };
+
 
 
   const handleExport = () => {
