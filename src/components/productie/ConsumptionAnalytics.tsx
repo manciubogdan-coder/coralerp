@@ -416,28 +416,30 @@ const ConsumptionAnalytics = () => {
     }
   });
 
-  // Stoc din depozitul de materii prime (agregat pe denumire produs)
+  // Stoc început de zi (snapshot) pentru prima zi din perioadă; fallback la stocul curent
   const { data: stocDepozit } = useQuery({
-    queryKey: ['consumption-warehouse-stock'],
+    queryKey: ['consumption-warehouse-stock', startDate],
     queryFn: async () => {
       const pageSize = 1000;
-      let offset = 0;
-      let hasMore = true;
-      const rows: any[] = [];
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('name, quantity, unit')
-          .range(offset, offset + pageSize - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
+      const fetchAll = async (useSnapshot: boolean) => {
+        const rows: any[] = [];
+        let offset = 0;
+        while (true) {
+          let q: any = supabase
+            .from(useSnapshot ? 'daily_stock_snapshots' : 'inventory')
+            .select('name, quantity, unit');
+          if (useSnapshot) q = q.eq('snapshot_date', startDate);
+          const { data, error } = await q.range(offset, offset + pageSize - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
           rows.push(...data);
+          if (data.length < pageSize) break;
           offset += pageSize;
-          hasMore = data.length === pageSize;
-        } else {
-          hasMore = false;
         }
-      }
+        return rows;
+      };
+      let rows = await fetchAll(true);
+      if (rows.length === 0) rows = await fetchAll(false);
       const map = new Map<string, number>();
       rows.forEach((r) => {
         const qty = Number(r.quantity) || 0;
