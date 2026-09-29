@@ -729,6 +729,8 @@ const ConsumptionAnalytics = () => {
                   <TableHead>Consumat (kg)</TableHead>
                   <TableHead>Necesar Pending (kg)</TableHead>
                   <TableHead>Total (kg)</TableHead>
+                  <TableHead>Scos din depozit (kg)</TableHead>
+                  <TableHead>Pierdere (kg)</TableHead>
                   <TableHead>Stoc depozit (kg)</TableHead>
                   <TableHead>Diferență (kg)</TableHead>
                   <TableHead>Comenzi Finalizate</TableHead>
@@ -740,6 +742,8 @@ const ConsumptionAnalytics = () => {
                 {consumptionData.map((item, index) => {
                   const stoc = getStoc(item.ingredient_nume);
                   const diferenta = stoc === null ? null : stoc - item.cantitate_totala;
+                  const scos = getScos(item.ingredient_nume);
+                  const pierdere = scos === null ? null : scos - item.cantitate_totala;
                   const isOpen = !!expanded[item.ingredient_nume];
                   return (
                   <React.Fragment key={index}>
