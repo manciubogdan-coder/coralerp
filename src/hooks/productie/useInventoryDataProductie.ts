@@ -137,6 +137,8 @@ export const useAutoRedistribute = () => {
         .from('productie_comenzi')
         .select('*')
         .eq('produs_id', restocking.produs_id)
+        .neq('magazin', 'PRODUCTIE_AVANS')
+        .neq('magazin', 'REAMBALARE')
         .in('status', ['pending', 'assigned', 'in_progress', 'partial'])
         .order('created_at', { ascending: true });
 
@@ -464,6 +466,7 @@ const tryAutoRedistribution = async (restockingId: string, produsId: string, can
   
   // Filtrează comenzile care au nevoie efectiv de cantitate 
   const ordersThatNeedQuantity = comenziDisponibile.filter(order => {
+    if (order.magazin === 'PRODUCTIE_AVANS' || order.tip_comanda === 'PRODUCTIE_AVANS' || order.magazin === 'REAMBALARE') return false;
     const cantitateNecesara = order.cantitate;
     const cantitateRealaProadusa = order.cantitate_reala_produsa || 0;
     const cantitatedinRestock = order.cantitate_din_restock || 0;
