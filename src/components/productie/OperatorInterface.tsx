@@ -402,9 +402,13 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     const idSet = new Set(orderIds);
     const groupOrders = lineOrders.filter((o: any) => idSet.has(o.id));
     // Ordinea existentă (după prioritate zonă) e deja aplicată în lineOrders
+    // Comenzile ferme primesc cantitatea înaintea celor de producție în avans,
+    // ca la o finalizare parțială marfa să meargă întâi spre picking.
+    const isAvans = (o: any) => o.magazin === 'PRODUCTIE_AVANS' || o.tip_comanda === 'PRODUCTIE_AVANS';
     const withSession = groupOrders
       .map((o: any) => ({ order: o, session: activeSessions.find(s => s.comanda_id === o.id && lineMemberIds.includes(s.linie_id)) }))
-      .filter(x => !!x.session);
+      .filter(x => !!x.session)
+      .sort((a: any, b: any) => Number(isAvans(a.order)) - Number(isAvans(b.order)));
 
     if (withSession.length === 0) {
       toast({ title: t("noActiveSession"), description: t("noActiveSessionDesc"), variant: "destructive" });
