@@ -592,7 +592,14 @@ const ConsumptionAnalytics = () => {
         <div className="flex items-center gap-2">
           <DatePickerWithRange date={dateRange} setDate={setDateRange} />
           <ExportConsumptionDialog
-            consumptionData={consumptionData || []}
+            consumptionData={(consumptionData || []).map((item) => {
+              const scos = getScos(item.ingredient_nume);
+              return {
+                ...item,
+                scos_depozit: scos,
+                pierdere: scos === null ? null : scos - item.cantitate_totala,
+              };
+            })}
             fileName={`consumuri_${startDate}_${endDate}${selectedIngredient !== "all" ? "_" + selectedIngredient : ""}`}
           />
         </div>
@@ -765,6 +772,18 @@ const ConsumptionAnalytics = () => {
                     </TableCell>
                     <TableCell className="font-mono font-bold">
                       {formatValueInKg(item.cantitate_totala)}
+                    </TableCell>
+                    <TableCell className="font-mono text-blue-600">
+                      {scos === null ? <span className="text-muted-foreground">-</span> : formatValueInKg(scos)}
+                    </TableCell>
+                    <TableCell className="font-mono">
+                      {pierdere === null ? (
+                        <span className="text-muted-foreground">-</span>
+                      ) : (
+                        <Badge variant={pierdere > 0 ? 'destructive' : 'secondary'}>
+                          {formatValueInKg(pierdere)}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="font-mono">
                       {stoc === null ? <span className="text-muted-foreground">-</span> : formatValueInKg(stoc)}
