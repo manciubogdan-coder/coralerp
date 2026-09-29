@@ -810,7 +810,7 @@ const ConsumptionAnalytics = () => {
                   </TableRow>
                   {isOpen && (
                     <TableRow>
-                      <TableCell colSpan={10} className="bg-muted/40 p-2">
+                      <TableCell colSpan={12} className="bg-muted/40 p-2">
                         <div className="text-xs font-medium mb-2">
                           Comenzi care generează necesarul pentru „{item.ingredient_nume}"
                         </div>

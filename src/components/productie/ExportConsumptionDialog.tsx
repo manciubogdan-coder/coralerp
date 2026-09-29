@@ -50,7 +50,7 @@ const ExportConsumptionDialog: React.FC<Props> = ({ consumptionData, fileName })
             .map(col => {
               // Formatăm valorile în kg cu 2 zecimale
               if (
-                ["cantitate_consumata", "cantitate_necesara_pending", "cantitate_totala"].includes(col.key)
+                NUMERIC_KEYS.includes(col.key)
               ) {
                 return typeof row[col.key] === "number"
                   ? row[col.key].toFixed(2)
@@ -73,7 +73,7 @@ const ExportConsumptionDialog: React.FC<Props> = ({ consumptionData, fileName })
         dataToExport.map(row => 
           COLUMN_DEFS.filter(col => selectedCols.includes(col.key)).map(col => {
             if (
-              ["cantitate_consumata", "cantitate_necesara_pending", "cantitate_totala"].includes(col.key)
+              NUMERIC_KEYS.includes(col.key)
             ) {
               return typeof row[col.key] === "number"
                 ? row[col.key].toFixed(2)
