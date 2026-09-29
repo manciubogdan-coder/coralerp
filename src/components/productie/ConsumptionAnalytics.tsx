@@ -743,7 +743,7 @@ const ConsumptionAnalytics = () => {
                   <TableHead>Scos din depozit (kg)</TableHead>
                   <TableHead>Pierdere (kg)</TableHead>
                   <TableHead>Pierdere (%)</TableHead>
-                  <TableHead>Stoc depozit (kg)</TableHead>
+                  <TableHead>Stoc început zi (kg)</TableHead>
                   <TableHead>Diferență (kg)</TableHead>
                   <TableHead>Comenzi Finalizate</TableHead>
                   <TableHead>Comenzi Pending</TableHead>
