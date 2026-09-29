@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import ProductionStockManagement from "@/components/production/ProductionStockManagement";
+import { InventoryTypeProvider } from "@/context/inventory-type";
 
 // Componente migrate din productiecoral-18
 import ProductionDashboardReal from "@/components/productie/ProductionDashboardReal";
@@ -118,7 +119,9 @@ const ProductionStockPage = () => {
 
           <TabsContent value="stoc-transferat">
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <ProductionStockManagement />
+              <InventoryTypeProvider storageKey="productie-stoc-transferat-depozit">
+                <ProductionStockManagement showWarehousePicker />
+              </InventoryTypeProvider>
             </div>
           </TabsContent>
 
