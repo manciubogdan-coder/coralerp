@@ -699,6 +699,7 @@ export const useOrders = () => {
             if (s.reduce > 0) {
               s.a.cantitate_scazuta_din_ferme = s.reduce;
               s.a.cantitate = Math.max(0, Number(s.a.cantitate || 0) - s.reduce);
+              if (s.a.cantitate <= 0) s.a.status = 'completed';
             }
           }
         }
