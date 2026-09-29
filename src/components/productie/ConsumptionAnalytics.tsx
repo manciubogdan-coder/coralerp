@@ -1,4 +1,5 @@
 // @ts-nocheck
+// colSpan updated to 12 below
 
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

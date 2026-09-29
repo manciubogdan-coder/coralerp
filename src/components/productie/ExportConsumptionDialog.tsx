@@ -11,10 +11,14 @@ const COLUMN_DEFS = [
   { key: "cantitate_consumata", label: "Consumat (kg)" },
   { key: "cantitate_necesara_pending", label: "Necesar Pending (kg)" },
   { key: "cantitate_totala", label: "Total (kg)" },
+  { key: "scos_depozit", label: "Scos din depozit (kg)" },
+  { key: "pierdere", label: "Pierdere (kg)" },
   { key: "comenzi_finalizate", label: "Comenzi Finalizate" },
   { key: "comenzi_pending", label: "Comenzi Pending" },
   { key: "produse_list", label: "Produse" }
 ];
+
+const NUMERIC_KEYS = ["cantitate_consumata", "cantitate_necesara_pending", "cantitate_totala", "scos_depozit", "pierdere"];
 
 interface Props {
   consumptionData: any[];
