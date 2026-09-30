@@ -176,7 +176,7 @@ export async function computeOverview(c: Clients, from: string, to: string, ligh
     fetchAll(c.legacy, "ambalaje_inventory", recSelect, (q) => q.gte("receipt_date", s).lte("receipt_date", e)),
     fetchAll(c.legacy, "etichete_inventory", recSelect, (q) => q.gte("receipt_date", s).lte("receipt_date", e)).catch(() => []),
     fetchAll(c.legacy, "stock_transfers", "id,transfer_date,destination", (q) => q.gte("transfer_date", from).lte("transfer_date", to)),
-    fetchAll(c.legacyUser, "app_profiles", "user_id,email,name,display_name,approved").catch(() => []),
+    fetchAll(c.legacyUser, "app_profiles", "user_id,email,name,approved").catch(() => []),
     fetchAll(c.cloud, "app_activity_pings", "user_id,email,display_name,path,tab,seconds,occurred_at",
       (q) => q.gte("occurred_at", s).lte("occurred_at", e), 100000),
     fetchAll(c.cloud, "productie_comenzi_audit", "table_name,action,changes,user_email,user_name,created_at",
@@ -225,7 +225,7 @@ export async function computeOverview(c: Clients, from: string, to: string, ligh
   })).sort((a, b) => b.ore - a.ore);
   const activeIds = new Set(users.keys());
   const inactivi = profiles.filter((p: any) => p.approved && !activeIds.has(p.user_id))
-    .map((p: any) => ({ nume: p.display_name || p.name || p.email, email: p.email }));
+    .map((p: any) => ({ nume: p.name || p.email, email: p.email }));
   const hubTotals = new Map<string, number>();
   for (const u of users.values()) for (const [h, sec] of Object.entries(u.huburi)) hubTotals.set(h, (hubTotals.get(h) ?? 0) + (sec as number));
 
