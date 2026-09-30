@@ -1,5 +1,5 @@
 import { corsHeaders as baseCors } from "npm:@supabase/supabase-js@2/cors";
-import { createOpenAI } from "npm:@ai-sdk/openai@4.0.82";
+import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@1.3.3";
 import {
   convertToModelMessages,
   isStepCount,
@@ -28,30 +28,7 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-const MODEL = "openai/gpt-6-luna";
-const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function gateway() {
-  const key = Deno.env.get("LOVABLE_API_KEY");
-  if (!key) throw new Error("LOVABLE_API_KEY lipsește");
-  const run = createLovableAiGatewayRunIdFetch();
-  const provider = createOpenAI({
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    apiKey: key,
-    headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-    fetch: run.fetch,
-  });
-  return provider.responses(MODEL);
-}
-const OPENAI_OPTS = {
-  openai: {
-    forceReasoning: true,
-    reasoningEffort: "low",
-    reasoningSummary: "auto",
-    store: false,
-    include: ["reasoning.encrypted_content"],
-  },
-};
+const MODEL = "google/gemini-3.8-flash";
 
 function friendlyError(e: unknown): string {
   const any = e as any;
