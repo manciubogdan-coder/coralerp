@@ -1,5 +1,5 @@
 import { corsHeaders as baseCors } from "npm:@supabase/supabase-js@2/cors";
-import { createOpenAI } from "npm:@ai-sdk/openai@4.0.82";
+import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible";
 import {
   convertToModelMessages,
   isStepCount,
@@ -28,30 +28,21 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-const MODEL = "openai/gpt-6-luna";
+const MODEL = "google/gemini-3.8-flash";
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function gateway() {
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("LOVABLE_API_KEY lipsește");
   const run = createLovableAiGatewayRunIdFetch();
-  const provider = createOpenAI({
+  const provider = createOpenAICompatible({
+    name: "lovable",
     baseURL: "https://ai.gateway.lovable.dev/v1",
-    apiKey: key,
     headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
     fetch: run.fetch,
   });
-  return provider.responses(MODEL);
+  return provider(MODEL);
 }
-const OPENAI_OPTS = {
-  openai: {
-    forceReasoning: true,
-    reasoningEffort: "low",
-    reasoningSummary: "auto",
-    store: false,
-    include: ["reasoning.encrypted_content"],
-  },
-};
 
 function friendlyError(e: unknown): string {
   const any = e as any;
@@ -162,7 +153,6 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: isStepCount(12),
-    providerOptions: OPENAI_OPTS as any,
     abortSignal: req.signal,
   });
 
@@ -204,7 +194,6 @@ async function handleSummary(c: ReturnType<typeof makeClients>, refresh: boolean
     model: gateway(),
     instructions: `Ești Argus, analistul CEO-ului Coral Biogreens. Scrie rezumatul de dimineață în română, markdown, maxim 300 de cuvinte, cu secțiunile: **Ce a mers bine**, **Ce nu a mers**, **Pierderi, rebut și calitate** (rebut kg și pe motive, pierdere calitativă la recepție în kg și %, defecte, furnizori cu marfă proastă, câte poze de neconformitate), **Oameni**, **De urmărit azi**. Folosește doar cifrele primite, compară cu ziua anterioară. Fără introducere.`,
     prompt: `Date pentru ziua ${y} (JSON):\n${JSON.stringify(stats).slice(0, 60000)}`,
-    providerOptions: { openai: { ...OPENAI_OPTS.openai, reasoningEffort: "low" } } as any,
   });
   let content = "";
   try {
