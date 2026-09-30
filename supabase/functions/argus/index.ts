@@ -1,5 +1,5 @@
 import { corsHeaders as baseCors } from "npm:@supabase/supabase-js@2/cors";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@1.3.3";
+import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible";
 import {
   convertToModelMessages,
   isStepCount,
