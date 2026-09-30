@@ -1,0 +1,1 @@
+- Argus (CEO dashboard/AI) runs in the Cloud edge function `argus`: it validates the operational-app session + admin role server-side, reads operational data via the public key and Cloud data via service role; its tables are server-only. Why: AI key and cross-database reads must never live in the browser.
