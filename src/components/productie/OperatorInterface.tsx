@@ -939,6 +939,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
               activeSessions={activeSessions}
               lineCapacity={cap}
               groupMap={groupMap}
+              selectedDay={selectedDay}
               lineOptions={needsLineChoice ? lineOptions : []}
               onOrderSelect={handleOrderSelect}
               onStartGroup={handleStartGroupSession}
