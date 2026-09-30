@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tansta
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { POOL_MODE } from "@/lib/productie/stockPool";
+import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 
 
 // Types pentru datele de producție
@@ -650,16 +651,32 @@ export const useOrders = () => {
         const lookback = new Date();
         lookback.setDate(lookback.getDate() - 21);
         const minDay = lookback.toISOString().slice(0, 10);
+        // Cheia de potrivire: grupa de ambalare (dacă produsul e într-o grupă),
+        // altfel numele produsului normalizat (acoperă produsele duplicate cu același nume).
+        let grupMap: Record<string, string> = {};
+        try {
+          const { data: gr } = await supabaseCloud
+            .from('productie_grupare_ambalare')
+            .select('produs_id, grup_nume');
+          (gr || []).forEach((r: any) => { if (r.grup_nume) grupMap[r.produs_id] = String(r.grup_nume).trim().toLowerCase(); });
+        } catch { grupMap = {}; }
+        const keyOf = (c: any) => {
+          const g = grupMap[c.produs_id];
+          if (g) return `grp:${g}`;
+          const n = String(c.productie_produse?.nume || '').toLowerCase().replace(/\s+/g, ' ').trim();
+          return n ? `name:${n}` : `id:${c.produs_id}`;
+        };
         const advByProd = new Map<string, any[]>();
         const firmByProd = new Map<string, any[]>();
         for (const c of comandiCuClienti as any[]) {
           if (!c.produs_id || dayOf(c) < minDay) continue;
           if (esteComandaReambalare(c)) continue;
+          const k = keyOf(c);
           if (esteComandaProductieAvans(c)) {
             c.cantitate_initiala_avans = Number(c.cantitate || 0);
-            (advByProd.get(c.produs_id) || advByProd.set(c.produs_id, []).get(c.produs_id)!).push(c);
+            (advByProd.get(k) || advByProd.set(k, []).get(k)!).push(c);
           } else if (Number(c.cantitate || 0) > 0) {
-            (firmByProd.get(c.produs_id) || firmByProd.set(c.produs_id, []).get(c.produs_id)!).push(c);
+            (firmByProd.get(k) || firmByProd.set(k, []).get(k)!).push(c);
           }
         }
         const byCreated = (a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at));

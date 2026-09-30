@@ -16,6 +16,8 @@ interface Props {
   activeSessions: ProductieSesiuneLucru[];
   lineCapacity?: number;
   groupMap?: Record<string, string>;
+  /** Ziua selectată în operator (YYYY-MM-DD) — finalizatele din această zi rămân vizibile */
+  selectedDay?: string;
   /** Liniile fizice între care operatorul trebuie să aleagă (ex: Aromate automată / manuală) */
   lineOptions?: { id: string; nume: string }[];
   onOrderSelect: (orderId: string) => void;
@@ -48,14 +50,13 @@ const todayKey = () => {
 // Ziua comenzii: data producției programată, altfel data creării
 const orderDayKey = (o: any) => String(o?.data_productie || o?.created_at || "").slice(0, 10);
 
-const isFromToday = (o: any) => orderDayKey(o) === todayKey();
-
 
 const GroupedOrdersView: React.FC<Props> = ({
   orders,
   activeSessions,
   lineCapacity,
   groupMap,
+  selectedDay,
   lineOptions = [],
   onOrderSelect,
   onStartGroup,
@@ -93,7 +94,7 @@ const GroupedOrdersView: React.FC<Props> = ({
     }>();
     for (const o of orders) {
       // Comenzile finalizate din alte zile nu mai apar niciodată în lista grupată
-      if (isOrderDone(o) && !isFromToday(o)) continue;
+      if (isOrderDone(o) && orderDayKey(o) !== (selectedDay || todayKey())) continue;
       const produsId = o.produs_id || "";
       const produsNume = (o as any).productie_produse?.nume || t("noProduct");
       const grup = produsId && groupMap ? (groupMap[produsId] || "").trim() : "";
@@ -111,7 +112,7 @@ const GroupedOrdersView: React.FC<Props> = ({
       map.get(key)!.orders.push(o);
     }
     return Array.from(map.values());
-  }, [orders, groupMap]);
+  }, [orders, groupMap, selectedDay]);
 
   const openStart = (orderIds: string[], nume: string) => {
     setPrincipalOperator("");
