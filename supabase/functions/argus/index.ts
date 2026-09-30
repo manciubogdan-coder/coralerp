@@ -153,7 +153,6 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: isStepCount(12),
-    providerOptions: OPENAI_OPTS as any,
     abortSignal: req.signal,
   });
 
@@ -195,7 +194,6 @@ async function handleSummary(c: ReturnType<typeof makeClients>, refresh: boolean
     model: gateway(),
     instructions: `Ești Argus, analistul CEO-ului Coral Biogreens. Scrie rezumatul de dimineață în română, markdown, maxim 300 de cuvinte, cu secțiunile: **Ce a mers bine**, **Ce nu a mers**, **Pierderi, rebut și calitate** (rebut kg și pe motive, pierdere calitativă la recepție în kg și %, defecte, furnizori cu marfă proastă, câte poze de neconformitate), **Oameni**, **De urmărit azi**. Folosește doar cifrele primite, compară cu ziua anterioară. Fără introducere.`,
     prompt: `Date pentru ziua ${y} (JSON):\n${JSON.stringify(stats).slice(0, 60000)}`,
-    providerOptions: { openai: { ...OPENAI_OPTS.openai, reasoningEffort: "low" } } as any,
   });
   let content = "";
   try {
