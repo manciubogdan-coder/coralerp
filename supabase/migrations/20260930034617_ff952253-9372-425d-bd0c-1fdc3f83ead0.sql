@@ -1,0 +1,3 @@
+CREATE POLICY "argus_threads_server_only" ON public.argus_threads FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+CREATE POLICY "argus_messages_server_only" ON public.argus_messages FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+CREATE POLICY "argus_summaries_server_only" ON public.argus_daily_summaries FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
