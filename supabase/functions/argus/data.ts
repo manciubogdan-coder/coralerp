@@ -108,7 +108,7 @@ export async function computeOverview(c: Clients, from: string, to: string, ligh
     fetchAll(c.legacy, "productie_comenzi",
       "id,status,cantitate,cantitate_reala_produsa,cantitate_din_restock,tip_comanda,magazin,created_at",
       (q) => q.gte("created_at", s).lte("created_at", e)),
-    fetchAll(c.cloud, "productie_sesiuni_rebut", "sesiune_id,linie_id,linie_nume,cantitate,created_at",
+    fetchAll(c.cloud, "productie_sesiuni_rebut", "sesiune_id,linie_id,linie_nume,cantitate,motiv,created_by_email,created_at",
       (q) => q.gte("created_at", s).lte("created_at", e)),
     fetchAll(c.legacy, "productie_linii", "id,nume"),
   ]);
@@ -169,6 +169,15 @@ export async function computeOverview(c: Clients, from: string, to: string, ligh
 
   if (light) return { perioada: { de_la: from, pana_la: to }, productie };
 
+  const opBySession = new Map(sesiuni.map((x: any) => [x.id, x.nume_operator]));
+  const motive = new Map<string, number>();
+  for (const r of rebut) motive.set(r.motiv || "Fără motiv", (motive.get(r.motiv || "Fără motiv") ?? 0) + num(r.cantitate));
+  const rebutDetaliu = {
+    pe_motiv: [...motive.entries()].sort((a, b) => b[1] - a[1]).map(([motiv, kg]) => ({ motiv, kg: r2(kg) })),
+    inregistrari: rebut.map((r: any) => ({ data: r.created_at, linie: r.linie_nume || lineName.get(r.linie_id) || "—", operator: opBySession.get(r.sesiune_id) || "—", kg: r2(num(r.cantitate)), motiv: r.motiv || "", introdus_de: r.created_by_email || "" }))
+      .sort((a, b) => b.kg - a.kg).slice(0, 300),
+  };
+
   // ----- stock -----
   const recSelect = "id,name,gross_quantity,quantity,unit,receipt_date,document_number,supplier_name";
   const [recMp, recAmb, recEt, transfers, profiles, pings, audit, recAudit] = await Promise.all([
@@ -193,12 +202,59 @@ export async function computeOverview(c: Clients, from: string, to: string, ligh
       receptii: real.length,
       cantitate_bruta: r2(real.reduce((a, r) => a + num(r.gross_quantity ?? r.quantity), 0)),
       corectii: rows.length - real.length,
+      lista: real.map((r) => ({ data: r.receipt_date, produs: r.name, furnizor: r.supplier_name || "—", cantitate: r2(num(r.gross_quantity ?? r.quantity)), unitate: r.unit || "", document: r.document_number || "" })).slice(0, 500),
       top_furnizori: [...sup.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([furnizor, receptii]) => ({ furnizor, receptii })),
     };
   };
   const items = transfers.length
     ? await inBatches(c.legacy, "stock_transfer_items", "transfer_id,net_quantity,quantity", "transfer_id", transfers.map((t: any) => t.id))
     : [];
+  // ----- quality at reception (reception report) -----
+  const recAll = [
+    ...recMp.filter((r) => !isCorr(r)).map((r) => ({ ...r, _dep: "Materii Prime" })),
+    ...recAmb.filter((r) => !isCorr(r)).map((r) => ({ ...r, _dep: "Ambalaje" })),
+    ...recEt.filter((r) => !isCorr(r)).map((r) => ({ ...r, _dep: "Etichete" })),
+  ];
+  const recById = new Map(recAll.map((r) => [r.id, r]));
+  const rep = recAll.length
+    ? await inBatches(c.legacyUser, "reception_report_data", "inventory_id,cantitate_receptionata,pierdere_calitativa_procent,defects,photos,observations,transmis_la_furnizor", "inventory_id", recAll.map((r) => r.id)).catch(() => [])
+    : [];
+  const photoUrl = (ph: any) => ph?.path ? `${LEGACY_URL}/storage/v1/object/public/reception-photos/${ph.path}` : (ph?.url || "").replace(/\/object\/public\/reception-(Foto|foto|Poze|poze)\//, "/object/public/reception-photos/");
+  const probleme: any[] = [];
+  const defCount = new Map<string, number>();
+  const supQ = new Map<string, { furnizor: string; receptii_cu_probleme: number; kg_pierdute: number; kg_receptionate: number }>();
+  let kgPierdut = 0, kgRecVerificat = 0, poze = 0;
+  for (const d of rep) {
+    const r = recById.get(d.inventory_id); if (!r) continue;
+    const kgRec = num(d.cantitate_receptionata ?? r.gross_quantity ?? r.quantity);
+    const pct = num(d.pierdere_calitativa_procent);
+    const kg = (kgRec * pct) / 100;
+    const defs: string[] = Array.isArray(d.defects) ? d.defects : [];
+    const photos = (Array.isArray(d.photos) ? d.photos : []).map(photoUrl).filter(Boolean);
+    kgRecVerificat += kgRec;
+    const sup = r.supplier_name || "—";
+    const S = supQ.get(sup) ?? { furnizor: sup, receptii_cu_probleme: 0, kg_pierdute: 0, kg_receptionate: 0 };
+    S.kg_receptionate += kgRec;
+    if (pct > 0 || defs.length || photos.length || (d.observations ?? "").trim()) {
+      kgPierdut += kg; poze += photos.length; S.receptii_cu_probleme++; S.kg_pierdute += kg;
+      for (const x of defs) defCount.set(x, (defCount.get(x) ?? 0) + 1);
+      probleme.push({ data: r.receipt_date, depozit: r._dep, produs: r.name, furnizor: sup, document: r.document_number || "", kg_receptionat: r2(kgRec), unitate: r.unit || "", pierdere_procent: pct, kg_pierdut: r2(kg), defecte: defs, observatii: d.observations || "", transmis_la_furnizor: !!d.transmis_la_furnizor, poze: photos });
+    }
+    supQ.set(sup, S);
+  }
+  const calitate = {
+    receptii_verificate: rep.length,
+    receptii_cu_probleme: probleme.length,
+    kg_pierdere_calitativa: r2(kgPierdut),
+    procent_pierdere: kgRecVerificat ? r2((kgPierdut / kgRecVerificat) * 100) : 0,
+    poze: poze,
+    pe_defect: [...defCount.entries()].sort((a, b) => b[1] - a[1]).map(([defect, receptii]) => ({ defect, receptii })),
+    pe_furnizor: [...supQ.values()].filter((s) => s.receptii_cu_probleme)
+      .map((s) => ({ ...s, kg_pierdute: r2(s.kg_pierdute), kg_receptionate: r2(s.kg_receptionate), procent: s.kg_receptionate ? r2((s.kg_pierdute / s.kg_receptionate) * 100) : 0 }))
+      .sort((a, b) => b.kg_pierdute - a.kg_pierdute),
+    probleme: probleme.sort((a, b) => b.kg_pierdut - a.kg_pierdut),
+  };
+
   const depozite = {
     materii_prime: recSummary(recMp),
     ambalaje: recSummary(recAmb),
@@ -270,6 +326,8 @@ export async function computeOverview(c: Clients, from: string, to: string, ligh
     productie,
     depozite,
     anomalii,
+    rebut: rebutDetaliu,
+    calitate,
   };
 }
 
