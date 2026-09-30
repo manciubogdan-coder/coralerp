@@ -98,7 +98,7 @@ Vorbești în română, direct, ca un director de operațiuni sincer: cifre conc
 Azi este ${today} (fus orar Europe/Bucharest).
 
 Instrumente:
-1. metrici_perioada — tablou complet (oameni, producție, depozite, anomalii, comparație cu perioada anterioară). Începe cu el pentru întrebări generale.
+1. metrici_perioada — tablou complet (oameni, producție, depozite, anomalii, rebut pe motive, calitate la recepție: pierdere calitativă kg/%, defecte, furnizori, comparație cu perioada anterioară). Începe cu el pentru întrebări generale.
 2. interogare_date — citește/agregă orice tabel de mai jos. Folosește grupare+sume pentru totaluri.
 3. genereaza_raport — când CEO-ul cere un raport/Excel: definește interogarea; utilizatorul primește un buton de descărcare.
 
@@ -127,7 +127,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
       }),
       execute: async ({ de_la, pana_la }) => {
         if (!DAY_RE.test(de_la) || !DAY_RE.test(pana_la)) return { eroare: "Date invalide" };
-        try { return await overviewWithTrend(c, de_la, pana_la); } catch (e) { return { eroare: String((e as Error).message) }; }
+        try { const o: any = await overviewWithTrend(c, de_la, pana_la); o.calitate.probleme = o.calitate.probleme.slice(0, 60).map(({ poze, ...x }: any) => ({ ...x, poze: poze.length })); for (const k of Object.keys(o.depozite)) delete o.depozite[k].lista; o.rebut.inregistrari = o.rebut.inregistrari.slice(0, 60); return o; } catch (e) { return { eroare: String((e as Error).message) }; }
       },
     }),
     interogare_date: tool({
@@ -198,10 +198,11 @@ async function handleSummary(c: ReturnType<typeof makeClients>, refresh: boolean
     if (data) return json({ day: today, content: data.content, created_at: data.created_at });
   }
   const y = addDays(today, -1);
-  const stats = await overviewWithTrend(c, y, y);
+  const full = await overviewWithTrend(c, y, y);
+  const stats = { ...full, calitate: { ...full.calitate, probleme: full.calitate.probleme.slice(0, 25).map(({ poze, ...x }: any) => ({ ...x, poze: poze.length })) }, depozite: Object.fromEntries(Object.entries(full.depozite).map(([k, v]: any) => [k, { ...v, lista: undefined }])), rebut: { ...full.rebut, inregistrari: full.rebut.inregistrari.slice(0, 20) } };
   const result = streamText({
     model: gateway(),
-    instructions: `Ești Argus, analistul CEO-ului Coral Biogreens. Scrie rezumatul de dimineață în română, markdown, maxim 220 de cuvinte, cu secțiunile: **Ce a mers bine**, **Ce nu a mers**, **Oameni**, **De urmărit azi**. Folosește doar cifrele primite, compară cu ziua anterioară. Fără introducere.`,
+    instructions: `Ești Argus, analistul CEO-ului Coral Biogreens. Scrie rezumatul de dimineață în română, markdown, maxim 300 de cuvinte, cu secțiunile: **Ce a mers bine**, **Ce nu a mers**, **Pierderi, rebut și calitate** (rebut kg și pe motive, pierdere calitativă la recepție în kg și %, defecte, furnizori cu marfă proastă, câte poze de neconformitate), **Oameni**, **De urmărit azi**. Folosește doar cifrele primite, compară cu ziua anterioară. Fără introducere.`,
     prompt: `Date pentru ziua ${y} (JSON):\n${JSON.stringify(stats).slice(0, 60000)}`,
     providerOptions: { openai: { ...OPENAI_OPTS.openai, reasoningEffort: "low" } } as any,
   });

@@ -2,12 +2,13 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { AlertTriangle, ArrowDownRight, ArrowUpRight, Factory, FileSpreadsheet, Loader2, RefreshCw, Users, Warehouse } from "lucide-react";
+import { AlertTriangle, Camera, ShieldAlert, ArrowDownRight, ArrowUpRight, Factory, FileSpreadsheet, Loader2, RefreshCw, Users, Warehouse } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import BackToHubButton from "@/components/BackToHubButton";
 import { MessageResponse } from "@/components/ai-elements/message";
 import ArgusChat from "@/components/argus/ArgusChat";
@@ -36,9 +37,9 @@ function Delta({ cur, prev, inverse = false }: { cur: number; prev: number | und
   );
 }
 
-function Kpi({ label, value, sub, icon: Icon }: { label: string; value: string; sub?: React.ReactNode; icon: any }) {
+function Kpi({ label, value, sub, icon: Icon, onClick }: { label: string; value: string; sub?: React.ReactNode; icon: any; onClick?: () => void }) {
   return (
-    <Card>
+    <Card onClick={onClick} className={onClick ? "cursor-pointer transition-colors hover:border-primary" : undefined} role={onClick ? "button" : undefined}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           {label}
@@ -76,6 +77,107 @@ function SimpleTable({ cols, rows }: { cols: Array<[string, string, ((v: any, r:
     </div>
   );
 }
+
+const dt = (v: string) => (v ? new Date(v).toLocaleString("ro-RO") : "");
+const dd = (v: string) => (v ? new Date(v).toLocaleDateString("ro-RO") : "");
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-sm font-semibold">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function QualityList({ rows, onPhoto }: { rows: any[]; onPhoto: (u: string) => void }) {
+  if (!rows?.length) return <p className="py-4 text-sm text-muted-foreground">Nicio problemă de calitate înregistrată în raportul de recepție.</p>;
+  return (
+    <div className="space-y-2">
+      {rows.map((r, i) => (
+        <div key={i} className="rounded-lg border p-3 text-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div className="font-medium">{r.produs} <span className="text-muted-foreground">· {r.furnizor}</span></div>
+            <div className="tabular-nums">
+              <span className={r.kg_pierdut > 0 ? "font-semibold text-destructive" : ""}>{fmt(r.kg_pierdut, 2)} {r.unitate || "kg"} pierdut</span>
+              <span className="text-muted-foreground"> ({fmt(r.pierdere_procent, 1)}% din {fmt(r.kg_receptionat, 1)})</span>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">{dd(r.data)} · {r.depozit}{r.document ? ` · doc ${r.document}` : ""}{r.transmis_la_furnizor ? " · transmis la furnizor" : ""}</div>
+          {r.defecte?.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{r.defecte.map((x: string) => <Badge key={x} variant="outline">{x}</Badge>)}</div>}
+          {r.observatii && <div className="mt-1">{r.observatii}</div>}
+          {r.poze?.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {r.poze.map((u: string) => (
+                <button key={u} onClick={() => onPhoto(u)} className="overflow-hidden rounded border">
+                  <img src={u} alt={r.produs} loading="lazy" className="h-20 w-20 object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+type DetailKey = "productie" | "productivitate" | "rebut" | "calitate" | "oameni" | "receptii" | "greseli" | "Materii Prime" | "Ambalaje" | "Etichete";
+
+function DetailBody({ k, d, onPhoto }: { k: DetailKey; d: any; onPhoto: (u: string) => void }) {
+  const p = d.productie;
+  switch (k) {
+    case "productie":
+      return <div className="space-y-4">
+        <Section title="Pe zile"><SimpleTable rows={p.zilnic} cols={[["zi", "Zi", dd], ["cantitate", "Buc", (v) => fmt(v)]]} /></Section>
+        <Section title="Pe linii"><SimpleTable rows={p.pe_linie} cols={[["linie", "Linie"], ["sesiuni", "Sesiuni"], ["cantitate", "Buc", (v) => fmt(v)], ["ore", "Ore", (v) => fmt(v, 1)], ["buc_pe_ora", "Buc/oră", (v) => fmt(v, 1)]]} /></Section>
+        <Section title="Comenzi pe status"><SimpleTable rows={Object.entries(p.comenzi.pe_status).map(([status, n]) => ({ status, n }))} cols={[["status", "Status"], ["n", "Comenzi"]]} /></Section>
+      </div>;
+    case "productivitate":
+      return <SimpleTable rows={p.pe_operator} cols={[["operator", "Operator"], ["sesiuni", "Sesiuni"], ["cantitate", "Buc", (v) => fmt(v)], ["ore_om", "Ore-om", (v) => fmt(v, 1)], ["buc_pe_ora_om", "Buc/oră-om", (v) => fmt(v, 1)], ["partiale", "Parțiale"], ["rebut_kg", "Rebut kg", (v) => fmt(v, 1)]]} />;
+    case "rebut":
+      return <div className="space-y-4">
+        <Section title="Pe motiv"><SimpleTable rows={d.rebut.pe_motiv} cols={[["motiv", "Motiv"], ["kg", "Kg", (v) => fmt(v, 2)]]} /></Section>
+        <Section title="Pe linie"><SimpleTable rows={p.pe_linie.filter((l: any) => l.rebut_kg > 0)} cols={[["linie", "Linie"], ["rebut_kg", "Rebut kg", (v) => fmt(v, 2)], ["cantitate", "Buc produse", (v) => fmt(v)]]} /></Section>
+        <Section title="Toate înregistrările"><SimpleTable rows={d.rebut.inregistrari} cols={[["data", "Data", dt], ["linie", "Linie"], ["operator", "Operator"], ["kg", "Kg", (v) => fmt(v, 2)], ["motiv", "Motiv"], ["introdus_de", "Introdus de"]]} /></Section>
+      </div>;
+    case "calitate":
+      return <div className="space-y-4">
+        <Section title="Furnizori cu marfă proastă"><SimpleTable rows={d.calitate.pe_furnizor} cols={[["furnizor", "Furnizor"], ["receptii_cu_probleme", "Recepții cu probleme"], ["kg_receptionate", "Recepționat", (v) => fmt(v, 1)], ["kg_pierdute", "Pierdut (kg)", (v) => fmt(v, 2)], ["procent", "Pierdere %", (v) => `${fmt(v, 2)}%`]]} /></Section>
+        <Section title="Defecte găsite"><SimpleTable rows={d.calitate.pe_defect} cols={[["defect", "Defect"], ["receptii", "Recepții"]]} /></Section>
+        <Section title="Recepții cu probleme (cu poze)"><QualityList rows={d.calitate.probleme} onPhoto={onPhoto} /></Section>
+      </div>;
+    case "oameni":
+      return <div className="space-y-4">
+        <SimpleTable rows={d.oameni.activi} cols={[["nume", "Nume"], ["ore", "Ore", (v) => fmt(v, 1)], ["taburi_top", "Unde a lucrat", (v: any[]) => v.map((t) => `${t.tab} (${fmt(t.ore, 1)}h)`).join(", ")], ["ultima_activitate", "Ultima dată", dt]]} />
+        <Section title="Fără activitate"><SimpleTable rows={d.oameni.inactivi} cols={[["nume", "Nume"], ["email", "Email"]]} /></Section>
+      </div>;
+    case "receptii":
+      return <div className="space-y-4">
+        {([["Materii Prime", d.depozite.materii_prime], ["Ambalaje", d.depozite.ambalaje], ["Etichete", d.depozite.etichete]] as const).map(([n, x]: any) => (
+          <Section key={n} title={`${n} — ${x.receptii} recepții`}><SimpleTable rows={x.lista} cols={[["data", "Data", dd], ["produs", "Produs"], ["furnizor", "Furnizor"], ["cantitate", "Cantitate", (v, r) => `${fmt(v, 1)} ${r.unitate}`], ["document", "Document"]]} /></Section>
+        ))}
+      </div>;
+    case "greseli":
+      return <div className="space-y-4">
+        <Section title="Pe persoană"><SimpleTable rows={d.anomalii.pe_persoana} cols={[["persoana", "Persoană"], ["redeschideri_comenzi", "Redeschideri"], ["stergeri", "Ștergeri"], ["modificari_receptii", "Modif. recepții"], ["modificari_comenzi", "Modif. comenzi"], ["total", "Total"]]} /></Section>
+        <Section title="Sesiuni suspecte"><SimpleTable rows={d.anomalii.sesiuni_suspecte} cols={[["tip", "Problemă"], ["operator", "Operator"], ["linie", "Linie"], ["cantitate", "Buc", (v) => fmt(v)], ["data", "Data", dt]]} /></Section>
+        <Section title="Sesiuni cu rebut mare"><SimpleTable rows={d.anomalii.sesiuni_rebut_mare} cols={[["operator", "Operator"], ["linie", "Linie"], ["cantitate", "Buc", (v) => fmt(v)], ["rebut_kg", "Rebut kg", (v) => fmt(v, 2)], ["data", "Data", dt]]} /></Section>
+      </div>;
+    default: {
+      const map: any = { "Materii Prime": d.depozite.materii_prime, Ambalaje: d.depozite.ambalaje, Etichete: d.depozite.etichete };
+      const x = map[k];
+      return <div className="space-y-4">
+        <SimpleTable rows={x.lista} cols={[["data", "Data", dd], ["produs", "Produs"], ["furnizor", "Furnizor"], ["cantitate", "Cantitate", (v, r) => `${fmt(v, 1)} ${r.unitate}`], ["document", "Document"]]} />
+        <Section title="Probleme de calitate"><QualityList rows={d.calitate.probleme.filter((q: any) => q.depozit === k)} onPhoto={onPhoto} /></Section>
+      </div>;
+    }
+  }
+}
+
+const DETAIL_TITLES: Record<string, string> = {
+  productie: "Producție — detaliat", productivitate: "Productivitate pe operatori", rebut: "Rebut — ce, unde, de ce",
+  calitate: "Calitatea mărfii la recepție", oameni: "Oameni în aplicație", receptii: "Toate recepțiile", greseli: "Semnale de greșeli",
+};
 
 function Summary() {
   const [s, setS] = useState<{ content: string; day: string } | null>(null);
@@ -119,6 +221,8 @@ function Dashboard() {
   const [d, setD] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [detail, setDetail] = useState<DetailKey | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
 
   const load = () => {
     setBusy(true);
@@ -148,6 +252,10 @@ function Dashboard() {
     add("Utilizatori inactivi", d.oameni.inactivi);
     add("Greseli pe persoana", d.anomalii.pe_persoana);
     add("Sesiuni suspecte", d.anomalii.sesiuni_suspecte);
+    add("Rebut", d.rebut?.inregistrari ?? []);
+    add("Rebut pe motiv", d.rebut?.pe_motiv ?? []);
+    add("Calitate receptii", (d.calitate?.probleme ?? []).map((q: any) => ({ ...q, defecte: q.defecte.join(", "), poze: q.poze.join(" ") })));
+    add("Calitate pe furnizor", d.calitate?.pe_furnizor ?? []);
     XLSX.writeFile(wb, `argus-${from}_${to}.xlsx`);
   };
 
@@ -177,13 +285,15 @@ function Dashboard() {
       {err && <p className="text-sm text-destructive">{err}</p>}
       {d && (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-            <Kpi label="Produs (buc)" icon={Factory} value={fmt(p.cantitate_produsa)} sub={<Delta cur={p.cantitate_produsa} prev={prev?.cantitate_produsa} />} />
-            <Kpi label="Buc / oră-om" icon={Factory} value={fmt(p.productivitate_buc_ora_om, 1)} sub={<Delta cur={p.productivitate_buc_ora_om} prev={prev?.productivitate_buc_ora_om} />} />
-            <Kpi label="Rebut (kg)" icon={AlertTriangle} value={fmt(p.rebut_kg, 1)} sub={<Delta cur={p.rebut_kg} prev={prev?.rebut_kg} inverse />} />
-            <Kpi label="Oameni activi" icon={Users} value={`${d.oameni.utilizatori_activi}`} sub={<span className="text-xs text-muted-foreground">{fmt(d.oameni.ore_totale, 1)} ore în aplicație · {d.oameni.inactivi.length} inactivi</span>} />
-            <Kpi label="Recepții" icon={Warehouse} value={`${recTotal}`} sub={<span className="text-xs text-muted-foreground">{d.depozite.transferuri.numar} transferuri în producție</span>} />
-            <Kpi label="Semnale de greșeli" icon={AlertTriangle} value={`${errTotal}`} sub={<span className="text-xs text-muted-foreground">{d.anomalii.redeschideri_comenzi} redeschideri · {d.anomalii.corectii_stoc} corecții</span>} />
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Kpi onClick={() => setDetail("productie")} label="Produs (buc)" icon={Factory} value={fmt(p.cantitate_produsa)} sub={<Delta cur={p.cantitate_produsa} prev={prev?.cantitate_produsa} />} />
+            <Kpi onClick={() => setDetail("productivitate")} label="Buc / oră-om" icon={Factory} value={fmt(p.productivitate_buc_ora_om, 1)} sub={<Delta cur={p.productivitate_buc_ora_om} prev={prev?.productivitate_buc_ora_om} />} />
+            <Kpi onClick={() => setDetail("rebut")} label="Rebut producție (kg)" icon={AlertTriangle} value={fmt(p.rebut_kg, 1)} sub={<div className="space-y-0.5"><Delta cur={p.rebut_kg} prev={prev?.rebut_kg} inverse />{d.rebut?.pe_motiv?.[0] && <div className="truncate text-xs text-muted-foreground">Motiv principal: {d.rebut.pe_motiv[0].motiv}</div>}</div>} />
+            <Kpi onClick={() => setDetail("calitate")} label="Pierdere calitate recepție" icon={ShieldAlert} value={`${fmt(d.calitate?.kg_pierdere_calitativa, 1)} kg`} sub={<span className="text-xs text-muted-foreground">{fmt(d.calitate?.procent_pierdere, 2)}% · {d.calitate?.receptii_cu_probleme ?? 0} recepții cu probleme · <Camera className="inline h-3 w-3" /> {d.calitate?.poze ?? 0}</span>} />
+            <Kpi onClick={() => setDetail("oameni")} label="Oameni activi" icon={Users} value={`${d.oameni.utilizatori_activi}`} sub={<span className="text-xs text-muted-foreground">{fmt(d.oameni.ore_totale, 1)} ore în aplicație · {d.oameni.inactivi.length} inactivi</span>} />
+            <Kpi onClick={() => setDetail("receptii")} label="Recepții" icon={Warehouse} value={`${recTotal}`} sub={<span className="text-xs text-muted-foreground">{d.depozite.transferuri.numar} transferuri în producție</span>} />
+            <Kpi onClick={() => setDetail("greseli")} label="Semnale de greșeli" icon={AlertTriangle} value={`${errTotal}`} sub={<span className="text-xs text-muted-foreground">{d.anomalii.redeschideri_comenzi} redeschideri · {d.anomalii.corectii_stoc} corecții</span>} />
+            <Kpi onClick={() => setDetail("calitate")} label="Defect principal" icon={ShieldAlert} value={d.calitate?.pe_defect?.[0]?.defect ?? "—"} sub={<span className="text-xs text-muted-foreground">{d.calitate?.pe_furnizor?.[0] ? `Furnizor cu cele mai mari pierderi: ${d.calitate.pe_furnizor[0].furnizor}` : "Fără defecte raportate"}</span>} />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -259,11 +369,12 @@ function Dashboard() {
 
           <div className="grid gap-4 lg:grid-cols-3">
             {([["Materii Prime", d.depozite.materii_prime], ["Ambalaje", d.depozite.ambalaje], ["Etichete", d.depozite.etichete]] as const).map(([name, s]: any) => (
-              <Card key={name}>
+              <Card key={name} onClick={() => setDetail(name)} className="cursor-pointer transition-colors hover:border-primary">
                 <CardHeader className="pb-2"><CardTitle className="text-base">Depozit {name}</CardTitle></CardHeader>
                 <CardContent className="space-y-1 text-sm">
                   <div>{s.receptii} recepții · {fmt(s.cantitate_bruta, 1)} brut</div>
                   <div className={s.corectii ? "text-destructive" : "text-muted-foreground"}>{s.corectii} corecții de stoc</div>
+                  {(() => { const q = (d.calitate?.probleme ?? []).filter((x: any) => x.depozit === name); const kg = q.reduce((a: number, x: any) => a + x.kg_pierdut, 0); return q.length ? <div className="text-destructive">{q.length} recepții cu probleme · {fmt(kg, 1)} kg pierdere calitativă</div> : null; })()}
                   {s.top_furnizori.length > 0 && (
                     <div className="pt-1 text-muted-foreground">Top: {s.top_furnizori.map((f: any) => `${f.furnizor} (${f.receptii})`).join(", ")}</div>
                   )}
@@ -282,6 +393,17 @@ function Dashboard() {
           )}
         </>
       )}
+      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+        <DialogContent className="flex max-h-[90vh] max-w-5xl flex-col">
+          <DialogHeader><DialogTitle>{detail ? DETAIL_TITLES[detail] ?? `Depozit ${detail}` : ""} · {from} — {to}</DialogTitle></DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">{detail && d && <DetailBody k={detail} d={d} onPhoto={setPhoto} />}</div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!photo} onOpenChange={(o) => !o && setPhoto(null)}>
+        <DialogContent className="max-w-4xl">
+          {photo && <img src={photo} alt="Poză recepție" className="max-h-[80vh] w-full object-contain" />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
