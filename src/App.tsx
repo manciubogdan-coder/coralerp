@@ -48,6 +48,7 @@ import PendingApprovalPage from "./pages/PendingApprovalPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import ActivityTrackingPage from "./pages/ActivityTrackingPage";
+import ArgusPage from "./pages/ArgusPage";
 import { useActivityTracker } from "@/hooks/use-activity-tracker";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { InventoryTypeProvider, ForceInventoryType } from "@/context/inventory-type";
@@ -417,6 +418,17 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
+                {["/administrativ/argus", "/administrativ/argus/chat", "/administrativ/argus/chat/:threadId"].map((p) => (
+                  <Route
+                    key={p}
+                    path={p}
+                    element={
+                      <ProtectedRoute requireAdmin>
+                        <ArgusPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                ))}
                 <Route path="/administrativ/produse" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
                 <Route path="/administrativ/furnizori" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
                 <Route path="/administrativ/producatori" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
