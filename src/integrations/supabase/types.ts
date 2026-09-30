@@ -213,6 +213,83 @@ export type Database = {
         }
         Relationships: []
       }
+      argus_daily_summaries: {
+        Row: {
+          content: string
+          created_at: string
+          day: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          day: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          day?: string
+        }
+        Relationships: []
+      }
+      argus_messages: {
+        Row: {
+          created_at: string
+          id: string
+          message: Json
+          role: string
+          sdk_id: string | null
+          thread_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: Json
+          role: string
+          sdk_id?: string | null
+          thread_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: Json
+          role?: string
+          sdk_id?: string | null
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "argus_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "argus_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      argus_threads: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chat_conversations: {
         Row: {
           created_at: string
