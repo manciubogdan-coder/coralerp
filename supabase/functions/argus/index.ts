@@ -29,6 +29,20 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 const MODEL = "google/gemini-3.8-flash";
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function gateway() {
+  const key = Deno.env.get("LOVABLE_API_KEY");
+  if (!key) throw new Error("LOVABLE_API_KEY lipsește");
+  const run = createLovableAiGatewayRunIdFetch();
+  const provider = createOpenAICompatible({
+    name: "lovable",
+    baseURL: "https://ai.gateway.lovable.dev/v1",
+    headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
+    fetch: run.fetch,
+  });
+  return provider(MODEL);
+}
 
 function friendlyError(e: unknown): string {
   const any = e as any;
