@@ -28,7 +28,7 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-const MODEL = "openai/gpt-6-astra";
+const MODEL = "openai/gpt-6-luna";
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function gateway() {
@@ -46,7 +46,7 @@ function gateway() {
 const OPENAI_OPTS = {
   openai: {
     forceReasoning: true,
-    reasoningEffort: "medium",
+    reasoningEffort: "low",
     reasoningSummary: "auto",
     store: false,
     include: ["reasoning.encrypted_content"],
