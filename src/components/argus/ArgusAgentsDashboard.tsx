@@ -160,27 +160,47 @@ export default function ArgusAgentsDashboard() {
       )}
 
       <CreateReportModal open={createOpen} onOpenChange={setCreateOpen} onCreated={async (id) => { await load(); run(id); }} />
+      <CreateReportModal
+        open={!!editing}
+        onOpenChange={(o) => { if (!o) setEditing(null); }}
+        initial={editing}
+        onCreated={async () => { setEditing(null); await load(); }}
+      />
       <TemplateLibraryModal open={libOpen} onOpenChange={setLibOpen} onAdded={load} />
     </div>
   );
 }
 
-function CreateReportModal({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: (id: string) => void }) {
+function CreateReportModal({ open, onOpenChange, onCreated, initial }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: (id: string) => void; initial?: any | null }) {
   const empty = { title: "", description: "", prompt_instructions: "", preferred_widget_type: "auto", schedule_type: "on_demand", is_public: false };
   const [f, setF] = useState(empty);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    setF(initial ? {
+      title: initial.title ?? "", description: initial.description ?? "",
+      prompt_instructions: initial.prompt_instructions ?? "",
+      preferred_widget_type: initial.preferred_widget_type ?? "auto",
+      schedule_type: initial.schedule_type ?? "on_demand", is_public: !!initial.is_public,
+    } : empty);
+  }, [open, initial]);
   const submit = async () => {
     setSaving(true);
     try {
-      const t = await argusFetch<any>("agent_create", {}, f);
-      onOpenChange(false); setF(empty); onCreated(t.id);
+      if (initial?.id) {
+        await argusFetch("agent_update", { id: initial.id }, f);
+        onOpenChange(false); onCreated(initial.id);
+      } else {
+        const t = await argusFetch<any>("agent_create", {}, f);
+        onOpenChange(false); setF(empty); onCreated(t.id);
+      }
     } catch (e) { toast({ title: "Eroare", description: (e as Error).message, variant: "destructive" }); }
     finally { setSaving(false); }
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] max-w-xl flex-col">
-        <DialogHeader><DialogTitle>Creează Agent Nou</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{initial ? "Editează Agentul" : "Creează Agent Nou"}</DialogTitle></DialogHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           <div className="space-y-1"><label className="text-sm font-medium">Titlu Raport</label><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="ex: Rebut pe linii în ultimele 7 zile" /></div>
           <div className="space-y-1"><label className="text-sm font-medium">Descriere</label><Input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></div>
