@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Check, Loader2, MoreHorizontal, Move, Plus, RefreshCw, Trash2, Maximize2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, Loader2, MoreHorizontal, Move, Pencil, Plus, RefreshCw, Trash2, Maximize2 } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +40,7 @@ export default function ArgusAgentsDashboard() {
   const [reorder, setReorder] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -127,6 +128,7 @@ export default function ArgusAgentsDashboard() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => run(c.template_id)} disabled={busy}><RefreshCw className="mr-2 h-4 w-4" />Rulează acum</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setSpan(c)}><Maximize2 className="mr-2 h-4 w-4" />{c.column_span >= 3 ? "Strânge cardul" : "Lățește cardul"}</DropdownMenuItem>
+                          {t.created_by === me && <DropdownMenuItem onClick={() => setEditing(t)}><Pencil className="mr-2 h-4 w-4" />Editează agentul</DropdownMenuItem>}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => remove(c)}>Șterge din Dashboard</DropdownMenuItem>
                           {t.created_by === me && <DropdownMenuItem className="text-destructive" onClick={() => destroy(c)}><Trash2 className="mr-2 h-4 w-4" />Șterge definitiv Agentul</DropdownMenuItem>}
@@ -158,27 +160,47 @@ export default function ArgusAgentsDashboard() {
       )}
 
       <CreateReportModal open={createOpen} onOpenChange={setCreateOpen} onCreated={async (id) => { await load(); run(id); }} />
+      <CreateReportModal
+        open={!!editing}
+        onOpenChange={(o) => { if (!o) setEditing(null); }}
+        initial={editing}
+        onCreated={async () => { setEditing(null); await load(); }}
+      />
       <TemplateLibraryModal open={libOpen} onOpenChange={setLibOpen} onAdded={load} />
     </div>
   );
 }
 
-function CreateReportModal({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: (id: string) => void }) {
+function CreateReportModal({ open, onOpenChange, onCreated, initial }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: (id: string) => void; initial?: any | null }) {
   const empty = { title: "", description: "", prompt_instructions: "", preferred_widget_type: "auto", schedule_type: "on_demand", is_public: false };
   const [f, setF] = useState(empty);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    setF(initial ? {
+      title: initial.title ?? "", description: initial.description ?? "",
+      prompt_instructions: initial.prompt_instructions ?? "",
+      preferred_widget_type: initial.preferred_widget_type ?? "auto",
+      schedule_type: initial.schedule_type ?? "on_demand", is_public: !!initial.is_public,
+    } : empty);
+  }, [open, initial]);
   const submit = async () => {
     setSaving(true);
     try {
-      const t = await argusFetch<any>("agent_create", {}, f);
-      onOpenChange(false); setF(empty); onCreated(t.id);
+      if (initial?.id) {
+        await argusFetch("agent_update", { id: initial.id }, f);
+        onOpenChange(false); onCreated(initial.id);
+      } else {
+        const t = await argusFetch<any>("agent_create", {}, f);
+        onOpenChange(false); setF(empty); onCreated(t.id);
+      }
     } catch (e) { toast({ title: "Eroare", description: (e as Error).message, variant: "destructive" }); }
     finally { setSaving(false); }
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] max-w-xl flex-col">
-        <DialogHeader><DialogTitle>Creează Agent Nou</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{initial ? "Editează Agentul" : "Creează Agent Nou"}</DialogTitle></DialogHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           <div className="space-y-1"><label className="text-sm font-medium">Titlu Raport</label><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="ex: Rebut pe linii în ultimele 7 zile" /></div>
           <div className="space-y-1"><label className="text-sm font-medium">Descriere</label><Input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></div>
@@ -206,7 +228,7 @@ function CreateReportModal({ open, onOpenChange, onCreated }: { open: boolean; o
           </label>
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={saving || !f.title.trim() || !f.prompt_instructions.trim()}>{saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Creează și Execută Acum</Button>
+          <Button onClick={submit} disabled={saving || !f.title.trim() || !f.prompt_instructions.trim()}>{saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{initial ? "Salvează modificările" : "Creează și Execută Acum"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

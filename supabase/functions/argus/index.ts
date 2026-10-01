@@ -287,6 +287,24 @@ async function handleAgents(action: string, url: URL, req: Request, c: ReturnTyp
       if (error) throw error;
       return json({ ok: true });
     }
+    case "agent_update": {
+      const b = await req.json();
+      const patch: Record<string, unknown> = {};
+      if (typeof b.title === "string" && b.title.trim()) patch.title = b.title.trim().slice(0, 150);
+      if (typeof b.description === "string") patch.description = b.description.slice(0, 500);
+      if (typeof b.prompt_instructions === "string" && b.prompt_instructions.trim()) patch.prompt_instructions = b.prompt_instructions.trim().slice(0, 4000);
+      if (["auto", "bar_chart", "line_chart", "pie_chart", "kpi", "table", "markdown"].includes(b.preferred_widget_type)) patch.preferred_widget_type = b.preferred_widget_type;
+      if (["on_demand", "daily", "weekly", "monthly"].includes(b.schedule_type)) {
+        patch.schedule_type = b.schedule_type;
+        if (b.schedule_type !== "on_demand") patch.last_scheduled_at = new Date().toISOString();
+      }
+      if (typeof b.is_public === "boolean") patch.is_public = b.is_public;
+      if (!Object.keys(patch).length) return json({ error: "Nimic de modificat." }, 400);
+      const { data: t, error } = await c.cloud.from("argus_report_templates").update(patch).eq("id", id).eq("created_by", userId).select("id").maybeSingle();
+      if (error) throw error;
+      if (!t) return json({ error: "Poți edita doar agenții creați de tine." }, 403);
+      return json({ ok: true });
+    }
     case "agent_delete": {
       const { error } = await c.cloud.from("argus_report_templates").delete().eq("id", id).eq("created_by", userId);
       if (error) throw error;
