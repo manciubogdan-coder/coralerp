@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Check, Loader2, MoreHorizontal, Move, Plus, RefreshCw, Trash2, Maximize2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, Loader2, MoreHorizontal, Move, Pencil, Plus, RefreshCw, Trash2, Maximize2 } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
