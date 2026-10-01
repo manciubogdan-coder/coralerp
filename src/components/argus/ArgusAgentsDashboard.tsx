@@ -171,7 +171,7 @@ export default function ArgusAgentsDashboard() {
   );
 }
 
-function CreateReportModal({ open, onOpenChange, onCreated, initial }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: (id: string) => void; initial?: any | null }) {
+export function CreateReportModal({ open, onOpenChange, onCreated, initial }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: (id: string) => void; initial?: any | null }) {
   const empty = { title: "", description: "", prompt_instructions: "", preferred_widget_type: "auto", schedule_type: "on_demand", is_public: false };
   const [f, setF] = useState(empty);
   const [saving, setSaving] = useState(false);

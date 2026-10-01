@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import * as XLSX from "xlsx";
-import { Plus, Trash2, FileSpreadsheet, Loader2, MessageSquare } from "lucide-react";
+import { Plus, Trash2, FileSpreadsheet, Loader2, MessageSquare, BookmarkPlus } from "lucide-react";
+import { CreateReportModal } from "./ArgusAgentsDashboard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-custom-toast";
@@ -102,6 +103,24 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
     setText("");
   };
 
+  const [agentDraft, setAgentDraft] = useState<any | null>(null);
+  const textOf = (m: UIMessage) => m.parts.map((p: any) => (p.type === "text" ? p.text : "")).join("\n").trim();
+  const saveAsAgent = (idx: number) => {
+    let q = "";
+    for (let i = idx - 1; i >= 0; i--) if (messages[i].role === "user") { q = textOf(messages[i]); break; }
+    const answer = textOf(messages[idx]);
+    const hasTable = /\n\|.*\|/.test(answer);
+    setAgentDraft({
+      title: q.slice(0, 80) || "Raport din chat",
+      description: "Salvat din conversația cu Argus",
+      prompt_instructions:
+        `Cerința: ${q}\n\nRefă aceeași analiză cu datele actuale, în același format și cu aceleași coloane/indicatori ca în exemplul de mai jos.\n\nExemplu de rezultat dorit:\n${answer.slice(0, 2500)}`,
+      preferred_widget_type: hasTable ? "table" : "auto",
+      schedule_type: "on_demand",
+      is_public: false,
+    });
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <Conversation className="min-h-0 flex-1">
@@ -129,8 +148,9 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
               </div>
             </ConversationEmptyState>
           ) : (
-            messages.map((m) => (
-              <Message key={m.id} from={m.role}>
+            messages.map((m, idx) => (
+              <React.Fragment key={m.id}>
+              <Message from={m.role}>
                 <MessageContent
                   className={cn(m.role === "user" && "bg-primary text-primary-foreground")}
                 >
@@ -154,6 +174,14 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
                   })}
                 </MessageContent>
               </Message>
+              {m.role === "assistant" && !(idx === messages.length - 1 && status === "streaming") && (
+                <div className="-mt-2 flex">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => saveAsAgent(idx)}>
+                    <BookmarkPlus className="mr-1 h-3.5 w-3.5" /> Salvează ca agent
+                  </Button>
+                </div>
+              )}
+              </React.Fragment>
             ))
           )}
           {status === "submitted" && (
@@ -185,6 +213,15 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
           </PromptInputFooter>
         </PromptInput>
       </div>
+      <CreateReportModal
+        open={!!agentDraft}
+        onOpenChange={(o) => !o && setAgentDraft(null)}
+        initial={agentDraft}
+        onCreated={() => {
+          setAgentDraft(null);
+          toast({ title: "Agent salvat", description: "Îl găsești în tabul „Agenți & Rapoarte”." });
+        }}
+      />
     </div>
   );
 }
