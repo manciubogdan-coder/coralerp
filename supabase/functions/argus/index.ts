@@ -9,7 +9,9 @@ import {
   type UIMessage,
 } from "npm:ai@7.0.123";
 import { createLovableAiGatewayRunIdFetch } from "../_shared/run-id.ts";
+import { isDue, runAgent } from "./agents.ts";
 import {
+  LEGACY_ANON,
   addDays,
   bucharestDay,
   makeClients,
