@@ -45,12 +45,8 @@ export async function runAgent(c: Clients, model: any, querySchema: unknown, t: 
   const today = bucharestDay();
   const pref = t.preferred_widget_type && t.preferred_widget_type !== "auto" ? `Folosește OBLIGATORIU widget_type="${t.preferred_widget_type}".` : "Alege widget_type-ul cel mai potrivit.";
   try {
-    const res = await generateText({
-      model,
-      tools: agentTools(c, querySchema),
-      stopWhen: isStepCount(8),
-      instructions: `Ești Argus, analistul de date al Coral Biogreens. Azi este ${today} (Europe/Bucharest), ieri a fost ${addDays(today, -1)}.
-Folosește instrumentele ca să calculezi cifre REALE; nu inventa nimic. Tabele disponibile:
+    const instructions = `Ești Argus, analistul de date al Coral Biogreens. Azi este ${today} (Europe/Bucharest), ieri a fost ${addDays(today, -1)}.
+Folosește instrumentele ca să calculezi cifre REALE; nu inventa nimic. Fă cât mai puține interogări (ideal o singură interogare agregată). Tabele disponibile:
 ${tableList}
 La final răspunde DOAR cu un obiect JSON valid (fără text înainte/după, fără \`\`\`), în română, cu structura:
 {"widget_type": ${WIDGETS.map((w) => `"${w}"`).join("|")}, "title": str, "summary": str scurt (max 25 cuvinte),
@@ -59,13 +55,37 @@ La final răspunde DOAR cu un obiect JSON valid (fără text înainte/după, fă
  "chart_config": {"xAxisKey": "name", "series": [{"key": str, "label": str, "color": "#hex"}]},
  "table_data": {"headers": [str], "rows": [[str]]} (pentru tabel, max 50 rânduri),
  "markdown_text": str (pentru markdown)}
-Pentru pie_chart folosește o singură serie. ${pref}`,
+Pentru pie_chart folosește o singură serie. ${pref}`;
+    const res = await generateText({
+      model,
+      tools: agentTools(c, querySchema),
+      stopWhen: isStepCount(50),
+      instructions,
       prompt: `Agent: ${t.title}\n${t.description ?? ""}\nInstrucțiuni: ${t.prompt_instructions}`,
     });
-    const raw = res.text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-    const start = raw.indexOf("{"), end = raw.lastIndexOf("}");
-    if (start < 0 || end < 0) throw new Error("Argus nu a returnat date structurate.");
-    const content = JSON.parse(raw.slice(start, end + 1));
+    const extract = (txt: string) => {
+      const raw = (txt ?? "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+      const s = raw.indexOf("{"), e = raw.lastIndexOf("}");
+      if (s < 0 || e < 0) return null;
+      try { return JSON.parse(raw.slice(s, e + 1)); } catch { return null; }
+    };
+    let content = extract(res.text);
+    if (!content) {
+      // Model stopped after tool calls or wrote prose: ask once more, no tools, for the final JSON.
+      const fin = await generateText({
+        model,
+        instructions,
+        messages: [
+          { role: "user", content: `Agent: ${t.title}\nInstrucțiuni: ${t.prompt_instructions}` },
+          ...(res.response?.messages ?? []),
+          { role: "user", content: "Pe baza datelor obținute mai sus, răspunde ACUM doar cu obiectul JSON final cerut." },
+        ] as any,
+      });
+      content = extract(fin.text);
+      if (!content && fin.text?.trim()) content = { widget_type: "markdown", title: t.title, markdown_text: fin.text.trim() };
+      if (!content && res.text?.trim()) content = { widget_type: "markdown", title: t.title, markdown_text: res.text.trim() };
+    }
+    if (!content) throw new Error("Argus nu a returnat date structurate.");
     if (!WIDGETS.includes(content.widget_type)) content.widget_type = "markdown";
     await c.cloud.from("argus_generated_reports").update({ status: "completed", content_json: content, executed_at: new Date().toISOString() }).eq("id", rep!.id);
     return { ok: true as const };
