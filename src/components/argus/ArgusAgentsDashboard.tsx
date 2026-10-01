@@ -228,7 +228,7 @@ function CreateReportModal({ open, onOpenChange, onCreated, initial }: { open: b
           </label>
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={saving || !f.title.trim() || !f.prompt_instructions.trim()}>{saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Creează și Execută Acum</Button>
+          <Button onClick={submit} disabled={saving || !f.title.trim() || !f.prompt_instructions.trim()}>{saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{initial ? "Salvează modificările" : "Creează și Execută Acum"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
