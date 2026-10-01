@@ -9,7 +9,9 @@ import {
   type UIMessage,
 } from "npm:ai@7.0.123";
 import { createLovableAiGatewayRunIdFetch } from "../_shared/run-id.ts";
+import { isDue, runAgent } from "./agents.ts";
 import {
+  LEGACY_ANON,
   addDays,
   bucharestDay,
   makeClients,
@@ -207,16 +209,146 @@ async function handleSummary(c: ReturnType<typeof makeClients>, refresh: boolean
   return json({ day: today, content, created_at: new Date().toISOString() });
 }
 
+async function latestReports(c: ReturnType<typeof makeClients>, ids: string[]) {
+  const out: Record<string, any> = {};
+  if (!ids.length) return out;
+  const { data } = await c.cloud.from("argus_generated_reports").select("template_id,status,content_json,executed_at,error")
+    .in("template_id", ids).order("executed_at", { ascending: false }).limit(ids.length * 4);
+  const pending: Record<string, boolean> = {};
+  for (const r of data ?? []) {
+    if (r.status === "pending" && Date.now() - new Date(r.executed_at).getTime() < 5 * 60_000) pending[r.template_id] = true;
+    if (!out[r.template_id] && r.status !== "pending") out[r.template_id] = r;
+  }
+  for (const id of ids) if (pending[id]) out[id] = { ...(out[id] ?? {}), running: true };
+  return out;
+}
+
+async function handleAgents(action: string, url: URL, req: Request, c: ReturnType<typeof makeClients>, userId: string, email: string) {
+  const id = url.searchParams.get("id") ?? "";
+  switch (action) {
+    case "agents_list": {
+      const { data: cards, error } = await c.cloud.from("argus_user_dashboard_cards")
+        .select("id,template_id,position_order,column_span,argus_report_templates(*)").eq("user_id", userId).order("position_order");
+      if (error) throw error;
+      const { data: job } = await c.cloud.from("argus_job_state").select("paused_reason").eq("job", "agents").maybeSingle();
+      return json({ cards, reports: await latestReports(c, (cards ?? []).map((x: any) => x.template_id)), paused: job?.paused_reason ?? null, me: userId });
+    }
+    case "agents_library": {
+      const { data, error } = await c.cloud.from("argus_report_templates").select("*").eq("is_public", true).order("created_at", { ascending: false });
+      if (error) throw error;
+      const { data: mine } = await c.cloud.from("argus_user_dashboard_cards").select("template_id").eq("user_id", userId);
+      return json({ templates: data, mine: (mine ?? []).map((x: any) => x.template_id) });
+    }
+    case "agent_create": {
+      const b = await req.json();
+      const title = String(b.title ?? "").trim().slice(0, 150), prompt = String(b.prompt_instructions ?? "").trim().slice(0, 4000);
+      if (!title || !prompt) return json({ error: "Titlul și instrucțiunile sunt obligatorii." }, 400);
+      const w = ["auto", "bar_chart", "line_chart", "pie_chart", "kpi", "table", "markdown"].includes(b.preferred_widget_type) ? b.preferred_widget_type : "auto";
+      const s = ["on_demand", "daily", "weekly", "monthly"].includes(b.schedule_type) ? b.schedule_type : "on_demand";
+      const { data: t, error } = await c.cloud.from("argus_report_templates").insert({
+        title, description: String(b.description ?? "").slice(0, 500), prompt_instructions: prompt,
+        preferred_widget_type: w, schedule_type: s, is_public: !!b.is_public, created_by: userId, created_by_name: email,
+        last_scheduled_at: s === "on_demand" ? null : new Date().toISOString(),
+      }).select("*").single();
+      if (error) throw error;
+      await addCard(c, userId, t.id, w.endsWith("chart") || w === "table" ? 2 : 1);
+      return json(t);
+    }
+    case "agent_add": {
+      const { data: t } = await c.cloud.from("argus_report_templates").select("id,is_public,created_by").eq("id", id).maybeSingle();
+      if (!t || (!t.is_public && t.created_by !== userId)) return json({ error: "Șablonul nu există." }, 404);
+      await addCard(c, userId, id, 1);
+      return json({ ok: true });
+    }
+    case "agent_run": {
+      const { data: card } = await c.cloud.from("argus_user_dashboard_cards").select("id").eq("user_id", userId).eq("template_id", id).maybeSingle();
+      if (!card) return json({ error: "Agentul nu e pe tabloul tău." }, 404);
+      const { data: t } = await c.cloud.from("argus_report_templates").select("*").eq("id", id).single();
+      const r = await runAgent(c, gateway(), querySchema, t, "manual");
+      if (!r.ok && (r.status === 402 || r.status === 403 || r.status === 429)) return json({ error: friendlyError({ status: r.status }) }, r.status);
+      return json({ ok: r.ok });
+    }
+    case "agent_card_update": {
+      const b = await req.json();
+      const patch: Record<string, unknown> = {};
+      if ([1, 2, 3].includes(b.column_span)) patch.column_span = b.column_span;
+      if (Number.isInteger(b.position_order)) patch.position_order = b.position_order;
+      const { error } = await c.cloud.from("argus_user_dashboard_cards").update(patch).eq("id", id).eq("user_id", userId);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    case "agents_reorder": {
+      const ids = ((await req.json()).ids ?? []) as string[];
+      for (let i = 0; i < ids.length; i++) await c.cloud.from("argus_user_dashboard_cards").update({ position_order: i }).eq("id", ids[i]).eq("user_id", userId);
+      return json({ ok: true });
+    }
+    case "agent_card_remove": {
+      const { error } = await c.cloud.from("argus_user_dashboard_cards").delete().eq("id", id).eq("user_id", userId);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    case "agent_delete": {
+      const { error } = await c.cloud.from("argus_report_templates").delete().eq("id", id).eq("created_by", userId);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    case "agents_resume": {
+      await c.cloud.from("argus_job_state").upsert({ job: "agents", paused_reason: null, locked_until: null, updated_at: new Date().toISOString() });
+      return json({ ok: true });
+    }
+  }
+  return json({ error: "Acțiune necunoscută" }, 400);
+}
+
+async function addCard(c: ReturnType<typeof makeClients>, userId: string, templateId: string, span: number) {
+  const { data: last } = await c.cloud.from("argus_user_dashboard_cards").select("position_order").eq("user_id", userId).order("position_order", { ascending: false }).limit(1).maybeSingle();
+  await c.cloud.from("argus_user_dashboard_cards").upsert(
+    { user_id: userId, template_id: templateId, position_order: (last?.position_order ?? -1) + 1, column_span: span },
+    { onConflict: "user_id,template_id", ignoreDuplicates: true },
+  );
+}
+
+/** Scheduled run (06:00 Bucharest). Bounded, single-flight, idempotent, paused on credit/policy errors. */
+async function handleCron() {
+  const c = makeClients(LEGACY_ANON);
+  const now = new Date();
+  const { data: st } = await c.cloud.from("argus_job_state").select("*").eq("job", "agents").maybeSingle();
+  if (st?.paused_reason) return json({ skipped: "paused", reason: st.paused_reason });
+  if (st?.locked_until && new Date(st.locked_until) > now) return json({ skipped: "locked" });
+  await c.cloud.from("argus_job_state").upsert({ job: "agents", locked_until: new Date(now.getTime() + 10 * 60_000).toISOString(), updated_at: now.toISOString() });
+  let ran = 0;
+  try {
+    const { data: ts } = await c.cloud.from("argus_report_templates").select("*").neq("schedule_type", "on_demand").limit(200);
+    const due = (ts ?? []).filter((t) => isDue(t, now)).slice(0, 15);
+    for (const t of due) {
+      await c.cloud.from("argus_report_templates").update({ last_scheduled_at: now.toISOString() }).eq("id", t.id);
+      const r = await runAgent(c, gateway(), querySchema, t, "cron");
+      ran++;
+      if (!r.ok && (r.status === 402 || r.status === 403)) {
+        await c.cloud.from("argus_job_state").upsert({ job: "agents", paused_reason: friendlyError({ status: r.status }), updated_at: new Date().toISOString() });
+        break;
+      }
+      if (!r.ok && r.status === 429) break;
+    }
+  } finally {
+    await c.cloud.from("argus_job_state").update({ locked_until: null }).eq("job", "agents");
+  }
+  return json({ ran });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const url = new URL(req.url);
     const action = url.searchParams.get("action") ?? "";
+    if (action === "cron_agents") return await handleCron();
     const token = req.headers.get("x-app-token");
     const auth = await requireAdmin(token);
     if ("error" in auth) return json({ error: auth.error }, auth.status);
     const userId = auth.user.id;
     const c = makeClients(token!);
+    if (action.startsWith("agents_") || action.startsWith("agent_")) return await handleAgents(action, url, req, c, userId, auth.user.email);
+
 
     switch (action) {
       case "overview": {

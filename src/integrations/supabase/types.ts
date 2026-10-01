@@ -231,6 +231,65 @@ export type Database = {
         }
         Relationships: []
       }
+      argus_generated_reports: {
+        Row: {
+          content_json: Json | null
+          error: string | null
+          executed_at: string
+          execution_type: string
+          id: string
+          status: string
+          template_id: string
+        }
+        Insert: {
+          content_json?: Json | null
+          error?: string | null
+          executed_at?: string
+          execution_type?: string
+          id?: string
+          status?: string
+          template_id: string
+        }
+        Update: {
+          content_json?: Json | null
+          error?: string | null
+          executed_at?: string
+          execution_type?: string
+          id?: string
+          status?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "argus_generated_reports_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "argus_report_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      argus_job_state: {
+        Row: {
+          job: string
+          locked_until: string | null
+          paused_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          job: string
+          locked_until?: string | null
+          paused_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          job?: string
+          locked_until?: string | null
+          paused_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       argus_messages: {
         Row: {
           created_at: string
@@ -266,6 +325,48 @@ export type Database = {
           },
         ]
       }
+      argus_report_templates: {
+        Row: {
+          created_at: string
+          created_by: string
+          created_by_name: string | null
+          description: string | null
+          id: string
+          is_public: boolean
+          last_scheduled_at: string | null
+          preferred_widget_type: string
+          prompt_instructions: string
+          schedule_type: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          created_by_name?: string | null
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          last_scheduled_at?: string | null
+          preferred_widget_type?: string
+          prompt_instructions: string
+          schedule_type?: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          created_by_name?: string | null
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          last_scheduled_at?: string | null
+          preferred_widget_type?: string
+          prompt_instructions?: string
+          schedule_type?: string
+          title?: string
+        }
+        Relationships: []
+      }
       argus_threads: {
         Row: {
           created_at: string
@@ -289,6 +390,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      argus_user_dashboard_cards: {
+        Row: {
+          column_span: number
+          created_at: string
+          id: string
+          position_order: number
+          template_id: string
+          user_id: string
+        }
+        Insert: {
+          column_span?: number
+          created_at?: string
+          id?: string
+          position_order?: number
+          template_id: string
+          user_id: string
+        }
+        Update: {
+          column_span?: number
+          created_at?: string
+          id?: string
+          position_order?: number
+          template_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "argus_user_dashboard_cards_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "argus_report_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       chat_conversations: {
         Row: {
