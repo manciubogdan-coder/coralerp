@@ -40,6 +40,7 @@ export default function ArgusAgentsDashboard() {
   const [reorder, setReorder] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -127,6 +128,7 @@ export default function ArgusAgentsDashboard() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => run(c.template_id)} disabled={busy}><RefreshCw className="mr-2 h-4 w-4" />Rulează acum</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setSpan(c)}><Maximize2 className="mr-2 h-4 w-4" />{c.column_span >= 3 ? "Strânge cardul" : "Lățește cardul"}</DropdownMenuItem>
+                          {t.created_by === me && <DropdownMenuItem onClick={() => setEditing(t)}><Pencil className="mr-2 h-4 w-4" />Editează agentul</DropdownMenuItem>}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => remove(c)}>Șterge din Dashboard</DropdownMenuItem>
                           {t.created_by === me && <DropdownMenuItem className="text-destructive" onClick={() => destroy(c)}><Trash2 className="mr-2 h-4 w-4" />Șterge definitiv Agentul</DropdownMenuItem>}
