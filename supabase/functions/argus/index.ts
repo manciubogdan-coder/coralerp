@@ -163,7 +163,12 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     instructions: instructions(today),
     messages: await convertToModelMessages(history),
     tools,
-    stopWhen: isStepCount(12),
+    stopWhen: isStepCount(30),
+    // Before the step budget runs out, force a written answer from the data already gathered.
+    prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+      stepNumber >= 27
+        ? { toolChoice: "none" as const, system: instructions(today) + "\n\nAi adunat suficiente date. NU mai apela instrumente. Scrie ACUM răspunsul final complet, cu cifrele obținute; spune clar ce date lipsesc." }
+        : undefined,
     abortSignal: req.signal,
   });
 
