@@ -90,18 +90,38 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
       }),
     [threadId],
   );
-  const { messages, sendMessage, status, stop, error } = useChat({ id: threadId, messages: initial, transport, onFinish: onSaved });
+  const { messages, sendMessage, status, stop, error, regenerate } = useChat({ id: threadId, messages: initial, transport, onFinish: onSaved });
   const [text, setText] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (status === "ready") taRef.current?.focus();
   }, [status, threadId]);
 
+  const busy = status === "submitted" || status === "streaming";
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!busy) { setStartedAt(null); return; }
+    setStartedAt((s) => s ?? Date.now());
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, [busy]);
+
   const send = (t: string) => {
-    if (!t.trim() || status === "submitted" || status === "streaming") return;
+    if (!t.trim() || busy) return;
     sendMessage({ text: t.trim() });
     setText("");
   };
+
+  const last = messages[messages.length - 1];
+  const lastIsAssistant = last?.role === "assistant";
+  const lastTools = lastIsAssistant ? last.parts.filter((p: any) => typeof p.type === "string" && p.type.startsWith("tool-")).length : 0;
+  const lastHasText = lastIsAssistant && last.parts.some((p: any) => p.type === "text" && p.text?.trim());
+  const MAX_STEPS = 30;
+  const writing = status === "streaming" && lastHasText;
+  const pct = writing ? 95 : Math.min(90, Math.round(((lastTools + 1) / MAX_STEPS) * 100) + 5);
+  const elapsed = startedAt ? Math.max(0, Math.round((now - startedAt) / 1000)) : 0;
+  const emptyFinish = status === "ready" && lastIsAssistant && !lastHasText && !last.parts.some((p: any) => p.type === "tool-genereaza_raport");
 
   const [agentDraft, setAgentDraft] = useState<any | null>(null);
   const textOf = (m: UIMessage) => m.parts.map((p: any) => (p.type === "text" ? p.text : "")).join("\n").trim();
