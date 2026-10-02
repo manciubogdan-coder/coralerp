@@ -203,7 +203,18 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
                       </>
                     );
                   })()}
-...
+                </MessageContent>
+              </Message>
+              {m.role === "assistant" && !(idx === messages.length - 1 && busy) && (
+                <div className="-mt-2 flex">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => saveAsAgent(idx)}>
+                    <BookmarkPlus className="mr-1 h-3.5 w-3.5" /> Salvează ca agent
+                  </Button>
+                </div>
+              )}
+              </React.Fragment>
+            ))
+          )}
           {busy && !writing && (
             <div className="rounded-lg border bg-card p-3">
               <div className="mb-2 flex items-center justify-between text-sm">
