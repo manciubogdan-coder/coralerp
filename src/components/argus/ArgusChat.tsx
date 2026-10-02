@@ -358,6 +358,7 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
         ) : (
           <ChatWindow key={threadId} threadId={threadId} initial={initial} onSaved={loadThreads} />
         )}
+        </div>
       </section>
     </div>
   );
