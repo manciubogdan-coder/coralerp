@@ -90,18 +90,38 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
       }),
     [threadId],
   );
-  const { messages, sendMessage, status, stop, error } = useChat({ id: threadId, messages: initial, transport, onFinish: onSaved });
+  const { messages, sendMessage, status, stop, error, regenerate } = useChat({ id: threadId, messages: initial, transport, onFinish: onSaved });
   const [text, setText] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (status === "ready") taRef.current?.focus();
   }, [status, threadId]);
 
+  const busy = status === "submitted" || status === "streaming";
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!busy) { setStartedAt(null); return; }
+    setStartedAt((s) => s ?? Date.now());
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, [busy]);
+
   const send = (t: string) => {
-    if (!t.trim() || status === "submitted" || status === "streaming") return;
+    if (!t.trim() || busy) return;
     sendMessage({ text: t.trim() });
     setText("");
   };
+
+  const last = messages[messages.length - 1];
+  const lastIsAssistant = last?.role === "assistant";
+  const lastTools = lastIsAssistant ? last.parts.filter((p: any) => typeof p.type === "string" && p.type.startsWith("tool-")).length : 0;
+  const lastHasText = lastIsAssistant && last.parts.some((p: any) => p.type === "text" && p.text?.trim());
+  const MAX_STEPS = 30;
+  const writing = status === "streaming" && lastHasText;
+  const pct = writing ? 95 : Math.min(90, Math.round(((lastTools + 1) / MAX_STEPS) * 100) + 5);
+  const elapsed = startedAt ? Math.max(0, Math.round((now - startedAt) / 1000)) : 0;
+  const emptyFinish = status === "ready" && lastIsAssistant && !lastHasText && !last.parts.some((p: any) => p.type === "tool-genereaza_raport");
 
   const [agentDraft, setAgentDraft] = useState<any | null>(null);
   const textOf = (m: UIMessage) => m.parts.map((p: any) => (p.type === "text" ? p.text : "")).join("\n").trim();
@@ -154,27 +174,38 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
                 <MessageContent
                   className={cn(m.role === "user" && "bg-primary text-primary-foreground")}
                 >
-                  {m.parts.map((p: any, i) => {
-                    if (p.type === "text") return <MessageResponse key={i}>{p.text}</MessageResponse>;
-                    if (typeof p.type === "string" && p.type.startsWith("tool-")) {
-                      return (
-                        <div key={i}>
-                          <Tool defaultOpen={false}>
-                            <ToolHeader type={p.type} state={p.state} title={TOOL_TITLES[p.type] ?? p.type} />
-                            <ToolContent>
-                              <ToolInput input={p.input} />
-                              <ToolOutput output={p.output ? JSON.stringify(p.output, null, 2).slice(0, 4000) : undefined} errorText={p.errorText} />
-                            </ToolContent>
-                          </Tool>
-                          {p.type === "tool-genereaza_raport" && p.state === "output-available" && <ReportCard output={p.output} />}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
+                  {(() => {
+                    const tools = m.parts.filter((p: any) => typeof p.type === "string" && p.type.startsWith("tool-"));
+                    const liveMsg = busy && idx === messages.length - 1;
+                    return (
+                      <>
+                        {tools.length > 0 && !liveMsg && (
+                          <details className="text-xs text-muted-foreground">
+                            <summary className="cursor-pointer select-none">Argus a verificat datele de {tools.length} ori · vezi detalii</summary>
+                            <div className="mt-2 space-y-2">
+                              {tools.map((p: any, i: number) => (
+                                <Tool key={i} defaultOpen={false}>
+                                  <ToolHeader type={p.type} state={p.state} title={TOOL_TITLES[p.type] ?? p.type} />
+                                  <ToolContent>
+                                    <ToolInput input={p.input} />
+                                    <ToolOutput output={p.output ? JSON.stringify(p.output, null, 2).slice(0, 4000) : undefined} errorText={p.errorText} />
+                                  </ToolContent>
+                                </Tool>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                        {m.parts.map((p: any, i) => {
+                          if (p.type === "text") return <MessageResponse key={i}>{p.text}</MessageResponse>;
+                          if (p.type === "tool-genereaza_raport" && p.state === "output-available") return <ReportCard key={i} output={p.output} />;
+                          return null;
+                        })}
+                      </>
+                    );
+                  })()}
                 </MessageContent>
               </Message>
-              {m.role === "assistant" && !(idx === messages.length - 1 && status === "streaming") && (
+              {m.role === "assistant" && !(idx === messages.length - 1 && busy) && (
                 <div className="-mt-2 flex">
                   <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => saveAsAgent(idx)}>
                     <BookmarkPlus className="mr-1 h-3.5 w-3.5" /> Salvează ca agent
@@ -184,16 +215,35 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
               </React.Fragment>
             ))
           )}
-          {status === "submitted" && (
-            <Message from="assistant">
-              <MessageContent>
-                <Shimmer>Argus analizează datele…</Shimmer>
-              </MessageContent>
-            </Message>
+          {busy && !writing && (
+            <div className="rounded-lg border bg-card p-3">
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <span className="font-medium">
+                  {lastTools === 0 ? "Argus citește întrebarea…" : `Argus caută în date · pasul ${lastTools} din max ${MAX_STEPS}`}
+                </span>
+                <span className="tabular-nums text-muted-foreground">{elapsed}s</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                De obicei durează 20–60 de secunde. Poți apăsa Stop oricând.
+              </div>
+            </div>
+          )}
+          {emptyFinish && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+              <div className="font-medium text-destructive">Argus a terminat, dar nu a scris un răspuns.</div>
+              <div className="mt-1 text-muted-foreground">Nu mai trebuie să aștepți. Încearcă din nou sau reformulează mai precis (perioadă, linie, produs).</div>
+              <Button size="sm" className="mt-2" onClick={() => regenerate()}>Încearcă din nou</Button>
+            </div>
           )}
           {error && (
             <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {error.message}
+              <div>
+                <Button size="sm" variant="outline" className="mt-2" onClick={() => regenerate()}>Încearcă din nou</Button>
+              </div>
             </div>
           )}
         </ConversationContent>
@@ -260,11 +310,16 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
     if (id === threadId) navigate("/administrativ/argus/chat");
   };
 
+  const [showList, setShowList] = useState(false);
   return (
-    <div className="flex h-[calc(100vh-190px)] min-h-[520px] overflow-hidden rounded-xl border bg-background">
-      <aside className="hidden w-64 shrink-0 flex-col border-r bg-muted/30 md:flex">
+    <div className="relative flex h-[calc(100vh-190px)] min-h-[520px] overflow-hidden rounded-xl border bg-background">
+      {showList && <div className="absolute inset-0 z-10 bg-background/60 md:hidden" onClick={() => setShowList(false)} />}
+      <aside className={cn(
+        "w-64 shrink-0 flex-col border-r bg-muted/30 md:flex md:static",
+        showList ? "absolute inset-y-0 left-0 z-20 flex w-[85%] max-w-xs bg-background shadow-xl" : "hidden",
+      )}>
         <div className="p-3">
-          <Button className="w-full" onClick={newThread}>
+          <Button className="w-full" onClick={() => { setShowList(false); newThread(); }}>
             <Plus className="mr-2 h-4 w-4" /> Conversație nouă
           </Button>
         </div>
@@ -277,18 +332,25 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
                 t.id === threadId ? "bg-primary/10 text-primary" : "hover:bg-muted",
               )}
             >
-              <button className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left" onClick={() => navigate(`/administrativ/argus/chat/${t.id}`)}>
+              <button className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left" onClick={() => { setShowList(false); navigate(`/administrativ/argus/chat/${t.id}`); }}>
                 <MessageSquare className="h-4 w-4 shrink-0" />
                 <span className="truncate">{t.title}</span>
               </button>
-              <button className="px-2 opacity-0 group-hover:opacity-100" onClick={() => del(t.id)} aria-label="Șterge conversația">
+              <button className="px-2 md:opacity-0 md:group-hover:opacity-100" onClick={() => del(t.id)} aria-label="Șterge conversația">
                 <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
               </button>
             </div>
           ))}
         </div>
       </aside>
-      <section className="min-w-0 flex-1">
+      <section className="flex min-w-0 flex-1 flex-col">
+        <div className="flex items-center gap-2 border-b p-2 md:hidden">
+          <Button size="sm" variant="outline" onClick={() => setShowList(true)}>
+            <MessageSquare className="mr-2 h-4 w-4" /> Conversații ({threads.length})
+          </Button>
+          <Button size="sm" variant="ghost" onClick={newThread}><Plus className="h-4 w-4" /></Button>
+        </div>
+        <div className="min-h-0 flex-1">
         {loadErr ? (
           <div className="p-6 text-sm text-destructive">{loadErr}</div>
         ) : !threadId ? (
@@ -307,6 +369,7 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
         ) : (
           <ChatWindow key={threadId} threadId={threadId} initial={initial} onSaved={loadThreads} />
         )}
+        </div>
       </section>
     </div>
   );
