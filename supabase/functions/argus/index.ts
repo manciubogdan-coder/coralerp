@@ -149,10 +149,19 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     }),
   };
 
+  // Gemini rejects replayed tool calls from earlier turns (missing signatures / unpaired calls).
+  // Send earlier turns as plain text only; tools run fresh in the current turn.
+  const history: UIMessage[] = messages
+    .map((m) => m.role !== "assistant" ? m : {
+      ...m,
+      parts: (m.parts as any[]).filter((p) => p.type === "text" && String(p.text ?? "").trim()),
+    } as UIMessage)
+    .filter((m) => (m.parts as any[]).length > 0);
+
   const result = streamText({
     model: gateway(),
     instructions: instructions(today),
-    messages: await convertToModelMessages(messages),
+    messages: await convertToModelMessages(history),
     tools,
     stopWhen: isStepCount(12),
     abortSignal: req.signal,
