@@ -174,46 +174,65 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
                 <MessageContent
                   className={cn(m.role === "user" && "bg-primary text-primary-foreground")}
                 >
-                  {m.parts.map((p: any, i) => {
-                    if (p.type === "text") return <MessageResponse key={i}>{p.text}</MessageResponse>;
-                    if (typeof p.type === "string" && p.type.startsWith("tool-")) {
-                      return (
-                        <div key={i}>
-                          <Tool defaultOpen={false}>
-                            <ToolHeader type={p.type} state={p.state} title={TOOL_TITLES[p.type] ?? p.type} />
-                            <ToolContent>
-                              <ToolInput input={p.input} />
-                              <ToolOutput output={p.output ? JSON.stringify(p.output, null, 2).slice(0, 4000) : undefined} errorText={p.errorText} />
-                            </ToolContent>
-                          </Tool>
-                          {p.type === "tool-genereaza_raport" && p.state === "output-available" && <ReportCard output={p.output} />}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
-                </MessageContent>
-              </Message>
-              {m.role === "assistant" && !(idx === messages.length - 1 && status === "streaming") && (
-                <div className="-mt-2 flex">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => saveAsAgent(idx)}>
-                    <BookmarkPlus className="mr-1 h-3.5 w-3.5" /> Salvează ca agent
-                  </Button>
-                </div>
-              )}
-              </React.Fragment>
-            ))
+                  {(() => {
+                    const tools = m.parts.filter((p: any) => typeof p.type === "string" && p.type.startsWith("tool-"));
+                    const liveMsg = busy && idx === messages.length - 1;
+                    return (
+                      <>
+                        {tools.length > 0 && !liveMsg && (
+                          <details className="text-xs text-muted-foreground">
+                            <summary className="cursor-pointer select-none">Argus a verificat datele de {tools.length} ori · vezi detalii</summary>
+                            <div className="mt-2 space-y-2">
+                              {tools.map((p: any, i: number) => (
+                                <Tool key={i} defaultOpen={false}>
+                                  <ToolHeader type={p.type} state={p.state} title={TOOL_TITLES[p.type] ?? p.type} />
+                                  <ToolContent>
+                                    <ToolInput input={p.input} />
+                                    <ToolOutput output={p.output ? JSON.stringify(p.output, null, 2).slice(0, 4000) : undefined} errorText={p.errorText} />
+                                  </ToolContent>
+                                </Tool>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                        {m.parts.map((p: any, i) => {
+                          if (p.type === "text") return <MessageResponse key={i}>{p.text}</MessageResponse>;
+                          if (p.type === "tool-genereaza_raport" && p.state === "output-available") return <ReportCard key={i} output={p.output} />;
+                          return null;
+                        })}
+                      </>
+                    );
+                  })()}
+...
+          {busy && !writing && (
+            <div className="rounded-lg border bg-card p-3">
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <span className="font-medium">
+                  {lastTools === 0 ? "Argus citește întrebarea…" : `Argus caută în date · pasul ${lastTools} din max ${MAX_STEPS}`}
+                </span>
+                <span className="tabular-nums text-muted-foreground">{elapsed}s</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                De obicei durează 20–60 de secunde. Poți apăsa Stop oricând.
+              </div>
+            </div>
           )}
-          {status === "submitted" && (
-            <Message from="assistant">
-              <MessageContent>
-                <Shimmer>Argus analizează datele…</Shimmer>
-              </MessageContent>
-            </Message>
+          {emptyFinish && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+              <div className="font-medium text-destructive">Argus a terminat, dar nu a scris un răspuns.</div>
+              <div className="mt-1 text-muted-foreground">Nu mai trebuie să aștepți. Încearcă din nou sau reformulează mai precis (perioadă, linie, produs).</div>
+              <Button size="sm" className="mt-2" onClick={() => regenerate()}>Încearcă din nou</Button>
+            </div>
           )}
           {error && (
             <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {error.message}
+              <div>
+                <Button size="sm" variant="outline" className="mt-2" onClick={() => regenerate()}>Încearcă din nou</Button>
+              </div>
             </div>
           )}
         </ConversationContent>
