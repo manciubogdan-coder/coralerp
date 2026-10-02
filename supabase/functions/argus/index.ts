@@ -99,7 +99,7 @@ Tabele:
 ${tableList}
 
 Observații: cantitate_produsa în sesiuni e în bucăți; rebutul e în kg; comenzile cu tip_comanda PRODUCTIE_AVANS sunt producție în avans, REAMBALARE sunt reambalări, restul sunt comenzi ferme. Recepțiile cu document_number care conține "corec" sunt corecții de stoc. Timpul din aplicație (app_activity_pings) poate fi incomplet dacă utilizatorii nu au pagina deschisă.
-Formatează răspunsul în markdown, cu tabele scurte și concluzii la final ("Ce aș face eu").`;
+Limitează-te la maxim 10-15 interogări; apoi scrie OBLIGATORIU răspunsul final în text, chiar dacă datele sunt parțiale. Formatează răspunsul în markdown, cu tabele scurte și concluzii la final ("Ce aș face eu").`;
 }
 
 async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userId: string) {
@@ -163,7 +163,12 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     instructions: instructions(today),
     messages: await convertToModelMessages(history),
     tools,
-    stopWhen: isStepCount(12),
+    stopWhen: isStepCount(30),
+    // Before the step budget runs out, force a written answer from the data already gathered.
+    prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+      stepNumber >= 27
+        ? { toolChoice: "none" as const }
+        : undefined,
     abortSignal: req.signal,
   });
 
