@@ -253,6 +253,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                 <div>
                   <div className="text-xs text-gray-500">{t("covered")}</div>
                   <div className="font-bold text-green-700">{totalAcoperit} <span className="text-xs text-gray-400">({procent}%)</span></div>
+                  {totalSurplus > 0 && <div className="text-[10px] text-amber-700">+{totalSurplus} {g.unitate} surplus → restocări</div>}
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {t("leftLabel")}</div>
