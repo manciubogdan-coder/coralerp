@@ -107,6 +107,9 @@ async function tick() {
         (body.unmapped_produse || []).length +
         (body.unmapped_magazine || []).length;
       log(`   batch ${idx}/${totalBatches}: create=${body.linii_create} skip=${body.skipped_duplicat}`);
+      (body.erori || []).forEach((e) =>
+        log(`   ⚠️ eroare aviz ${e.aviz || "?"} produs ${e.produs || "?"}: ${e.err || JSON.stringify(e)}`)
+      );
 
       const maxDate = batch.map((a) => a.data_aviz).sort().pop();
       if (maxDate) saveLastSync(maxDate);
