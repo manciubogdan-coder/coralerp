@@ -165,11 +165,20 @@ const GroupedOrdersView: React.FC<Props> = ({
       {groups.map((g) => {
 
         const totalCerut = g.orders.reduce((s, o) => s + (o.cantitate || 0), 0);
-        const totalAcoperit = g.orders.reduce((s, o: any) => {
+        // Per comandă: acoperit plafonat la cantitatea cerută; excedentul NU acoperă alte comenzi
+        // (merge în restocări), deci „Rămas" = suma lipsurilor reale pe comenzi.
+        let totalAcoperit = 0;
+        let totalRamas = 0;
+        let totalSurplus = 0;
+        for (const o of g.orders as any[]) {
           const esteReamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
-          return s + (o.cantitate_reala_produsa || 0) + (esteReamb ? 0 : o.cantitate_din_restock || 0);
-        }, 0);
-        const totalRamas = Math.max(0, totalCerut - totalAcoperit);
+          const ac = (o.cantitate_reala_produsa || 0) + (esteReamb ? 0 : o.cantitate_din_restock || 0);
+          const cer = o.cantitate || 0;
+          const done = o.status === "completed" && ac < cer ? cer : ac;
+          totalAcoperit += Math.min(done, cer);
+          totalRamas += Math.max(0, cer - done);
+          totalSurplus += Math.max(0, ac - cer);
+        }
         const procent = totalCerut > 0 ? Math.round((totalAcoperit / totalCerut) * 100) : 0;
         const doneCount = g.orders.filter(isOrderDone).length;
         const visibleOrders = hideDone ? g.orders.filter((o) => !isOrderDone(o)) : g.orders;
@@ -244,6 +253,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                 <div>
                   <div className="text-xs text-gray-500">{t("covered")}</div>
                   <div className="font-bold text-green-700">{totalAcoperit} <span className="text-xs text-gray-400">({procent}%)</span></div>
+                  {totalSurplus > 0 && <div className="text-[10px] text-amber-700">+{totalSurplus} {g.unitate} surplus → restocări</div>}
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {t("leftLabel")}</div>
