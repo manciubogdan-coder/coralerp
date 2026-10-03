@@ -1,17 +1,19 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShoppingBag, Package, TrendingDown, Truck } from "lucide-react";
+import { ShoppingBag, Package, PackageOpen, TrendingDown, Truck } from "lucide-react";
 
 import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView";
 import ConsumptionAnalytics from "@/components/productie/ConsumptionAnalytics";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import BackToHubButton from "@/components/BackToHubButton";
+import ModAmbalareView from "@/components/productie/ModAmbalareView";
 
 const TABS = [
   { key: "stoc-marfa", label: "Stoc Marfă Început Zi", icon: Package },
   { key: "consumuri", label: "Analiză Consumuri", icon: TrendingDown },
   { key: "restocari", label: "Restocări Marfă", icon: Truck },
+  { key: "packaging", label: "Mod de ambalare", icon: PackageOpen },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -37,7 +39,7 @@ const VanzariHub: React.FC = () => {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-4 h-auto">
+        <TabsList className="grid w-full grid-cols-4 mb-4 h-auto">
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
@@ -70,6 +72,14 @@ const VanzariHub: React.FC = () => {
           <Card>
             <CardContent className="p-4">
               <MarfaRestocataView />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="packaging">
+          <Card>
+            <CardContent className="p-4">
+              <ModAmbalareView />
             </CardContent>
           </Card>
         </TabsContent>
