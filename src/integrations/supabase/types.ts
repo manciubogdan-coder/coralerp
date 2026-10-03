@@ -998,6 +998,51 @@ export type Database = {
         }
         Relationships: []
       }
+      packaging_methods: {
+        Row: {
+          client_name: string
+          client_order: number
+          created_at: string
+          id: string
+          position: number
+          primary_packaging: string
+          product_name: string
+          subgroup: string | null
+          tertiary_packaging: string
+          units_per_case: string
+          updated_at: string
+          weight: string
+        }
+        Insert: {
+          client_name: string
+          client_order?: number
+          created_at?: string
+          id?: string
+          position?: number
+          primary_packaging: string
+          product_name: string
+          subgroup?: string | null
+          tertiary_packaging: string
+          units_per_case: string
+          updated_at?: string
+          weight: string
+        }
+        Update: {
+          client_name?: string
+          client_order?: number
+          created_at?: string
+          id?: string
+          position?: number
+          primary_packaging?: string
+          product_name?: string
+          subgroup?: string | null
+          tertiary_packaging?: string
+          units_per_case?: string
+          updated_at?: string
+          weight?: string
+        }
+        Relationships: []
+      }
       planner_personal: {
         Row: {
           created_at: string

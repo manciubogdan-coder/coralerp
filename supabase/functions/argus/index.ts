@@ -340,6 +340,43 @@ async function addCard(c: ReturnType<typeof makeClients>, userId: string, templa
   );
 }
 
+async function handlePackaging(action: string, url: URL, req: Request, c: ReturnType<typeof makeClients>) {
+  const id = url.searchParams.get("id") ?? "";
+  if (action === "packaging_save") {
+    const b = await req.json();
+    const clean = (value: unknown, max = 200) => String(value ?? "").trim().slice(0, max);
+    const row = {
+      client_name: clean(b.client_name, 150),
+      client_order: Math.max(0, Number.isInteger(b.client_order) ? b.client_order : 0),
+      subgroup: clean(b.subgroup, 200) || null,
+      product_name: clean(b.product_name, 200),
+      weight: clean(b.weight, 80),
+      primary_packaging: clean(b.primary_packaging),
+      tertiary_packaging: clean(b.tertiary_packaging),
+      units_per_case: clean(b.units_per_case, 80),
+      position: Math.max(1, Number.isInteger(b.position) ? b.position : 1),
+    };
+    if (!row.client_name || !row.product_name || !row.weight || !row.primary_packaging || !row.tertiary_packaging || !row.units_per_case) {
+      return json({ error: "Completează toate câmpurile obligatorii." }, 400);
+    }
+    if (id) {
+      const { error } = await c.cloud.from("packaging_methods").update(row).eq("id", id);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    const { data, error } = await c.cloud.from("packaging_methods").insert(row).select("id").single();
+    if (error) throw error;
+    return json(data);
+  }
+  if (action === "packaging_delete") {
+    if (!id) return json({ error: "Înregistrarea lipsește." }, 400);
+    const { error } = await c.cloud.from("packaging_methods").delete().eq("id", id);
+    if (error) throw error;
+    return json({ ok: true });
+  }
+  return json({ error: "Acțiune necunoscută" }, 400);
+}
+
 /** Scheduled run (06:00 Bucharest). Bounded, single-flight, idempotent, paused on credit/policy errors. */
 async function handleCron() {
   const c = makeClients(LEGACY_ANON);
@@ -380,6 +417,7 @@ Deno.serve(async (req) => {
     const userId = auth.user.id;
     const c = makeClients(token!);
     if (action.startsWith("agents_") || action.startsWith("agent_")) return await handleAgents(action, url, req, c, userId, auth.user.email);
+    if (action.startsWith("packaging_")) return await handlePackaging(action, url, req, c);
 
 
     switch (action) {

@@ -1,12 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, PackageOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import PickingManagementSimple from "@/components/productie/PickingManagementSimple";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import DepozitMP from "@/components/productie/DepozitMP";
+import ModAmbalareView from "@/components/productie/ModAmbalareView";
 
 const PickingPage = () => {
   const navigate = useNavigate();
@@ -23,10 +24,11 @@ const PickingPage = () => {
         </div>
 
         <Tabs defaultValue="depozit" className="w-full">
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 h-auto max-w-full overflow-x-auto">
             <TabsTrigger value="depozit">Depozit MP</TabsTrigger>
             <TabsTrigger value="picking">Picking</TabsTrigger>
             <TabsTrigger value="restocking">Marfă Restocată</TabsTrigger>
+            <TabsTrigger value="packaging" className="gap-2"><PackageOpen className="h-4 w-4" />Mod de ambalare</TabsTrigger>
           </TabsList>
 
           <TabsContent value="depozit">
@@ -39,6 +41,10 @@ const PickingPage = () => {
 
           <TabsContent value="restocking">
             <MarfaRestocataView />
+          </TabsContent>
+
+          <TabsContent value="packaging">
+            <ModAmbalareView />
           </TabsContent>
         </Tabs>
 

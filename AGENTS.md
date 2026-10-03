@@ -1,1 +1,2 @@
 - Argus (CEO dashboard/AI) runs in the Cloud edge function `argus`: it validates the operational-app session + admin role server-side, reads operational data via the public key and Cloud data via service role; its tables are server-only. Why: AI key and cross-database reads must never live in the browser.
+- Shared packaging methods live in the Cloud `packaging_methods` table; reads are public to signed-in app screens, while all writes pass through the admin-validated Argus function. Why: Picking and Sales need one shared source without exposing write access.
