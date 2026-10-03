@@ -20,6 +20,7 @@ interface AvizLine {
   cod_produs: string;
   denumire_produs?: string;
   cantitate: number;
+  cantitate_acceptata?: number | null; // "Acceptat" din Senior ERP (Cantitate_Disponibila)
   um?: string;
   observatie?: string;
 }
@@ -413,7 +414,11 @@ Deno.serve(async (req) => {
 
         const externKey = `${aviz.nr_aviz}::${linie.cod_produs}`;
         currentKeys.push(externKey);
-        const cantitate = Number(linie.cantitate) || 0;
+        // Cantitatea planificată = „Acceptat" din Senior ERP (Cantitate_Disponibila).
+        // Dacă lipsește, folosim cantitatea comandată inițială.
+        const cantitateComandata = Number(linie.cantitate) || 0;
+        const acceptata = linie.cantitate_acceptata != null ? Number(linie.cantitate_acceptata) : NaN;
+        const cantitate = Number.isFinite(acceptata) && acceptata > 0 ? acceptata : cantitateComandata;
 
         // Skip retururi (cantitate <= 0)
         if (cantitate <= 0) {
@@ -455,8 +460,9 @@ Deno.serve(async (req) => {
               patch.cantitate = cantitate;
               if (status === "completed") patch.status = "assigned";
             } else if (delta < 0) {
-              // Redusă: dacă s-a produs mai mult decât cere Senior acum → excedent → restocare
-              // Calculăm cât s-a produs deja din sesiuni_lucru
+              // Redusă în ERP: actualizăm DOAR cantitatea planificată.
+              // cantitate_realizata (sesiuni_lucru) NU se atinge.
+              // Diferența produsă în plus față de noul plan → restocări (pool).
               let cantitateFacuta = 0;
               try {
                 const { data: sesiuni } = await supabase
@@ -477,10 +483,11 @@ Deno.serve(async (req) => {
                 }
               }
               patch.cantitate = cantitate;
-              // dacă noul necesar e deja acoperit de ce s-a făcut → completed
-              if (cantitate <= cantitateFacuta - excedent + 0.0001) {
+              // Recalcul status: realizat >= planificat → rămâne FINALIZAT (nu redevine DE_FACUT);
+              // realizat > 0 dar sub plan → IN_LUCRU; realizat = 0 → rămâne cum era (de făcut).
+              if (cantitateFacuta >= cantitate - 0.0001) {
                 patch.status = "completed";
-              } else if (status === "completed") {
+              } else if (cantitateFacuta > 0 && status === "completed") {
                 patch.status = "assigned";
               }
             }

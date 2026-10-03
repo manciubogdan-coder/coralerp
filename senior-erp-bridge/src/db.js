@@ -88,6 +88,7 @@ async function fetchAvizeSince(sinceDate) {
         l.Cod                         AS cod_produs,
         l.Denumire                    AS denumire_produs,
         l.Cantitate                   AS cantitate,
+        l.Cantitate_Disponibila       AS cantitate_acceptata,
         l.UM_Id                       AS um,
         l.Descriere                   AS observatie
       FROM [dbo].[C_D_Note_Contabile] l
@@ -122,6 +123,8 @@ async function fetchAvizeSince(sinceDate) {
         cod_produs: String(l.cod_produs || "").trim(),
         denumire_produs: l.denumire_produs || "Produs Fără Nume",
         cantitate: Number(l.cantitate) || 0,
+        cantitate_acceptata:
+          l.cantitate_acceptata != null ? Number(l.cantitate_acceptata) : null,
         um: l.um ? String(l.um) : null,
         observatie: l.observatie || null,
       });
