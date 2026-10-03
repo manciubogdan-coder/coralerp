@@ -20,6 +20,7 @@ interface AvizLine {
   cod_produs: string;
   denumire_produs?: string;
   cantitate: number;
+  cantitate_acceptata?: number | null; // "Acceptat" din Senior ERP (Cantitate_Disponibila)
   um?: string;
   observatie?: string;
 }
