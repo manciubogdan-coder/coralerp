@@ -20,6 +20,8 @@ import {
   totalBreakdown,
 } from "@/lib/receptionBreakdown";
 import { addTubMiscare, isFolie } from "@/lib/tuburi";
+import { type PrereceptieLinie, breakdownText, markLineReceived } from "@/lib/prereceptie";
+import { PrereceptiePicker } from "./PrereceptiePicker";
 
 interface ReceptionRegistrationProps {
   products: Product[];
@@ -46,6 +48,19 @@ export function ReceptionRegistration({
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [manufacturerId, setManufacturerId] = useState<string | null>(null);
   const [documentNumber, setDocumentNumber] = useState('');
+  const [linkedLine, setLinkedLine] = useState<PrereceptieLinie | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const applyPrereceptie = (line: PrereceptieLinie, header: { document_number: string; supplier_id: string | null }) => {
+    setLinkedLine(line);
+    setProductId(line.product_id);
+    setSupplierId(header.supplier_id);
+    setManufacturerId(line.manufacturer_id);
+    setDocumentNumber(header.document_number);
+    setCrateRows(line.crates?.length ? line.crates.map((c) => ({ ...c })) : [{ id: null, name: "", count: 0 }]);
+    setPalletRows(line.pallets?.length ? line.pallets.map((c) => ({ ...c })) : [{ id: null, name: "", count: 0 }]);
+    setPickerOpen(false);
+  };
   const [nrRole, setNrRole] = useState<number>(0);
   
   // Câmpuri pentru calcul - nu se salvează
@@ -313,6 +328,15 @@ export function ReceptionRegistration({
         },
       });
 
+      if (linkedLine) {
+        try {
+          await markLineReceived(linkedLine.id, linkedLine.prereceptie_id, quantityToSave, inventoryRowId);
+        } catch (e) {
+          toast({ variant: "destructive", title: "Prerecepția nu a fost actualizată", description: String((e as any)?.message || e) });
+        }
+        setLinkedLine(null);
+      }
+
       setShowConfirm(false);
       setIsOpen(false);
       onRegistrationComplete();
@@ -370,6 +394,25 @@ export function ReceptionRegistration({
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6">
+          {linkedLine ? (
+            <div className="p-3 rounded-lg border-2 border-primary/40 bg-primary/5 text-sm space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">Din prerecepție: {linkedLine.product_name}</span>
+                <Button variant="ghost" size="sm" onClick={() => setLinkedLine(null)}>Detașează</Button>
+              </div>
+              <div>Cantitate pe document: <b>{Number(linkedLine.cantitate_document).toLocaleString("ro-RO")} {linkedLine.unit}</b></div>
+              {(breakdownText(linkedLine.pallets) || breakdownText(linkedLine.crates)) && (
+                <div className="text-muted-foreground">
+                  Document: {[breakdownText(linkedLine.pallets) && `${breakdownText(linkedLine.pallets)} paleți`, breakdownText(linkedLine.crates) && `${breakdownText(linkedLine.crates)} lăzi`].filter(Boolean).join(" / ")}
+                </div>
+              )}
+              <div className="text-muted-foreground">Completează mai jos cantitățile reale venite.</div>
+            </div>
+          ) : (
+            <Button variant="outline" className="w-full" onClick={() => setPickerOpen(true)}>
+              Recepționează din prerecepție
+            </Button>
+          )}
           <div className="space-y-2">
             <label className="font-medium">Produs</label>
             <Select value={productId || ''} onValueChange={setProductId}>
@@ -699,6 +742,7 @@ export function ReceptionRegistration({
         </div>
       </ConfirmationDialog>
     </Dialog>
+    <PrereceptiePicker open={pickerOpen} onOpenChange={setPickerOpen} inventoryType={inventoryType} onPick={applyPrereceptie} />
     <LotQRDialog
       open={qrDialogOpen}
       onOpenChange={setQrDialogOpen}

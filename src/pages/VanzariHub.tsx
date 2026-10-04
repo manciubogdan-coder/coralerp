@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShoppingBag, Package, PackageOpen, TrendingDown, Truck } from "lucide-react";
+import { ClipboardList, ShoppingBag, Package, PackageOpen, TrendingDown, Truck } from "lucide-react";
 
 import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView";
 import ConsumptionAnalytics from "@/components/productie/ConsumptionAnalytics";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import BackToHubButton from "@/components/BackToHubButton";
+import PrereceptieView from "@/components/inventory/PrereceptieView";
+import { ForceInventoryType } from "@/context/inventory-type";
 import ModAmbalareView from "@/components/productie/ModAmbalareView";
 
 const TABS = [
@@ -14,6 +16,7 @@ const TABS = [
   { key: "consumuri", label: "Analiză Consumuri", icon: TrendingDown },
   { key: "restocari", label: "Restocări Marfă", icon: Truck },
   { key: "packaging", label: "Mod de ambalare", icon: PackageOpen },
+  { key: "prereceptie", label: "Prerecepție", icon: ClipboardList },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -39,7 +42,7 @@ const VanzariHub: React.FC = () => {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-4 h-auto">
+        <TabsList className="grid w-full grid-cols-5 mb-4 h-auto">
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
@@ -72,6 +75,16 @@ const VanzariHub: React.FC = () => {
           <Card>
             <CardContent className="p-4">
               <MarfaRestocataView />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="prereceptie">
+          <Card>
+            <CardContent className="p-4">
+              <ForceInventoryType type="materii-prime">
+                <PrereceptieView />
+              </ForceInventoryType>
             </CardContent>
           </Card>
         </TabsContent>

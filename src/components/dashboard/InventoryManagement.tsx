@@ -14,6 +14,7 @@ import DailyStockQuality from "@/components/inventory/DailyStockQuality";
 import { StockCountManagement } from "@/components/inventory/StockCountManagement";
 import { TuburiFolieStock } from "@/components/inventory/TuburiFolieStock";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PrereceptieView from "@/components/inventory/PrereceptieView";
 
 const InventoryManagement = () => {
   const { inventoryType } = useInventoryType();
@@ -102,6 +103,7 @@ const InventoryManagement = () => {
         <TabsList className="flex w-full overflow-x-auto gap-1 h-auto p-1">
           <TabsTrigger value="inventory" className="flex-shrink-0 text-xs md:text-sm">Stoc Curent</TabsTrigger>
           <TabsTrigger value="transfers" className="flex-shrink-0 text-xs md:text-sm">Istoric Transferuri</TabsTrigger>
+          <TabsTrigger value="prereceptie" className="flex-shrink-0 text-xs md:text-sm">Prerecepție</TabsTrigger>
           <TabsTrigger value="receptions" className="flex-shrink-0 text-xs md:text-sm">Istoric Recepții</TabsTrigger>
           <TabsTrigger value="daily-stock" className="flex-shrink-0 text-xs md:text-sm">Stoc Început Zi</TabsTrigger>
           <TabsTrigger value="daily-quality" className="flex-shrink-0 text-xs md:text-sm">Stoc Zilnic Calitate</TabsTrigger>
@@ -140,6 +142,12 @@ const InventoryManagement = () => {
           </div>
         </TabsContent>
         
+        <TabsContent value="prereceptie">
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <PrereceptieView key={refreshKey} />
+          </div>
+        </TabsContent>
+
         <TabsContent value="receptions">
           <div className="bg-white rounded-lg shadow-md p-4">
             <h3 className="text-lg font-medium mb-4">Istoric Recepții</h3>

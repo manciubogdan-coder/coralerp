@@ -1091,6 +1091,116 @@ export type Database = {
         }
         Relationships: []
       }
+      prereceptie_linii: {
+        Row: {
+          cantitate_document: number
+          crates: Json
+          created_at: string
+          id: string
+          manufacturer_id: string | null
+          manufacturer_name: string | null
+          pallets: Json
+          position: number
+          prereceptie_id: string
+          product_id: string | null
+          product_name: string
+          received_at: string | null
+          received_by_email: string | null
+          received_inventory_id: string | null
+          received_quantity: number | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          cantitate_document?: number
+          crates?: Json
+          created_at?: string
+          id?: string
+          manufacturer_id?: string | null
+          manufacturer_name?: string | null
+          pallets?: Json
+          position?: number
+          prereceptie_id: string
+          product_id?: string | null
+          product_name: string
+          received_at?: string | null
+          received_by_email?: string | null
+          received_inventory_id?: string | null
+          received_quantity?: number | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cantitate_document?: number
+          crates?: Json
+          created_at?: string
+          id?: string
+          manufacturer_id?: string | null
+          manufacturer_name?: string | null
+          pallets?: Json
+          position?: number
+          prereceptie_id?: string
+          product_id?: string | null
+          product_name?: string
+          received_at?: string | null
+          received_by_email?: string | null
+          received_inventory_id?: string | null
+          received_quantity?: number | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prereceptie_linii_prereceptie_id_fkey"
+            columns: ["prereceptie_id"]
+            isOneToOne: false
+            referencedRelation: "prereceptii"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prereceptii: {
+        Row: {
+          created_at: string
+          created_by_email: string | null
+          document_number: string
+          expected_date: string | null
+          id: string
+          inventory_type: string
+          notes: string | null
+          status: string
+          supplier_id: string | null
+          supplier_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_email?: string | null
+          document_number: string
+          expected_date?: string | null
+          id?: string
+          inventory_type?: string
+          notes?: string | null
+          status?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_email?: string | null
+          document_number?: string
+          expected_date?: string | null
+          id?: string
+          inventory_type?: string
+          notes?: string | null
+          status?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       productie_comenzi_audit: {
         Row: {
           action: string
