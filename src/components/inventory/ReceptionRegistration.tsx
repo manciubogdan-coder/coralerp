@@ -20,6 +20,8 @@ import {
   totalBreakdown,
 } from "@/lib/receptionBreakdown";
 import { addTubMiscare, isFolie } from "@/lib/tuburi";
+import { type PrereceptieLinie, breakdownText, markLineReceived } from "@/lib/prereceptie";
+import { PrereceptiePicker } from "./PrereceptiePicker";
 
 interface ReceptionRegistrationProps {
   products: Product[];
@@ -46,6 +48,19 @@ export function ReceptionRegistration({
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [manufacturerId, setManufacturerId] = useState<string | null>(null);
   const [documentNumber, setDocumentNumber] = useState('');
+  const [linkedLine, setLinkedLine] = useState<PrereceptieLinie | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const applyPrereceptie = (line: PrereceptieLinie, header: { document_number: string; supplier_id: string | null }) => {
+    setLinkedLine(line);
+    setProductId(line.product_id);
+    setSupplierId(header.supplier_id);
+    setManufacturerId(line.manufacturer_id);
+    setDocumentNumber(header.document_number);
+    setCrateRows(line.crates?.length ? line.crates.map((c) => ({ ...c })) : [{ id: null, name: "", count: 0 }]);
+    setPalletRows(line.pallets?.length ? line.pallets.map((c) => ({ ...c })) : [{ id: null, name: "", count: 0 }]);
+    setPickerOpen(false);
+  };
   const [nrRole, setNrRole] = useState<number>(0);
   
   // Câmpuri pentru calcul - nu se salvează
@@ -312,6 +327,15 @@ export function ReceptionRegistration({
           unit: unitToSave,
         },
       });
+
+      if (linkedLine) {
+        try {
+          await markLineReceived(linkedLine.id, linkedLine.prereceptie_id, quantityToSave, inventoryRowId);
+        } catch (e) {
+          toast({ variant: "destructive", title: "Prerecepția nu a fost actualizată", description: String((e as any)?.message || e) });
+        }
+        setLinkedLine(null);
+      }
 
       setShowConfirm(false);
       setIsOpen(false);
