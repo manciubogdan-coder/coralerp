@@ -394,6 +394,25 @@ export function ReceptionRegistration({
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6">
+          {linkedLine ? (
+            <div className="p-3 rounded-lg border-2 border-primary/40 bg-primary/5 text-sm space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">Din prerecepție: {linkedLine.product_name}</span>
+                <Button variant="ghost" size="sm" onClick={() => setLinkedLine(null)}>Detașează</Button>
+              </div>
+              <div>Cantitate pe document: <b>{Number(linkedLine.cantitate_document).toLocaleString("ro-RO")} {linkedLine.unit}</b></div>
+              {(breakdownText(linkedLine.pallets) || breakdownText(linkedLine.crates)) && (
+                <div className="text-muted-foreground">
+                  Document: {[breakdownText(linkedLine.pallets) && `${breakdownText(linkedLine.pallets)} paleți`, breakdownText(linkedLine.crates) && `${breakdownText(linkedLine.crates)} lăzi`].filter(Boolean).join(" / ")}
+                </div>
+              )}
+              <div className="text-muted-foreground">Completează mai jos cantitățile reale venite.</div>
+            </div>
+          ) : (
+            <Button variant="outline" className="w-full" onClick={() => setPickerOpen(true)}>
+              Recepționează din prerecepție
+            </Button>
+          )}
           <div className="space-y-2">
             <label className="font-medium">Produs</label>
             <Select value={productId || ''} onValueChange={setProductId}>
@@ -723,6 +742,7 @@ export function ReceptionRegistration({
         </div>
       </ConfirmationDialog>
     </Dialog>
+    <PrereceptiePicker open={pickerOpen} onOpenChange={setPickerOpen} inventoryType={inventoryType} onPick={applyPrereceptie} />
     <LotQRDialog
       open={qrDialogOpen}
       onOpenChange={setQrDialogOpen}
