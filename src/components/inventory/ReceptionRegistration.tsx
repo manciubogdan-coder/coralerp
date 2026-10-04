@@ -267,12 +267,16 @@ export function ReceptionRegistration({
       // IMPORTANT: cheia este `inventory.id` (nu reception_records.id) pentru
       // că raportul de Calitate citește reception_report_data after `inventory.id`.
       const inventoryRowId: string | null = (insertedInv as any)?.id || null;
-      if (inventoryRowId && (cleanedPallets.length > 0 || cleanedCrates.length > 0)) {
+      const docPallets = (linkedLine?.pallets || []).filter((r) => r.id && Number(r.count) > 0);
+      const docCrates = (linkedLine?.crates || []).filter((r) => r.id && Number(r.count) > 0);
+      if (inventoryRowId && (cleanedPallets.length > 0 || cleanedCrates.length > 0 || docPallets.length > 0 || docCrates.length > 0 || linkedLine)) {
         try {
           const encoded = encodePalDoc({
             ...emptyBreakdown(),
             rec_pallets: cleanedPallets,
             rec_crates: cleanedCrates,
+            doc_pallets: docPallets,
+            doc_crates: docCrates,
           });
           await (supabase as any)
             .from('reception_report_data')
@@ -280,6 +284,7 @@ export function ReceptionRegistration({
               inventory_id: inventoryRowId,
               inventory_type: inventoryType,
               paleti_lazi_document: encoded || null,
+              cantitate_document: linkedLine ? Number(linkedLine.cantitate_document) || null : null,
               cantitate_receptionata: quantityToSave,
               tip_palet: cleanedPallets[0]?.name || null,
               tip_lada_culoare: cleanedCrates[0]?.name || null,
