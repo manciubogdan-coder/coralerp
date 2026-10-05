@@ -14,7 +14,7 @@ const norm = (s: string) =>
 const AROMATE_KEYS = [
   "menta", "busuioc", "patrunjel", "marar", "cimbru", "cimbrisor", "rozmarin", "oregano",
   "leustean", "tarhon", "coriandru", "arpagic", "ceapa verde", "salvie", "melisa", "roinita",
-  "lavanda", "aromat",
+  "lavanda", "aromat", "chivas", "sovarv",
 ];
 
 export const CATEGORIES = ["Aromate", "Salate mono", "Salate mixte", "Horeca"] as const;
