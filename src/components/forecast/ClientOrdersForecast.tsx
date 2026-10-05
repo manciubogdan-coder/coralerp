@@ -57,7 +57,7 @@ const norm = (s: string) =>
 const AROMATE_KEYS = [
   "menta", "busuioc", "patrunjel", "marar", "cimbru", "cimbrisor", "rozmarin", "oregano",
   "leustean", "tarhon", "coriandru", "arpagic", "ceapaverde", "salvie", "melisa", "roinita",
-  "lavanda", "sovarv", "aromat",
+  "lavanda", "sovarv", "aromat", "chivas",
 ];
 
 // Tot ce nu este plantă aromatică se consideră salată (mono sau mix).
