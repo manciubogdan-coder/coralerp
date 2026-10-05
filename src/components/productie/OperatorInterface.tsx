@@ -18,7 +18,7 @@ import TrasabilitateCard from "./TrasabilitateCard";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOperatorT } from "@/lib/operatorI18n";
 import { buildDisplayLines } from "@/lib/productie/lineGroups";
-import OperatorDaySummary from "./OperatorDaySummary";
+import OperatorDaySummary, { computeStats, pctOf, CATEGORIES, Stat } from "./OperatorDaySummary";
 import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
 import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
@@ -1054,6 +1054,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
             return sum + Math.max(0, (o.cantitate || 0) - acoperit);
           }, 0);
           const cap = (line as any).capacitate_ora || 0;
+          const lineAll = orders?.filter(o => o.linie_id && line.memberIds.includes(o.linie_id) && matchesSelectedDay(o)) || [];
+          const { total: lineStat, byCat: lineCats } = computeStats(lineAll);
           const oreEst = cap > 0 ? totalBucRamase / cap : 0;
           const formatDur = (hours: number) => {
             if (!isFinite(hours) || hours <= 0) return '-';
@@ -1129,6 +1131,40 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                       <TrendingUp className="h-3 w-3" /> {t("productivity")}: {cap} {t("pcs")}/h
                     </div>
                   )}
+
+                  {lineStat.comenzi > 0 && (
+                    <div className="space-y-1.5 border-t pt-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600">Balanță</span>
+                        <span className="font-bold text-coral-primary">{Math.round(pctOf(lineStat))}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, pctOf(lineStat))}%` }}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                        <div><span className="text-gray-600">Bucăți:</span> <span className="font-semibold">{Math.round(lineStat.facut).toLocaleString('ro-RO')} / {Math.round(lineStat.cerut).toLocaleString('ro-RO')}</span></div>
+                        <div className="text-right"><span className="text-gray-600">rămase:</span> <span className={`font-semibold ${lineStat.cerut - lineStat.facut > 0 ? 'text-destructive' : 'text-green-600'}`}>{Math.round(lineStat.cerut - lineStat.facut).toLocaleString('ro-RO')}</span></div>
+                        <div><span className="text-gray-600">Comenzi:</span> <span className="font-semibold">{lineStat.comenzi}</span></div>
+                        <div className="text-right"><span className="text-gray-600">finalizate:</span> <span className="font-semibold text-primary">{lineStat.gata}</span> <span className="text-gray-400">/ rămase {lineStat.comenzi - lineStat.gata}</span></div>
+                      </div>
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {CATEGORIES.filter(k => lineCats[k].comenzi > 0).map(k => {
+                          const s: Stat = lineCats[k];
+                          return (
+                            <span key={k} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px]">
+                              <span className="font-medium">{k}</span>
+                              <span className="text-coral-primary font-semibold">{Math.round(pctOf(s))}%</span>
+                              <span className="text-gray-500">{Math.round(s.facut).toLocaleString('ro-RO')}/{Math.round(s.cerut).toLocaleString('ro-RO')} buc</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   
                   <Button className="w-full bg-coral-primary hover:bg-coral-600 text-white">
                     {t("accessLine")}

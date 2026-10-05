@@ -21,37 +21,12 @@ export const categoryOf = (o: any): Cat => {
   return "Salate mono";
 };
 
-interface Stat { cerut: number; facut: number; comenzi: number; gata: number }
+export interface Stat { cerut: number; facut: number; comenzi: number; gata: number }
 const empty = (): Stat => ({ cerut: 0, facut: 0, comenzi: 0, gata: 0 });
 
-const Donut = ({ pct, size = 140, stroke = 14 }: { pct: number; size?: number; stroke?: number }) => {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const p = Math.max(0, Math.min(100, pct));
-  return (
-    <svg width={size} height={size} className="shrink-0">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth={stroke} />
-      <circle
-        cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke="hsl(var(--primary))" strokeWidth={stroke} strokeLinecap="round"
-        strokeDasharray={`${(p / 100) * c} ${c}`}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        className="transition-all duration-700"
-      />
-      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle"
-        className="fill-foreground font-bold" style={{ fontSize: size / 5 }}>
-        {Math.round(p)}%
-      </text>
-    </svg>
-  );
-};
-
-const fmt = (n: number) => Math.round(n).toLocaleString("ro-RO");
-
-export default function OperatorDaySummary({ orders }: { orders: any[] }) {
+export const computeStats = (orders: any[]): { total: Stat; byCat: Record<string, Stat> } => {
   const total = empty();
   const byCat: Record<string, Stat> = Object.fromEntries(CATEGORIES.map((k) => [k, empty()]));
-
   for (const o of orders) {
     const cerut = Number(o.cantitate || 0);
     if (cerut <= 0) continue;
@@ -66,52 +41,70 @@ export default function OperatorDaySummary({ orders }: { orders: any[] }) {
       if (gata) s.gata += 1;
     }
   }
+  return { total, byCat };
+};
+
+export const pctOf = (s: Stat) => (s.cerut > 0 ? (s.facut / s.cerut) * 100 : 0);
+
+const Donut = ({ pct, size = 92, stroke = 10 }: { pct: number; size?: number; stroke?: number }) => {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(100, pct));
+  return (
+    <svg width={size} height={size} className="shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth={stroke} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none"
+        stroke="hsl(var(--primary))" strokeWidth={stroke} strokeLinecap="round"
+        strokeDasharray={`${(p / 100) * c} ${c}`}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        className="transition-all duration-700"
+      />
+      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle"
+        className="fill-foreground font-bold" style={{ fontSize: size / 4.2 }}>
+        {Math.round(p)}%
+      </text>
+    </svg>
+  );
+};
+
+const fmt = (n: number) => Math.round(n).toLocaleString("ro-RO");
+
+export default function OperatorDaySummary({ orders }: { orders: any[] }) {
+  const { total, byCat } = computeStats(orders);
   if (total.comenzi === 0) return null;
-  const pct = (s: Stat) => (s.cerut > 0 ? (s.facut / s.cerut) * 100 : 0);
+
+  const MiniStat = ({ label, value, cls = "" }: { label: string; value: string | number; cls?: string }) => (
+    <div className="rounded-md bg-muted px-2 py-1.5 text-center">
+      <div className="text-[10px] leading-tight text-muted-foreground">{label}</div>
+      <div className={`text-base font-bold leading-tight ${cls}`}>{value}</div>
+    </div>
+  );
 
   return (
     <Card className="border-coral-200">
-      <CardContent className="pt-4 space-y-4">
-        <div className="flex flex-col md:flex-row items-center gap-6">
-          <Donut pct={pct(total)} />
-          <div className="grid grid-cols-3 gap-3 flex-1 w-full text-center">
-            <div className="rounded-md bg-muted p-3">
-              <div className="text-xs text-muted-foreground">Bucăți de făcut</div>
-              <div className="text-xl font-bold">{fmt(total.cerut)}</div>
-            </div>
-            <div className="rounded-md bg-muted p-3">
-              <div className="text-xs text-muted-foreground">Bucăți făcute</div>
-              <div className="text-xl font-bold text-primary">{fmt(total.facut)}</div>
-            </div>
-            <div className="rounded-md bg-muted p-3">
-              <div className="text-xs text-muted-foreground">Bucăți rămase</div>
-              <div className="text-xl font-bold text-destructive">{fmt(total.cerut - total.facut)}</div>
-            </div>
-            <div className="rounded-md bg-muted p-3">
-              <div className="text-xs text-muted-foreground">Comenzi total</div>
-              <div className="text-xl font-bold">{total.comenzi}</div>
-            </div>
-            <div className="rounded-md bg-muted p-3">
-              <div className="text-xs text-muted-foreground">Finalizate (≥100%)</div>
-              <div className="text-xl font-bold text-primary">{total.gata}</div>
-            </div>
-            <div className="rounded-md bg-muted p-3">
-              <div className="text-xs text-muted-foreground">Comenzi rămase</div>
-              <div className="text-xl font-bold text-destructive">{total.comenzi - total.gata}</div>
-            </div>
+      <CardContent className="pt-3 pb-3 space-y-3">
+        <div className="flex flex-col md:flex-row items-center gap-4">
+          <Donut pct={pctOf(total)} />
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2 flex-1 w-full">
+            <MiniStat label="Bucăți de făcut" value={fmt(total.cerut)} />
+            <MiniStat label="Bucăți făcute" value={fmt(total.facut)} cls="text-primary" />
+            <MiniStat label="Bucăți rămase" value={fmt(total.cerut - total.facut)} cls="text-destructive" />
+            <MiniStat label="Comenzi total" value={total.comenzi} />
+            <MiniStat label="Finalizate (≥100%)" value={total.gata} cls="text-primary" />
+            <MiniStat label="Comenzi rămase" value={total.comenzi - total.gata} cls="text-destructive" />
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {CATEGORIES.map((k) => {
             const s = byCat[k];
             return (
-              <div key={k} className="border rounded-md p-3 flex items-center gap-3">
-                <Donut pct={pct(s)} size={64} stroke={8} />
-                <div className="text-xs space-y-0.5 min-w-0">
-                  <div className="font-semibold text-sm">{k}</div>
+              <div key={k} className="border rounded-md px-2 py-1.5 flex items-center gap-2">
+                <Donut pct={pctOf(s)} size={44} stroke={6} />
+                <div className="text-[11px] leading-tight min-w-0">
+                  <div className="font-semibold text-xs">{k}</div>
                   <div>{fmt(s.facut)} / {fmt(s.cerut)} buc</div>
-                  <div className="text-muted-foreground">rămas {fmt(s.cerut - s.facut)} buc</div>
-                  <div>{s.gata} / {s.comenzi} comenzi</div>
+                  <div className="text-muted-foreground">rămas {fmt(s.cerut - s.facut)} · {s.gata}/{s.comenzi} com</div>
                 </div>
               </div>
             );
