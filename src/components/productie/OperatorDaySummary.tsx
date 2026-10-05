@@ -100,7 +100,8 @@ const Donut = ({ pct, size = 92, stroke = 10 }: { pct: number; size?: number; st
 const fmt = (n: number) => Math.round(n).toLocaleString("ro-RO");
 
 export default function OperatorDaySummary({ orders }: { orders: any[] }) {
-  const { total, byCat } = computeStats(orders);
+  const { data: ingMap } = useIngredientCounts();
+  const { total, byCat } = computeStats(orders, ingMap);
   if (total.comenzi === 0) return null;
 
   const MiniStat = ({ label, value, cls = "" }: { label: string; value: string | number; cls?: string }) => (
