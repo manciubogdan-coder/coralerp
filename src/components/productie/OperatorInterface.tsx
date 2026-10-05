@@ -1031,6 +1031,14 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         orders={(orders || []).filter((o: any) =>
           o.linie_id && matchesSelectedDay(o) && displayLines.some(l => l.memberIds.includes(o.linie_id))
         )}
+        allOrders={orders || []}
+        lineName={(o: any) => displayLines.find(l => l.memberIds.includes(o.linie_id))?.nume}
+        onOpenOrder={(o: any) => {
+          const dl = displayLines.find(l => l.memberIds.includes(o.linie_id));
+          if (!dl) return;
+          handleLineSelect(dl.id);
+          handleOrderSelect(o.id);
+        }}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
