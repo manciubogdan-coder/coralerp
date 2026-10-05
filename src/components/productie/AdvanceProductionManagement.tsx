@@ -481,6 +481,11 @@ const AdvanceProductionManagement = () => {
                           </TableCell>
                           <TableCell>
                             {order.cantitate} {order.productie_produse?.unitate_masura}
+                            {(order as any).cantitate_scazuta_din_ferme > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                din {(order as any).cantitate_initiala_avans} − {(order as any).cantitate_scazuta_din_ferme} deja în comenzi ferme
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Badge variant={order.status === 'pending' ? 'secondary' : 'default'}>
@@ -606,6 +611,11 @@ const AdvanceProductionManagement = () => {
                           </TableCell>
                           <TableCell>
                             {order.cantitate_reala_produsa || 0} / {order.cantitate} {order.productie_produse?.unitate_masura}
+                            {(order as any).cantitate_scazuta_din_ferme > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                din {(order as any).cantitate_initiala_avans} − {(order as any).cantitate_scazuta_din_ferme} deja în comenzi ferme
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>
                             {order.productie_linii?.nume || 'Necunoscut'}
