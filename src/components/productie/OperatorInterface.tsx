@@ -18,6 +18,7 @@ import TrasabilitateCard from "./TrasabilitateCard";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOperatorT } from "@/lib/operatorI18n";
 import { buildDisplayLines } from "@/lib/productie/lineGroups";
+import OperatorDaySummary from "./OperatorDaySummary";
 import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
 import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
@@ -1024,6 +1025,12 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           </Card>
         );
       })()}
+
+      <OperatorDaySummary
+        orders={(orders || []).filter((o: any) =>
+          o.linie_id && matchesSelectedDay(o) && displayLines.some(l => l.memberIds.includes(o.linie_id))
+        )}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {displayLines.map((line) => {

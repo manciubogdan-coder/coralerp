@@ -57,7 +57,7 @@ export default function OperatorDaySummary({ orders }: { orders: any[] }) {
     if (cerut <= 0) continue;
     const reamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
     const acoperit = Number(o.cantitate_reala_produsa || 0) + (reamb ? 0 : Number(o.cantitate_din_restock || 0));
-    const facut = o.status === "completed" ? Math.max(cerut, Math.min(acoperit, cerut)) : Math.min(acoperit, cerut);
+    const facut = o.status === "completed" ? cerut : Math.min(acoperit, cerut);
     const gata = o.status === "completed" || acoperit >= cerut;
     for (const s of [total, byCat[categoryOf(o)]]) {
       s.cerut += cerut;
