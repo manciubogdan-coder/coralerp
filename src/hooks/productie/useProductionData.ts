@@ -697,10 +697,10 @@ export const useOrders = () => {
             for (const s of st) {
               if (demand <= 0) break;
               if (s.cap <= 0) continue;
-              // Compensare doar cu comenzi ferme din ziua avansului sau anterioare:
+              // Compensare doar cu comenzi ferme din ACEEAȘI ZI cu avansul:
               // ce se produce azi se trimite azi; un avans datat pe mâine acoperă
               // comenzile de mâine, dar comenzile viitoare nu ating avansul de azi.
-              if (String(s.a.created_at) > String(f.created_at) || dayOf(s.a) !== dayOf(f)) continue;
+              if (dayOf(s.a) !== dayOf(f)) continue;
               const take = Math.min(demand, s.cap);
               const fromProd = Math.min(unmet, s.prodLeft, take);
               s.cap -= take;
