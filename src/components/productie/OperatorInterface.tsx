@@ -18,7 +18,7 @@ import TrasabilitateCard from "./TrasabilitateCard";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOperatorT } from "@/lib/operatorI18n";
 import { buildDisplayLines } from "@/lib/productie/lineGroups";
-import OperatorDaySummary, { computeStats, pctOf, CATEGORIES, categoryOf, Stat } from "./OperatorDaySummary";
+import OperatorDaySummary, { computeStats, pctOf, CATEGORIES, Stat } from "./OperatorDaySummary";
 import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
 import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
