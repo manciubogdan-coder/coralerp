@@ -14,13 +14,40 @@ const AROMATE_KEYS = [
 export const CATEGORIES = ["Aromate", "Salate mono", "Salate mixte", "Horeca"] as const;
 type Cat = (typeof CATEGORIES)[number];
 
-export const categoryOf = (o: any): Cat => {
-  const p = norm(o?.productie_produse?.nume || "");
+// Mapă produs_id -> număr de ingrediente din rețetă (Salate mixte = mai mult de 1 ingredient)
+export type IngCountMap = Record<string, number>;
+
+export const useIngredientCounts = () =>
+  useQuery({
+    queryKey: ["produs-ingredient-counts"],
+    staleTime: 10 * 60_000,
+    queryFn: async (): Promise<IngCountMap> => {
+      const { data, error } = await supabase
+        .from("productie_retete_ingrediente")
+        .select("productie_retete!inner(produs_id)");
+      if (error) throw error;
+      const map: IngCountMap = {};
+      for (const r of (data as any) || []) {
+        const pid = (r as any)?.productie_retete?.produs_id;
+        if (pid) map[pid] = (map[pid] || 0) + 1;
+      }
+      return map;
+    },
+  });
+
+export const categoryOf = (o: any, ingMap?: IngCountMap): Cat => {
+  const prod = o?.productie_produse;
+  const p = norm(prod?.nume || "");
   const c = norm(`${o?.magazin || ""} ${o?.productie_clienti?.nume || ""}`);
   if (p.includes("horeca") || c.includes("horeca")) return "Horeca";
   if (AROMATE_KEYS.some((k) => p.includes(k))) return "Aromate";
-  if (p.includes("mix") || p.includes("+") || p.includes("asortat")) return "Salate mixte";
-  return "Salate mono";
+  const pid = prod?.id;
+  const nrIng = pid && ingMap ? ingMap[pid] : undefined;
+  if (nrIng === undefined) {
+    if (p.includes("mix") || p.includes("+") || p.includes("asortat")) return "Salate mixte";
+    return "Salate mono";
+  }
+  return nrIng > 1 ? "Salate mixte" : "Salate mono";
 };
 
 export interface Stat { cerut: number; facut: number; comenzi: number; gata: number }
