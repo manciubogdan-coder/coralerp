@@ -17,7 +17,7 @@ interface OrderEditDialogProps {
 const OrderEditDialog = ({ order, onClose, onSuccess }: OrderEditDialogProps) => {
   const [magazin, setMagazin] = useState(order.magazin || "");
   const [produsId, setProdusId] = useState(order.produs_id || "");
-  const [cantitate, setCantitate] = useState(order.cantitate || 0);
+  const [cantitate, setCantitate] = useState((order as any).cantitate_initiala_avans ?? order.cantitate ?? 0);
   const [linieId, setLinieId] = useState(order.linie_id || "");
   const [status, setStatus] = useState(order.status || "pending");
 
@@ -36,6 +36,10 @@ const OrderEditDialog = ({ order, onClose, onSuccess }: OrderEditDialogProps) =>
       .sort()
       .map(store => ({ value: store, label: store }))
     : [];
+  // Comenzile speciale (PRODUCTIE_AVANS, REAMBALARE) nu sunt clienți — le păstrăm în listă
+  if (order.magazin && !uniqueStores.some(s => s.value === order.magazin)) {
+    uniqueStores.unshift({ value: order.magazin, label: order.magazin === 'PRODUCTIE_AVANS' ? 'Producție în avans' : order.magazin });
+  }
 
   // Filtrare robustă pentru produse
   const validProducts = products ? 
