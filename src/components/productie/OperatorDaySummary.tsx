@@ -1,4 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const norm = (s: string) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -12,19 +14,46 @@ const AROMATE_KEYS = [
 export const CATEGORIES = ["Aromate", "Salate mono", "Salate mixte", "Horeca"] as const;
 type Cat = (typeof CATEGORIES)[number];
 
-export const categoryOf = (o: any): Cat => {
-  const p = norm(o?.productie_produse?.nume || "");
+// Mapă produs_id -> număr de ingrediente din rețetă (Salate mixte = mai mult de 1 ingredient)
+export type IngCountMap = Record<string, number>;
+
+export const useIngredientCounts = () =>
+  useQuery({
+    queryKey: ["produs-ingredient-counts"],
+    staleTime: 10 * 60_000,
+    queryFn: async (): Promise<IngCountMap> => {
+      const { data, error } = await supabase
+        .from("productie_retete_ingrediente")
+        .select("productie_retete!inner(produs_id)");
+      if (error) throw error;
+      const map: IngCountMap = {};
+      for (const r of (data as any) || []) {
+        const pid = (r as any)?.productie_retete?.produs_id;
+        if (pid) map[pid] = (map[pid] || 0) + 1;
+      }
+      return map;
+    },
+  });
+
+export const categoryOf = (o: any, ingMap?: IngCountMap): Cat => {
+  const prod = o?.productie_produse;
+  const p = norm(prod?.nume || "");
   const c = norm(`${o?.magazin || ""} ${o?.productie_clienti?.nume || ""}`);
   if (p.includes("horeca") || c.includes("horeca")) return "Horeca";
   if (AROMATE_KEYS.some((k) => p.includes(k))) return "Aromate";
-  if (p.includes("mix") || p.includes("+") || p.includes("asortat")) return "Salate mixte";
-  return "Salate mono";
+  const pid = prod?.id;
+  const nrIng = pid && ingMap ? ingMap[pid] : undefined;
+  if (nrIng === undefined) {
+    if (p.includes("mix") || p.includes("+") || p.includes("asortat")) return "Salate mixte";
+    return "Salate mono";
+  }
+  return nrIng > 1 ? "Salate mixte" : "Salate mono";
 };
 
 export interface Stat { cerut: number; facut: number; comenzi: number; gata: number }
 const empty = (): Stat => ({ cerut: 0, facut: 0, comenzi: 0, gata: 0 });
 
-export const computeStats = (orders: any[]): { total: Stat; byCat: Record<string, Stat> } => {
+export const computeStats = (orders: any[], ingMap?: IngCountMap): { total: Stat; byCat: Record<string, Stat> } => {
   const total = empty();
   const byCat: Record<string, Stat> = Object.fromEntries(CATEGORIES.map((k) => [k, empty()]));
   for (const o of orders) {
@@ -34,7 +63,7 @@ export const computeStats = (orders: any[]): { total: Stat; byCat: Record<string
     const acoperit = Number(o.cantitate_reala_produsa || 0) + (reamb ? 0 : Number(o.cantitate_din_restock || 0));
     const facut = o.status === "completed" ? cerut : Math.min(acoperit, cerut);
     const gata = o.status === "completed" || acoperit >= cerut;
-    for (const s of [total, byCat[categoryOf(o)]]) {
+    for (const s of [total, byCat[categoryOf(o, ingMap)]]) {
       s.cerut += cerut;
       s.facut += facut;
       s.comenzi += 1;
@@ -71,7 +100,8 @@ const Donut = ({ pct, size = 92, stroke = 10 }: { pct: number; size?: number; st
 const fmt = (n: number) => Math.round(n).toLocaleString("ro-RO");
 
 export default function OperatorDaySummary({ orders }: { orders: any[] }) {
-  const { total, byCat } = computeStats(orders);
+  const { data: ingMap } = useIngredientCounts();
+  const { total, byCat } = computeStats(orders, ingMap);
   if (total.comenzi === 0) return null;
 
   const MiniStat = ({ label, value, cls = "" }: { label: string; value: string | number; cls?: string }) => (

@@ -18,7 +18,7 @@ import TrasabilitateCard from "./TrasabilitateCard";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOperatorT } from "@/lib/operatorI18n";
 import { buildDisplayLines } from "@/lib/productie/lineGroups";
-import OperatorDaySummary, { computeStats, pctOf, CATEGORIES, Stat } from "./OperatorDaySummary";
+import OperatorDaySummary, { computeStats, pctOf, CATEGORIES, Stat, useIngredientCounts } from "./OperatorDaySummary";
 import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
 import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
@@ -33,6 +33,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   onLineSelect
 }) => {
   const [view, setView] = useState<'lines' | 'orders' | 'session'>('lines');
+  const { data: ingCounts } = useIngredientCounts();
   const [currentLineId, setCurrentLineId] = useState<string>("");
   const [currentOrderId, setCurrentOrderId] = useState<string>("");
   const [principalOperator, setPrincipalOperator] = useState("");
@@ -1055,7 +1056,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           }, 0);
           const cap = (line as any).capacitate_ora || 0;
           const lineAll = orders?.filter(o => o.linie_id && line.memberIds.includes(o.linie_id) && matchesSelectedDay(o)) || [];
-          const { total: lineStat, byCat: lineCats } = computeStats(lineAll);
+          const { total: lineStat, byCat: lineCats } = computeStats(lineAll, ingCounts);
           const oreEst = cap > 0 ? totalBucRamase / cap : 0;
           const formatDur = (hours: number) => {
             if (!isFinite(hours) || hours <= 0) return '-';
