@@ -1056,6 +1056,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           const cap = (line as any).capacitate_ora || 0;
           const lineAll = orders?.filter(o => o.linie_id && line.memberIds.includes(o.linie_id) && matchesSelectedDay(o)) || [];
           const { total: lineStat, byCat: lineCats } = computeStats(lineAll);
+          const lineAll = orders?.filter(o => o.linie_id && line.memberIds.includes(o.linie_id) && matchesSelectedDay(o)) || [];
+          const { total: lineStat, byCat: lineCats } = computeStats(lineAll);
           const oreEst = cap > 0 ? totalBucRamase / cap : 0;
           const formatDur = (hours: number) => {
             if (!isFinite(hours) || hours <= 0) return '-';
