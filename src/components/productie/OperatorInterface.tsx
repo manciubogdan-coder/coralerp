@@ -33,6 +33,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   onLineSelect
 }) => {
   const [view, setView] = useState<'lines' | 'orders' | 'session'>('lines');
+  const { data: ingCounts } = useIngredientCounts();
   const [currentLineId, setCurrentLineId] = useState<string>("");
   const [currentOrderId, setCurrentOrderId] = useState<string>("");
   const [principalOperator, setPrincipalOperator] = useState("");
