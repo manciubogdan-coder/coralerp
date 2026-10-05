@@ -53,7 +53,7 @@ export const categoryOf = (o: any, ingMap?: IngCountMap): Cat => {
 export interface Stat { cerut: number; facut: number; comenzi: number; gata: number }
 const empty = (): Stat => ({ cerut: 0, facut: 0, comenzi: 0, gata: 0 });
 
-export const computeStats = (orders: any[]): { total: Stat; byCat: Record<string, Stat> } => {
+export const computeStats = (orders: any[], ingMap?: IngCountMap): { total: Stat; byCat: Record<string, Stat> } => {
   const total = empty();
   const byCat: Record<string, Stat> = Object.fromEntries(CATEGORIES.map((k) => [k, empty()]));
   for (const o of orders) {
@@ -63,7 +63,7 @@ export const computeStats = (orders: any[]): { total: Stat; byCat: Record<string
     const acoperit = Number(o.cantitate_reala_produsa || 0) + (reamb ? 0 : Number(o.cantitate_din_restock || 0));
     const facut = o.status === "completed" ? cerut : Math.min(acoperit, cerut);
     const gata = o.status === "completed" || acoperit >= cerut;
-    for (const s of [total, byCat[categoryOf(o)]]) {
+    for (const s of [total, byCat[categoryOf(o, ingMap)]]) {
       s.cerut += cerut;
       s.facut += facut;
       s.comenzi += 1;
