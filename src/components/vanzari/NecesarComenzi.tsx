@@ -242,16 +242,13 @@ export default function NecesarComenzi() {
         else if (r > 5 && r < 6 + ls.length) cell.s = { font: { name: "Arial" }, border, alignment: { vertical: "center" } };
         else cell.s = { font: { name: "Arial", bold: r > 5 } };
       });
+      const sheetName = `Comanda ${c}`.slice(0, 31).replace(/[\\/?*\[\]:]/g, " ");
       const wb = XLSXStyle.utils.book_new();
-      XLSXStyle.utils.book_append_sheet(wb, ws, `Comanda ${c}`.slice(0, 31).replace(/[\\/?*\[\]:]/g, " "));
+      XLSXStyle.utils.book_append_sheet(wb, ws, sheetName);
+      XLSXStyle.utils.book_append_sheet(wbAll, ws, sheetName);
       files.push({ name: `Comanda_${c.replace(/[^\w\- ]+/g, "_")}_${zi}.xlsx`, data: XLSXStyle.write(wb, { type: "array", bookType: "xlsx" }) });
     });
     if (!separate) {
-      const wbAll = XLSXStyle.utils.book_new();
-      for (const f of files) {
-        const wbOne = XLSXStyle.read(f.data, { type: "array", cellStyles: true });
-        XLSXStyle.utils.book_append_sheet(wbAll, wbOne.Sheets[wbOne.SheetNames[0]], wbOne.SheetNames[0]);
-      }
       XLSXStyle.writeFile(wbAll, `Formulare_comanda_${zi}.xlsx`);
       return;
     }
