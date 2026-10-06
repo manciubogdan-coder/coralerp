@@ -1,13 +1,12 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, PackageOpen } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import PickingManagementSimple from "@/components/productie/PickingManagementSimple";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import DepozitMP from "@/components/productie/DepozitMP";
-import ModAmbalareView from "@/components/productie/ModAmbalareView";
 
 const PickingPage = () => {
   const navigate = useNavigate();
