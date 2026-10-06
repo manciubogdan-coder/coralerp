@@ -281,6 +281,48 @@ export default function NecesarComenzi() {
     }
   };
 
+  // Centralizator comenzi: toți clienții cu comenzi în ziua respectivă, împărțiți Retail / Alți clienți.
+  const exportCentralizator = () => {
+    const RETAIL = ["AUCHAN", "CARREFOUR", "METRO", "SELGROS", "KAUFLAND", "LIDL", "MEGA"];
+    const b = { style: "thin", color: { rgb: "000000" } };
+    const border = { top: b, bottom: b, left: b, right: b };
+    const dLivr = format(new Date(zi), "dd.MM.yyyy");
+    const isRetail = (c: string) => RETAIL.some((k) => norm(c).includes(k));
+    const retail = clients.filter(isRetail);
+    const alti = clients.filter((c) => !isRetail(c));
+    const obsFor = (c: string) => {
+      const ls = linii.filter((l) => l.client === c);
+      const nrs = [...new Set(ls.map((l) => l.nr_comanda).filter(Boolean))].join(", ");
+      const dep = [...new Set(ls.map((l) => l.depozit).filter(Boolean))].join(", ");
+      return [nrs ? `com ${nrs}` : "", dep].filter(Boolean).join(" - ");
+    };
+    const aoa: any[][] = [[`CENTRALIZATOR COMENZI - ${dLivr}`], [], ["Nr crt", "Client", "Observatii"]];
+    let i = 0;
+    const push = (list: string[], titlu: string) => {
+      if (!list.length) return;
+      aoa.push([titlu]);
+      list.forEach((c) => aoa.push([++i, c, obsFor(c)]));
+    };
+    push(retail, "RETAIL (lanturi de magazine)");
+    push(alti, "ALTI CLIENTI");
+    const ws = XLSXStyle.utils.aoa_to_sheet(aoa);
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
+    ws["!cols"] = [{ wch: 8 }, { wch: 38 }, { wch: 40 }];
+    ws["!rows"] = [{ hpt: 30 }];
+    Object.keys(ws).forEach((k) => {
+      if (k.startsWith("!")) return;
+      const { r, c: col } = XLSXStyle.utils.decode_cell(k);
+      const cell = ws[k];
+      if (r === 0) cell.s = { font: { bold: true, sz: 16, name: "Arial" }, alignment: { horizontal: "center" } };
+      else if (r === 2) cell.s = { font: { bold: true, name: "Arial" }, fill: { fgColor: { rgb: "D9E1F2" } }, border, alignment: { horizontal: "center" } };
+      else if (typeof cell.v === "string" && (cell.v.startsWith("RETAIL") || cell.v.startsWith("ALTI"))) cell.s = { font: { bold: true, name: "Arial" }, fill: { fgColor: { rgb: "FCE4D6" } }, border };
+      else cell.s = { font: { name: "Arial" }, border, alignment: { horizontal: col === 0 ? "center" : "left" } };
+    });
+    const wb = XLSXStyle.utils.book_new();
+    XLSXStyle.utils.book_append_sheet(wb, ws, "Centralizator");
+    XLSXStyle.writeFile(wb, `Centralizator_comenzi_${dLivr}.xlsx`);
+  };
+
   const sheetLinii = linii.filter((l) => l.client === sheet);
   const det = balanta.rows.find((r) => r.key === detail);
 
@@ -293,6 +335,7 @@ export default function NecesarComenzi() {
           <Button variant="outline" onClick={() => window.print()} disabled={!linii.length}><Printer className="h-4 w-4 mr-1" />Printează</Button>
           <Button onClick={() => exportExcel(false)} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Export Excel (un fișier)</Button>
           <Button variant="outline" onClick={() => exportExcel(true)} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Fișiere separate pe client</Button>
+          <Button variant="outline" onClick={exportCentralizator} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Centralizator</Button>
         </div>
       </div>
 
