@@ -27,7 +27,6 @@ const PickingPage = () => {
             <TabsTrigger value="depozit">Depozit MP</TabsTrigger>
             <TabsTrigger value="picking">Picking</TabsTrigger>
             <TabsTrigger value="restocking">Marfă Restocată</TabsTrigger>
-            <TabsTrigger value="packaging" className="gap-2"><PackageOpen className="h-4 w-4" />Mod de ambalare</TabsTrigger>
           </TabsList>
 
           <TabsContent value="depozit">
@@ -40,10 +39,6 @@ const PickingPage = () => {
 
           <TabsContent value="restocking">
             <MarfaRestocataView />
-          </TabsContent>
-
-          <TabsContent value="packaging">
-            <ModAmbalareView />
           </TabsContent>
         </Tabs>
 
