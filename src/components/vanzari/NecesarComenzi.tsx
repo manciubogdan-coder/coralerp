@@ -335,6 +335,7 @@ export default function NecesarComenzi() {
           <Button variant="outline" onClick={() => window.print()} disabled={!linii.length}><Printer className="h-4 w-4 mr-1" />Printează</Button>
           <Button onClick={() => exportExcel(false)} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Export Excel (un fișier)</Button>
           <Button variant="outline" onClick={() => exportExcel(true)} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Fișiere separate pe client</Button>
+          <Button variant="outline" onClick={exportCentralizator} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Centralizator</Button>
         </div>
       </div>
 
