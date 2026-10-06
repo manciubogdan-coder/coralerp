@@ -133,8 +133,9 @@ export default function NecesarComenzi() {
     for (const r of recipes) {
       if (!r.ings.length) continue;
       const n = norm(r.nume);
-      if (!toks.every((t) => n.includes(t))) continue;
-      let sc = 1 + toks.length;
+      const hit = toks.filter((t) => n.includes(t)).length;
+      if (!toks.length || hit / toks.length < 0.6) continue;
+      let sc = 1 + hit - (toks.length - hit) * 2;
       if (l.gramaj && new RegExp(`(^|\\D)${l.gramaj}\\s*(G|GR)?(\\D|$)`).test(n)) sc += 5;
       sc -= n.split(" ").length * 0.05;
       if (sc > score) { score = sc; best = r; }
@@ -209,8 +210,8 @@ export default function NecesarComenzi() {
 
   const deleteDoc = async (id: string) => { await supabaseCloud.from("vanzari_necesar_documente").delete().eq("id", id); load(); };
 
-  const exportExcel = () => {
-    const wb = XLSXStyle.utils.book_new();
+  const exportExcel = (separate = false) => {
+    let wb = XLSXStyle.utils.book_new();
     const b = { style: "thin", color: { rgb: "000000" } };
     const border = { top: b, bottom: b, left: b, right: b };
     const dLivr = format(new Date(zi), "dd.MM.yyyy");
@@ -240,9 +241,13 @@ export default function NecesarComenzi() {
         else if (r > 5 && r < 6 + ls.length) cell.s = { font: { name: "Arial" }, border, alignment: { vertical: "center" } };
         else cell.s = { font: { name: "Arial", bold: r > 5 } };
       });
-      XLSXStyle.utils.book_append_sheet(wb, ws, `Comanda ${c}`.slice(0, 31));
+      XLSXStyle.utils.book_append_sheet(wb, ws, `Comanda ${c}`.slice(0, 31).replace(/[\\/?*\[\]:]/g, " "));
+      if (separate) {
+        XLSXStyle.writeFile(wb, `Comanda_${c.replace(/[^\w\- ]+/g, "_")}_${zi}.xlsx`);
+        wb = XLSXStyle.utils.book_new();
+      }
     });
-    XLSXStyle.writeFile(wb, `Formulare_comanda_${zi}.xlsx`);
+    if (!separate) XLSXStyle.writeFile(wb, `Formulare_comanda_${zi}.xlsx`);
   };
 
   const sheetLinii = linii.filter((l) => l.client === sheet);
@@ -255,7 +260,8 @@ export default function NecesarComenzi() {
         <div><label className="text-xs text-muted-foreground">Ziua producției (stoc + prerecepții)</label><Input type="date" value={ziProd} onChange={(e) => setZiProd(e.target.value)} className="w-40" /></div>
         <div className="ml-auto flex gap-2">
           <Button variant="outline" onClick={() => window.print()} disabled={!linii.length}><Printer className="h-4 w-4 mr-1" />Printează</Button>
-          <Button onClick={exportExcel} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Export Excel</Button>
+          <Button onClick={() => exportExcel(false)} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Export Excel (un fișier)</Button>
+          <Button variant="outline" onClick={() => exportExcel(true)} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Fișiere separate pe client</Button>
         </div>
       </div>
 
@@ -298,13 +304,26 @@ export default function NecesarComenzi() {
                     </tr>
                   ))}
                   {balanta.nomatch.length > 0 && (
-                    <tr><td colSpan={7} className="px-2 py-2 text-xs text-muted-foreground">Fără rețetă găsită (calculat gramaj × bucăți): {[...new Set(balanta.nomatch.map((l) => `${l.produs} ${l.gramaj ?? ""}g`))].join(", ")}</td></tr>
+                    <tr><td colSpan={7} className="px-2 py-2 text-xs">
+                      <div className="font-medium text-destructive mb-1">Produse fără rețetă găsită (calculate gramaj × bucăți) — alege rețeta corectă:</div>
+                      <div className="space-y-1">
+                        {[...new Map(balanta.nomatch.map((l) => [`${l.produs}|${l.gramaj ?? ""}`, l])).values()].map((l) => (
+                          <div key={l.id} className="flex items-center gap-2">
+                            <span className="min-w-[280px]">{l.produs} {l.gramaj ?? ""}g</span>
+                            <select className="border rounded px-1 py-0.5 bg-background min-w-[280px]" value="" onChange={(e) => { const v = e.target.value; if (!v) return; linii.filter((x) => x.produs === l.produs && x.gramaj === l.gramaj && !x.produs_id).forEach((x) => updateLinie(x.id, { produs_id: v })); }}>
+                              <option value="">— alege rețeta (se aplică la toate liniile) —</option>
+                              {recipes.filter((x) => x.ings.length).map((x) => <option key={x.id} value={x.id}>{x.nume}</option>)}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </td></tr>
                   )}
                 </tbody>
               </table>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-muted z-10"><tr className="[&>th]:px-2 [&>th]:py-1.5 [&>th]:text-left [&>th]:border">
+              <table className="w-max min-w-full text-sm">
+                <thead className="sticky top-0 bg-muted z-10"><tr className="[&>th]:px-2 [&>th]:py-1.5 [&>th]:text-left [&>th]:border [&>th]:whitespace-nowrap">
                   <th>Nr</th><th>Depozit</th><th>Nr. comandă</th><th>Denumire produs</th><th>Gramaj</th><th className="text-right">Bucăți</th><th className="text-right">Tăiat</th><th className="text-right">Final</th><th>Ambalaj primar</th><th>Buc/Bax</th><th className="text-right">Nr. BAX</th><th>Ambalaj terțiar</th><th>Rețetă</th>
                 </tr></thead>
                 <tbody>
@@ -312,18 +331,18 @@ export default function NecesarComenzi() {
                     const f = Math.max(0, l.bucati - l.taiat); const r = matchRecipe(l);
                     return (
                       <tr key={l.id} className="[&>td]:px-1 [&>td]:py-0.5 [&>td]:border">
-                        <td>{i + 1}</td><td>{l.depozit}</td><td>{l.nr_comanda}</td>
-                        <td><input className="w-full bg-transparent" defaultValue={l.produs} onBlur={(e) => e.target.value !== l.produs && updateLinie(l.id, { produs: e.target.value })} /></td>
-                        <td><input type="number" className="w-14 bg-transparent" defaultValue={l.gramaj ?? ""} onBlur={(e) => updateLinie(l.id, { gramaj: e.target.value ? Number(e.target.value) : null })} /></td>
-                        <td className="text-right"><input type="number" className="w-16 bg-transparent text-right" defaultValue={l.bucati} onBlur={(e) => updateLinie(l.id, { bucati: Number(e.target.value) || 0 })} /></td>
-                        <td className="text-right bg-destructive/5"><input type="number" className="w-16 bg-transparent text-right text-destructive font-medium" value={l.taiat || ""} placeholder="0" onChange={(e) => updateLinie(l.id, { taiat: Number(e.target.value) || 0 })} /></td>
+                        <td>{i + 1}</td><td className="whitespace-nowrap">{l.depozit}</td><td className="whitespace-nowrap">{l.nr_comanda}</td>
+                        <td><input className="min-w-[340px] w-full bg-transparent" defaultValue={l.produs} onBlur={(e) => e.target.value !== l.produs && updateLinie(l.id, { produs: e.target.value })} /></td>
+                        <td><input type="number" className="w-20 bg-transparent" defaultValue={l.gramaj ?? ""} onBlur={(e) => updateLinie(l.id, { gramaj: e.target.value ? Number(e.target.value) : null })} /></td>
+                        <td className="text-right"><input type="number" className="w-24 bg-transparent text-right" defaultValue={l.bucati} onBlur={(e) => updateLinie(l.id, { bucati: Number(e.target.value) || 0 })} /></td>
+                        <td className="text-right bg-destructive/5"><input type="number" className="w-24 bg-transparent text-right text-destructive font-medium" value={l.taiat || ""} placeholder="0" onChange={(e) => updateLinie(l.id, { taiat: Number(e.target.value) || 0 })} /></td>
                         <td className="text-right font-semibold">{f}</td>
-                        <td><input className="w-24 bg-transparent" defaultValue={l.ambalaj_primar ?? ""} onBlur={(e) => updateLinie(l.id, { ambalaj_primar: e.target.value })} /></td>
-                        <td><input type="number" className="w-12 bg-transparent" defaultValue={l.buc_bax ?? ""} onBlur={(e) => updateLinie(l.id, { buc_bax: e.target.value ? Number(e.target.value) : null })} /></td>
+                        <td><input className="w-56 bg-transparent" defaultValue={l.ambalaj_primar ?? ""} onBlur={(e) => updateLinie(l.id, { ambalaj_primar: e.target.value })} /></td>
+                        <td><input type="number" className="w-20 bg-transparent" defaultValue={l.buc_bax ?? ""} onBlur={(e) => updateLinie(l.id, { buc_bax: e.target.value ? Number(e.target.value) : null })} /></td>
                         <td className="text-right">{l.buc_bax ? fmt(f / l.buc_bax, 2) : ""}</td>
-                        <td><input className="w-32 bg-transparent" defaultValue={l.ambalaj_tertiar ?? ""} onBlur={(e) => updateLinie(l.id, { ambalaj_tertiar: e.target.value })} /></td>
+                        <td><input className="w-64 bg-transparent" defaultValue={l.ambalaj_tertiar ?? ""} onBlur={(e) => updateLinie(l.id, { ambalaj_tertiar: e.target.value })} /></td>
                         <td>
-                          <select className="w-40 bg-transparent text-xs" value={r?.id ?? ""} onChange={(e) => updateLinie(l.id, { produs_id: e.target.value || null })}>
+                          <select className="w-80 bg-transparent text-xs" value={r?.id ?? ""} onChange={(e) => updateLinie(l.id, { produs_id: e.target.value || null })}>
                             <option value="">— gramaj × buc —</option>
                             {recipes.filter((x) => x.ings.length).map((x) => <option key={x.id} value={x.id}>{x.nume}</option>)}
                           </select>
