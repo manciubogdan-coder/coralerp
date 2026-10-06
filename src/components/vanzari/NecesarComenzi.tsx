@@ -215,6 +215,7 @@ export default function NecesarComenzi() {
     const border = { top: b, bottom: b, left: b, right: b };
     const dLivr = format(new Date(zi), "dd.MM.yyyy");
     const files: { name: string; data: ArrayBuffer }[] = [];
+    const wbAll = XLSXStyle.utils.book_new();
     clients.forEach((c) => {
       const ls = linii.filter((l) => l.client === c);
       const hasDep = ls.some((l) => l.depozit);
