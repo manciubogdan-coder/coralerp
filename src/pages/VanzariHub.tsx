@@ -87,13 +87,6 @@ const VanzariHub: React.FC = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="packaging">
-          <Card>
-            <CardContent className="p-4">
-              <ModAmbalareView />
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );
