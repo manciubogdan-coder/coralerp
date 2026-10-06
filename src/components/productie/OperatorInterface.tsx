@@ -756,7 +756,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                     inputMode="decimal"
                     value={rebutQuantity.toString()}
                     onChange={(e) => setRebutQuantity(parseFloat(e.target.value) || 0)}
-                    placeholder="0"
+                    placeholder="0,00"
                     className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
                   />
                   <p className="text-xs text-muted-foreground mt-1">{t("rebutHint")}</p>
