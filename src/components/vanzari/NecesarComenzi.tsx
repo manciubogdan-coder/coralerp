@@ -210,11 +210,12 @@ export default function NecesarComenzi() {
 
   const deleteDoc = async (id: string) => { await supabaseCloud.from("vanzari_necesar_documente").delete().eq("id", id); load(); };
 
-  const exportExcel = (separate = false) => {
-    let wb = XLSXStyle.utils.book_new();
+  const exportExcel = async (separate = false) => {
     const b = { style: "thin", color: { rgb: "000000" } };
     const border = { top: b, bottom: b, left: b, right: b };
     const dLivr = format(new Date(zi), "dd.MM.yyyy");
+    const files: { name: string; data: ArrayBuffer }[] = [];
+    const wbAll = XLSXStyle.utils.book_new();
     clients.forEach((c) => {
       const ls = linii.filter((l) => l.client === c);
       const hasDep = ls.some((l) => l.depozit);
@@ -241,13 +242,43 @@ export default function NecesarComenzi() {
         else if (r > 5 && r < 6 + ls.length) cell.s = { font: { name: "Arial" }, border, alignment: { vertical: "center" } };
         else cell.s = { font: { name: "Arial", bold: r > 5 } };
       });
-      XLSXStyle.utils.book_append_sheet(wb, ws, `Comanda ${c}`.slice(0, 31).replace(/[\\/?*\[\]:]/g, " "));
-      if (separate) {
-        XLSXStyle.writeFile(wb, `Comanda_${c.replace(/[^\w\- ]+/g, "_")}_${zi}.xlsx`);
-        wb = XLSXStyle.utils.book_new();
-      }
+      const sheetName = `Comanda ${c}`.slice(0, 31).replace(/[\\/?*\[\]:]/g, " ");
+      const wb = XLSXStyle.utils.book_new();
+      XLSXStyle.utils.book_append_sheet(wb, ws, sheetName);
+      XLSXStyle.utils.book_append_sheet(wbAll, ws, sheetName);
+      files.push({ name: `Comanda_${c.replace(/[^\w\- ]+/g, "_")}_${zi}.xlsx`, data: XLSXStyle.write(wb, { type: "array", bookType: "xlsx" }) });
     });
-    if (!separate) XLSXStyle.writeFile(wb, `Formulare_comanda_${zi}.xlsx`);
+    if (!separate) {
+      XLSXStyle.writeFile(wbAll, `Formulare_comanda_${zi}.xlsx`);
+      return;
+    }
+    // Alege folderul o singură dată și salvează toate fișierele acolo (Chrome/Edge).
+    const w = window as any;
+    if (typeof w.showDirectoryPicker === "function") {
+      try {
+        const dir = await w.showDirectoryPicker({ mode: "readwrite" });
+        for (const f of files) {
+          const fh = await dir.getFileHandle(f.name, { create: true });
+          const wr = await fh.createWritable();
+          await wr.write(new Blob([f.data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+          await wr.close();
+        }
+        toast.success(`${files.length} fișiere salvate în folderul „${dir.name}"`);
+        return;
+      } catch (e: any) {
+        if (e?.name === "AbortError") return; // utilizatorul a anulat alegerea folderului
+      }
+    }
+    // Fallback: descărcări multiple (browserul poate cere permisiune o dată).
+    for (const f of files) {
+      const url = URL.createObjectURL(new Blob([f.data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = f.name;
+      a.click();
+      URL.revokeObjectURL(url);
+      await new Promise((r) => setTimeout(r, 300));
+    }
   };
 
   const sheetLinii = linii.filter((l) => l.client === sheet);
