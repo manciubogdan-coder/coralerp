@@ -52,6 +52,7 @@ export const useAddSessionRebut = () => {
       motiv?: string | null;
       created_by_email?: string | null;
     }) => {
+      const cantitateCuDouaZecimale = Math.round((payload.cantitate + Number.EPSILON) * 100) / 100;
       const { error } = await supabaseCloud
         .from("productie_sesiuni_rebut")
         .insert({
@@ -59,7 +60,7 @@ export const useAddSessionRebut = () => {
           comanda_id: payload.comanda_id ?? null,
           linie_id: payload.linie_id ?? null,
           linie_nume: payload.linie_nume ?? null,
-          cantitate: payload.cantitate,
+          cantitate: cantitateCuDouaZecimale,
           motiv: payload.motiv ?? null,
           created_by_email: payload.created_by_email ?? null,
         });

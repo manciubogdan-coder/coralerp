@@ -425,9 +425,11 @@ const GroupedOrdersView: React.FC<Props> = ({
             <Input
               type="number"
               min={0}
+              step="0.01"
+              inputMode="decimal"
               value={rebutQty.toString()}
-              onChange={(e) => setRebutQty(parseInt(e.target.value) || 0)}
-              placeholder="0"
+              onChange={(e) => setRebutQty(parseFloat(e.target.value) || 0)}
+              placeholder="0,00"
             />
             <p className="text-xs text-muted-foreground">{t("rebutHint")}</p>
           </div>
