@@ -1903,6 +1903,104 @@ export type Database = {
         }
         Relationships: []
       }
+      vanzari_necesar_documente: {
+        Row: {
+          client: string
+          created_at: string
+          created_by_email: string | null
+          file_name: string | null
+          id: string
+          nr_comanda: string | null
+          zi: string
+        }
+        Insert: {
+          client: string
+          created_at?: string
+          created_by_email?: string | null
+          file_name?: string | null
+          id?: string
+          nr_comanda?: string | null
+          zi: string
+        }
+        Update: {
+          client?: string
+          created_at?: string
+          created_by_email?: string | null
+          file_name?: string | null
+          id?: string
+          nr_comanda?: string | null
+          zi?: string
+        }
+        Relationships: []
+      }
+      vanzari_necesar_linii: {
+        Row: {
+          ambalaj_primar: string | null
+          ambalaj_tertiar: string | null
+          buc_bax: number | null
+          bucati: number
+          client: string
+          created_at: string
+          depozit: string | null
+          document_id: string
+          gramaj: number | null
+          id: string
+          nr_comanda: string | null
+          position: number
+          produs: string
+          produs_id: string | null
+          taiat: number
+          updated_at: string
+          zi: string
+        }
+        Insert: {
+          ambalaj_primar?: string | null
+          ambalaj_tertiar?: string | null
+          buc_bax?: number | null
+          bucati?: number
+          client: string
+          created_at?: string
+          depozit?: string | null
+          document_id: string
+          gramaj?: number | null
+          id?: string
+          nr_comanda?: string | null
+          position?: number
+          produs: string
+          produs_id?: string | null
+          taiat?: number
+          updated_at?: string
+          zi: string
+        }
+        Update: {
+          ambalaj_primar?: string | null
+          ambalaj_tertiar?: string | null
+          buc_bax?: number | null
+          bucati?: number
+          client?: string
+          created_at?: string
+          depozit?: string | null
+          document_id?: string
+          gramaj?: number | null
+          id?: string
+          nr_comanda?: string | null
+          position?: number
+          produs?: string
+          produs_id?: string | null
+          taiat?: number
+          updated_at?: string
+          zi?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vanzari_necesar_linii_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "vanzari_necesar_documente"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
