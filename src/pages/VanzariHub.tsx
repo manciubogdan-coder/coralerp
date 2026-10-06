@@ -40,7 +40,7 @@ const VanzariHub: React.FC = () => {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-4 h-auto">
+        <TabsList className="grid w-full grid-cols-4 mb-4 h-auto">
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
