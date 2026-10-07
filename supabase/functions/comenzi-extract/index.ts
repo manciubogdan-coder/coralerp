@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
 
     const reader = r.body.getReader();
     const dec = new TextDecoder();
-    let buf = "", out = "", done = "";
+    let buf = "", out = "";
     while (true) {
       const { value, done: end } = await reader.read();
       if (end) break;
@@ -86,13 +86,12 @@ Deno.serve(async (req) => {
         if (!p || p === "[DONE]") continue;
         try {
           const ev = JSON.parse(p);
-          if (ev.type === "response.output_text.delta") out += ev.delta ?? "";
-          else if (ev.type === "response.output_text.done") done = ev.text ?? "";
-          else if (ev.type === "response.failed" || ev.type === "error") return json({ error: "AI a eșuat" }, 500);
+          const delta = ev.choices?.[0]?.delta?.content;
+          if (typeof delta === "string") out += delta;
         } catch { /* ignore */ }
       }
     }
-    return json(JSON.parse(done || out || "{}"));
+    return json(JSON.parse(out || "{}"));
   } catch (e) {
     return json({ error: String((e as Error).message ?? e) }, 500);
   }
