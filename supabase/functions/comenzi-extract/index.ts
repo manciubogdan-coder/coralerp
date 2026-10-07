@@ -50,20 +50,20 @@ Deno.serve(async (req) => {
     const key = Deno.env.get("LOVABLE_API_KEY");
     if (!key) return json({ error: "LOVABLE_API_KEY lipsește" }, 500);
 
-    const content: any[] = [{ type: "input_text", text: `Fișier: ${fileName}\n\nText extras:\n${text || "(fără text — vezi imaginile)"}` }];
-    for (const img of images) content.push({ type: "input_image", image_url: img });
+    const content: any[] = [{ type: "text", text: `Fișier: ${fileName}\n\nText extras:\n${text || "(fără text — vezi imaginile)"}` }];
+    for (const img of images) content.push({ type: "image_url", image_url: { url: img } });
 
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { "Lovable-API-Key": key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", "X-Lovable-AIG-SDK": "fetch" },
       body: JSON.stringify({
-        model: "openai/gpt-6-astra",
+        model: "google/gemini-3.8-flash",
         stream: true,
-        store: false,
-        reasoning: { effort: "low" },
-        instructions: PROMPT,
-        input: [{ role: "user", content }],
-        text: { format: { type: "json_schema", name: "comanda", strict: true, schema: SCHEMA } },
+        messages: [
+          { role: "system", content: PROMPT },
+          { role: "user", content },
+        ],
+        response_format: { type: "json_schema", json_schema: { name: "comanda", strict: true, schema: SCHEMA } },
       }),
     });
     if (r.status === 429) return json({ error: "Prea multe cereri, încearcă peste un minut" }, 429);
