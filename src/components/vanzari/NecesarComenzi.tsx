@@ -85,12 +85,14 @@ export default function NecesarComenzi() {
   const [detail, setDetail] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [d, l] = await Promise.all([
-      supabaseCloud.from("vanzari_necesar_documente").select("*").eq("zi", zi).order("created_at"),
-      supabaseCloud.from("vanzari_necesar_linii").select("*").eq("zi", zi).order("position"),
-    ]);
-    setDocs((d.data as Doc[]) || []);
-    setLinii((l.data as Linie[]) || []);
+    try {
+      const [d, l] = await Promise.all([
+        fetchAll(() => supabaseCloud.from("vanzari_necesar_documente").select("*").eq("zi", zi).order("created_at").order("id")),
+        fetchAll(() => supabaseCloud.from("vanzari_necesar_linii").select("*").eq("zi", zi).order("position").order("id")),
+      ]);
+      setDocs(d as Doc[]);
+      setLinii(l as Linie[]);
+    } catch (e: any) { toast.error("Nu am putut încărca comenzile: " + e.message); }
   }, [zi]);
   useEffect(() => { load(); }, [load]);
 
