@@ -121,18 +121,21 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
         const c = firstWarehouse + i * 2, caseC = labels[c] === 'BAX' ? c : c + 1, unitC = labels[c] === 'BAX' ? c + 1 : c;
         const ls = lines.filter(l => (l.depozit || 'Fără depozit') === w);
         const u = unitCell(unitC, ls, -1);
-        formula(r, caseC, `IFERROR(ROUNDUP(${u}/${ref(r, perCaseCol)},0),0)`, cases(ls));
+        formula(r, caseC, `IF(${u}="","",IFERROR(ROUNDUP(${u}/${ref(r, perCaseCol)},0),0))`, cases(ls));
+        if (!ls.length) row[caseC].value = '';
         caseParts.push(ref(r, caseC)); unitParts.push(u);
       });
       const totalC = labels.findIndex(v => v === 'TOTAL BAX'), totalU = labels.findIndex(v => v === 'TOTAL BUC');
       formula(r, totalC, `SUM(${caseParts.join(',')})`, cases(lines)); formula(r, totalU, `SUM(${unitParts.join(',')})`, qty(lines));
+      if (!lines.length) { row[totalC].value = ''; row[totalU].value = ''; }
       casesRefs.push(ref(r, totalC)); unitRefs.push(ref(r, totalU));
     } else {
       const unitC = labels.findIndex(v => /^(NR BUCATI|BUCATI|BUC)$/.test(v));
       const modified = labels.findIndex(v => v.includes('CANT MODIFICATA'));
       const caseC = labels.findIndex(v => /^(NR BAX|BAX)$/.test(v));
       const u = unitCell(unitC, lines, modified);
-      formula(r, caseC, `IFERROR(ROUNDUP(${u}/${ref(r, perCaseCol)},0),0)`, cases(lines));
+      formula(r, caseC, `IF(${u}="","",IFERROR(ROUNDUP(${u}/${ref(r, perCaseCol)},0),0))`, cases(lines));
+      if (!lines.length) row[caseC].value = '';
       casesRefs.push(ref(r, caseC)); unitRefs.push(u);
     }
   });
