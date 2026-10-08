@@ -10,7 +10,7 @@ export function orderWorksheet(sheet: OrderSheet, delivery: string) {
     ws[address] = { t: typeof cell.value === 'number' ? 'n' : 's', v: cell.value, s: referenceStyles[cell.style], ...(cell.formula ? { f: cell.formula } : {}), ...(typeof cell.value === 'number' ? { z: r > document.header && String(document.rows[r][0]?.value).includes('Paleți') ? '0.00' : '0.##' } : {}) };
   }));
   ws['!merges'] = document.merges;
-  ws['!cols'] = document.widths.map(wpx => ({ wpx }));
+  ws['!cols'] = document.excelWidths.map(width => ({ width }));
   ws['!rows'] = document.heights.map(hpt => ({ hpt }));
   ws['!printHeader'] = [1, document.header + 1];
   return ws;
