@@ -1199,23 +1199,11 @@ const ReceptionReport: React.FC = () => {
     const doc = group.documentNumber || "—";
     const partner = group.supplierName;
 
-    const qualityRows = group.rows.filter((r) => {
-      if (r.is_missing) return false;
-      const proc = parseFloat(r.pierdere_calitativa_procent);
-      const hasLoss = !isNaN(proc) && proc > 0;
-      const hasDefects = (r.defects && r.defects.length > 0) || (r.observations && r.observations.trim() !== "");
-      return hasLoss || hasDefects;
-    });
-    const diffRows = group.rows.filter((r) => {
-      if (r.is_missing) return true;
-      const dif = calcDiferenta(r);
-      return dif != null && dif !== 0;
-    });
-
-    const sub = (r: ReportRow) => r.producator || partner;
-    const desc = (r: ReportRow, lang: EmailLang) => translateKnownTerms([(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim(), lang);
     const render = (lang: EmailLang) => {
-      const lines: string[] = [lang === "ro" ? "Bună ziua," : lang === "it" ? "Buon pomeriggio," : "Good afternoon,", ""];
+      const ql = getQualityLines(group, lang);
+      const qualityRows = ql.filter((q) => q.creditText !== "-" || q.defectsText !== "-");
+      const diffRows = ql.filter((q) => q.diffText !== "-");
+      const lines: string[] = [lang === "ro" ? "Bună ziua," : lang === "it" ? "Buongiorno," : "Hello,", ""];
       if (qualityRows.length > 0) {
         lines.push(
           lang === "ro"
@@ -1225,42 +1213,31 @@ const ReceptionReport: React.FC = () => {
               : `At the reception on ${dateStr}, ${partner} with document number ${doc}, we found the following quality problems:`,
           ""
         );
-        qualityRows.forEach((r) => {
-          const lossKg = calcPierdereKgRotunjit(r);
-          const lossTxt = lossKg != null && lossKg > 0
-            ? lang === "ro" ? ` Solicităm notă de credit pentru ${fmtKg(lossKg)}${r.unit || "kg"}.`
-              : lang === "it" ? ` Chiediamo una nota di credito per ${fmtKg(lossKg)}${r.unit || "kg"}.`
-                : ` We want a credit note for ${fmtKg(lossKg)}${r.unit || "kg"}.`
-            : "";
-          const recvForEmail = effectiveReceived(r);
+        qualityRows.forEach((q) => {
+          const d = q.defectsText !== "-" ? q.defectsText.replace(/\n/g, "; ") : (lang === "ro" ? "probleme calitative" : lang === "it" ? "problemi qualitativi" : "quality issues");
+          const credit = q.creditKg > 0
+            ? (lang === "ro" ? ` Solicităm notă de credit: ${q.creditText.replace(/\n/g, "; ")}.`
+              : lang === "it" ? ` Chiediamo una nota di credito: ${q.creditText.replace(/\n/g, "; ")}.`
+                : ` We want a credit note for ${q.creditText.replace(/\n/g, "; ")}.`)
+            : q.creditText === "Warning!" ? " Warning!" : "";
           lines.push(
             lang === "ro"
-              ? `${r.denumire_produs} de la furnizorul ${sub(r)} am recepționat ${fmtKg(recvForEmail)}${r.unit || "kg"} – ${desc(r, lang) || "probleme calitative"}.${lossTxt}`
+              ? `${q.product} de la furnizorul ${q.producer} am recepționat ${kgTxt(q.recvQty, q.unit)} – ${d}.${credit}`
               : lang === "it"
-                ? `${r.denumire_produs} dal fornitore ${sub(r)} abbiamo ricevuto ${fmtKg(recvForEmail)}${r.unit || "kg"} – ${desc(r, lang) || "problemi qualitativi"}.${lossTxt}`
-                : `${r.denumire_produs} from the supplier ${sub(r)} we received ${fmtKg(recvForEmail)}${r.unit || "kg"} – ${desc(r, lang) || "quality issues"}.${lossTxt}`,
+                ? `${q.product} dal fornitore ${q.producer} abbiamo ricevuto ${kgTxt(q.recvQty, q.unit)} – ${d}.${credit}`
+                : `${q.product} from the supplier ${q.producer} we received ${kgTxt(q.recvQty, q.unit)} – ${d}.${credit}`,
             ""
           );
         });
       }
       if (diffRows.length > 0) {
         lines.push(
-          lang === "ro" ? `Vă transmit diferențele de la recepția de astăzi cu numărul de document ${doc}:`
-            : lang === "it" ? `Vi inviamo le differenze dal ricevimento di oggi con numero documento ${doc}:`
-              : `I send you the differences from today's receipt with document number ${doc}:`,
+          lang === "ro" ? `Vă transmitem diferențele cantitative pentru documentul ${doc}:`
+            : lang === "it" ? `Vi inviamo le differenze quantitative per il documento ${doc}:`
+              : `Please find below the quantity differences for document ${doc}:`,
           ""
         );
-        diffRows.forEach((r) => {
-          const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : (calcDiferenta(r) || 0);
-          const qty = Math.abs(dif);
-          const unit = r.unit || "kg";
-          const suffix = r.is_missing
-            ? (lang === "ro" ? "lipsă (nu a fost livrat)" : lang === "it" ? "in meno (non consegnato)" : "less (not delivered)")
-            : dif < 0
-              ? (lang === "ro" ? "mai puțin" : lang === "it" ? "in meno" : "less")
-              : (lang === "ro" ? "în plus" : lang === "it" ? "in più" : "extra");
-          lines.push(`${r.denumire_produs} – ${fmtKg(qty)}${unit} ${suffix}`);
-        });
+        diffRows.forEach((q) => lines.push(`${q.product} – ${q.diffText}`));
         lines.push("");
       } else if (qualityRows.length > 0) {
         lines.push(lang === "ro" ? "Nu avem diferențe cantitative." : lang === "it" ? "Non abbiamo differenze quantitative." : "We do not have quantitative differences.", "");
@@ -1285,13 +1262,12 @@ const ReceptionReport: React.FC = () => {
   };
 
   const buildShortIntro = (group: SupplierGroup): EmailContent => {
-    const dateStr = format(date, "dd.MM.yyyy");
-    const doc = group.documentNumber || "—";
+    const doc = group.documentNumber || "-";
     const partner = group.supplierName;
     return {
-      ro: `Bună ziua,\n\nVă transmit mai jos raportul calitativ pentru recepția din ${dateStr}, ${partner}, document ${doc}.\n\nVă rugăm să ne transmiteți notele de credit în termen de 30 de zile.\n\nMulțumim, o zi bună!`,
-      en: `Good afternoon,\n\nPlease find below the quality report for the reception on ${dateStr}, ${partner}, document ${doc}.\n\nPlease send us your credit notes within 30 days.\n\nThank you, have a good day!`,
-      it: `Buon pomeriggio,\n\nIn allegato il report qualitativo per il ricevimento del ${dateStr}, ${partner}, documento ${doc}.\n\nVi preghiamo di inviarci le note di credito entro 30 giorni.\n\nGrazie, buona giornata!`,
+      en: `Hello,\n\nAttached please find the quality report for ${partner} with doc. no. ${doc}.\n\nPlease send us your credit notes within 30 days.\n\nThank you!`,
+      ro: `Bună ziua,\n\nVă transmitem atașat raportul calitativ pentru ${partner} cu doc. nr. ${doc}.\n\nVă rugăm să ne transmiteți notele de credit în termen de 30 de zile.\n\nMulțumim!`,
+      it: `Buongiorno,\n\nIn allegato il report qualitativo per ${partner} con doc. n. ${doc}.\n\nVi preghiamo di inviarci le note di credito entro 30 giorni.\n\nGrazie!`,
     };
   };
 
