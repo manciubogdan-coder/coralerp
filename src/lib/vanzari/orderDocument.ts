@@ -4,8 +4,8 @@ import { finalQty, normalize, type OrderLine, type OrderSheet } from './orderShe
 export type DocumentCell = { value: string | number; style: number; formula?: string; lines?: OrderLine[]; field?: keyof OrderLine | 'final'; rowSpan?: number; colSpan?: number; hidden?: boolean };
 type Range = { s: { r: number; c: number }; e: { r: number; c: number } };
 export const referenceStyles = reference.styles;
-const clean = (v: string) => normalize(v).replace(/SALATA|SALATE|MIX|BIO|FRESHFUL|BY/g, '').trim();
-const sameProduct = (a: string, b: string) => clean(a) === clean(b) || (clean(a).length > 3 && (clean(a).includes(clean(b)) || clean(b).includes(clean(a))));
+const clean = (v: string) => normalize(v).replace(/\b(SALATA|SALATE|MIX|FRESHFUL|BY)\b/g, '').replace(/\s+/g, ' ').trim();
+const sameProduct = (a: string, b: string) => clean(a) === clean(b);
 const warehouseName = (s: string) => normalize(s).replace(/DEPOZIT|PLATFORMA|ARICESTII|ARICESTI/g, s.includes('ARIC') ? 'ARICESTI' : '').trim();
 export function selectReference(sheet: OrderSheet) {
   const client = normalize(sheet.client);
@@ -29,6 +29,7 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
   const template = selectReference(sheet);
   let header = template.header;
   let widths = [...template.widths];
+  let excelWidths = [...template.excelWidths];
   let heights = [...template.heights];
   let rows: DocumentCell[][] = template.rows.map(row => row.map(c => ({ value: c.v, style: c.s })));
   let merges: Range[] = template.merges.map(m => ({ s: { ...m.s }, e: { ...m.e } }));
@@ -53,8 +54,9 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
   if (pivot && remaining.length) {
     const insert = firstWarehouse + slots * 2;
     const extra = remaining.length * 2;
-    rows = rows.map(row => [...row.slice(0, insert), ...remaining.flatMap(() => row.slice(firstWarehouse, firstWarehouse + 2).map(c => ({ ...c, value: '' }))), ...row.slice(insert)]);
+    rows = rows.map((row, r) => [...row.slice(0, insert), ...remaining.flatMap(() => row.slice(firstWarehouse, firstWarehouse + 2).map(c => ({ ...c, value: r === header ? c.value : '' }))), ...row.slice(insert)]);
     widths.splice(insert, 0, ...remaining.flatMap(() => widths.slice(firstWarehouse, firstWarehouse + 2)));
+    excelWidths.splice(insert, 0, ...remaining.flatMap(() => excelWidths.slice(firstWarehouse, firstWarehouse + 2)));
     merges = merges.map(m => ({ s: { r: m.s.r, c: m.s.c >= insert ? m.s.c + extra : m.s.c }, e: { r: m.e.r, c: m.e.c >= insert ? m.e.c + extra : m.e.c } }));
     remaining.forEach((w, i) => { assigned.push(w); merges.push({ s: { r: header - 1, c: insert + i * 2 }, e: { r: header - 1, c: insert + i * 2 + 1 } }); });
   }
@@ -67,7 +69,7 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
   rows[1][dateCol].value = `Data livrare: ${delivery}${allNrs && template.name.includes('METRO') ? `\nComanda Nr. ${allNrs}` : ''}`;
   if (/Mono|Mixte|EMAG/.test(template.name)) rows[2][dateCol].value = `Nr. Comandă: ${allNrs}`;
   const used = new Set<string>();
-  const candidates = products.map(p => ({ p, lines: sheet.lines.filter(l => l.gramaj === p.weight && sameProduct(l.produs, p.product)) }));
+  const candidates = products.map(p => ({ p, lines: sheet.lines.filter(l => !used.has(l.id) && l.gramaj === p.weight && sameProduct(l.produs, p.product) && (!p.warehouse || warehouseName(l.depozit || '') === warehouseName(p.warehouse))) }));
   candidates.forEach(({ lines }) => lines.forEach(l => used.add(l.id)));
   const unknown = sheet.lines.filter(l => !used.has(l.id));
   const extraGroups = [...new Set(unknown.map(l => `${normalize(l.produs)}|${l.gramaj}`))].map(k => unknown.filter(l => `${normalize(l.produs)}|${l.gramaj}` === k));
@@ -78,7 +80,7 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
     const row = rows[last].map(c => ({ ...c, value: '' }));
     rows.splice(at, 0, row); heights.splice(at, 0, heights[last]);
     merges = merges.map(m => ({ s: { ...m.s, r: m.s.r >= at ? m.s.r + 1 : m.s.r }, e: { ...m.e, r: m.e.r >= at ? m.e.r + 1 : m.e.r } }));
-    const p = { row: at, product: first.produs, weight: first.gramaj || 0 }; products.push(p); candidates.push({ p, lines }); last = at;
+    const p = { row: at, product: first.produs, weight: first.gramaj || 0, warehouse: first.depozit || '' }; products.push(p); candidates.push({ p, lines }); last = at;
   });
   const casesRefs: string[] = [], unitRefs: string[] = [];
   const qty = (ls: OrderLine[]) => ls.reduce((s, l) => s + finalQty(l), 0);
@@ -96,7 +98,8 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
     const nrCol = labels.findIndex(v => v.includes('NR COMANDA'));
     if (nrCol >= 0) row[nrCol].value = [...new Set(lines.map(l => l.nr_comanda).filter(Boolean))].join(', ');
     const indexMerge = merges.find(m => m.s.c === 0 && m.s.r <= r && m.e.r >= r && m.e.c === 0);
-    if (!indexMerge || indexMerge.s.r === r) row[0].value = ++sequence;
+    if (template.name.includes('Image-Profi')) row[0].value = p.warehouse;
+    else if (!indexMerge || indexMerge.s.r === r) row[0].value = ++sequence;
     if (first) {
       [[primaryCol, 'ambalaj_primar'], [endCol, 'ambalaj_tertiar'], [perCaseCol, 'buc_bax']].forEach(([c, field]) => {
         const col = Number(c), key = field as keyof OrderLine;
@@ -145,6 +148,16 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
   const caseCol = labels.findIndex(v => /^(TOTAL BAX|NR BAX|BAX)$/.test(v) && (pivot ? v === 'TOTAL BAX' : true));
   const totalCases = candidates.reduce((s, { p }) => s + (Number(rows[p.row][caseCol].value) || 0), 0);
   const totalUnits = sheet.lines.reduce((s, l) => s + finalQty(l), 0);
+  if (template.name.includes('Image-Profi')) {
+    for (let r = last + 1; r < rows.length; r++) {
+      const name = String(rows[r][productCol]?.value || '');
+      const matching = candidates.filter(({ p }) => sameProduct(p.product, name));
+      if (!matching.length) continue;
+      const units = labels.findIndex(v => v === 'BUCATI'), boxes = labels.findIndex(v => v === 'BAX');
+      formula(r, units, `SUM(${matching.map(({ p }) => ref(p.row, units)).join(',')})`, matching.reduce((s, { lines }) => s + qty(lines), 0));
+      formula(r, boxes, `SUM(${matching.map(({ p }) => ref(p.row, boxes)).join(',')})`, matching.reduce((s, { lines }) => s + cases(lines), 0));
+    }
+  }
   for (let r = last + 1; r < rows.length; r++) {
     if (normalize(rows[r][0]?.value).includes('TOTAL BAX')) {
       formula(r, caseCol, `SUM(${casesRefs.join(',')})`, totalCases);
@@ -167,5 +180,5 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
     cell.rowSpan = m.e.r - m.s.r + 1; cell.colSpan = m.e.c - m.s.c + 1;
     for (let r = m.s.r; r <= m.e.r; r++) for (let c = m.s.c; c <= m.e.c; c++) if (r !== m.s.r || c !== m.s.c) { if (rows[r]?.[c]) rows[r][c].hidden = true; }
   });
-  return { rows, widths, heights, merges, header, templateName: template.name, landscape: template.landscape, products: candidates, totalCases, totalUnits };
+  return { rows, widths, excelWidths, heights, merges, header, templateName: template.name, landscape: template.landscape, products: candidates, totalCases, totalUnits };
 }
