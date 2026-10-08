@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { finalQty, sheetTable, type OrderSheet, type OrderLine } from '@/lib/vanzari/orderSheets';
+import { sheetTable, type OrderSheet, type OrderLine } from '@/lib/vanzari/orderSheets';
 
 type Props = { sheet: OrderSheet; update: (id: string, patch: Partial<OrderLine>) => void; recipeControl: (line: OrderLine) => React.ReactNode };
 export default function OrderSheetTable({ sheet, update, recipeControl }: Props) {
@@ -28,7 +28,7 @@ export default function OrderSheetTable({ sheet, update, recipeControl }: Props)
           const header = table.headers[c];
           const editable = cell.kind === 'modified' && !!cell.lines?.length;
           const packaging = header === 'Ambalaj primar' ? 'ambalaj_primar' : header === 'Ambalaj terțiar / cutie' ? 'ambalaj_tertiar' : header === 'Buc / Bax' ? 'buc_bax' : null;
-          return <td key={c} rowSpan={cell.rowSpan} className={cn('whitespace-nowrap', editable && 'bg-primary/5', sheet.pivot && c >= 6 && c < 6 + sheet.warehouses.length * 3 && 'bg-muted/40')}>
+          return <td key={c} rowSpan={cell.rowSpan} className={cn('whitespace-nowrap', editable && 'bg-primary/5', sheet.pivot && c >= 5 && c < 5 + sheet.warehouses.length * 3 && 'bg-muted/40')}>
             {editable ? <Input aria-label={`${header} ${row.line.produs}`} type="number" min="0" step="1" className="w-32 h-8 font-semibold" key={`${row.key}-${c}-${cell.value}`} defaultValue={cell.value} placeholder={String(cell.lines?.reduce((s, l) => s + l.bucati, 0) || 0)} onBlur={e => setQuantity(cell.lines || [], e.target.value)} />
               : packaging ? <Input aria-label={`${header} ${row.line.produs}`} className={cn('h-8', packaging === 'buc_bax' ? 'w-20' : 'w-60')} key={`${row.key}-${c}-${cell.value}`} defaultValue={cell.value} type={packaging === 'buc_bax' ? 'number' : 'text'} min={packaging === 'buc_bax' ? 1 : undefined} onBlur={e => sheet.lines.filter(l => l.produs === row.line.produs && l.gramaj === row.line.gramaj).forEach(l => update(l.id, { [packaging]: packaging === 'buc_bax' ? Number(e.target.value) || null : e.target.value }))} />
               : <span className={cn('block', header === 'DENUMIRE PRODUS' && 'min-w-[300px]', cell.kind === 'cases' && 'text-right font-medium', cell.kind === 'original' && 'text-right')}>{cell.value}</span>}

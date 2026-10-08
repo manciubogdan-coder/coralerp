@@ -1,5 +1,5 @@
 import XLSXStyle from 'xlsx-js-style';
-import { finalQty, sheetTable, type OrderSheet, type SheetCell } from './orderSheets';
+import { sheetTable, type OrderSheet, type SheetCell } from './orderSheets';
 
 export function orderWorksheet(sheet: OrderSheet, delivery: string) {
   const table = sheetTable(sheet);
@@ -22,7 +22,7 @@ export function orderWorksheet(sheet: OrderSheet, delivery: string) {
       if (cell.rowSpan === 2) merges.push({ s: { r, c }, e: { r: r + 1, c } });
       if (cell.kind !== 'cases') return;
       if (table.headers[c] === 'Total BAX') {
-        const refs = sheet.warehouses.map((_, i) => col(6 + i * 3, r));
+        const refs = sheet.warehouses.map((_, i) => col(5 + i * 3, r));
         setFormula(c, r, `SUM(${refs.join(',')})`, Number(cell.value) || 0);
       } else {
         const original = sheet.pivot ? c + 1 : table.headers.indexOf('Nr. Bucăți');
@@ -33,7 +33,7 @@ export function orderWorksheet(sheet: OrderSheet, delivery: string) {
     });
     if (sheet.pivot) {
       const c = table.headers.indexOf('Total BUC');
-      setFormula(c, r, sheet.warehouses.map((_, i) => finalRef(row.cells, 7 + i * 3, 8 + i * 3, r)).join('+'), Number(row.cells[c]?.value) || 0);
+      setFormula(c, r, sheet.warehouses.map((_, i) => finalRef(row.cells, 6 + i * 3, 7 + i * 3, r)).join('+'), Number(row.cells[c]?.value) || 0);
     }
   });
   const totalRow = 7 + table.rows.length;
@@ -45,7 +45,7 @@ export function orderWorksheet(sheet: OrderSheet, delivery: string) {
   if (table.pallets !== null) {
     if (sheet.mixed) setFormula(caseCol, totalRow + 2, `${col(caseCol, totalRow)}/80`, table.pallets);
     else {
-      const parts = table.rows.flatMap((r, i) => sheet.warehouses.map((_, d) => `${col(6 + d * 3, i + 6)}/${r.line.gramaj === 500 ? 40 : 72}`));
+      const parts = table.rows.flatMap((r, i) => sheet.pivot ? sheet.warehouses.map((_, d) => `${col(5 + d * 3, i + 6)}/${r.line.gramaj === 500 ? 40 : 72}`) : [`${col(caseCol, i + 6)}/${r.line.gramaj === 500 ? 40 : 72}`]);
       setFormula(caseCol, totalRow + 2, parts.join('+') || '0', table.pallets);
     }
   }
@@ -58,7 +58,7 @@ export function orderWorksheet(sheet: OrderSheet, delivery: string) {
   Object.keys(ws).filter(k => !k.startsWith('!')).forEach(k => {
     const { r, c } = XLSXStyle.utils.decode_cell(k);
     const role = table.rows[r - 6]?.cells[c]?.kind;
-    const color = role === 'modified' || role === 'original' ? 'E2F0D9' : sheet.pivot && c >= 6 && c < 6 + sheet.warehouses.length * 3 ? ['DDEBF7', 'FFF2CC', 'FCE4EC'][Math.floor((c - 6) / 3) % 3] : 'FFFFFF';
+    const color = role === 'modified' || role === 'original' ? 'E2F0D9' : sheet.pivot && c >= 5 && c < 5 + sheet.warehouses.length * 3 ? ['DDEBF7', 'FFF2CC', 'FCE4EC'][Math.floor((c - 5) / 3) % 3] : 'FFFFFF';
     ws[k].s = { font: { name: 'Arial', sz: r === 0 ? 16 : 11, bold: r < 6 || r >= totalRow }, alignment: { wrapText: true, vertical: 'center', horizontal: typeof ws[k].v === 'number' ? 'right' : r === 0 ? 'center' : 'left' }, ...(r >= 5 && r < 6 + table.rows.length ? { border: { top: b, bottom: b, left: b, right: b }, fill: { fgColor: { rgb: r === 5 ? 'D9E1F2' : color } } } : {}) };
   });
   ws['!printHeader'] = [1, 6];
