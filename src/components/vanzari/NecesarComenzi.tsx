@@ -70,6 +70,31 @@ async function fetchAll(q: () => any) {
   return out;
 }
 
+
+function printSheet() {
+  const area = document.querySelector('.necesar-print-area') as HTMLElement | null;
+  if (!area) return;
+  const clone = area.cloneNode(true) as HTMLElement;
+  const src = area.querySelectorAll('input, select, textarea');
+  clone.querySelectorAll('input, select, textarea').forEach((el, i) => {
+    const o = src[i] as HTMLInputElement | HTMLSelectElement;
+    const span = document.createElement('span');
+    span.textContent = o instanceof HTMLSelectElement ? (o.selectedOptions[0]?.text ?? '') : o.value;
+    el.replaceWith(span);
+  });
+  clone.querySelectorAll('button').forEach((b) => b.remove());
+  const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]')).map((n) => n.outerHTML).join('');
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(frame);
+  const doc = frame.contentDocument!;
+  doc.open();
+  doc.write(`<!doctype html><html><head><base href="${location.origin}/">${styles}<style>@page{size:landscape;margin:8mm}html,body{background:#fff;margin:0}.necesar-print-area{max-height:none!important;overflow:visible!important}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>${clone.outerHTML}</body></html>`);
+  doc.close();
+  const go = () => { frame.contentWindow!.focus(); frame.contentWindow!.print(); setTimeout(() => frame.remove(), 1000); };
+  setTimeout(go, 500);
+}
+
 export default function NecesarComenzi() {
   const [zi, setZi] = useState(() => format(new Date(Date.now() + 86400000), "yyyy-MM-dd"));
   const [ziProd, setZiProd] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -311,7 +336,7 @@ export default function NecesarComenzi() {
         <div><label className="text-xs text-muted-foreground">Data livrare</label><Input type="date" value={zi} onChange={(e) => setZi(e.target.value)} className="w-40" /></div>
         <div><label className="text-xs text-muted-foreground">Ziua producției (stoc + prerecepții)</label><Input type="date" value={ziProd} onChange={(e) => setZiProd(e.target.value)} className="w-40" /></div>
         <div className="ml-auto flex gap-2">
-          <Button variant="outline" onClick={() => window.print()} disabled={!linii.length}><Printer className="h-4 w-4 mr-1" />Printează</Button>
+          <Button variant="outline" onClick={printSheet} disabled={!linii.length}><Printer className="h-4 w-4 mr-1" />Printează</Button>
           <Button onClick={() => exportExcel(false)} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Export Excel (un fișier)</Button>
           <Button variant="outline" onClick={() => exportExcel(true)} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Fișiere separate pe client</Button>
           <Button variant="outline" onClick={exportCentralizator} disabled={!linii.length}><Download className="h-4 w-4 mr-1" />Centralizator</Button>
