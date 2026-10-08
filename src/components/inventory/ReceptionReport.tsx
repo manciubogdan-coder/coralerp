@@ -85,10 +85,11 @@ type ReportRow = {
   // marker pentru articole lipsă
   is_missing?: boolean;
   missing_id?: string;
+  lot_number?: string;
 };
 
 type ToleranceCfg = { under: number; over: number };
-const DEFAULT_TOLERANCE: ToleranceCfg = { under: 3, over: 105 };
+const DEFAULT_TOLERANCE: ToleranceCfg = { under: 3, over: 100 };
 
 type SupplierGroup = {
   supplierName: string;
@@ -381,16 +382,15 @@ const ReceptionReport: React.FC = () => {
       const { start, end } = getRomaniaDayRange(date);
       const tableName = getInventoryTable(inventoryType);
 
-      const { data: invData, error: invErr } = await (supabase as any)
-        .from(tableName)
-        .select(
-          `id, name, original_quantity, net_quantity, unit, receipt_date, document_number,
+      const baseCols = `id, name, original_quantity, net_quantity, unit, receipt_date, document_number,
            crate_count, crate_type_id, pallet_type_id, pallet_count,
-           supplier_id, supplier_name, manufacturer_id, product_id`
-        )
-        .gte("receipt_date", start)
-        .lte("receipt_date", end)
+           supplier_id, supplier_name, manufacturer_id, product_id`;
+      const runInv = (cols: string) => (supabase as any)
+        .from(tableName).select(cols)
+        .gte("receipt_date", start).lte("receipt_date", end)
         .order("supplier_name", { ascending: true });
+      let { data: invData, error: invErr } = await runInv(`${baseCols}, lot_number`);
+      if (invErr) ({ data: invData, error: invErr } = await runInv(baseCols));
       if (invErr) throw invErr;
       const inv = (invData || []) as InventoryRow[];
 
@@ -478,6 +478,7 @@ const ReceptionReport: React.FC = () => {
           photos: Array.isArray(existing?.photos) ? existing!.photos! : [],
           defects: Array.isArray(existing?.defects) ? existing!.defects! : [],
           observations: existing?.observations ?? "",
+          lot_number: (row as any).lot_number || "",
         });
       });
 
@@ -525,7 +526,7 @@ const ReceptionReport: React.FC = () => {
           ((tolData || []) as any[]).forEach((t) => {
             tolMap.set(t.product_id, {
               under: Number(t.tolerance_under_percent ?? 3),
-              over: Number(t.tolerance_over_kg ?? 105),
+              over: Number(t.tolerance_over_kg ?? 100),
             });
           });
         }
