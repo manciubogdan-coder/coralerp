@@ -292,8 +292,7 @@
 
 /* Print only the active "Comenzi & Necesar" sheet, not the app page */
 @media print {
-  body:has(.necesar-print-area) > *:not(#root),
-  body:has(.necesar-print-area) #root * {
+  .necesar-print-disabled {
     visibility: hidden;
   }
   .necesar-print-area,
