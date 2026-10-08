@@ -23,12 +23,15 @@ export function selectReference(sheet: OrderSheet) {
     const profi = client.includes('PROFI') || sheet.lines.some(l => /MAMMAMIA|ARMONIA/.test(normalize(l.produs)));
     return all.find(t => t.name.includes(profi ? 'Image-Profi' : 'Stefanesti')) || all[0];
   }
-  return all.find(t => normalize(t.name).includes(client.split(' ')[0])) || (client.includes('FRESHFUL') ? all.find(t => t.name.includes('EMAG')) : null) || all[0];
+  return all.find(t => normalize(t.name).includes(client.split(' ')[0])) || (client.includes('FRESHFUL') ? all.find(t => t.name.includes('EMAG')) : null) || null;
 }
+const genericTemplate = () => templates.find(t => t.name.includes('METRO')) || templates[0];
 const ref = (r: number, c: number) => { let n = c + 1, name = ''; while (n > 0) { n--; name = String.fromCharCode(65 + n % 26) + name; n = Math.floor(n / 26); } return `${name}${r + 1}`; };
 
 export function orderDocument(sheet: OrderSheet, delivery: string) {
-  const template = selectReference(sheet);
+  const matched = selectReference(sheet);
+  const generic = !matched;
+  const template = matched || genericTemplate();
   let header = template.header;
   let widths = [...template.widths];
   // Older template metadata only stored pixel widths; keep those templates usable.
@@ -42,6 +45,19 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
   let rows: DocumentCell[][] = template.rows.map(row => row.map(c => ({ value: c.v, style: c.s })));
   let merges: Range[] = template.merges.map(m => ({ s: { ...m.s }, e: { ...m.e } }));
   let products = template.products.map(p => ({ ...p }));
+  // Clients without their own model reuse the standard layout with only their own lines.
+  let genericSeed = -1;
+  if (generic && products.length) {
+    const productRows = [...new Set(products.map(p => p.row))].sort((a, b) => b - a);
+    genericSeed = Math.min(...productRows);
+    productRows.filter(r => r !== genericSeed).forEach(r => {
+      rows.splice(r, 1); heights.splice(r, 1);
+      merges = merges.filter(m => !(m.s.r === r && m.e.r === r)).map(m => ({ s: { ...m.s, r: m.s.r > r ? m.s.r - 1 : m.s.r }, e: { ...m.e, r: m.e.r >= r ? m.e.r - 1 : m.e.r } }));
+    });
+    products = [];
+    const name = String(sheet.client || '').toUpperCase();
+    rows.slice(0, header).forEach(row => row.forEach(c => { if (typeof c.value === 'string' && /METRO/i.test(c.value)) c.value = c.value.replace(/METRO( ROMANIA)?/gi, name); }));
+  }
   const titles = () => rows[header].map(c => normalize(c.value));
   let labels = titles();
   let productCol = labels.findIndex(v => v.includes('DENUMIRE'));
@@ -81,7 +97,7 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
   candidates.forEach(({ lines }) => lines.forEach(l => used.add(l.id)));
   const unknown = sheet.lines.filter(l => !used.has(l.id));
   const extraGroups = [...new Set(unknown.map(l => `${normalize(l.produs)}|${l.gramaj}`))].map(k => unknown.filter(l => `${normalize(l.produs)}|${l.gramaj}` === k));
-  let last = Math.max(...products.map(p => p.row));
+  let last = genericSeed >= 0 ? genericSeed : Math.max(...products.map(p => p.row));
   extraGroups.forEach(lines => {
     const first = lines[0]; if (!first) return;
     const at = last + 1;
@@ -90,6 +106,12 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
     merges = merges.map(m => ({ s: { ...m.s, r: m.s.r >= at ? m.s.r + 1 : m.s.r }, e: { ...m.e, r: m.e.r >= at ? m.e.r + 1 : m.e.r } }));
     const p = { row: at, product: first.produs, weight: first.gramaj || 0, warehouse: first.depozit || '' }; products.push(p); candidates.push({ p, lines }); last = at;
   });
+  if (genericSeed >= 0) {
+    const r = genericSeed;
+    rows.splice(r, 1); heights.splice(r, 1);
+    merges = merges.filter(m => !(m.s.r === r && m.e.r === r)).map(m => ({ s: { ...m.s, r: m.s.r > r ? m.s.r - 1 : m.s.r }, e: { ...m.e, r: m.e.r >= r ? m.e.r - 1 : m.e.r } }));
+    products.forEach(p => { if (p.row > r) p.row--; });
+  }
   const casesRefs: string[] = [], unitRefs: string[] = [];
   const qty = (ls: OrderLine[]) => ls.reduce((s, l) => s + finalQty(l), 0);
   const cases = (ls: OrderLine[]) => ls.reduce((s, l) => s + (l.buc_bax ? Math.ceil(finalQty(l) / l.buc_bax) : 0), 0);
