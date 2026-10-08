@@ -3,7 +3,7 @@ import { finalQty, normalize, type OrderLine, type OrderSheet } from './orderShe
 
 export type DocumentCell = { value: string | number; style: number; formula?: string; lines?: OrderLine[]; field?: keyof OrderLine | 'final'; rowSpan?: number; colSpan?: number; hidden?: boolean };
 type Range = { s: { r: number; c: number }; e: { r: number; c: number } };
-type ReferenceTemplate = { name: string; rows: { v: string; s: number }[][]; header: number; products: { row: number; product: string; weight: number; warehouse: string }[]; merges: Range[]; widths: number[]; excelWidths: number[]; heights: number[]; landscape: boolean };
+type ReferenceTemplate = { name: string; rows: { v: string; s: number }[][]; header: number; products: { row: number; product: string; weight: number; warehouse?: string }[]; merges: Range[]; widths: number[]; excelWidths?: number[]; heights: number[]; landscape: boolean };
 const templates = reference.templates as unknown as ReferenceTemplate[];
 export const referenceStyles = reference.styles;
 const clean = (v: string) => normalize(v).replace(/\b(SALATA|SALATE|MIX|FRESHFUL|BY)\b/g, '').replace(/\s+/g, ' ').trim();
@@ -31,7 +31,13 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
   const template = selectReference(sheet);
   let header = template.header;
   let widths = [...template.widths];
-  let excelWidths = [...template.excelWidths];
+  // Older template metadata only stored pixel widths; keep those templates usable.
+  let excelWidths = widths.map((width, column) => {
+    const original = Array.isArray(template.excelWidths) ? template.excelWidths[column] : undefined;
+    return typeof original === 'number' && Number.isFinite(original) && original > 0
+      ? original
+      : Math.max(1, (width - 5) / 7);
+  });
   let heights = [...template.heights];
   let rows: DocumentCell[][] = template.rows.map(row => row.map(c => ({ value: c.v, style: c.s })));
   let merges: Range[] = template.merges.map(m => ({ s: { ...m.s }, e: { ...m.e } }));
