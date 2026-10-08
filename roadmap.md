@@ -3,3 +3,4 @@
 
 - [x] Operator: câmp căutare produs/magazin (individual + grupat + pagina principală)
 - [x] Ambalaje: stoc tuburi folie
+- [ ] Comenzi & Necesar: tabele și export după modelele standardizate, cantitate modificată, depozite pe coloane și Lidl mono/mixte.
