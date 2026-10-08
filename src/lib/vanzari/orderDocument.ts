@@ -6,8 +6,15 @@ type Range = { s: { r: number; c: number }; e: { r: number; c: number } };
 type ReferenceTemplate = { name: string; rows: { v: string; s: number }[][]; header: number; products: { row: number; product: string; weight: number; warehouse?: string }[]; merges: Range[]; widths: number[]; excelWidths?: number[]; heights: number[]; landscape: boolean };
 const templates = reference.templates as unknown as ReferenceTemplate[];
 export const referenceStyles = reference.styles;
-const clean = (v: string) => normalize(v).replace(/\b(SALATA|SALATE|MIX|FRESHFUL|BY)\b/g, '').replace(/\s+/g, ' ').trim();
-const sameProduct = (a: string, b: string) => clean(a) === clean(b);
+const synonyms: Record<string, string> = { CHIVAS: 'CHIVES', SPANAC: 'SPANAC', ARUGULA: 'RUCOLA' };
+const clean = (v: string) => normalize(v).replace(/\b(SALATA|SALATE|MIX|FRESHFUL|BY|CAS|CASOLETA|CASOLETE|PUNGA|GR|G)\b/g, '').replace(/\b\d+\b/g, '').split(' ').filter(Boolean).map(t => synonyms[t] || t).sort().join(' ');
+// Customer PDFs abbreviate names ("MISTICANZA EXOT", "SPANAC BABY CAS."), so compare tokens order-free with prefix tolerance.
+const sameProduct = (a: string, b: string) => {
+  const x = clean(a).split(' ').filter(Boolean), y = clean(b).split(' ').filter(Boolean);
+  if (!x.length || x.length !== y.length) return x.join(' ') === y.join(' ');
+  const rest = [...y];
+  return x.every(t => { const i = rest.findIndex(u => u === t || (Math.min(t.length, u.length) >= 4 && (u.startsWith(t) || t.startsWith(u)))); if (i < 0) return false; rest.splice(i, 1); return true; });
+};
 const warehouseName = (s: string) => normalize(s).replace(/DEPOZIT|PLATFORMA|ARICESTII|ARICESTI/g, s.includes('ARIC') ? 'ARICESTI' : '').trim();
 export function selectReference(sheet: OrderSheet) {
   const client = normalize(sheet.client);
@@ -133,7 +140,7 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
     if (first) {
       [[primaryCol, 'ambalaj_primar'], [endCol, 'ambalaj_tertiar'], [perCaseCol, 'buc_bax']].forEach(([c, field]) => {
         const col = Number(c), key = field as keyof OrderLine;
-        if (col >= 0) row[col] = { ...row[col], value: first[key] ?? '', lines, field: key };
+        if (col >= 0) row[col] = { ...row[col], value: first[key] || row[col].value || '', lines, field: key };
       });
     }
     const unitCell = (col: number, ls: OrderLine[], modified: number) => {
