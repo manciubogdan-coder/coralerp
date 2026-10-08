@@ -140,7 +140,7 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
     if (first) {
       [[primaryCol, 'ambalaj_primar'], [endCol, 'ambalaj_tertiar'], [perCaseCol, 'buc_bax']].forEach(([c, field]) => {
         const col = Number(c), key = field as keyof OrderLine;
-        if (col >= 0) row[col] = { ...row[col], value: first[key] ?? '', lines, field: key };
+        if (col >= 0) row[col] = { ...row[col], value: first[key] || row[col].value || '', lines, field: key };
       });
     }
     const unitCell = (col: number, ls: OrderLine[], modified: number) => {
