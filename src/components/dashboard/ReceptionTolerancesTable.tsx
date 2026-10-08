@@ -17,7 +17,7 @@ type ToleranceRow = {
 };
 
 const DEFAULT_UNDER = 3;
-const DEFAULT_OVER = 105;
+const DEFAULT_OVER = 100;
 
 const getProductTable = (t: string) =>
   t === "ambalaje" ? "ambalaje_products" : t === "etichete" ? "etichete_products" : "products";
