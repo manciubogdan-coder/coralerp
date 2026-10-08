@@ -378,7 +378,7 @@ export default function NecesarComenzi() {
               (() => {
                 const current = orderSheets.find(s => s.key === sheet);
                 if (!current) return null;
-                return <OrderSheetTable sheet={current} update={(id, patch) => updateLinie(id, patch as Partial<Linie>)} recipeControl={(line) => {
+                return <OrderSheetTable sheet={current} delivery={format(new Date(zi), 'dd.MM.yyyy')} update={(id, patch) => updateLinie(id, patch as Partial<Linie>)} recipeControl={(line) => {
                   const original = linii.find(l => l.id === line.id);
                   if (!original) return null;
                   const r = matchRecipe(original);
