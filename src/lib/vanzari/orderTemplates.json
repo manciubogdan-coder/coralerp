@@ -1,0 +1,1282 @@
+[
+  {
+    "name": "Comanda METRO Romania",
+    "products": [
+      {
+        "produs": "RUCOLA",
+        "gramaj": 200,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 6
+      },
+      {
+        "produs": "BABY SPANAC",
+        "gramaj": 200,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 6
+      },
+      {
+        "produs": "VALERIANA",
+        "gramaj": 200,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 6
+      },
+      {
+        "produs": "SALATA SICILIANA",
+        "gramaj": 500,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA ORIENTAL MIX",
+        "gramaj": 200,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 6
+      },
+      {
+        "produs": "SALATA MOZAIC",
+        "gramaj": 500,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA MOZAIC",
+        "gramaj": 200,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 8
+      },
+      {
+        "produs": "SALATA MISTICANZA EXOTIC",
+        "gramaj": 200,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 6
+      },
+      {
+        "produs": "SALATA CROCANTA",
+        "gramaj": 200,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 8
+      },
+      {
+        "produs": "SALATA CROCANTA",
+        "gramaj": 500,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA SICILIANA",
+        "gramaj": 200,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 6
+      },
+      {
+        "produs": "SALATA PRIMAVARA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii salate Metro natur",
+        "bucBax": 6
+      },
+      {
+        "produs": "MENTA",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "BUSUIOC",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "ROZMARIN",
+        "gramaj": 30,
+        "primar": "cas arom. mici",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "CHIVES",
+        "gramaj": 30,
+        "primar": "cas arom. mici",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALVIE",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "CORIANDRU",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "CIMBRU",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "TARHON",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "OREGANO",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "CIMBRU",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii 4 Mixte",
+        "bucBax": 4
+      },
+      {
+        "produs": "ROZMARIN",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii 4 Mixte",
+        "bucBax": 4
+      }
+    ],
+    "notes": [
+      "Cutii Salate Metro natur :  Palet industrial / non euro   |   Fixare: folie + chinga"
+    ]
+  },
+  {
+    "name": "Comanda Carrefour CEFIN",
+    "products": [
+      {
+        "produs": "RUCOLA",
+        "gramaj": 125,
+        "primar": "cas 900",
+        "tertiar": "Cutii PAV",
+        "bucBax": 4
+      },
+      {
+        "produs": "BABY SPANAC",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii PAV",
+        "bucBax": 4
+      },
+      {
+        "produs": "FETICA (Valeriana)",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii PAV",
+        "bucBax": 4
+      },
+      {
+        "produs": "BABY BATAVIA",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii PAV",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA BELLEZA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "BUSUIOC",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii PAV aromate",
+        "bucBax": 4
+      },
+      {
+        "produs": "ROZMARIN",
+        "gramaj": 30,
+        "primar": "cas arom. mici",
+        "tertiar": "Cutii PAV aromate",
+        "bucBax": 4
+      },
+      {
+        "produs": "CHIVES",
+        "gramaj": 30,
+        "primar": "cas arom. mici",
+        "tertiar": "Cutii PAV aromate",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALVIE",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii PAV aromate",
+        "bucBax": 4
+      },
+      {
+        "produs": "CORIANDRU",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii PAV aromate",
+        "bucBax": 4
+      },
+      {
+        "produs": "CIMBRU",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii PAV aromate",
+        "bucBax": 4
+      },
+      {
+        "produs": "TARHON",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii PAV aromate",
+        "bucBax": 4
+      },
+      {
+        "produs": "MENTA",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii PAV aromate",
+        "bucBax": 4
+      },
+      {
+        "produs": "OREGANO",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii PAV aromate",
+        "bucBax": 4
+      }
+    ],
+    "notes": []
+  },
+  {
+    "name": "Comanda Auchan",
+    "products": [
+      {
+        "produs": "SALATA PRUT",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "SALATA ATLANTIC",
+        "gramaj": 100,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "SALATA MARA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "SALATA COLESLAW",
+        "gramaj": 300,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "JULIEN MIX",
+        "gramaj": 200,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "SALATA MAMMAMIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "SALATA ARMONIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "CORIANDRU",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 6
+      },
+      {
+        "produs": "MENTA",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 6
+      },
+      {
+        "produs": "BUSUIOC",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 6
+      },
+      {
+        "produs": "CIMBRU",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 6
+      },
+      {
+        "produs": "ROZMARIN",
+        "gramaj": 30,
+        "primar": "cas arom. mici",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 6
+      },
+      {
+        "produs": "TARHON",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 6
+      },
+      {
+        "produs": "CHIVES",
+        "gramaj": 30,
+        "primar": "cas arom. mici",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 6
+      },
+      {
+        "produs": "OREGANO",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 6
+      }
+    ],
+    "notes": []
+  },
+  {
+    "name": "Comanda Selgros",
+    "products": [
+      {
+        "produs": "RUCOLA",
+        "gramaj": 125,
+        "primar": "cas 900",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "BABY SPANAC",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "VALERIANA",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "BUSUIOC",
+        "gramaj": 500,
+        "primar": "gastro mare",
+        "tertiar": "Cutii spanac",
+        "bucBax": 1
+      },
+      {
+        "produs": "BABY SPANAC",
+        "gramaj": 500,
+        "primar": "gastro mare",
+        "tertiar": "Cutii spanac",
+        "bucBax": 1
+      },
+      {
+        "produs": "RUCOLA",
+        "gramaj": 500,
+        "primar": "gastro mare",
+        "tertiar": "Cutii spanac",
+        "bucBax": 1
+      },
+      {
+        "produs": "VALERIANA",
+        "gramaj": 500,
+        "primar": "gastro mare",
+        "tertiar": "Cutii spanac",
+        "bucBax": 1
+      },
+      {
+        "produs": "CORIANDRU",
+        "gramaj": 70,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "CIMBRU",
+        "gramaj": 70,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "TARHON",
+        "gramaj": 70,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "BUSUIOC",
+        "gramaj": 70,
+        "primar": "cas 900",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "MENTA",
+        "gramaj": 70,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "MENTA",
+        "gramaj": 500,
+        "primar": "gastro mare",
+        "tertiar": "Cutii spanac",
+        "bucBax": 1
+      },
+      {
+        "produs": "SPANAC",
+        "gramaj": 400,
+        "primar": "punga",
+        "tertiar": "Cutii spanac",
+        "bucBax": 7
+      },
+      {
+        "produs": "TGQ CIMBRU",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "TGQ CHIVES",
+        "gramaj": 30,
+        "primar": "cas arom. mici",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "TGQ CORIANDRU",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "TGQ BUSUIOC",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "TGQ ROZMARIN",
+        "gramaj": 250,
+        "primar": "gastro mic",
+        "tertiar": "Cutii spanac",
+        "bucBax": 1
+      },
+      {
+        "produs": "TGQ CIMBRU",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "TGQ CORIANDRU",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "TGQ ROZMARIN",
+        "gramaj": 30,
+        "primar": "cas arom. mici",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "TGQ BUSUIOC",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "TGQ TARHON",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "TGQ MENTA",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "TGQ OREGANO",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "TGQ MENTA",
+        "gramaj": 250,
+        "primar": "gastro mare",
+        "tertiar": "Cutii spanac",
+        "bucBax": 1
+      },
+      {
+        "produs": "TGQ SALVIE",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      }
+    ],
+    "notes": []
+  },
+  {
+    "name": "Comanda Mega Image Stefanesti",
+    "products": [
+      {
+        "produs": "BABY SPANAC",
+        "gramaj": 100,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "RUCOLA",
+        "gramaj": 100,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "BUSUIOC",
+        "gramaj": 15,
+        "primar": "cas Kraft",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      },
+      {
+        "produs": "CHIVES",
+        "gramaj": 15,
+        "primar": "cas Kraft",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      },
+      {
+        "produs": "CIMBRU",
+        "gramaj": 15,
+        "primar": "cas Kraft",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      },
+      {
+        "produs": "CORIANDRU",
+        "gramaj": 15,
+        "primar": "cas Kraft",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      },
+      {
+        "produs": "MENTA",
+        "gramaj": 15,
+        "primar": "cas Kraft",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      },
+      {
+        "produs": "OREGANO",
+        "gramaj": 15,
+        "primar": "cas Kraft",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      },
+      {
+        "produs": "ROZMARIN",
+        "gramaj": 15,
+        "primar": "cas Kraft",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      }
+    ],
+    "notes": []
+  },
+  {
+    "name": "Comanda Mega Image-Profi",
+    "products": [
+      {
+        "produs": "SALATA MAMMAMIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii salate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA ARMONIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii salate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA MAMMAMIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii salate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA ARMONIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii salate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA MAMMAMIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii salate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA ARMONIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii salate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA MAMMAMIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii salate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA ARMONIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii salate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA MAMMAMIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii salate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "SALATA ARMONIA",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii salate 4",
+        "bucBax": 4
+      }
+    ],
+    "notes": []
+  },
+  {
+    "name": "Comanda Kaufland",
+    "products": [
+      {
+        "produs": "Salata Atlantic",
+        "gramaj": 100,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "Salata Mammamia",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "Salata Prut",
+        "gramaj": 150,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "Busuioc",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      },
+      {
+        "produs": "Cimbru",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      },
+      {
+        "produs": "Menta",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      },
+      {
+        "produs": "Rozmarin",
+        "gramaj": 30,
+        "primar": "cas arom. mici",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      },
+      {
+        "produs": "Coriandru",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii Mod 500",
+        "bucBax": 6
+      },
+      {
+        "produs": "Salata Rucola",
+        "gramaj": 125,
+        "primar": "cas 900",
+        "tertiar": "ESP",
+        "bucBax": 12
+      },
+      {
+        "produs": "Salata Valeriana",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "ESP",
+        "bucBax": 12
+      },
+      {
+        "produs": "Spanac",
+        "gramaj": 400,
+        "primar": "punga",
+        "tertiar": "ESP",
+        "bucBax": 5
+      },
+      {
+        "produs": "Spanac Baby",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "ESP",
+        "bucBax": 12
+      }
+    ],
+    "notes": []
+  },
+  {
+    "name": "Comanda EMAG",
+    "products": [
+      {
+        "produs": "Salată Atlantic",
+        "gramaj": 100,
+        "primar": "punga",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "Baby Spanac",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "Rucola",
+        "gramaj": 125,
+        "primar": "cas 900",
+        "tertiar": "Cutii mixte 6",
+        "bucBax": 6
+      },
+      {
+        "produs": "Busuioc",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "Cimbru",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "Rozmarin",
+        "gramaj": 30,
+        "primar": "cas arom. mici",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "Coriandru",
+        "gramaj": 30,
+        "primar": "cas arom. mari",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      },
+      {
+        "produs": "Chives",
+        "gramaj": 30,
+        "primar": "cas arom. mici",
+        "tertiar": "Cutii aromate 4",
+        "bucBax": 4
+      }
+    ],
+    "notes": []
+  },
+  {
+    "name": "Salate Mixte ARI",
+    "products": [
+      {
+        "produs": "Mix salata Prestigio",
+        "gramaj": 160,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 8
+      },
+      {
+        "produs": "Lupino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Amorino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      },
+      {
+        "produs": "Silhouette",
+        "gramaj": 140,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Primavera",
+        "gramaj": 120,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      }
+    ],
+    "notes": [
+      "Tip palet : Euro          |          Fixare palet : coltar + chinga",
+      "Cutii Lidl M :  8 rânduri / palet   |   10 straturi / palet   |   80 bax / palet"
+    ]
+  },
+  {
+    "name": "Salate Mixte CHI",
+    "products": [
+      {
+        "produs": "Mix salata Prestigio",
+        "gramaj": 160,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 8
+      },
+      {
+        "produs": "Lupino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Amorino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      },
+      {
+        "produs": "Silhouette",
+        "gramaj": 140,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Primavera",
+        "gramaj": 120,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      }
+    ],
+    "notes": [
+      "Tip palet : Euro          |          Fixare palet : coltar + chinga",
+      "Cutii Lidl M :  8 rânduri / palet   |   10 straturi / palet   |   80 bax / palet"
+    ]
+  },
+  {
+    "name": "Salate Mixte FUN",
+    "products": [
+      {
+        "produs": "Mix salata Prestigio",
+        "gramaj": 160,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 8
+      },
+      {
+        "produs": "Lupino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Amorino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      },
+      {
+        "produs": "Silhouette",
+        "gramaj": 140,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Primavera",
+        "gramaj": 120,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      }
+    ],
+    "notes": [
+      "Tip palet : Euro          |          Fixare palet : coltar + chinga",
+      "Cutii Lidl M :  8 rânduri / palet   |   10 straturi / palet   |   80 bax / palet"
+    ]
+  },
+  {
+    "name": "Salate Mixte ROM",
+    "products": [
+      {
+        "produs": "Mix salata Prestigio",
+        "gramaj": 160,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 8
+      },
+      {
+        "produs": "Lupino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Amorino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      },
+      {
+        "produs": "Silhouette",
+        "gramaj": 140,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Primavera",
+        "gramaj": 120,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      }
+    ],
+    "notes": [
+      "Tip palet : Euro          |          Fixare palet : coltar + chinga",
+      "Cutii Lidl M :  8 rânduri / palet   |   10 straturi / palet   |   80 bax / palet"
+    ]
+  },
+  {
+    "name": "Salate Mixte IER",
+    "products": [
+      {
+        "produs": "Mix salata Prestigio",
+        "gramaj": 160,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 8
+      },
+      {
+        "produs": "Lupino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Amorino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      },
+      {
+        "produs": "Silhouette",
+        "gramaj": 140,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Primavera",
+        "gramaj": 120,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      }
+    ],
+    "notes": [
+      "Tip palet : Euro          |          Fixare palet : coltar + chinga",
+      "Cutii Lidl M :  8 rânduri / palet   |   10 straturi / palet   |   80 bax / palet"
+    ]
+  },
+  {
+    "name": "Salate Mixte LUG",
+    "products": [
+      {
+        "produs": "Mix salata Prestigio",
+        "gramaj": 160,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 8
+      },
+      {
+        "produs": "Lupino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Amorino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      },
+      {
+        "produs": "Silhouette",
+        "gramaj": 140,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Primavera",
+        "gramaj": 120,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      }
+    ],
+    "notes": [
+      "Tip palet : Euro          |          Fixare palet : coltar + chinga",
+      "Cutii Lidl M :  8 rânduri / palet   |   10 straturi / palet   |   80 bax / palet"
+    ]
+  },
+  {
+    "name": "Salate Mixte IER 03.10",
+    "products": [
+      {
+        "produs": "Mix salata Prestigio",
+        "gramaj": 160,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 8
+      },
+      {
+        "produs": "Lupino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Amorino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      },
+      {
+        "produs": "Silhouette",
+        "gramaj": 140,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Primavera",
+        "gramaj": 120,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      }
+    ],
+    "notes": [
+      "Tip palet : Euro          |          Fixare palet : coltar + chinga",
+      "Cutii Lidl M :  8 rânduri / palet   |   10 straturi / palet   |   80 bax / palet"
+    ]
+  },
+  {
+    "name": "Salate Mixte IER 05.10",
+    "products": [
+      {
+        "produs": "Mix salata Prestigio",
+        "gramaj": 160,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 8
+      },
+      {
+        "produs": "Lupino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Amorino",
+        "gramaj": 200,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      },
+      {
+        "produs": "Silhouette",
+        "gramaj": 140,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 6
+      },
+      {
+        "produs": "Primavera",
+        "gramaj": 120,
+        "primar": "folie\npersonalizata",
+        "tertiar": "Cutii Lidl M + capac",
+        "bucBax": 2
+      }
+    ],
+    "notes": [
+      "Tip palet : Euro          |          Fixare palet : coltar + chinga",
+      "Cutii Lidl M :  8 rânduri / palet   |   10 straturi / palet   |   80 bax / palet"
+    ]
+  },
+  {
+    "name": "Salate Mono ROM IER LUG",
+    "products": [
+      {
+        "produs": "Rucola",
+        "gramaj": 125,
+        "primar": "cas 900",
+        "tertiar": "Cutii Salate Lidl Bio",
+        "bucBax": 8
+      },
+      {
+        "produs": "Salata Mixta",
+        "gramaj": 125,
+        "primar": "cas 900",
+        "tertiar": "Cutii Salate Lidl Bio",
+        "bucBax": 8
+      },
+      {
+        "produs": "Baby Spanac",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii Salate Lidl Bio",
+        "bucBax": 8
+      },
+      {
+        "produs": "Spanac",
+        "gramaj": 500,
+        "primar": "folie microperforata",
+        "tertiar": "Cutii spanac mare Lidl",
+        "bucBax": 5
+      },
+      {
+        "produs": "BIO Baby Spanac",
+        "gramaj": 100,
+        "primar": "cas 900",
+        "tertiar": "Cutii Salate Lidl Bio",
+        "bucBax": 8
+      }
+    ],
+    "notes": [
+      "Tip palet : Euro          |          Fixare palet : coltar + chinga",
+      "Cutii Salate Lidl Bio :  4 rânduri / palet   |   18 straturi / palet   |   72 bax / palet",
+      "Cutii spanac mare Lidl :  4 rânduri / palet   |   10 straturi / palet   |   40 bax / palet"
+    ]
+  }
+]
