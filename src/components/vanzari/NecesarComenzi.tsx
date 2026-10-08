@@ -12,6 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { makeSheets, withTemplatePack } from "@/lib/vanzari/orderSheets";
+import { orderWorkbook } from "@/lib/vanzari/orderWorkbook";
+import OrderSheetTable from "./OrderSheetTable";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 
@@ -48,7 +51,9 @@ async function fileToPayload(file: File) {
     const vp = page.getViewport({ scale: 1.6 });
     const c = document.createElement("canvas");
     c.width = vp.width; c.height = vp.height;
-    await page.render({ canvasContext: c.getContext("2d")!, viewport: vp }).promise;
+    const context = c.getContext("2d");
+    if (!context) throw new Error("Nu se poate citi pagina PDF");
+    await page.render({ canvasContext: context, viewport: vp }).promise;
     images.push(c.toDataURL("image/jpeg", 0.75));
   }
   return { text: text.trim().length > 50 ? text : "", images };
@@ -80,12 +85,14 @@ export default function NecesarComenzi() {
   const [detail, setDetail] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [d, l] = await Promise.all([
-      supabaseCloud.from("vanzari_necesar_documente").select("*").eq("zi", zi).order("created_at"),
-      supabaseCloud.from("vanzari_necesar_linii").select("*").eq("zi", zi).order("position"),
-    ]);
-    setDocs((d.data as Doc[]) || []);
-    setLinii((l.data as Linie[]) || []);
+    try {
+      const [d, l] = await Promise.all([
+        fetchAll(() => supabaseCloud.from("vanzari_necesar_documente").select("*").eq("zi", zi).order("created_at").order("id")),
+        fetchAll(() => supabaseCloud.from("vanzari_necesar_linii").select("*").eq("zi", zi).order("position").order("id")),
+      ]);
+      setDocs(d as Doc[]);
+      setLinii(l as Linie[]);
+    } catch (e: any) { toast.error("Nu am putut încărca comenzile: " + e.message); }
   }, [zi]);
   useEffect(() => { load(); }, [load]);
 
@@ -161,7 +168,8 @@ export default function NecesarComenzi() {
       ings.forEach((i) => {
         const k = norm(i.nume);
         if (!map.has(k)) map.set(k, { nume: i.nume, necesar: 0, uses: [] });
-        const e = map.get(k)!;
+        const e = map.get(k);
+        if (!e) return;
         e.necesar += i.qtyKg * Math.max(0, l.bucati - l.taiat);
         e.uses.push({ l, kgPerBuc: i.qtyKg });
       });
@@ -172,6 +180,9 @@ export default function NecesarComenzi() {
     }).sort((a, b) => a.dif - b.dif);
     return { rows, nomatch };
   }, [linii, matchRecipe, stock, inbound]);
+
+  const orderSheets = useMemo(() => makeSheets(linii), [linii]);
+  useEffect(() => { if (sheet !== "__balanta" && !orderSheets.some(s => s.key === sheet)) setSheet("__balanta"); }, [orderSheets, sheet]);
 
   const clients = useMemo(() => [...new Set(linii.map((l) => l.client))].sort(), [linii]);
 
@@ -197,7 +208,7 @@ export default function NecesarComenzi() {
           const base: any = { document_id: doc.id, zi, client, depozit: x.depozit, nr_comanda: x.nr_comanda || res.nr_comanda, produs: String(x.produs).toUpperCase(), gramaj: x.gramaj, bucati: Number(x.bucati), taiat: 0, buc_bax: x.buc_bax, position: i };
           const pk = matchPack(base);
           if (pk) { base.ambalaj_primar = pk.primary_packaging; base.ambalaj_tertiar = pk.tertiary_packaging; base.buc_bax = base.buc_bax || Number(pk.units_per_case) || null; }
-          return base;
+          return withTemplatePack(base);
         });
         if (rows.length) { const { error: e2 } = await supabaseCloud.from("vanzari_necesar_linii").insert(rows); if (e2) throw e2; }
         toast.success(`${file.name}: ${client}, ${rows.length} produse`);
@@ -211,43 +222,12 @@ export default function NecesarComenzi() {
   const deleteDoc = async (id: string) => { await supabaseCloud.from("vanzari_necesar_documente").delete().eq("id", id); load(); };
 
   const exportExcel = async (separate = false) => {
-    const b = { style: "thin", color: { rgb: "000000" } };
-    const border = { top: b, bottom: b, left: b, right: b };
     const dLivr = format(new Date(zi), "dd.MM.yyyy");
-    const files: { name: string; data: ArrayBuffer }[] = [];
-    const wbAll = XLSXStyle.utils.book_new();
-    clients.forEach((c) => {
-      const ls = linii.filter((l) => l.client === c);
-      const hasDep = ls.some((l) => l.depozit);
-      const nrs = [...new Set(ls.map((l) => l.nr_comanda).filter(Boolean))].join(", ");
-      const head = ["Nr.\ncrt", ...(hasDep ? ["Depozit"] : []), "Nr.\nComandă", "DENUMIRE PRODUS", "Gramaj\n(g)", "Nr.\nBucăți", "Ambalaj\nprimar", "Buc /\nBax", "Nr.\nBAX", "Ambalaj tertiar /\ncutie"];
-      const aoa: any[][] = [[`COMANDA   ${c}`], [c, `Data livrare: ${dLivr}${nrs ? `\nComanda Nr. ${nrs}` : ""}`], [], ["Furnizor: CORAL BIOGREENS SRL"], [], head];
-      ls.forEach((l, i) => {
-        const f = Math.max(0, l.bucati - l.taiat);
-        aoa.push([i + 1, ...(hasDep ? [l.depozit || ""] : []), l.nr_comanda || "", l.produs, l.gramaj ?? "", f, l.ambalaj_primar || "", l.buc_bax ?? "", l.buc_bax ? Math.round((f / l.buc_bax) * 100) / 100 : "", l.ambalaj_tertiar || ""]);
-      });
-      aoa.push([], ["", ...(hasDep ? [""] : []), "", "TOTAL", "", ls.reduce((s, l) => s + Math.max(0, l.bucati - l.taiat), 0)]);
-      const ws = XLSXStyle.utils.aoa_to_sheet(aoa);
-      const n = head.length;
-      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: n - 1 } }, { s: { r: 1, c: 1 }, e: { r: 1, c: n - 1 } }];
-      ws["!cols"] = head.map((h) => ({ wch: h.includes("DENUMIRE") ? 30 : h.includes("tertiar") ? 22 : h === "Depozit" ? 18 : 10 }));
-      ws["!rows"] = [{ hpt: 28 }, { hpt: 30 }, {}, {}, {}, { hpt: 32 }];
-      Object.keys(ws).forEach((k) => {
-        if (k.startsWith("!")) return;
-        const { r } = XLSXStyle.utils.decode_cell(k);
-        const cell = ws[k];
-        if (r === 0) cell.s = { font: { bold: true, sz: 16, name: "Arial" }, alignment: { horizontal: "center" } };
-        else if (r === 1) cell.s = { font: { bold: true, sz: 12, name: "Arial" }, alignment: { wrapText: true } };
-        else if (r === 5) cell.s = { font: { bold: true, name: "Arial" }, fill: { fgColor: { rgb: "D9E1F2" } }, border, alignment: { horizontal: "center", vertical: "center", wrapText: true } };
-        else if (r > 5 && r < 6 + ls.length) cell.s = { font: { name: "Arial" }, border, alignment: { vertical: "center" } };
-        else cell.s = { font: { name: "Arial", bold: r > 5 } };
-      });
-      const sheetName = `Comanda ${c}`.slice(0, 31).replace(/[\\/?*\[\]:]/g, " ");
-      const wb = XLSXStyle.utils.book_new();
-      XLSXStyle.utils.book_append_sheet(wb, ws, sheetName);
-      XLSXStyle.utils.book_append_sheet(wbAll, ws, sheetName);
-      files.push({ name: `Comanda_${c.replace(/[^\w\- ]+/g, "_")}_${zi}.xlsx`, data: XLSXStyle.write(wb, { type: "array", bookType: "xlsx" }) });
-    });
+    const wbAll = orderWorkbook(orderSheets, dLivr);
+    const files = clients.map(c => ({
+      name: `Comanda_${c.replace(/[^\w\- ]+/g, "_")}_${zi}.xlsx`,
+      data: XLSXStyle.write(orderWorkbook(orderSheets.filter(s => s.client === c), dLivr), { type: "array", bookType: "xlsx" }) as ArrayBuffer,
+    }));
     if (!separate) {
       XLSXStyle.writeFile(wbAll, `Formulare_comanda_${zi}.xlsx`);
       return;
@@ -323,7 +303,6 @@ export default function NecesarComenzi() {
     XLSXStyle.writeFile(wb, `Centralizator_comenzi_${dLivr}.xlsx`);
   };
 
-  const sheetLinii = linii.filter((l) => l.client === sheet);
   const det = balanta.rows.find((r) => r.key === detail);
 
   return (
@@ -396,41 +375,23 @@ export default function NecesarComenzi() {
                 </tbody>
               </table>
             ) : (
-              <table className="w-max min-w-full text-sm">
-                <thead className="sticky top-0 bg-muted z-10"><tr className="[&>th]:px-2 [&>th]:py-1.5 [&>th]:text-left [&>th]:border [&>th]:whitespace-nowrap">
-                  <th>Nr</th><th>Depozit</th><th>Nr. comandă</th><th>Denumire produs</th><th>Gramaj</th><th className="text-right">Bucăți</th><th className="text-right">Tăiat</th><th className="text-right">Final</th><th>Ambalaj primar</th><th>Buc/Bax</th><th className="text-right">Nr. BAX</th><th>Ambalaj terțiar</th><th>Rețetă</th>
-                </tr></thead>
-                <tbody>
-                  {sheetLinii.map((l, i) => {
-                    const f = Math.max(0, l.bucati - l.taiat); const r = matchRecipe(l);
-                    return (
-                      <tr key={l.id} className="[&>td]:px-1 [&>td]:py-0.5 [&>td]:border">
-                        <td>{i + 1}</td><td className="whitespace-nowrap">{l.depozit}</td><td className="whitespace-nowrap">{l.nr_comanda}</td>
-                        <td><input className="min-w-[340px] w-full bg-transparent" defaultValue={l.produs} onBlur={(e) => e.target.value !== l.produs && updateLinie(l.id, { produs: e.target.value })} /></td>
-                        <td><input type="number" className="w-20 bg-transparent" defaultValue={l.gramaj ?? ""} onBlur={(e) => updateLinie(l.id, { gramaj: e.target.value ? Number(e.target.value) : null })} /></td>
-                        <td className="text-right"><input type="number" className="w-24 bg-transparent text-right" defaultValue={l.bucati} onBlur={(e) => updateLinie(l.id, { bucati: Number(e.target.value) || 0 })} /></td>
-                        <td className="text-right bg-destructive/5"><input type="number" className="w-24 bg-transparent text-right text-destructive font-medium" value={l.taiat || ""} placeholder="0" onChange={(e) => updateLinie(l.id, { taiat: Number(e.target.value) || 0 })} /></td>
-                        <td className="text-right font-semibold">{f}</td>
-                        <td><input className="w-56 bg-transparent" defaultValue={l.ambalaj_primar ?? ""} onBlur={(e) => updateLinie(l.id, { ambalaj_primar: e.target.value })} /></td>
-                        <td><input type="number" className="w-20 bg-transparent" defaultValue={l.buc_bax ?? ""} onBlur={(e) => updateLinie(l.id, { buc_bax: e.target.value ? Number(e.target.value) : null })} /></td>
-                        <td className="text-right">{l.buc_bax ? fmt(f / l.buc_bax, 2) : ""}</td>
-                        <td><input className="w-64 bg-transparent" defaultValue={l.ambalaj_tertiar ?? ""} onBlur={(e) => updateLinie(l.id, { ambalaj_tertiar: e.target.value })} /></td>
-                        <td>
-                          <select className="w-80 bg-transparent text-xs" value={r?.id ?? ""} onChange={(e) => updateLinie(l.id, { produs_id: e.target.value || null })}>
-                            <option value="">— gramaj × buc —</option>
-                            {recipes.filter((x) => x.ings.length).map((x) => <option key={x.id} value={x.id}>{x.nume}</option>)}
-                          </select>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  <tr className="font-semibold [&>td]:px-2 [&>td]:py-1"><td colSpan={5}>TOTAL</td><td className="text-right">{sheetLinii.reduce((s, l) => s + l.bucati, 0)}</td><td className="text-right text-destructive">{sheetLinii.reduce((s, l) => s + l.taiat, 0)}</td><td className="text-right">{sheetLinii.reduce((s, l) => s + Math.max(0, l.bucati - l.taiat), 0)}</td><td colSpan={5}></td></tr>
-                </tbody>
-              </table>
+              (() => {
+                const current = orderSheets.find(s => s.key === sheet);
+                if (!current) return null;
+                return <OrderSheetTable sheet={current} update={(id, patch) => updateLinie(id, patch as Partial<Linie>)} recipeControl={(line) => {
+                  const original = linii.find(l => l.id === line.id);
+                  if (!original) return null;
+                  const r = matchRecipe(original);
+                  return <select aria-label={`Rețetă ${line.produs}`} className="w-80 bg-background text-xs" value={r?.id ?? ""} onChange={e => updateLinie(line.id, { produs_id: e.target.value || null })}>
+                    <option value="">— gramaj × buc —</option>
+                    {recipes.filter(x => x.ings.length).map(x => <option key={x.id} value={x.id}>{x.nume}</option>)}
+                  </select>;
+                }} />;
+              })()
             )}
           </div>
           <div className="flex overflow-x-auto border-t bg-muted/40 text-sm print:hidden">
-            {[{ k: "__balanta", label: "Balanță materie primă" }, ...clients.map((c) => ({ k: c, label: c }))].map((t) => (
+            {[{ k: "__balanta", label: "Balanță materie primă" }, ...orderSheets.map((s) => ({ k: s.key, label: s.title }))].map((t) => (
               <button key={t.k} onClick={() => setSheet(t.k)} className={cn("px-3 py-1.5 border-r whitespace-nowrap", sheet === t.k ? "bg-background font-semibold text-primary" : "text-muted-foreground")}>
                 {t.label}{t.k === "__balanta" && balanta.rows.some((r) => r.dif < 0) && <AlertTriangle className="inline h-3 w-3 ml-1 text-destructive" />}
               </button>
