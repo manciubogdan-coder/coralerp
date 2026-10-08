@@ -3,13 +3,15 @@ import { finalQty, normalize, type OrderLine, type OrderSheet } from './orderShe
 
 export type DocumentCell = { value: string | number; style: number; formula?: string; lines?: OrderLine[]; field?: keyof OrderLine | 'final'; rowSpan?: number; colSpan?: number; hidden?: boolean };
 type Range = { s: { r: number; c: number }; e: { r: number; c: number } };
+type ReferenceTemplate = { name: string; rows: { v: string; s: number }[][]; header: number; products: { row: number; product: string; weight: number; warehouse: string }[]; merges: Range[]; widths: number[]; excelWidths: number[]; heights: number[]; landscape: boolean };
+const templates = reference.templates as unknown as ReferenceTemplate[];
 export const referenceStyles = reference.styles;
 const clean = (v: string) => normalize(v).replace(/\b(SALATA|SALATE|MIX|FRESHFUL|BY)\b/g, '').replace(/\s+/g, ' ').trim();
 const sameProduct = (a: string, b: string) => clean(a) === clean(b);
 const warehouseName = (s: string) => normalize(s).replace(/DEPOZIT|PLATFORMA|ARICESTII|ARICESTI/g, s.includes('ARIC') ? 'ARICESTI' : '').trim();
 export function selectReference(sheet: OrderSheet) {
   const client = normalize(sheet.client);
-  const all = reference.templates;
+  const all = templates;
   if (client.includes('LIDL')) {
     if (!sheet.mixed) return all.find(t => t.name.includes('Mono')) || all[0];
     const codes: Record<string, string> = { ARICESTI: 'ARI', CHIAJNA: 'CHI', FUNDENI: 'FUN', ROMAN: 'ROM', IERNUT: 'IER', LUGOJ: 'LUG', BOGLAR: 'BOG', CRAIOVA: 'CRA' };
