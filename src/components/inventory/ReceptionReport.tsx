@@ -85,10 +85,11 @@ type ReportRow = {
   // marker pentru articole lipsă
   is_missing?: boolean;
   missing_id?: string;
+  lot_number?: string;
 };
 
 type ToleranceCfg = { under: number; over: number };
-const DEFAULT_TOLERANCE: ToleranceCfg = { under: 3, over: 105 };
+const DEFAULT_TOLERANCE: ToleranceCfg = { under: 3, over: 100 };
 
 type SupplierGroup = {
   supplierName: string;
@@ -381,16 +382,15 @@ const ReceptionReport: React.FC = () => {
       const { start, end } = getRomaniaDayRange(date);
       const tableName = getInventoryTable(inventoryType);
 
-      const { data: invData, error: invErr } = await (supabase as any)
-        .from(tableName)
-        .select(
-          `id, name, original_quantity, net_quantity, unit, receipt_date, document_number,
+      const baseCols = `id, name, original_quantity, net_quantity, unit, receipt_date, document_number,
            crate_count, crate_type_id, pallet_type_id, pallet_count,
-           supplier_id, supplier_name, manufacturer_id, product_id`
-        )
-        .gte("receipt_date", start)
-        .lte("receipt_date", end)
+           supplier_id, supplier_name, manufacturer_id, product_id`;
+      const runInv = (cols: string) => (supabase as any)
+        .from(tableName).select(cols)
+        .gte("receipt_date", start).lte("receipt_date", end)
         .order("supplier_name", { ascending: true });
+      let { data: invData, error: invErr } = await runInv(`${baseCols}, lot_number`);
+      if (invErr) ({ data: invData, error: invErr } = await runInv(baseCols));
       if (invErr) throw invErr;
       const inv = (invData || []) as InventoryRow[];
 
@@ -478,6 +478,7 @@ const ReceptionReport: React.FC = () => {
           photos: Array.isArray(existing?.photos) ? existing!.photos! : [],
           defects: Array.isArray(existing?.defects) ? existing!.defects! : [],
           observations: existing?.observations ?? "",
+          lot_number: (row as any).lot_number || "",
         });
       });
 
@@ -525,7 +526,7 @@ const ReceptionReport: React.FC = () => {
           ((tolData || []) as any[]).forEach((t) => {
             tolMap.set(t.product_id, {
               under: Number(t.tolerance_under_percent ?? 3),
-              over: Number(t.tolerance_over_kg ?? 105),
+              over: Number(t.tolerance_over_kg ?? 100),
             });
           });
         }
@@ -1199,23 +1200,11 @@ const ReceptionReport: React.FC = () => {
     const doc = group.documentNumber || "—";
     const partner = group.supplierName;
 
-    const qualityRows = group.rows.filter((r) => {
-      if (r.is_missing) return false;
-      const proc = parseFloat(r.pierdere_calitativa_procent);
-      const hasLoss = !isNaN(proc) && proc > 0;
-      const hasDefects = (r.defects && r.defects.length > 0) || (r.observations && r.observations.trim() !== "");
-      return hasLoss || hasDefects;
-    });
-    const diffRows = group.rows.filter((r) => {
-      if (r.is_missing) return true;
-      const dif = calcDiferenta(r);
-      return dif != null && dif !== 0;
-    });
-
-    const sub = (r: ReportRow) => r.producator || partner;
-    const desc = (r: ReportRow, lang: EmailLang) => translateKnownTerms([(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim(), lang);
     const render = (lang: EmailLang) => {
-      const lines: string[] = [lang === "ro" ? "Bună ziua," : lang === "it" ? "Buon pomeriggio," : "Good afternoon,", ""];
+      const ql = getQualityLines(group, lang);
+      const qualityRows = ql.filter((q) => q.creditText !== "-" || q.defectsText !== "-");
+      const diffRows = ql.filter((q) => q.diffText !== "-");
+      const lines: string[] = [lang === "ro" ? "Bună ziua," : lang === "it" ? "Buongiorno," : "Hello,", ""];
       if (qualityRows.length > 0) {
         lines.push(
           lang === "ro"
@@ -1225,42 +1214,31 @@ const ReceptionReport: React.FC = () => {
               : `At the reception on ${dateStr}, ${partner} with document number ${doc}, we found the following quality problems:`,
           ""
         );
-        qualityRows.forEach((r) => {
-          const lossKg = calcPierdereKgRotunjit(r);
-          const lossTxt = lossKg != null && lossKg > 0
-            ? lang === "ro" ? ` Solicităm notă de credit pentru ${fmtKg(lossKg)}${r.unit || "kg"}.`
-              : lang === "it" ? ` Chiediamo una nota di credito per ${fmtKg(lossKg)}${r.unit || "kg"}.`
-                : ` We want a credit note for ${fmtKg(lossKg)}${r.unit || "kg"}.`
-            : "";
-          const recvForEmail = effectiveReceived(r);
+        qualityRows.forEach((q) => {
+          const d = q.defectsText !== "-" ? q.defectsText.replace(/\n/g, "; ") : (lang === "ro" ? "probleme calitative" : lang === "it" ? "problemi qualitativi" : "quality issues");
+          const credit = q.creditKg > 0
+            ? (lang === "ro" ? ` Solicităm notă de credit: ${q.creditText.replace(/\n/g, "; ")}.`
+              : lang === "it" ? ` Chiediamo una nota di credito: ${q.creditText.replace(/\n/g, "; ")}.`
+                : ` We want a credit note for ${q.creditText.replace(/\n/g, "; ")}.`)
+            : q.creditText === "Warning!" ? " Warning!" : "";
           lines.push(
             lang === "ro"
-              ? `${r.denumire_produs} de la furnizorul ${sub(r)} am recepționat ${fmtKg(recvForEmail)}${r.unit || "kg"} – ${desc(r, lang) || "probleme calitative"}.${lossTxt}`
+              ? `${q.product} de la furnizorul ${q.producer} am recepționat ${kgTxt(q.recvQty, q.unit)} – ${d}.${credit}`
               : lang === "it"
-                ? `${r.denumire_produs} dal fornitore ${sub(r)} abbiamo ricevuto ${fmtKg(recvForEmail)}${r.unit || "kg"} – ${desc(r, lang) || "problemi qualitativi"}.${lossTxt}`
-                : `${r.denumire_produs} from the supplier ${sub(r)} we received ${fmtKg(recvForEmail)}${r.unit || "kg"} – ${desc(r, lang) || "quality issues"}.${lossTxt}`,
+                ? `${q.product} dal fornitore ${q.producer} abbiamo ricevuto ${kgTxt(q.recvQty, q.unit)} – ${d}.${credit}`
+                : `${q.product} from the supplier ${q.producer} we received ${kgTxt(q.recvQty, q.unit)} – ${d}.${credit}`,
             ""
           );
         });
       }
       if (diffRows.length > 0) {
         lines.push(
-          lang === "ro" ? `Vă transmit diferențele de la recepția de astăzi cu numărul de document ${doc}:`
-            : lang === "it" ? `Vi inviamo le differenze dal ricevimento di oggi con numero documento ${doc}:`
-              : `I send you the differences from today's receipt with document number ${doc}:`,
+          lang === "ro" ? `Vă transmitem diferențele cantitative pentru documentul ${doc}:`
+            : lang === "it" ? `Vi inviamo le differenze quantitative per il documento ${doc}:`
+              : `Please find below the quantity differences for document ${doc}:`,
           ""
         );
-        diffRows.forEach((r) => {
-          const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : (calcDiferenta(r) || 0);
-          const qty = Math.abs(dif);
-          const unit = r.unit || "kg";
-          const suffix = r.is_missing
-            ? (lang === "ro" ? "lipsă (nu a fost livrat)" : lang === "it" ? "in meno (non consegnato)" : "less (not delivered)")
-            : dif < 0
-              ? (lang === "ro" ? "mai puțin" : lang === "it" ? "in meno" : "less")
-              : (lang === "ro" ? "în plus" : lang === "it" ? "in più" : "extra");
-          lines.push(`${r.denumire_produs} – ${fmtKg(qty)}${unit} ${suffix}`);
-        });
+        diffRows.forEach((q) => lines.push(`${q.product} – ${q.diffText}`));
         lines.push("");
       } else if (qualityRows.length > 0) {
         lines.push(lang === "ro" ? "Nu avem diferențe cantitative." : lang === "it" ? "Non abbiamo differenze quantitative." : "We do not have quantitative differences.", "");
@@ -1285,13 +1263,12 @@ const ReceptionReport: React.FC = () => {
   };
 
   const buildShortIntro = (group: SupplierGroup): EmailContent => {
-    const dateStr = format(date, "dd.MM.yyyy");
-    const doc = group.documentNumber || "—";
+    const doc = group.documentNumber || "-";
     const partner = group.supplierName;
     return {
-      ro: `Bună ziua,\n\nVă transmit mai jos raportul calitativ pentru recepția din ${dateStr}, ${partner}, document ${doc}.\n\nVă rugăm să ne transmiteți notele de credit în termen de 30 de zile.\n\nMulțumim, o zi bună!`,
-      en: `Good afternoon,\n\nPlease find below the quality report for the reception on ${dateStr}, ${partner}, document ${doc}.\n\nPlease send us your credit notes within 30 days.\n\nThank you, have a good day!`,
-      it: `Buon pomeriggio,\n\nIn allegato il report qualitativo per il ricevimento del ${dateStr}, ${partner}, documento ${doc}.\n\nVi preghiamo di inviarci le note di credito entro 30 giorni.\n\nGrazie, buona giornata!`,
+      en: `Hello,\n\nAttached please find the quality report for ${partner} with doc. no. ${doc}.\n\nPlease send us your credit notes within 30 days.\n\nThank you!`,
+      ro: `Bună ziua,\n\nVă transmitem atașat raportul calitativ pentru ${partner} cu doc. nr. ${doc}.\n\nVă rugăm să ne transmiteți notele de credit în termen de 30 de zile.\n\nMulțumim!`,
+      it: `Buongiorno,\n\nIn allegato il report qualitativo per ${partner} con doc. n. ${doc}.\n\nVi preghiamo di inviarci le note di credito entro 30 giorni.\n\nGrazie!`,
     };
   };
 
@@ -1344,80 +1321,159 @@ const ReceptionReport: React.FC = () => {
     return emailBodyEn;
   };
 
-  const getEmailTableRows = (group: SupplierGroup, lang: EmailLang) => group.rows.map((r) => {
-    const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : calcDiferenta(r);
-    const lossKg = r.is_missing ? null : calcPierdereKg(r);
-    const shortageKg = dif != null && dif < 0 ? Math.abs(dif) : 0;
-    // Nota de credit se raportează rotunjit la întreg, ca și Pierd. (kg)
-    const creditKg = Math.round(shortageKg + (lossKg != null && lossKg > 0 ? lossKg : 0));
-    const lossPercent = parseFloat(r.pierdere_calitativa_procent);
-    const unit = r.unit || "kg";
-    const rawDefects = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim();
-    const differenceText = dif == null
-      ? "—"
-      : dif < 0
-        ? lang === "ro" ? `${fmtKg(Math.abs(dif))}${unit} mai puțin`
-          : lang === "it" ? `${fmtKg(Math.abs(dif))}${unit} in meno`
-            : `${fmtKg(Math.abs(dif))}${unit} less`
-        : dif > 0
-          ? lang === "ro" ? `${fmtKg(dif)}${unit} în plus`
-            : lang === "it" ? `${fmtKg(dif)}${unit} in più`
-              : `${fmtKg(dif)}${unit} extra`
-          : `0${unit}`;
-    const qualityLossText = !isNaN(lossPercent) && lossPercent > 0 && lossKg != null
-      ? `${fmtKg(lossPercent)}% = ${fmtKg(Math.round(lossKg))}${unit}`
-      : "—";
+  // ============ REGULI QUALITY REPORT (procedura raport final către furnizor) ============
+  // Pasul 1: cantitate. Pasul 2: pierdere calitativă (≤8% = Warning!, >8% = kg cu tot procentul).
+  const QUALITY_WARNING_MAX = 8;
+  const rawDefectsOf = (r: ReportRow) => [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim();
+  const trDefects = (raw: string, lang: EmailLang) => raw ? (emailDefectTranslations[raw]?.[lang] || translateKnownTerms(raw, lang) || raw) : "";
+  const kgTxt = (n: number, unit: string) => `${fmtKg(Math.round(n * 100) / 100)}${unit}`;
+  const moreLess = (n: number, unit: string, more: boolean, lang: EmailLang) => {
+    const v = kgTxt(n, unit);
+    if (lang === "ro") return `${v} ${more ? "în plus" : "mai puțin"}`;
+    if (lang === "it") return `${v} ${more ? "in più" : "in meno"}`;
+    return `${v} ${more ? "more" : "less"}`;
+  };
+  const lotLabel = (r: ReportRow) => {
+    const n = Number(r.nr_paleti_rec) || 1;
+    const p = `${n} ${n === 1 ? "pallet" : "pallets"}`;
+    return r.lot_number ? `${p}, lot ${r.lot_number}` : p;
+  };
+
+  type QualityLine = {
+    product: string; producer: string; unit: string;
+    docQty: number | null; weighed: number; recvQty: number;
+    diffText: string; defectsText: string; creditText: string;
+    creditKg: number; shortageKg: number;
+  };
+
+  const computeQualityLine = (rows: ReportRow[], group: SupplierGroup, lang: EmailLang): QualityLine => {
+    const first = rows[0];
+    const unit = first.unit || "kg";
+    const docs = rows.map((r) => parseFloat(r.cantitate_document)).filter((n) => !isNaN(n));
+    const docQty = docs.length ? docs.reduce((a, b) => a + b, 0) : null;
+    const missing = rows.every((r) => r.is_missing);
+    const weighed = missing ? 0 : rows.reduce((a, r) => a + (r.is_missing ? 0 : Number(r.cantitate_receptionata) || 0), 0);
+    const tol = getTol(first.product_id);
+    let recvQty = weighed;
+    let diffText = "-";
+    let shortageKg = 0;
+    if (docQty != null && docQty > 0) {
+      const diff = weighed - docQty;
+      const under = docQty * (tol.under / 100);
+      if (diff > 0 && diff > tol.over) { recvQty = weighed; diffText = moreLess(diff, unit, true, lang); }
+      else if (diff < 0 && Math.abs(diff) > under + 1e-9) { recvQty = weighed; diffText = moreLess(-diff, unit, false, lang); shortageKg = -diff; }
+      else recvQty = docQty;
+    }
+
+    // Pierdere calitativă
+    const lots = rows.filter((r) => !r.is_missing).map((r) => ({ r, p: parseFloat(r.pierdere_calitativa_procent) || 0 }));
+    const affected = lots.filter((l) => l.p > 0);
+    const wholeProduct = lots.length <= 1 || (affected.length === lots.length && affected.every((l) => l.p === affected[0].p));
+    let creditText = "-";
+    let creditKg = 0;
+    if (affected.length > 0) {
+      if (wholeProduct) {
+        const p = affected[0].p;
+        if (p > QUALITY_WARNING_MAX) { creditKg = Math.round(recvQty * p / 100); creditText = kgTxt(creditKg, unit); }
+        else creditText = "Warning!";
+      } else {
+        const lines: string[] = [];
+        affected.forEach(({ r, p }) => {
+          if (p > QUALITY_WARNING_MAX) {
+            const kg = Math.round((Number(r.cantitate_receptionata) || 0) * p / 100);
+            creditKg += kg;
+            lines.push(`${lotLabel(r)} - quality loss ${kgTxt(kg, unit)}`);
+          }
+        });
+        creditText = lines.length ? lines.join("\n") : "Warning!";
+      }
+    }
+
+    // Defecte
+    let defectsText = "-";
+    if (lots.length <= 1) {
+      defectsText = trDefects(rawDefectsOf(first), lang) || "-";
+    } else if (lots.some((l) => rawDefectsOf(l.r) || l.p > 0)) {
+      defectsText = lots.map(({ r }) => `${lotLabel(r)} – ${trDefects(rawDefectsOf(r), lang) || "OK"}`).join("\n");
+    }
+
     return {
-      product: r.denumire_produs,
-      producer: r.producator || group.supplierName || "—",
-      document: r.cantitate_document ? `${fmtKg(parseFloat(r.cantitate_document) || 0)}${unit}` : "—",
-      received: `${fmtKg(effectiveReceived(r))}${unit}`,
-      difference: differenceText,
-      loss: qualityLossText,
-      credit: creditKg > 0 ? `${fmtKg(creditKg)}${unit}` : "—",
-      defects: emailDefectTranslations[rawDefects]?.[lang] || translateKnownTerms(rawDefects, lang) || "—",
-      kgConsid: r.is_missing ? "—" : `${calcKgConsiderateRotunjit(r)}${unit}`,
-      photos: (r.photos || []).length > 0 ? `${r.photos.length} link` : "—",
+      product: first.denumire_produs,
+      producer: first.producator || group.supplierName || "-",
+      unit, docQty, weighed, recvQty: missing ? 0 : recvQty,
+      diffText: missing && docQty ? moreLess(docQty, unit, false, lang) : diffText,
+      defectsText, creditText, creditKg,
+      shortageKg: missing ? (docQty || 0) : shortageKg,
+    };
+  };
+
+  // Un rând pe produs (+producător); mai multe loturi/paleți ale aceluiași produs se cumulează.
+  const getQualityLines = (group: SupplierGroup, lang: EmailLang): QualityLine[] => {
+    const map = new Map<string, ReportRow[]>();
+    group.rows.forEach((r) => {
+      const k = `${r.denumire_produs}__${r.producator}`;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(r);
+    });
+    return Array.from(map.values()).map((rows) => computeQualityLine(rows, group, lang));
+  };
+
+  const getEmailTableRows = (group: SupplierGroup, lang: EmailLang) => group.rows.map((r) => {
+    const q = computeQualityLine([r], group, lang);
+    return {
+      product: q.product,
+      producer: q.producer,
+      document: q.docQty != null ? kgTxt(q.docQty, q.unit) : "-",
+      received: kgTxt(q.recvQty, q.unit),
+      difference: q.diffText,
+      loss: q.creditText,
+      credit: q.creditText,
+      defects: q.defectsText,
+      kgConsid: r.is_missing ? "-" : `${calcKgConsiderateRotunjit(r)}${q.unit}`,
+      photos: (r.photos || []).length > 0 ? `${r.photos.length} link` : "-",
     };
   });
 
-  // V2 – tabel scurt asemenea Quality Report atașat
+  // V2 – Quality Report (format procedură)
   const getEmailTableRowsV2 = (group: SupplierGroup, lang: EmailLang) => {
     const dateStr = format(date, "dd.MM.yyyy");
-    return group.rows.map((r) => {
-      const dif = r.is_missing ? -(parseFloat(r.cantitate_document) || 0) : calcDiferenta(r);
-      const lossKg = r.is_missing ? null : calcPierdereKg(r);
-      const shortageKg = dif != null && dif < 0 ? Math.abs(dif) : 0;
-      // Nota de credit se raportează rotunjit la întreg, ca și Pierd. (kg)
-      const creditKg = Math.round(shortageKg + (lossKg != null && lossKg > 0 ? lossKg : 0));
-      const unit = r.unit || "kg";
-      const rawDefects = [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim();
-      const defectsText = emailDefectTranslations[rawDefects]?.[lang] || translateKnownTerms(rawDefects, lang) || "-";
-      const docQty = r.cantitate_document ? `${fmtKg(parseFloat(r.cantitate_document) || 0)}${unit}` : "-";
-      const recvQty = `${fmtKg(effectiveReceived(r))}${unit}`;
-      const diffText = dif == null || dif === 0
-        ? "-"
-        : dif < 0
-          ? lang === "ro" ? `${fmtKg(Math.abs(dif))}${unit} mai puțin`
-            : lang === "it" ? `${fmtKg(Math.abs(dif))}${unit} in meno`
-              : `${fmtKg(Math.abs(dif))}${unit} less`
-          : lang === "ro" ? `${fmtKg(dif)}${unit} în plus`
-            : lang === "it" ? `${fmtKg(dif)}${unit} in più`
-              : `${fmtKg(dif)}${unit} extra`;
-      return {
-        date: dateStr,
-        supplier: group.supplierName || "-",
-        document: group.documentNumber || "-",
-        product: r.denumire_produs,
-        producer: r.producator || group.supplierName || "-",
-        docQty,
-        recvQty,
-        diff: diffText,
-        defects: defectsText || "-",
-        credit: creditKg > 0 ? `${fmtKg(creditKg)}${unit}` : "-",
-        kgConsid: r.is_missing ? "-" : `${calcKgConsiderateRotunjit(r)}${unit}`,
-      };
+    return getQualityLines(group, lang).map((q) => ({
+      date: dateStr,
+      supplier: group.supplierName || "-",
+      document: group.documentNumber || "-",
+      product: q.product,
+      producer: q.producer,
+      docQty: q.docQty != null ? kgTxt(q.docQty, q.unit) : "-",
+      recvQty: kgTxt(q.recvQty, q.unit),
+      diff: q.diffText,
+      defects: q.defectsText,
+      credit: q.creditText,
+    }));
+  };
+
+  const exportQualityReportXlsx = (group: SupplierGroup) => {
+    const dateStr = format(date, "dd.MM.yyyy");
+    const headers = emailHeadersV2("en").map((h) => h.replace(/\n/g, " "));
+    const rows = getEmailTableRowsV2(group, "en").map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit]);
+    const aoa = [["QUALITY REPORT — SC Coral Biogreens SRL"], [], headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }];
+    ws["!cols"] = [12, 18, 14, 24, 18, 14, 14, 16, 50, 36].map((wch) => ({ wch }));
+    const border = { style: "thin", color: { rgb: "999999" } };
+    const b = { top: border, bottom: border, left: border, right: border };
+    if (ws["A1"]) ws["A1"].s = { font: { bold: true, sz: 14, name: "Arial" } };
+    headers.forEach((_, c) => {
+      const a = XLSX.utils.encode_cell({ r: 2, c });
+      if (ws[a]) ws[a].s = { font: { bold: true, name: "Arial" }, fill: { fgColor: { rgb: "D9E1F2" } }, border: b, alignment: { wrapText: true, vertical: "center" } };
     });
+    rows.forEach((row, ri) => row.forEach((_, c) => {
+      const a = XLSX.utils.encode_cell({ r: 3 + ri, c });
+      if (ws[a]) ws[a].s = { font: { name: "Arial" }, border: b, alignment: { wrapText: true, vertical: "top" } };
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Quality Report");
+    const safe = (s: string) => s.replace(/[\\/:*?"<>|]/g, "_");
+    XLSX.writeFile(wb, `Quality Report ${safe(group.supplierName)} - ${safe(group.documentNumber || "-")} - ${dateStr}.xlsx`);
   };
 
   const emailHeaders = (lang: EmailLang) => lang === "ro"
@@ -1442,7 +1498,7 @@ const ReceptionReport: React.FC = () => {
         ? (isV2 ? "Report qualitativo:" : "Tabella ricevimento:")
         : (isV2 ? "Quality report:" : "Reception table:");
     const rowLines = isV2
-      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit].join(" | "))
+      ? getEmailTableRowsV2(group, emailLang).map((r) => [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects.replace(/\n/g, "; "), r.credit.replace(/\n/g, "; ")].join(" | "))
       : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos].join(" | "));
     return [
       buildBodyWithPhotos(),
@@ -1468,11 +1524,15 @@ const ReceptionReport: React.FC = () => {
       : getEmailTableRows(group, emailLang).map((r) => [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos]);
     return `
       <div style="font-family: Arial, sans-serif; color:#111827; font-size:14px; line-height:1.45;">
-        ${buildBodyWithPhotos().split("\n").map((line) => line.trim() ? `<p style="margin:0 0 12px;">${escapeHtml(line)}</p>` : `<br />`).join("")}
+        ${buildBodyWithPhotos().split("\n").map((line) => {
+          if (!line.trim()) return "";
+          const bold = /credit notes within 30 days|notele de credit în termen de 30|note di credito entro 30/i.test(line);
+          return `<p style="margin:0 0 12px;">${bold ? `<b>${escapeHtml(line)}</b>` : escapeHtml(line)}</p>`;
+        }).join("")}
         <h3 style="margin:18px 0 8px; font-size:16px;">${tableTitle}</h3>
         <table style="border-collapse:collapse; width:100%; font-size:13px;">
           <thead><tr>${headers.map((h) => `<th style="border:1px solid #d1d5db; padding:8px; background:#f3f4f6; text-align:left; white-space:pre-line;">${escapeHtml(h)}</th>`).join("")}</tr></thead>
-          <tbody>${bodyCells.map((cells) => `<tr>${cells.map((v) => `<td style="border:1px solid #d1d5db; padding:8px; vertical-align:top;">${escapeHtml(v)}</td>`).join("")}</tr>`).join("")}</tbody>
+          <tbody>${bodyCells.map((cells) => `<tr>${cells.map((v) => `<td style="border:1px solid #d1d5db; padding:8px; vertical-align:top;">${escapeHtml(v).replace(/\n/g, "<br/>")}</td>`).join("")}</tr>`).join("")}</tbody>
         </table>
         ${photos.length ? `<h3 style="margin:18px 0 8px; font-size:16px;">${emailLang === "ro" ? "Poze" : emailLang === "it" ? "Foto" : "Photos"}</h3><ul style="padding-left:18px;">${photos.map((p) => `<li><a href="${escapeHtml(getReceptionPhotoUrl(p.photo))}">${escapeHtml(p.row.denumire_produs)}</a></li>`).join("")}</ul>` : ""}
       </div>`;
@@ -2368,7 +2428,7 @@ const ReceptionReport: React.FC = () => {
                               ? [r.date, r.supplier, r.document, r.product, r.producer, r.docQty, r.recvQty, r.diff, r.defects, r.credit]
                               : [r.product, r.producer, r.document, r.received, r.difference, r.loss, r.credit, r.defects, r.photos]
                             ).map((v, j) => (
-                              <td key={j} className="border px-2 py-2 align-top">{v}</td>
+                              <td key={j} className="border px-2 py-2 align-top whitespace-pre-line">{v}</td>
                             ))}
                           </tr>
                         ))}
@@ -2403,6 +2463,11 @@ const ReceptionReport: React.FC = () => {
             );
           })()}
           <DialogFooter className="flex-col sm:flex-row gap-2">
+            {emailDialog && (
+              <Button variant="outline" onClick={() => exportQualityReportXlsx(groups[emailDialog.groupIdx])} className="w-full sm:w-auto">
+                <Download className="h-4 w-4 mr-2" />Descarcă Quality Report (Excel)
+              </Button>
+            )}
             <Button variant="outline" onClick={copyEmailToClipboard} className="w-full sm:w-auto">
               {emailCopied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
               {emailCopied ? "Copiat!" : "Copiază emailul formatat"}
