@@ -11,7 +11,7 @@ const productKey = (l: OrderLine) => `${normalize(l.produs)}|${l.gramaj}`;
 const mixedNames = /PRESTIGIO|LUPINO|AMORINO|SILHOUETTE|PRIMAVERA/;
 export function templatePack(l: OrderLine) {
   const client = normalize(l.client);
-  const ts = templates.filter(t => client.includes('LIDL') ? t.name.includes('LIDL') : normalize(t.name).includes(client.split(' ')[0]));
+  const ts = templates.filter(t => client.includes('LIDL') ? normalize(t.name).includes('SALATE MIXTE') || normalize(t.name).includes('SALATE MONO') : normalize(t.name).includes(client.split(' ')[0]));
   return ts.flatMap(t => t.products).find(p => normalize(p.produs) === normalize(l.produs) && p.gramaj === l.gramaj);
 }
 export function withTemplatePack<T extends OrderLine>(l: T): T {
@@ -32,7 +32,7 @@ export function makeSheets(lines: OrderLine[]): OrderSheet[] {
       const groups = mixed ? warehouses.map(d => ls.filter(l => (l.depozit || 'Fără depozit') === d)) : [ls];
       groups.forEach(group => {
         const title = lidl ? `${client} — SALATE ${mixed ? 'MIXTE' : 'MONO'}${mixed ? ` — ${group[0]?.depozit || 'Fără depozit'}` : ''}` : client;
-        const ts = templates.filter(t => lidl ? t.name.includes(mixed ? 'MIXTE' : 'MONO') : normalize(t.name).includes(normalize(client).split(' ')[0]));
+        const ts = templates.filter(t => lidl ? normalize(t.name).includes(mixed ? 'MIXTE' : 'MONO') : normalize(t.name).includes(normalize(client).split(' ')[0]));
         result.push({ key: title, client, title, lines: group, mixed, pivot: !mixed && (lidl || /KAUFLAND|MEGA/.test(normalize(client))) && warehouses.length > 1, warehouses, notes: [...new Set(ts.flatMap(t => t.notes))] });
       });
     });

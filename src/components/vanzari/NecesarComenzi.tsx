@@ -303,7 +303,6 @@ export default function NecesarComenzi() {
     XLSXStyle.writeFile(wb, `Centralizator_comenzi_${dLivr}.xlsx`);
   };
 
-  const sheetLinii = linii.filter((l) => l.client === sheet);
   const det = balanta.rows.find((r) => r.key === detail);
 
   return (
