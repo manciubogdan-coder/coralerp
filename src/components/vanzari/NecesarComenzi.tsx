@@ -342,7 +342,7 @@ export default function NecesarComenzi() {
 
       {linii.length > 0 && (
         <div className="border rounded-lg overflow-hidden">
-          <div className="overflow-auto max-h-[65vh]">
+          <div className="overflow-auto max-h-[65vh] necesar-print-area">
             {sheet === "__balanta" ? (
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-muted z-10"><tr className="[&>th]:px-2 [&>th]:py-1.5 [&>th]:text-left [&>th]:border">

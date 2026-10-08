@@ -290,6 +290,49 @@
   }
 }
 
+/* Print only the active "Comenzi & Necesar" sheet, not the app page */
+@media print {
+  body:has(.necesar-print-area) > *:not(#root),
+  body:has(.necesar-print-area) #root * {
+    visibility: hidden;
+  }
+  .necesar-print-area,
+  .necesar-print-area * {
+    visibility: visible;
+  }
+  .necesar-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .necesar-print-area input,
+  .necesar-print-area select {
+    display: inline-block !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    padding: 0 !important;
+    font: inherit !important;
+    color: inherit !important;
+    width: auto !important;
+    min-width: 0 !important;
+    text-align: inherit;
+  }
+  .necesar-print-area input[type="number"]::-webkit-inner-spin-button,
+  .necesar-print-area input[type="number"]::-webkit-outer-spin-button {
+    display: none !important;
+  }
+  .necesar-print-area .order-template {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 /* Prevent iOS Safari from auto-zooming when focusing inputs in dialogs.
    iOS triggers zoom when input font-size is < 16px. */
 @media (max-width: 768px) {
