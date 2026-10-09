@@ -1375,13 +1375,15 @@ const ReceptionReport: React.FC = () => {
     if (affected.length > 0) {
       if (wholeProduct) {
         const p = affected[0].p;
-        if (p > QUALITY_WARNING_MAX) { creditKg = Math.round(recvQty * p / 100); creditText = kgTxt(creditKg, unit); }
+        if (p > QUALITY_WARNING_MAX) { const base = docQty != null && docQty > 0 ? docQty : recvQty; creditKg = Math.round(base * p / 100); creditText = kgTxt(creditKg, unit); }
         else creditText = "Warning!";
       } else {
         const lines: string[] = [];
         affected.forEach(({ r, p }) => {
           if (p > QUALITY_WARNING_MAX) {
-            const kg = Math.round((Number(r.cantitate_receptionata) || 0) * p / 100);
+            const docR = parseFloat(r.cantitate_document);
+            const baseR = !isNaN(docR) && docR > 0 ? docR : Number(r.cantitate_receptionata) || 0;
+            const kg = Math.round(baseR * p / 100);
             creditKg += kg;
             lines.push(`${lotLabel(r)} - quality loss ${kgTxt(kg, unit)}`);
           }
