@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Loader2, Factory, Package, Clock, Plus, TrendingUp, Edit, Trash2, ChefHat, Search, Zap, CheckCircle } from "lucide-react";
-import { useOrders, useUpdateOrder, useDeleteOrder, useAutoDistributeToLine } from "@/hooks/productie/useProductionData";
+import { useOrders, useUpdateOrder, useDeleteOrder, useDeleteOrdersBulk, useAutoDistributeToLine } from "@/hooks/productie/useProductionData";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useRestockings } from "@/hooks/productie/useInventoryDataProductie";
 import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import { toast } from "sonner";
@@ -40,7 +41,9 @@ const AdvanceProductionManagement = () => {
   const { data: restockings, isLoading: restockingsLoading } = useRestockings();
   const updateOrderMutation = useUpdateOrder();
   const deleteOrderMutation = useDeleteOrder();
+  const deleteOrdersBulkMutation = useDeleteOrdersBulk();
   const autoDistributeMutation = useAutoDistributeToLine();
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
 
   // Ensure we have valid data before filtering
   const allOrders = orders || [];
@@ -183,6 +186,40 @@ const AdvanceProductionManagement = () => {
       refetchOrders();
     } catch (error: any) {
       toast.error(`Nu s-a putut șterge comanda: ${error.message || 'Eroare necunoscută'}`);
+    }
+  };
+
+  const toggleOrderSelected = (id: string) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllOnPage = (pageOrders: any[]) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      const allSelected = pageOrders.every(o => next.has(o.id));
+      if (allSelected) pageOrders.forEach(o => next.delete(o.id));
+      else pageOrders.forEach(o => next.add(o.id));
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedOrderIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Sigur doriți să ștergeți ${ids.length} comenzi din producția în avans?`)) {
+      return;
+    }
+    try {
+      await deleteOrdersBulkMutation.mutateAsync(ids);
+      toast.success(`${ids.length} comenzi au fost șterse din producția în avans`);
+      setSelectedOrderIds(new Set());
+      refetchOrders();
+    } catch (error: any) {
+      toast.error(`Nu s-au putut șterge comenzile: ${error.message || 'Eroare necunoscută'}`);
     }
   };
 
@@ -432,6 +469,22 @@ const AdvanceProductionManagement = () => {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>Comenzi în Așteptare de Alocare ({pendingTotalItems} total)</CardTitle>
+                <div className="flex gap-2">
+                {selectedOrderIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    disabled={deleteOrdersBulkMutation.isPending}
+                  >
+                    {deleteOrdersBulkMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-2" />
+                    )}
+                    Șterge selectate ({selectedOrderIds.size})
+                  </Button>
+                )}
                 {pendingTotalItems > 0 && (
                   <Button
                     variant="outline"
@@ -448,6 +501,7 @@ const AdvanceProductionManagement = () => {
                     Distribuire Automată Pagină
                   </Button>
                 )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -465,6 +519,13 @@ const AdvanceProductionManagement = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={paginatedPendingOrders.length > 0 && paginatedPendingOrders.every(o => selectedOrderIds.has(o.id))}
+                            onCheckedChange={() => toggleAllOnPage(paginatedPendingOrders)}
+                            aria-label="Selectează toate comenzile din pagină"
+                          />
+                        </TableHead>
                         <TableHead>Nr. Comandă</TableHead>
                         <TableHead>Produs</TableHead>
                         <TableHead>Cantitate</TableHead>
@@ -477,7 +538,14 @@ const AdvanceProductionManagement = () => {
                     </TableHeader>
                     <TableBody>
                       {paginatedPendingOrders.map((order) => (
-                        <TableRow key={order.id}>
+                        <TableRow key={order.id} className={selectedOrderIds.has(order.id) ? 'bg-red-50' : undefined}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedOrderIds.has(order.id)}
+                              onCheckedChange={() => toggleOrderSelected(order.id)}
+                              aria-label={`Selectează comanda ${order.numar_comanda}`}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">
                             {order.numar_comanda}
                           </TableCell>
