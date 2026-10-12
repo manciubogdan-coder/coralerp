@@ -895,7 +895,7 @@ export const useCreateAdvanceOrdersBulk = () => {
           cantitate: o.cantitate,
           baxare: o.baxare || undefined,
           linie_id: o.linie_id || null,
-          status: 'pending',
+          status: o.linie_id ? 'assigned' : 'pending',
           cantitate_din_restock: 0,
           tip_comanda: 'PRODUCTIE_AVANS',
           data_productie: o.data_productie || null,
