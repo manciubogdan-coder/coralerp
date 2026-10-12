@@ -13,6 +13,7 @@ import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useGroupedReceptions } from "@/hooks/use-grouped-receptions";
 import { useInventoryType } from "@/context/inventory-type";
+import { resolveMissingOperators } from "@/lib/receptionOperator";
 import { LotQRDialog } from "./LotQRDialog";
 
 interface ReceptionItem {
@@ -36,6 +37,8 @@ interface ReceptionItem {
   consider_quantity?: number | null;
   net_quantity?: number | null;
   gross_quantity?: number | null;
+  // Operatorul care a făcut recepția (recuperat și din jurnal pentru cele vechi)
+  operator?: string;
 }
 
 type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';
@@ -147,6 +150,26 @@ export const ReceptionHistory = () => {
       }));
       setReceptions(receptionsData);
       setFilteredReceptions(receptionsData);
+
+      // Completează operatorul, inclusiv pentru recepțiile vechi,
+      // recuperându-l din jurnalul de modificări (istoric).
+      try {
+        const opMap = await resolveMissingOperators(
+          supabase,
+          inventoryType,
+          receptionsData.map((r: any) => ({ entryNumber: r.entry_number, receptionId: r.id })),
+        );
+        if (opMap.size > 0) {
+          const withOps = receptionsData.map((item: any) => ({
+            ...item,
+            operator: opMap.get(item.entry_number) || item.operator,
+          }));
+          setReceptions(withOps);
+          setFilteredReceptions(withOps);
+        }
+      } catch (e) {
+        console.warn("Nu am putut recupera operatorii din istoric:", e);
+      }
     } catch (error: any) {
       console.error("Error fetching reception history:", error);
       toast({
@@ -524,8 +547,9 @@ export const ReceptionHistory = () => {
       'Cantitate': item.quantity.toFixed(2),
       'Unitate': item.unit,
       'Document': item.document_number || '',
-      'Furnizor': item.suppliers?.name || '',
+'Furnizor': item.suppliers?.name || '',
       'Producător': item.manufacturers?.name || '',
+      'Operator': item.operator || '',
       'Observații': (item as any).obs || '',
       '% Pierdere': `${(((item as any).products?.pt_percent ?? (item as any).nonconform_percent) ?? 0).toFixed(1)}%`,
       'Cant. de luat în considerare': (typeof (item as any).consider_quantity === 'number'
@@ -670,6 +694,7 @@ export const ReceptionHistory = () => {
               <TableHead className="w-12 px-2 py-3 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Doc.</TableHead>
               <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Furnizor</TableHead>
               <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Producător</TableHead>
+              <TableHead className="w-16 px-2 py-3 hidden xl:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Operator</TableHead>
               <TableHead className="w-16 px-2 py-3 hidden lg:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">Obs</TableHead>
               <TableHead className="w-10 px-2 py-3 text-right hidden md:table-cell print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">%P</TableHead>
               <TableHead className="w-12 px-2 py-3 text-right print:table-cell print:w-auto print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">C.Cons.</TableHead>
@@ -711,6 +736,7 @@ export const ReceptionHistory = () => {
                     <TableCell className="px-2 py-3 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
                     <TableCell className="px-2 py-3 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (item.suppliers?.name || '-')}</TableCell>
                     <TableCell className="px-2 py-3 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (item.manufacturers?.name || '-')}</TableCell>
+                    <TableCell className="px-2 py-3 text-xs hidden xl:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : ((item as any).operator || '-')}</TableCell>
                     <TableCell className="px-2 py-3 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1 whitespace-normal break-words min-h-[2.5rem]" title={(item as any).obs ?? '-'}>
                       <div className="max-w-[150px] whitespace-normal break-words">{(item as any).obs ?? '-'}</div>
                     </TableCell>
@@ -752,7 +778,7 @@ export const ReceptionHistory = () => {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={14} className="text-center py-6 text-gray-500">
+                <TableCell colSpan={15} className="text-center py-6 text-gray-500">
                   Nu s-au găsit recepții în intervalul selectat.
                 </TableCell>
               </TableRow>
@@ -823,6 +849,9 @@ export const ReceptionHistory = () => {
         <DialogContent className="p-0 gap-0 flex flex-col w-screen h-[100dvh] max-w-full top-0 left-0 translate-x-0 translate-y-0 rounded-none border-0 sm:w-auto sm:max-w-lg sm:h-auto sm:max-h-[90vh] sm:top-[50%] sm:left-[50%] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:border">
           <DialogHeader className="px-4 py-3 border-b shrink-0">
             <DialogTitle>Editare Recepție</DialogTitle>
+            {editingItem?.operator ? (
+              <p className="text-xs text-muted-foreground">Operator: {editingItem.operator}</p>
+            ) : null}
           </DialogHeader>
           <div className="flex-1 overflow-y-auto px-4 py-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">

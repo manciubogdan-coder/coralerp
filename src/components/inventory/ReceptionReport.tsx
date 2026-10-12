@@ -40,6 +40,7 @@ import {
   summarizeBreakdown,
   aggregateByType,
 } from "@/lib/receptionBreakdown";
+import { resolveMissingOperators } from "@/lib/receptionOperator";
 
 type InventoryRow = {
   id: string;
@@ -57,6 +58,7 @@ type InventoryRow = {
   supplier_name: string | null;
   manufacturer_id: string | null;
   product_id: string | null;
+  entry_number?: number | null;
 };
 
 type PhotoRef = { path: string; url: string };
@@ -386,7 +388,7 @@ const ReceptionReport: React.FC = () => {
 
       const baseCols = `id, name, original_quantity, net_quantity, unit, receipt_date, document_number,
            crate_count, crate_type_id, pallet_type_id, pallet_count,
-           supplier_id, supplier_name, manufacturer_id, product_id`;
+           supplier_id, supplier_name, manufacturer_id, product_id, entry_number`;
       const runInv = (cols: string) => (supabase as any)
         .from(tableName).select(cols)
         .gte("receipt_date", start).lte("receipt_date", end)
@@ -454,6 +456,14 @@ const ReceptionReport: React.FC = () => {
         return grouped.get(key)!;
       };
 
+      // Recepții fără operator salvat — de recuperat din istoric (jurnal)
+      const pendingOps: Array<{
+        entryNumber: number | null;
+        inventoryId: string;
+        rowOut: ReportRow;
+        grp: SupplierGroup;
+      }> = [];
+
       inv.forEach((row) => {
         const supplierName = row.supplier_name || (row.supplier_id ? supplierMap.get(row.supplier_id) : null) || "Fără furnizor";
         const grp = ensureGroup(row.supplier_id, supplierName, row.document_number || "");
@@ -463,7 +473,7 @@ const ReceptionReport: React.FC = () => {
           : undefined;
         const operatorName =
           bdOperator?.name?.trim() || bdOperator?.email?.trim() || "";
-        grp.rows.push({
+        const rowOut: ReportRow = {
           inventory_id: row.id,
           product_id: row.product_id ?? null,
           denumire_produs: row.name,
@@ -487,9 +497,38 @@ const ReceptionReport: React.FC = () => {
           observations: existing?.observations ?? "",
           lot_number: (row as any).lot_number || "",
           operator: operatorName,
-        });
+        };
+        grp.rows.push(rowOut);
         if (operatorName && !grp.operatorName) grp.operatorName = operatorName;
+        if (!operatorName && row.id !== "missing") {
+          pendingOps.push({
+            entryNumber: (row as any).entry_number ?? null,
+            inventoryId: row.id,
+            rowOut,
+            grp,
+          });
+        }
       });
+
+      // Recuperează operatorii lipsă din jurnalul de modificări (recepții vechi)
+      if (pendingOps.length > 0) {
+        try {
+          const opMap = await resolveMissingOperators(
+            supabase,
+            inventoryType,
+            pendingOps.map((p) => ({ entryNumber: p.entryNumber, inventoryId: p.inventoryId })),
+          );
+          pendingOps.forEach((p) => {
+            const name = p.entryNumber != null ? opMap.get(p.entryNumber) : undefined;
+            if (name) {
+              p.rowOut.operator = name;
+              if (!p.grp.operatorName) p.grp.operatorName = name;
+            }
+          });
+        } catch (e) {
+          console.warn("Nu am putut recupera operatorii din istoric:", e);
+        }
+      }
 
       // Adaugă articolele lipsă în grupul corespunzător
       missing.forEach((m: any) => {
