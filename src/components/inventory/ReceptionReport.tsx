@@ -459,7 +459,7 @@ const ReceptionReport: React.FC = () => {
         const grp = ensureGroup(row.supplier_id, supplierName, row.document_number || "");
         const existing = reportMap.get(row.id);
         const bdOperator = existing
-          ? decodePalDoc(existing.paleti_lazi_document || "").operator
+          ? decodePalDoc(existing.paleti_lazi_document || "").breakdown.operator
           : undefined;
         const operatorName =
           bdOperator?.name?.trim() || bdOperator?.email?.trim() || "";
