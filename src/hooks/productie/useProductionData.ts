@@ -203,82 +203,86 @@ export const useDeleteLine = () => {
 // Hook pentru distribuirea automată a comenzii pe linie
 export const useAutoDistributeToLine = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (comandaId: string) => {
-      console.log('🔄 Încep distribuirea automată pentru comanda:', comandaId);
-      
-      // Obține detaliile comenzii
-      const { data: comanda, error: comandaError } = await supabase
-        .from('productie_comenzi')
-        .select(`
-          *,
-          productie_produse(*)
-        `)
-        .eq('id', comandaId)
-        .single();
-      
-      if (comandaError) throw comandaError;
-      
-      console.log('📋 Detalii comandă pentru distribuire:', comanda);
-      
-      // Caută o regulă de distribuire pentru acest produs
-      const { data: regula } = await supabase
-        .from('productie_reguli_distribuire')
-        .select(`
-          *,
-          productie_linii(*)
-        `)
-        .eq('produs_id', comanda.produs_id)
-        .eq('productie_linii.status', 'activa')
-        .order('prioritate')
-        .limit(1)
-        .single();
-      
-      let linieSelectata = null;
-      
-      if (regula) {
-        console.log('✅ Găsit regulă de distribuire:', regula);
-        linieSelectata = regula.productie_linii;
-      } else {
-        console.log('⚠️ Nu există regulă specifică - caut prima linie activă disponibilă');
-        
-        // Dacă nu există regulă specifică, găsește prima linie activă
-        const { data: liniiActive } = await supabase
-          .from('productie_linii')
-          .select('*')
-          .eq('status', 'activa')
-          .order('nume')
-          .limit(1);
-        
-        if (liniiActive && liniiActive.length > 0) {
-          linieSelectata = liniiActive[0];
-          console.log('📍 Linie selectată implicit:', linieSelectata);
+    // Acceptă un ID sau o listă de ID-uri. Regulile și liniile se citesc o singură dată,
+    // iar actualizările se fac în paralel, ca distribuirea să nu mai dureze minute.
+    mutationFn: async (input: string | string[]) => {
+      const ids = Array.from(new Set(Array.isArray(input) ? input : [input])).filter(Boolean);
+      if (ids.length === 0) return { distribuite: 0, esuate: [] as string[] };
+
+      const comenzi: any[] = [];
+      for (let i = 0; i < ids.length; i += 50) {
+        const { data, error } = await supabase
+          .from('productie_comenzi')
+          .select('id, produs_id, numar_comanda')
+          .in('id', ids.slice(i, i + 50));
+        if (error) throw error;
+        comenzi.push(...(data || []));
+      }
+
+      const produsIds = Array.from(new Set(comenzi.map((c) => c.produs_id).filter(Boolean)));
+      const [{ data: linii, error: liniiError }, reguli] = await Promise.all([
+        supabase.from('productie_linii').select('id, nume, status').eq('status', 'activa').order('nume'),
+        (async () => {
+          const all: any[] = [];
+          for (let i = 0; i < produsIds.length; i += 50) {
+            const { data, error } = await supabase
+              .from('productie_reguli_distribuire')
+              .select('produs_id, linie_preferata_id, prioritate')
+              .in('produs_id', produsIds.slice(i, i + 50))
+              .order('prioritate');
+            if (error) throw error;
+            all.push(...(data || []));
+          }
+          return all;
+        })(),
+      ]);
+      if (liniiError) throw liniiError;
+
+      const liniiActive = new Map((linii || []).map((l: any) => [l.id, l]));
+      const fallback = (linii || [])[0];
+      if (!fallback) throw new Error('Nu există linii active disponibile pentru distribuire');
+
+      const liniePeProdus = new Map<string, string>();
+      reguli.forEach((r: any) => {
+        if (!liniePeProdus.has(r.produs_id) && liniiActive.has(r.linie_preferata_id)) {
+          liniePeProdus.set(r.produs_id, r.linie_preferata_id);
         }
-      }
-      
-      if (!linieSelectata) {
-        throw new Error('Nu există linii active disponibile pentru distribuire');
-      }
-      
-      // Actualizează comanda cu linia selectată și statusul 'assigned'
-      const { data: comandaActualizata, error: updateError } = await supabase
-        .from('productie_comenzi')
-        .update({ 
-          linie_id: linieSelectata.id,
-          status: 'assigned'
+      });
+
+      // Grupăm pe linie ca să facem câte o singură actualizare pe linie.
+      const peLinie = new Map<string, string[]>();
+      comenzi.forEach((c) => {
+        const linieId = liniePeProdus.get(c.produs_id) || fallback.id;
+        if (!peLinie.has(linieId)) peLinie.set(linieId, []);
+        peLinie.get(linieId)!.push(c.id);
+      });
+
+      const esuate: string[] = [];
+      let distribuite = 0;
+      await Promise.all(
+        Array.from(peLinie.entries()).flatMap(([linieId, idsLinie]) => {
+          const parti: string[][] = [];
+          for (let i = 0; i < idsLinie.length; i += 50) parti.push(idsLinie.slice(i, i + 50));
+          return parti.map(async (parte) => {
+            const { error } = await supabase
+              .from('productie_comenzi')
+              .update({ linie_id: linieId, status: 'assigned' })
+              .in('id', parte);
+            if (error) esuate.push(...parte);
+            else distribuite += parte.length;
+          });
         })
-        .eq('id', comandaId)
-        .select()
-        .single();
-      
-      if (updateError) throw updateError;
-      
-      console.log('✅ Comandă distribuită cu succes pe linia:', linieSelectata.nume);
-      return comandaActualizata;
+      );
+
+      if (distribuite === 0 && esuate.length > 0) {
+        throw new Error('Distribuirea a eșuat pentru toate comenzile');
+      }
+      return { distribuite, esuate };
     },
-    onSuccess: async () => {
-      await refreshProductionCaches(queryClient);
+    onSuccess: () => {
+      refreshProductionCaches(queryClient);
     }
   });
 };
