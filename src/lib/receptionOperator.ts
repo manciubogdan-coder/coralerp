@@ -34,6 +34,14 @@ const chunk = <T,>(arr: T[], size: number): T[][] => {
 const hasOperatorText = (op?: { name?: string; email?: string } | null): boolean =>
   !!(op?.name?.trim() || op?.email?.trim());
 
+/** „balazs.larisa93@gmail.com" → „Balazs Larisa" (ultima variantă când profilul nu are nume) */
+const nameFromEmail = (email: string): string => {
+  const local = (email.split("@")[0] || "").replace(/[0-9]+/g, " ");
+  const parts = local.split(/[._\-\s]+/).filter(Boolean);
+  if (parts.length === 0) return email;
+  return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(" ");
+};
+
 /**
  * Întoarce Map<entryNumber, numeOperator> pentru rândurile cerute.
  * Scrie înapoi operatorul găsit din jurnal în reception_report_data,
@@ -110,7 +118,7 @@ export async function resolveMissingOperators(
           .in("email", batch);
         ((data as any[]) || []).forEach((p) => {
           const full = (p.display_name || p.name || "").trim();
-          if (p.email && full) profileName.set(p.email, full);
+          if (p.email && full) profileName.set(p.email.toLowerCase(), full);
         });
       } catch (e) {
         console.warn("resolveMissingOperators: profiles lookup failed", e);
@@ -119,8 +127,10 @@ export async function resolveMissingOperators(
   }
   savedOps.forEach((op, entry) => {
     const looksEmail = op.name.includes("@");
-    const resolved = looksEmail ? profileName.get(op.name) : op.email ? profileName.get(op.email) : null;
-    result.set(entry, resolved || (looksEmail ? "" : op.name) || op.email || op.name);
+    const emailKey = (looksEmail ? op.name : op.email).toLowerCase();
+    const resolved = emailKey ? profileName.get(emailKey) : null;
+    const fallbackEmail = looksEmail ? op.name : op.email;
+    result.set(entry, resolved || (looksEmail ? "" : op.name) || (fallbackEmail ? nameFromEmail(fallbackEmail) : ""));
   });
 
   // 3. fallback: prima înregistrare din jurnalul de modificări
