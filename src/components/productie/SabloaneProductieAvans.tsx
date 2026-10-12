@@ -36,6 +36,7 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
   const upsertItem = useUpsertSablonItem();
   const deleteItem = useDeleteSablonItem();
   const createOrder = useCreateOrder();
+  const autoDistribute = useAutoDistributeToLine();
 
   // dialoguri
   const [createOpen, setCreateOpen] = useState(false);
@@ -192,9 +193,10 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
           onClose={() => setGenerateSablonId(null)}
           onGenerate={async (rows, dataProductie) => {
             let count = 0;
+            const deDistribuit: string[] = [];
             for (const r of rows) {
               if (!r.cantitate || r.cantitate <= 0) continue;
-              await createOrder.mutateAsync({
+              const nou: any = await createOrder.mutateAsync({
                 magazin: "PRODUCTIE_AVANS",
                 punct_livrare: "PRODUCTIE_AVANS",
                 produs_id: r.produs_id,
@@ -206,6 +208,7 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
                 data_productie: dataProductie || null,
               });
               count++;
+              if (!r.linie_id && nou?.id) deDistribuit.push(nou.id);
               // salvează observația ca "ultima folosită" pe item
               await upsertItem.mutateAsync({
                 id: r.item_id,
@@ -217,7 +220,16 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
                 pozitie: r.pozitie,
               });
             }
-            toast.success(`${count} comenzi generate cu succes`);
+            if (deDistribuit.length) {
+              try {
+                const rez = await autoDistribute.mutateAsync(deDistribuit);
+                toast.success(`${count} comenzi generate; ${rez.distribuite} distribuite automat pe linii`);
+              } catch (e: any) {
+                toast.warning(`${count} comenzi generate, dar distribuirea automată a eșuat: ${e.message}`);
+              }
+            } else {
+              toast.success(`${count} comenzi generate cu succes`);
+            }
             setGenerateSablonId(null);
             onGenerated?.();
           }}

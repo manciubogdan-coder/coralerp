@@ -76,6 +76,10 @@ const AdvanceProductionManagement = () => {
     ['pending', 'assigned'].includes(order.status)
   );
   
+  const nealocateCount = pendingAdvanceOrders.filter(
+    (order: any) => order.status === 'pending' && !order.linie_id
+  ).length;
+
   const inProgressAdvanceOrders = filteredAdvanceOrders.filter(order => 
     ['in_progress', 'partial'].includes(order.status)
   );
@@ -291,8 +295,10 @@ const AdvanceProductionManagement = () => {
             <Clock className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{pendingTotalItems}</div>
-            <p className="text-xs text-muted-foreground">comenzi de alocat</p>
+            <div className="text-2xl font-bold text-orange-600">{nealocateCount}</div>
+            <p className="text-xs text-muted-foreground">
+              comenzi nealocate pe linie{pendingAdvanceOrders.length - nealocateCount > 0 ? ` • ${pendingAdvanceOrders.length - nealocateCount} alocate, nepornite` : ''}
+            </p>
           </CardContent>
         </Card>
 
