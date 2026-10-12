@@ -182,7 +182,7 @@ export async function resolveMissingOperators(
         .in("email", batch);
       ((data as any[]) || []).forEach((p) => {
         const full = (p.display_name || p.name || "").trim();
-        if (p.email && full) profileName.set(p.email, full);
+        if (p.email && full) profileName.set(p.email.toLowerCase(), full);
       });
     } catch (e) {
       console.warn("resolveMissingOperators: profiles lookup failed", e);
@@ -193,7 +193,7 @@ export async function resolveMissingOperators(
   withRec.forEach(([entry, r]) => {
     const email = r.receptionId ? auditEmail.get(r.receptionId) : null;
     if (!email) return;
-    const fullName = profileName.get(email) || email;
+    const fullName = profileName.get(email.toLowerCase()) || nameFromEmail(email);
     result.set(entry, fullName);
     if (!r.inventoryId) return;
     const rep = reportRows.get(r.inventoryId);
