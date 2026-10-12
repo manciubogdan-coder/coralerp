@@ -1015,7 +1015,7 @@ const ReceptionReport: React.FC = () => {
 
     aoa.push(pad([])); // spacer
     const sigRow1 = aoa.length;
-    aoa.push(pad(["Nume Prenume receptioner", null, null, null, "_____________________________", null, null, null, null, null, "Semnatura", null, "_____________________"]));
+    aoa.push(pad(["Nume Prenume receptioner", null, null, null, group.operatorName || "_____________________________", null, null, null, null, null, "Semnatura", null, "_____________________"]));
     aoa.push(pad([]));
     const sigRow2 = aoa.length;
     aoa.push(pad(["Nume Prenume calitate", null, null, null, "_____________________________", null, null, null, null, null, "Semnatura", null, "_____________________"]));
