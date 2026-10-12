@@ -21,9 +21,12 @@ import {
 import {
   useProducts,
   useProductionLines,
-  useCreateOrder,
+  useCreateAdvanceOrdersBulk,
   useAutoDistributeToLine,
+  refreshProductionData,
 } from "@/hooks/productie/useProductionData";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 
 const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) => {
@@ -36,8 +39,9 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
   const deleteSablon = useDeleteSablon();
   const upsertItem = useUpsertSablonItem();
   const deleteItem = useDeleteSablonItem();
-  const createOrder = useCreateOrder();
+  const createBulk = useCreateAdvanceOrdersBulk();
   const autoDistribute = useAutoDistributeToLine();
+  const queryClient = useQueryClient();
 
   // dialoguri
   const [createOpen, setCreateOpen] = useState(false);
@@ -193,34 +197,31 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
           sablon={generateSablon}
           onClose={() => setGenerateSablonId(null)}
           onGenerate={async (rows, dataProductie) => {
-            let count = 0;
-            const deDistribuit: string[] = [];
-            for (const r of rows) {
-              if (!r.cantitate || r.cantitate <= 0) continue;
-              const nou: any = await createOrder.mutateAsync({
-                magazin: "PRODUCTIE_AVANS",
-                punct_livrare: "PRODUCTIE_AVANS",
+            const active = rows.filter((r) => r.cantitate && r.cantitate > 0);
+            const create = await createBulk.mutateAsync(
+              active.map((r) => ({
                 produs_id: r.produs_id,
                 cantitate: r.cantitate,
                 baxare: r.observatie || undefined,
                 linie_id: r.linie_id || null,
-                status: "pending",
-                tip_comanda: "PRODUCTIE_AVANS",
                 data_productie: dataProductie || null,
-              });
-              count++;
-              if (!r.linie_id && nou?.id) deDistribuit.push(nou.id);
-              // salvează observația ca "ultima folosită" pe item
-              await upsertItem.mutateAsync({
-                id: r.item_id,
-                sablon_id: generateSablon.id,
-                produs_id: r.produs_id,
-                observatie_default: r.observatie || null,
-                cantitate_default: r.cantitate,
-                linie_id: r.linie_id || null,
-                pozitie: r.pozitie,
-              });
-            }
+              }))
+            );
+            const count = create.length;
+            const deDistribuit = create.filter((c: any) => !c.linie_id).map((c: any) => c.id);
+            // salvează „ultima folosită" pe item-uri, în paralel, fără să aștepte
+            Promise.all(
+              active.map((r) =>
+                (supabase as any)
+                  .from("productie_sabloane_items")
+                  .update({
+                    observatie_default: r.observatie || null,
+                    cantitate_default: r.cantitate,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", r.item_id)
+              )
+            ).then(() => queryClient.invalidateQueries({ queryKey: ["productie-sabloane"] }));
             if (deDistribuit.length) {
               try {
                 const rez = await autoDistribute.mutateAsync(deDistribuit);
@@ -231,6 +232,7 @@ const SabloaneProductieAvans = ({ onGenerated }: { onGenerated?: () => void }) =
             } else {
               toast.success(`${count} comenzi generate cu succes`);
             }
+            refreshProductionData(queryClient);
             setGenerateSablonId(null);
             onGenerated?.();
           }}

@@ -873,6 +873,43 @@ export const useCreateOrder = () => {
   });
 };
 
+// Creare în masă pentru comenzi de producție în avans (șabloane): un singur insert,
+// fără restocări (avansul nu ia din restocări) și o singură reîmprospătare la final.
+export const useCreateAdvanceOrdersBulk = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (orders: Array<{
+      produs_id: string;
+      cantitate: number;
+      baxare?: string;
+      linie_id?: string | null;
+      data_productie?: string | null;
+    }>) => {
+      if (orders.length === 0) return [] as any[];
+      const { data, error } = await supabase
+        .from('productie_comenzi')
+        .insert(orders.map((o) => ({
+          magazin: 'PRODUCTIE_AVANS',
+          punct_livrare: 'PRODUCTIE_AVANS',
+          produs_id: o.produs_id,
+          cantitate: o.cantitate,
+          baxare: o.baxare || undefined,
+          linie_id: o.linie_id || null,
+          status: 'pending',
+          cantitate_din_restock: 0,
+          tip_comanda: 'PRODUCTIE_AVANS',
+          data_productie: o.data_productie || null,
+          numar_comanda: '',
+        })) as any)
+        .select('id, linie_id');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+};
+
+export const refreshProductionData = (queryClient: QueryClient) => refreshProductionCaches(queryClient);
+
 // Hook pentru actualizarea unei comenzi
 export const useUpdateOrder = () => {
   const queryClient = useQueryClient();
