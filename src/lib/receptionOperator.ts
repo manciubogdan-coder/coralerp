@@ -133,16 +133,35 @@ export async function resolveMissingOperators(
     }
   }
 
+  // 3b. emailul din jurnal → numele și prenumele din profil (app_profiles)
+  const emails = Array.from(new Set(Array.from(auditEmail.values())));
+  const profileName = new Map<string, string>();
+  for (const batch of chunk(emails, 50)) {
+    try {
+      const { data } = await (supabase as any)
+        .from("app_profiles")
+        .select("email, display_name, name")
+        .in("email", batch);
+      ((data as any[]) || []).forEach((p) => {
+        const full = (p.display_name || p.name || "").trim();
+        if (p.email && full) profileName.set(p.email, full);
+      });
+    } catch (e) {
+      console.warn("resolveMissingOperators: profiles lookup failed", e);
+    }
+  }
+
   const backfills: Record<string, any>[] = [];
   withRec.forEach(([entry, r]) => {
     const email = r.receptionId ? auditEmail.get(r.receptionId) : null;
     if (!email) return;
-    result.set(entry, email);
+    const fullName = profileName.get(email) || email;
+    result.set(entry, fullName);
     if (!r.inventoryId) return;
     const rep = reportRows.get(r.inventoryId);
     const bd = decodePalDoc(rep?.paleti_lazi_document || "").breakdown;
     if (hasOperatorText(bd.operator)) return;
-    bd.operator = { name: email, email };
+    bd.operator = { name: fullName, email };
     backfills.push({
       inventory_id: r.inventoryId,
       inventory_type: inventoryType,
