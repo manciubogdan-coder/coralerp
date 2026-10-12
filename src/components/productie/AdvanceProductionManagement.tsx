@@ -501,6 +501,7 @@ const AdvanceProductionManagement = () => {
                     Distribuire Automată Pagină
                   </Button>
                 )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -518,6 +519,13 @@ const AdvanceProductionManagement = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={paginatedPendingOrders.length > 0 && paginatedPendingOrders.every(o => selectedOrderIds.has(o.id))}
+                            onCheckedChange={() => toggleAllOnPage(paginatedPendingOrders)}
+                            aria-label="Selectează toate comenzile din pagină"
+                          />
+                        </TableHead>
                         <TableHead>Nr. Comandă</TableHead>
                         <TableHead>Produs</TableHead>
                         <TableHead>Cantitate</TableHead>
@@ -530,7 +538,14 @@ const AdvanceProductionManagement = () => {
                     </TableHeader>
                     <TableBody>
                       {paginatedPendingOrders.map((order) => (
-                        <TableRow key={order.id}>
+                        <TableRow key={order.id} className={selectedOrderIds.has(order.id) ? 'bg-red-50' : undefined}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedOrderIds.has(order.id)}
+                              onCheckedChange={() => toggleOrderSelected(order.id)}
+                              aria-label={`Selectează comanda ${order.numar_comanda}`}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">
                             {order.numar_comanda}
                           </TableCell>
