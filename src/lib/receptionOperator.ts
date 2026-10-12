@@ -87,11 +87,39 @@ export async function resolveMissingOperators(
       console.warn("resolveMissingOperators: report data lookup failed", e);
     }
   }
+  // colectează operatorii salvați; unde avem doar email, îl rezolvăm la nume
+  const emailOps = new Set<string>();
+  const savedOps = new Map<number, { name: string; email: string }>();
   withInv.forEach(([entry, r]) => {
     const rep = r.inventoryId ? reportRows.get(r.inventoryId) : null;
     const op = decodePalDoc(rep?.paleti_lazi_document || "").breakdown.operator;
-    const name = op?.name?.trim() || op?.email?.trim() || "";
-    if (name) result.set(entry, name);
+    const name = op?.name?.trim() || "";
+    const email = op?.email?.trim() || "";
+    if (!name && !email) return;
+    savedOps.set(entry, { name, email });
+    if (email && (!name || name.includes("@"))) emailOps.add(email);
+    else if (name.includes("@")) emailOps.add(name);
+  });
+  if (emailOps.size > 0) {
+    for (const batch of chunk(Array.from(emailOps), 50)) {
+      try {
+        const { data } = await (supabase as any)
+          .from("app_profiles")
+          .select("email, display_name, name")
+          .in("email", batch);
+        ((data as any[]) || []).forEach((p) => {
+          const full = (p.display_name || p.name || "").trim();
+          if (p.email && full) profileName.set(p.email, full);
+        });
+      } catch (e) {
+        console.warn("resolveMissingOperators: profiles lookup failed", e);
+      }
+    }
+  }
+  savedOps.forEach((op, entry) => {
+    const looksEmail = op.name.includes("@");
+    const resolved = looksEmail ? profileName.get(op.name) : op.email ? profileName.get(op.email) : null;
+    result.set(entry, resolved || (looksEmail ? "" : op.name) || op.email || op.name);
   });
 
   // 3. fallback: prima înregistrare din jurnalul de modificări
