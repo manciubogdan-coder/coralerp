@@ -11,6 +11,7 @@ import { useInventoryType } from "@/context/inventory-type";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
 import { emitNotification } from "@/lib/notifications";
+import { useAuth } from "@/contexts/AuthContext";
 import { LotQRDialog } from "./LotQRDialog";
 import {
   type BreakdownEntry,
@@ -39,6 +40,7 @@ export function ReceptionRegistration({
   onRegistrationComplete 
 }: ReceptionRegistrationProps) {
   const { inventoryType } = useInventoryType();
+  const { user, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
