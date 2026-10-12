@@ -1045,6 +1045,26 @@ export const useUpdateOrder = () => {
   });
 };
 
+// Hook pentru ștergerea mai multor comenzi deodată (bulk)
+export const useDeleteOrdersBulk = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!ids.length) return;
+      const { error } = await supabase
+        .from('productie_comenzi')
+        .delete()
+        .in('id', ids);
+
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await refreshProductionCaches(queryClient);
+    }
+  });
+};
+
 // Hook pentru ștergerea unei comenzi
 export const useDeleteOrder = () => {
   const queryClient = useQueryClient();
