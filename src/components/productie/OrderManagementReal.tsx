@@ -209,10 +209,9 @@ const OrderManagementReal = () => {
     }
 
     try {
-      for (const order of pendingOrders) {
-        await autoDistributeMutation.mutateAsync(order.id);
-      }
-      toast.success(`${pendingOrders.length} comenzi au fost distribuite automat pe linii`);
+      const rez = await autoDistributeMutation.mutateAsync(pendingOrders.map((o: any) => o.id));
+      if (rez.esuate.length) toast.warning(`${rez.distribuite} comenzi distribuite, ${rez.esuate.length} nu au putut fi distribuite`);
+      else toast.success(`${rez.distribuite} comenzi au fost distribuite automat pe linii`);
       refetchOrders();
     } catch (error: any) {
       toast.error(`Eroare la distribuirea automată: ${error.message || 'Eroare necunoscută'}`);
