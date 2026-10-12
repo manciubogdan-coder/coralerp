@@ -74,6 +74,7 @@ export async function resolveMissingOperators(
   }
 
   // 2. operatorul din breakdown-ul salvat (recepții noi)
+  const profileName = new Map<string, string>();
   const withInv = entries.filter(([, r]) => !!r.inventoryId);
   const reportRows = new Map<string, any>();
   for (const batch of chunk(withInv, 50)) {
@@ -87,11 +88,39 @@ export async function resolveMissingOperators(
       console.warn("resolveMissingOperators: report data lookup failed", e);
     }
   }
+  // colectează operatorii salvați; unde avem doar email, îl rezolvăm la nume
+  const emailOps = new Set<string>();
+  const savedOps = new Map<number, { name: string; email: string }>();
   withInv.forEach(([entry, r]) => {
     const rep = r.inventoryId ? reportRows.get(r.inventoryId) : null;
     const op = decodePalDoc(rep?.paleti_lazi_document || "").breakdown.operator;
-    const name = op?.name?.trim() || op?.email?.trim() || "";
-    if (name) result.set(entry, name);
+    const name = op?.name?.trim() || "";
+    const email = op?.email?.trim() || "";
+    if (!name && !email) return;
+    savedOps.set(entry, { name, email });
+    if (email && (!name || name.includes("@"))) emailOps.add(email);
+    else if (name.includes("@")) emailOps.add(name);
+  });
+  if (emailOps.size > 0) {
+    for (const batch of chunk(Array.from(emailOps), 50)) {
+      try {
+        const { data } = await (supabase as any)
+          .from("app_profiles")
+          .select("email, display_name, name")
+          .in("email", batch);
+        ((data as any[]) || []).forEach((p) => {
+          const full = (p.display_name || p.name || "").trim();
+          if (p.email && full) profileName.set(p.email, full);
+        });
+      } catch (e) {
+        console.warn("resolveMissingOperators: profiles lookup failed", e);
+      }
+    }
+  }
+  savedOps.forEach((op, entry) => {
+    const looksEmail = op.name.includes("@");
+    const resolved = looksEmail ? profileName.get(op.name) : op.email ? profileName.get(op.email) : null;
+    result.set(entry, resolved || (looksEmail ? "" : op.name) || op.email || op.name);
   });
 
   // 3. fallback: prima înregistrare din jurnalul de modificări
@@ -133,16 +162,34 @@ export async function resolveMissingOperators(
     }
   }
 
+  // 3b. emailul din jurnal → numele și prenumele din profil (app_profiles)
+  const emails = Array.from(new Set(Array.from(auditEmail.values()))).filter((e) => !profileName.has(e));
+  for (const batch of chunk(emails, 50)) {
+    try {
+      const { data } = await (supabase as any)
+        .from("app_profiles")
+        .select("email, display_name, name")
+        .in("email", batch);
+      ((data as any[]) || []).forEach((p) => {
+        const full = (p.display_name || p.name || "").trim();
+        if (p.email && full) profileName.set(p.email, full);
+      });
+    } catch (e) {
+      console.warn("resolveMissingOperators: profiles lookup failed", e);
+    }
+  }
+
   const backfills: Record<string, any>[] = [];
   withRec.forEach(([entry, r]) => {
     const email = r.receptionId ? auditEmail.get(r.receptionId) : null;
     if (!email) return;
-    result.set(entry, email);
+    const fullName = profileName.get(email) || email;
+    result.set(entry, fullName);
     if (!r.inventoryId) return;
     const rep = reportRows.get(r.inventoryId);
     const bd = decodePalDoc(rep?.paleti_lazi_document || "").breakdown;
     if (hasOperatorText(bd.operator)) return;
-    bd.operator = { name: email, email };
+    bd.operator = { name: fullName, email };
     backfills.push({
       inventory_id: r.inventoryId,
       inventory_type: inventoryType,
