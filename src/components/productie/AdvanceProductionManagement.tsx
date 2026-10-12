@@ -469,6 +469,22 @@ const AdvanceProductionManagement = () => {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>Comenzi în Așteptare de Alocare ({pendingTotalItems} total)</CardTitle>
+                <div className="flex gap-2">
+                {selectedOrderIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    disabled={deleteOrdersBulkMutation.isPending}
+                  >
+                    {deleteOrdersBulkMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-2" />
+                    )}
+                    Șterge selectate ({selectedOrderIds.size})
+                  </Button>
+                )}
                 {pendingTotalItems > 0 && (
                   <Button
                     variant="outline"
