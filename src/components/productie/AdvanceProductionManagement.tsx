@@ -189,6 +189,40 @@ const AdvanceProductionManagement = () => {
     }
   };
 
+  const toggleOrderSelected = (id: string) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllOnPage = (pageOrders: any[]) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      const allSelected = pageOrders.every(o => next.has(o.id));
+      if (allSelected) pageOrders.forEach(o => next.delete(o.id));
+      else pageOrders.forEach(o => next.add(o.id));
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedOrderIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Sigur doriți să ștergeți ${ids.length} comenzi din producția în avans?`)) {
+      return;
+    }
+    try {
+      await deleteOrdersBulkMutation.mutateAsync(ids);
+      toast.success(`${ids.length} comenzi au fost șterse din producția în avans`);
+      setSelectedOrderIds(new Set());
+      refetchOrders();
+    } catch (error: any) {
+      toast.error(`Nu s-au putut șterge comenzile: ${error.message || 'Eroare necunoscută'}`);
+    }
+  };
+
   const handleAutoDistribute = async (order: any) => {
     try {
       await autoDistributeMutation.mutateAsync(order.id);
