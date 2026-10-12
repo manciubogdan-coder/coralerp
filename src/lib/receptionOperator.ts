@@ -74,6 +74,7 @@ export async function resolveMissingOperators(
   }
 
   // 2. operatorul din breakdown-ul salvat (recepții noi)
+  const profileName = new Map<string, string>();
   const withInv = entries.filter(([, r]) => !!r.inventoryId);
   const reportRows = new Map<string, any>();
   for (const batch of chunk(withInv, 50)) {
@@ -162,8 +163,7 @@ export async function resolveMissingOperators(
   }
 
   // 3b. emailul din jurnal → numele și prenumele din profil (app_profiles)
-  const emails = Array.from(new Set(Array.from(auditEmail.values())));
-  const profileName = new Map<string, string>();
+  const emails = Array.from(new Set(Array.from(auditEmail.values()))).filter((e) => !profileName.has(e));
   for (const batch of chunk(emails, 50)) {
     try {
       const { data } = await (supabase as any)
