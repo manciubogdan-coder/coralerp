@@ -13,6 +13,7 @@ import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useGroupedReceptions } from "@/hooks/use-grouped-receptions";
 import { useInventoryType } from "@/context/inventory-type";
+import { resolveMissingOperators } from "@/lib/receptionOperator";
 import { LotQRDialog } from "./LotQRDialog";
 
 interface ReceptionItem {
@@ -36,6 +37,8 @@ interface ReceptionItem {
   consider_quantity?: number | null;
   net_quantity?: number | null;
   gross_quantity?: number | null;
+  // Operatorul care a făcut recepția (recuperat și din jurnal pentru cele vechi)
+  operator?: string;
 }
 
 type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';
@@ -147,6 +150,26 @@ export const ReceptionHistory = () => {
       }));
       setReceptions(receptionsData);
       setFilteredReceptions(receptionsData);
+
+      // Completează operatorul, inclusiv pentru recepțiile vechi,
+      // recuperându-l din jurnalul de modificări (istoric).
+      try {
+        const opMap = await resolveMissingOperators(
+          supabase,
+          inventoryType,
+          receptionsData.map((r: any) => ({ entryNumber: r.entry_number, receptionId: r.id })),
+        );
+        if (opMap.size > 0) {
+          const withOps = receptionsData.map((item: any) => ({
+            ...item,
+            operator: opMap.get(item.entry_number) || item.operator,
+          }));
+          setReceptions(withOps);
+          setFilteredReceptions(withOps);
+        }
+      } catch (e) {
+        console.warn("Nu am putut recupera operatorii din istoric:", e);
+      }
     } catch (error: any) {
       console.error("Error fetching reception history:", error);
       toast({
