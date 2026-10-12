@@ -12,11 +12,18 @@ export type BreakdownEntry = {
   count: number;
 };
 
+export type BreakdownOperator = {
+  name?: string;
+  email?: string;
+};
+
 export type BreakdownPayload = {
   rec_pallets: BreakdownEntry[];
   rec_crates: BreakdownEntry[];
   doc_pallets: BreakdownEntry[];
   doc_crates: BreakdownEntry[];
+  /** Operatorul care a făcut recepția (salvat odată cu breakdown-ul). */
+  operator?: BreakdownOperator | null;
 };
 
 export const emptyBreakdown = (): BreakdownPayload => ({
@@ -95,6 +102,7 @@ export const decodePalDoc = (text: string | null | undefined): {
         rec_crates: Array.isArray(parsed.rec_crates) ? parsed.rec_crates : [],
         doc_pallets: Array.isArray(parsed.doc_pallets) ? parsed.doc_pallets : [],
         doc_crates: Array.isArray(parsed.doc_crates) ? parsed.doc_crates : [],
+        operator: (parsed.operator && typeof parsed.operator === "object") ? parsed.operator : undefined,
       };
     } catch { /* ignore corrupt payload */ }
   } else {
@@ -124,15 +132,22 @@ export const encodePalDoc = (bd: BreakdownPayload): string => {
   const counts = parts.join("/");
   const dominantTip = bd.doc_crates[0]?.name?.trim() || "";
 
-  // Dacă breakdown-ul e gol în întregime, întoarce ""
+  const opName = (bd.operator?.name || "").trim();
+  const opEmail = (bd.operator?.email || "").trim();
+  const hasOperator = !!(opName || opEmail);
+
+  // Dacă breakdown-ul e gol în întregime și nu avem operator, întoarce ""
   const isEmpty =
     bd.rec_pallets.length === 0 &&
     bd.rec_crates.length === 0 &&
     bd.doc_pallets.length === 0 &&
     bd.doc_crates.length === 0;
-  if (isEmpty) return "";
+  if (isEmpty && !hasOperator) return "";
 
-  const json = JSON.stringify(bd);
+  const payload: BreakdownPayload = hasOperator
+    ? { ...bd, operator: { name: opName, email: opEmail } }
+    : bd;
+  const json = JSON.stringify(payload);
   return `${counts}||${dominantTip}||BD:${b64encode(json)}`;
 };
 

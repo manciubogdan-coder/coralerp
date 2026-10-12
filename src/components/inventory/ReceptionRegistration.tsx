@@ -11,6 +11,7 @@ import { useInventoryType } from "@/context/inventory-type";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { Badge } from "@/components/ui/badge";
 import { emitNotification } from "@/lib/notifications";
+import { useAuth } from "@/contexts/AuthContext";
 import { LotQRDialog } from "./LotQRDialog";
 import {
   type BreakdownEntry,
@@ -39,6 +40,7 @@ export function ReceptionRegistration({
   onRegistrationComplete 
 }: ReceptionRegistrationProps) {
   const { inventoryType } = useInventoryType();
+  const { user, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -269,21 +271,27 @@ export function ReceptionRegistration({
       const inventoryRowId: string | null = (insertedInv as any)?.id || null;
       const docPallets = (linkedLine?.pallets || []).filter((r) => r.id && Number(r.count) > 0);
       const docCrates = (linkedLine?.crates || []).filter((r) => r.id && Number(r.count) > 0);
-      if (inventoryRowId && (cleanedPallets.length > 0 || cleanedCrates.length > 0 || docPallets.length > 0 || docCrates.length > 0 || linkedLine)) {
+      // Operatorul care a făcut recepția — salvat odată cu breakdown-ul
+      const operatorInfo = {
+        name: profile?.display_name || profile?.name || user?.email || "",
+        email: user?.email || "",
+      };
+      const encodedWithOperator = encodePalDoc({
+        ...emptyBreakdown(),
+        rec_pallets: cleanedPallets,
+        rec_crates: cleanedCrates,
+        doc_pallets: docPallets,
+        doc_crates: docCrates,
+        operator: operatorInfo,
+      });
+      if (inventoryRowId && (encodedWithOperator || linkedLine)) {
         try {
-          const encoded = encodePalDoc({
-            ...emptyBreakdown(),
-            rec_pallets: cleanedPallets,
-            rec_crates: cleanedCrates,
-            doc_pallets: docPallets,
-            doc_crates: docCrates,
-          });
           await (supabase as any)
             .from('reception_report_data')
             .upsert([{
               inventory_id: inventoryRowId,
               inventory_type: inventoryType,
-              paleti_lazi_document: encoded || null,
+              paleti_lazi_document: encodedWithOperator || null,
               cantitate_document: linkedLine ? Number(linkedLine.cantitate_document) || null : null,
               cantitate_receptionata: quantityToSave,
               tip_palet: cleanedPallets[0]?.name || null,

@@ -86,6 +86,7 @@ type ReportRow = {
   is_missing?: boolean;
   missing_id?: string;
   lot_number?: string;
+  operator?: string;
 };
 
 type ToleranceCfg = { under: number; over: number };
@@ -95,6 +96,7 @@ type SupplierGroup = {
   supplierName: string;
   supplierId: string | null;
   documentNumber: string;
+  operatorName?: string;
   rows: ReportRow[];
 };
 
@@ -456,6 +458,11 @@ const ReceptionReport: React.FC = () => {
         const supplierName = row.supplier_name || (row.supplier_id ? supplierMap.get(row.supplier_id) : null) || "Fără furnizor";
         const grp = ensureGroup(row.supplier_id, supplierName, row.document_number || "");
         const existing = reportMap.get(row.id);
+        const bdOperator = existing
+          ? decodePalDoc(existing.paleti_lazi_document || "").breakdown.operator
+          : undefined;
+        const operatorName =
+          bdOperator?.name?.trim() || bdOperator?.email?.trim() || "";
         grp.rows.push({
           inventory_id: row.id,
           product_id: row.product_id ?? null,
@@ -479,7 +486,9 @@ const ReceptionReport: React.FC = () => {
           defects: Array.isArray(existing?.defects) ? existing!.defects! : [],
           observations: existing?.observations ?? "",
           lot_number: (row as any).lot_number || "",
+          operator: operatorName,
         });
+        if (operatorName && !grp.operatorName) grp.operatorName = operatorName;
       });
 
       // Adaugă articolele lipsă în grupul corespunzător
@@ -828,10 +837,11 @@ const ReceptionReport: React.FC = () => {
   const formatPalDoc = (
     p: number | null, l: number | null, tip: string = "", bd?: BreakdownPayload
   ): string => {
+    const hasOperator = !!(bd?.operator?.name?.trim() || bd?.operator?.email?.trim());
     const isEmpty = (!p || p <= 0) && (!l || l <= 0) && !tip && (!bd || (
       bd.rec_pallets.length === 0 && bd.rec_crates.length === 0 &&
       bd.doc_pallets.length === 0 && bd.doc_crates.length === 0
-    ));
+    )) && !hasOperator;
     if (isEmpty) return "";
 
     if (bd) {
@@ -841,6 +851,7 @@ const ReceptionReport: React.FC = () => {
         rec_crates: bd.rec_crates,
         doc_pallets: bd.doc_pallets.length > 0 ? bd.doc_pallets : (p && p > 0 ? [{ id: null, name: "", count: p }] : []),
         doc_crates: bd.doc_crates.length > 0 ? bd.doc_crates : (l && l > 0 ? [{ id: null, name: tip, count: l }] : []),
+        operator: bd.operator,
       };
       // Dacă utilizatorul modifică totalurile p/l din inputurile simple (un singur tip), reflectă-le
       if (p != null && next.doc_pallets.length === 1) next.doc_pallets[0].count = p;
@@ -1004,7 +1015,7 @@ const ReceptionReport: React.FC = () => {
 
     aoa.push(pad([])); // spacer
     const sigRow1 = aoa.length;
-    aoa.push(pad(["Nume Prenume receptioner", null, null, null, "_____________________________", null, null, null, null, null, "Semnatura", null, "_____________________"]));
+    aoa.push(pad(["Nume Prenume receptioner", null, null, null, group.operatorName || "_____________________________", null, null, null, null, null, "Semnatura", null, "_____________________"]));
     aoa.push(pad([]));
     const sigRow2 = aoa.length;
     aoa.push(pad(["Nume Prenume calitate", null, null, null, "_____________________________", null, null, null, null, null, "Semnatura", null, "_____________________"]));
@@ -1693,6 +1704,7 @@ const ReceptionReport: React.FC = () => {
                 <CardTitle className="text-lg">Furnizor: {group.supplierName}</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
                   Nr document: {group.documentNumber || "—"} • {group.rows.length} produse
+                  {group.operatorName ? <> • Operator: <span className="font-medium text-foreground">{group.operatorName}</span></> : null}
                 </p>
               </div>
               <div className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:flex-wrap">
