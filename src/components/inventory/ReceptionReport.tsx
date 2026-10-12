@@ -40,6 +40,7 @@ import {
   summarizeBreakdown,
   aggregateByType,
 } from "@/lib/receptionBreakdown";
+import { resolveMissingOperators } from "@/lib/receptionOperator";
 
 type InventoryRow = {
   id: string;
@@ -57,6 +58,7 @@ type InventoryRow = {
   supplier_name: string | null;
   manufacturer_id: string | null;
   product_id: string | null;
+  entry_number?: number | null;
 };
 
 type PhotoRef = { path: string; url: string };
@@ -386,7 +388,7 @@ const ReceptionReport: React.FC = () => {
 
       const baseCols = `id, name, original_quantity, net_quantity, unit, receipt_date, document_number,
            crate_count, crate_type_id, pallet_type_id, pallet_count,
-           supplier_id, supplier_name, manufacturer_id, product_id`;
+           supplier_id, supplier_name, manufacturer_id, product_id, entry_number`;
       const runInv = (cols: string) => (supabase as any)
         .from(tableName).select(cols)
         .gte("receipt_date", start).lte("receipt_date", end)
