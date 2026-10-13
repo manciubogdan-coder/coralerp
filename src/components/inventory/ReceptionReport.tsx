@@ -694,10 +694,13 @@ const ReceptionReport: React.FC = () => {
   const calcPierdereKg = (r: ReportRow) => {
     const proc = parseFloat(r.pierdere_calitativa_procent);
     if (isNaN(proc)) return null;
-    // Pierderea calitativă se calculează întotdeauna pe cantitatea de pe document
-    // (ex. 170 × 28% = 48 kg, nu 196.8 × 28% = 55 kg)
+    // Pierderea se calculează pe cantitatea de pe document, DAR dacă surplusul
+    // se declară furnizorului (depășește toleranța), baza devine cantitatea
+    // recepționată efectiv (ex. 363.5 × 28%, nu 200 × 28%).
     const doc = parseFloat(r.cantitate_document);
-    const base = !isNaN(doc) ? doc : effectiveReceived(r);
+    const tol = getTol(r.product_id);
+    const surplusDeclarat = !isNaN(doc) && doc > 0 && (r.cantitate_receptionata - doc) > tol.over;
+    const base = surplusDeclarat || isNaN(doc) ? effectiveReceived(r) : doc;
     return (base * proc) / 100;
   };
   // Pierdere (kg) se afișează/raportează rotunjit la întreg (1.34 -> 1, 1.55 -> 2)
