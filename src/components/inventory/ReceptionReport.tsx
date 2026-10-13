@@ -694,10 +694,13 @@ const ReceptionReport: React.FC = () => {
   const calcPierdereKg = (r: ReportRow) => {
     const proc = parseFloat(r.pierdere_calitativa_procent);
     if (isNaN(proc)) return null;
-    // Pierderea calitativă se calculează întotdeauna pe cantitatea de pe document
-    // (ex. 170 × 28% = 48 kg, nu 196.8 × 28% = 55 kg)
+    // Pierderea se calculează pe cantitatea de pe document, DAR dacă surplusul
+    // se declară furnizorului (depășește toleranța), baza devine cantitatea
+    // recepționată efectiv (ex. 363.5 × 28%, nu 200 × 28%).
     const doc = parseFloat(r.cantitate_document);
-    const base = !isNaN(doc) ? doc : effectiveReceived(r);
+    const tol = getTol(r.product_id);
+    const surplusDeclarat = !isNaN(doc) && doc > 0 && (r.cantitate_receptionata - doc) > tol.over;
+    const base = surplusDeclarat || isNaN(doc) ? effectiveReceived(r) : doc;
     return (base * proc) / 100;
   };
   // Pierdere (kg) se afișează/raportează rotunjit la întreg (1.34 -> 1, 1.55 -> 2)
@@ -1425,14 +1428,20 @@ const ReceptionReport: React.FC = () => {
     if (affected.length > 0) {
       if (wholeProduct) {
         const p = affected[0].p;
-        if (p > QUALITY_WARNING_MAX) { const base = docQty != null && docQty > 0 ? docQty : recvQty; creditKg = Math.round(base * p / 100); creditText = kgTxt(creditKg, unit); }
+        // Surplus declarat furnizorului → baza = cantitatea recepționată efectiv; altfel = documentul
+        const surplusDecl = docQty != null && docQty > 0 && (weighed - docQty) > tol.over;
+        const base = docQty != null && docQty > 0 && !surplusDecl ? docQty : recvQty;
+        if (p > QUALITY_WARNING_MAX) { creditKg = Math.round(base * p / 100); creditText = kgTxt(creditKg, unit); }
         else creditText = "Warning!";
       } else {
         const lines: string[] = [];
         affected.forEach(({ r, p }) => {
           if (p > QUALITY_WARNING_MAX) {
             const docR = parseFloat(r.cantitate_document);
-            const baseR = !isNaN(docR) && docR > 0 ? docR : Number(r.cantitate_receptionata) || 0;
+            const tolR = getTol(r.product_id);
+            const recvR = Number(r.cantitate_receptionata) || 0;
+            const surplusR = !isNaN(docR) && docR > 0 && (recvR - docR) > tolR.over;
+            const baseR = !isNaN(docR) && docR > 0 && !surplusR ? docR : recvR;
             const kg = Math.round(baseR * p / 100);
             creditKg += kg;
             lines.push(`${lotLabel(r)} - quality loss ${kgTxt(kg, unit)}`);
