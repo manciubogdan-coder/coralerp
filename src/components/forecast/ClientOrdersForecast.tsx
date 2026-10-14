@@ -34,6 +34,7 @@ interface Row {
   matched: boolean;
   perDayBrut: number[];
   perDayAvg: number[];
+  perDate: Record<string, number>;
   avgDaily: number;
   coverDays: number | null;
   coverDate: Date | null;
@@ -89,6 +90,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   const [fromDate, setFromDate] = useState<Date>(subDays(new Date(), 30));
   const [toDate, setToDate] = useState<Date>(new Date());
   const [rows, setRows] = useState<Row[]>([]);
+  const [orderDates, setOrderDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [ordersCount, setOrdersCount] = useState(0);
   const [missingRecipes, setMissingRecipes] = useState<string[]>([]);
@@ -250,6 +252,35 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
 
       setMissingRecipes([...missing].slice(0, 30));
 
+      // 4b. Consum real din comenzile existente pe zilele viitoare (rețetă × cantitate)
+      const futFrom = format(startOfDay(new Date()), "yyyy-MM-dd");
+      const futTo = format(addDays(new Date(), 90), "yyyy-MM-dd");
+      const futOrders = await fetchAll(() =>
+        supabase
+          .from("productie_comenzi")
+          .select("id, produs_id, cantitate, data_productie, status")
+          .gte("data_productie", futFrom)
+          .lte("data_productie", futTo)
+          .order("id")
+      );
+      const futNeed = new Map<string, Record<string, number>>();
+      const datesWithOrders = new Set<string>();
+      futOrders.filter((o: any) => o.status !== "canceled_by_erp").forEach((o: any) => {
+        if (!o.produs_id || !o.data_productie) return;
+        const dk = String(o.data_productie).slice(0, 10);
+        datesWithOrders.add(dk);
+        const recipe = recipeByProduct.get(o.produs_id);
+        (recipe?.productie_retete_ingrediente || []).forEach((ing: any) => {
+          const key = norm(ing.productie_ingrediente?.nume || "Necunoscut");
+          const qty = toKg((Number(ing.cantitate_necesara) || 0) * (Number(o.cantitate) || 0), ing.unitate_masura);
+          const rec = futNeed.get(key) || {};
+          rec[dk] = (rec[dk] || 0) + qty;
+          futNeed.set(key, rec);
+          if (!need.has(key)) need.set(key, { name: ing.productie_ingrediente?.nume || "Necunoscut", qty: 0, perDay: [0, 0, 0, 0, 0, 0, 0] });
+        });
+      });
+      setOrderDates(datesWithOrders);
+
       // 5. Produse din depozit (PT + stoc)
       const { data: products } = await supabase.from(tables.products).select("*");
       const productByName = new Map<string, any>();
@@ -317,6 +348,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const name = p?.name || v.name;
         return {
           perDayBrut,
+          perDate: Object.fromEntries(Object.entries(futNeed.get(key) || {}).map(([d, q]) => [d, q * factor])),
           perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
           key,
           productId: p?.id || null,
@@ -422,10 +454,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           incomingLeft = 0;
         }
         incoming.push(inQty);
-        const need = r.perDayAvg[isoDay(d)] || 0;
+        // Dacă ziua are comenzi reale → consum din comenzi × rețete; altfel media din referință.
+        const dk = format(d, "yyyy-MM-dd");
+        const need = orderDates.has(dk) ? r.perDate[dk] || 0 : r.perDayAvg[isoDay(d)] || 0;
         running -= need;
         consum.push(need);
-        remaining.push(running);
+        remaining.push(Math.max(running, 0));
         if (running < 0 && !outDate) outDate = d;
         // Lipsa unei zile nu se reportează: a doua zi pornim de la 0, nu de la minus.
         if (running < 0) running = 0;
@@ -433,7 +467,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       map.set(r.key, { start, incoming, remaining, consum, outDate });
     });
     return map;
-  }, [filtered, projDays]);
+  }, [filtered, projDays, orderDates]);
 
 
 
