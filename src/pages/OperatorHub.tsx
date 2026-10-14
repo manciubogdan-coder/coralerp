@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OperatorInterface from "@/components/productie/OperatorInterface";
+import RefreshButton from "@/components/RefreshButton";
 import {
   OperatorI18nProvider,
   OperatorLanguageSelector,
@@ -23,7 +24,8 @@ const OperatorHubContent: React.FC = () => {
             {t("backToPanel")}
           </Button>
           <h1 className="text-xl md:text-2xl font-bold">{t("operator")}</h1>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            <RefreshButton />
             <OperatorLanguageSelector />
           </div>
         </div>
