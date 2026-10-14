@@ -155,7 +155,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const byProdDate = await fetchAll(() =>
         supabase
           .from("productie_comenzi")
-          .select("id, produs_id, cantitate, data_productie, created_at, status")
+          .select("id, produs_id, cantitate, data_productie, created_at, status, tip_comanda")
           .gte("data_productie", fromStr)
           .lte("data_productie", toStr)
           .order("id")
@@ -164,7 +164,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const byCreated = await fetchAll(() =>
         supabase
           .from("productie_comenzi")
-          .select("id, produs_id, cantitate, data_productie, created_at, status")
+          .select("id, produs_id, cantitate, data_productie, created_at, status, tip_comanda")
           .is("data_productie", null)
           .gte("created_at", fromTs)
           .lte("created_at", toTs)
@@ -172,7 +172,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       );
 
       const orders = [...(byProdDate || []), ...(byCreated || [])].filter(
-        (o: any) => o.status !== "canceled_by_erp"
+        (o: any) =>
+          o.status !== "canceled_by_erp" &&
+          // În Istoric luăm doar comenzile ferme ale clienților: producția în avans
+          // acoperă comenzi ferme ulterioare și le-ar număra de două ori.
+          !(m === "istoric" && o.tip_comanda === "PRODUCTIE_AVANS")
       );
       setOrdersCount(orders.length);
 
@@ -456,7 +460,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         incoming.push(inQty);
         // Dacă ziua are comenzi reale → consum din comenzi × rețete; altfel media din referință.
         const dk = format(d, "yyyy-MM-dd");
-        const need = orderDates.has(dk) ? r.perDate[dk] || 0 : r.perDayAvg[isoDay(d)] || 0;
+        // Istoric → media consumului pe ziua săptămânii din perioada de referință aleasă.
+        // Live → comenzile reale existente pe acea zi.
+        const need =
+          mode === "live" && orderDates.has(dk) ? r.perDate[dk] || 0 : r.perDayAvg[isoDay(d)] || 0;
         running -= need;
         consum.push(need);
         remaining.push(Math.max(running, 0));
@@ -467,7 +474,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       map.set(r.key, { start, incoming, remaining, consum, outDate });
     });
     return map;
-  }, [filtered, projDays, orderDates]);
+  }, [filtered, projDays, orderDates, mode]);
 
 
 
