@@ -427,6 +427,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         consum.push(need);
         remaining.push(running);
         if (running < 0 && !outDate) outDate = d;
+        // Lipsa unei zile nu se reportează: a doua zi pornim de la 0, nu de la minus.
+        if (running < 0) running = 0;
       });
       map.set(r.key, { start, incoming, remaining, consum, outDate });
     });
