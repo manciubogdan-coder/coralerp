@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const mssql = require("mssql");
 const fetch = require("node-fetch");
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const ROOT = path.join(__dirname, "..");
 const LOG_DIR = path.join(ROOT, "logs");
 const STATE_FILE = path.join(ROOT, "mirror-state.json");
@@ -155,6 +155,15 @@ async function describe(s, n) {
 }
 const q = (id) => "[" + String(id).replace(/]/g, "]]") + "]";
 
+// Numar aproximativ de randuri din metadate (instant, fara scanare).
+async function approxRows(s, n) {
+  try {
+    const r = await select(`SELECT SUM(p.rows) AS c FROM sys.partitions p
+      WHERE p.object_id = OBJECT_ID(@full) AND p.index_id IN (0, 1)`, { full: `${q(s)}.${q(n)}` });
+    return Number(r[0]?.c || 0);
+  } catch { return -1; }
+}
+
 async function fingerprint(s, n) {
   try {
     const r = await select(`SELECT COUNT_BIG(*) AS c, CHECKSUM_AGG(BINARY_CHECKSUM(*)) AS h FROM ${q(s)}.${q(n)} WITH (NOLOCK)`);
@@ -164,15 +173,20 @@ async function fingerprint(s, n) {
   }
 }
 
+const STALL_MS = Number(process.env.STALL_MINUTES || 10) * 60000;
+
 // ---------- sincronizare tabel (streaming, in loturi) ----------
 async function syncTable(run, s, n, state) {
   const table = tableName(s, n);
+  const key = `${s}.${n}`;
   const { cols, pk } = await describe(s, n);
   if (!cols.length) return { skipped: true };
 
+  const approx = await approxRows(s, n);
+  if (approx > 50000) log(`   … ${key}: ~${approx.toLocaleString("ro-RO")} randuri, verific daca s-a schimbat`);
   const fp = await fingerprint(s, n);
-  const key = `${s}.${n}`;
   if (fp && state[key]?.fp === fp && state[key]?.cols === cols.length) return { skipped: true };
+  if (approx > 50000) log(`   … ${key}: incep copierea`);
 
   await api({ action: "ensure_table", table, source: key, columns: cols.map(({ name, type }) => ({ name, type })), pk });
 
@@ -183,12 +197,24 @@ async function syncTable(run, s, n, state) {
   const request = (await getPool()).request();
   request.stream = true;
   let buf = [], total = 0, failed = null, sending = Promise.resolve();
+  let lastActivity = Date.now(), lastProgress = Date.now();
   const dup = new Map();
 
   const flush = (rows) => api({ action: "upsert", table, run, rows });
 
-  await new Promise((resolve, reject) => {
+  await new Promise((resolve) => {
+    let finished = false;
+    const finish = () => { if (!finished) { finished = true; clearInterval(watch); resolve(); } };
+    // Paza: daca nu vine nimic din ERP sau din Coral ERP mai mult de STALL_MINUTES, oprim tabelul.
+    const watch = setInterval(() => {
+      if (Date.now() - lastActivity > STALL_MS) {
+        failed = failed || new Error(`blocat peste ${STALL_MS / 60000} min (dupa ${total} randuri) — trec mai departe`);
+        try { request.cancel(); } catch (_) {}
+        finish();
+      }
+    }, 15000);
     request.on("row", (r) => {
+      lastActivity = Date.now();
       const row = {};
       for (const c of cols) row[c.name] = toValue(r[c.src]);
       let k;
@@ -204,15 +230,21 @@ async function syncTable(run, s, n, state) {
       if (buf.length >= CHUNK) {
         const batch = buf; buf = [];
         request.pause();
-        sending = sending.then(() => flush(batch)).then(() => { total += batch.length; request.resume(); })
-          .catch((e) => { failed = e; request.cancel(); });
+        sending = sending.then(() => failed ? null : flush(batch)).then(() => {
+          total += batch.length; lastActivity = Date.now();
+          if (Date.now() - lastProgress > 30000) {
+            lastProgress = Date.now();
+            log(`   … ${key}: ${total.toLocaleString("ro-RO")}${approx > 0 ? " / ~" + approx.toLocaleString("ro-RO") : ""} randuri trimise`);
+          }
+          request.resume();
+        }).catch((e) => { failed = failed || e; try { request.cancel(); } catch (_) {} finish(); });
       }
     });
-    request.on("error", (e) => { if (!failed) failed = e; });
-    request.on("done", () => resolve());
+    request.on("error", (e) => { failed = failed || e; finish(); });
+    request.on("done", finish);
     request.query(sql);
-  }).catch(() => {});
-  await sending;
+  });
+  await sending.catch(() => {});
   if (failed) throw failed;
   if (buf.length) { await flush(buf); total += buf.length; }
 
@@ -236,8 +268,11 @@ async function cycle() {
     const tables = await listTables();
     log(`▶ Oglindire pornita — ${tables.length} tabele`);
     await api({ action: "log", run, data: { host: os.hostname(), tables_total: tables.length } });
+    let idx = 0;
     for (const t of tables) {
+      idx++;
       const t0 = Date.now();
+      if (idx % 50 === 0) log(`   — progres: ${idx}/${tables.length} tabele (${synced} copiate, ${skipped} neschimbate)`);
       try {
         const r = await syncTable(run, t.s, t.n, state);
         if (r.skipped) { skipped++; continue; }
