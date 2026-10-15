@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const mssql = require("mssql");
 const fetch = require("node-fetch");
 
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 const ROOT = path.join(__dirname, "..");
 const LOG_DIR = path.join(ROOT, "logs");
 const STATE_FILE = path.join(ROOT, "mirror-state.json");
@@ -63,6 +63,15 @@ function connectVariants() {
     },
   });
   const v = [];
+  // 1) Exact ca bridge-ul existent (care merge): hostul din .env neschimbat, fara port, fara ReadOnlyIntent.
+  const raw = process.env.ERP_DB_HOST || "";
+  v.push({ label: `${raw} (ca bridge-ul)`, cfg: {
+    server: raw, database: process.env.ERP_DB_NAME, user: process.env.ERP_DB_USER,
+    password: process.env.ERP_DB_PASSWORD, requestTimeout: 0,
+    options: { encrypt: process.env.ERP_DB_SSL === "true", trustServerCertificate: true, enableArithAbort: true, connectTimeout: 30000 },
+    pool: { max: 2, min: 0, idleTimeoutMillis: 60000 },
+  } });
+  if (instance) v.push(base({}, 1433, `${host}:1433`));
   if (instance && !port) {
     v.push(base({ instanceName: instance, readOnlyIntent: true }, undefined, `${host}\\${instance}`));
     v.push(base({ instanceName: instance }, undefined, `${host}\\${instance} (fara ReadOnlyIntent)`));
