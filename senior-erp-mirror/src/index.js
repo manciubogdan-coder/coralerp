@@ -246,7 +246,9 @@ async function syncTable(run, s, n, state) {
   let lastActivity = Date.now(), lastProgress = Date.now();
   const dup = new Map();
 
-  const flush = (rows) => api({ action: "upsert", table, run, rows });
+  // Pauza mica intre loturi, ca baza de date din Cloud sa nu se blocheze la tabelele mari.
+  const flush = (rows) => api({ action: "upsert", table, run, rows })
+    .then(() => new Promise((r) => setTimeout(r, CHUNK_DELAY_MS)));
 
   await new Promise((resolve) => {
     let finished = false;
