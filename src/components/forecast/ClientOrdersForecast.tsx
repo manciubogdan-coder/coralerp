@@ -290,11 +290,32 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const productByName = new Map<string, any>();
       (products || []).forEach((p: any) => productByName.set(norm(p.name), p));
 
-      const { data: inv } = await supabase.from(tables.inventory).select("product_id, quantity").gt("quantity", 0);
+      // Stoc de început de zi (snapshot de azi); fallback la stocul curent dacă snapshotul lipsește
+      const snapTable = inventoryType === "ambalaje"
+        ? "ambalaje_daily_stock_snapshots"
+        : inventoryType === "etichete" ? "etichete_daily_stock_snapshots" : "daily_stock_snapshots";
+      const _d = new Date();
+      const todayStr = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, "0")}-${String(_d.getDate()).padStart(2, "0")}`;
+      const snapRows: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data: page, error: snapErr } = await supabase
+          .from(snapTable).select("product_id, quantity")
+          .eq("snapshot_date", todayStr).range(from, from + 999);
+        if (snapErr || !page?.length) break;
+        snapRows.push(...page);
+        if (page.length < 1000) break;
+      }
+      let inv: any[] = snapRows;
+      if (!snapRows.length) {
+        const { data: cur } = await supabase.from(tables.inventory).select("product_id, quantity").gt("quantity", 0);
+        inv = cur || [];
+      }
       const stockByProduct = new Map<string, number>();
-      (inv || []).forEach((i: any) => {
+      inv.forEach((i: any) => {
         if (!i.product_id) return;
-        stockByProduct.set(i.product_id, (stockByProduct.get(i.product_id) || 0) + (Number(i.quantity) || 0));
+        const q = Number(i.quantity) || 0;
+        if (q <= 0) return;
+        stockByProduct.set(i.product_id, (stockByProduct.get(i.product_id) || 0) + q);
       });
 
       // 5b. Comenzi către furnizor în curs (nelivrate)
