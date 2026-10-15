@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const mssql = require("mssql");
 const fetch = require("node-fetch");
 
-const VERSION = "1.4.0";
+const VERSION = "1.5.0";
 const ROOT = path.join(__dirname, "..");
 const LOG_DIR = path.join(ROOT, "logs");
 const STATE_FILE = path.join(ROOT, "mirror-state.json");
@@ -17,6 +17,7 @@ if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 const URL = process.env.MIRROR_URL;
 const TOKEN = process.env.BRIDGE_TOKEN;
 const CHUNK = Number(process.env.CHUNK_SIZE || 1000);
+const CHUNK_DELAY_MS = Number(process.env.CHUNK_DELAY_MS || 300);
 const INTERVAL_MIN = Number(process.env.MIRROR_INTERVAL_MIN || 30);
 const ONCE = process.argv.includes("--once");
 if (!URL || !TOKEN || TOKEN.includes("INLOCUIESTE")) {
@@ -245,7 +246,9 @@ async function syncTable(run, s, n, state) {
   let lastActivity = Date.now(), lastProgress = Date.now();
   const dup = new Map();
 
-  const flush = (rows) => api({ action: "upsert", table, run, rows });
+  // Pauza mica intre loturi, ca baza de date din Cloud sa nu se blocheze la tabelele mari.
+  const flush = (rows) => api({ action: "upsert", table, run, rows })
+    .then(() => new Promise((r) => setTimeout(r, CHUNK_DELAY_MS)));
 
   await new Promise((resolve) => {
     let finished = false;
