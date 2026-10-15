@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const mssql = require("mssql");
 const fetch = require("node-fetch");
 
-const VERSION = "1.3.0";
+const VERSION = "1.4.0";
 const ROOT = path.join(__dirname, "..");
 const LOG_DIR = path.join(ROOT, "logs");
 const STATE_FILE = path.join(ROOT, "mirror-state.json");
@@ -116,20 +116,24 @@ async function select(sql, params = {}) {
 }
 
 // ---------- Coral ERP ----------
+// Un lot esuat din cauza retelei NU mai opreste tabelul: reincercam de pana la 10 ori,
+// cu pauze crescande (max 60s). Abia dupa 10 esecuri consecutive renuntam la tabel.
 async function api(payload, attempt = 1) {
   try {
     const res = await fetch(URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Bridge-Token": TOKEN },
       body: JSON.stringify(payload),
-      timeout: 120000,
+      timeout: 180000,
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${body.error || JSON.stringify(body)}`);
     return body;
   } catch (e) {
-    if (attempt < 4 && !/HTTP 4\d\d/.test(e.message)) {
-      await new Promise((r) => setTimeout(r, attempt * 5000));
+    if (attempt < 10 && !/HTTP 4\d\d/.test(e.message)) {
+      const wait = Math.min(60000, attempt * 10000);
+      log(`   ⚠ lot esuat (${e.message}) — reincercarea ${attempt}/10 peste ${wait / 1000}s`);
+      await new Promise((r) => setTimeout(r, wait));
       return api(payload, attempt + 1);
     }
     throw e;
