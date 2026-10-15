@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const mssql = require("mssql");
 const fetch = require("node-fetch");
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const ROOT = path.join(__dirname, "..");
 const LOG_DIR = path.join(ROOT, "logs");
 const STATE_FILE = path.join(ROOT, "mirror-state.json");
@@ -34,31 +34,63 @@ const saveState = (s) => { try { fs.writeFileSync(STATE_FILE, JSON.stringify(s, 
 
 // ---------- conexiune READ-ONLY ----------
 let pool;
-async function getPool() {
-  if (pool) return pool;
-  // Accepta si host cu instanta numita: "192.168.0.8/erp" sau "192.168.0.8\erp"
+// Incearca mai multe variante de conectare (instanta numita, port fix, fara ReadOnlyIntent)
+// si reincearca, ca o problema de moment a retelei/SQL Browser sa nu opreasca oglindirea.
+function connectVariants() {
   let host = process.env.ERP_DB_HOST || "";
   let instance = process.env.ERP_DB_INSTANCE || "";
   const m = host.match(/^([^/\\]+)[/\\](.+)$/);
   if (m) { host = m[1]; instance = m[2]; }
-  pool = await mssql.connect({
-    server: host,
-    port: instance ? undefined : Number(process.env.ERP_DB_PORT || 1433),
-    database: process.env.ERP_DB_NAME,
-    user: process.env.ERP_DB_USER,
-    password: process.env.ERP_DB_PASSWORD,
-    requestTimeout: 0,
-    options: {
-      encrypt: process.env.ERP_DB_SSL === "true",
-      trustServerCertificate: true,
-      readOnlyIntent: true, // ApplicationIntent=ReadOnly
-      enableArithAbort: true,
-      connectTimeout: 30000,
-      ...(instance ? { instanceName: instance } : {}),
+  const port = Number(process.env.ERP_DB_PORT || 0) || undefined;
+  const base = (opts, p, label) => ({
+    label,
+    cfg: {
+      server: host,
+      port: p,
+      database: process.env.ERP_DB_NAME,
+      user: process.env.ERP_DB_USER,
+      password: process.env.ERP_DB_PASSWORD,
+      requestTimeout: 0,
+      connectionTimeout: 60000,
+      options: {
+        encrypt: process.env.ERP_DB_SSL === "true",
+        trustServerCertificate: true,
+        enableArithAbort: true,
+        connectTimeout: 60000,
+        ...opts,
+      },
+      pool: { max: 2, min: 0, idleTimeoutMillis: 60000 },
     },
-    pool: { max: 2, min: 0, idleTimeoutMillis: 60000 },
   });
-  return pool;
+  const v = [];
+  if (instance && !port) {
+    v.push(base({ instanceName: instance, readOnlyIntent: true }, undefined, `${host}\\${instance}`));
+    v.push(base({ instanceName: instance }, undefined, `${host}\\${instance} (fara ReadOnlyIntent)`));
+  }
+  if (port) v.push(base({ readOnlyIntent: true }, port, `${host}:${port}`));
+  if (!instance && !port) v.push(base({ readOnlyIntent: true }, 1433, `${host}:1433`));
+  return v;
+}
+async function getPool() {
+  if (pool) return pool;
+  const variants = connectVariants();
+  let lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    for (const { label, cfg } of variants) {
+      try {
+        const p = new mssql.ConnectionPool(cfg);
+        await p.connect();
+        log(`🔌 Conectat la ${label}`);
+        pool = p;
+        return pool;
+      } catch (e) {
+        lastErr = e;
+        log(`   ⚠ conectare ${label} (incercarea ${attempt}/3): ${e.code || ""} ${e.message}${e.originalError?.message ? " | " + e.originalError.message : ""}`);
+      }
+    }
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 20000));
+  }
+  throw lastErr;
 }
 // Garda: orice interogare trimisa catre ERP trebuie sa fie SELECT.
 function assertSelect(sql) {
