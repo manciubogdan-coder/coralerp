@@ -290,9 +290,15 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
   useEffect(() => {
     setInitial(null);
     if (!threadId) return;
+    setLoadErr(null);
     argusFetch<{ messages: UIMessage[] }>("messages", { id: threadId })
-      .then((r) => setInitial(r.messages))
-      .catch((e) => setLoadErr(e.message));
+      .then((r) => setInitial(r.messages ?? []))
+      .catch((e) => {
+        if (/nu există/i.test(e.message)) {
+          toast({ title: "Conversația nu mai există", description: "Pornește una nouă." });
+          navigate("/administrativ/argus/chat", { replace: true });
+        } else setLoadErr(e.message);
+      });
   }, [threadId]);
 
   const newThread = async () => {
