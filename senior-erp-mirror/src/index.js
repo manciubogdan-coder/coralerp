@@ -36,9 +36,14 @@ const saveState = (s) => { try { fs.writeFileSync(STATE_FILE, JSON.stringify(s, 
 let pool;
 async function getPool() {
   if (pool) return pool;
+  // Accepta si host cu instanta numita: "192.168.0.8/erp" sau "192.168.0.8\erp"
+  let host = process.env.ERP_DB_HOST || "";
+  let instance = process.env.ERP_DB_INSTANCE || "";
+  const m = host.match(/^([^/\\]+)[/\\](.+)$/);
+  if (m) { host = m[1]; instance = m[2]; }
   pool = await mssql.connect({
-    server: process.env.ERP_DB_HOST,
-    port: Number(process.env.ERP_DB_PORT || 1433),
+    server: host,
+    port: instance ? undefined : Number(process.env.ERP_DB_PORT || 1433),
     database: process.env.ERP_DB_NAME,
     user: process.env.ERP_DB_USER,
     password: process.env.ERP_DB_PASSWORD,
@@ -49,6 +54,7 @@ async function getPool() {
       readOnlyIntent: true, // ApplicationIntent=ReadOnly
       enableArithAbort: true,
       connectTimeout: 30000,
+      ...(instance ? { instanceName: instance } : {}),
     },
     pool: { max: 2, min: 0, idleTimeoutMillis: 60000 },
   });
