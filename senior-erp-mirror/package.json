@@ -1,0 +1,19 @@
+{
+  "name": "senior-erp-mirror",
+  "version": "1.0.0",
+  "description": "Oglindire completa read-only Senior ERP (SQL Server) -> Coral ERP",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "once": "node src/index.js --once",
+    "install-service": "node scripts/install-service.js",
+    "uninstall-service": "node scripts/uninstall-service.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "mssql": "^11.0.1",
+    "node-fetch": "^2.7.0",
+    "node-windows": "^1.0.0-beta.8"
+  }
+}

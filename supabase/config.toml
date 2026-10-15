@@ -1,1 +1,4 @@
 project_id = "yeniohmlmxhjzywqlidx"
+
+[functions.erp-mirror]
+verify_jwt = false

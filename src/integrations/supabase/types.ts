@@ -2020,6 +2020,28 @@ export type Database = {
         }
         Returns: number
       }
+      erp_mirror_ensure_table: {
+        Args: {
+          p_columns: Json
+          p_pk: string[]
+          p_source: string
+          p_table: string
+        }
+        Returns: undefined
+      }
+      erp_mirror_finish_table: {
+        Args: { p_rows: number; p_run: string; p_table: string }
+        Returns: number
+      }
+      erp_mirror_log: {
+        Args: { p_data: Json; p_run: string }
+        Returns: undefined
+      }
+      erp_mirror_query: { Args: { p_sql: string }; Returns: Json }
+      erp_mirror_upsert: {
+        Args: { p_rows: Json; p_run: string; p_table: string }
+        Returns: number
+      }
       is_chat_member: {
         Args: { _conv: string; _user: string }
         Returns: boolean
