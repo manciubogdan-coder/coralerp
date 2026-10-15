@@ -17,6 +17,7 @@ if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 const URL = process.env.MIRROR_URL;
 const TOKEN = process.env.BRIDGE_TOKEN;
 const CHUNK = Number(process.env.CHUNK_SIZE || 1000);
+const CHUNK_DELAY_MS = Number(process.env.CHUNK_DELAY_MS || 300);
 const INTERVAL_MIN = Number(process.env.MIRROR_INTERVAL_MIN || 30);
 const ONCE = process.argv.includes("--once");
 if (!URL || !TOKEN || TOKEN.includes("INLOCUIESTE")) {
