@@ -1,62 +1,104 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Loader2, ShoppingCart, Truck, Receipt, Users, AlertTriangle, RefreshCw } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 
-interface Source { table: string; source: string; rows: number; synced_at?: string | null; error?: string | null; columns: { name: string; type: string }[] }
-const categories = [
-  { name: 'Clienți', match: /client|customer|partener|partner/i },
-  { name: 'Furnizori', match: /furniz|supplier|partener|partner/i },
-  { name: 'Comenzi de vânzare', match: /sales.*order|order.*sales|comenzi|comanda|c_h_note_contabile$|c_d_note_contabile$/i },
-  { name: 'Comenzi de achiziție', match: /purchase.*order|order.*purchase|achiz|comenzi|comanda|c_h_note_contabile$|c_d_note_contabile$/i },
-  { name: 'Facturi', match: /factur|invoice/i },
-  { name: 'Toate datele', match: /./ },
+type Kind = 'sales_orders' | 'purchase_orders' | 'sales_invoices' | 'purchase_invoices';
+interface Metric { documents: number; value: number | null; valued_documents: number; partners: number; unidentified_partners: number; first_date: string; last_date: string }
+interface Summary {
+  available: boolean; reason?: string; partial: boolean;
+  metrics: Partial<Record<Kind, Metric>>;
+  monthly: { month: string; kind: Kind; documents: number; value: number | null }[];
+  rankings: { kind: Kind; partner_id: number; name: string; documents: number; value: number | null }[];
+  sources: { table: string; synced_at: string | null; error: string | null; complete: boolean }[];
+}
+const definitions: { kind: Kind; title: string; codes: string; icon: typeof ShoppingCart }[] = [
+  { kind: 'sales_orders', title: 'Comenzi de vânzare', codes: 'CC · Comandă client', icon: ShoppingCart },
+  { kind: 'purchase_orders', title: 'Comenzi de achiziție', codes: 'CF · Comandă furnizor', icon: Truck },
+  { kind: 'sales_invoices', title: 'Facturare către clienți', codes: 'FC · Factură client', icon: Receipt },
+  { kind: 'purchase_invoices', title: 'Facturi de achiziție', codes: 'FF + FFI · Factură furnizor + import', icon: Receipt },
 ];
+const amount = (value: number | null | undefined) => value == null ? '—' : `${Number(value).toLocaleString('ro-RO', { maximumFractionDigits: 0 })} lei`;
+const count = (value: number) => Number(value).toLocaleString('ro-RO');
+const date = (value: string) => new Date(value).toLocaleDateString('ro-RO');
+const sourceNames: Record<string, string> = { c_h_note_contabile: 'Documente Senior', c_tipuri_document: 'Tipuri de documente', c_h_note_contabile_parteneri: 'Partenerii documentelor' };
 
-export default function CeoCommercialData({ catalog, start, end, call }: { catalog: Source[]; start: string; end: string; call: (payload: Record<string, unknown>) => Promise<any> }) {
-  const [category, setCategory] = useState(0);
-  const [selected, setSelected] = useState('');
-  const [dateCol, setDateCol] = useState('');
-  const [searchCol, setSearchCol] = useState('');
-  const [search, setSearch] = useState('');
-  const [offset, setOffset] = useState(0);
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [more, setMore] = useState(false);
-  const sources = catalog.filter(t => categories[category].match.test(t.source));
-  const source = catalog.find(t => t.table === selected);
-  const dates = source?.columns.filter(c => c.type === 'date' || c.type.startsWith('timestamp')) ?? [];
-  useEffect(() => { setRows([]); setOffset(0); setError(''); }, [selected, start, end, dateCol]);
-  const choose = (value: string) => { setSelected(value); setDateCol(''); setSearchCol(''); setSearch(''); };
-  const load = async (next = 0) => {
-    if (!source?.synced_at) return;
-    setBusy(true); setError('');
-    try {
-      const result = await call({ action: 'browse', config: { table: selected, date_col: dateCol, start, end, search_col: searchCol, search, offset: next } });
-      setRows((result.rows ?? []).slice(0, 50)); setMore((result.rows ?? []).length > 50); setOffset(next);
-    } catch (e) { setError((e as Error).message); setRows([]); }
-    finally { setBusy(false); }
+function normalizeSummary(result: unknown): Summary {
+  if (!result || typeof result !== 'object' || !('available' in result) || typeof result.available !== 'boolean') {
+    throw new Error('Răspunsul cu indicatorii comerciali este incomplet. Reîncearcă încărcarea.');
+  }
+  const data = result as Partial<Summary>;
+  const completeShape = data.metrics && typeof data.metrics === 'object' && !Array.isArray(data.metrics)
+    && Array.isArray(data.monthly) && Array.isArray(data.rankings) && Array.isArray(data.sources);
+  return {
+    available: result.available,
+    reason: typeof data.reason === 'string' ? data.reason : 'Datele comerciale nu sunt disponibile momentan.',
+    partial: data.partial !== false || !completeShape,
+    metrics: data.metrics && typeof data.metrics === 'object' && !Array.isArray(data.metrics) ? data.metrics : {},
+    monthly: Array.isArray(data.monthly) ? data.monthly.filter(p => p && typeof p.month === 'string' && /^\d{4}-\d{2}$/.test(p.month) && definitions.some(d => d.kind === p.kind)) : [],
+    rankings: Array.isArray(data.rankings) ? data.rankings.filter(r => r && definitions.some(d => d.kind === r.kind) && r.partner_id != null) : [],
+    sources: Array.isArray(data.sources) ? data.sources.filter(s => s && typeof s.table === 'string') : [],
   };
-  return <section className="space-y-4">
-    <div className="flex flex-wrap gap-2">{categories.map((c, i) => <Button key={c.name} variant={i === category ? 'default' : 'outline'} onClick={() => { setCategory(i); choose(''); }}>{c.name}</Button>)}</div>
-    <label className="block text-sm space-y-1"><span>Sursa Senior</span><select aria-label="Sursa Senior" className="w-full border rounded-md bg-background p-2" value={selected} onChange={e => choose(e.target.value)}><option value="">Selectează sursa ({sources.length})</option>{sources.map(t => <option key={t.table} value={t.table}>{t.source} · {t.synced_at ? `${t.rows.toLocaleString('ro-RO')} rânduri` : 'încă neîncărcat'}</option>)}</select></label>
-    {!sources.length && <p className="text-sm text-muted-foreground">Aceste surse nu au ajuns încă în oglindă. Vor apărea după identificarea lor de către programul de copiere.</p>}
-    {source && <>
-      <p className="text-sm text-muted-foreground">{source.synced_at ? `Ultima copiere completă: ${new Date(source.synced_at).toLocaleString('ro-RO')}` : 'Sursa nu a fost încă încărcată complet.'}{source.error ? ` · Eroare copiere: ${source.error}` : ''}</p>
-      <p className="text-xs text-muted-foreground">Date originale din {source.source}; încadrarea surselor se face după denumire. Partenerii pot include atât clienți, cât și furnizori; nu se presupune automat rolul lor.</p>
-      {(category === 2 || category === 3) && <p className="text-xs text-muted-foreground">Notele contabile includ mai multe tipuri de documente. Pentru comenzile client, seria confirmată în bridge este CC; seriile de achiziție trebuie confirmate în Senior înainte de calcularea totalurilor.</p>}
-      <div className="flex flex-wrap gap-3 items-end">
-        <label className="text-sm space-y-1"><span className="block">Data documentului</span><select aria-label="Data documentului" value={dateCol} onChange={e => setDateCol(e.target.value)} className="border rounded-md bg-background p-2 max-w-full"><option value="">Fără filtrare pe dată</option>{dates.map(c => <option key={c.name}>{c.name}</option>)}</select></label>
-        <label className="text-sm space-y-1"><span className="block">Caută în</span><select aria-label="Caută în" value={searchCol} onChange={e => setSearchCol(e.target.value)} className="border rounded-md bg-background p-2"><option value="">Selectează coloana</option>{source.columns.map(c => <option key={c.name}>{c.name}</option>)}</select></label>
-        <Input aria-label="Căutare în datele Senior" placeholder="Nume, număr document…" value={search} onChange={e => setSearch(e.target.value)} className="w-full sm:w-64" />
-        <Button disabled={busy || !source.synced_at || (!!search && !searchCol)} onClick={() => load()}>{busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}Afișează</Button>
-      </div>
-      {!dateCol && <p className="text-xs text-muted-foreground">Perioada de sus nu se aplică fără o coloană de dată selectată; nomenclatoarele se afișează integral.</p>}
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      <div className="overflow-auto max-h-[60vh] border rounded-md"><Table><TableHeader><TableRow>{source.columns.map(c => <TableHead key={c.name} className="whitespace-nowrap">{c.name}</TableHead>)}</TableRow></TableHeader><TableBody>{rows.map((r, i) => <TableRow key={i}>{source.columns.map(c => <TableCell key={c.name} className="whitespace-nowrap">{r[c.name] == null ? '—' : typeof r[c.name] === 'object' ? JSON.stringify(r[c.name]) : String(r[c.name])}</TableCell>)}</TableRow>)}</TableBody></Table></div>
-      <div className="flex items-center gap-3"><Button size="icon" variant="outline" title="Pagina anterioară" disabled={busy || offset === 0} onClick={() => load(Math.max(0, offset - 50))}><ChevronLeft className="h-4 w-4" /></Button><span className="text-sm">{rows.length ? `${offset + 1}–${offset + rows.length}` : 'Nicio înregistrare afișată'}</span><Button size="icon" variant="outline" title="Pagina următoare" disabled={busy || !more} onClick={() => load(offset + 50)}><ChevronRight className="h-4 w-4" /></Button></div>
-    </>}
+}
+
+export default function CeoCommercialData({ start, end, refresh, call }: { start: string; end: string; refresh: number; call: (payload: Record<string, unknown>) => Promise<any> }) {
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const [open, setOpen] = useState<string | null>(null);
+  const [measure, setMeasure] = useState<'value' | 'documents'>('value');
+  useEffect(() => {
+    let active = true;
+    setSummary(null); setError('');
+    call({ action: 'commercial_summary', start, end }).then(result => { if (active) setSummary(normalizeSummary(result)); }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'Indicatorii comerciali nu au putut fi încărcați.'); });
+    return () => { active = false; };
+  }, [start, end, refresh, attempt, call]);
+  if (error) return <div role="alert" className="space-y-3 py-4"><p className="text-destructive">{error}</p><Button variant="outline" onClick={() => setAttempt(v => v + 1)}><RefreshCw className="h-4 w-4 mr-2" />Reîncearcă</Button></div>;
+  if (!summary) return <div role="status" className="flex justify-center items-center gap-2 py-12 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Se încarcă indicatorii comerciali…</div>;
+  if (!summary.available) return <p role="status" className="py-6 text-muted-foreground">{summary.reason}</p>;
+  const chart = new Map<string, Record<string, string | number | null>>();
+  for (const point of summary.monthly) {
+    const row = chart.get(point.month) ?? { month: `${point.month.slice(5)}/${point.month.slice(0, 4)}` };
+    row[point.kind] = point[measure]; chart.set(point.month, row);
+  }
+  const partial = summary.partial;
+  const partnerCards = [
+    { kind: 'sales_invoices' as Kind, title: 'Clienți facturați', detail: 'Parteneri distincți identificați pe facturile FC din perioada aleasă.' },
+    { kind: 'purchase_invoices' as Kind, title: 'Furnizori cu facturi', detail: 'Parteneri distincți identificați pe facturile FF și FFI din perioada aleasă.' },
+  ];
+  return <section className="space-y-6">
+    <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-semibold">Activitate comercială</h2><p className="text-sm text-muted-foreground">{date(start)} – {date(end)}</p></div>
+    {partial && <div role="status" className="flex items-start gap-2 border-l-2 border-destructive bg-muted p-3 text-sm"><AlertTriangle className="h-5 w-5 shrink-0 text-destructive" /><p><strong>Copie incompletă — cifre parțiale.</strong> Totalurile reflectă numai documentele prezente în copie, nu întreaga activitate a firmei.</p></div>}
+    <p className="text-xs text-muted-foreground">Valorile de mai jos sunt sumele din antetul documentelor Senior (valoare_rol), nu venituri contabile și nu totaluri fără TVA confirmate. Comenzile și facturile sunt etape diferite; nu se adună între ele. Documentele anulate sunt excluse.</p>
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      {definitions.map(({ kind, title, codes, icon: Icon }) => {
+        const m = summary.metrics[kind];
+        return <Card key={kind} className="min-w-0"><CardHeader className="pb-2"><CardDescription className="flex items-center gap-2"><Icon className="h-4 w-4 shrink-0" />{title}</CardDescription><CardTitle className="text-2xl break-words">{amount(m?.value)}</CardTitle></CardHeader><CardContent className="text-sm space-y-2">
+          <p>{m ? `${count(m.documents)} documente` : 'Niciun document în copie pentru interval'}</p>
+          <p className="text-xs text-muted-foreground">{partial ? 'Total parțial' : 'Din copia Senior'} · {codes}</p>
+          <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setOpen(open === kind ? null : kind)}>{open === kind ? 'Ascunde' : 'Din ce se compune'}</Button>
+          {open === kind && <div className="border-t pt-2 text-xs space-y-2"><p>Suma valoare_rol din C_H_Note_Contabile, o singură dată per document; tipul este verificat în C_Tipuri_Document. Filtrare pe Data documentului, inclusiv ultima zi; Anulat = false. Retururile și alte tipuri de documente nu sunt incluse.</p>{m && <><p>{count(m.valued_documents)} din {count(m.documents)} documente au valoarea completată.</p><p>Date prezente: {date(m.first_date)} – {date(m.last_date)}.</p></>}</div>}
+        </CardContent></Card>;
+      })}
+    </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {partnerCards.map(({ kind, title, detail }) => {
+        const m = summary.metrics[kind];
+        return <Card key={kind}><CardHeader className="pb-2"><CardDescription className="flex items-center gap-2"><Users className="h-4 w-4" />{title}</CardDescription><CardTitle className="text-2xl">{m ? count(m.partners) : '—'}</CardTitle></CardHeader><CardContent className="text-xs text-muted-foreground space-y-2"><p>{detail} {partial && 'Număr parțial.'}</p><p>Sursa: C_H_Note_Contabile_Parteneri, după Partener_Id; nu reprezintă întregul nomenclator.</p>{m && m.unidentified_partners > 0 && <p className="text-destructive">{count(m.unidentified_partners)} documente fără un partener unic identificat; nu sunt incluse în număr sau top.</p>}</CardContent></Card>;
+      })}
+    </div>
+    <div className="space-y-3 border-t pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">Evoluție lunară{partial ? ' · parțială' : ''}</h3><div className="flex gap-1" role="group" aria-label="Măsura graficului"><Button size="sm" variant={measure === 'value' ? 'default' : 'outline'} onClick={() => setMeasure('value')}>Valori</Button><Button size="sm" variant={measure === 'documents' ? 'default' : 'outline'} onClick={() => setMeasure('documents')}>Documente</Button></div></div>
+      {chart.size ? <ResponsiveContainer width="100%" height={320}><BarChart data={[...chart.values()]}><CartesianGrid strokeDasharray="3 3" className="stroke-muted" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tickFormatter={v => Number(v).toLocaleString('ro-RO', { notation: 'compact' })} /><Tooltip formatter={(v: number) => measure === 'value' ? amount(v) : count(v)} /><Legend />{definitions.map((d, i) => <Bar key={d.kind} dataKey={d.kind} name={d.title} fill={['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(var(--foreground))', 'hsl(var(--muted-foreground))'][i]} />)}</BarChart></ResponsiveContainer> : <p className="text-muted-foreground text-sm py-6">Nu există documente pentru perioada aleasă; aceasta nu confirmă o activitate zero.</p>}
+    </div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 border-t pt-5">
+      {partnerCards.map(({ kind, title }) => {
+        const rows = summary.rankings.filter(r => r.kind === kind);
+        return <div key={kind} className="min-w-0 space-y-3"><h3 className="font-semibold">Top 10 · {title.toLowerCase()}{partial ? ' · parțial' : ''}</h3><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Partener</TableHead><TableHead className="text-right">Facturi</TableHead><TableHead className="text-right">Valoare antet</TableHead></TableRow></TableHeader><TableBody>{rows.map(r => <TableRow key={r.partner_id}><TableCell className="break-words">{r.name || `Partener ${r.partner_id}`}</TableCell><TableCell className="text-right">{count(r.documents)}</TableCell><TableCell className="text-right whitespace-nowrap">{amount(r.value)}</TableCell></TableRow>)}</TableBody></Table></div>{!rows.length && <p className="text-muted-foreground text-sm">Niciun partener identificat pentru acest interval.</p>}</div>;
+      })}
+    </div>
+    <div className="border-t pt-4 space-y-2"><h3 className="text-sm font-semibold">Actualitatea surselor</h3>{summary.sources.map(s => <p key={s.table} className="text-xs text-muted-foreground">{sourceNames[s.table] ?? s.table} · {s.complete ? `Ultima copiere completă: ${new Date(s.synced_at ?? '').toLocaleString('ro-RO')}` : 'Copiere incompletă / în curs'}{s.error && <span className="text-destructive"> · Copierea a întâmpinat o eroare.</span>}</p>)}<p className="text-xs text-muted-foreground">Soldurile de încasat/plătit, întârzierile, comenzile deschise și stocul nu se deduc din aceste valori: necesită verificarea repartizărilor, stărilor și mișcărilor.</p></div>
   </section>;
 }

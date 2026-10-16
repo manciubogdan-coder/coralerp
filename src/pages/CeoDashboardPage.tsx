@@ -502,7 +502,7 @@ const CeoDashboardPage: React.FC = () => {
 
         <TabsContent value="comercial" className="space-y-4">
           {catalogErr && <p role="alert" className="text-destructive">{catalogErr}</p>}
-          {periodValid && <CeoCommercialData catalog={catalog} start={start} end={end} call={callFn} />}
+          {periodValid && <CeoCommercialData start={start} end={end} refresh={refresh} call={callFn} />}
         </TabsContent>
 
         <TabsContent value="constructor">
