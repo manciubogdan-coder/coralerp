@@ -2,9 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { RefreshCw, Database, Rows3, AlertTriangle, Clock } from 'lucide-react';
+import { RefreshCw, Database, Rows3, AlertTriangle, Clock, RotateCcw } from 'lucide-react';
 import BackToHubButton from '@/components/BackToHubButton';
 import { supabase } from '@/integrations/supabase/client';
 
