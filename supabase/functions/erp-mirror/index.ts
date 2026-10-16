@@ -23,7 +23,8 @@ Deno.serve(async (req) => {
 
   // Acțiunea "status" e pentru interfață: cere sesiune de admin din aplicația operațională.
   if (!isBridge) {
-    if (body.action !== "status" && body.action !== "retry") return json({ error: "unauthorized" }, 401);
+    const UI_ACTIONS = ["status", "retry", "catalog", "aggregate", "pnl", "reports_list", "reports_save", "reports_delete", "assist"];
+    if (!UI_ACTIONS.includes(body.action)) return json({ error: "unauthorized" }, 401);
     const token = req.headers.get("x-app-token") || "";
     const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
     const LEGACY_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY2RsaWZqeHhkcmVremRhdGZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQyMTg0MTMsImV4cCI6MjA1OTc5NDQxM30.P7molAFqPEpn4hwwEvKzYTEFHRlJhhvQ8GM29CqEDxk";
@@ -33,17 +34,53 @@ Deno.serve(async (req) => {
     const rr = await fetch(`${LEGACY_URL}/rest/v1/app_user_roles?select=role&user_id=eq.${encodeURIComponent(user.id)}`, { headers: { apikey: LEGACY_ANON, Authorization: `Bearer ${token}` } });
     const roles = rr.ok ? ((await rr.json()) as Array<{ role: string }>) : [];
     if (!roles.some((x) => x.role === "admin")) return json({ error: "Disponibil doar administratorilor." }, 403);
-    if (body.action === "retry") {
-      const tables = Array.isArray(body.tables)
-        ? body.tables.filter((t: unknown) => typeof t === "string" && /^[a-z0-9_]{1,63}$/.test(t)).slice(0, 2000)
-        : null;
-      const { data, error } = await sb.rpc("erp_mirror_request_retry", { p_tables: tables });
-      if (error) return json({ error: error.message }, 500);
-      return json({ ok: true, marked: data });
+    const rpc = async (fn: string, args?: Record<string, unknown>) => {
+      const { data, error } = await sb.rpc(fn, args ?? {});
+      if (error) throw new Error(error.message);
+      return data;
+    };
+    const mirror = sb.schema("erp_mirror");
+    try {
+      switch (body.action) {
+        case "retry": {
+          const tables = Array.isArray(body.tables)
+            ? body.tables.filter((t: unknown) => typeof t === "string" && /^[a-z0-9_]{1,63}$/.test(t)).slice(0, 2000)
+            : null;
+          return json({ ok: true, marked: await rpc("erp_mirror_request_retry", { p_tables: tables }) });
+        }
+        case "catalog":
+          return json({ tables: await rpc("erp_mirror_catalog") });
+        case "aggregate":
+          return json({ rows: await rpc("erp_mirror_aggregate", { p: body.config ?? {} }) });
+        case "pnl": {
+          const y = Number(body.year) || new Date().getFullYear();
+          return json(await rpc("erp_mirror_pnl", { p_year: y }));
+        }
+        case "reports_list": {
+          const { data, error } = await mirror.from("_reports").select("*").order("created_at");
+          if (error) throw new Error(error.message);
+          return json({ reports: data });
+        }
+        case "reports_save": {
+          const title = String(body.title || "").slice(0, 200).trim();
+          if (!title || typeof body.config !== "object") return json({ error: "Titlu și configurație obligatorii." }, 400);
+          const { data, error } = await mirror.from("_reports").insert({ title, config: body.config, created_by: user.email }).select().single();
+          if (error) throw new Error(error.message);
+          return json({ report: data });
+        }
+        case "reports_delete": {
+          const { error } = await mirror.from("_reports").delete().eq("id", String(body.id));
+          if (error) throw new Error(error.message);
+          return json({ ok: true });
+        }
+        case "assist":
+          return json(await assist(String(body.prompt || "").slice(0, 2000), await rpc("erp_mirror_catalog")));
+        default:
+          return json(await rpc("erp_mirror_status"));
+      }
+    } catch (e) {
+      return json({ error: (e as Error).message }, 500);
     }
-    const { data, error } = await sb.rpc("erp_mirror_status");
-    if (error) return json({ error: error.message }, 500);
-    return json(data);
   }
 
   const call = async (fn: string, args: Record<string, unknown>) => {
