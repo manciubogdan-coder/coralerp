@@ -65,14 +65,17 @@ export async function edgeFetchJson<T = any>(
       if (res.ok) return parsed as T;
 
       const rawError = parsed?.error ?? parsed;
-      if (isTransientStatus(res.status) && attempt < attempts) {
+      // Only GET requests are retried on HTTP errors: a retried POST (e.g. a
+      // chat send) could run the action twice on the server. Non-retryable
+      // errors surface immediately with a friendly message.
+      if (method === "GET" && isTransientStatus(res.status) && attempt < attempts) {
         lastError = new Error(friendlyMessage(res.status, rawError));
         await sleep(baseDelayMs * Math.pow(2, attempt - 1));
         continue;
       }
       throw new Error(friendlyMessage(res.status, rawError));
     } catch (e) {
-      // Network-level failure (fetch rejected): transient, retry.
+      // Network-level failure (fetch rejected): transient, safe to retry.
       if (e instanceof TypeError && attempt < attempts) {
         lastError = new Error(FRIENDLY_UNAVAILABLE);
         await sleep(baseDelayMs * Math.pow(2, attempt - 1));
