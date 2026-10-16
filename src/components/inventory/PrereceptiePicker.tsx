@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { type Prereceptie, type PrereceptieLinie, STATUS_LABEL, breakdownText, fetchPrereceptii } from "@/lib/prereceptie";
 
 interface Props {
@@ -16,13 +16,23 @@ export const PrereceptiePicker: React.FC<Props> = ({ open, onOpenChange, invento
   const [list, setList] = useState<Prereceptie[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!open) return;
+    const controller = new AbortController();
+    let active = true;
     setSelected(null);
     setLoading(true);
-    fetchPrereceptii(inventoryType, true).then(setList).catch(() => setList([])).finally(() => setLoading(false));
-  }, [open, inventoryType]);
+    setList([]);
+    setError(null);
+    fetchPrereceptii(inventoryType, true, controller.signal)
+      .then((rows) => { if (active) setList(rows); })
+      .catch(() => { if (active) setError("Prerecepțiile nu au putut fi încărcate. Serviciul de date nu răspunde momentan."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; controller.abort(); };
+  }, [open, inventoryType, attempt]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -30,6 +40,13 @@ export const PrereceptiePicker: React.FC<Props> = ({ open, onOpenChange, invento
         <DialogHeader><DialogTitle>Alege comanda din prerecepție</DialogTitle></DialogHeader>
         {loading ? (
           <div className="py-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : error ? (
+          <div className="py-6 space-y-3 text-center" role="alert">
+            <p className="text-sm text-destructive">{error}</p>
+            <Button variant="outline" onClick={() => setAttempt((value) => value + 1)}>
+              <RefreshCw className="mr-2 h-4 w-4" />Reîncearcă
+            </Button>
+          </div>
         ) : list.length === 0 ? (
           <p className="text-sm text-muted-foreground py-6 text-center">Nu există prerecepții deschise.</p>
         ) : (

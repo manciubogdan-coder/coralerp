@@ -8,6 +8,8 @@ Este separat complet de `senior-erp-bridge` (comenzile) — pot rula amândouă 
 - Pentru fiecare tabel: citește coloanele, creează/completează tabelul în Coral ERP (nume cu litere mici;
   tabelele din alte scheme decât `dbo` devin `schema__tabel`), apoi trimite datele în loturi de 1000.
 - Tabelele neschimbate (același număr de rânduri + checksum) sunt sărite.
+- Versiunea 1.7 păstrează toate tabelele și loturile de 1000, dar așteaptă minimum 2 secunde între loturi și de 4 ori durata scrierii dacă aceasta e mai lentă. Oglindirea durează mai mult; pauzele reduc presiunea pe prerecepții, fără să garanteze viteza aplicației.
+- Actualizare de la 1.6: oprește programul cu Ctrl+C, înlocuiește `src/index.js`, apoi rulează `npm run once`. Păstrează `.env` și `mirror-state.json`; tabelele finalizate și neschimbate sunt sărite. Un tabel neterminat este reluat integral, nu de la ultimul lot.
 - Rândurile șterse în Senior sunt șterse și din oglindă, doar după o citire completă reușită.
 - **Read-only**: doar `SELECT ... WITH (NOLOCK)`, conexiune `ApplicationIntent=ReadOnly`, gardă în cod
   care refuză orice altă comandă. Recomandat: user SQL doar cu rolul `db_datareader`.

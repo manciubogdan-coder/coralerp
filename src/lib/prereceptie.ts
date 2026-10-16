@@ -52,21 +52,39 @@ export async function currentEmail() {
   }
 }
 
-export async function fetchPrereceptii(inventoryType: string, onlyOpen = false): Promise<Prereceptie[]> {
+export async function fetchPrereceptii(inventoryType: string, onlyOpen = false, signal?: AbortSignal): Promise<Prereceptie[]> {
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener("abort", cancel, { once: true });
+  const timer = setTimeout(cancel, 20000);
+  const rows: any[] = [];
+  try {
+  while (true) {
   let q = supabaseCloud
     .from("prereceptii")
     .select("*, linii:prereceptie_linii(*)")
     .eq("inventory_type", inventoryType)
     .order("expected_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
-    .limit(500);
+    .order("id", { ascending: false })
+    .range(rows.length, rows.length + 499)
+    .abortSignal(controller.signal);
   if (onlyOpen) q = q.neq("status", "receptionata");
   const { data, error } = await q;
   if (error) throw error;
-  return ((data as any[]) || []).map((p) => ({
+  const page = (data as any[]) || [];
+  rows.push(...page);
+  if (page.length < 500) break;
+  }
+  return rows.map((p) => ({
     ...p,
     linii: ((p.linii || []) as PrereceptieLinie[]).sort((a, b) => a.position - b.position),
   }));
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", cancel);
+  }
 }
 
 export async function refreshPrereceptieStatus(prereceptieId: string) {

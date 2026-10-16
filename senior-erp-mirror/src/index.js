@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const mssql = require("mssql");
 const fetch = require("node-fetch");
 
-const VERSION = "1.6.0";
+const VERSION = "1.7.0";
 const ROOT = path.join(__dirname, "..");
 const LOG_DIR = path.join(ROOT, "logs");
 const STATE_FILE = path.join(ROOT, "mirror-state.json");
@@ -17,7 +17,9 @@ if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 const URL = process.env.MIRROR_URL;
 const TOKEN = process.env.BRIDGE_TOKEN;
 const CHUNK = Number(process.env.CHUNK_SIZE || 1000);
-const CHUNK_DELAY_MS = Number(process.env.CHUNK_DELAY_MS || 300);
+const CHUNK_DELAY_MS = Math.max(2000, Number(process.env.CHUNK_DELAY_MS) || 2000);
+// Keep writes at roughly 20% duty cycle: slower writes earn longer recovery pauses.
+const recoveryDelay = (elapsedMs) => Math.max(CHUNK_DELAY_MS, elapsedMs * 4);
 const INTERVAL_MIN = Number(process.env.MIRROR_INTERVAL_MIN || 30);
 const ONCE = process.argv.includes("--once");
 if (!URL || !TOKEN || TOKEN.includes("INLOCUIESTE")) {
@@ -252,9 +254,17 @@ async function syncTable(run, s, n, state) {
   let lastActivity = Date.now(), lastProgress = Date.now();
   const dup = new Map();
 
-  // Pauza mica intre loturi, ca baza de date din Cloud sa nu se blocheze la tabelele mari.
-  const flush = (rows) => api({ action: "upsert", table, run, rows })
-    .then(() => new Promise((r) => setTimeout(r, CHUNK_DELAY_MS)));
+  // One batch at a time; reserve recovery time for operational reads in Cloud.
+  const flush = async (rows) => {
+    const started = Date.now();
+    await api({ action: "upsert", table, run, rows });
+    lastActivity = Date.now();
+    const until = Date.now() + recoveryDelay(Date.now() - started);
+    while (Date.now() < until) {
+      await new Promise((r) => setTimeout(r, Math.min(15000, until - Date.now())));
+      lastActivity = Date.now(); // A deliberate recovery pause is not a stalled stream.
+    }
+  };
 
   await new Promise((resolve) => {
     let finished = false;
@@ -354,6 +364,6 @@ async function cycle() {
   running = false;
 }
 
-log(`Senior ERP Mirror v${VERSION} — interval ${INTERVAL_MIN} min, lot ${CHUNK}`);
+log(`Senior ERP Mirror v${VERSION} — interval ${INTERVAL_MIN} min, lot ${CHUNK}, pauza minima ${CHUNK_DELAY_MS}ms, recuperare adaptiva 4x`);
 cycle().then(() => { if (ONCE) process.exit(0); });
 if (!ONCE) setInterval(cycle, INTERVAL_MIN * 60000);
