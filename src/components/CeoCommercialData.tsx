@@ -25,6 +25,24 @@ const count = (value: number) => Number(value).toLocaleString('ro-RO');
 const date = (value: string) => new Date(value).toLocaleDateString('ro-RO');
 const sourceNames: Record<string, string> = { c_h_note_contabile: 'Documente Senior', c_tipuri_document: 'Tipuri de documente', c_h_note_contabile_parteneri: 'Partenerii documentelor' };
 
+function normalizeSummary(result: unknown): Summary {
+  if (!result || typeof result !== 'object' || !('available' in result) || typeof result.available !== 'boolean') {
+    throw new Error('Răspunsul cu indicatorii comerciali este incomplet. Reîncearcă încărcarea.');
+  }
+  const data = result as Partial<Summary>;
+  const completeShape = data.metrics && typeof data.metrics === 'object' && !Array.isArray(data.metrics)
+    && Array.isArray(data.monthly) && Array.isArray(data.rankings) && Array.isArray(data.sources);
+  return {
+    available: result.available,
+    reason: typeof data.reason === 'string' ? data.reason : 'Datele comerciale nu sunt disponibile momentan.',
+    partial: data.partial !== false || !completeShape,
+    metrics: data.metrics && typeof data.metrics === 'object' && !Array.isArray(data.metrics) ? data.metrics : {},
+    monthly: Array.isArray(data.monthly) ? data.monthly.filter(p => p && typeof p.month === 'string' && /^\d{4}-\d{2}$/.test(p.month) && definitions.some(d => d.kind === p.kind)) : [],
+    rankings: Array.isArray(data.rankings) ? data.rankings.filter(r => r && definitions.some(d => d.kind === r.kind) && r.partner_id != null) : [],
+    sources: Array.isArray(data.sources) ? data.sources.filter(s => s && typeof s.table === 'string') : [],
+  };
+}
+
 export default function CeoCommercialData({ start, end, refresh, call }: { start: string; end: string; refresh: number; call: (payload: Record<string, unknown>) => Promise<any> }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState('');
@@ -34,7 +52,7 @@ export default function CeoCommercialData({ start, end, refresh, call }: { start
   useEffect(() => {
     let active = true;
     setSummary(null); setError('');
-    call({ action: 'commercial_summary', start, end }).then(result => { if (active) setSummary(result); }).catch(e => { if (active) setError((e as Error).message); });
+    call({ action: 'commercial_summary', start, end }).then(result => { if (active) setSummary(normalizeSummary(result)); }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'Indicatorii comerciali nu au putut fi încărcați.'); });
     return () => { active = false; };
   }, [start, end, refresh, attempt, call]);
   if (error) return <div role="alert" className="space-y-3 py-4"><p className="text-destructive">{error}</p><Button variant="outline" onClick={() => setAttempt(v => v + 1)}><RefreshCw className="h-4 w-4 mr-2" />Reîncearcă</Button></div>;
