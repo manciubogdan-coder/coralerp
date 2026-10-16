@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { RefreshCw, Database, Rows3, AlertTriangle, Clock, RotateCcw } from 'lucide-react';
 import BackToHubButton from '@/components/BackToHubButton';
 import { supabase } from '@/integrations/supabase/client';
+import { edgeFetchJson } from '@/lib/edgeFetch';
 
 const CLOUD_URL = 'https://yeniohmlmxhjzywqlidx.supabase.co';
 const CLOUD_ANON =
