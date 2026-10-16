@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { edgeFetchJson } from "@/lib/edgeFetch";
 
 const CLOUD_URL = "https://yeniohmlmxhjzywqlidx.supabase.co";
 const CLOUD_ANON =
@@ -21,12 +22,9 @@ export async function argusFetch<T = any>(
   body?: unknown,
 ): Promise<T> {
   const qs = new URLSearchParams({ action, ...params });
-  const res = await fetch(`${ARGUS_URL}?${qs}`, {
+  return edgeFetchJson<T>(`${ARGUS_URL}?${qs}`, {
     method: body === undefined ? "GET" : "POST",
-    headers: { ...(await argusHeaders()), "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: await argusHeaders(),
+    body,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `Eroare ${res.status}`);
-  return data as T;
 }
