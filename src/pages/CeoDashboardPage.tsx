@@ -297,6 +297,8 @@ const CeoDashboardPage: React.FC = () => {
   const cur = months.filter((m) => m.y === year);
   const prev = months.filter((m) => m.y === year - 1);
   const lastMonth = cur.filter((m) => m.revenue || m.expenses).slice(-1)[0];
+  const inYtd = (p: string) => p.startsWith(String(year));
+  const inLast = (p: string) => p === lastMonth?.period;
   const sameMonthPrev = lastMonth && prev.find((m) => m.period.slice(4) === lastMonth.period.slice(4));
   const ytd = (arr: any[], upTo?: string) => arr.filter((m) => !upTo || m.period.slice(4) <= upTo).reduce((a, m) => ({ r: a.r + +m.revenue, e: a.e + +m.expenses }), { r: 0, e: 0 });
   const ytdCur = ytd(cur);
@@ -309,7 +311,28 @@ const CeoDashboardPage: React.FC = () => {
   });
   const delta = (a: number, b: number) => (b ? Math.round(((a - b) / Math.abs(b)) * 100) : null);
 
-  const Kpi: React.FC<{ label: string; value: number; prevValue: number; icon: React.ReactNode; good?: 'up' | 'down' }> = ({ label, value, prevValue, icon, good = 'up' }) => {
+  // Din ce conturi se compune o cifră: kind rev/exp/profit, perioade YYYYMM incluse.
+  const accounts: any[] = pnl?.accounts ?? [];
+  const parts = (kind: 'rev' | 'exp' | 'profit', inPeriod: (p: string) => boolean) => {
+    const map = new Map<string, { cont: string; name: string; value: number }>();
+    for (const a of accounts) {
+      if (!inPeriod(a.period)) continue;
+      const v = kind === 'rev' ? +a.rev : kind === 'exp' ? +a.exp : +a.rev - +a.exp;
+      if (!v) continue;
+      const cur = map.get(a.cont) ?? { cont: a.cont, name: a.name, value: 0 };
+      cur.value += v; map.set(a.cont, cur);
+    }
+    return [...map.values()].sort((x, y) => Math.abs(y.value) - Math.abs(x.value));
+  };
+  const SOURCE: Record<'rev' | 'exp' | 'profit', string> = {
+    rev: 'Rulajul net (credit − debit) al conturilor din clasa 7 din contabilitatea Senior (balanța de verificare). Sume fără TVA, înregistrate în contabilitate — nu comenzi și nu facturi cu TVA.',
+    exp: 'Rulajul net (debit − credit) al conturilor din clasa 6 din contabilitatea Senior (balanța de verificare): materii prime, ambalaje, transport, salarii, diferențe de curs etc. Fără TVA.',
+    profit: 'Venituri (clasa 7) minus cheltuieli (clasa 6) din contabilitatea Senior — profit contabil brut, înainte de închiderea lunii și de ajustări.',
+  };
+
+  const Kpi: React.FC<{ label: string; value: number; prevValue: number; icon: React.ReactNode; good?: 'up' | 'down'; kind: 'rev' | 'exp' | 'profit'; inPeriod: (p: string) => boolean }> = ({ label, value, prevValue, icon, good = 'up', kind, inPeriod }) => {
+    const [open, setOpen] = useState(false);
+    const list = open ? parts(kind, inPeriod) : [];
     const d = delta(value, prevValue);
     const positive = d != null && (good === 'up' ? d >= 0 : d <= 0);
     return (
@@ -321,6 +344,19 @@ const CeoDashboardPage: React.FC = () => {
         <CardContent className="text-sm">
           {d != null ? <span className={positive ? 'text-primary font-medium' : 'text-destructive font-medium'}>{d > 0 ? '+' : ''}{d}%</span> : '—'}
           <span className="text-muted-foreground"> față de {lei(prevValue)} anul trecut</span>
+          <p className="text-xs text-muted-foreground mt-2">{SOURCE[kind]}</p>
+          <button className="text-xs text-primary underline mt-1" onClick={() => setOpen(!open)}>{open ? 'Ascunde' : 'Din ce se compune'}</button>
+          {open && (
+            <div className="mt-2 max-h-56 overflow-y-auto space-y-1 border-t pt-2">
+              {list.map((x) => (
+                <div key={x.cont} className="flex justify-between gap-2 text-xs">
+                  <span className="truncate"><span className="font-mono">{x.cont}</span> {x.name}</span>
+                  <span className="whitespace-nowrap">{lei(x.value)}</span>
+                </div>
+              ))}
+              {!list.length && <p className="text-xs text-muted-foreground">Nicio sumă.</p>}
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -372,15 +408,15 @@ const CeoDashboardPage: React.FC = () => {
                 Oglindirea încă rulează, așa că unele cifre pot fi parțiale.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Kpi label={`Venituri ${year} (de la 1 ian.)`} value={ytdCur.r} prevValue={ytdPrev.r} icon={<TrendingUp className="h-4 w-4" />} />
-                <Kpi label={`Cheltuieli ${year} (de la 1 ian.)`} value={ytdCur.e} prevValue={ytdPrev.e} icon={<TrendingDown className="h-4 w-4" />} good="down" />
-                <Kpi label={`Profit ${year} (de la 1 ian.)`} value={ytdCur.r - ytdCur.e} prevValue={ytdPrev.r - ytdPrev.e} icon={<Wallet className="h-4 w-4" />} />
+                <Kpi label={`Venituri ${year} (de la 1 ian.)`} value={ytdCur.r} prevValue={ytdPrev.r} icon={<TrendingUp className="h-4 w-4" />} kind="rev" inPeriod={inYtd} />
+                <Kpi label={`Cheltuieli ${year} (de la 1 ian.)`} value={ytdCur.e} prevValue={ytdPrev.e} icon={<TrendingDown className="h-4 w-4" />} good="down" kind="exp" inPeriod={inYtd} />
+                <Kpi label={`Profit ${year} (de la 1 ian.)`} value={ytdCur.r - ytdCur.e} prevValue={ytdPrev.r - ytdPrev.e} icon={<Wallet className="h-4 w-4" />} kind="profit" inPeriod={inYtd} />
               </div>
               {lastMonth && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <Kpi label={`Venituri luna ${lastMonth.period.slice(4)}`} value={+lastMonth.revenue} prevValue={+(sameMonthPrev?.revenue ?? 0)} icon={<TrendingUp className="h-4 w-4" />} />
-                  <Kpi label={`Cheltuieli luna ${lastMonth.period.slice(4)}`} value={+lastMonth.expenses} prevValue={+(sameMonthPrev?.expenses ?? 0)} icon={<TrendingDown className="h-4 w-4" />} good="down" />
-                  <Kpi label={`Profit luna ${lastMonth.period.slice(4)}`} value={+lastMonth.revenue - +lastMonth.expenses} prevValue={+(sameMonthPrev?.revenue ?? 0) - +(sameMonthPrev?.expenses ?? 0)} icon={<Wallet className="h-4 w-4" />} />
+                  <Kpi label={`Venituri luna ${lastMonth.period.slice(4)}`} value={+lastMonth.revenue} prevValue={+(sameMonthPrev?.revenue ?? 0)} icon={<TrendingUp className="h-4 w-4" />} kind="rev" inPeriod={inLast} />
+                  <Kpi label={`Cheltuieli luna ${lastMonth.period.slice(4)}`} value={+lastMonth.expenses} prevValue={+(sameMonthPrev?.expenses ?? 0)} icon={<TrendingDown className="h-4 w-4" />} good="down" kind="exp" inPeriod={inLast} />
+                  <Kpi label={`Profit luna ${lastMonth.period.slice(4)}`} value={+lastMonth.revenue - +lastMonth.expenses} prevValue={+(sameMonthPrev?.revenue ?? 0) - +(sameMonthPrev?.expenses ?? 0)} icon={<Wallet className="h-4 w-4" />} kind="profit" inPeriod={inLast} />
                 </div>
               )}
               <Card>
