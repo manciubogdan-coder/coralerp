@@ -1,5 +1,5 @@
 # Roadmap
-- [ ] Fix and verify CEO report aggregation when no measure is selected.
+- [x] Fix CEO report aggregation when no measure is selected; verified default count, grouped/filtered count and explicit count on mirrored data (signed-in UI check unavailable).
 - [x] Limit future ERP historical transfers to 2025–2026 without deleting already mirrored rows; preserve reference data and verify filtering.
 - [ ] Validate v1.8's server filter report against Senior — blocked until the user installs it on the local server.
 - [x] Prepare adaptive mirror recovery pauses without excluding tables; bound prereception loading and verify retry UI with simulated timeout.
