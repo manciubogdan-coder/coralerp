@@ -29,6 +29,13 @@
       "when": 1792127218790,
       "tag": "0003_erp_mirror_reports_rpc",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792127947695,
+      "tag": "0004_erp_mirror_pnl_accounts",
+      "breakpoints": true
     }
   ]
 }
