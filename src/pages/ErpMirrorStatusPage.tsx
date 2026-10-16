@@ -66,38 +66,22 @@ const ErpMirrorStatusPage: React.FC = () => {
 
   const callFn = useCallback(async (payload: Record<string, unknown>) => {
     const { data } = await supabase.auth.getSession();
-    const res = await fetch(`${CLOUD_URL}/functions/v1/erp-mirror`, {
+    return edgeFetchJson(`${CLOUD_URL}/functions/v1/erp-mirror`, {
       method: 'POST',
       headers: {
         apikey: CLOUD_ANON,
         Authorization: `Bearer ${CLOUD_ANON}`,
         'x-app-token': data.session?.access_token ?? '',
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload),
+      body: payload,
     });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json?.error || `Eroare ${res.status}`);
-    return json;
   }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await supabase.auth.getSession();
-      const res = await fetch(`${CLOUD_URL}/functions/v1/erp-mirror`, {
-        method: 'POST',
-        headers: {
-          apikey: CLOUD_ANON,
-          Authorization: `Bearer ${CLOUD_ANON}`,
-          'x-app-token': data.session?.access_token ?? '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action: 'status' }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error || `Eroare ${res.status}`);
+      const json = await callFn({ action: 'status' });
       setStatus(json as Status);
       setRefreshedAt(new Date());
     } catch (e) {
@@ -105,7 +89,7 @@ const ErpMirrorStatusPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [callFn]);
 
   useEffect(() => {
     load();
