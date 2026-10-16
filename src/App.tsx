@@ -429,6 +429,14 @@ const AppShell = () => {
                     }
                   />
                 ))}
+                <Route
+                  path="/administrativ/erp-oglindire"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <ErpMirrorStatusPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/administrativ/produse" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
                 <Route path="/administrativ/furnizori" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
                 <Route path="/administrativ/producatori" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />

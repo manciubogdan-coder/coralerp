@@ -5,6 +5,7 @@ import {
   Users,
   FileClock,
   Clock,
+  Database,
   Eye,
   type LucideIcon,
 } from 'lucide-react';
