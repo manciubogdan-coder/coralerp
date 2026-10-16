@@ -213,8 +213,9 @@ const ErpMirrorStatusPage: React.FC = () => {
                   <span className="text-sm font-medium w-14 text-right">{pct}%</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {fmtNum(done)} din {fmtNum(total)} tabele verificate în această rulare
-                  {hasLive && <> ({fmtNum(lastRun.tables_synced)} copiate, {fmtNum(lastRun.tables_skipped)} neschimbate, {fmtNum(lastRun.rows_synced)} rânduri trimise)</>}.
+                  Această rulare a trecut prin {fmtNum(done)} din {fmtNum(total)} tabele
+                  {hasLive && <> ({fmtNum(lastRun.tables_synced)} recopiate, {fmtNum(lastRun.tables_skipped)} deja copiate și neschimbate, {fmtNum(lastRun.rows_synced)} rânduri trimise)</>}.
+                  {' '}Procentul arată doar drumul acestei rulări; totalul real copiat este cel din cardul „Tabele copiate” de sus.
                 </p>
                 {running && lastRun.current_table && (
                   <div className="rounded-md border p-3 text-sm space-y-2">
