@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const mssql = require("mssql");
 const fetch = require("node-fetch");
 
-const VERSION = "1.5.0";
+const VERSION = "1.6.0";
 const ROOT = path.join(__dirname, "..");
 const LOG_DIR = path.join(ROOT, "logs");
 const STATE_FILE = path.join(ROOT, "mirror-state.json");
@@ -222,6 +222,9 @@ async function fingerprint(s, n) {
 const STALL_MS = Number(process.env.STALL_MINUTES || 10) * 60000;
 
 // ---------- sincronizare tabel (streaming, in loturi) ----------
+let forceSet = new Set();
+let liveRun = null;
+const beat = (data) => api({ action: "log", run: liveRun, data }).catch(() => {});
 async function syncTable(run, s, n, state) {
   const table = tableName(s, n);
   const key = `${s}.${n}`;
@@ -231,7 +234,10 @@ async function syncTable(run, s, n, state) {
   const approx = await approxRows(s, n);
   if (approx > 50000) log(`   … ${key}: ~${approx.toLocaleString("ro-RO")} randuri, verific daca s-a schimbat`);
   const fp = await fingerprint(s, n);
-  if (fp && state[key]?.fp === fp && state[key]?.cols === cols.length) return { skipped: true };
+  const forced = forceSet.has(key);
+  if (!forced && fp && state[key]?.fp === fp && state[key]?.cols === cols.length) return { skipped: true };
+  if (forced) log(`   ↻ ${key}: recopiere ceruta din aplicatie`);
+  beat({ current_table: key, current_rows: 0, current_total: approx });
   if (approx > 50000) log(`   … ${key}: incep copierea`);
 
   await api({ action: "ensure_table", table, source: key, columns: cols.map(({ name, type }) => ({ name, type })), pk });
@@ -283,6 +289,7 @@ async function syncTable(run, s, n, state) {
           if (Date.now() - lastProgress > 30000) {
             lastProgress = Date.now();
             log(`   … ${key}: ${total.toLocaleString("ro-RO")}${approx > 0 ? " / ~" + approx.toLocaleString("ro-RO") : ""} randuri trimise`);
+            beat({ current_table: key, current_rows: total, current_total: approx });
           }
           request.resume();
         }).catch((e) => { failed = failed || e; try { request.cancel(); } catch (_) {} finish(); });
@@ -315,11 +322,15 @@ async function cycle() {
   try {
     const tables = await listTables();
     log(`▶ Oglindire pornita — ${tables.length} tabele`);
+    liveRun = run;
     await api({ action: "log", run, data: { host: os.hostname(), tables_total: tables.length } });
+    try { forceSet = new Set((await api({ action: "pending_retries" })).tables || []); } catch (_) { forceSet = new Set(); }
+    if (forceSet.size) log(`↻ ${forceSet.size} tabele cerute pentru recopiere din aplicatie`);
     let idx = 0;
     for (const t of tables) {
       idx++;
       const t0 = Date.now();
+      if (idx % 5 === 0) beat({ tables_done: idx - 1, tables_synced: synced, tables_skipped: skipped, rows_synced: rows });
       if (idx % 50 === 0) log(`   — progres: ${idx}/${tables.length} tabele (${synced} copiate, ${skipped} neschimbate)`);
       try {
         const r = await syncTable(run, t.s, t.n, state);
@@ -338,7 +349,7 @@ async function cycle() {
     try { await pool?.close(); } catch (_) {}
     pool = null;
   }
-  await api({ action: "log", run, data: { finished: true, tables_synced: synced, tables_skipped: skipped, rows_synced: rows, errors } }).catch(() => {});
+  await api({ action: "log", run, data: { finished: true, tables_done: synced + skipped + errors.length, current_table: null, tables_synced: synced, tables_skipped: skipped, rows_synced: rows, errors } }).catch(() => {});
   log(`✅ Gata: ${synced} sincronizate, ${skipped} neschimbate, ${rows} randuri, ${errors.length} erori`);
   running = false;
 }

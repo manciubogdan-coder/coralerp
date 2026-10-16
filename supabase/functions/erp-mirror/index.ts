@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
 
   // Acțiunea "status" e pentru interfață: cere sesiune de admin din aplicația operațională.
   if (!isBridge) {
-    if (body.action !== "status") return json({ error: "unauthorized" }, 401);
+    if (body.action !== "status" && body.action !== "retry") return json({ error: "unauthorized" }, 401);
     const token = req.headers.get("x-app-token") || "";
     const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
     const LEGACY_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY2RsaWZqeHhkcmVremRhdGZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQyMTg0MTMsImV4cCI6MjA1OTc5NDQxM30.P7molAFqPEpn4hwwEvKzYTEFHRlJhhvQ8GM29CqEDxk";
@@ -33,6 +33,14 @@ Deno.serve(async (req) => {
     const rr = await fetch(`${LEGACY_URL}/rest/v1/app_user_roles?select=role&user_id=eq.${encodeURIComponent(user.id)}`, { headers: { apikey: LEGACY_ANON, Authorization: `Bearer ${token}` } });
     const roles = rr.ok ? ((await rr.json()) as Array<{ role: string }>) : [];
     if (!roles.some((x) => x.role === "admin")) return json({ error: "Disponibil doar administratorilor." }, 403);
+    if (body.action === "retry") {
+      const tables = Array.isArray(body.tables)
+        ? body.tables.filter((t: unknown) => typeof t === "string" && /^[a-z0-9_]{1,63}$/.test(t)).slice(0, 2000)
+        : null;
+      const { data, error } = await sb.rpc("erp_mirror_request_retry", { p_tables: tables });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, marked: data });
+    }
     const { data, error } = await sb.rpc("erp_mirror_status");
     if (error) return json({ error: error.message }, 500);
     return json(data);
@@ -60,6 +68,8 @@ Deno.serve(async (req) => {
       case "log":
         await call("erp_mirror_log", { p_run: body.run, p_data: body.data ?? {} });
         return json({ ok: true });
+      case "pending_retries":
+        return json({ ok: true, tables: (await call("erp_mirror_pending_retries", {})) ?? [] });
       default:
         return json({ error: "unknown action" }, 400);
     }

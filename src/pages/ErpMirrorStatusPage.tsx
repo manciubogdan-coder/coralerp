@@ -2,9 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { RefreshCw, Database, Rows3, AlertTriangle, Clock } from 'lucide-react';
+import { RefreshCw, Database, Rows3, AlertTriangle, Clock, RotateCcw } from 'lucide-react';
 import BackToHubButton from '@/components/BackToHubButton';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -18,6 +18,7 @@ interface MirrorTable {
   row_count: number;
   last_synced_at: string | null;
   last_error: string | null;
+  retry_requested?: boolean;
 }
 interface MirrorRun {
   id: string;
@@ -26,6 +27,12 @@ interface MirrorRun {
   host: string | null;
   tables_total: number | null;
   tables_synced: number | null;
+  tables_done?: number | null;
+  tables_copied_live?: number | null;
+  current_table?: string | null;
+  current_rows?: number | null;
+  current_total?: number | null;
+  heartbeat_at?: string | null;
   tables_skipped: number | null;
   rows_synced: number | null;
   errors: Array<{ table: string; error: string }> | null;
@@ -54,6 +61,25 @@ const ErpMirrorStatusPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+
+  const [retrying, setRetrying] = useState<string | null>(null);
+
+  const callFn = useCallback(async (payload: Record<string, unknown>) => {
+    const { data } = await supabase.auth.getSession();
+    const res = await fetch(`${CLOUD_URL}/functions/v1/erp-mirror`, {
+      method: 'POST',
+      headers: {
+        apikey: CLOUD_ANON,
+        Authorization: `Bearer ${CLOUD_ANON}`,
+        'x-app-token': data.session?.access_token ?? '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json?.error || `Eroare ${res.status}`);
+    return json;
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,7 +116,27 @@ const ErpMirrorStatusPage: React.FC = () => {
   const lastRun = status?.runs?.[0];
   const running = !!lastRun && !lastRun.finished_at;
   const total = lastRun?.tables_total || 0;
-  const done = (lastRun?.tables_synced ?? 0) + (lastRun?.tables_skipped ?? 0);
+  const done = Math.max(
+    lastRun?.tables_done ?? 0,
+    (lastRun?.tables_synced ?? 0) + (lastRun?.tables_skipped ?? 0),
+    lastRun?.tables_copied_live ?? 0,
+  );
+  const hasLive = lastRun?.tables_done != null;
+  const curPct = lastRun?.current_total ? Math.min(100, Math.round(((lastRun.current_rows ?? 0) / lastRun.current_total) * 100)) : null;
+  const errorTables = (status?.tables ?? []).filter((t) => t.last_error);
+
+  const retry = async (tables: string[] | null, key: string) => {
+    setRetrying(key);
+    try {
+      const r = await callFn({ action: 'retry', tables });
+      toast.success(`${r.marked} tabele marcate. Se recopiază la următoarea verificare a programului (max. 30 min).`);
+      await load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRetrying(null);
+    }
+  };
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
 
   return (
@@ -176,13 +222,38 @@ const ErpMirrorStatusPage: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <Progress value={pct} className="flex-1" />
+                  <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                  </div>
                   <span className="text-sm font-medium w-14 text-right">{pct}%</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {fmtNum(done)} din {fmtNum(total)} tabele verificate ({fmtNum(lastRun.tables_synced)} copiate,{' '}
-                  {fmtNum(lastRun.tables_skipped)} neschimbate), {fmtNum(lastRun.rows_synced)} rânduri trimise în această rulare.
+                  {fmtNum(done)} din {fmtNum(total)} tabele verificate în această rulare
+                  {hasLive && <> ({fmtNum(lastRun.tables_synced)} copiate, {fmtNum(lastRun.tables_skipped)} neschimbate, {fmtNum(lastRun.rows_synced)} rânduri trimise)</>}.
                 </p>
+                {running && lastRun.current_table && (
+                  <div className="rounded-md border p-3 text-sm space-y-2">
+                    <p>
+                      Acum copiază: <span className="font-mono">{lastRun.current_table}</span> —{' '}
+                      {fmtNum(lastRun.current_rows ?? 0)}
+                      {lastRun.current_total ? ` din ~${fmtNum(lastRun.current_total)} rânduri` : ' rânduri'}
+                      {curPct != null && ` (${curPct}%)`}
+                    </p>
+                    {curPct != null && (
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full bg-primary" style={{ width: `${curPct}%` }} />
+                      </div>
+                    )}
+                    <p className="text-muted-foreground">Ultimul semn de viață de la program: {ago(lastRun.heartbeat_at ?? null)}</p>
+                  </div>
+                )}
+                {running && !hasLive && (
+                  <p className="text-sm rounded-md bg-muted p-3">
+                    Programul de pe server e o versiune veche și nu raportează progresul pe parcurs — de aceea apare 0%.
+                    „Rânduri copiate” și „Ultima actualizare” se schimbă doar când se termină un tabel; acum lucrează la un tabel mare.
+                    Instalează versiunea 1.6 ca să vezi aici progresul live și tabelul curent.
+                  </p>
+                )}
                 {!!lastRun.errors?.length && (
                   <div className="text-sm">
                     <p className="font-medium text-destructive mb-1">Erori în această rulare:</p>
@@ -202,7 +273,14 @@ const ErpMirrorStatusPage: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Tabele oglindite ({fmtNum(status.totals.tables)})</CardTitle>
-              <CardDescription>Ordonate după ultima actualizare. Se reîmprospătează automat la fiecare minut.</CardDescription>
+              <CardDescription>Întâi cele cu erori, apoi după ultima actualizare. Se reîmprospătează automat la fiecare minut.</CardDescription>
+              {errorTables.length > 0 && (
+                <div className="pt-2">
+                  <Button size="sm" variant="outline" disabled={!!retrying} onClick={() => retry(null, 'all')}>
+                    <RotateCcw className="h-4 w-4 mr-1" /> Recopiază toate tabelele cu erori ({errorTables.length})
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             <CardContent className="p-0">
               <div className="max-h-[60vh] overflow-y-auto">
@@ -213,6 +291,7 @@ const ErpMirrorStatusPage: React.FC = () => {
                       <TableHead className="text-right">Rânduri</TableHead>
                       <TableHead>Ultima copiere</TableHead>
                       <TableHead>Stare</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -225,11 +304,18 @@ const ErpMirrorStatusPage: React.FC = () => {
                           <span className="text-muted-foreground"> ({ago(t.last_synced_at)})</span>
                         </TableCell>
                         <TableCell>
-                          {t.last_error ? (
+                          {t.retry_requested ? (
+                            <Badge>în coadă</Badge>
+                          ) : t.last_error ? (
                             <Badge variant="destructive" title={t.last_error}>eroare</Badge>
                           ) : (
                             <Badge variant="secondary">ok</Badge>
                           )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" variant="ghost" disabled={!!retrying || t.retry_requested} onClick={() => retry([t.table_name], t.table_name)} title="Recopiază acest tabel">
+                            <RotateCcw className={`h-4 w-4 ${retrying === t.table_name ? 'animate-spin' : ''}`} />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}

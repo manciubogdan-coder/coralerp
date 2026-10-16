@@ -2037,7 +2037,12 @@ export type Database = {
         Args: { p_data: Json; p_run: string }
         Returns: undefined
       }
+      erp_mirror_pending_retries: { Args: never; Returns: string[] }
       erp_mirror_query: { Args: { p_sql: string }; Returns: Json }
+      erp_mirror_request_retry: {
+        Args: { p_tables?: string[] }
+        Returns: number
+      }
       erp_mirror_status: { Args: never; Returns: Json }
       erp_mirror_upsert: {
         Args: { p_rows: Json; p_run: string; p_table: string }
