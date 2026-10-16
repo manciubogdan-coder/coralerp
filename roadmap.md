@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Limit future ERP historical transfers to 2025–2026 without deleting already mirrored rows; preserve reference data and verify filtering.
 - [x] Prepare adaptive mirror recovery pauses without excluding tables; bound prereception loading and verify retry UI with simulated timeout.
 - [ ] Verify real reception performance during mirroring — blocked until user installs v1.7 on the local server and an operational-app session is available.
 - [x] Înlocuiește lista de operatori cu operator principal + număr total și afișează datele în rapoarte.
