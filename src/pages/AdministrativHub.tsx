@@ -7,6 +7,7 @@ import {
   Clock,
   Database,
   Eye,
+  LineChart,
   type LucideIcon,
 } from 'lucide-react';
 import BackToHubButton from '@/components/BackToHubButton';
@@ -19,6 +20,7 @@ interface Tile {
 }
 
 const TILES: Tile[] = [
+  { label: 'Panou CEO', desc: 'Profit, venituri, cheltuieli dintr-o privire + rapoarte proprii cu drag and drop sau cu asistentul.', path: '/administrativ/panou-ceo', icon: LineChart },
   { label: 'Argus', desc: 'Ochiul CEO-ului: vede tot ce mișcă în firmă, analizează, raportează și îți răspunde.', path: '/administrativ/argus', icon: Eye },
   { label: 'Utilizatori', desc: 'Aprobare conturi și roluri pe departamente.', path: '/administrativ/users', icon: Users },
   { label: 'Audit Operații', desc: 'Istoric acțiuni utilizatori.', path: '/administrativ/audit', icon: FileClock },
