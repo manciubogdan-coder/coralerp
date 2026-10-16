@@ -22,6 +22,13 @@
       "when": 1792127176556,
       "tag": "0002_erp_mirror_ceo_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792127218790,
+      "tag": "0003_erp_mirror_reports_rpc",
+      "breakpoints": true
     }
   ]
 }
