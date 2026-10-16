@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { edgeFetchJson } from "@/lib/edgeFetch";
 
 const CLOUD_URL = "https://yeniohmlmxhjzywqlidx.supabase.co";
 const CLOUD_ANON =
