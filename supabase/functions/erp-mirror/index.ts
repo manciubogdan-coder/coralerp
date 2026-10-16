@@ -4,7 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type, x-bridge-token",
+  "Access-Control-Allow-Headers": "content-type, x-bridge-token, x-app-token, apikey, authorization",
 };
 
 const json = (b: unknown, s = 200) =>
