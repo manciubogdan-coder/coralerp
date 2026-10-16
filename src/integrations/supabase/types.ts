@@ -2020,6 +2020,8 @@ export type Database = {
         }
         Returns: number
       }
+      erp_mirror_aggregate: { Args: { p: Json }; Returns: Json }
+      erp_mirror_catalog: { Args: never; Returns: Json }
       erp_mirror_ensure_table: {
         Args: {
           p_columns: Json
@@ -2038,6 +2040,7 @@ export type Database = {
         Returns: undefined
       }
       erp_mirror_pending_retries: { Args: never; Returns: string[] }
+      erp_mirror_pnl: { Args: { p_year: number }; Returns: Json }
       erp_mirror_query: { Args: { p_sql: string }; Returns: Json }
       erp_mirror_request_retry: {
         Args: { p_tables?: string[] }
