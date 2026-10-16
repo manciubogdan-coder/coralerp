@@ -71,6 +71,13 @@
       "when": 1792140423190,
       "tag": "0009_verify_ceo_browse_regression",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792140807805,
+      "tag": "0010_ceo_commercial_summary",
+      "breakpoints": true
     }
   ]
 }

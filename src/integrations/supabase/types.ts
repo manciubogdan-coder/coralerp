@@ -2023,6 +2023,10 @@ export type Database = {
       erp_mirror_aggregate: { Args: { p: Json }; Returns: Json }
       erp_mirror_browse: { Args: { p: Json }; Returns: Json }
       erp_mirror_catalog: { Args: never; Returns: Json }
+      erp_mirror_commercial_summary: {
+        Args: { p_end: string; p_start: string }
+        Returns: Json
+      }
       erp_mirror_ensure_table: {
         Args: {
           p_columns: Json
