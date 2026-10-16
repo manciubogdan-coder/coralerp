@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Reduce mirror write pressure without excluding tables; bound prereception loading and verify retries.
 - [x] Înlocuiește lista de operatori cu operator principal + număr total și afișează datele în rapoarte.
 
 - [x] Operator: câmp căutare produs/magazin (individual + grupat + pagina principală)
