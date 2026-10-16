@@ -48,6 +48,7 @@ import PendingApprovalPage from "./pages/PendingApprovalPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import ActivityTrackingPage from "./pages/ActivityTrackingPage";
+import CeoDashboardPage from './pages/CeoDashboardPage';
 import ErpMirrorStatusPage from "./pages/ErpMirrorStatusPage";
 import ArgusPage from "./pages/ArgusPage";
 import { useActivityTracker } from "@/hooks/use-activity-tracker";
@@ -435,6 +436,14 @@ const AppShell = () => {
                   element={
                     <ProtectedRoute requireAdmin>
                       <ErpMirrorStatusPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/administrativ/panou-ceo"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <CeoDashboardPage />
                     </ProtectedRoute>
                   }
                 />
