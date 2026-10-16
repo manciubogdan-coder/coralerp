@@ -48,6 +48,7 @@ import PendingApprovalPage from "./pages/PendingApprovalPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import ActivityTrackingPage from "./pages/ActivityTrackingPage";
+import ErpMirrorStatusPage from "./pages/ErpMirrorStatusPage";
 import ArgusPage from "./pages/ArgusPage";
 import { useActivityTracker } from "@/hooks/use-activity-tracker";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -429,6 +430,14 @@ const AppShell = () => {
                     }
                   />
                 ))}
+                <Route
+                  path="/administrativ/erp-oglindire"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <ErpMirrorStatusPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/administrativ/produse" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
                 <Route path="/administrativ/furnizori" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />
                 <Route path="/administrativ/producatori" element={<Navigate to="/depozit-mp/nomenclatoare" replace />} />

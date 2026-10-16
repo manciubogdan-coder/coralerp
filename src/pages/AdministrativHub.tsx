@@ -5,6 +5,7 @@ import {
   Users,
   FileClock,
   Clock,
+  Database,
   Eye,
   type LucideIcon,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ const TILES: Tile[] = [
   { label: 'Utilizatori', desc: 'Aprobare conturi și roluri pe departamente.', path: '/administrativ/users', icon: Users },
   { label: 'Audit Operații', desc: 'Istoric acțiuni utilizatori.', path: '/administrativ/audit', icon: FileClock },
   { label: 'Activitate utilizatori', desc: 'Timp petrecut în aplicație, pe hub-uri și taburi.', path: '/administrativ/activitate', icon: Clock },
+  { label: 'Oglindire Senior ERP', desc: 'Starea copierii bazei de date din Senior ERP: progres, rânduri, erori.', path: '/administrativ/erp-oglindire', icon: Database },
 ];
 
 const AdministrativHub: React.FC = () => {
