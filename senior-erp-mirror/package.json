@@ -1,10 +1,11 @@
 {
   "name": "senior-erp-mirror",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Oglindire completa read-only Senior ERP (SQL Server) -> Coral ERP",
   "main": "src/index.js",
   "type": "commonjs",
   "scripts": {
+    "test": "node --test tests/*.test.js",
     "start": "node src/index.js",
     "once": "node src/index.js --once",
     "install-service": "node scripts/install-service.js",

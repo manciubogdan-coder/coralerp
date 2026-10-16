@@ -7,8 +7,11 @@ const os = require("os");
 const crypto = require("crypto");
 const mssql = require("mssql");
 const fetch = require("node-fetch");
+const { createHistoryPlanner } = require("./historyFilter");
 
-const VERSION = "1.7.0";
+const VERSION = "1.8.0";
+const HISTORY_PARAMS = { historyStart: "20250101", historyEnd: "20270101", historyPeriodStart: 202501, historyPeriodEnd: 202701 };
+let historyPlanner;
 const ROOT = path.join(__dirname, "..");
 const LOG_DIR = path.join(ROOT, "logs");
 const STATE_FILE = path.join(ROOT, "mirror-state.json");
@@ -212,9 +215,9 @@ async function approxRows(s, n) {
   } catch { return -1; }
 }
 
-async function fingerprint(s, n) {
+async function fingerprint(s, n, filter) {
   try {
-    const r = await select(`SELECT COUNT_BIG(*) AS c, CHECKSUM_AGG(BINARY_CHECKSUM(*)) AS h FROM ${q(s)}.${q(n)} WITH (NOLOCK)`);
+    const r = await select(`SELECT COUNT_BIG(*) AS c, CHECKSUM_AGG(BINARY_CHECKSUM(src.*)) AS h FROM ${q(s)}.${q(n)} src WITH (NOLOCK)${filter.where}`, HISTORY_PARAMS);
     return `${r[0].c}:${r[0].h}`;
   } catch {
     return null; // nu se poate calcula — sincronizam mereu
@@ -233,11 +236,13 @@ async function syncTable(run, s, n, state) {
   const { cols, pk } = await describe(s, n);
   if (!cols.length) return { skipped: true };
 
-  const approx = await approxRows(s, n);
+  const filter = historyPlanner(s, n);
+  log(`   ${key}: ${filter.filtered ? "istoric 2025–2026 (inclusiv date necunoscute)" : "integral: nomenclator sau perioada neidentificata"}`);
+  const approx = filter.filtered ? -1 : await approxRows(s, n);
   if (approx > 50000) log(`   … ${key}: ~${approx.toLocaleString("ro-RO")} randuri, verific daca s-a schimbat`);
-  const fp = await fingerprint(s, n);
+  const fp = await fingerprint(s, n, filter);
   const forced = forceSet.has(key);
-  if (!forced && fp && state[key]?.fp === fp && state[key]?.cols === cols.length) return { skipped: true };
+  if (!forced && fp && state[key]?.fp === fp && state[key]?.cols === cols.length && state[key]?.scope === filter.scope) return { skipped: true };
   if (forced) log(`   ↻ ${key}: recopiere ceruta din aplicatie`);
   beat({ current_table: key, current_rows: 0, current_total: approx });
   if (approx > 50000) log(`   … ${key}: incep copierea`);
@@ -245,10 +250,11 @@ async function syncTable(run, s, n, state) {
   await api({ action: "ensure_table", table, source: key, columns: cols.map(({ name, type }) => ({ name, type })), pk });
 
   const pkCols = pk.map((p) => cols.find((c) => c.src === p)).filter(Boolean);
-  const sql = `SELECT ${cols.map((c) => q(c.src)).join(", ")} FROM ${q(s)}.${q(n)} WITH (NOLOCK)`;
+  const sql = `SELECT ${cols.map((c) => `src.${q(c.src)}`).join(", ")} FROM ${q(s)}.${q(n)} src WITH (NOLOCK)${filter.where}`;
   assertSelect(sql);
 
   const request = (await getPool()).request();
+  Object.entries(HISTORY_PARAMS).forEach(([name, value]) => request.input(name, value));
   request.stream = true;
   let buf = [], total = 0, failed = null, sending = Promise.resolve();
   let lastActivity = Date.now(), lastProgress = Date.now();
@@ -313,9 +319,9 @@ async function syncTable(run, s, n, state) {
   if (failed) throw failed;
   if (buf.length) { await flush(buf); total += buf.length; }
 
-  // Rândurile care nu mai exista in ERP sunt sterse din oglinda (doar dupa citire completa).
+  // Cloud finalization preserves all existing rows, including pre-2025 history.
   const fin = await api({ action: "finish_table", table, run, rows: total });
-  state[key] = { fp, cols: cols.length, rows: total, at: new Date().toISOString() };
+  state[key] = { fp, scope: filter.scope, cols: cols.length, rows: total, at: new Date().toISOString() };
   saveState(state);
   return { rows: total, deleted: fin.deleted || 0 };
 }
@@ -331,6 +337,19 @@ async function cycle() {
   let synced = 0, skipped = 0, rows = 0;
   try {
     const tables = await listTables();
+    const metadata = await select(`SELECT TABLE_SCHEMA AS s, TABLE_NAME AS n, COLUMN_NAME AS col, DATA_TYPE AS type FROM INFORMATION_SCHEMA.COLUMNS`);
+    const links = await select(`SELECT fk.object_id AS fk_id, cs.name AS child_schema, ct.name AS child_table, cc.name AS child_col,
+      ps.name AS parent_schema, pt.name AS parent_table, pc.name AS parent_col
+      FROM sys.foreign_keys fk JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+      JOIN sys.tables ct ON ct.object_id = fk.parent_object_id JOIN sys.schemas cs ON cs.schema_id = ct.schema_id
+      JOIN sys.columns cc ON cc.object_id = ct.object_id AND cc.column_id = fkc.parent_column_id
+      JOIN sys.tables pt ON pt.object_id = fk.referenced_object_id JOIN sys.schemas ps ON ps.schema_id = pt.schema_id
+      JOIN sys.columns pc ON pc.object_id = pt.object_id AND pc.column_id = fkc.referenced_column_id
+      ORDER BY fk.object_id, fkc.constraint_column_id`);
+    historyPlanner = createHistoryPlanner(metadata, links);
+    const report = tables.map((t) => ({ table: `${t.s}.${t.n}`, ...historyPlanner(t.s, t.n) }));
+    fs.writeFileSync(path.join(ROOT, "history-filter-report.json"), JSON.stringify(report, null, 2));
+    log(`Perioada 2025–2026: ${report.filter((r) => r.filtered).length} tabele filtrate; celelalte raman integrale pentru siguranta. Detalii: history-filter-report.json`);
     log(`▶ Oglindire pornita — ${tables.length} tabele`);
     liveRun = run;
     await api({ action: "log", run, data: { host: os.hostname(), tables_total: tables.length } });
