@@ -8,8 +8,8 @@ interface Source { table: string; source: string; rows: number; synced_at?: stri
 const categories = [
   { name: 'Clienți', match: /client|customer|partener|partner/i },
   { name: 'Furnizori', match: /furniz|supplier|partener|partner/i },
-  { name: 'Comenzi de vânzare', match: /sales.*order|order.*sales|comenzi|comanda/i },
-  { name: 'Comenzi de achiziție', match: /purchase.*order|order.*purchase|achiz|comenzi|comanda/i },
+  { name: 'Comenzi de vânzare', match: /sales.*order|order.*sales|comenzi|comanda|c_h_note_contabile$|c_d_note_contabile$/i },
+  { name: 'Comenzi de achiziție', match: /purchase.*order|order.*purchase|achiz|comenzi|comanda|c_h_note_contabile$|c_d_note_contabile$/i },
   { name: 'Facturi', match: /factur|invoice/i },
   { name: 'Toate datele', match: /./ },
 ];
@@ -46,6 +46,7 @@ export default function CeoCommercialData({ catalog, start, end, call }: { catal
     {source && <>
       <p className="text-sm text-muted-foreground">{source.synced_at ? `Ultima copiere completă: ${new Date(source.synced_at).toLocaleString('ro-RO')}` : 'Sursa nu a fost încă încărcată complet.'}{source.error ? ` · Eroare copiere: ${source.error}` : ''}</p>
       <p className="text-xs text-muted-foreground">Date originale din {source.source}; încadrarea surselor se face după denumire. Partenerii pot include atât clienți, cât și furnizori; nu se presupune automat rolul lor.</p>
+      {(category === 2 || category === 3) && <p className="text-xs text-muted-foreground">Notele contabile includ mai multe tipuri de documente. Pentru comenzile client, seria confirmată în bridge este CC; seriile de achiziție trebuie confirmate în Senior înainte de calcularea totalurilor.</p>}
       <div className="flex flex-wrap gap-3 items-end">
         <label className="text-sm space-y-1"><span className="block">Data documentului</span><select aria-label="Data documentului" value={dateCol} onChange={e => setDateCol(e.target.value)} className="border rounded-md bg-background p-2 max-w-full"><option value="">Fără filtrare pe dată</option>{dates.map(c => <option key={c.name}>{c.name}</option>)}</select></label>
         <label className="text-sm space-y-1"><span className="block">Caută în</span><select aria-label="Caută în" value={searchCol} onChange={e => setSearchCol(e.target.value)} className="border rounded-md bg-background p-2"><option value="">Selectează coloana</option>{source.columns.map(c => <option key={c.name}>{c.name}</option>)}</select></label>

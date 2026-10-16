@@ -164,7 +164,7 @@ const Builder: React.FC<{ catalog: CatTable[]; initial: Config | null; onSaved: 
   const tbl = catalog.find((t) => t.table === cfg.table);
   const colType = (c: string) => tbl?.columns.find((x) => x.name === c)?.type ?? 'text';
   const tables = useMemo(
-    () => catalog.filter((t) => t.source.toLowerCase().includes(search.toLowerCase())).slice(0, 300),
+    () => catalog.filter((t) => t.synced_at && t.rows > 0 && t.source.toLowerCase().includes(search.toLowerCase())),
     [catalog, search],
   );
 
