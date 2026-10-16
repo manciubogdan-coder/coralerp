@@ -2021,6 +2021,7 @@ export type Database = {
         Returns: number
       }
       erp_mirror_aggregate: { Args: { p: Json }; Returns: Json }
+      erp_mirror_browse: { Args: { p: Json }; Returns: Json }
       erp_mirror_catalog: { Args: never; Returns: Json }
       erp_mirror_ensure_table: {
         Args: {

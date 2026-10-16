@@ -13,6 +13,7 @@ import {
 import BackToHubButton from '@/components/BackToHubButton';
 import { supabase } from '@/integrations/supabase/client';
 import { edgeFetchJson } from '@/lib/edgeFetch';
+import CeoCommercialData from '@/components/CeoCommercialData';
 
 const CLOUD_URL = 'https://yeniohmlmxhjzywqlidx.supabase.co';
 const CLOUD_ANON =
@@ -38,7 +39,7 @@ interface Config {
   limit?: number;
   order?: 'value' | 'group';
 }
-interface CatTable { table: string; source: string; rows: number; columns: { name: string; type: string }[] }
+interface CatTable { table: string; source: string; rows: number; synced_at?: string | null; error?: string | null; columns: { name: string; type: string }[] }
 interface SavedReport { id: string; title: string; config: Config; created_by?: string }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(142 60% 40%)', 'hsl(38 90% 50%)', 'hsl(200 70% 45%)', 'hsl(280 50% 55%)', 'hsl(0 0% 55%)'];
@@ -163,7 +164,7 @@ const Builder: React.FC<{ catalog: CatTable[]; initial: Config | null; onSaved: 
   const tbl = catalog.find((t) => t.table === cfg.table);
   const colType = (c: string) => tbl?.columns.find((x) => x.name === c)?.type ?? 'text';
   const tables = useMemo(
-    () => catalog.filter((t) => t.source.toLowerCase().includes(search.toLowerCase())).slice(0, 300),
+    () => catalog.filter((t) => t.synced_at && t.rows > 0 && t.source.toLowerCase().includes(search.toLowerCase())),
     [catalog, search],
   );
 
@@ -274,10 +275,15 @@ const Builder: React.FC<{ catalog: CatTable[]; initial: Config | null; onSaved: 
 
 /* ---------------- Pagina ---------------- */
 const CeoDashboardPage: React.FC = () => {
-  const year = new Date().getFullYear();
+  const [start, setStart] = useState(`${new Date().getFullYear()}-01-01`);
+  const [end, setEnd] = useState(new Date().toLocaleDateString('en-CA'));
+  const year = Number(end.slice(0, 4));
+  const periodValid = /^\d{4}-\d{2}-\d{2}$/.test(start) && /^\d{4}-\d{2}-\d{2}$/.test(end) && start <= end && year - Number(start.slice(0, 4)) <= 2;
+  const [refresh, setRefresh] = useState(0);
   const [pnl, setPnl] = useState<any>(null);
   const [pnlErr, setPnlErr] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<CatTable[]>([]);
+  const [catalogErr, setCatalogErr] = useState('');
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [tab, setTab] = useState('panou');
   const [builderCfg, setBuilderCfg] = useState<Config | null>(null);
@@ -288,27 +294,51 @@ const CeoDashboardPage: React.FC = () => {
 
   const loadReports = useCallback(() => callFn({ action: 'reports_list' }).then((r) => setReports(r.reports ?? [])).catch(() => {}), []);
   useEffect(() => {
-    callFn({ action: 'pnl', year }).then(setPnl).catch((e) => setPnlErr(e.message));
-    callFn({ action: 'catalog' }).then((r) => setCatalog(r.tables ?? [])).catch(() => {});
+    let active = true;
+    callFn({ action: 'catalog' }).then((r) => { if (active) { setCatalog(r.tables ?? []); setCatalogErr(''); } }).catch(e => { if (active) setCatalogErr(e.message); });
     loadReports();
-  }, [year, loadReports]);
+    return () => { active = false; };
+  }, [refresh, loadReports]);
+  useEffect(() => {
+    if (!periodValid) return;
+    let active = true;
+    setPnl(null); setPnlErr(null);
+    const load = async () => {
+      const years = Array.from({ length: year - Number(start.slice(0, 4)) + 1 }, (_, i) => year - i);
+      const results = [];
+      for (const y of years) results.push(await callFn({ action: 'pnl', year: y }));
+      const months = new Map<string, any>();
+      const accounts = new Map<string, any>();
+      for (const result of results) {
+        for (const m of result.months ?? []) months.set(m.period, m);
+        for (const a of result.accounts ?? []) accounts.set(`${a.period}:${a.cont}`, a);
+      }
+      if (active) setPnl({ months: [...months.values()], accounts: [...accounts.values()], last_period: results.map(r => r.last_period).filter(Boolean).sort().at(-1) });
+    };
+    load().catch(e => { if (active) setPnlErr(e.message); });
+    return () => { active = false; };
+  }, [start, end, year, periodValid, refresh]);
 
   const months: any[] = pnl?.months ?? [];
-  const cur = months.filter((m) => m.y === year);
-  const prev = months.filter((m) => m.y === year - 1);
-  const lastMonth = cur.filter((m) => m.revenue || m.expenses).slice(-1)[0];
-  const inYtd = (p: string) => p.startsWith(String(year));
-  const inLast = (p: string) => p === lastMonth?.period;
-  const sameMonthPrev = lastMonth && prev.find((m) => m.period.slice(4) === lastMonth.period.slice(4));
-  const ytd = (arr: any[], upTo?: string) => arr.filter((m) => !upTo || m.period.slice(4) <= upTo).reduce((a, m) => ({ r: a.r + +m.revenue, e: a.e + +m.expenses }), { r: 0, e: 0 });
+  const fromPeriod = start.slice(0, 7).replace('-', '');
+  const toPeriod = end.slice(0, 7).replace('-', '');
+  const inYtd = (p: string) => p >= fromPeriod && p <= toPeriod;
+  const cur = months.filter(m => inYtd(m.period)).sort((a, b) => a.period.localeCompare(b.period));
+  const prev = months.filter(m => inYtd(String(Number(m.period.slice(0, 4)) + 1) + m.period.slice(4)));
+  const ytd = (arr: any[]) => arr.reduce((a, m) => ({ r: a.r + +m.revenue, e: a.e + +m.expenses }), { r: 0, e: 0 });
   const ytdCur = ytd(cur);
-  const ytdPrev = ytd(prev, lastMonth?.period.slice(4));
-  const chartData = Array.from({ length: 12 }, (_, i) => {
-    const mm = String(i + 1).padStart(2, '0');
-    const c = cur.find((m) => m.period.slice(4) === mm);
-    const p = prev.find((m) => m.period.slice(4) === mm);
-    return { name: mm, Venituri: c ? +c.revenue : null, Cheltuieli: c ? +c.expenses : null, Profit: c ? +c.revenue - +c.expenses : null, [`Profit ${year - 1}`]: p ? +p.revenue - +p.expenses : null };
-  });
+  const ytdPrev = ytd(prev);
+  const chartData: any[] = [];
+  if (periodValid) {
+    const date = new Date(Number(start.slice(0, 4)), Number(start.slice(5, 7)) - 1, 1);
+    while (`${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}` <= toPeriod) {
+      const period = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const c = cur.find(m => m.period === period);
+      const p = prev.find(m => m.period === `${date.getFullYear() - 1}${period.slice(4)}`);
+      chartData.push({ name: `${period.slice(4)}/${period.slice(0, 4)}`, Venituri: c ? +c.revenue : null, Cheltuieli: c ? +c.expenses : null, Profit: c ? +c.revenue - +c.expenses : null, 'Profit anul anterior': p ? +p.revenue - +p.expenses : null });
+      date.setMonth(date.getMonth() + 1);
+    }
+  }
   const delta = (a: number, b: number) => (b ? Math.round(((a - b) / Math.abs(b)) * 100) : null);
 
   // Din ce conturi se compune o cifră: kind rev/exp/profit, perioade YYYYMM incluse.
@@ -345,7 +375,7 @@ const CeoDashboardPage: React.FC = () => {
           {d != null ? <span className={positive ? 'text-primary font-medium' : 'text-destructive font-medium'}>{d > 0 ? '+' : ''}{d}%</span> : '—'}
           <span className="text-muted-foreground"> față de {lei(prevValue)} anul trecut</span>
           <p className="text-xs text-muted-foreground mt-2">{SOURCE[kind]}</p>
-          <button className="text-xs text-primary underline mt-1" onClick={() => setOpen(!open)}>{open ? 'Ascunde' : 'Din ce se compune'}</button>
+          <Button variant="link" size="sm" className="px-0 h-auto mt-1" onClick={() => setOpen(!open)}>{open ? 'Ascunde' : 'Din ce se compune'}</Button>
           {open && (
             <div className="mt-2 max-h-56 overflow-y-auto space-y-1 border-t pt-2">
               {list.map((x) => (
@@ -391,9 +421,17 @@ const CeoDashboardPage: React.FC = () => {
         <BackToHubButton />
       </div>
 
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-sm space-y-1"><span className="block">De la</span><Input aria-label="De la" type="date" value={start} onChange={e => setStart(e.target.value)} /></label>
+        <label className="text-sm space-y-1"><span className="block">Până la</span><Input aria-label="Până la" type="date" value={end} onChange={e => setEnd(e.target.value)} /></label>
+        <Button variant="outline" onClick={() => setRefresh(v => v + 1)}>Reîncarcă</Button>
+      </div>
+      {!periodValid && <p role="alert" className="text-sm text-destructive">Alege o perioadă validă de maximum trei ani calendaristici.</p>}
+
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="h-auto flex flex-wrap justify-start">
           <TabsTrigger value="panou">Panou</TabsTrigger>
+          <TabsTrigger value="comercial">Date comerciale</TabsTrigger>
           <TabsTrigger value="constructor">Constructor rapoarte</TabsTrigger>
           <TabsTrigger value="asistent">Asistent</TabsTrigger>
         </TabsList>
@@ -404,23 +442,18 @@ const CeoDashboardPage: React.FC = () => {
           {pnl && (
             <>
               <p className="text-sm rounded-md bg-muted p-3">
-                Date contabile până în luna {pnl.last_period ? `${pnl.last_period.slice(4)}/${pnl.last_period.slice(0, 4)}` : '—'} (după cât e închisă contabilitatea în Senior).
-                Oglindirea încă rulează, așa că unele cifre pot fi parțiale.
+                Ultima perioadă contabilă din copie: {pnl.last_period ? `${pnl.last_period.slice(4)}/${pnl.last_period.slice(0, 4)}` : '—'}. Ultima copiere a balanței: {catalog.find(t => t.table === 'accountingstatistics')?.synced_at ? new Date(catalog.find(t => t.table === 'accountingstatistics')?.synced_at ?? '').toLocaleString('ro-RO') : 'necunoscută'}.
+                Copierea completă a unui tabel nu garantează date la zi. Nu putem confirma perioada disponibilă în Senior din această copie. Contabilitatea se calculează pe luni întregi; filtrele pe zi se aplică documentelor comerciale.
               </p>
+              {cur.length === 0 && <p role="status" className="text-sm text-destructive">Nu există date contabile pentru perioada aleasă; valorile de mai jos nu reprezintă o activitate zero confirmată.</p>}
+              {pnl.last_period && toPeriod > pnl.last_period && <p className="text-sm text-destructive">Perioada aleasă depășește datele disponibile: totalurile sunt parțiale.</p>}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Kpi label={`Venituri ${year} (de la 1 ian.)`} value={ytdCur.r} prevValue={ytdPrev.r} icon={<TrendingUp className="h-4 w-4" />} kind="rev" inPeriod={inYtd} />
-                <Kpi label={`Cheltuieli ${year} (de la 1 ian.)`} value={ytdCur.e} prevValue={ytdPrev.e} icon={<TrendingDown className="h-4 w-4" />} good="down" kind="exp" inPeriod={inYtd} />
-                <Kpi label={`Profit ${year} (de la 1 ian.)`} value={ytdCur.r - ytdCur.e} prevValue={ytdPrev.r - ytdPrev.e} icon={<Wallet className="h-4 w-4" />} kind="profit" inPeriod={inYtd} />
+                <Kpi label="Venituri · perioada aleasă" value={ytdCur.r} prevValue={ytdPrev.r} icon={<TrendingUp className="h-4 w-4" />} kind="rev" inPeriod={inYtd} />
+                <Kpi label="Cheltuieli · perioada aleasă" value={ytdCur.e} prevValue={ytdPrev.e} icon={<TrendingDown className="h-4 w-4" />} good="down" kind="exp" inPeriod={inYtd} />
+                <Kpi label="Profit · perioada aleasă" value={ytdCur.r - ytdCur.e} prevValue={ytdPrev.r - ytdPrev.e} icon={<Wallet className="h-4 w-4" />} kind="profit" inPeriod={inYtd} />
               </div>
-              {lastMonth && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <Kpi label={`Venituri luna ${lastMonth.period.slice(4)}`} value={+lastMonth.revenue} prevValue={+(sameMonthPrev?.revenue ?? 0)} icon={<TrendingUp className="h-4 w-4" />} kind="rev" inPeriod={inLast} />
-                  <Kpi label={`Cheltuieli luna ${lastMonth.period.slice(4)}`} value={+lastMonth.expenses} prevValue={+(sameMonthPrev?.expenses ?? 0)} icon={<TrendingDown className="h-4 w-4" />} good="down" kind="exp" inPeriod={inLast} />
-                  <Kpi label={`Profit luna ${lastMonth.period.slice(4)}`} value={+lastMonth.revenue - +lastMonth.expenses} prevValue={+(sameMonthPrev?.revenue ?? 0) - +(sameMonthPrev?.expenses ?? 0)} icon={<Wallet className="h-4 w-4" />} kind="profit" inPeriod={inLast} />
-                </div>
-              )}
               <Card>
-                <CardHeader><CardTitle className="text-base">Venituri, cheltuieli și profit pe luni — {year}</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">Venituri, cheltuieli și profit pe luni · perioada aleasă</CardTitle></CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={320}>
                     <BarChart data={chartData}>
@@ -432,15 +465,15 @@ const CeoDashboardPage: React.FC = () => {
                       <Bar dataKey="Venituri" fill={COLORS[0]} />
                       <Bar dataKey="Cheltuieli" fill={COLORS[1]} />
                       <Bar dataKey="Profit" fill={COLORS[2]} />
-                      <Bar dataKey={`Profit ${year - 1}`} fill={COLORS[6]} />
+                      <Bar dataKey="Profit anul anterior" fill={COLORS[6]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {[['Top 10 surse de venit', pnl.top_revenue], ['Top 10 cheltuieli', pnl.top_expenses]].map(([t, list]: any) => (
+                {[['Top 10 surse de venit', parts('rev', inYtd).slice(0, 10)], ['Top 10 cheltuieli', parts('exp', inYtd).slice(0, 10)]].map(([t, list]: any) => (
                   <Card key={t}>
-                    <CardHeader><CardTitle className="text-base">{t} — {year}</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="text-base">{t} · perioada aleasă</CardTitle></CardHeader>
                     <CardContent className="space-y-2">
                       {(list ?? []).map((x: any) => {
                         const max = Math.max(...list.map((y: any) => +y.value), 1);
@@ -465,6 +498,11 @@ const CeoDashboardPage: React.FC = () => {
               </div>
             </>
           )}
+        </TabsContent>
+
+        <TabsContent value="comercial" className="space-y-4">
+          {catalogErr && <p role="alert" className="text-destructive">{catalogErr}</p>}
+          {periodValid && <CeoCommercialData catalog={catalog} start={start} end={end} call={callFn} />}
         </TabsContent>
 
         <TabsContent value="constructor">
@@ -495,7 +533,7 @@ const CeoDashboardPage: React.FC = () => {
                   {answerRows ? <ReportView config={answer.config} rows={answerRows} /> : <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
                   <div className="flex gap-2 flex-wrap">
                     <Button onClick={saveAnswer}><Save className="h-4 w-4 mr-1" /> Salvează pe panou</Button>
-                    <Button variant="outline" onClick={() => { setBuilderCfg({ ...answer.config!, groups: answer.config!.groups ?? [], measures: answer.config!.measures ?? [], filters: answer.config!.filters ?? [] }); setTab('constructor'); }}>
+                    <Button variant="outline" onClick={() => { const config = answer.config; if (!config) return; setBuilderCfg({ ...config, groups: config.groups ?? [], measures: config.measures ?? [], filters: config.filters ?? [] }); setTab('constructor'); }}>
                       Modifică în constructor
                     </Button>
                   </div>

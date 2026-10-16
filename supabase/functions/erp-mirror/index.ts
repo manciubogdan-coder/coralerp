@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
 
   // Acțiunea "status" e pentru interfață: cere sesiune de admin din aplicația operațională.
   if (!isBridge) {
-    const UI_ACTIONS = ["status", "retry", "catalog", "aggregate", "pnl", "reports_list", "reports_save", "reports_delete", "assist"];
+    const UI_ACTIONS = ["status", "retry", "catalog", "aggregate", "browse", "pnl", "reports_list", "reports_save", "reports_delete", "assist"];
     if (!UI_ACTIONS.includes(body.action)) return json({ error: "unauthorized" }, 401);
     const token = req.headers.get("x-app-token") || "";
     const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
@@ -83,6 +83,12 @@ Deno.serve(async (req) => {
           return json({ tables: await rpc("erp_mirror_catalog") });
         case "aggregate":
           return json({ rows: await rpc("erp_mirror_aggregate", { p: body.config ?? {} }) });
+        case "browse": {
+          const c = body.config;
+          if (!c || typeof c.table !== "string" || !/^[a-z0-9_]{1,63}$/.test(c.table) || !Number.isInteger(c.offset) || c.offset < 0 || c.offset > 10000000) return json({ error: "Sursă sau pagină invalidă." }, 400);
+          for (const k of ["date_col", "search_col", "search", "start", "end"]) if (c[k] != null && (typeof c[k] !== "string" || c[k].length > 200)) return json({ error: "Filtru invalid." }, 400);
+          return json(await rpc("erp_mirror_browse", { p: c }));
+        }
         case "pnl": {
           const y = Number(body.year) || new Date().getFullYear();
           return json(await rpc("erp_mirror_pnl", { p_year: y }));
