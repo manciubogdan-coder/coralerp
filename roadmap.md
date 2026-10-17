@@ -1,4 +1,6 @@
 # Roadmap
+- [x] Diagnose reported mirror stoppage: confirmed DocumentsAudit rows increasing and healthy Cloud; corrected unsupported TRY_CONVERT in the local script with regression coverage.
+- [ ] Install mirror 1.8.1 and verify AccountingStatistics retries against Senior — blocked on installing the corrected script on the user's local server.
 - [x] Replace commercial source browsing with verified CEO commercial KPIs, monthly activity and partner rankings; show incomplete sources explicitly. Database regression tests pass (header totals, empty/invalid periods, partner counts and service-only access); build OK. Signed-in UI verification remains unavailable because the operational account session is absent.
 - [x] CEO: verified accounting copy stops at June 2026; added selectable periods and paginated commercial source browsing with freshness/availability. Database browsing/search/validation tests pass; authenticated UI verification unavailable (operational session absent).
 - [x] Fix CEO report aggregation when no measure is selected; verified default count, grouped/filtered count and explicit count on mirrored data (signed-in UI check unavailable).

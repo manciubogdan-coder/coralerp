@@ -9,7 +9,7 @@ const mssql = require("mssql");
 const fetch = require("node-fetch");
 const { createHistoryPlanner } = require("./historyFilter");
 
-const VERSION = "1.8.0";
+const VERSION = "1.8.1";
 const HISTORY_PARAMS = { historyStart: "20250101", historyEnd: "20270101", historyPeriodStart: 202501, historyPeriodEnd: 202701 };
 let historyPlanner;
 const ROOT = path.join(__dirname, "..");

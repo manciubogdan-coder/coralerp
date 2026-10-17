@@ -5,7 +5,12 @@ const column = (n, col, type = "datetime") => ({ s: "dbo", n, col, type });
 
 test("accounting uses YYYYMM bounds; master data remains complete", () => {
   const plan = createHistoryPlanner([column("AccountingStatistics", "PeriodID", "nvarchar"), column("Products", "Created_On"), column("Products", "DocumentDate")], []);
-  assert.match(plan("dbo", "AccountingStatistics").where, /TRY_CONVERT\(int/);
+  const rule = plan("dbo", "AccountingStatistics").where;
+  assert.doesNotMatch(rule, /TRY_CONVERT|TRY_CAST/);
+  assert.match(rule, /CASE WHEN LEN\(.+\) = 6 AND .+ NOT LIKE '%\[\^0-9\]%' THEN .+ ELSE NULL END/);
+  assert.match(rule, /IS NULL OR/);
+  assert.match(rule, />= CONVERT\(varchar\(6\), @historyPeriodStart\)/);
+  assert.match(rule, /< CONVERT\(varchar\(6\), @historyPeriodEnd\)/);
   assert.match(plan("dbo", "AccountingStatistics").where, /historyPeriodEnd/);
   assert.equal(plan("dbo", "Products").filtered, false);
 });
