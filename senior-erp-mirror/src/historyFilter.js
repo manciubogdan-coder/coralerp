@@ -35,8 +35,12 @@ function createHistoryPlanner(columns, foreignKeys) {
     const ref = (name) => `${alias}.${quote(name)}`;
     const period = cols.find((c) => c.col.toLowerCase() === "periodid");
     if (table.toLowerCase() === "accountingstatistics" && period) {
-      const r = `TRY_CONVERT(int, ${ref(period.col)})`;
-      return `(${r} IS NULL OR (${r} >= @historyPeriodStart AND ${r} < @historyPeriodEnd))`;
+      // Older Senior SQL Server versions do not support TRY_CONVERT.
+      // Canonical six-digit YYYYMM strings sort chronologically; malformed values
+      // remain unknown and are retained without a potentially failing numeric cast.
+      const text = `LTRIM(RTRIM(CONVERT(varchar(100), ${ref(period.col)})))`;
+      const r = `(CASE WHEN LEN(${text}) = 6 AND ${text} NOT LIKE '%[^0-9]%' THEN ${text} ELSE NULL END)`;
+      return `(${r} IS NULL OR (${r} >= CONVERT(varchar(6), @historyPeriodStart) AND ${r} < CONVERT(varchar(6), @historyPeriodEnd)))`;
     }
     // Never use created_on, modified_on, expiration, delivery or payment due dates.
     // Reference catalogs can contain dates too; they are not historical documents.
