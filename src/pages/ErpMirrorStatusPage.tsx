@@ -75,6 +75,7 @@ const ErpMirrorStatusPage: React.FC = () => {
         'x-app-token': data.session?.access_token ?? '',
       },
       body: payload,
+      readOnly: payload.action === 'status',
     });
   }, []);
 

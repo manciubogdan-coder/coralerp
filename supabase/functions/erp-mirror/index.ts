@@ -115,7 +115,12 @@ Deno.serve(async (req) => {
           return json(await rpc("erp_mirror_status"));
       }
     } catch (e) {
-      return json({ error: (e as Error).message }, 500);
+      const msg = (e as Error).message || "";
+      // Database briefly unavailable (restart / overload): tell the client it can retry.
+      if (/schema cache|connection|timeout|terminat|starting up|fetch failed/i.test(msg)) {
+        return json({ error: "Baza de date tocmai repornește sau e ocupată. Mai încearcă într-un minut." }, 503);
+      }
+      return json({ error: msg }, 500);
     }
   }
 
