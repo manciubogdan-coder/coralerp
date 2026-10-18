@@ -18,6 +18,7 @@ import OrderEditDialog from "./OrderEditDialog";
 import OrderIngredientEditor from "./OrderIngredientEditor";
 import OrdersPagination from "./OrdersPagination";
 import SabloaneProductieAvans from "./SabloaneProductieAvans";
+import AdvanceAutomation from "./AdvanceAutomation";
 
 const AdvanceProductionManagement = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -441,7 +442,7 @@ const AdvanceProductionManagement = () => {
 
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="pending">
             <Clock className="h-4 w-4 mr-2" />
             În Așteptare ({pendingTotalItems})
@@ -461,6 +462,10 @@ const AdvanceProductionManagement = () => {
           <TabsTrigger value="sabloane">
             <Zap className="h-4 w-4 mr-2" />
             Șabloane
+          </TabsTrigger>
+          <TabsTrigger value="automatizare">
+            <Zap className="h-4 w-4 mr-2" />
+            Automatizare
           </TabsTrigger>
         </TabsList>
 
