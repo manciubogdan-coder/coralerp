@@ -227,14 +227,15 @@ Deno.serve(async (req) => {
         }
         case "pnl": {
           const y = Number(body.year) || new Date().getFullYear();
-          try { return json(await live("pnl", { year: y })); }
-          catch (e) { if (!(e instanceof LiveError)) throw e; return json({ ...(await rpc("erp_mirror_pnl", { p_year: y })), live: false, live_error: (e as Error).message }); }
+          // Up-to-date figures come from the accounting journal; the trial balance in Senior lags behind.
+          try { return json(await seniorPnl(sb, y)); }
+          catch (e) { return json({ ...(await rpc("erp_mirror_pnl", { p_year: y })), live: false, live_error: (e as Error).message }); }
         }
         case "reports_list":
           return json({ reports: await rpc("erp_mirror_reports", { p_action: "list" }) });
         case "reports_save": {
           const title = String(body.title || "").slice(0, 200).trim();
-          const cfg = validConfig(body.config);
+          const cfg = body.config?.kind === "sql" ? validTemplate(body.config) : validConfig(body.config);
           if (!title || !cfg) return json({ error: "Titlu și configurație obligatorii." }, 400);
           const data: Record<string, unknown> = { title, config: cfg, created_by: user.email };
           if (Array.isArray(body.result) && body.result.length <= 5000) data.result = body.result;
@@ -242,17 +243,29 @@ Deno.serve(async (req) => {
         }
         case "reports_refresh": {
           if (!/^[0-9a-f-]{36}$/.test(String(body.id))) return json({ error: "id invalid" }, 400);
-          const cfg = validConfig(body.config);
-          if (!cfg) return json({ error: "Configurație de raport invalidă." }, 400);
-          const rows = await live("aggregate", cfg);
+          let rows: unknown;
+          if (body.config?.kind === "sql") {
+            const tpl = validTemplate(body.config);
+            if (!tpl) return json({ error: "Șablon de raport invalid." }, 400);
+            try { rows = await seniorLive(sb, "sql", { sql: fillTemplate(tpl, body.values ?? {}) }, 45000); }
+            catch (e) { throw new LiveError((e as Error).message); }
+          } else {
+            const cfg = validConfig(body.config);
+            if (!cfg) return json({ error: "Configurație de raport invalidă." }, 400);
+            rows = await live("aggregate", cfg);
+          }
           return json({ report: await rpc("erp_mirror_reports", { p_action: "set_result", p_data: { id: body.id, result: rows } }) });
         }
-        case "reports_delete": {
-          if (!/^[0-9a-f-]{36}$/.test(String(body.id))) return json({ error: "id invalid" }, 400);
-          return json(await rpc("erp_mirror_reports", { p_action: "delete", p_data: { id: body.id } }));
+        case "template_run": {
+          const tpl = validTemplate(body.config);
+          if (!tpl) return json({ error: "Șablon de raport invalid." }, 400);
+          try { return json({ rows: await seniorLive(sb, "sql", { sql: fillTemplate(tpl, body.values ?? {}) }, 45000) }); }
+          catch (e) { throw new LiveError((e as Error).message); }
         }
         case "assist":
-          return json(await assist(String(body.prompt || "").slice(0, 2000), sb));
+          return new Response(assistStream(String(body.prompt || "").slice(0, 2000), sb, req.signal), {
+            headers: { ...cors, "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache" },
+          });
         default:
           return json(await rpc("erp_mirror_status_live"));
       }
