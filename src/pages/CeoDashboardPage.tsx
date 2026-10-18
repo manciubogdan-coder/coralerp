@@ -14,6 +14,39 @@ import BackToHubButton from '@/components/BackToHubButton';
 import { supabase } from '@/integrations/supabase/client';
 import { edgeFetchJson } from '@/lib/edgeFetch';
 import CeoCommercialData from '@/components/CeoCommercialData';
+import { SqlResultView, TemplateParamsForm, type SqlTemplate } from '@/components/ceo/SqlTemplateReport';
+import { MessageResponse } from '@/components/ai-elements/message';
+import { Progress } from '@/components/ui/progress';
+
+/** Streams the assistant's progress (NDJSON lines) from the backend. */
+async function streamAssist(prompt: string, onEvent: (e: any) => void, signal: AbortSignal) {
+  const { data } = await supabase.auth.getSession();
+  const res = await fetch(`${CLOUD_URL}/functions/v1/erp-mirror`, {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json', apikey: CLOUD_ANON, Authorization: `Bearer ${CLOUD_ANON}`, 'x-app-token': data.session?.access_token ?? '' },
+    body: JSON.stringify({ action: 'assist', prompt }),
+  });
+  if (!res.ok || !res.body) {
+    const t = await res.text().catch(() => '');
+    let msg = `Eroare ${res.status}`;
+    try { msg = JSON.parse(t).error ?? msg; } catch { /* not json */ }
+    throw new Error(msg);
+  }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (line) { try { onEvent(JSON.parse(line)); } catch { /* partial */ } }
+    }
+  }
+}
 
 const CLOUD_URL = 'https://yeniohmlmxhjzywqlidx.supabase.co';
 const CLOUD_ANON =
@@ -40,7 +73,7 @@ interface Config {
   order?: 'value' | 'group';
 }
 interface CatTable { table: string; source: string; rows: number; synced_at?: string | null; error?: string | null; columns: { name: string; type: string }[] }
-interface SavedReport { id: string; title: string; config: Config; created_by?: string; result?: any[] | null; refreshed_at?: string | null }
+interface SavedReport { id: string; title: string; config: Config | SqlTemplate; created_by?: string; result?: any[] | null; refreshed_at?: string | null }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(142 60% 40%)', 'hsl(38 90% 50%)', 'hsl(200 70% 45%)', 'hsl(280 50% 55%)', 'hsl(0 0% 55%)'];
 const FN_LABEL: Record<Fn, string> = { sum: 'Sumă', count: 'Număr', avg: 'Medie', min: 'Minim', max: 'Maxim', count_distinct: 'Distincte' };
@@ -114,7 +147,10 @@ const ReportView: React.FC<{ config: Config; rows: any[] }> = ({ config, rows })
 
 /* ---------------- Card raport salvat ---------------- */
 const SavedCard: React.FC<{ report: SavedReport; onDelete: () => void }> = ({ report, onDelete }) => {
-  // Saved reports open instantly from the stored result; "Actualizează" re-reads them live from Senior.
+  // Saved reports open instantly from the stored result; "Actualizează"/"Rulează" re-reads them live from Senior.
+  const cfg: any = report.config;
+  const tpl: SqlTemplate | null = cfg?.kind === 'sql' ? cfg : null;
+  const [values, setValues] = useState<Record<string, string>>(tpl?.defaults ?? {});
   const [rows, setRows] = useState<any[] | null>(report.result ?? null);
   const [at, setAt] = useState<string | null>(report.refreshed_at ?? null);
   const [err, setErr] = useState<string | null>(null);
@@ -122,31 +158,34 @@ const SavedCard: React.FC<{ report: SavedReport; onDelete: () => void }> = ({ re
   const refreshLive = useCallback(async () => {
     setBusy(true); setErr(null);
     try {
-      const r = await callFn({ action: 'reports_refresh', id: report.id, config: report.config });
+      const r = await callFn({ action: 'reports_refresh', id: report.id, config: report.config, ...(tpl ? { values } : {}) });
       setRows(r.report?.result ?? []); setAt(r.report?.refreshed_at ?? new Date().toISOString());
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
-  }, [report]);
-  useEffect(() => { if (!report.result) refreshLive(); }, [report, refreshLive]);
+  }, [report, tpl, values]);
+  useEffect(() => { if (!report.result) refreshLive(); }, [report]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
         <div>
           <CardTitle className="text-base">{report.title}</CardTitle>
           <CardDescription className="text-xs">
-            {at ? `Actualizat ${new Date(at).toLocaleString('ro-RO')}` : 'Încă neactualizat'} · <span className="font-mono">{report.config.table}</span>
+            {at ? `Actualizat ${new Date(at).toLocaleString('ro-RO')}` : 'Încă neactualizat'} · {tpl ? 'șablon citit live din Senior' : <span className="font-mono">{cfg.table}</span>}
           </CardDescription>
         </div>
         <div className="flex gap-1">
-          <Button size="sm" variant="outline" onClick={refreshLive} disabled={busy} title="Recitește direct din Senior">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizează'}
-          </Button>
+          {!tpl && (
+            <Button size="sm" variant="outline" onClick={refreshLive} disabled={busy} title="Recitește direct din Senior">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizează'}
+            </Button>
+          )}
           <Button size="icon" variant="ghost" onClick={onDelete} title="Șterge raportul"><Trash2 className="h-4 w-4" /></Button>
         </div>
       </CardHeader>
-      <CardContent>
-        {err && <p className="text-sm text-destructive mb-2">{err}</p>}
-        {rows ? <ReportView config={report.config} rows={rows} /> : !err && <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
+      <CardContent className="space-y-3">
+        {tpl && <TemplateParamsForm template={tpl} values={values} onChange={setValues} onRun={refreshLive} busy={busy} />}
+        {err && <p className="text-sm text-destructive">{err}</p>}
+        {rows ? (tpl ? <SqlResultView template={tpl} rows={rows} /> : <ReportView config={cfg} rows={rows} />) : !err && <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
       </CardContent>
     </Card>
   );
