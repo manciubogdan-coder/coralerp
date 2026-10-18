@@ -28,12 +28,59 @@ export async function seniorCatalog(sb: Rpc): Promise<any[]> {
   try { return await seniorLive(sb, "catalog", {}); } catch (e) { if (Array.isArray(data?.value)) return data.value; throw e; }
 }
 
-export const SENIOR_GUIDE = `Baza Senior ERP (SQL Server, citire directă, date la zi). Reguli:
-- Folosește întâi senior_cauta_tabele, apoi senior_descrie_tabel, apoi senior_sql. Nu ghici nume de tabele/coloane.
-- senior_sql acceptă un singur SELECT în dialect T-SQL (TOP n, nu LIMIT; GETDATE(); CONVERT). Folosește numele "sursa" (ex. dbo.C_H_Note_Contabile) și numele coloanelor date de senior_descrie_tabel (insensibile la majuscule). Adaugă WITH (NOLOCK) după tabele mari și filtrează mereu pe dată; agregă în SQL (SUM/COUNT/GROUP BY), întoarce max ~200 rânduri.
-- Documente: C_H_Note_Contabile = antete documente (data, valoare_rol = valoare document în lei, anulat, tip_document_id → C_Tipuri_Document.cod: CC comandă client, CF comandă furnizor, FC factură client, FF/FFI factură furnizor, plus alte coduri — verifică descrierea). C_D_Note_Contabile = linii (h_id → antet, articol cod/denumire, cantitate, valoare_neta_rol, valoare_tva_rol). C_H_Note_Contabile_Parteneri leagă antetul (h_id) de partener (partener_id, partener_denumire). Exclude anulat = 1.
-- Contabilitate: AccountingStatistics (PeriodId text YYYYMM, TipSubiectId = 1 total pe cont, AnaliticId → C_Plan_Contabil.Analitic_ID, CreditTurnover/DebitTurnover). Venituri = clasa 7 (credit−debit), cheltuieli = clasa 6 (debit−credit). Balanța există doar pentru lunile procesate în Senior; pentru lunile mai noi folosește documentele (facturi).
-- Dacă o interogare dă eroare, citește mesajul, corectează și reîncearcă. Spune mereu din ce tabele și ce filtre vin cifrele.`;
+export const SENIOR_GUIDE = `Baza Senior ERP (SQL Server, citire directă, date la zi).
+SCHEMA VERIFICATĂ (scrie SQL direct cu ea; caută alte tabele cu senior_cauta_tabele doar dacă întrebarea iese din schema de mai jos):
+- dbo.C_H_Note_Contabile h — antet document: H_ID, Tip_Document_ID, Data (data documentului), Serie_Document_Primar, Numar_Document_Primar, Valoare_Rol (total document în lei), Anulat (bit; exclude mereu: ISNULL(h.Anulat,0)=0), Descriere.
+- dbo.C_Tipuri_Document t — Tip_Document_ID, Cod, Descriere. Coduri: CC comandă client, CF comandă furnizor, FC factură client, FF factură furnizor, FFI factură furnizor import, AEC aviz expediție client, BC bon consum, NCICV închidere lunară conturi 6/7 (exclude-o din venituri/cheltuieli).
+- dbo.C_H_Note_Contabile_Parteneri pp — H_ID, Partener_ID, Partener_Denumire, Partener_Cod_Fiscal (partenerul documentului; client la FC/CC, furnizor la FF/CF).
+- dbo.C_D_Note_Contabile d — linii document: D_ID, H_ID, Articol_ID, Cod, Denumire (articol), Cantitate, UM_ID → dbo.D_Articole_UM.UM_ID (Cod = unitatea), Pret_Final_Rol, Valoare_Neta_Rol (fără TVA), Valoare_TVA_Rol, Valoare_Bruta_Rol (cu TVA).
+- dbo.D_Parteneri — Partener_ID, Cod, Denumire, IsClient, IsFurnizor. dbo.D_Articole — Articol_ID, Cod, Denumire.
+- dbo.C_H_Note_Contabile_Detalii_Conturi dc — registrul contabil LA ZI: H_ID, AnaliticId → dbo.C_Plan_Contabil.Analitic_ID, IsDebit (bit), Valoare_Rol, LunaContabila (int YYYYMM), SubiectDenumire. dbo.C_Plan_Contabil — Analitic_ID, Cont, Descriere. Venituri = clasa 7 (credit−debit), cheltuieli = clasa 6 (debit−credit), excluzând documentele NCICV. Tabel mare: filtrează mereu pe LunaContabila.
+REȚETE:
+- Achiziții de la un furnizor: FROM C_H_Note_Contabile h JOIN C_Tipuri_Document t ON t.Tip_Document_ID=h.Tip_Document_ID JOIN C_H_Note_Contabile_Parteneri pp ON pp.H_ID=h.H_ID JOIN C_D_Note_Contabile d ON d.H_ID=h.H_ID WHERE t.Cod IN ('FF','FFI') AND ISNULL(h.Anulat,0)=0 AND pp.Partener_Denumire LIKE N'%nume%' AND h.Data >= '...' AND h.Data < DATEADD(day,1,'...').
+- Vânzări către clienți: la fel cu t.Cod = 'FC'. Comenzi: 'CC' (clienți) / 'CF' (furnizori).
+- Totaluri pe documente (fără linii): folosește h.Valoare_Rol, fără JOIN pe linii, ca să nu dublezi sumele.
+REGULI SQL: un singur SELECT T-SQL (TOP n, nu LIMIT; GETDATE(); CONVERT(char(7), h.Data, 120) = lună YYYY-MM). Pune WITH (NOLOCK) după fiecare tabel. Filtrează mereu pe dată. Agregă în SQL (SUM/COUNT/GROUP BY), max ~200 rânduri. Numele de parteneri/articole caută-le cu LIKE N'%...%' (nu egalitate), fără diacritice obligatorii.
+Dacă o interogare dă eroare, citește mesajul, corectează și reîncearcă (folosește senior_descrie_tabel pentru coloane). Spune din ce tabele și ce filtre vin cifrele.`;
+
+/** Live P&L from the accounting journal (up to date, monthly closing notes excluded). Shape matches erp_mirror_pnl. */
+export async function seniorPnl(sb: Rpc, year: number) {
+  const y = Math.trunc(year);
+  if (!(y > 2000 && y < 2100)) throw new Error("An invalid.");
+  const base = `FROM dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK)
+    JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID = dc.AnaliticId
+    JOIN dbo.C_H_Note_Contabile h WITH (NOLOCK) ON h.H_ID = dc.H_ID
+    JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID = h.Tip_Document_ID
+    WHERE (p.Cont LIKE '6%' OR p.Cont LIKE '7%') AND t.Cod <> 'NCICV' AND ISNULL(h.Anulat, 0) = 0`;
+  const sums = `SUM(CASE WHEN p.Cont LIKE '7%' THEN CASE WHEN dc.IsDebit = 1 THEN -CAST(dc.Valoare_Rol AS float) ELSE CAST(dc.Valoare_Rol AS float) END ELSE 0 END) AS rev,
+    SUM(CASE WHEN p.Cont LIKE '6%' THEN CASE WHEN dc.IsDebit = 1 THEN CAST(dc.Valoare_Rol AS float) ELSE -CAST(dc.Valoare_Rol AS float) END ELSE 0 END) AS exp`;
+  const accountsSql = (from: number, to: number) =>
+    `SELECT CAST(dc.LunaContabila AS varchar(6)) AS period, p.Cont AS cont, MAX(p.Descriere) AS name, ${sums} ${base}
+     AND dc.LunaContabila BETWEEN ${from} AND ${to} GROUP BY dc.LunaContabila, p.Cont`;
+  const run = async (from: number, to: number): Promise<any[]> => {
+    const rows = await seniorLive(sb, "sql", { sql: accountsSql(from, to) }, 55000);
+    if (Array.isArray(rows) && rows.length >= 500 && to - from > 0) {
+      const mid = from + Math.floor((to - from) / 2);
+      return [...(await run(from, mid)), ...(await run(mid + 1, to))];
+    }
+    return rows ?? [];
+  };
+  const [h1, h2, prev] = await Promise.all([
+    run(y * 100 + 1, y * 100 + 6),
+    run(y * 100 + 7, y * 100 + 12),
+    seniorLive(sb, "sql", { sql: `SELECT CAST(dc.LunaContabila AS varchar(6)) AS period, ${sums} ${base} AND dc.LunaContabila BETWEEN ${(y - 1) * 100 + 1} AND ${(y - 1) * 100 + 12} GROUP BY dc.LunaContabila` }, 55000),
+  ]);
+  const r2 = (n: unknown) => Math.round(Number(n || 0) * 100) / 100;
+  const accounts = [...h1, ...h2].map((r) => ({ period: String(r.period), cont: String(r.cont), name: r.name, rev: r2(r.rev), exp: r2(r.exp) })).filter((r) => r.rev || r.exp);
+  const byMonth = new Map<string, any>();
+  for (const a of accounts) {
+    const m = byMonth.get(a.period) ?? { period: a.period, y, revenue: 0, expenses: 0 };
+    m.revenue += a.rev; m.expenses += a.exp; byMonth.set(a.period, m);
+  }
+  for (const r of prev ?? []) byMonth.set(String(r.period), { period: String(r.period), y: y - 1, revenue: r2(r.rev), expenses: r2(r.exp) });
+  const months = [...byMonth.values()].map((m) => ({ ...m, revenue: r2(m.revenue), expenses: r2(m.expenses) })).sort((a, b) => a.period.localeCompare(b.period));
+  return { months, accounts, last_period: months.filter((m) => m.y === y).at(-1)?.period ?? null, live: true, source: "journal" };
+}
 
 export function seniorTools(sb: Rpc, onRows?: (rows: any[]) => void) {
   let catalog: any[] | null = null;
