@@ -99,6 +99,13 @@
       "when": 1792343847148,
       "tag": "0013_erp_live_pull_fix",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792344113073,
+      "tag": "0014_erp_mirror_drop_nonessential_tables",
+      "breakpoints": true
     }
   ]
 }
