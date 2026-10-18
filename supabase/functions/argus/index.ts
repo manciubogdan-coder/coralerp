@@ -10,6 +10,7 @@ import {
 } from "npm:ai@7.0.123";
 import { createLovableAiGatewayRunIdFetch } from "../_shared/run-id.ts";
 import { isDue, runAgent } from "./agents.ts";
+import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 import {
   LEGACY_ANON,
   addDays,
@@ -94,6 +95,9 @@ Instrumente:
 1. metrici_perioada — tablou complet (oameni, producție, depozite, anomalii, rebut pe motive, calitate la recepție: pierdere calitativă kg/%, defecte, furnizori, comparație cu perioada anterioară). Începe cu el pentru întrebări generale.
 2. interogare_date — citește/agregă orice tabel de mai jos. Folosește grupare+sume pentru totaluri.
 3. genereaza_raport — când CEO-ul cere un raport/Excel: definește interogarea; utilizatorul primește un buton de descărcare.
+4. senior_cauta_tabele / senior_descrie_tabel / senior_sql — citire LIVE din Senior ERP (contabilitate, facturi, comenzi clienți/furnizori, parteneri, articole, stocuri, încasări/plăți). Folosește-le pentru orice întrebare despre bani, vânzări, achiziții, clienți, furnizori sau documente.
+
+${SENIOR_GUIDE}
 
 Tabele:
 ${tableList}
@@ -147,6 +151,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
         } catch (e) { return { eroare: String((e as Error).message) }; }
       },
     }),
+    ...seniorTools(c.cloud),
   };
 
   // Gemini rejects replayed tool calls from earlier turns (missing signatures / unpaired calls).

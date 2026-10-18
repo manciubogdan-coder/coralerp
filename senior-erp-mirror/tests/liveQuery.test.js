@@ -33,3 +33,14 @@ test("filter values never enter the SQL text", () => {
   assert.ok(!sql.includes("DROP"));
   assert.strictEqual(params.p1, "%x'; DROP TABLE y--%");
 });
+
+const { checkFreeSql } = require("../src/liveQuery");
+test("free SQL allows a single SELECT", () => {
+  assert.equal(checkFreeSql("SELECT TOP 5 * FROM dbo.Parteneri;"), "SELECT TOP 5 * FROM dbo.Parteneri");
+});
+test("free SQL rejects writes and multiple statements", () => {
+  assert.throws(() => checkFreeSql("DELETE FROM x"));
+  assert.throws(() => checkFreeSql("SELECT 1; DROP TABLE x"));
+  assert.throws(() => checkFreeSql("SELECT * INTO y FROM x"));
+  assert.throws(() => checkFreeSql("SELECT 1 EXEC xp_cmdshell 'dir'"));
+});

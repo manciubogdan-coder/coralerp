@@ -330,7 +330,7 @@ const CeoDashboardPage: React.FC = () => {
         for (const m of result.months ?? []) months.set(m.period, m);
         for (const a of result.accounts ?? []) accounts.set(`${a.period}:${a.cont}`, a);
       }
-      if (active) setPnl({ months: [...months.values()], accounts: [...accounts.values()], last_period: results.map(r => r.last_period).filter(Boolean).sort().at(-1) });
+      if (active) setPnl({ live: results.every(r => r.live), live_error: results.find(r => r.live_error)?.live_error, months: [...months.values()], accounts: [...accounts.values()], last_period: results.map(r => r.last_period).filter(Boolean).sort().at(-1) });
     };
     load().catch(e => { if (active) setPnlErr(e.message); });
     return () => { active = false; };
@@ -416,6 +416,7 @@ const CeoDashboardPage: React.FC = () => {
       const a = await callFn({ action: 'assist', prompt });
       setAnswer(a);
       if (a.config) setAnswerRows((await callFn({ action: 'aggregate', config: a.config })).rows ?? []);
+      else if (Array.isArray(a.rows)) setAnswerRows(a.rows);
     } catch (e) { setAnswer({ error: (e as Error).message }); }
     finally { setAsking(false); }
   };
@@ -459,11 +460,11 @@ const CeoDashboardPage: React.FC = () => {
           {pnl && (
             <>
               <p className="text-sm rounded-md bg-muted p-3">
-                Ultima perioadă contabilă din copie: {pnl.last_period ? `${pnl.last_period.slice(4)}/${pnl.last_period.slice(0, 4)}` : '—'}. Ultima copiere a balanței: {catalog.find(t => t.table === 'accountingstatistics')?.synced_at ? new Date(catalog.find(t => t.table === 'accountingstatistics')?.synced_at ?? '').toLocaleString('ro-RO') : 'necunoscută'}.
-                Copierea completă a unui tabel nu garantează date la zi. Nu putem confirma perioada disponibilă în Senior din această copie. Contabilitatea se calculează pe luni întregi; filtrele pe zi se aplică documentelor comerciale.
+                {pnl.live ? 'Citit acum direct din Senior.' : `Senior nu a răspuns (${pnl.live_error ?? 'program oprit'}); afișez ultima copie.`}{' '}
+                Ultima lună cu balanță calculată în Senior: {pnl.last_period ? `${pnl.last_period.slice(4)}/${pnl.last_period.slice(0, 4)}` : '—'}. Lunile de după nu sunt încă procesate în contabilitatea Senior (balanța de verificare); pentru ele vezi facturile din „Date comerciale” sau întreabă Asistentul.
               </p>
               {cur.length === 0 && <p role="status" className="text-sm text-destructive">Nu există date contabile pentru perioada aleasă; valorile de mai jos nu reprezintă o activitate zero confirmată.</p>}
-              {pnl.last_period && toPeriod > pnl.last_period && <p className="text-sm text-destructive">Perioada aleasă depășește datele disponibile: totalurile sunt parțiale.</p>}
+              {pnl.last_period && toPeriod > pnl.last_period && <p className="text-sm text-destructive">Perioada aleasă depășește ultima lună cu balanță în Senior: totalurile sunt parțiale.</p>}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Kpi label="Venituri · perioada aleasă" value={ytdCur.r} prevValue={ytdPrev.r} icon={<TrendingUp className="h-4 w-4" />} kind="rev" inPeriod={inYtd} />
                 <Kpi label="Cheltuieli · perioada aleasă" value={ytdCur.e} prevValue={ytdPrev.e} icon={<TrendingDown className="h-4 w-4" />} good="down" kind="exp" inPeriod={inYtd} />
@@ -529,13 +530,13 @@ const CeoDashboardPage: React.FC = () => {
         <TabsContent value="asistent" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2"><Bot className="h-5 w-5" /> Spune ce raport vrei</CardTitle>
-              <CardDescription>Ex: „cheltuielile pe conturi în 2026, pe luni” sau „top 20 conturi după rulaj debitor anul acesta”.</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><Bot className="h-5 w-5" /> Întreabă orice despre firmă</CardTitle>
+              <CardDescription>Asistentul caută singur în Senior, live. Ex: „top 10 clienți după facturare în septembrie”, „ce am cumpărat de la furnizorul X anul acesta”.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) ask(); }} />
               <Button onClick={ask} disabled={asking || !prompt.trim()}>
-                {asking ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Bot className="h-4 w-4 mr-1" />} Construiește raportul
+                {asking ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Bot className="h-4 w-4 mr-1" />} Întreabă
               </Button>
             </CardContent>
           </Card>
@@ -543,8 +544,19 @@ const CeoDashboardPage: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">{answer.title ?? 'Rezultat'}</CardTitle>
-                {(answer.explanation || answer.error) && <CardDescription className={answer.error ? 'text-destructive' : ''}>{answer.error ?? answer.explanation}</CardDescription>}
+                {answer.error && <CardDescription className="text-destructive">{answer.error}</CardDescription>}
+                {!answer.error && answer.explanation && <div className="text-sm whitespace-pre-wrap">{answer.explanation}</div>}
               </CardHeader>
+              {!answer.config && answerRows && answerRows.length > 0 && (
+                <CardContent>
+                  <div className="max-h-96 overflow-auto border rounded-md">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted sticky top-0"><tr>{Object.keys(answerRows[0]).map(k => <th key={k} className="text-left p-2">{k}</th>)}</tr></thead>
+                      <tbody>{answerRows.slice(0, 200).map((r, i) => <tr key={i} className="border-t">{Object.keys(answerRows[0]).map(k => <td key={k} className="p-2 whitespace-nowrap">{r[k] == null ? '' : String(r[k])}</td>)}</tr>)}</tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              )}
               {answer.config && (
                 <CardContent className="space-y-3">
                   {answerRows ? <ReportView config={answer.config} rows={answerRows} /> : <Loader2 className="h-5 w-5 animate-spin mx-auto" />}

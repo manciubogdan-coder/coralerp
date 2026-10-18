@@ -9,7 +9,7 @@ const mssql = require("mssql");
 const fetch = require("node-fetch");
 const { createHistoryPlanner } = require("./historyFilter");
 
-const VERSION = "2.0.0";
+const VERSION = "2.1.0";
 const { createLive } = require("./live");
 // Doar aceste tabele se mai copiaza in Cloud (Panou CEO); restul se citesc direct din Senior la cerere.
 const ESSENTIAL = "dbo.AccountingStatistics,dbo.C_Plan_Contabil,dbo.C_Tipuri_Document,dbo.C_H_Note_Contabile,dbo.C_H_Note_Contabile_Parteneri";
