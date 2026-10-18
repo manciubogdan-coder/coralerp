@@ -113,6 +113,13 @@
       "when": 1792344982229,
       "tag": "0015_erp_live_kinds_pnl_sql",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792347207192,
+      "tag": "0016_migration",
+      "breakpoints": true
     }
   ]
 }
