@@ -1,39 +1,9 @@
 // Primește datele oglindite din Senior ERP (scriptul senior-erp-mirror) și le scrie
 // în schema privată erp_mirror din Cloud. Autentificare: header X-Bridge-Token.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible";
-import { isStepCount, streamText } from "npm:ai@7.0.123";
-import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
-import { createLovableAiGatewayRunIdFetch } from "../_shared/run-id.ts";
-
-// Asistentul: agent care caută singur tabelele din Senior, scrie interogări T-SQL read-only,
-// le rulează live și răspunde în română cu cifrele găsite.
-async function assist(prompt: string, sb: any) {
-  if (!prompt) return { error: "Scrie ce vrei să afli." };
-  const key = Deno.env.get("LOVABLE_API_KEY");
-  if (!key) throw new Error("LOVABLE_API_KEY lipsește");
-  const run = createLovableAiGatewayRunIdFetch();
-  const provider = createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-    fetch: run.fetch,
-  });
-  let rows: any[] | null = null;
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Bucharest" });
-  const result = streamText({
-    model: provider("google/gemini-3.8-flash"),
-    system: `Ești asistentul de date al CEO-ului Coral Biogreens. Azi este ${today}. Răspunzi DOAR pe baza datelor citite live din Senior cu instrumentele. Nu inventa cifre.
-${SENIOR_GUIDE}
-Răspunsul final: în română, markdown scurt: cifrele cerute (tabel mic dacă e cazul), apoi o linie „Sursa:” cu tabelele și filtrele folosite. Max 12 interogări.`,
-    prompt,
-    tools: seniorTools(sb, (r) => { rows = r; }),
-    stopWhen: isStepCount(16),
-    prepareStep: ({ stepNumber }: { stepNumber: number }) => (stepNumber >= 14 ? { toolChoice: "none" as const } : undefined),
-  });
-  const text = (await result.text).trim();
-  return { title: prompt.slice(0, 80), explanation: text || "Nu am găsit un răspuns. Reformulează întrebarea.", config: null, rows };
-}
+import { seniorLive, seniorPnl } from "../_shared/senior.ts";
+import { fillTemplate, validTemplate } from "../_shared/templates.ts";
+import { assistStream } from "./assist.ts";
 
 class LiveError extends Error {}
 
@@ -82,7 +52,7 @@ Deno.serve(async (req) => {
 
   // Acțiunea "status" e pentru interfață: cere sesiune de admin din aplicația operațională.
   if (!isBridge) {
-    const UI_ACTIONS = ["status", "retry", "catalog", "aggregate", "browse", "commercial_summary", "pnl", "reports_list", "reports_save", "reports_refresh", "reports_delete", "assist"];
+    const UI_ACTIONS = ["status", "retry", "catalog", "aggregate", "browse", "commercial_summary", "pnl", "reports_list", "reports_save", "reports_refresh", "reports_delete", "assist", "template_run"];
     if (!UI_ACTIONS.includes(body.action)) return json({ error: "unauthorized" }, 401);
     const token = req.headers.get("x-app-token") || "";
     const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
@@ -149,14 +119,15 @@ Deno.serve(async (req) => {
         }
         case "pnl": {
           const y = Number(body.year) || new Date().getFullYear();
-          try { return json(await live("pnl", { year: y })); }
-          catch (e) { if (!(e instanceof LiveError)) throw e; return json({ ...(await rpc("erp_mirror_pnl", { p_year: y })), live: false, live_error: (e as Error).message }); }
+          // Up-to-date figures come from the accounting journal; the trial balance in Senior lags behind.
+          try { return json(await seniorPnl(sb, y)); }
+          catch (e) { return json({ ...(await rpc("erp_mirror_pnl", { p_year: y })), live: false, live_error: (e as Error).message }); }
         }
         case "reports_list":
           return json({ reports: await rpc("erp_mirror_reports", { p_action: "list" }) });
         case "reports_save": {
           const title = String(body.title || "").slice(0, 200).trim();
-          const cfg = validConfig(body.config);
+          const cfg = body.config?.kind === "sql" ? validTemplate(body.config) : validConfig(body.config);
           if (!title || !cfg) return json({ error: "Titlu și configurație obligatorii." }, 400);
           const data: Record<string, unknown> = { title, config: cfg, created_by: user.email };
           if (Array.isArray(body.result) && body.result.length <= 5000) data.result = body.result;
@@ -164,17 +135,29 @@ Deno.serve(async (req) => {
         }
         case "reports_refresh": {
           if (!/^[0-9a-f-]{36}$/.test(String(body.id))) return json({ error: "id invalid" }, 400);
-          const cfg = validConfig(body.config);
-          if (!cfg) return json({ error: "Configurație de raport invalidă." }, 400);
-          const rows = await live("aggregate", cfg);
+          let rows: unknown;
+          if (body.config?.kind === "sql") {
+            const tpl = validTemplate(body.config);
+            if (!tpl) return json({ error: "Șablon de raport invalid." }, 400);
+            try { rows = await seniorLive(sb, "sql", { sql: fillTemplate(tpl, body.values ?? {}) }, 45000); }
+            catch (e) { throw new LiveError((e as Error).message); }
+          } else {
+            const cfg = validConfig(body.config);
+            if (!cfg) return json({ error: "Configurație de raport invalidă." }, 400);
+            rows = await live("aggregate", cfg);
+          }
           return json({ report: await rpc("erp_mirror_reports", { p_action: "set_result", p_data: { id: body.id, result: rows } }) });
         }
-        case "reports_delete": {
-          if (!/^[0-9a-f-]{36}$/.test(String(body.id))) return json({ error: "id invalid" }, 400);
-          return json(await rpc("erp_mirror_reports", { p_action: "delete", p_data: { id: body.id } }));
+        case "template_run": {
+          const tpl = validTemplate(body.config);
+          if (!tpl) return json({ error: "Șablon de raport invalid." }, 400);
+          try { return json({ rows: await seniorLive(sb, "sql", { sql: fillTemplate(tpl, body.values ?? {}) }, 45000) }); }
+          catch (e) { throw new LiveError((e as Error).message); }
         }
         case "assist":
-          return json(await assist(String(body.prompt || "").slice(0, 2000), sb));
+          return new Response(assistStream(String(body.prompt || "").slice(0, 2000), sb, req.signal), {
+            headers: { ...cors, "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache" },
+          });
         default:
           return json(await rpc("erp_mirror_status_live"));
       }

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,39 @@ import BackToHubButton from '@/components/BackToHubButton';
 import { supabase } from '@/integrations/supabase/client';
 import { edgeFetchJson } from '@/lib/edgeFetch';
 import CeoCommercialData from '@/components/CeoCommercialData';
+import { SqlResultView, TemplateParamsForm, type SqlTemplate } from '@/components/ceo/SqlTemplateReport';
+import { MessageResponse } from '@/components/ai-elements/message';
+import { Progress } from '@/components/ui/progress';
+
+/** Streams the assistant's progress (NDJSON lines) from the backend. */
+async function streamAssist(prompt: string, onEvent: (e: any) => void, signal: AbortSignal) {
+  const { data } = await supabase.auth.getSession();
+  const res = await fetch(`${CLOUD_URL}/functions/v1/erp-mirror`, {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json', apikey: CLOUD_ANON, Authorization: `Bearer ${CLOUD_ANON}`, 'x-app-token': data.session?.access_token ?? '' },
+    body: JSON.stringify({ action: 'assist', prompt }),
+  });
+  if (!res.ok || !res.body) {
+    const t = await res.text().catch(() => '');
+    let msg = `Eroare ${res.status}`;
+    try { msg = JSON.parse(t).error ?? msg; } catch { /* not json */ }
+    throw new Error(msg);
+  }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (line) { try { onEvent(JSON.parse(line)); } catch { /* partial */ } }
+    }
+  }
+}
 
 const CLOUD_URL = 'https://yeniohmlmxhjzywqlidx.supabase.co';
 const CLOUD_ANON =
@@ -40,7 +73,7 @@ interface Config {
   order?: 'value' | 'group';
 }
 interface CatTable { table: string; source: string; rows: number; synced_at?: string | null; error?: string | null; columns: { name: string; type: string }[] }
-interface SavedReport { id: string; title: string; config: Config; created_by?: string; result?: any[] | null; refreshed_at?: string | null }
+interface SavedReport { id: string; title: string; config: Config | SqlTemplate; created_by?: string; result?: any[] | null; refreshed_at?: string | null }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(142 60% 40%)', 'hsl(38 90% 50%)', 'hsl(200 70% 45%)', 'hsl(280 50% 55%)', 'hsl(0 0% 55%)'];
 const FN_LABEL: Record<Fn, string> = { sum: 'Sumă', count: 'Număr', avg: 'Medie', min: 'Minim', max: 'Maxim', count_distinct: 'Distincte' };
@@ -114,7 +147,10 @@ const ReportView: React.FC<{ config: Config; rows: any[] }> = ({ config, rows })
 
 /* ---------------- Card raport salvat ---------------- */
 const SavedCard: React.FC<{ report: SavedReport; onDelete: () => void }> = ({ report, onDelete }) => {
-  // Saved reports open instantly from the stored result; "Actualizează" re-reads them live from Senior.
+  // Saved reports open instantly from the stored result; "Actualizează"/"Rulează" re-reads them live from Senior.
+  const cfg: any = report.config;
+  const tpl: SqlTemplate | null = cfg?.kind === 'sql' ? cfg : null;
+  const [values, setValues] = useState<Record<string, string>>(tpl?.defaults ?? {});
   const [rows, setRows] = useState<any[] | null>(report.result ?? null);
   const [at, setAt] = useState<string | null>(report.refreshed_at ?? null);
   const [err, setErr] = useState<string | null>(null);
@@ -122,31 +158,34 @@ const SavedCard: React.FC<{ report: SavedReport; onDelete: () => void }> = ({ re
   const refreshLive = useCallback(async () => {
     setBusy(true); setErr(null);
     try {
-      const r = await callFn({ action: 'reports_refresh', id: report.id, config: report.config });
+      const r = await callFn({ action: 'reports_refresh', id: report.id, config: report.config, ...(tpl ? { values } : {}) });
       setRows(r.report?.result ?? []); setAt(r.report?.refreshed_at ?? new Date().toISOString());
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
-  }, [report]);
-  useEffect(() => { if (!report.result) refreshLive(); }, [report, refreshLive]);
+  }, [report, tpl, values]);
+  useEffect(() => { if (!report.result) refreshLive(); }, [report]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
         <div>
           <CardTitle className="text-base">{report.title}</CardTitle>
           <CardDescription className="text-xs">
-            {at ? `Actualizat ${new Date(at).toLocaleString('ro-RO')}` : 'Încă neactualizat'} · <span className="font-mono">{report.config.table}</span>
+            {at ? `Actualizat ${new Date(at).toLocaleString('ro-RO')}` : 'Încă neactualizat'} · {tpl ? 'șablon citit live din Senior' : <span className="font-mono">{cfg.table}</span>}
           </CardDescription>
         </div>
         <div className="flex gap-1">
-          <Button size="sm" variant="outline" onClick={refreshLive} disabled={busy} title="Recitește direct din Senior">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizează'}
-          </Button>
+          {!tpl && (
+            <Button size="sm" variant="outline" onClick={refreshLive} disabled={busy} title="Recitește direct din Senior">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizează'}
+            </Button>
+          )}
           <Button size="icon" variant="ghost" onClick={onDelete} title="Șterge raportul"><Trash2 className="h-4 w-4" /></Button>
         </div>
       </CardHeader>
-      <CardContent>
-        {err && <p className="text-sm text-destructive mb-2">{err}</p>}
-        {rows ? <ReportView config={report.config} rows={rows} /> : !err && <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
+      <CardContent className="space-y-3">
+        {tpl && <TemplateParamsForm template={tpl} values={values} onChange={setValues} onRun={refreshLive} busy={busy} />}
+        {err && <p className="text-sm text-destructive">{err}</p>}
+        {rows ? (tpl ? <SqlResultView template={tpl} rows={rows} /> : <ReportView config={cfg} rows={rows} />) : !err && <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
       </CardContent>
     </Card>
   );
@@ -306,8 +345,14 @@ const CeoDashboardPage: React.FC = () => {
   const [builderCfg, setBuilderCfg] = useState<Config | null>(null);
   const [prompt, setPrompt] = useState('');
   const [asking, setAsking] = useState(false);
-  const [answer, setAnswer] = useState<{ title?: string; explanation?: string; config?: Config | null; error?: string } | null>(null);
+  const [answer, setAnswer] = useState<{ title?: string; text?: string; template?: SqlTemplate | null; error?: string; seconds?: number } | null>(null);
   const [answerRows, setAnswerRows] = useState<any[] | null>(null);
+  const [steps, setSteps] = useState<{ msg: string; detail?: string }[]>([]);
+  const [elapsed, setElapsed] = useState(0);
+  const [tplValues, setTplValues] = useState<Record<string, string>>({});
+  const [tplTitle, setTplTitle] = useState('');
+  const [rerunning, setRerunning] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const loadReports = useCallback(() => callFn({ action: 'reports_list' }).then((r) => setReports(r.reports ?? [])).catch(() => {}), []);
   useEffect(() => {
@@ -372,9 +417,9 @@ const CeoDashboardPage: React.FC = () => {
     return [...map.values()].sort((x, y) => Math.abs(y.value) - Math.abs(x.value));
   };
   const SOURCE: Record<'rev' | 'exp' | 'profit', string> = {
-    rev: 'Rulajul net (credit − debit) al conturilor din clasa 7 din contabilitatea Senior (balanța de verificare). Sume fără TVA, înregistrate în contabilitate — nu comenzi și nu facturi cu TVA.',
-    exp: 'Rulajul net (debit − credit) al conturilor din clasa 6 din contabilitatea Senior (balanța de verificare): materii prime, ambalaje, transport, salarii, diferențe de curs etc. Fără TVA.',
-    profit: 'Venituri (clasa 7) minus cheltuieli (clasa 6) din contabilitatea Senior — profit contabil brut, înainte de închiderea lunii și de ajustări.',
+    rev: 'Rulajul net (credit − debit) al conturilor din clasa 7, din registrul contabil Senior la zi, fără notele de închidere de lună. Sume fără TVA, înregistrate în contabilitate — nu comenzi și nu facturi cu TVA.',
+    exp: 'Rulajul net (debit − credit) al conturilor din clasa 6, din registrul contabil Senior la zi: materii prime, ambalaje, transport, salarii, diferențe de curs etc. Fără TVA.',
+    profit: 'Venituri (clasa 7) minus cheltuieli (clasa 6) din registrul contabil Senior — profit contabil brut, înainte de ajustările de închidere.',
   };
 
   const Kpi: React.FC<{ label: string; value: number; prevValue: number; icon: React.ReactNode; good?: 'up' | 'down'; kind: 'rev' | 'exp' | 'profit'; inPeriod: (p: string) => boolean }> = ({ label, value, prevValue, icon, good = 'up', kind, inPeriod }) => {
@@ -410,19 +455,42 @@ const CeoDashboardPage: React.FC = () => {
   };
 
   const ask = async () => {
-    if (!prompt.trim()) return;
-    setAsking(true); setAnswer(null); setAnswerRows(null);
+    if (!prompt.trim() || asking) return;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const t0 = Date.now();
+    setAsking(true); setAnswer({ title: prompt.trim(), text: '' }); setAnswerRows(null); setSteps([]); setElapsed(0);
+    const timer = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    let text = '';
     try {
-      const a = await callFn({ action: 'assist', prompt });
-      setAnswer(a);
-      if (a.config) setAnswerRows((await callFn({ action: 'aggregate', config: a.config })).rows ?? []);
-      else if (Array.isArray(a.rows)) setAnswerRows(a.rows);
-    } catch (e) { setAnswer({ error: (e as Error).message }); }
-    finally { setAsking(false); }
+      await streamAssist(prompt.trim(), (e) => {
+        if (e.t === 'step') setSteps((s) => [...s, { msg: e.msg, detail: e.detail }]);
+        else if (e.t === 'text') { text += e.d; setAnswer((a) => ({ ...(a ?? {}), text })); }
+        else if (e.t === 'error') setAnswer((a) => ({ ...(a ?? {}), error: e.error }));
+        else if (e.t === 'done') {
+          setAnswer((a) => ({ ...(a ?? {}), title: e.title ?? a?.title, template: e.template ?? null, seconds: Math.round((Date.now() - t0) / 1000) }));
+          setAnswerRows(e.template ? (e.rows ?? []) : null);
+          if (e.template) { setTplValues(e.template.defaults ?? {}); setTplTitle(String(e.title ?? prompt).slice(0, 120)); }
+        }
+      }, ctrl.signal);
+      if (!text) setAnswer((a) => (a?.error ? a : { ...(a ?? {}), text: a?.text || 'Nu am găsit un răspuns. Reformulează întrebarea.' }));
+    } catch (e) {
+      if (!ctrl.signal.aborted) setAnswer((a) => ({ ...(a ?? {}), error: (e as Error).message }));
+      else setAnswer((a) => ({ ...(a ?? {}), error: 'Oprit.' }));
+    } finally { clearInterval(timer); setAsking(false); }
+  };
+  const rerun = async () => {
+    if (!answer?.template) return;
+    setRerunning(true);
+    try { setAnswerRows((await callFn({ action: 'template_run', config: answer.template, values: tplValues })).rows ?? []); }
+    catch (e) { toast.error((e as Error).message); }
+    finally { setRerunning(false); }
   };
   const saveAnswer = async () => {
-    if (!answer?.config) return;
-    try { await callFn({ action: 'reports_save', title: answer.title || prompt.slice(0, 80), config: answer.config, ...(answerRows ? { result: answerRows } : {}) }); toast.success('Raport salvat pe panou.'); loadReports(); }
+    if (!answer?.template) return;
+    // Values currently in the filters become the template's defaults.
+    const config = { ...answer.template, defaults: tplValues };
+    try { await callFn({ action: 'reports_save', title: tplTitle.trim(), config, ...(answerRows ? { result: answerRows } : {}) }); toast.success('Șablon salvat pe panou.'); loadReports(); }
     catch (e) { toast.error((e as Error).message); }
   };
   const del = async (id: string) => {
@@ -460,11 +528,12 @@ const CeoDashboardPage: React.FC = () => {
           {pnl && (
             <>
               <p className="text-sm rounded-md bg-muted p-3">
-                {pnl.live ? 'Citit acum direct din Senior.' : `Senior nu a răspuns (${pnl.live_error ?? 'program oprit'}); afișez ultima copie.`}{' '}
-                Ultima lună cu balanță calculată în Senior: {pnl.last_period ? `${pnl.last_period.slice(4)}/${pnl.last_period.slice(0, 4)}` : '—'}. Lunile de după nu sunt încă procesate în contabilitatea Senior (balanța de verificare); pentru ele vezi facturile din „Date comerciale” sau întreabă Asistentul.
+                {pnl.live
+                  ? <>Citit acum direct din registrul contabil Senior, la zi (ultima lună cu înregistrări: {pnl.last_period ? `${pnl.last_period.slice(4)}/${pnl.last_period.slice(0, 4)}` : '—'}). Luna în curs e parțială: conține doar ce s-a înregistrat până azi.</>
+                  : <>Senior nu a răspuns ({pnl.live_error ?? 'program oprit'}); afișez ultima copie a balanței, care merge doar până la {pnl.last_period ? `${pnl.last_period.slice(4)}/${pnl.last_period.slice(0, 4)}` : '—'}.</>}
               </p>
               {cur.length === 0 && <p role="status" className="text-sm text-destructive">Nu există date contabile pentru perioada aleasă; valorile de mai jos nu reprezintă o activitate zero confirmată.</p>}
-              {pnl.last_period && toPeriod > pnl.last_period && <p className="text-sm text-destructive">Perioada aleasă depășește ultima lună cu balanță în Senior: totalurile sunt parțiale.</p>}
+              {!pnl.live && pnl.last_period && toPeriod > pnl.last_period && <p className="text-sm text-destructive">Perioada aleasă depășește ultima lună din copie: totalurile sunt parțiale.</p>}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Kpi label="Venituri · perioada aleasă" value={ytdCur.r} prevValue={ytdPrev.r} icon={<TrendingUp className="h-4 w-4" />} kind="rev" inPeriod={inYtd} />
                 <Kpi label="Cheltuieli · perioada aleasă" value={ytdCur.e} prevValue={ytdPrev.e} icon={<TrendingDown className="h-4 w-4" />} good="down" kind="exp" inPeriod={inYtd} />
@@ -531,7 +600,7 @@ const CeoDashboardPage: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><Bot className="h-5 w-5" /> Întreabă orice despre firmă</CardTitle>
-              <CardDescription>Asistentul caută singur în Senior, live. Ex: „top 10 clienți după facturare în septembrie”, „ce am cumpărat de la furnizorul X anul acesta”.</CardDescription>
+              <CardDescription>Asistentul caută singur în Senior, live. Ex: „top 10 clienți după facturare în septembrie”, „ce am cumpărat de la furnizorul X anul acesta”. Răspunsul poate fi salvat ca șablon, cu filtre de dată și furnizor/client.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) ask(); }} />
@@ -540,31 +609,42 @@ const CeoDashboardPage: React.FC = () => {
               </Button>
             </CardContent>
           </Card>
+          {asking && (
+            <Card>
+              <CardContent className="py-4 space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 font-medium"><Loader2 className="h-4 w-4 animate-spin" /> {steps.at(-1)?.msg ?? 'Pornesc'}…</span>
+                  <span className="text-muted-foreground tabular-nums">{elapsed}s</span>
+                </div>
+                <Progress value={Math.min(95, 8 + steps.length * 14 + elapsed)} />
+                <ol className="text-xs text-muted-foreground space-y-0.5">
+                  {steps.map((s, i) => <li key={i}>✓ {s.msg}{s.detail ? ` — ${s.detail}` : ''}</li>)}
+                </ol>
+                <Button size="sm" variant="ghost" onClick={() => abortRef.current?.abort()}>Oprește</Button>
+              </CardContent>
+            </Card>
+          )}
           {answer && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">{answer.title ?? 'Rezultat'}</CardTitle>
                 {answer.error && <CardDescription className="text-destructive">{answer.error}</CardDescription>}
-                {!answer.error && answer.explanation && <div className="text-sm whitespace-pre-wrap">{answer.explanation}</div>}
+                {answer.text && <div className="text-sm"><MessageResponse>{answer.text}</MessageResponse></div>}
+                {!asking && answer.seconds != null && <CardDescription className="text-xs">Răspuns în {answer.seconds}s · citit live din Senior</CardDescription>}
               </CardHeader>
-              {!answer.config && answerRows && answerRows.length > 0 && (
-                <CardContent>
-                  <div className="max-h-96 overflow-auto border rounded-md">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted sticky top-0"><tr>{Object.keys(answerRows[0]).map(k => <th key={k} className="text-left p-2">{k}</th>)}</tr></thead>
-                      <tbody>{answerRows.slice(0, 200).map((r, i) => <tr key={i} className="border-t">{Object.keys(answerRows[0]).map(k => <td key={k} className="p-2 whitespace-nowrap">{r[k] == null ? '' : String(r[k])}</td>)}</tr>)}</tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              )}
-              {answer.config && (
+              {answer.template && (
                 <CardContent className="space-y-3">
-                  {answerRows ? <ReportView config={answer.config} rows={answerRows} /> : <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
-                  <div className="flex gap-2 flex-wrap">
-                    <Button onClick={saveAnswer}><Save className="h-4 w-4 mr-1" /> Salvează pe panou</Button>
-                    <Button variant="outline" onClick={() => { const config = answer.config; if (!config) return; setBuilderCfg({ ...config, groups: config.groups ?? [], measures: config.measures ?? [], filters: config.filters ?? [] }); setTab('constructor'); }}>
-                      Modifică în constructor
-                    </Button>
+                  <div className="rounded-md border p-3 space-y-2">
+                    <p className="text-xs text-muted-foreground">Schimbă filtrele și rulează din nou raportul, direct din Senior:</p>
+                    <TemplateParamsForm template={answer.template} values={tplValues} onChange={setTplValues} onRun={rerun} busy={rerunning} />
+                  </div>
+                  {answerRows ? <SqlResultView template={answer.template} rows={answerRows} /> : <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
+                  <div className="flex gap-2 flex-wrap items-end">
+                    <label className="text-xs space-y-1">
+                      <span className="block text-muted-foreground">Nume șablon</span>
+                      <Input className="h-9 w-72" value={tplTitle} onChange={(e) => setTplTitle(e.target.value)} />
+                    </label>
+                    <Button onClick={saveAnswer} disabled={!tplTitle.trim()}><Save className="h-4 w-4 mr-1" /> Salvează ca șablon pe panou</Button>
                   </div>
                 </CardContent>
               )}
