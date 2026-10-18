@@ -32,6 +32,7 @@ const TOOL_TITLES: Record<string, string> = {
   "tool-metrici_perioada": "Analiză pe perioadă",
   "tool-interogare_date": "Citire date",
   "tool-genereaza_raport": "Raport Excel",
+  "tool-propune_actiune": "Pregătesc o acțiune",
 };
 
 const SUGGESTIONS = [
@@ -40,6 +41,50 @@ const SUGGESTIONS = [
   "Care linie de producție e cea mai puțin productivă și de ce?",
   "Fă-mi un raport Excel cu recepțiile de materii prime din ultimele 30 de zile, pe furnizor.",
 ];
+
+function ActionCard({ output }: { output: any }) {
+  const [st, setSt] = useState<{ status: string; error?: string; result?: any } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (output?.id) argusFetch("action", {}, { id: output.id, decision: "status" }).then(setSt).catch(() => setSt({ status: "pending" }));
+  }, [output?.id]);
+  if (!output || output.eroare || !output.id) return null;
+  const decide = async (decision: string) => {
+    setBusy(true);
+    try {
+      const r = await argusFetch<any>("action", {}, { id: output.id, decision });
+      setSt(r);
+      if (r.status === "done") toast({ title: "Gata, s-a salvat în aplicație" });
+      if (r.status === "error") toast({ variant: "destructive", title: "Nu s-a putut salva", description: r.error });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Eroare", description: e.message });
+    } finally { setBusy(false); }
+  };
+  const status = st?.status ?? "pending";
+  return (
+    <div className="my-2 rounded-lg border bg-card p-3 space-y-2">
+      <div className="text-xs font-medium uppercase text-muted-foreground">Acțiune propusă</div>
+      <div className="text-sm">{output.rezumat}</div>
+      {status === "pending" && (
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => decide("confirm")} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmă"}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => decide("cancel")} disabled={busy}>Anulează</Button>
+        </div>
+      )}
+      {status === "done" && (
+        <div className="flex items-center gap-2 text-sm text-primary">
+          Salvat.
+          {st?.result?.link && <Button size="sm" variant="link" className="h-auto p-0" onClick={() => navigate(st.result.link)}>Deschide</Button>}
+        </div>
+      )}
+      {status === "cancelled" && <div className="text-sm text-muted-foreground">Anulată.</div>}
+      {status === "error" && <div className="text-sm text-destructive">Eroare: {st?.error}</div>}
+    </div>
+  );
+}
 
 function ReportCard({ output }: { output: any }) {
   const [busy, setBusy] = useState(false);
@@ -121,7 +166,7 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
   const writing = status === "streaming" && lastHasText;
   const pct = writing ? 95 : Math.min(90, Math.round(((lastTools + 1) / MAX_STEPS) * 100) + 5);
   const elapsed = startedAt ? Math.max(0, Math.round((now - startedAt) / 1000)) : 0;
-  const emptyFinish = status === "ready" && lastIsAssistant && !lastHasText && !last.parts.some((p: any) => p.type === "tool-genereaza_raport");
+  const emptyFinish = status === "ready" && lastIsAssistant && !lastHasText && !last.parts.some((p: any) => p.type === "tool-genereaza_raport" || p.type === "tool-propune_actiune");
 
   const [agentDraft, setAgentDraft] = useState<any | null>(null);
   const textOf = (m: UIMessage) => m.parts.map((p: any) => (p.type === "text" ? p.text : "")).join("\n").trim();
@@ -198,6 +243,7 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
                         {m.parts.map((p: any, i) => {
                           if (p.type === "text") return <MessageResponse key={i}>{p.text}</MessageResponse>;
                           if (p.type === "tool-genereaza_raport" && p.state === "output-available") return <ReportCard key={i} output={p.output} />;
+                          if (p.type === "tool-propune_actiune" && p.state === "output-available") return <ActionCard key={i} output={p.output} />;
                           return null;
                         })}
                       </>
