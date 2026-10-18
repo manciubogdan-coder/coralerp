@@ -3,7 +3,13 @@
 Oglindește tabelele din Senior ERP în Coral ERP, pentru rapoarte și Argus; istoricul identificabil este limitat la 2025–2026.
 Este separat complet de `senior-erp-bridge` (comenzile) — pot rula amândouă în paralel.
 
-## Cum funcționează
+## Versiunea 2.0 — citire directă
+- Rapoartele din Panoul CEO (Constructor, Asistent, „Actualizează” la rapoartele salvate) se citesc **direct din Senior** la cerere: programul întreabă Coral ERP la fiecare secundă dacă are cereri, rulează interogarea read-only (max 25 s, max 2000 rânduri) și trimite rezultatul.
+- Se mai copiază doar tabelele esențiale pentru Panoul CEO: AccountingStatistics, C_Plan_Contabil, C_Tipuri_Document, C_H_Note_Contabile, C_H_Note_Contabile_Parteneri.
+- `npm start` / serviciul: citire directă + copia tabelelor esențiale. `npm run live`: doar citire directă.
+- Actualizare: oprește programul (sau serviciul), înlocuiește `src` și `package.json`, păstrează `.env` și `mirror-state.json`, apoi `npm install` și pornește serviciul din nou (sau `npm start`).
+
+## Cum funcționează (copia tabelelor esențiale)
 - Citește lista tabelelor din `INFORMATION_SCHEMA.TABLES` la fiecare ciclu (tabelele noi apar automat).
 - Pentru fiecare tabel: citește coloanele, creează/completează tabelul în Coral ERP (nume cu litere mici;
   tabelele din alte scheme decât `dbo` devin `schema__tabel`), apoi trimite datele în loturi de 1000.
