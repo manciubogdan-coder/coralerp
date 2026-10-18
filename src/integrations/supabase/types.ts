@@ -1240,6 +1240,105 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_avans_log: {
+        Row: {
+          created_at: string
+          created_by_email: string | null
+          details: Json | null
+          error: string | null
+          id: string
+          orders_created: number
+          source: string
+          target_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_email?: string | null
+          details?: Json | null
+          error?: string | null
+          id?: string
+          orders_created?: number
+          source: string
+          target_date: string
+        }
+        Update: {
+          created_at?: string
+          created_by_email?: string | null
+          details?: Json | null
+          error?: string | null
+          id?: string
+          orders_created?: number
+          source?: string
+          target_date?: string
+        }
+        Relationships: []
+      }
+      productie_avans_matrix: {
+        Row: {
+          baxare: string | null
+          cantitate: number
+          created_at: string
+          id: string
+          linie_id: string | null
+          linie_nume: string | null
+          position: number
+          produs_id: string | null
+          produs_nume: string
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          baxare?: string | null
+          cantitate: number
+          created_at?: string
+          id?: string
+          linie_id?: string | null
+          linie_nume?: string | null
+          position?: number
+          produs_id?: string | null
+          produs_nume: string
+          updated_at?: string
+          weekday: number
+        }
+        Update: {
+          baxare?: string | null
+          cantitate?: number
+          created_at?: string
+          id?: string
+          linie_id?: string | null
+          linie_nume?: string | null
+          position?: number
+          produs_id?: string | null
+          produs_nume?: string
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: []
+      }
+      productie_avans_settings: {
+        Row: {
+          auto_enabled: boolean
+          id: boolean
+          run_time: string
+          updated_at: string
+          updated_by_email: string | null
+        }
+        Insert: {
+          auto_enabled?: boolean
+          id?: boolean
+          run_time?: string
+          updated_at?: string
+          updated_by_email?: string | null
+        }
+        Update: {
+          auto_enabled?: boolean
+          id?: boolean
+          run_time?: string
+          updated_at?: string
+          updated_by_email?: string | null
+        }
+        Relationships: []
+      }
       productie_comenzi_audit: {
         Row: {
           action: string
