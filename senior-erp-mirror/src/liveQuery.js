@@ -72,4 +72,16 @@ function buildAggregate(cfg, meta) {
   return { sql, params };
 }
 
-module.exports = { buildAggregate };
+// Interogari libere ale asistentului: o singura instructiune SELECT, fara scriere sau proceduri.
+const FORBIDDEN = /\b(insert|update|delete|merge|drop|alter|create|truncate|exec|execute|grant|revoke|deny|into|openrowset|opendatasource|openquery|openxml|bulk|backup|restore|dbcc|shutdown|kill|waitfor|reconfigure|xp_\w+|sp_\w+)\b/i;
+function checkFreeSql(sql) {
+  const s = String(sql || "").trim().replace(/;\s*$/, "");
+  if (!s || s.length > 8000) throw new Error("Interogare goala sau prea lunga.");
+  const bare = s.replace(/'(?:[^']|'')*'/g, "''").replace(/--[^\n]*/g, " ").replace(/\/\*[\s\S]*?\*\//g, " ");
+  if (!/^select\s/i.test(bare)) throw new Error("Doar interogari SELECT sunt permise.");
+  if (bare.includes(";")) throw new Error("O singura instructiune SELECT este permisa.");
+  if (FORBIDDEN.test(bare)) throw new Error("Interogarea contine cuvinte interzise (doar citire).");
+  return s;
+}
+
+module.exports = { buildAggregate, checkFreeSql };

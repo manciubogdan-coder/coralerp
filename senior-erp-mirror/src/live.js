@@ -1,6 +1,6 @@
 // Citire directa: preia cererile de rapoarte din Coral ERP, le ruleaza read-only in Senior si trimite rezultatul.
 // Conexiunea este doar spre exterior (catre Coral ERP); nu trebuie deschise porturi in firma.
-const { buildAggregate } = require("./liveQuery");
+const { buildAggregate, checkFreeSql } = require("./liveQuery");
 
 const MAX_ROWS = 5000;
 
@@ -45,6 +45,32 @@ function createLive({ select, api, log, tableName, pgName, pgType, skipTypes }) 
       const rows = await select(sql, params);
       return rows.slice(0, MAX_ROWS).map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, clean(v)])));
     }
+    if (reqItem.kind === "sql") {
+      const rows = await select(checkFreeSql(reqItem.payload.sql));
+      return rows.slice(0, 500).map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, clean(v)])));
+    }
+    if (reqItem.kind === "pnl") {
+      if (!catalog || Date.now() - catalogAt > 6 * 3600_000) await loadCatalog();
+      const a = catalog.get("accountingstatistics"), p = catalog.get("c_plan_contabil");
+      if (!a || !p) throw new Error("Balanta nu a fost gasita in Senior.");
+      const y = Math.trunc(Number(reqItem.payload.year));
+      if (!(y > 2000 && y < 2100)) throw new Error("An invalid.");
+      const T = (m) => `[${m.schema}].[${m.name}]`;
+      const rows = await select(`SELECT a.PeriodId AS period, p.Cont AS cont, MAX(p.Descriere) AS name,
+        SUM(CASE WHEN p.Cont LIKE '7%' THEN CAST(a.CreditTurnover AS float) - CAST(a.DebitTurnover AS float) ELSE 0 END) AS rev,
+        SUM(CASE WHEN p.Cont LIKE '6%' THEN CAST(a.DebitTurnover AS float) - CAST(a.CreditTurnover AS float) ELSE 0 END) AS exp
+        FROM ${T(a)} a WITH (NOLOCK) JOIN ${T(p)} p WITH (NOLOCK) ON p.Analitic_ID = a.AnaliticId
+        WHERE a.TipSubiectId = 1 AND (p.Cont LIKE '6%' OR p.Cont LIKE '7%') AND LEN(a.PeriodId) = 6
+          AND LEFT(a.PeriodId, 4) IN (@y1, @y2)
+        GROUP BY a.PeriodId, p.Cont`, { y1: String(y), y2: String(y - 1) });
+      const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+      const accounts = rows.map((r) => ({ period: String(r.period), cont: r.cont, name: r.name, rev: r2(r.rev), exp: r2(r.exp) })).filter((r) => r.rev || r.exp);
+      const byMonth = new Map();
+      for (const x of accounts) { const m = byMonth.get(x.period) || { period: x.period, y: Number(x.period.slice(0, 4)), revenue: 0, expenses: 0 }; m.revenue += x.rev; m.expenses += x.exp; byMonth.set(x.period, m); }
+      const months = [...byMonth.values()].map((m) => ({ ...m, revenue: r2(m.revenue), expenses: r2(m.expenses) })).sort((a, b) => a.period.localeCompare(b.period));
+      const top = (k, pre) => { const t = new Map(); for (const x of accounts) if (x.period.startsWith(String(y)) && x.cont.startsWith(pre)) { const c = t.get(x.cont) || { cont: x.cont, name: x.name, value: 0 }; c.value += x[k]; t.set(x.cont, c); } return [...t.values()].map((c) => ({ ...c, value: r2(c.value) })).sort((a, b) => b.value - a.value).slice(0, 10); };
+      return { months, accounts, top_revenue: top("rev", "7"), top_expenses: top("exp", "6"), last_period: months.at(-1)?.period ?? null, live: true };
+    }
     throw new Error("Tip de cerere necunoscut.");
   }
 
@@ -60,7 +86,7 @@ function createLive({ select, api, log, tableName, pgName, pgType, skipTypes }) 
           try {
             const result = await handle(r);
             await api({ action: "live_result", id: r.id, result });
-            log(`   🔎 ${r.kind} ${r.payload?.table || ""}: ${Array.isArray(result) ? result.length : 0} rezultate (${Date.now() - t0}ms)`);
+            log(`   🔎 ${r.kind} ${r.payload?.table || ""}: ${Array.isArray(result) ? result.length : result?.months?.length ?? 0} rezultate (${Date.now() - t0}ms)`);
           } catch (e) {
             log(`   ⚠ citire directa ${r.kind}: ${e.message}`);
             await api({ action: "live_result", id: r.id, error: e.message }).catch(() => {});
