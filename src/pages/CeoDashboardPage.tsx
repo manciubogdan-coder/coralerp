@@ -40,7 +40,7 @@ interface Config {
   order?: 'value' | 'group';
 }
 interface CatTable { table: string; source: string; rows: number; synced_at?: string | null; error?: string | null; columns: { name: string; type: string }[] }
-interface SavedReport { id: string; title: string; config: Config; created_by?: string }
+interface SavedReport { id: string; title: string; config: Config; created_by?: string; result?: any[] | null; refreshed_at?: string | null }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(142 60% 40%)', 'hsl(38 90% 50%)', 'hsl(200 70% 45%)', 'hsl(280 50% 55%)', 'hsl(0 0% 55%)'];
 const FN_LABEL: Record<Fn, string> = { sum: 'Sumă', count: 'Număr', avg: 'Medie', min: 'Minim', max: 'Maxim', count_distinct: 'Distincte' };
@@ -114,22 +114,39 @@ const ReportView: React.FC<{ config: Config; rows: any[] }> = ({ config, rows })
 
 /* ---------------- Card raport salvat ---------------- */
 const SavedCard: React.FC<{ report: SavedReport; onDelete: () => void }> = ({ report, onDelete }) => {
-  const [rows, setRows] = useState<any[] | null>(null);
+  // Saved reports open instantly from the stored result; "Actualizează" re-reads them live from Senior.
+  const [rows, setRows] = useState<any[] | null>(report.result ?? null);
+  const [at, setAt] = useState<string | null>(report.refreshed_at ?? null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
-    callFn({ action: 'aggregate', config: report.config }).then((r) => setRows(r.rows ?? [])).catch((e) => setErr(e.message));
+  const [busy, setBusy] = useState(false);
+  const refreshLive = useCallback(async () => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await callFn({ action: 'reports_refresh', id: report.id, config: report.config });
+      setRows(r.report?.result ?? []); setAt(r.report?.refreshed_at ?? new Date().toISOString());
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
   }, [report]);
+  useEffect(() => { if (!report.result) refreshLive(); }, [report, refreshLive]);
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
         <div>
           <CardTitle className="text-base">{report.title}</CardTitle>
-          <CardDescription className="font-mono text-xs">{report.config.table}</CardDescription>
+          <CardDescription className="text-xs">
+            {at ? `Actualizat ${new Date(at).toLocaleString('ro-RO')}` : 'Încă neactualizat'} · <span className="font-mono">{report.config.table}</span>
+          </CardDescription>
         </div>
-        <Button size="icon" variant="ghost" onClick={onDelete} title="Șterge raportul"><Trash2 className="h-4 w-4" /></Button>
+        <div className="flex gap-1">
+          <Button size="sm" variant="outline" onClick={refreshLive} disabled={busy} title="Recitește direct din Senior">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizează'}
+          </Button>
+          <Button size="icon" variant="ghost" onClick={onDelete} title="Șterge raportul"><Trash2 className="h-4 w-4" /></Button>
+        </div>
       </CardHeader>
       <CardContent>
-        {err ? <p className="text-sm text-destructive">{err}</p> : rows ? <ReportView config={report.config} rows={rows} /> : <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
+        {err && <p className="text-sm text-destructive mb-2">{err}</p>}
+        {rows ? <ReportView config={report.config} rows={rows} /> : !err && <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
       </CardContent>
     </Card>
   );
@@ -176,7 +193,7 @@ const Builder: React.FC<{ catalog: CatTable[]; initial: Config | null; onSaved: 
   };
   const save = async () => {
     if (!title.trim()) return toast.error('Dă un nume raportului.');
-    try { await callFn({ action: 'reports_save', title, config: cfg }); toast.success('Raport salvat pe panou.'); setTitle(''); onSaved(); }
+    try { await callFn({ action: 'reports_save', title, config: cfg, ...(rows ? { result: rows } : {}) }); toast.success('Raport salvat pe panou.'); setTitle(''); onSaved(); }
     catch (e) { toast.error((e as Error).message); }
   };
   const chip = (text: string, onRemove: () => void, extra?: React.ReactNode) => (
@@ -404,7 +421,7 @@ const CeoDashboardPage: React.FC = () => {
   };
   const saveAnswer = async () => {
     if (!answer?.config) return;
-    try { await callFn({ action: 'reports_save', title: answer.title || prompt.slice(0, 80), config: answer.config }); toast.success('Raport salvat pe panou.'); loadReports(); }
+    try { await callFn({ action: 'reports_save', title: answer.title || prompt.slice(0, 80), config: answer.config, ...(answerRows ? { result: answerRows } : {}) }); toast.success('Raport salvat pe panou.'); loadReports(); }
     catch (e) { toast.error((e as Error).message); }
   };
   const del = async (id: string) => {
@@ -416,7 +433,7 @@ const CeoDashboardPage: React.FC = () => {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">Panou CEO</h1>
-          <p className="text-muted-foreground">Afacerea dintr-o privire, din datele copiate din Senior ERP.</p>
+          <p className="text-muted-foreground">Afacerea dintr-o privire. Rapoartele noi se citesc direct din Senior; cele salvate se deschid instant.</p>
         </div>
         <BackToHubButton />
       </div>
