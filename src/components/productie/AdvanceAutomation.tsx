@@ -282,7 +282,7 @@ const AdvanceAutomation = ({ onGenerated }: { onGenerated?: () => void }) => {
                                     value={r.produs_id || ""}
                                     onValueChange={(v) => {
                                       const p = (products || []).find((x: any) => x.id === v);
-                                      updateMatrixRow(r.id, { produs_id: v, produs_nume: p?.nume || r.produs_nume }).then(refetchMatrix);
+                                      updateMatrixRow(r.id, { produs_id: v, produs_nume: p?.nume || r.produs_nume }).then(() => refetchMatrix());
                                     }}
                                   >
                                     <SelectTrigger><SelectValue placeholder={r.produs_nume || "Alege produs"} /></SelectTrigger>
@@ -294,14 +294,14 @@ const AdvanceAutomation = ({ onGenerated }: { onGenerated?: () => void }) => {
                                 </TableCell>
                                 <TableCell>
                                   <Input type="number" defaultValue={r.cantitate}
-                                    onBlur={(e) => updateMatrixRow(r.id, { cantitate: Number(e.target.value) }).then(refetchMatrix)} />
+                                    onBlur={(e) => updateMatrixRow(r.id, { cantitate: Number(e.target.value) }).then(() => refetchMatrix())} />
                                 </TableCell>
                                 <TableCell>
                                   <Select
                                     value={r.linie_id || "none"}
                                     onValueChange={(v) => {
                                       const l = (lines || []).find((x) => x.id === v);
-                                      updateMatrixRow(r.id, { linie_id: v === "none" ? null : v, linie_nume: l?.nume ?? null }).then(refetchMatrix);
+                                      updateMatrixRow(r.id, { linie_id: v === "none" ? null : v, linie_nume: l?.nume ?? null }).then(() => refetchMatrix());
                                     }}
                                   >
                                     <SelectTrigger><SelectValue placeholder={r.linie_nume || "Fără linie"} /></SelectTrigger>
