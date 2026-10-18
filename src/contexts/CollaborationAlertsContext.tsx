@@ -109,7 +109,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       const to = from + pageSize - 1;
       const { data, error } = await (supabase as any)
         .from("app_tasks")
-        .select("id,department,created_by,assigned_to,assignee_id,updated_at")
+        .select("id,department,created_by,assigned_to,updated_at")
         .gt("updated_at", seenAt)
         .order("updated_at", { ascending: false })
         .range(from, to);
