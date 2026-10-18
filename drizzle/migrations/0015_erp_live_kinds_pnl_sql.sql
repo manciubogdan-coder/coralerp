@@ -1,0 +1,2 @@
+ALTER TABLE erp_mirror._live_requests DROP CONSTRAINT _live_requests_kind_check;
+ALTER TABLE erp_mirror._live_requests ADD CONSTRAINT _live_requests_kind_check CHECK (kind = ANY (ARRAY['catalog','aggregate','pnl','sql']));
