@@ -213,6 +213,45 @@ export type Database = {
         }
         Relationships: []
       }
+      argus_actions: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          error: string | null
+          id: string
+          kind: string
+          payload: Json
+          result: Json | null
+          status: string
+          summary: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          error?: string | null
+          id?: string
+          kind: string
+          payload: Json
+          result?: Json | null
+          status?: string
+          summary: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          payload?: Json
+          result?: Json | null
+          status?: string
+          summary?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       argus_daily_summaries: {
         Row: {
           content: string

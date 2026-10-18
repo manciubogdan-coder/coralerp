@@ -4,17 +4,20 @@ import { isStepCount, jsonSchema, streamText, tool } from "npm:ai@7.0.123";
 import { SENIOR_GUIDE, seniorLive, seniorTools } from "../_shared/senior.ts";
 import { fillTemplate, validTemplate, type SqlTemplate } from "../_shared/templates.ts";
 import { createLovableAiGatewayRunIdFetch } from "../_shared/run-id.ts";
+import { makeClients, runQuery, TABLES } from "../_shared/appData.ts";
+const appTables = Object.entries(TABLES).map(([k, v]) => `- ${k}: ${v.desc}`).join("\n");
 
 const STEP_LABEL: Record<string, string> = {
   senior_cauta_tabele: "Caut tabelele potrivite în Senior",
   senior_descrie_tabel: "Citesc coloanele tabelului",
   senior_sql: "Rulez o interogare în Senior",
+  date_aplicatie: "Citesc datele din aplicație",
   raport_final: "Pregătesc tabelul raportului",
 };
 
 // Asistentul: agent care scrie interogări T-SQL read-only, le rulează live în Senior și
 // transmite progresul pas cu pas (NDJSON). La final întoarce un șablon de raport refolosibil.
-export function assistStream(prompt: string, sb: any, signal: AbortSignal) {
+export function assistStream(prompt: string, sb: any, signal: AbortSignal, appToken = "") {
   const enc = new TextEncoder();
   return new ReadableStream({
     async start(ctrl) {
@@ -39,6 +42,26 @@ export function assistStream(prompt: string, sb: any, signal: AbortSignal) {
         let final: { title: string; template: SqlTemplate; rows: any[] } | null = null;
         const tools = {
           ...seniorTools(sb),
+          date_aplicatie: tool({
+            description: "Citește (doar citire) un tabel din aplicația CoralERP: producție, depozite, recepții, necesar clienți, comenzi furnizori, taskuri. Filtre: operator eq/neq/gt/gte/lt/lte/ilike/in/is_null/not_null.",
+            inputSchema: jsonSchema<any>({
+              type: "object", additionalProperties: false, required: ["tabel", "coloane", "filtre", "grupare", "sume", "limita"],
+              properties: {
+                tabel: { type: "string", enum: Object.keys(TABLES) },
+                coloane: { type: "array", items: { type: "string" } },
+                filtre: { type: "array", items: { type: "object", additionalProperties: false, required: ["coloana", "operator", "valoare"], properties: { coloana: { type: "string" }, operator: { type: "string" }, valoare: { type: "string" } } } },
+                grupare: { type: "array", items: { type: "string" } },
+                sume: { type: "array", items: { type: "string" } },
+                limita: { type: "integer" },
+              },
+            }),
+            execute: async (q: any) => {
+              try {
+                const r = await runQuery(makeClients(appToken), { ordonare: null, descrescator: false, ...q });
+                return { total: r.randuri.length, randuri: r.randuri.slice(0, Math.min(q.limita || 50, 200)) };
+              } catch (e) { return { eroare: (e as Error).message }; }
+            },
+          }),
           raport_final: tool({
             description: "Apelează O SINGURĂ DATĂ, la final, cu interogarea principală care produce tabelul răspunsului, scrisă ca ȘABLON reutilizabil. Perioada se scrie cu {{de_la}} și {{pana_la}} (ex. h.Data >= {{de_la}} AND h.Data < DATEADD(day,1,{{pana_la}})). Filtrele pe nume (furnizor, client, articol) se scriu ca pp.Partener_Denumire LIKE N'%' + {{partener}} + N'%' (gol = toți). Nu pune ghilimele în jurul parametrilor. Dă fiecărui parametru valoarea din întrebare.",
             inputSchema: jsonSchema<any>({
@@ -77,7 +100,7 @@ export function assistStream(prompt: string, sb: any, signal: AbortSignal) {
         const result = streamText({
           model: provider("google/gemini-3.8-flash"),
           abortSignal: signal,
-          system: `Ești asistentul de date al CEO-ului Coral Biogreens. Azi este ${today}. „Luna trecută” = ${prevMonth}-01 … ${prevMonth}-${lastDay}. „Anul acesta” = ${yy}-01-01 … ${today}. Răspunzi DOAR pe baza datelor citite live din Senior. Nu inventa cifre.
+          system: `Ești asistentul de date al CEO-ului Coral Biogreens. Azi este ${today}. „Luna trecută” = ${prevMonth}-01 … ${prevMonth}-${lastDay}. „Anul acesta” = ${yy}-01-01 … ${today}. Răspunzi DOAR pe baza datelor citite live: din Senior (senior_*) și din aplicația CoralERP (date_aplicatie) — folosește-le pe amândouă când întrebarea privește producția, stocurile, recepțiile sau necesarul. Nu inventa cifre. raport_final se aplică doar pentru tabele Senior; dacă răspunsul vine doar din aplicație, nu-l apela.\nTabele aplicație:\n${appTables}
 ${SENIOR_GUIDE}
 FLUX RAPID: scrie direct interogarea cu schema verificată (1–3 interogări senior_sql), apoi apelează raport_final cu interogarea principală ca șablon, apoi scrie răspunsul.
 Răspunsul final: în română, markdown scurt (max 8 rânduri): concluzia și cifrele cheie (totaluri). NU copia tabelul cu toate rândurile — tabelul raportului se afișează separat sub răspuns. Încheie cu o linie „Sursa:” cu tabelele și filtrele.`,
