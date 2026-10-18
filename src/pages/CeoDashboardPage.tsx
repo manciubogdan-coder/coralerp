@@ -600,7 +600,7 @@ const CeoDashboardPage: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><Bot className="h-5 w-5" /> Întreabă orice despre firmă</CardTitle>
-              <CardDescription>Asistentul caută singur în Senior, live. Ex: „top 10 clienți după facturare în septembrie”, „ce am cumpărat de la furnizorul X anul acesta”.</CardDescription>
+              <CardDescription>Asistentul caută singur în Senior, live. Ex: „top 10 clienți după facturare în septembrie”, „ce am cumpărat de la furnizorul X anul acesta”. Răspunsul poate fi salvat ca șablon, cu filtre de dată și furnizor/client.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) ask(); }} />
@@ -609,7 +609,7 @@ const CeoDashboardPage: React.FC = () => {
               </Button>
             </CardContent>
           </Card>
-          {(asking || steps.length > 0) && asking && (
+          {asking && (
             <Card>
               <CardContent className="py-4 space-y-3">
                 <div className="flex items-center justify-between text-sm">
