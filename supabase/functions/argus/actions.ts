@@ -121,7 +121,7 @@ export async function executeAction(c: Clients, kind: Kind, p: any, user: { id: 
 export function actionTools(c: Clients, userId: string) {
   return {
     propune_actiune: tool({
-      description: "Pregătește o acțiune în aplicație (NU o execută): comandă de producție în avans, comandă de client, comandă către furnizor sau task. Utilizatorul vede un card și apasă „Confirmă". Folosește numele exacte din aplicație (verifică-le înainte cu interogare_date pe productie_produse / productie_linii / productie_clienti / app_profiles dacă nu ești sigur).",
+      description: "Pregătește o acțiune în aplicație (NU o execută): comandă de producție în avans, comandă de client, comandă către furnizor sau task. Utilizatorul vede un card și apasă „Confirmă”. Folosește numele exacte din aplicație (verifică-le înainte cu interogare_date pe productie_produse / productie_linii / productie_clienti / app_profiles dacă nu ești sigur).",
       inputSchema: jsonSchema<any>({
         type: "object", additionalProperties: false, required: ["tip", "date"],
         properties: {

@@ -4,7 +4,7 @@ import { isStepCount, jsonSchema, streamText, tool } from "npm:ai@7.0.123";
 import { SENIOR_GUIDE, seniorLive, seniorTools } from "../_shared/senior.ts";
 import { fillTemplate, validTemplate, type SqlTemplate } from "../_shared/templates.ts";
 import { createLovableAiGatewayRunIdFetch } from "../_shared/run-id.ts";
-import { makeClients, runQuery, TABLES } from "../argus/data.ts";
+import { makeClients, runQuery, TABLES } from "../_shared/appData.ts";
 const appTables = Object.entries(TABLES).map(([k, v]) => `- ${k}: ${v.desc}`).join("\n");
 
 const STEP_LABEL: Record<string, string> = {
