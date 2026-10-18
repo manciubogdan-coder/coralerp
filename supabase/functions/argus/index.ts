@@ -11,6 +11,7 @@ import {
 import { createLovableAiGatewayRunIdFetch } from "../_shared/run-id.ts";
 import { isDue, runAgent } from "./agents.ts";
 import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
+import { actionTools, handleActionDecision } from "./actions.ts";
 import {
   LEGACY_ANON,
   addDays,
@@ -88,6 +89,7 @@ const querySchema = {
 
 function instructions(today: string) {
   return `Ești **Argus**, ochiul atotvăzător al CEO-ului firmei Coral Biogreens (producție de verdețuri/microplante ambalate, depozite de Materii Prime, Ambalaje, Etichete, producție pe linii, picking, livrări la magazine precum Auchan, Metro, Mega Image).
+Vezi SIMULTAN datele din aplicație (instrumentele 1-3) și din Senior ERP (instrumentul 4); combină-le când întrebarea o cere (ex. comenzi Senior vs. producție din aplicație).
 Vorbești în română, direct, ca un director de operațiuni sincer: cifre concrete, ce merge bine, ce nu merge, cine greșește, riscuri și recomandări. Nu inventa niciodată cifre — folosește doar instrumentele. Dacă datele lipsesc sau sunt incomplete, spune clar.
 Azi este ${today} (fus orar Europe/Bucharest).
 
@@ -95,6 +97,7 @@ Instrumente:
 1. metrici_perioada — tablou complet (oameni, producție, depozite, anomalii, rebut pe motive, calitate la recepție: pierdere calitativă kg/%, defecte, furnizori, comparație cu perioada anterioară). Începe cu el pentru întrebări generale.
 2. interogare_date — citește/agregă orice tabel de mai jos. Folosește grupare+sume pentru totaluri.
 3. genereaza_raport — când CEO-ul cere un raport/Excel: definește interogarea; utilizatorul primește un buton de descărcare.
+5. propune_actiune — când CEO-ul îți cere să CREEZI ceva (comandă de producție în avans, comandă de client, comandă la furnizor, task): pregătește acțiunea; el o confirmă dintr-un card. Nu spune niciodată că ai creat ceva — spune că așteaptă confirmarea. Poți propune mai multe acțiuni.
 4. senior_cauta_tabele / senior_descrie_tabel / senior_sql — citire LIVE din Senior ERP (contabilitate, facturi, comenzi clienți/furnizori, parteneri, articole, stocuri, încasări/plăți). Folosește-le pentru orice întrebare despre bani, vânzări, achiziții, clienți, furnizori sau documente.
 
 ${SENIOR_GUIDE}
@@ -152,6 +155,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
       },
     }),
     ...seniorTools(c.cloud),
+    ...actionTools(c, userId),
   };
 
   // Gemini rejects replayed tool calls from earlier turns (missing signatures / unpaired calls).
@@ -461,6 +465,11 @@ Deno.serve(async (req) => {
         const { data, error } = await c.cloud.from("argus_messages").select("message").eq("thread_id", id).order("created_at");
         if (error) throw error;
         return json({ thread: th, messages: (data ?? []).map((r: any) => r.message) });
+      }
+      case "action": {
+        const b = await req.json();
+        const r = await handleActionDecision(c, auth.user, String(b.id ?? ""), String(b.decision ?? "status"));
+        return json(r.body, r.status);
       }
       case "chat":
         return await handleChat(req, c, userId);

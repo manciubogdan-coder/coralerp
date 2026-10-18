@@ -369,6 +369,14 @@ export const TABLES: Record<string, { db: "legacy" | "cloud"; desc: string }> = 
   app_activity_pings: { db: "cloud", desc: "Timp petrecut în aplicație: email, display_name, path, tab, seconds, occurred_at" },
   app_tasks: { db: "cloud", desc: "Taskuri: title, status, priority, due_at, department, completed_at, created_at" },
   ambalaje_tuburi_miscari: { db: "cloud", desc: "Role/tuburi folie: produs_nume, tip(receptie/transfer/retur), role, tuburi, created_at" },
+  app_profiles: { db: "legacy", desc: "Utilizatori aplicație: user_id, name, email" },
+  purchase_orders_imported: { db: "legacy", desc: "Comenzi către furnizori: inventory_type, partener, data, serie, numar, total_value, total_lines, notes" },
+  purchase_orders_imported_items: { db: "legacy", desc: "Linii comenzi furnizor: order_id, denumire_articol, cantitate, pret_final, valoare_neta, unit" },
+  vanzari_necesar_linii: { db: "cloud", desc: "Necesar comenzi clienți pe zi: zi, client, depozit, nr_comanda, produs, gramaj, bucati, taiat, buc_bax" },
+  prereceptii: { db: "cloud", desc: "Prerecepții așteptate: inventory_type, document_number, expected_date, supplier_name, status" },
+  prereceptie_linii: { db: "cloud", desc: "Linii prerecepție: prereceptie_id, product_name, cantitate_document, received_quantity, received_at" },
+  packaging_methods: { db: "cloud", desc: "Metode ambalare pe client: client_name, product_name, weight, primary_packaging, tertiary_packaging, units_per_case" },
+  inventar_session_items: { db: "cloud", desc: "Inventar fizic vs scriptic: session_id, name, lot_number, scriptic, fizic, applied" },
   productie_order_cuts: { db: "cloud", desc: "Tăieri de cantitate pe comenzi: comanda_id, cantitate_taiata, motiv, produs_nume" },
 };
 
