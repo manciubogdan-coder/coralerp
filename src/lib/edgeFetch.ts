@@ -35,12 +35,14 @@ export interface EdgeFetchOptions {
   attempts?: number;
   /** Base delay between attempts in ms (default 2000, doubles each retry). */
   baseDelayMs?: number;
+  /** POST that only reads data, so retrying it is safe. */
+  readOnly?: boolean;
 }
 
 /** Fetch a Cloud edge function and return parsed JSON, retrying transient failures. */
 export async function edgeFetchJson<T = any>(
   url: string,
-  { method = "GET", headers = {}, body, attempts = 3, baseDelayMs = 2000 }: EdgeFetchOptions = {},
+  { method = "GET", headers = {}, body, attempts = 3, baseDelayMs = 2000, readOnly = false }: EdgeFetchOptions = {},
 ): Promise<T> {
   let lastError: Error | null = null;
 
@@ -68,7 +70,7 @@ export async function edgeFetchJson<T = any>(
       // Only GET requests are retried on HTTP errors: a retried POST (e.g. a
       // chat send) could run the action twice on the server. Non-retryable
       // errors surface immediately with a friendly message.
-      if (method === "GET" && isTransientStatus(res.status) && attempt < attempts) {
+      if ((method === "GET" || readOnly) && isTransientStatus(res.status) && attempt < attempts) {
         lastError = new Error(friendlyMessage(res.status, rawError));
         await sleep(baseDelayMs * Math.pow(2, attempt - 1));
         continue;
