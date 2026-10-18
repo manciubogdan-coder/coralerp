@@ -543,7 +543,8 @@ const CeoDashboardPage: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">{answer.title ?? 'Rezultat'}</CardTitle>
-                {(answer.explanation || answer.error) && <CardDescription className={answer.error ? 'text-destructive' : ''}>{answer.error ?? answer.explanation}</CardDescription>}
+                {answer.error && <CardDescription className="text-destructive">{answer.error}</CardDescription>}
+                {!answer.error && answer.explanation && <div className="text-sm whitespace-pre-wrap">{answer.explanation}</div>}
               </CardHeader>
               {answer.config && (
                 <CardContent className="space-y-3">
