@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
           catch (e) { throw new LiveError((e as Error).message); }
         }
         case "assist":
-          return new Response(assistStream(String(body.prompt || "").slice(0, 2000), sb, req.signal), {
+          return new Response(assistStream(String(body.prompt || "").slice(0, 2000), sb, req.signal, req.headers.get("x-app-token") || ""), {
             headers: { ...cors, "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache" },
           });
         default:
