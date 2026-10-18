@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -345,8 +345,14 @@ const CeoDashboardPage: React.FC = () => {
   const [builderCfg, setBuilderCfg] = useState<Config | null>(null);
   const [prompt, setPrompt] = useState('');
   const [asking, setAsking] = useState(false);
-  const [answer, setAnswer] = useState<{ title?: string; explanation?: string; config?: Config | null; error?: string } | null>(null);
+  const [answer, setAnswer] = useState<{ title?: string; text?: string; template?: SqlTemplate | null; error?: string; seconds?: number } | null>(null);
   const [answerRows, setAnswerRows] = useState<any[] | null>(null);
+  const [steps, setSteps] = useState<{ msg: string; detail?: string }[]>([]);
+  const [elapsed, setElapsed] = useState(0);
+  const [tplValues, setTplValues] = useState<Record<string, string>>({});
+  const [tplTitle, setTplTitle] = useState('');
+  const [rerunning, setRerunning] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const loadReports = useCallback(() => callFn({ action: 'reports_list' }).then((r) => setReports(r.reports ?? [])).catch(() => {}), []);
   useEffect(() => {
@@ -449,19 +455,42 @@ const CeoDashboardPage: React.FC = () => {
   };
 
   const ask = async () => {
-    if (!prompt.trim()) return;
-    setAsking(true); setAnswer(null); setAnswerRows(null);
+    if (!prompt.trim() || asking) return;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const t0 = Date.now();
+    setAsking(true); setAnswer({ title: prompt.trim(), text: '' }); setAnswerRows(null); setSteps([]); setElapsed(0);
+    const timer = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    let text = '';
     try {
-      const a = await callFn({ action: 'assist', prompt });
-      setAnswer(a);
-      if (a.config) setAnswerRows((await callFn({ action: 'aggregate', config: a.config })).rows ?? []);
-      else if (Array.isArray(a.rows)) setAnswerRows(a.rows);
-    } catch (e) { setAnswer({ error: (e as Error).message }); }
-    finally { setAsking(false); }
+      await streamAssist(prompt.trim(), (e) => {
+        if (e.t === 'step') setSteps((s) => [...s, { msg: e.msg, detail: e.detail }]);
+        else if (e.t === 'text') { text += e.d; setAnswer((a) => ({ ...(a ?? {}), text })); }
+        else if (e.t === 'error') setAnswer((a) => ({ ...(a ?? {}), error: e.error }));
+        else if (e.t === 'done') {
+          setAnswer((a) => ({ ...(a ?? {}), title: e.title ?? a?.title, template: e.template ?? null, seconds: Math.round((Date.now() - t0) / 1000) }));
+          setAnswerRows(e.template ? (e.rows ?? []) : null);
+          if (e.template) { setTplValues(e.template.defaults ?? {}); setTplTitle(String(e.title ?? prompt).slice(0, 120)); }
+        }
+      }, ctrl.signal);
+      if (!text) setAnswer((a) => (a?.error ? a : { ...(a ?? {}), text: a?.text || 'Nu am găsit un răspuns. Reformulează întrebarea.' }));
+    } catch (e) {
+      if (!ctrl.signal.aborted) setAnswer((a) => ({ ...(a ?? {}), error: (e as Error).message }));
+      else setAnswer((a) => ({ ...(a ?? {}), error: 'Oprit.' }));
+    } finally { clearInterval(timer); setAsking(false); }
+  };
+  const rerun = async () => {
+    if (!answer?.template) return;
+    setRerunning(true);
+    try { setAnswerRows((await callFn({ action: 'template_run', config: answer.template, values: tplValues })).rows ?? []); }
+    catch (e) { toast.error((e as Error).message); }
+    finally { setRerunning(false); }
   };
   const saveAnswer = async () => {
-    if (!answer?.config) return;
-    try { await callFn({ action: 'reports_save', title: answer.title || prompt.slice(0, 80), config: answer.config, ...(answerRows ? { result: answerRows } : {}) }); toast.success('Raport salvat pe panou.'); loadReports(); }
+    if (!answer?.template) return;
+    // Values currently in the filters become the template's defaults.
+    const config = { ...answer.template, defaults: tplValues };
+    try { await callFn({ action: 'reports_save', title: tplTitle.trim(), config, ...(answerRows ? { result: answerRows } : {}) }); toast.success('Șablon salvat pe panou.'); loadReports(); }
     catch (e) { toast.error((e as Error).message); }
   };
   const del = async (id: string) => {
@@ -580,31 +609,42 @@ const CeoDashboardPage: React.FC = () => {
               </Button>
             </CardContent>
           </Card>
+          {(asking || steps.length > 0) && asking && (
+            <Card>
+              <CardContent className="py-4 space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 font-medium"><Loader2 className="h-4 w-4 animate-spin" /> {steps.at(-1)?.msg ?? 'Pornesc'}…</span>
+                  <span className="text-muted-foreground tabular-nums">{elapsed}s</span>
+                </div>
+                <Progress value={Math.min(95, 8 + steps.length * 14 + elapsed)} />
+                <ol className="text-xs text-muted-foreground space-y-0.5">
+                  {steps.map((s, i) => <li key={i}>✓ {s.msg}{s.detail ? ` — ${s.detail}` : ''}</li>)}
+                </ol>
+                <Button size="sm" variant="ghost" onClick={() => abortRef.current?.abort()}>Oprește</Button>
+              </CardContent>
+            </Card>
+          )}
           {answer && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">{answer.title ?? 'Rezultat'}</CardTitle>
                 {answer.error && <CardDescription className="text-destructive">{answer.error}</CardDescription>}
-                {!answer.error && answer.explanation && <div className="text-sm whitespace-pre-wrap">{answer.explanation}</div>}
+                {answer.text && <div className="text-sm"><MessageResponse>{answer.text}</MessageResponse></div>}
+                {!asking && answer.seconds != null && <CardDescription className="text-xs">Răspuns în {answer.seconds}s · citit live din Senior</CardDescription>}
               </CardHeader>
-              {!answer.config && answerRows && answerRows.length > 0 && (
-                <CardContent>
-                  <div className="max-h-96 overflow-auto border rounded-md">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted sticky top-0"><tr>{Object.keys(answerRows[0]).map(k => <th key={k} className="text-left p-2">{k}</th>)}</tr></thead>
-                      <tbody>{answerRows.slice(0, 200).map((r, i) => <tr key={i} className="border-t">{Object.keys(answerRows[0]).map(k => <td key={k} className="p-2 whitespace-nowrap">{r[k] == null ? '' : String(r[k])}</td>)}</tr>)}</tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              )}
-              {answer.config && (
+              {answer.template && (
                 <CardContent className="space-y-3">
-                  {answerRows ? <ReportView config={answer.config} rows={answerRows} /> : <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
-                  <div className="flex gap-2 flex-wrap">
-                    <Button onClick={saveAnswer}><Save className="h-4 w-4 mr-1" /> Salvează pe panou</Button>
-                    <Button variant="outline" onClick={() => { const config = answer.config; if (!config) return; setBuilderCfg({ ...config, groups: config.groups ?? [], measures: config.measures ?? [], filters: config.filters ?? [] }); setTab('constructor'); }}>
-                      Modifică în constructor
-                    </Button>
+                  <div className="rounded-md border p-3 space-y-2">
+                    <p className="text-xs text-muted-foreground">Schimbă filtrele și rulează din nou raportul, direct din Senior:</p>
+                    <TemplateParamsForm template={answer.template} values={tplValues} onChange={setTplValues} onRun={rerun} busy={rerunning} />
+                  </div>
+                  {answerRows ? <SqlResultView template={answer.template} rows={answerRows} /> : <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
+                  <div className="flex gap-2 flex-wrap items-end">
+                    <label className="text-xs space-y-1">
+                      <span className="block text-muted-foreground">Nume șablon</span>
+                      <Input className="h-9 w-72" value={tplTitle} onChange={(e) => setTplTitle(e.target.value)} />
+                    </label>
+                    <Button onClick={saveAnswer} disabled={!tplTitle.trim()}><Save className="h-4 w-4 mr-1" /> Salvează ca șablon pe panou</Button>
                   </div>
                 </CardContent>
               )}
