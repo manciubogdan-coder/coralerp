@@ -416,6 +416,7 @@ const CeoDashboardPage: React.FC = () => {
       const a = await callFn({ action: 'assist', prompt });
       setAnswer(a);
       if (a.config) setAnswerRows((await callFn({ action: 'aggregate', config: a.config })).rows ?? []);
+      else if (Array.isArray(a.rows)) setAnswerRows(a.rows);
     } catch (e) { setAnswer({ error: (e as Error).message }); }
     finally { setAsking(false); }
   };
@@ -546,6 +547,16 @@ const CeoDashboardPage: React.FC = () => {
                 {answer.error && <CardDescription className="text-destructive">{answer.error}</CardDescription>}
                 {!answer.error && answer.explanation && <div className="text-sm whitespace-pre-wrap">{answer.explanation}</div>}
               </CardHeader>
+              {!answer.config && answerRows && answerRows.length > 0 && (
+                <CardContent>
+                  <div className="max-h-96 overflow-auto border rounded-md">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted sticky top-0"><tr>{Object.keys(answerRows[0]).map(k => <th key={k} className="text-left p-2">{k}</th>)}</tr></thead>
+                      <tbody>{answerRows.slice(0, 200).map((r, i) => <tr key={i} className="border-t">{Object.keys(answerRows[0]).map(k => <td key={k} className="p-2 whitespace-nowrap">{r[k] == null ? '' : String(r[k])}</td>)}</tr>)}</tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              )}
               {answer.config && (
                 <CardContent className="space-y-3">
                   {answerRows ? <ReportView config={answer.config} rows={answerRows} /> : <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
