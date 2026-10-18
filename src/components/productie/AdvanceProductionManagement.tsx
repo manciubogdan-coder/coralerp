@@ -933,6 +933,10 @@ const AdvanceProductionManagement = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="automatizare">
+          <AdvanceAutomation onGenerated={refetchOrders} />
+        </TabsContent>
       </Tabs>
     </div>
   );
