@@ -2020,6 +2020,17 @@ export type Database = {
         }
         Returns: number
       }
+      erp_live_complete: {
+        Args: { p_error: string; p_id: string; p_result: Json }
+        Returns: undefined
+      }
+      erp_live_enqueue: {
+        Args: { p_kind: string; p_payload: Json }
+        Returns: string
+      }
+      erp_live_get: { Args: { p_id: string }; Returns: Json }
+      erp_live_pull: { Args: { p_limit?: number }; Returns: Json }
+      erp_live_state: { Args: { p_key: string }; Returns: Json }
       erp_mirror_aggregate: { Args: { p: Json }; Returns: Json }
       erp_mirror_browse: { Args: { p: Json }; Returns: Json }
       erp_mirror_catalog: { Args: never; Returns: Json }
@@ -2036,6 +2047,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      erp_mirror_essential_tables: { Args: never; Returns: string[] }
       erp_mirror_finish_table: {
         Args: { p_rows: number; p_run: string; p_table: string }
         Returns: number
@@ -2056,6 +2068,7 @@ export type Database = {
         Returns: number
       }
       erp_mirror_status: { Args: never; Returns: Json }
+      erp_mirror_status_live: { Args: never; Returns: Json }
       erp_mirror_upsert: {
         Args: { p_rows: Json; p_run: string; p_table: string }
         Returns: number

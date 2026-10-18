@@ -9,7 +9,10 @@ const mssql = require("mssql");
 const fetch = require("node-fetch");
 const { createHistoryPlanner } = require("./historyFilter");
 
-const VERSION = "1.8.1";
+const VERSION = "2.0.0";
+const { createLive } = require("./live");
+// Doar aceste tabele se mai copiaza in Cloud (Panou CEO); restul se citesc direct din Senior la cerere.
+const ESSENTIAL = "dbo.AccountingStatistics,dbo.C_Plan_Contabil,dbo.C_Tipuri_Document,dbo.C_H_Note_Contabile,dbo.C_H_Note_Contabile_Parteneri";
 const HISTORY_PARAMS = { historyStart: "20250101", historyEnd: "20270101", historyPeriodStart: 202501, historyPeriodEnd: 202701 };
 let historyPlanner;
 const ROOT = path.join(__dirname, "..");
@@ -25,6 +28,7 @@ const CHUNK_DELAY_MS = Math.max(2000, Number(process.env.CHUNK_DELAY_MS) || 2000
 const recoveryDelay = (elapsedMs) => Math.max(CHUNK_DELAY_MS, elapsedMs * 4);
 const INTERVAL_MIN = Number(process.env.MIRROR_INTERVAL_MIN || 30);
 const ONCE = process.argv.includes("--once");
+const LIVE_ONLY = process.argv.includes("--live");
 if (!URL || !TOKEN || TOKEN.includes("INLOCUIESTE")) {
   console.error("❌ Config lipsa: MIRROR_URL sau BRIDGE_TOKEN in .env");
   process.exit(1);
@@ -39,10 +43,10 @@ const loadState = () => { try { return JSON.parse(fs.readFileSync(STATE_FILE, "u
 const saveState = (s) => { try { fs.writeFileSync(STATE_FILE, JSON.stringify(s, null, 1)); } catch (_) {} };
 
 // ---------- conexiune READ-ONLY ----------
-let pool;
+let pool, livePool;
 // Incearca mai multe variante de conectare (instanta numita, port fix, fara ReadOnlyIntent)
 // si reincearca, ca o problema de moment a retelei/SQL Browser sa nu opreasca oglindirea.
-function connectVariants() {
+function connectVariants(timeout = 0) {
   let host = process.env.ERP_DB_HOST || "";
   let instance = process.env.ERP_DB_INSTANCE || "";
   const m = host.match(/^([^/\\]+)[/\\](.+)$/);
@@ -56,7 +60,7 @@ function connectVariants() {
       database: process.env.ERP_DB_NAME,
       user: process.env.ERP_DB_USER,
       password: process.env.ERP_DB_PASSWORD,
-      requestTimeout: 0,
+      requestTimeout: timeout,
       connectionTimeout: 60000,
       options: {
         encrypt: process.env.ERP_DB_SSL === "true",
@@ -73,7 +77,7 @@ function connectVariants() {
   const raw = process.env.ERP_DB_HOST || "";
   v.push({ label: `${raw} (ca bridge-ul)`, cfg: {
     server: raw, database: process.env.ERP_DB_NAME, user: process.env.ERP_DB_USER,
-    password: process.env.ERP_DB_PASSWORD, requestTimeout: 0,
+    password: process.env.ERP_DB_PASSWORD, requestTimeout: timeout,
     options: { encrypt: process.env.ERP_DB_SSL === "true", trustServerCertificate: true, enableArithAbort: true, connectTimeout: 30000 },
     pool: { max: 2, min: 0, idleTimeoutMillis: 60000 },
   } });
@@ -86,9 +90,10 @@ function connectVariants() {
   if (!instance && !port) v.push(base({ readOnlyIntent: true }, 1433, `${host}:1433`));
   return v;
 }
-async function getPool() {
-  if (pool) return pool;
-  const variants = connectVariants();
+async function getPool(live = false) {
+  if (live ? livePool : pool) return live ? livePool : pool;
+  // Citirea directa are limita de 25s per interogare; oglindirea nu are limita.
+  const variants = connectVariants(live ? 25000 : 0);
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
     for (const { label, cfg } of variants) {
@@ -96,8 +101,8 @@ async function getPool() {
         const p = new mssql.ConnectionPool(cfg);
         await p.connect();
         log(`🔌 Conectat la ${label}`);
-        pool = p;
-        return pool;
+        if (live) livePool = p; else pool = p;
+        return p;
       } catch (e) {
         lastErr = e;
         log(`   ⚠ conectare ${label} (incercarea ${attempt}/3): ${e.code || ""} ${e.message}${e.originalError?.message ? " | " + e.originalError.message : ""}`);
@@ -114,9 +119,9 @@ function assertSelect(sql) {
     throw new Error("Interogare interzisa (doar SELECT): " + sql.slice(0, 80));
   }
 }
-async function select(sql, params = {}) {
+async function select(sql, params = {}, live = false) {
   assertSelect(sql);
-  const r = (await getPool()).request();
+  const r = (await getPool(live)).request();
   Object.entries(params).forEach(([k, v]) => r.input(k, v));
   return (await r.query(sql)).recordset;
 }
@@ -177,7 +182,7 @@ async function listTables() {
   const rows = await select(`
     SELECT TABLE_SCHEMA AS s, TABLE_NAME AS n FROM INFORMATION_SCHEMA.TABLES
     WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_SCHEMA, TABLE_NAME`);
-  const inc = (process.env.INCLUDE_TABLES || "").split(",").filter((x) => x.trim());
+  const inc = (process.env.INCLUDE_TABLES || ESSENTIAL).split(",").filter((x) => x.trim());
   const exc = (process.env.EXCLUDE_TABLES || "").split(",").filter((x) => x.trim());
   return rows.filter((r) => {
     const full = `${r.s}.${r.n}`;
@@ -384,5 +389,18 @@ async function cycle() {
 }
 
 log(`Senior ERP Mirror v${VERSION} — interval ${INTERVAL_MIN} min, lot ${CHUNK}, pauza minima ${CHUNK_DELAY_MS}ms, recuperare adaptiva 4x`);
-cycle().then(() => { if (ONCE) process.exit(0); });
-if (!ONCE) setInterval(cycle, INTERVAL_MIN * 60000);
+// O singura incercare pentru cererile live: nu blocam coada cu reincercari lungi.
+async function apiOnce(payload) {
+  const res = await fetch(URL, { method: "POST", headers: { "Content-Type": "application/json", "X-Bridge-Token": TOKEN }, body: JSON.stringify(payload), timeout: 60000 });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${body.error || JSON.stringify(body)}`);
+  return body;
+}
+if (!ONCE) {
+  const live = createLive({ select: (sql, params) => select(sql, params, true), api: apiOnce, log, tableName, pgName, pgType, skipTypes: SKIP_TYPES });
+  live.loop();
+}
+if (!LIVE_ONLY) {
+  cycle().then(() => { if (ONCE) process.exit(0); });
+  if (!ONCE) setInterval(cycle, INTERVAL_MIN * 60000);
+}

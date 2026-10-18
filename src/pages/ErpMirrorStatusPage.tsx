@@ -42,6 +42,7 @@ interface Status {
   totals: { tables: number; rows: number; last_synced_at: string | null; tables_with_errors: number };
   runs: MirrorRun[];
   tables: MirrorTable[];
+  live_seen_at?: string | null;
 }
 
 const fmtNum = (n: number | null | undefined) => (n ?? 0).toLocaleString('ro-RO');
@@ -152,6 +153,20 @@ const ErpMirrorStatusPage: React.FC = () => {
 
       {status && (
         <>
+          {(() => {
+            // The Senior server program asks for report requests every second; a recent signal means live reads work.
+            const online = !!status.live_seen_at && Date.now() - new Date(status.live_seen_at).getTime() < 60000;
+            return (
+              <Card className={online ? '' : 'border-destructive'}>
+                <CardContent className="py-3 text-sm">
+                  <span className="font-semibold">Citire directă din Senior: {online ? 'activă' : 'oprită'}.</span>{' '}
+                  {online
+                    ? 'Rapoartele noi se citesc direct din Senior. Aici se mai copiază doar tabelele folosite de Panoul CEO.'
+                    : `Programul de pe serverul Senior (versiunea 2.0) nu răspunde${status.live_seen_at ? ` — ultimul semnal ${fmtDate(status.live_seen_at)}` : ''}. Rapoartele salvate se deschid în continuare, dar nu se pot actualiza.`}
+                </CardContent>
+              </Card>
+            );
+          })()}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-2">
