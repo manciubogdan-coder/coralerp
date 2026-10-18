@@ -2,13 +2,14 @@
 // în schema privată erp_mirror din Cloud. Autentificare: header X-Bridge-Token.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible";
-import { streamText } from "npm:ai@7.0.123";
+import { isStepCount, streamText } from "npm:ai@7.0.123";
+import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 import { createLovableAiGatewayRunIdFetch } from "../_shared/run-id.ts";
 
-// Asistentul de rapoarte: transformă o cerere în limbaj natural într-o configurație de raport
-// (tabel, grupări, măsuri, filtre, grafic) executată apoi prin agregarea sigură erp_mirror_aggregate.
-async function assist(prompt: string, catalog: any[]) {
-  if (!prompt) return { error: "Scrie ce raport vrei." };
+// Asistentul: agent care caută singur tabelele din Senior, scrie interogări T-SQL read-only,
+// le rulează live și răspunde în română cu cifrele găsite.
+async function assist(prompt: string, sb: any) {
+  if (!prompt) return { error: "Scrie ce vrei să afli." };
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("LOVABLE_API_KEY lipsește");
   const run = createLovableAiGatewayRunIdFetch();
@@ -18,20 +19,20 @@ async function assist(prompt: string, catalog: any[]) {
     headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
     fetch: run.fetch,
   });
-  const cat = (catalog ?? []).slice(0, 600).map((t) =>
-    `${t.table} (${t.source}, ${t.rows} rânduri): ${(t.columns ?? []).slice(0, 60).map((c: any) => `${c.name}:${c.type}`).join(", ")}`
-  ).join("\n");
-  const system = `Ești asistentul de rapoarte pentru CEO-ul Coral Biogreens. Datele vin din Senior ERP (copie read-only).
-Răspunde DOAR cu un obiect JSON valid, fără text în plus, cu forma:
-{"title": string, "explanation": string (în română, 1-2 propoziții), "config": {"table": string, "groups": [{"col": string, "bucket": "month"|"year"|"day"|null}], "measures": [{"col": string|null, "fn": "sum"|"count"|"avg"|"min"|"max"|"count_distinct"}], "filters": [{"col": string, "op": "eq"|"neq"|"contains"|"starts"|"gte"|"lte"|"notnull", "value": string}], "chart": "table"|"bar"|"line"|"pie", "limit": number, "order": "value"|"group"}}
-Folosește doar tabele și coloane din catalog. Pentru evoluții în timp folosește bucket month și order group. Contabilitate: accountingstatistics (periodid YYYYMM, tipsubiectid=1 pentru total pe cont, analiticid → c_plan_contabil.analitic_id). Dacă datele cerute nu sunt încă în catalog, pune "config": null și explică în explanation că tabelele respective încă se copiază.
-Catalog:
-${cat}`;
-  const result = streamText({ model: provider("google/gemini-3.8-flash"), system, prompt });
-  const text = await result.text;
-  const m = text.match(/\{[\s\S]*\}/);
-  if (!m) return { error: "Asistentul nu a putut construi raportul. Reformulează cererea." };
-  try { return JSON.parse(m[0]); } catch { return { error: "Asistentul a dat un răspuns invalid. Încearcă din nou." }; }
+  let rows: any[] | null = null;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Bucharest" });
+  const result = streamText({
+    model: provider("google/gemini-3.8-flash"),
+    system: `Ești asistentul de date al CEO-ului Coral Biogreens. Azi este ${today}. Răspunzi DOAR pe baza datelor citite live din Senior cu instrumentele. Nu inventa cifre.
+${SENIOR_GUIDE}
+Răspunsul final: în română, markdown scurt: cifrele cerute (tabel mic dacă e cazul), apoi o linie „Sursa:” cu tabelele și filtrele folosite. Max 12 interogări.`,
+    prompt,
+    tools: seniorTools(sb, (r) => { rows = r; }),
+    stopWhen: isStepCount(16),
+    prepareStep: ({ stepNumber }: { stepNumber: number }) => (stepNumber >= 14 ? { toolChoice: "none" as const } : undefined),
+  });
+  const text = (await result.text).trim();
+  return { title: prompt.slice(0, 80), explanation: text || "Nu am găsit un răspuns. Reformulează întrebarea.", config: null, rows };
 }
 
 class LiveError extends Error {}
@@ -148,7 +149,8 @@ Deno.serve(async (req) => {
         }
         case "pnl": {
           const y = Number(body.year) || new Date().getFullYear();
-          return json(await rpc("erp_mirror_pnl", { p_year: y }));
+          try { return json(await live("pnl", { year: y })); }
+          catch (e) { if (!(e instanceof LiveError)) throw e; return json({ ...(await rpc("erp_mirror_pnl", { p_year: y })), live: false, live_error: (e as Error).message }); }
         }
         case "reports_list":
           return json({ reports: await rpc("erp_mirror_reports", { p_action: "list" }) });
@@ -172,7 +174,7 @@ Deno.serve(async (req) => {
           return json(await rpc("erp_mirror_reports", { p_action: "delete", p_data: { id: body.id } }));
         }
         case "assist":
-          return json(await assist(String(body.prompt || "").slice(0, 2000), (await liveCatalog(false)).tables));
+          return json(await assist(String(body.prompt || "").slice(0, 2000), sb));
         default:
           return json(await rpc("erp_mirror_status_live"));
       }
