@@ -5,6 +5,8 @@ test('commercial figures read directly from Senior, not the mirror', () => {
   const sql = commercialSql('2026-01-01', '2026-10-19');
   expect(sql).toContain('dbo.C_H_Note_Contabile h WITH (NOLOCK)');
   expect(sql).not.toContain('erp_mirror');
+  expect(sql.trimStart().startsWith('SELECT')).toBe(true);
+  expect(sql.length).toBeLessThan(8000);
 });
 test('last selected day is included and cancelled documents excluded', () => {
   expect(commercialSql('2026-10-01', '2026-10-19')).toContain("h.Data < DATEADD(day,1,'2026-10-19')");
