@@ -106,7 +106,8 @@ export const matrixFromHistory = (orders: HistoryOrder[], groupOf: GroupResolver
     const days = [...a.perDay.values()];
     const cantitate = Math.round(days.reduce((s, v) => s + v, 0) / days.length);
     if (cantitate <= 0) continue;
-    const exact = [...a.names].find(([, n]) => normName(n) === normName(a.grup));
+    const same = (n: string) => n.trim().toLowerCase() === a.grup.trim().toLowerCase();
+    const exact = [...a.names].find(([, n]) => same(n)) ?? [...a.names].find(([, n]) => normName(n) === normName(a.grup));
     const produs_id = exact ? exact[0] : (top(a.useCount) as string);
     const lk = top(a.lineQty) ?? "";
     out.push({
