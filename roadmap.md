@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Fix CEO commercial indicators still reading the mirror: use a single live Senior query and verify totals/source labels.
 - [x] Switch reports to live reads from Senior with saved report results in Cloud; mirror only essential tables; dropped non-essential mirrored tables (DB 22 GB → 577 MB). Queue and agent query builder tested; end-to-end blocked until v2.0 is installed on the Senior server.
 - [ ] Install mirror 2.0 on the Senior server and verify live reports — blocked on the user installing it.
 - [x] Diagnose reported mirror stoppage: confirmed DocumentsAudit rows increasing and healthy Cloud; corrected unsupported TRY_CONVERT in the local script with regression coverage.
