@@ -2,6 +2,7 @@
 // în schema privată erp_mirror din Cloud. Autentificare: header X-Bridge-Token.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { seniorLive, seniorPnl } from "../_shared/senior.ts";
+import { commercialSql, commercialSummary } from "../_shared/commercial.ts";
 import { fillTemplate, validTemplate } from "../_shared/templates.ts";
 import { assistStream } from "./assist.ts";
 
@@ -109,7 +110,13 @@ Deno.serve(async (req) => {
         }
         case "commercial_summary": {
           if (typeof body.start !== "string" || typeof body.end !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(body.start) || !/^\d{4}-\d{2}-\d{2}$/.test(body.end)) return json({ error: "Perioadă invalidă." }, 400);
-          return json(await rpc("erp_mirror_commercial_summary", { p_start: body.start, p_end: body.end }));
+          let sql: string;
+          try { sql = commercialSql(body.start, body.end); }
+          catch { return json({ error: "Perioadă invalidă." }, 400); }
+          try {
+            const rows = await seniorLive(sb, "sql", { sql }, 45000);
+            return json(commercialSummary(rows, body.start, body.end));
+          } catch (e) { throw new LiveError((e as Error).message); }
         }
         case "browse": {
           const c = body.config;

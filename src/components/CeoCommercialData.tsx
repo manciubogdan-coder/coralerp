@@ -9,6 +9,7 @@ type Kind = 'sales_orders' | 'purchase_orders' | 'sales_invoices' | 'purchase_in
 interface Metric { documents: number; value: number | null; valued_documents: number; partners: number; unidentified_partners: number; first_date: string; last_date: string }
 interface Summary {
   available: boolean; reason?: string; partial: boolean;
+  live: boolean; fetched_at?: string;
   metrics: Partial<Record<Kind, Metric>>;
   monthly: { month: string; kind: Kind; documents: number; value: number | null }[];
   rankings: { kind: Kind; partner_id: number; name: string; documents: number; value: number | null }[];
@@ -34,6 +35,8 @@ function normalizeSummary(result: unknown): Summary {
     && Array.isArray(data.monthly) && Array.isArray(data.rankings) && Array.isArray(data.sources);
   return {
     available: result.available,
+    live: data.live === true,
+    fetched_at: data.fetched_at,
     reason: typeof data.reason === 'string' ? data.reason : 'Datele comerciale nu sunt disponibile momentan.',
     partial: data.partial !== false || !completeShape,
     metrics: data.metrics && typeof data.metrics === 'object' && !Array.isArray(data.metrics) ? data.metrics : {},
@@ -70,14 +73,15 @@ export default function CeoCommercialData({ start, end, refresh, call }: { start
   ];
   return <section className="space-y-6">
     <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-semibold">Activitate comercială</h2><p className="text-sm text-muted-foreground">{date(start)} – {date(end)}</p></div>
-    {partial && <div role="status" className="flex items-start gap-2 border-l-2 border-destructive bg-muted p-3 text-sm"><AlertTriangle className="h-5 w-5 shrink-0 text-destructive" /><p><strong>Copie incompletă — cifre parțiale.</strong> Totalurile reflectă numai documentele prezente în copie, nu întreaga activitate a firmei.</p></div>}
+    {summary.live && <p role="status" className="text-sm text-muted-foreground">Citire directă din Senior · {summary.fetched_at ? new Date(summary.fetched_at).toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' }) : 'Date citite pentru perioada selectată'}</p>}
+    {partial && <div role="status" className="flex items-start gap-2 border-l-2 border-destructive bg-muted p-3 text-sm"><AlertTriangle className="h-5 w-5 shrink-0 text-destructive" /><p><strong>Răspuns incomplet — cifre parțiale.</strong> Reîncearcă citirea din Senior înainte de a folosi totalurile.</p></div>}
     <p className="text-xs text-muted-foreground">Valorile de mai jos sunt sumele din antetul documentelor Senior (valoare_rol), nu venituri contabile și nu totaluri fără TVA confirmate. Comenzile și facturile sunt etape diferite; nu se adună între ele. Documentele anulate sunt excluse.</p>
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
       {definitions.map(({ kind, title, codes, icon: Icon }) => {
         const m = summary.metrics[kind];
         return <Card key={kind} className="min-w-0"><CardHeader className="pb-2"><CardDescription className="flex items-center gap-2"><Icon className="h-4 w-4 shrink-0" />{title}</CardDescription><CardTitle className="text-2xl break-words">{amount(m?.value)}</CardTitle></CardHeader><CardContent className="text-sm space-y-2">
-          <p>{m ? `${count(m.documents)} documente` : 'Niciun document în copie pentru interval'}</p>
-          <p className="text-xs text-muted-foreground">{partial ? 'Total parțial' : 'Din copia Senior'} · {codes}</p>
+          <p>{m ? `${count(m.documents)} documente` : 'Niciun document pentru interval'}</p>
+          <p className="text-xs text-muted-foreground">{partial ? 'Total parțial' : 'Direct din Senior'} · {codes}</p>
           <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setOpen(open === kind ? null : kind)}>{open === kind ? 'Ascunde' : 'Din ce se compune'}</Button>
           {open === kind && <div className="border-t pt-2 text-xs space-y-2"><p>Suma valoare_rol din C_H_Note_Contabile, o singură dată per document; tipul este verificat în C_Tipuri_Document. Filtrare pe Data documentului, inclusiv ultima zi; Anulat = false. Retururile și alte tipuri de documente nu sunt incluse.</p>{m && <><p>{count(m.valued_documents)} din {count(m.documents)} documente au valoarea completată.</p><p>Date prezente: {date(m.first_date)} – {date(m.last_date)}.</p></>}</div>}
         </CardContent></Card>;
@@ -99,6 +103,6 @@ export default function CeoCommercialData({ start, end, refresh, call }: { start
         return <div key={kind} className="min-w-0 space-y-3"><h3 className="font-semibold">Top 10 · {title.toLowerCase()}{partial ? ' · parțial' : ''}</h3><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Partener</TableHead><TableHead className="text-right">Facturi</TableHead><TableHead className="text-right">Valoare antet</TableHead></TableRow></TableHeader><TableBody>{rows.map(r => <TableRow key={r.partner_id}><TableCell className="break-words">{r.name || `Partener ${r.partner_id}`}</TableCell><TableCell className="text-right">{count(r.documents)}</TableCell><TableCell className="text-right whitespace-nowrap">{amount(r.value)}</TableCell></TableRow>)}</TableBody></Table></div>{!rows.length && <p className="text-muted-foreground text-sm">Niciun partener identificat pentru acest interval.</p>}</div>;
       })}
     </div>
-    <div className="border-t pt-4 space-y-2"><h3 className="text-sm font-semibold">Actualitatea surselor</h3>{summary.sources.map(s => <p key={s.table} className="text-xs text-muted-foreground">{sourceNames[s.table] ?? s.table} · {s.complete ? `Ultima copiere completă: ${new Date(s.synced_at ?? '').toLocaleString('ro-RO')}` : 'Copiere incompletă / în curs'}{s.error && <span className="text-destructive"> · Copierea a întâmpinat o eroare.</span>}</p>)}<p className="text-xs text-muted-foreground">Soldurile de încasat/plătit, întârzierile, comenzile deschise și stocul nu se deduc din aceste valori: necesită verificarea repartizărilor, stărilor și mișcărilor.</p></div>
+    <div className="border-t pt-4 space-y-2"><h3 className="text-sm font-semibold">Surse citite direct din Senior</h3>{summary.sources.map(s => <p key={s.table} className="text-xs text-muted-foreground">{sourceNames[s.table] ?? s.table} · citire la cerere pentru perioada selectată</p>)}<p className="text-xs text-muted-foreground">Soldurile de încasat/plătit, întârzierile, comenzile deschise și stocul nu se deduc din aceste valori: necesită verificarea repartizărilor, stărilor și mișcărilor.</p></div>
   </section>;
 }
