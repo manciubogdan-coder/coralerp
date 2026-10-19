@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildGroupResolver, matrixFromHistory } from "./avansGrouping";
+import { buildGroupResolver, matrixFromHistory } from "../../src/lib/productie/avansGrouping";
 
 const products = [
   { id: "a", nume: "BUSUIOC 30" },
