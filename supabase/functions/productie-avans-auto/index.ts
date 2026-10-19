@@ -64,33 +64,64 @@ async function gridFromMatrix(cloud: any, legacy: any, weekday: number) {
   return { items, unresolved }
 }
 
-async function gridFromHistory(legacy: any, target: Date) {
-  // Ultimele 8 apariții ale aceleiași zile a săptămânii
+const normName = (s: string | null | undefined) =>
+  (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/(\d+)\s*(gr|g)\b/g, '$1').replace(/[^a-z0-9]/g, '')
+
+// Grupa produsului din „Grupare ambalare"; codurile duplicate fără grupă se potrivesc după denumire.
+async function groupResolver(cloud: any, legacy: any) {
+  const { data: gr } = await cloud.from('productie_grupare_ambalare').select('produs_id,grup_nume')
+  const byId: Record<string, string> = {}
+  for (const r of gr ?? []) if (r.grup_nume?.trim()) byId[r.produs_id] = r.grup_nume.trim()
+  const { data: prods } = await legacy.from('productie_produse').select('id,nume').range(0, 4999)
+  const byName: Record<string, string> = {}
+  for (const p of prods ?? []) if (byId[p.id]) byName[normName(p.nume)] = byId[p.id]
+  return (id: string, nume: string) => byId[id] || byName[normName(nume)] || (nume || '').trim()
+}
+
+async function gridFromHistory(cloud: any, legacy: any, target: Date) {
+  // Ultimele 8 apariții ale aceleiași zile a săptămânii, câte un rând pe grupă de produs
   const dates: string[] = []
   for (let w = 1; w <= 8; w++) {
     dates.push(isoDay(new Date(target.getTime() - w * 7 * 86400000)))
   }
   const { data } = await legacy
     .from('productie_comenzi')
-    .select('produs_id,linie_id,cantitate,data_productie,productie_produse(nume),productie_linii(nume)')
+    .select('produs_id,linie_id,cantitate,data_productie,baxare,productie_produse(nume),productie_linii(nume)')
     .eq('magazin', 'PRODUCTIE_AVANS')
     .in('data_productie', dates)
   if (!data?.length) return { items: [] as any[], unresolved: [] as string[] }
-  const acc = new Map<string, { produs_id: string; linie_id: string | null; nume: string; linie: string | null; vals: number[] }>()
-  for (const r of data) {
-    const key = `${r.produs_id}|${r.linie_id ?? ''}`
-    const cur = acc.get(key) ?? {
-      produs_id: r.produs_id, linie_id: r.linie_id ?? null,
-      nume: r.productie_produse?.nume ?? '?', linie: r.productie_linii?.nume ?? null, vals: [],
-    }
-    cur.vals.push(Number(r.cantitate) || 0)
-    acc.set(key, cur)
+  const groupOf = await groupResolver(cloud, legacy)
+  type Acc = { grup: string; perDay: Map<string, number>; use: Map<string, number>; names: Map<string, string>; lines: Map<string, number>; lineNames: Map<string, string | null>; bax: Map<string, number> }
+  const acc = new Map<string, Acc>()
+  for (const r of data as any[]) {
+    const nume = r.productie_produse?.nume ?? '?'
+    const grup = groupOf(r.produs_id, nume)
+    const k = grup.toLowerCase()
+    const a = acc.get(k) ?? { grup, perDay: new Map(), use: new Map(), names: new Map(), lines: new Map(), lineNames: new Map(), bax: new Map() }
+    const q = Number(r.cantitate) || 0
+    a.perDay.set(r.data_productie, (a.perDay.get(r.data_productie) ?? 0) + q)
+    a.use.set(r.produs_id, (a.use.get(r.produs_id) ?? 0) + 1)
+    a.names.set(r.produs_id, nume)
+    const lk = r.linie_id ?? ''
+    a.lines.set(lk, (a.lines.get(lk) ?? 0) + q)
+    a.lineNames.set(lk, r.productie_linii?.nume ?? null)
+    if (r.baxare) a.bax.set(r.baxare, (a.bax.get(r.baxare) ?? 0) + 1)
+    acc.set(k, a)
   }
-  const items = [...acc.values()].map((a) => ({
-    produs_id: a.produs_id, produs_nume: a.nume,
-    cantitate: Math.round(a.vals.reduce((s, v) => s + v, 0) / a.vals.length),
-    linie_id: a.linie_id, linie_nume: a.linie, baxare: null,
-  })).filter((i) => i.cantitate > 0)
+  const top = (m: Map<string, number>) => [...m].sort((x, y) => y[1] - x[1])[0]?.[0]
+  const items = [...acc.values()].map((a) => {
+    const days = [...a.perDay.values()]
+    const exact = [...a.names].find(([, n]) => n.trim().toLowerCase() === a.grup.toLowerCase())
+      ?? [...a.names].find(([, n]) => normName(n) === normName(a.grup))
+    const pid = exact ? exact[0] : top(a.use)!
+    const lk = top(a.lines) ?? ''
+    return {
+      produs_id: pid, produs_nume: a.names.get(pid) ?? a.grup,
+      cantitate: Math.round(days.reduce((s, v) => s + v, 0) / days.length),
+      linie_id: lk || null, linie_nume: a.lineNames.get(lk) ?? null, baxare: top(a.bax) ?? null,
+    }
+  }).filter((i) => i.cantitate > 0)
   return { items, unresolved: [] as string[] }
 }
 
@@ -129,7 +160,7 @@ Deno.serve(async (req) => {
     let { items, unresolved } = await gridFromMatrix(cloud, legacy, weekday)
     let sursa = 'matrice'
     if (items.length === 0) {
-      ;({ items, unresolved } = await gridFromHistory(legacy, tomorrow))
+      ;({ items, unresolved } = await gridFromHistory(cloud, legacy, tomorrow))
       sursa = 'istoric'
     }
     if (items.length === 0) {
