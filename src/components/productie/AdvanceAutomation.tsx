@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
@@ -12,8 +12,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Zap, Loader2, Plus, Trash2, CalendarClock, History, Grid3X3 } from "lucide-react";
+import { Zap, Loader2, Plus, Trash2, CalendarClock, History, Grid3X3, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import AvansProductPicker from "./AvansProductPicker";
+import { useGrupareAmbalare } from "@/hooks/productie/useGrupareAmbalare";
+import { buildGroupResolver, matrixFromHistory, type HistoryOrder } from "@/lib/productie/avansGrouping";
 
 const WEEKDAYS = [
   { value: 1, label: "Luni" },
@@ -44,10 +47,39 @@ type GridItem = {
 
 const cloud = supabaseCloud as any;
 
+// Comenzile de avans din ultimele `days` zile (paginat, peste limita de 1000 rânduri).
+const loadAvansHistory = async (fromIso: string): Promise<HistoryOrder[]> => {
+  const out: HistoryOrder[] = [];
+  for (let off = 0; ; off += 1000) {
+    const { data, error } = await supabase
+      .from("productie_comenzi")
+      .select("produs_id, linie_id, cantitate, data_productie, baxare, productie_produse(nume), productie_linii(nume)")
+      .eq("magazin", "PRODUCTIE_AVANS")
+      .gte("data_productie", fromIso)
+      .order("id")
+      .range(off, off + 999);
+    if (error) throw error;
+    for (const r of (data || []) as any[]) {
+      if (!r.produs_id || !r.data_productie) continue;
+      out.push({
+        produs_id: r.produs_id, produs_nume: r.productie_produse?.nume ?? null,
+        linie_id: r.linie_id ?? null, linie_nume: r.productie_linii?.nume ?? null,
+        cantitate: Number(r.cantitate) || 0, data_productie: String(r.data_productie).slice(0, 10), baxare: r.baxare ?? null,
+      });
+    }
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+};
+
 const AdvanceAutomation = ({ onGenerated }: { onGenerated?: () => void }) => {
   const queryClient = useQueryClient();
   const { data: products } = useProducts();
   const createBulk = useCreateAdvanceOrdersBulk();
+  const { data: grupMap } = useGrupareAmbalare();
+  const productList = useMemo(() => ((products || []) as any[]).map((p) => ({ id: p.id as string, nume: String(p.nume || "") })), [products]);
+  const groupOf = useMemo(() => buildGroupResolver(grupMap || {}, productList), [grupMap, productList]);
+  const [recalc, setRecalc] = useState(false);
 
   const [genOpen, setGenOpen] = useState(false);
   const [targetDate, setTargetDate] = useState(() => isoDay(new Date(todayBucharest().getTime() + 86400000)));
@@ -115,27 +147,12 @@ const AdvanceAutomation = ({ onGenerated }: { onGenerated?: () => void }) => {
         }));
         setGridSource(`matricea de ${WEEKDAYS.find((w) => w.value === wd)?.label}`);
       } else {
-        // Fallback: media istoricului pe aceeași zi a săptămânii, ultimele 8 săptămâni
-        const dates: string[] = [];
-        for (let w = 1; w <= 8; w++) dates.push(isoDay(new Date(target.getTime() - w * 7 * 86400000)));
-        const { data } = await supabase
-          .from("productie_comenzi")
-          .select("produs_id, linie_id, cantitate, productie_produse(nume), productie_linii(nume)")
-          .eq("magazin", "PRODUCTIE_AVANS")
-          .in("data_productie", dates);
-        const acc = new Map<string, GridItem & { vals: number[] }>();
-        for (const r of (data || []) as any[]) {
-          const key = `${r.produs_id}|${r.linie_id ?? ""}`;
-          const cur = acc.get(key) ?? {
-            produs_id: r.produs_id, produs_nume: r.productie_produse?.nume ?? "?",
-            cantitate: 0, linie_id: r.linie_id ?? null, linie_nume: r.productie_linii?.nume ?? null, vals: [],
-          };
-          cur.vals.push(Number(r.cantitate) || 0);
-          acc.set(key, cur);
-        }
-        items = [...acc.values()]
-          .map((a) => ({ ...a, cantitate: Math.round(a.vals.reduce((s, v) => s + v, 0) / a.vals.length) }))
-          .filter((i) => i.cantitate > 0);
+        // Fallback: media istoricului pe aceeași zi a săptămânii, ultimele 8 săptămâni, pe grupe de produse
+        const from = isoDay(new Date(target.getTime() - 56 * 86400000));
+        const hist = (await loadAvansHistory(from)).filter((o) => o.data_productie < targetDate);
+        items = matrixFromHistory(hist, groupOf)
+          .filter((r) => r.weekday === wd)
+          .map((r) => ({ produs_id: r.produs_id, produs_nume: r.produs_nume, cantitate: r.cantitate, linie_id: r.linie_id, linie_nume: r.linie_nume, baxare: r.baxare }));
         setGridSource(`istoricul ultimelor 8 săptămâni (${WEEKDAYS.find((w) => w.value === wd)?.label})`);
       }
       setGrid(items);
@@ -177,8 +194,43 @@ const AdvanceAutomation = ({ onGenerated }: { onGenerated?: () => void }) => {
     if (error) toast.error(error.message); else refetchMatrix();
   };
   const updateMatrixRow = async (id: string, patch: any) => {
+    // Actualizăm local imediat, fără să reîncărcăm toată matricea
+    queryClient.setQueryData(["avans-matrix"], (old: any[] | undefined) => (old || []).map((m) => (m.id === id ? { ...m, ...patch } : m)));
     const { error } = await cloud.from("productie_avans_matrix").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
-    if (error) toast.error(error.message);
+    if (error) { toast.error(error.message); refetchMatrix(); }
+  };
+  const pickMatrixProduct = (row: any, p: { id: string; nume: string }) => {
+    const g = groupOf(p.id, p.nume);
+    const dup = (matrix || []).find((m) => m.weekday === row.weekday && m.id !== row.id && groupOf(m.produs_id, m.produs_nume).toLowerCase() === g.toLowerCase());
+    if (dup) {
+      toast.error(`„${g}" există deja în ziua aceasta (${dup.produs_nume}). Modifică cantitatea acolo.`);
+      return;
+    }
+    updateMatrixRow(row.id, { produs_id: p.id, produs_nume: p.nume });
+  };
+  const recalcFromHistory = async () => {
+    if (!window.confirm("Recalculez toată matricea (Luni–Duminică) din istoricul ultimelor 10 săptămâni, câte un rând pe grupă de produs? Modificările manuale din matrice se vor înlocui.")) return;
+    setRecalc(true);
+    try {
+      const from = isoDay(new Date(todayBucharest().getTime() - 70 * 86400000));
+      const hist = await loadAvansHistory(from);
+      const rows = matrixFromHistory(hist, groupOf);
+      if (!rows.length) { toast.error("Nu am găsit istoric de producție în avans."); return; }
+      const { error: delErr } = await cloud.from("productie_avans_matrix").delete().gte("weekday", 1).lte("weekday", 7);
+      if (delErr) throw delErr;
+      const payload = rows.map(({ grup, ...r }) => r);
+      for (let i = 0; i < payload.length; i += 200) {
+        const { error } = await cloud.from("productie_avans_matrix").insert(payload.slice(i, i + 200));
+        if (error) throw error;
+      }
+      toast.success(`Matrice recalculată: ${rows.length} rânduri, câte unul pe grupă și zi.`);
+      refetchMatrix();
+    } catch (e: any) {
+      toast.error(`Nu am putut recalcula matricea: ${e.message}`);
+      refetchMatrix();
+    } finally {
+      setRecalc(false);
+    }
   };
   const deleteMatrixRow = async (id: string) => {
     const { error } = await cloud.from("productie_avans_matrix").delete().eq("id", id);
@@ -259,6 +311,10 @@ const AdvanceAutomation = ({ onGenerated }: { onGenerated?: () => void }) => {
                         <Button variant="outline" size="sm" onClick={() => copyWeekdayToAll(w.value)} disabled={rows.length === 0}>
                           Copiază pe toate zilele
                         </Button>
+                        <Button variant="outline" size="sm" onClick={recalcFromHistory} disabled={recalc}>
+                          {recalc ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                          Recalculează din istoric (pe grupe)
+                        </Button>
                       </div>
                       {rows.length === 0 ? (
                         <p className="text-sm text-muted-foreground py-4">
@@ -278,30 +334,32 @@ const AdvanceAutomation = ({ onGenerated }: { onGenerated?: () => void }) => {
                             {rows.map((r) => (
                               <TableRow key={r.id}>
                                 <TableCell>
-                                  <Select
-                                    value={r.produs_id || ""}
-                                    onValueChange={(v) => {
-                                      const p = (products || []).find((x: any) => x.id === v);
-                                      updateMatrixRow(r.id, { produs_id: v, produs_nume: p?.nume || r.produs_nume }).then(() => refetchMatrix());
-                                    }}
-                                  >
-                                    <SelectTrigger><SelectValue placeholder={r.produs_nume || "Alege produs"} /></SelectTrigger>
-                                    <SelectContent className="max-h-72 overflow-y-auto">
-                                      {(products || []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.nume}</SelectItem>)}
-                                    </SelectContent>
-                                  </Select>
-                                  {!r.produs_id && <span className="text-xs text-muted-foreground">{r.produs_nume}</span>}
+                                  <AvansProductPicker
+                                    value={r.produs_id}
+                                    label={r.produs_nume}
+                                    products={productList}
+                                    groupOf={groupOf}
+                                    onPick={(p) => pickMatrixProduct(r, p)}
+                                  />
+                                  {(() => {
+                                    const g = groupOf(r.produs_id, r.produs_nume);
+                                    return g && g !== (r.produs_nume || "").trim()
+                                      ? <span className="text-xs text-muted-foreground">Grupa: {g}</span> : null;
+                                  })()}
                                 </TableCell>
                                 <TableCell>
                                   <Input type="number" defaultValue={r.cantitate}
-                                    onBlur={(e) => updateMatrixRow(r.id, { cantitate: Number(e.target.value) }).then(() => refetchMatrix())} />
+                                    onBlur={(e) => {
+                                      const v = Number(e.target.value);
+                                      if (v > 0 && v !== Number(r.cantitate)) updateMatrixRow(r.id, { cantitate: v });
+                                    }} />
                                 </TableCell>
                                 <TableCell>
                                   <Select
                                     value={r.linie_id || "none"}
                                     onValueChange={(v) => {
                                       const l = (lines || []).find((x) => x.id === v);
-                                      updateMatrixRow(r.id, { linie_id: v === "none" ? null : v, linie_nume: l?.nume ?? null }).then(() => refetchMatrix());
+                                      updateMatrixRow(r.id, { linie_id: v === "none" ? null : v, linie_nume: l?.nume ?? null });
                                     }}
                                   >
                                     <SelectTrigger><SelectValue placeholder={r.linie_nume || "Fără linie"} /></SelectTrigger>
@@ -391,16 +449,16 @@ const AdvanceAutomation = ({ onGenerated }: { onGenerated?: () => void }) => {
                 {grid.map((g, idx) => (
                   <TableRow key={idx}>
                     <TableCell>
-                      <Select value={g.produs_id || ""} onValueChange={(v) => {
-                        const p = (products || []).find((x: any) => x.id === v);
-                        updateGridRow(idx, { produs_id: v, produs_nume: p?.nume || g.produs_nume });
-                      }}>
-                        <SelectTrigger><SelectValue placeholder={g.produs_nume || "Alege produs"} /></SelectTrigger>
-                        <SelectContent className="max-h-72 overflow-y-auto">
-                          {(products || []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.nume}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      {g.produs_id && <span className="text-xs text-muted-foreground">{g.produs_nume}</span>}
+                      <AvansProductPicker
+                        value={g.produs_id}
+                        label={g.produs_nume}
+                        products={productList}
+                        groupOf={groupOf}
+                        onPick={(p) => updateGridRow(idx, { produs_id: p.id, produs_nume: p.nume })}
+                      />
+                      {g.produs_id && groupOf(g.produs_id, g.produs_nume) !== g.produs_nume.trim() && (
+                        <span className="text-xs text-muted-foreground">Grupa: {groupOf(g.produs_id, g.produs_nume)}</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Input type="number" value={g.cantitate}
