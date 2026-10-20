@@ -41,6 +41,7 @@ import {
   aggregateByType,
 } from "@/lib/receptionBreakdown";
 import { resolveMissingOperators } from "@/lib/receptionOperator";
+import { isSupplierQualityLoss } from "@/lib/receptionQuality";
 
 type InventoryRow = {
   id: string;
@@ -1376,8 +1377,7 @@ const ReceptionReport: React.FC = () => {
   };
 
   // ============ REGULI QUALITY REPORT (procedura raport final către furnizor) ============
-  // Pasul 1: cantitate. Pasul 2: pierdere calitativă (≤8% = Warning!, >8% = kg cu tot procentul).
-  const QUALITY_WARNING_MAX = 8;
+  // Pasul 1: cantitate. Pasul 2: pierdere calitativă (<5% = Warning!, ≥5% = kg cu tot procentul).
   const rawDefectsOf = (r: ReportRow) => [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim();
   const trDefects = (raw: string, lang: EmailLang) => raw ? (emailDefectTranslations[raw]?.[lang] || translateKnownTerms(raw, lang) || raw) : "";
   const kgTxt = (n: number, unit: string) => `${fmtKg(Math.round(n * 100) / 100)}${unit}`;
@@ -1431,12 +1431,12 @@ const ReceptionReport: React.FC = () => {
         // Surplus declarat furnizorului → baza = cantitatea recepționată efectiv; altfel = documentul
         const surplusDecl = docQty != null && docQty > 0 && (weighed - docQty) > tol.over;
         const base = docQty != null && docQty > 0 && !surplusDecl ? docQty : recvQty;
-        if (p > QUALITY_WARNING_MAX) { creditKg = Math.round(base * p / 100); creditText = kgTxt(creditKg, unit); }
+        if (isSupplierQualityLoss(p)) { creditKg = Math.round(base * p / 100); creditText = kgTxt(creditKg, unit); }
         else creditText = "Warning!";
       } else {
         const lines: string[] = [];
         affected.forEach(({ r, p }) => {
-          if (p > QUALITY_WARNING_MAX) {
+          if (isSupplierQualityLoss(p)) {
             const docR = parseFloat(r.cantitate_document);
             const tolR = getTol(r.product_id);
             const recvR = Number(r.cantitate_receptionata) || 0;
