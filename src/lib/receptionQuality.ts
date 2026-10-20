@@ -7,5 +7,5 @@ export const isSupplierQualityLoss = (percent: number): boolean =>
 export const supplierQualityCreditQuantity = (quantity: number, percent: number): number => {
   if (!isSupplierQualityLoss(percent) || !Number.isFinite(quantity) || quantity <= 0) return 0;
   const loss = quantity * percent / 100;
-  return Math.round(loss) || Math.round(loss * 100) / 100;
+  return Math.round(loss) || Math.round((loss + Number.EPSILON) * 100) / 100;
 };
