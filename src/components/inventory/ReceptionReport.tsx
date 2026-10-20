@@ -41,7 +41,7 @@ import {
   aggregateByType,
 } from "@/lib/receptionBreakdown";
 import { resolveMissingOperators } from "@/lib/receptionOperator";
-import { isSupplierQualityLoss } from "@/lib/receptionQuality";
+import { isSupplierQualityLoss, supplierQualityCreditQuantity } from "@/lib/receptionQuality";
 
 type InventoryRow = {
   id: string;
@@ -1431,7 +1431,7 @@ const ReceptionReport: React.FC = () => {
         // Surplus declarat furnizorului → baza = cantitatea recepționată efectiv; altfel = documentul
         const surplusDecl = docQty != null && docQty > 0 && (weighed - docQty) > tol.over;
         const base = docQty != null && docQty > 0 && !surplusDecl ? docQty : recvQty;
-        if (isSupplierQualityLoss(p)) { creditKg = Math.round(base * p / 100); creditText = kgTxt(creditKg, unit); }
+        if (isSupplierQualityLoss(p)) { creditKg = supplierQualityCreditQuantity(base, p); creditText = `${kgTxt(creditKg, unit)} (${fmtKg(p)}%)`; }
         else creditText = "Warning!";
       } else {
         const lines: string[] = [];
@@ -1442,9 +1442,9 @@ const ReceptionReport: React.FC = () => {
             const recvR = Number(r.cantitate_receptionata) || 0;
             const surplusR = !isNaN(docR) && docR > 0 && (recvR - docR) > tolR.over;
             const baseR = !isNaN(docR) && docR > 0 && !surplusR ? docR : recvR;
-            const kg = Math.round(baseR * p / 100);
+            const kg = supplierQualityCreditQuantity(baseR, p);
             creditKg += kg;
-            lines.push(`${lotLabel(r)} - quality loss ${kgTxt(kg, unit)}`);
+            lines.push(`${lotLabel(r)} - ${kgTxt(kg, unit)} (${fmtKg(p)}%)`);
           }
         });
         creditText = lines.length ? lines.join("\n") : "Warning!";
@@ -1452,11 +1452,14 @@ const ReceptionReport: React.FC = () => {
     }
 
     // Defecte
+    const qualityLossDescription = (percent: number) => percent > 0
+      ? `${lang === "ro" ? "Pierdere calitativă" : lang === "it" ? "Perdita qualitativa" : "Quality loss"}: ${fmtKg(percent)}%`
+      : "";
     let defectsText = "-";
     if (lots.length <= 1) {
-      defectsText = trDefects(rawDefectsOf(first), lang) || "-";
+      defectsText = [trDefects(rawDefectsOf(first), lang), qualityLossDescription(lots[0]?.p || 0)].filter(Boolean).join("; ") || "-";
     } else if (lots.some((l) => rawDefectsOf(l.r) || l.p > 0)) {
-      defectsText = lots.map(({ r }) => `${lotLabel(r)} – ${trDefects(rawDefectsOf(r), lang) || "OK"}`).join("\n");
+      defectsText = lots.map(({ r, p }) => `${lotLabel(r)} – ${[trDefects(rawDefectsOf(r), lang), qualityLossDescription(p)].filter(Boolean).join("; ") || "OK"}`).join("\n");
     }
 
     return {
