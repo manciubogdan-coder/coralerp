@@ -1377,7 +1377,7 @@ const ReceptionReport: React.FC = () => {
   };
 
   // ============ REGULI QUALITY REPORT (procedura raport final către furnizor) ============
-  // Pasul 1: cantitate. Pasul 2: pierdere calitativă (<5% = Warning!, ≥5% = kg cu tot procentul).
+  // Pasul 1: cantitate. Pasul 2: pierdere calitativă (<5% = Warning!, ≥5% = doar kg, fără procent).
   const rawDefectsOf = (r: ReportRow) => [(r.defects || []).join(", "), r.observations].filter(Boolean).join(", ").trim();
   const trDefects = (raw: string, lang: EmailLang) => raw ? (emailDefectTranslations[raw]?.[lang] || translateKnownTerms(raw, lang) || raw) : "";
   const kgTxt = (n: number, unit: string) => `${fmtKg(Math.round(n * 100) / 100)}${unit}`;
@@ -1431,7 +1431,7 @@ const ReceptionReport: React.FC = () => {
         // Surplus declarat furnizorului → baza = cantitatea recepționată efectiv; altfel = documentul
         const surplusDecl = docQty != null && docQty > 0 && (weighed - docQty) > tol.over;
         const base = docQty != null && docQty > 0 && !surplusDecl ? docQty : recvQty;
-        if (isSupplierQualityLoss(p)) { creditKg = supplierQualityCreditQuantity(base, p); creditText = `${kgTxt(creditKg, unit)} (${fmtKg(p)}%)`; }
+        if (isSupplierQualityLoss(p)) { creditKg = supplierQualityCreditQuantity(base, p); creditText = kgTxt(creditKg, unit); }
         else creditText = "Warning!";
       } else {
         const lines: string[] = [];
@@ -1444,22 +1444,19 @@ const ReceptionReport: React.FC = () => {
             const baseR = !isNaN(docR) && docR > 0 && !surplusR ? docR : recvR;
             const kg = supplierQualityCreditQuantity(baseR, p);
             creditKg += kg;
-            lines.push(`${lotLabel(r)} - ${kgTxt(kg, unit)} (${fmtKg(p)}%)`);
+            lines.push(`${lotLabel(r)} - ${kgTxt(kg, unit)}`);
           }
         });
         creditText = lines.length ? lines.join("\n") : "Warning!";
       }
     }
 
-    // Defecte
-    const qualityLossDescription = (percent: number) => percent > 0
-      ? `${lang === "ro" ? "Pierdere calitativă" : lang === "it" ? "Perdita qualitativa" : "Quality loss"}: ${fmtKg(percent)}%`
-      : "";
+    // Defecte — fără procentul pierderii calitative (nu se transmite furnizorului)
     let defectsText = "-";
     if (lots.length <= 1) {
-      defectsText = [trDefects(rawDefectsOf(first), lang), qualityLossDescription(lots[0]?.p || 0)].filter(Boolean).join("; ") || "-";
-    } else if (lots.some((l) => rawDefectsOf(l.r) || l.p > 0)) {
-      defectsText = lots.map(({ r, p }) => `${lotLabel(r)} – ${[trDefects(rawDefectsOf(r), lang), qualityLossDescription(p)].filter(Boolean).join("; ") || "OK"}`).join("\n");
+      defectsText = trDefects(rawDefectsOf(first), lang) || "-";
+    } else if (lots.some((l) => rawDefectsOf(l.r))) {
+      defectsText = lots.map(({ r }) => `${lotLabel(r)} – ${trDefects(rawDefectsOf(r), lang) || "OK"}`).join("\n");
     }
 
     return {
