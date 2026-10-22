@@ -42,6 +42,8 @@ import {
 } from "@/lib/receptionBreakdown";
 import { resolveMissingOperators } from "@/lib/receptionOperator";
 import { isSupplierQualityLoss, supplierQualityCreditQuantity } from "@/lib/receptionQuality";
+import QualityEmailAutomation from "@/components/inventory/QualityEmailAutomation";
+import QualityFinalization from "@/components/inventory/QualityFinalization";
 
 type InventoryRow = {
   id: string;
@@ -1735,6 +1737,7 @@ const ReceptionReport: React.FC = () => {
             <Button onClick={loadData} variant="outline" disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Reîncarcă"}
             </Button>
+            <QualityEmailAutomation inventoryType={inventoryType} day={format(date, 'yyyy-MM-dd')} />
           </div>
 
           {!loading && groups.length === 0 && (
@@ -1756,6 +1759,12 @@ const ReceptionReport: React.FC = () => {
                 </p>
               </div>
               <div className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:flex-wrap">
+                <QualityFinalization inventoryType={inventoryType} ids={group.rows.filter(r => !r.is_missing).map(r => r.inventory_id)} revision={JSON.stringify(group.rows)} save={async () => {
+                  for (const row of group.rows.filter(r => !r.is_missing)) {
+                    const { error } = await supabase.from('reception_report_data').upsert({inventory_id:row.inventory_id,inventory_type:inventoryType,cantitate_document:row.cantitate_document === '' ? null : Number(row.cantitate_document),declared_quantity:row.declared_quantity === '' ? null : Number(row.declared_quantity),pierdere_calitativa_procent:row.pierdere_calitativa_procent === '' ? null : Number(row.pierdere_calitativa_procent),defects:row.defects,observations:row.observations||null,photos:row.photos},{onConflict:'inventory_id'});
+                    if(error) throw new Error('Salvarea calității a eșuat.');
+                  }
+                }} />
                 <Button size="sm" variant="outline" className="h-11 md:h-9" onClick={() => openMissingDialog(gIdx)}>
                   <AlertTriangle className="h-4 w-4 mr-2 text-amber-500" />
                   <span className="truncate">Articol lipsă</span>
