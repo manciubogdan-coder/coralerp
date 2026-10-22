@@ -17,6 +17,7 @@ export function dayBounds(day: string) {
   return { start: midnight(day), end: midnight(shiftDay(day, 1)) };
 }
 export function isFinalized(review: any, row: any, report: any): boolean {
+  if (!row) return false;
   const canonical = (v: any): string => {
     if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
     if (v && typeof v === 'object') return `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${canonical(v[k])}`).join(',')}}`;
