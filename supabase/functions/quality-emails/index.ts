@@ -117,7 +117,8 @@ Deno.serve(async req=>{
         if(!roles?.some(r=>['admin','calitate'].includes(r.role))) return json({error:'Acces rezervat echipei de calitate.'},403); userId=data.user.id;
       } else { const auth=await requireAdmin(token); if('error' in auth) return json({error:auth.status===403?'Setările emailurilor sunt disponibile administratorilor.':auth.error},auth.status); userId=auth.user.id; }
     }
-    const legacy=createClient(LEGACY_URL,LEGACY_ANON,{auth:{persistSession:false,autoRefreshToken:false}});
+    const appToken=req.headers.get('x-app-token');
+    const legacy=createClient(LEGACY_URL,LEGACY_ANON,{auth:{persistSession:false,autoRefreshToken:false},...(appToken && b.action!=='scheduled'?{global:{headers:{Authorization:`Bearer ${appToken}`}}}:{})});
     if(b.action==='get') {
       const [setting,routes,logs,suppliers,manufacturers]=await Promise.all([checked(cloud.from('quality_email_settings').select('*').eq('inventory_type',b.inventory_type).maybeSingle()),all(cloud,'quality_email_routes',q=>q.eq('inventory_type',b.inventory_type).order('created_at')),checked(cloud.from('quality_email_deliveries').select('*,quality_email_routes!inner(supplier_name,inventory_type)').eq('quality_email_routes.inventory_type',b.inventory_type).order('created_at',{ascending:false}).limit(100)),all(legacy,tables(b.inventory_type).supplier,q=>q.order('name')),all(legacy,tables(b.inventory_type).manufacturer,q=>q.order('name'))]);
       return json({settings:setting??{inventory_type:b.inventory_type,enabled:false,send_time:'17:00',day_offset:0},routes,logs,suppliers:suppliers.map(s=>({id:s.id,name:s.name,email:s.email})),manufacturers:manufacturers.map(m=>({id:m.id,name:m.name})),smtp_configured:!!Deno.env.get('QUALITY_SMTP_PASSWORD')});
