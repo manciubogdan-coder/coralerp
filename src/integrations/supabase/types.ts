@@ -1668,6 +1668,166 @@ export type Database = {
         }
         Relationships: []
       }
+      quality_email_deliveries: {
+        Row: {
+          cc_emails: Json
+          created_at: string
+          detail: string | null
+          id: string
+          message_id: string | null
+          receipt_count: number
+          receipt_day: string
+          recipient_email: string
+          route_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cc_emails?: Json
+          created_at?: string
+          detail?: string | null
+          id?: string
+          message_id?: string | null
+          receipt_count?: number
+          receipt_day: string
+          recipient_email: string
+          route_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cc_emails?: Json
+          created_at?: string
+          detail?: string | null
+          id?: string
+          message_id?: string | null
+          receipt_count?: number
+          receipt_day?: string
+          recipient_email?: string
+          route_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_email_deliveries_route_id_fkey"
+            columns: ["route_id"]
+            isOneToOne: false
+            referencedRelation: "quality_email_routes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quality_email_reviews: {
+        Row: {
+          finalized: boolean
+          inventory_id: string
+          inventory_type: string
+          reviewed_at: string
+          reviewed_by: string | null
+          snapshot: Json
+        }
+        Insert: {
+          finalized?: boolean
+          inventory_id: string
+          inventory_type: string
+          reviewed_at?: string
+          reviewed_by?: string | null
+          snapshot?: Json
+        }
+        Update: {
+          finalized?: boolean
+          inventory_id?: string
+          inventory_type?: string
+          reviewed_at?: string
+          reviewed_by?: string | null
+          snapshot?: Json
+        }
+        Relationships: []
+      }
+      quality_email_routes: {
+        Row: {
+          cc_emails: Json
+          created_at: string
+          enabled: boolean
+          id: string
+          inventory_type: string
+          language: string
+          manufacturer_id: string | null
+          manufacturer_name: string | null
+          recipient_email: string
+          recipient_mode: string
+          supplier_id: string
+          supplier_name: string
+          version: string
+        }
+        Insert: {
+          cc_emails?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          inventory_type: string
+          language?: string
+          manufacturer_id?: string | null
+          manufacturer_name?: string | null
+          recipient_email: string
+          recipient_mode?: string
+          supplier_id: string
+          supplier_name: string
+          version?: string
+        }
+        Update: {
+          cc_emails?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          inventory_type?: string
+          language?: string
+          manufacturer_id?: string | null
+          manufacturer_name?: string | null
+          recipient_email?: string
+          recipient_mode?: string
+          supplier_id?: string
+          supplier_name?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_email_routes_inventory_type_fkey"
+            columns: ["inventory_type"]
+            isOneToOne: false
+            referencedRelation: "quality_email_settings"
+            referencedColumns: ["inventory_type"]
+          },
+        ]
+      }
+      quality_email_settings: {
+        Row: {
+          activated_on: string
+          day_offset: number
+          enabled: boolean
+          inventory_type: string
+          send_time: string
+          updated_at: string
+        }
+        Insert: {
+          activated_on?: string
+          day_offset?: number
+          enabled?: boolean
+          inventory_type: string
+          send_time?: string
+          updated_at?: string
+        }
+        Update: {
+          activated_on?: string
+          day_offset?: number
+          enabled?: boolean
+          inventory_type?: string
+          send_time?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       reception_audit_log: {
         Row: {
           changes: Json
@@ -2214,6 +2374,17 @@ export type Database = {
       is_chat_member: {
         Args: { _conv: string; _user: string }
         Returns: boolean
+      }
+      quality_email_claim: { Args: { p_id: string }; Returns: boolean }
+      quality_email_schedule: {
+        Args: {
+          p_enabled: boolean
+          p_secret: string
+          p_time: string
+          p_type: string
+          p_url: string
+        }
+        Returns: undefined
       }
       register_push_subscription: {
         Args: {
