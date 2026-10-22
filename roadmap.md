@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Automate daily reception quality emails using the dedicated SMTP mailbox: configurable same-day/next-day Bucharest send time, supplier/manufacturer routing with colleague copies, existing report format, completion safeguards and send history. Pending secure SMTP credential entry and recipient/completion choices.
 - [x] Fix supplier emails omitting entered quality-loss percentages and rounding a 2.9kg reception at 5% to zero; regression coverage added.
 - [x] Fix CEO commercial indicators still reading the mirror: deployed live SELECT/UNION summary with explicit freshness and no silent fallback; real Senior query returned 64 metric/monthly/ranking rows through 19 October. Five regression tests pass. Signed-in UI remains unverified (operational session unavailable).
 - [x] Switch reports to live reads from Senior with saved report results in Cloud; mirror only essential tables; dropped non-essential mirrored tables (DB 22 GB → 577 MB). Queue and agent query builder tested; end-to-end blocked until v2.0 is installed on the Senior server.
