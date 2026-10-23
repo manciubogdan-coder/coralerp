@@ -1,0 +1,18 @@
+CREATE TABLE public.crm_customers (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, company text NOT NULL, role text NOT NULL DEFAULT '', phone text NOT NULL DEFAULT '', email text NOT NULL DEFAULT '', delivery_locations text[] NOT NULL DEFAULT '{}', senior_erp_id text NOT NULL DEFAULT '', segment text NOT NULL DEFAULT 'Retail', order_frequency_days integer NOT NULL DEFAULT 7 CHECK(order_frequency_days BETWEEN 1 AND 365), last_order_at date, created_by uuid NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+GRANT ALL ON public.crm_customers TO service_role;
+ALTER TABLE public.crm_customers ENABLE ROW LEVEL SECURITY;
+CREATE TABLE public.crm_leads (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), customer_id uuid NOT NULL REFERENCES public.crm_customers(id) ON DELETE CASCADE UNIQUE, stage text NOT NULL DEFAULT 'lead' CHECK(stage IN ('lead','discovery','samples','negotiation','active')), value numeric NOT NULL DEFAULT 0 CHECK(value >= 0), next_action text NOT NULL DEFAULT '', next_action_date date, created_at timestamptz NOT NULL DEFAULT now());
+GRANT ALL ON public.crm_leads TO service_role;
+ALTER TABLE public.crm_leads ENABLE ROW LEVEL SECURITY;
+CREATE TABLE public.crm_interactions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), customer_id uuid NOT NULL REFERENCES public.crm_customers(id) ON DELETE CASCADE, kind text NOT NULL CHECK(kind IN ('call','note','feedback','email')), subject text NOT NULL DEFAULT '', body text NOT NULL DEFAULT '', rating integer CHECK(rating BETWEEN 1 AND 5), batch text NOT NULL DEFAULT '', quality_issue boolean NOT NULL DEFAULT false, qa_notified boolean NOT NULL DEFAULT false, created_by uuid NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+GRANT ALL ON public.crm_interactions TO service_role;
+ALTER TABLE public.crm_interactions ENABLE ROW LEVEL SECURITY;
+CREATE TABLE public.crm_orders (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), customer_id uuid NOT NULL REFERENCES public.crm_customers(id) ON DELETE CASCADE, order_date date NOT NULL, sku text NOT NULL, quantity numeric NOT NULL CHECK(quantity > 0), status text NOT NULL DEFAULT 'Delivered', source text NOT NULL DEFAULT 'simulation' CHECK(source IN ('simulation','senior')), created_at timestamptz NOT NULL DEFAULT now());
+GRANT ALL ON public.crm_orders TO service_role;
+ALTER TABLE public.crm_orders ENABLE ROW LEVEL SECURITY;
+CREATE TABLE public.crm_automated_alerts (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), customer_id uuid NOT NULL REFERENCES public.crm_customers(id) ON DELETE CASCADE, kind text NOT NULL CHECK(kind IN ('inactivity','quality','surplus')), title text NOT NULL, body text NOT NULL DEFAULT '', status text NOT NULL DEFAULT 'open' CHECK(status IN ('open','snoozed','resolved')), snoozed_until timestamptz, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(customer_id,kind));
+GRANT ALL ON public.crm_automated_alerts TO service_role;
+ALTER TABLE public.crm_automated_alerts ENABLE ROW LEVEL SECURITY;
+CREATE INDEX crm_interactions_customer_time ON public.crm_interactions(customer_id,created_at DESC);
+CREATE INDEX crm_orders_customer_date ON public.crm_orders(customer_id,order_date DESC);
+COMMENT ON TABLE public.crm_customers IS 'Server-only sales CRM; operational approved sales/admin session validated by sales-crm edge function.';

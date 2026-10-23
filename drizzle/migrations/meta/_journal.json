@@ -141,6 +141,13 @@
       "when": 1792645994836,
       "tag": "0019_quality_email_automation",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792728264150,
+      "tag": "0020_sales_crm",
+      "breakpoints": true
     }
   ]
 }

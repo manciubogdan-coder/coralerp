@@ -556,6 +556,227 @@ export type Database = {
           },
         ]
       }
+      crm_automated_alerts: {
+        Row: {
+          body: string
+          created_at: string
+          customer_id: string
+          id: string
+          kind: string
+          snoozed_until: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          body?: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          kind: string
+          snoozed_until?: string | null
+          status?: string
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          kind?: string
+          snoozed_until?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_automated_alerts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "crm_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_customers: {
+        Row: {
+          company: string
+          created_at: string
+          created_by: string
+          delivery_locations: string[]
+          email: string
+          id: string
+          last_order_at: string | null
+          name: string
+          order_frequency_days: number
+          phone: string
+          role: string
+          segment: string
+          senior_erp_id: string
+          updated_at: string
+        }
+        Insert: {
+          company: string
+          created_at?: string
+          created_by: string
+          delivery_locations?: string[]
+          email?: string
+          id?: string
+          last_order_at?: string | null
+          name: string
+          order_frequency_days?: number
+          phone?: string
+          role?: string
+          segment?: string
+          senior_erp_id?: string
+          updated_at?: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          created_by?: string
+          delivery_locations?: string[]
+          email?: string
+          id?: string
+          last_order_at?: string | null
+          name?: string
+          order_frequency_days?: number
+          phone?: string
+          role?: string
+          segment?: string
+          senior_erp_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      crm_interactions: {
+        Row: {
+          batch: string
+          body: string
+          created_at: string
+          created_by: string
+          customer_id: string
+          id: string
+          kind: string
+          qa_notified: boolean
+          quality_issue: boolean
+          rating: number | null
+          subject: string
+        }
+        Insert: {
+          batch?: string
+          body?: string
+          created_at?: string
+          created_by: string
+          customer_id: string
+          id?: string
+          kind: string
+          qa_notified?: boolean
+          quality_issue?: boolean
+          rating?: number | null
+          subject?: string
+        }
+        Update: {
+          batch?: string
+          body?: string
+          created_at?: string
+          created_by?: string
+          customer_id?: string
+          id?: string
+          kind?: string
+          qa_notified?: boolean
+          quality_issue?: boolean
+          rating?: number | null
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_interactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "crm_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_leads: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          next_action: string
+          next_action_date: string | null
+          stage: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          next_action?: string
+          next_action_date?: string | null
+          stage?: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          next_action?: string
+          next_action_date?: string | null
+          stage?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_leads_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "crm_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_orders: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          order_date: string
+          quantity: number
+          sku: string
+          source: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          order_date: string
+          quantity: number
+          sku: string
+          source?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          order_date?: string
+          quantity?: number
+          sku?: string
+          source?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "crm_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       depozit_mp_iesiri: {
         Row: {
           cantitate: number
