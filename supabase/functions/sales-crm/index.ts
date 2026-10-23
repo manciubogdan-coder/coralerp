@@ -76,12 +76,13 @@ Deno.serve(async req=>{
       await Promise.all([...pending].map(async id=>{const {data:s}=await db.rpc('erp_live_get',{p_id:id});
        if(s?.status==='done'){out.set(id,s.result);pending.delete(id);}else if(s?.status==='error'){pending.delete(id);out.set(id,{__error:s.error||'Eroare la citirea din Senior.'});}}));}
      if(pending.size)throw Object.assign(new Error('Serverul Senior nu a răspuns în timp util. Verifică dacă programul de citire rulează pe server.'),{statusCode:504});return out;};
-    const sql=(off:number)=>`SELECT CONVERT(char(10), h.Data, 23) AS d, pp.Partener_ID AS pid, MAX(pp.Partener_Denumire) AS partner, d.Denumire AS sku, CAST(h.Numar_Document_Primar AS varchar(20)) AS docid, SUM(CAST(d.Cantitate AS float)) AS qty, SUM(CAST(d.Valoare_Neta_Rol AS float)) AS amount FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID = h.Tip_Document_ID JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID = h.H_ID JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID = h.H_ID WHERE t.Cod = 'CC' AND ISNULL(h.Anulat,0)=0 AND h.Data >= '${mStart}' AND h.Data < '${next}' GROUP BY h.Data, pp.Partener_ID, d.Denumire, h.H_ID, h.Numar_Document_Primar ORDER BY h.H_ID, d.Denumire OFFSET ${off} ROWS FETCH NEXT 2000 ROWS ONLY`;
-    const rows:any[]=[];let offs=[0,2000,4000,6000];
-    for(let round=0;round<4&&offs.length;round++){
+    const sql=(off:number)=>`SELECT CONVERT(char(10), h.Data, 23) AS d, pp.Partener_ID AS pid, MAX(pp.Partener_Denumire) AS partner, d.Denumire AS sku, CAST(h.Numar_Document_Primar AS varchar(20)) AS docid, SUM(CAST(d.Cantitate AS float)) AS qty, SUM(CAST(d.Valoare_Neta_Rol AS float)) AS amount FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID = h.Tip_Document_ID JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID = h.H_ID JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID = h.H_ID WHERE t.Cod = 'CC' AND ISNULL(h.Anulat,0)=0 AND h.Data >= '${mStart}' AND h.Data < '${next}' GROUP BY h.Data, pp.Partener_ID, d.Denumire, h.H_ID, h.Numar_Document_Primar ORDER BY h.H_ID, d.Denumire OFFSET ${off} ROWS FETCH NEXT 500 ROWS ONLY`;
+    // Cititorul Senior întoarce maximum 500 de rânduri pe interogare: 8 pagini în paralel pe rundă.
+    const page=(from:number)=>Array.from({length:8},(_,i)=>from+i*500);const rows:any[]=[];let offs=page(0);
+    for(let round=0;round<6&&offs.length;round++){
      const ids=await Promise.all(offs.map(o=>enqueue(sql(o))));const out=await waitAll(ids);let full=false;
-     ids.forEach((id,i)=>{const v=out.get(id);if(v&&v.__error)throw Object.assign(new Error(`Senior: ${String(v.__error).slice(0,200)}`),{statusCode:502});const r=Array.isArray(v)?v:[];rows.push(...r);if(i===ids.length-1&&r.length>=2000)full=true;});
-     const last=offs[offs.length-1];offs=full?[last+2000,last+4000,last+6000,last+8000]:[];}
+     ids.forEach((id,i)=>{const v=out.get(id);if(v&&v.__error)throw Object.assign(new Error(`Senior: ${String(v.__error).slice(0,200)}`),{statusCode:502});const r=Array.isArray(v)?v:[];rows.push(...r);if(i===ids.length-1&&r.length>=500)full=true;});
+     offs=full?page(offs[offs.length-1]+500):[];}
     // Clienți: potrivire după ID Senior, creare în bloc pentru cei noi.
     const customers=await all(db,'crm_customers');const bySenior=new Map<string,any>(customers.filter((c:any)=>c.senior_erp_id).map((c:any)=>[String(c.senior_erp_id),c]));
     const names=new Map<string,string>();for(const r of rows)if(!bySenior.has(String(r.pid)))names.set(String(r.pid),String(r.partner||`Client ${r.pid}`).trim().slice(0,200)||`Client ${r.pid}`);
