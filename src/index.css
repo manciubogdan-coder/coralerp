@@ -35,6 +35,11 @@
     --ring: 0 71% 67%;
 
     --radius: 0.5rem;
+    --crm-green: 153 49% 28%;
+    --crm-ink: 155 28% 13%;
+    --crm-warning: 37 79% 39%;
+    --crm-cool: 203 39% 49%;
+    --crm-shadow: 0 2px 6px hsl(155 28% 13% / 0.06);
     
     /* Mobile menu colors */
     --mobile-menu-bg: 0 0% 100%; /* White background */
@@ -42,6 +47,9 @@
   }
 
   .dark {
+    --crm-green: 151 45% 56%;
+    --crm-warning: 39 80% 62%;
+    --crm-cool: 202 48% 65%;
     --background: 20 14.3% 4.1%;
     --foreground: 0 0% 95%;
 

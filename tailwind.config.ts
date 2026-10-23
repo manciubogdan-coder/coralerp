@@ -20,6 +20,9 @@ export default {
 		},
 		extend: {
 			colors: {
+				'crm-green': 'hsl(var(--crm-green))',
+				'crm-warning': 'hsl(var(--crm-warning))',
+				'crm-cool': 'hsl(var(--crm-cool))',
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
