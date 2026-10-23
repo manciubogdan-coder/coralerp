@@ -148,6 +148,13 @@
       "when": 1792728264150,
       "tag": "0020_sales_crm",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792728649159,
+      "tag": "0021_crm_server_only_grants",
+      "breakpoints": true
     }
   ]
 }

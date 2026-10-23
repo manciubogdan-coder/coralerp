@@ -1,0 +1,2 @@
+REVOKE ALL ON public.crm_customers, public.crm_leads, public.crm_interactions, public.crm_orders, public.crm_automated_alerts FROM PUBLIC, anon, authenticated;
+GRANT ALL ON public.crm_customers, public.crm_leads, public.crm_interactions, public.crm_orders, public.crm_automated_alerts TO service_role;
