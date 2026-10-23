@@ -19,6 +19,7 @@ const schema=z.discriminatedUnion('action',[
 const headers={...corsHeaders,'Access-Control-Allow-Headers':`${corsHeaders['Access-Control-Allow-Headers']}, x-app-token`};
 const json=(v:unknown,status=200)=>new Response(JSON.stringify(v),{status,headers:{...headers,'Content-Type':'application/json'}});
 async function check(q:any){const r=await q;if(r.error){console.error('crm db',r.error.message);throw new Error('Operațiunea CRM nu a putut fi salvată.');}return r.data;}
+async function allFast(db:any,table:string,cols='*'){const {count,error}=await db.from(table).select('id',{count:'exact',head:true});if(error)throw new Error('Operațiunea CRM nu a putut fi salvată.');const pages=Array.from({length:Math.ceil((count||0)/1000)},(_,i)=>i*1000);const out:any[]=[];for(let i=0;i<pages.length;i+=12){const chunk=await Promise.all(pages.slice(i,i+12).map(o=>check(db.from(table).select(cols).order('id').range(o,o+999))));for(const c of chunk)out.push(...c);}return out;}
 async function all(db:any,table:string){const rows:any[]=[];let offset=0;while(true){const data=await check(db.from(table).select('*').order('id').range(offset,offset+999));rows.push(...data);if(data.length<1000)return rows;offset+=1000;}}
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers});if(req.method!=='POST')return json({error:'Metodă neacceptată.'},405);
@@ -33,7 +34,7 @@ Deno.serve(async req=>{
   const db=createClient(url,key,{auth:{persistSession:false}});
   if(b.action==='sentiment'){const output=await analyzeSentiment(b.body,req.signal);const h=new Headers(headers);output.headers.forEach((v,k)=>h.set(k,v));h.set('Content-Type','application/json');return new Response(JSON.stringify({sentiment:output.sentiment}),{headers:h});}
   if(b.action==='get'){
-   const [customers,leads,interactions,orders,existingAlerts]=await Promise.all(['crm_customers','crm_leads','crm_interactions','crm_orders','crm_automated_alerts'].map(t=>all(db,t)));
+   const [customers,leads,interactions,orders,existingAlerts]=await Promise.all(['crm_customers','crm_leads','crm_interactions','crm_orders','crm_automated_alerts'].map(t=>t==='crm_orders'?allFast(db,t,'id,customer_id,order_date,sku,quantity,quantity_kg,amount,unit,document_id,status,source'):all(db,t)));
    for(const c of customers){if(!leads.some((l:any)=>l.customer_id===c.id&&l.stage==='active'))continue;
     const dates=orders.filter((o:any)=>o.customer_id===c.id&&o.source==='senior').map((o:any)=>o.order_date).sort();const real=dates.at(-1);const last=real||c.last_order_at;const frequency=orderFrequency(dates,c.frequency_days||c.order_frequency_days);
     if(isInactive(last,frequency)){
