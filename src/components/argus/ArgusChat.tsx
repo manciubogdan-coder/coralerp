@@ -180,6 +180,7 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
       }
       setFileProgress('');
       setText('');
+      setPreparing(false);
       await sendMessage({ text: t.trim() || 'Citește și interpretează fișierele atașate. Prezintă datele importante și concluziile.', files: uploaded });
       preparedCache.current.clear();
     } catch (error) {

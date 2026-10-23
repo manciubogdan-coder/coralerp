@@ -1,5 +1,7 @@
-import { test, expect } from 'bun:test';
-import { attachmentPath, FILE_TYPES, MAX_FILE_BYTES, PreparedFileSchema } from '../../supabase/functions/argus/fileRules';
+import { test, expect, mock } from 'bun:test';
+import * as zod from 'zod';
+mock.module('npm:zod@3', () => zod);
+const { attachmentPath, FILE_TYPES, MAX_FILE_BYTES, PreparedFileSchema } = await import('../../supabase/functions/argus/fileRules');
 test('attachments resolve only within their owning user and conversation', () => {
   const url = 'argus-file:user/thread/12345678-1234-1234-1234-123456789abc.json';
   expect(attachmentPath(url, 'user', 'thread')).toBe('user/thread/12345678-1234-1234-1234-123456789abc.json');
