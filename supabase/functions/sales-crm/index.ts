@@ -71,7 +71,7 @@ Deno.serve(async req=>{
     // Doar comenzile de client (CC), grupate pe document+produs; clienții se creează doar dacă au comenzi.
     const [y,mo]=b.month.split('-').map(Number);const mStart=`${b.month}-01`;const next=new Date(Date.UTC(y,mo,1)).toISOString().slice(0,10);
     const enqueue=async(sql:string)=>{const r=await db.rpc('erp_live_enqueue',{p_kind:'sql',p_payload:{sql}});if(r.error)throw new Error('Coada de citire Senior nu răspunde.');return r.data as string;};
-    const waitAll=async(ids:string[])=>{const until=Date.now()+90000;const out=new Map<string,any>();const pending=new Set(ids);
+    const deadline=Date.now()+100000;const waitAll=async(ids:string[])=>{const until=Math.min(Date.now()+60000,deadline);const out=new Map<string,any>();const pending=new Set(ids);
      while(pending.size&&Date.now()<until){await new Promise(r=>setTimeout(r,600));
       await Promise.all([...pending].map(async id=>{const {data:s}=await db.rpc('erp_live_get',{p_id:id});
        if(s?.status==='done'){out.set(id,s.result);pending.delete(id);}else if(s?.status==='error'){pending.delete(id);out.set(id,{__error:s.error||'Eroare la citirea din Senior.'});}}));}
