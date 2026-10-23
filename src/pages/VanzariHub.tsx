@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ClipboardList, ShoppingBag, Package, TrendingDown, FileStack, Truck } from "lucide-react";
+import { ClipboardList, ShoppingBag, Package, TrendingDown, FileStack, Truck, Users } from "lucide-react";
+import SalesCrm from "@/components/vanzari/crm/SalesCrm";
 
 import { DailyStockGroupView } from "@/components/inventory/DailyStockGroupView";
 import ConsumptionAnalytics from "@/components/productie/ConsumptionAnalytics";
@@ -12,6 +13,7 @@ import { ForceInventoryType } from "@/context/inventory-type";
 import NecesarComenzi from "@/components/vanzari/NecesarComenzi";
 
 const TABS = [
+  { key: "crm", label: "Sales CRM", icon: Users },
   { key: "necesar", label: "Comenzi & Necesar", icon: FileStack },
   { key: "stoc-marfa", label: "Stoc Marfă Început Zi", icon: Package },
   { key: "consumuri", label: "Analiză Consumuri", icon: TrendingDown },
@@ -22,7 +24,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 
 const VanzariHub: React.FC = () => {
-  const [tab, setTab] = useState<TabKey>("stoc-marfa");
+  const [tab, setTab] = useState<TabKey>("crm");
 
   return (
     <div className="container mx-auto px-2 md:px-6 py-3 md:py-6 space-y-3 md:space-y-4">
@@ -34,7 +36,7 @@ const VanzariHub: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold">Vânzări</h1>
             <p className="text-sm text-muted-foreground">
-              Stoc marfă început zi, analiză consumuri și restocări.
+              Relații comerciale, comenzi și stocuri.
             </p>
           </div>
         </div>
@@ -42,11 +44,11 @@ const VanzariHub: React.FC = () => {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-4 h-auto">
+        <TabsList className="flex w-full justify-start overflow-x-auto mb-4 h-auto">
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
-              <TabsTrigger key={t.key} value={t.key} className="gap-2 py-2">
+              <TabsTrigger key={t.key} value={t.key} className="gap-2 py-2 flex-1 shrink-0">
                 <Icon className="h-4 w-4" />
                 <span className="hidden md:inline">{t.label}</span>
                 <span className="md:hidden text-xs">{t.label.split(" ")[0]}</span>
@@ -54,6 +56,8 @@ const VanzariHub: React.FC = () => {
             );
           })}
         </TabsList>
+
+        <TabsContent value="crm"><SalesCrm /></TabsContent>
 
         <TabsContent value="necesar">
           <Card><CardContent className="p-4"><NecesarComenzi /></CardContent></Card>
