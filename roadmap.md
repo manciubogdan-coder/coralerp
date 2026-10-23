@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Refactor Vânzări CRM to Romanian-only registry, proactive alerts, sales funnel and charts; add multi-contact profiles, measured frequency/value/volume, follow-up, voice/text notes and AI sentiment, keeping simulated orders separate.
 - [x] Add Sales CRM inside Vânzări: protected customer/pipeline storage, Client 360, calls/feedback/email drafts, labeled simulated ERP orders, inactivity/quality/surplus alerts, mobile slide-over entry, and separate interactive example mode. Four rule tests passed; example call saved/read back, filtering and phone layout verified without runtime errors.
 - [ ] Verify CRM real signed-in customer save, feedback and QA notification delivery — blocked by unavailable operational session; QA recipients rely on existing quality notification rules. Emails open the operator's mailbox; no automatic CRM email sending configured.
 - [x] Add configurable same-day/next-day Bucharest SMTP reports with supplier/producer routes, per-route language/version/CC, review snapshots, manual preview/send and delivery history; SMTP authentication verified without sending; 8 domain tests and SMTP test pass. Automation remains OFF.
