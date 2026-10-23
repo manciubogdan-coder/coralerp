@@ -2,7 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3.25.76';
 import { LEGACY_URL, LEGACY_ANON } from '../_shared/appData.ts';
-import { CRM_STAGES, isInactive, canAccessCrm } from '../_shared/crmRules.ts';
+import { CRM_STAGES, isInactive, canAccessCrm, orderFrequency } from '../_shared/crmRules.ts';
 import {analyzeSentiment} from './sentiment.ts';
 const uuid=z.string().uuid(), text=z.string().trim().max(500);
 const contact=z.object({name:text.min(1),role:text,phone:text,email:z.union([z.string().email().max(254),z.literal('')])});
@@ -34,9 +34,9 @@ Deno.serve(async req=>{
   if(b.action==='get'){
    const [customers,leads,interactions,orders,existingAlerts]=await Promise.all(['crm_customers','crm_leads','crm_interactions','crm_orders','crm_automated_alerts'].map(t=>all(db,t)));
    for(const c of customers){if(!leads.some((l:any)=>l.customer_id===c.id&&l.stage==='active'))continue;
-    const real=orders.filter((o:any)=>o.customer_id===c.id&&o.source==='senior').map((o:any)=>o.order_date).sort().at(-1);const last=real||c.last_order_at;
-    if(isInactive(last,c.frequency_days||c.order_frequency_days)){
-     const body=`Ultima comandă: ${last}. Ritm obișnuit: ${c.frequency_days||c.order_frequency_days} zile.`;
+    const dates=orders.filter((o:any)=>o.customer_id===c.id&&o.source==='senior').map((o:any)=>o.order_date).sort();const real=dates.at(-1);const last=real||c.last_order_at;const frequency=orderFrequency(dates,c.frequency_days||c.order_frequency_days);
+    if(isInactive(last,frequency)){
+     const body=`Ultima comandă: ${last}. Ritm obișnuit: ${frequency} zile.`;
      const prior=existingAlerts.find((a:any)=>a.customer_id===c.id&&a.kind==='inactivity');
      if(!prior)await check(db.from('crm_automated_alerts').insert({customer_id:c.id,kind:'inactivity',title:`${c.company} — fără comandă`,body}));
      else if(prior.body!==body)await check(db.from('crm_automated_alerts').update({body,status:'open',snoozed_until:null}).eq('id',prior.id));

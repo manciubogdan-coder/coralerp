@@ -1,3 +1,4 @@
+import {orderFrequency} from '../../../supabase/functions/_shared/crmRules';
 import type {Customer,CrmData,Order} from './model';
 export const dayKey=(date=new Date())=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Bucharest',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
 export const number=(n:number,digits=1)=>new Intl.NumberFormat('ro-RO',{maximumFractionDigits:digits}).format(n);
@@ -11,7 +12,7 @@ export function customerStats(customer:Customer,orders:Order[],example:boolean,n
  const amounts=[...documents.values()].filter(lines=>lines.every(o=>o.amount!=null)).map(lines=>lines.reduce((s,o)=>s+Number(o.amount),0));
  const kg=[...documents.values()].filter(lines=>lines.every(o=>o.quantity_kg!=null)).map(lines=>lines.reduce((s,o)=>s+Number(o.quantity_kg),0));
  const pieces=[...documents.values()].filter(lines=>lines.every(o=>o.unit==='caserole'||o.unit==='buc')).map(lines=>lines.reduce((s,o)=>s+Number(o.quantity),0));
- const frequency=dates.length>1?(Date.parse(dates[dates.length-1])-Date.parse(dates[0]))/86400000/(dates.length-1):Number(customer.frequency_days||customer.order_frequency_days);
+ const frequency=orderFrequency(dates,Number(customer.frequency_days||customer.order_frequency_days));
  const last=dates.at(-1)||customer.last_order_at;const elapsed=daysSince(last,now);const risk=elapsed!=null&&elapsed>frequency;
  return {rows,frequency,last,elapsed,risk,status:elapsed==null?'none':risk?'risk':'active',averageValue:amounts.length?amounts.reduce((s,n)=>s+n,0)/amounts.length:null,averageKg:kg.length?kg.reduce((s,n)=>s+n,0)/kg.length:null,averagePieces:pieces.length?pieces.reduce((s,n)=>s+n,0)/pieces.length:null,orderCount:documents.size};
 }
