@@ -1,5 +1,3 @@
-import { z } from 'npm:zod@3';
-
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const MAX_FILES = 5;
 export const MAX_TEXT = 250000;
@@ -10,10 +8,20 @@ export const FILE_TYPES: Record<string, string> = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   txt: 'text/plain',
 };
-export const PreparedFileSchema = z.object({
-  text: z.string().max(MAX_TEXT),
-  images: z.array(z.string().regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/).max(12 * 1024 * 1024)).max(30),
-}).strict().refine(v => v.text.trim() || v.images.length, 'Fișierul nu conține text sau imagini lizibile.');
+export type PreparedFile = { text: string; images: string[] };
+export const PreparedFileSchema = {
+  parse(value: unknown): PreparedFile {
+    const v = value as PreparedFile | null;
+    if (!v || typeof v.text !== 'string' || v.text.length > MAX_TEXT || !Array.isArray(v.images) || v.images.length > 30 ||
+      v.images.some(x => typeof x !== 'string' || x.length > 12 * 1024 * 1024 || !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(x)) ||
+      (!v.text.trim() && !v.images.length)) throw new Error('Fișierul nu conține text sau imagini lizibile, sau depășește limitele acceptate.');
+    return { text: v.text, images: v.images };
+  },
+  safeParse(value: unknown) {
+    try { return { success: true, data: this.parse(value) }; }
+    catch { return { success: false }; }
+  },
+};
 
 export function attachmentPath(url: string, userId: string, threadId: string) {
   const prefix = `argus-file:${userId}/${threadId}/`;
