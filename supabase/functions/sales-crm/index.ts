@@ -13,7 +13,8 @@ const schema=z.discriminatedUnion('action',[
  z.object({action:z.literal('interaction'),customer_id:uuid,kind:z.enum(['call','note','feedback','email']),subject:text,body:z.string().trim().min(1).max(5000),rating:z.number().int().min(1).max(5).nullable(),batch:text,quality_issue:z.boolean(),sentiment:z.enum(['positive','neutral','negative']).nullable().optional()}),
  z.object({action:z.literal('alert'),id:uuid,status:z.enum(['resolved','snoozed'])}),
  z.object({action:z.literal('surplus'),customer_ids:z.array(uuid).min(1).max(100),title:text.min(1),body:z.string().min(1).max(2000)}),
- z.object({action:z.literal('simulate_orders'),customer_id:uuid})
+ z.object({action:z.literal('simulate_orders'),customer_id:uuid}),
+ z.object({action:z.literal('senior_sync'),months:z.number().int().min(1).max(24).default(12)})
 ]);
 const headers={...corsHeaders,'Access-Control-Allow-Headers':`${corsHeaders['Access-Control-Allow-Headers']}, x-app-token`};
 const json=(v:unknown,status=200)=>new Response(JSON.stringify(v),{status,headers:{...headers,'Content-Type':'application/json'}});
@@ -64,7 +65,49 @@ Deno.serve(async req=>{
   if(b.action==='simulate_orders'){
    const existing=await check(db.from('crm_orders').select('id').eq('customer_id',b.customer_id).eq('source','simulation').limit(1));if(existing.length)return json({ok:true});
    await check(db.from('crm_orders').insert([0,3,7].map((days,i)=>({customer_id:b.customer_id,order_date:new Date(Date.now()-days*86400000).toISOString().slice(0,10),sku:['Baby spanac 200 g','Rucola 100 g','Mix salată 250 g'][i],quantity:[120,80,160][i],quantity_kg:[24,8,40][i],amount:[420,190,560][i],unit:'caserole',document_id:`SIM-${crypto.randomUUID().slice(0,8)}`,status:i===0?'În pregătire':'Livrat',source:'simulation'}))));return json({ok:true});
-  }
+   }
+   if(b.action==='senior_sync'){
+    // Citire directă din Senior (coada live): clienți + comenzi/facturi de client din ultimele N luni.
+    const enqueue=async(payload:unknown)=>{const r=await db.rpc('erp_live_enqueue',{p_kind:'sql',p_payload:payload});if(r.error)throw new Error(r.error.message);return r.data as string;};
+    const waitAll=async(ids:string[])=>{const until=Date.now()+100000;const out=new Map<string,any>();const pending=new Set(ids);
+     while(pending.size&&Date.now()<until){await new Promise(r=>setTimeout(r,700));
+      for(const id of[...pending]){const {data:s,error}=await db.rpc('erp_live_get',{p_id:id});if(error)throw new Error(error.message);
+       if(s?.status==='done'){out.set(id,s.result);pending.delete(id);}else if(s?.status==='error'){pending.delete(id);out.set(id,{__error:s.error||'Eroare la citirea din Senior.'});}}}
+     if(pending.size)throw new Error('Serverul Senior nu a răspuns în timp util. Verifică dacă programul de citire rulează pe server.');return out;};
+    const runSql=async(sql:string)=>{const out=await waitAll([await enqueue({sql})]);const v=out.values().next().value;if(v&&v.__error)throw new Error(v.__error);return Array.isArray(v)?v:[];};
+    // 1) Clienți din nomenclatorul Senior (paginat câte 500).
+    const partners:any[]=[];
+    for(let off=0;off<=10000;off+=500){const rows=await runSql(`SELECT Partener_ID AS pid, Denumire AS name FROM dbo.D_Parteneri WITH (NOLOCK) WHERE IsClient = 1 ORDER BY Partener_ID OFFSET ${off} ROWS FETCH NEXT 500 ROWS ONLY`);partners.push(...rows);if(rows.length<500)break;}
+    const customers=await all(db,'crm_customers');
+    const bySenior=new Map(customers.filter((c:any)=>c.senior_erp_id).map((c:any)=>[c.senior_erp_id,c]));
+    const ensureCustomer=async(pid:string,name:string)=>{const found=bySenior.get(pid);if(found)return found;
+     const clean=String(name||`Client ${pid}`).trim().slice(0,200)||`Client ${pid}`;
+     const saved=await check(db.from('crm_customers').insert({name:clean,company:clean,role:'',phone:'',email:'',delivery_locations:[],senior_erp_id:pid,segment:'Distribuitor',order_frequency_days:30,last_order_at:null,contacts:[],created_by:data.user.id}).select().single());
+     await check(db.from('crm_leads').upsert({customer_id:saved.id,stage:'active',value:0,next_action:'',next_action_date:null,stage_changed_at:new Date().toISOString()},{onConflict:'customer_id'}));
+     bySenior.set(pid,saved);return saved;};
+    const before=bySenior.size;
+    for(const p of partners)await ensureCustomer(String(p.pid),String(p.name||''));
+    // 2) Comenzi (CC) și facturi (FC) de client, grupate pe document+produs, pe lună, paginat.
+    const now=new Date();const start=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-b.months+1,1));const startStr=start.toISOString().slice(0,10);
+    const months:{start:string;end:string}[]=[];for(let i=0;i<b.months;i++){const s=new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth()+i,1));const e=new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth()+i+1,1));months.push({start:s.toISOString().slice(0,10),end:e.toISOString().slice(0,10)});}
+    const monthSql=(m:{start:string;end:string},off:number)=>`SELECT CONVERT(char(10), h.Data, 23) AS d, pp.Partener_ID AS pid, pp.Partener_Denumire AS partner, d.Denumire AS sku, t.Cod AS doc, CAST(h.Serie_Document_Primar AS varchar(20)) + '-' + CAST(h.Numar_Document_Primar AS varchar(20)) AS docid, SUM(CAST(d.Cantitate AS float)) AS qty, SUM(CAST(d.Valoare_Neta_Rol AS float)) AS amount FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID = h.Tip_Document_ID JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID = h.H_ID JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID = h.H_ID WHERE t.Cod IN ('CC','FC') AND ISNULL(h.Anulat,0)=0 AND h.Data >= '${m.start}' AND h.Data < '${m.end}' GROUP BY h.Data, pp.Partener_ID, pp.Partener_Denumire, d.Denumire, t.Cod, h.Serie_Document_Primar, h.Numar_Document_Primar ORDER BY h.Data, pp.Partener_ID OFFSET ${off} ROWS FETCH NEXT 500 ROWS ONLY`;
+    const orderRows:any[]=[];let pages=months.map(m=>({m,off:0}));
+    for(let round=0;round<40&&pages.length;round++){
+     const ids=await Promise.all(pages.map(p=>enqueue({sql:monthSql(p.m,p.off)})));
+     const out=await waitAll(ids);const next:{m:{start:string;end:string};off:number}[]=[];
+     pages.forEach((p,i)=>{const v=out.get(ids[i]);if(v&&v.__error)throw new Error(v.__error);const rows=Array.isArray(v)?v:[];orderRows.push(...rows);if(rows.length>=500)next.push({m:p.m,off:p.off+500});});
+     pages=next;
+    }
+    // 3) Rescrie doar comenzile Senior din perioada sincronizată (simulările și notele manuale rămân).
+    await check(db.from('crm_orders').delete().eq('source','senior').gte('order_date',startStr));
+    const lastOrder=new Map<string,string>();const inserts:any[]=[];
+    for(const r of orderRows){const pid=String(r.pid);const cust=await ensureCustomer(pid,String(r.partner||''));const day=String(r.d).slice(0,10);
+     if(!lastOrder.has(cust.id)||day>lastOrder.get(cust.id)!)lastOrder.set(cust.id,day);
+     inserts.push({customer_id:cust.id,order_date:day,sku:String(r.sku||'').slice(0,200),quantity:Number(r.qty)||0,quantity_kg:null,amount:r.amount==null?null:Number(r.amount),unit:null,document_id:`${r.doc}-${r.docid}`.slice(0,120),status:r.doc==='FC'?'Facturat':'Comandă',source:'senior'});}
+    for(let i=0;i<inserts.length;i+=500)await check(db.from('crm_orders').insert(inserts.slice(i,i+500)));
+    for(const [cid,day] of lastOrder)await check(db.from('crm_customers').update({last_order_at:day,updated_at:new Date().toISOString()}).eq('id',cid));
+    return json({ok:true,parteneri:partners.length,clienti_noi:bySenior.size-before,comenzi:inserts.length});
+   }
  }catch(e){const error=e as {statusCode?:number;message?:string};const status=error.statusCode||500;return json({error:status===500?'CRM nu este disponibil momentan. Reîncearcă.':error.message||'Analiza AI nu este disponibilă.'},status);}
  return json({ok:true});
 });
