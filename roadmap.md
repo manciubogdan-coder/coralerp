@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Add Sales CRM inside Vânzări: protected customer/pipeline storage, Client 360, calls/feedback/email drafts, simulated ERP orders, inactivity/quality/surplus alerts, and mobile slide-over entry; verify rules and UI.
 - [x] Add configurable same-day/next-day Bucharest SMTP reports with supplier/producer routes, per-route language/version/CC, review snapshots, manual preview/send and delivery history; SMTP authentication verified without sending; 8 domain tests and SMTP test pass. Automation remains OFF.
 - [ ] Verify real signed-in quality finalization → scheduled report → recipient inbox: blocked by unavailable operational user session and unconfigured recipient routes. Anonymous operational report reads returned no rows, so unattended report access must be verified before activating.
 - [x] Fix supplier emails omitting entered quality-loss percentages and rounding a 2.9kg reception at 5% to zero; regression coverage added.
