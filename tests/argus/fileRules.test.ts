@@ -1,6 +1,4 @@
 import { test, expect } from 'bun:test';
-import { plugin } from 'bun';
-plugin({ name: 'deno-zod-import', setup(build) { build.onResolve({ filter: /^npm:zod@3$/ }, () => ({ path: import.meta.resolve('zod').replace('file://', '') })); } });
 const { attachmentPath, FILE_TYPES, MAX_FILE_BYTES, PreparedFileSchema } = await import('../../supabase/functions/argus/fileRules');
 test('attachments resolve only within their owning user and conversation', () => {
   const url = 'argus-file:user/thread/12345678-1234-1234-1234-123456789abc.json';
