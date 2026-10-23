@@ -1,0 +1,1 @@
+CREATE POLICY argus_attachments_service_only ON storage.objects AS RESTRICTIVE FOR ALL TO anon, authenticated USING (bucket_id <> 'argus-attachments') WITH CHECK (bucket_id <> 'argus-attachments');

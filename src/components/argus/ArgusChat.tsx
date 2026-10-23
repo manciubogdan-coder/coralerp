@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import { DefaultChatTransport, type UIMessage, type FileUIPart } from "ai";
 import * as XLSX from "xlsx";
 import { Plus, Trash2, FileSpreadsheet, Loader2, MessageSquare, BookmarkPlus } from "lucide-react";
 import { CreateReportModal } from "./ArgusAgentsDashboard";
@@ -18,13 +18,15 @@ import { Message, MessageContent, MessageResponse } from "@/components/ai-elemen
 import {
   PromptInput,
   PromptInputFooter,
-  PromptInputSubmit,
   PromptInputTextarea,
+  PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { ARGUS_URL, argusFetch, argusHeaders } from "@/lib/argusApi";
 import argusLogo from "@/assets/argus-logo.png";
+import { ARGUS_ACCEPT, MAX_FILE_BYTES, prepareArgusFile } from '@/lib/argus/prepareFile';
+import { PendingAttachments, AttachFilesButton, AttachmentSubmit, SentAttachment } from './ArgusAttachments';
 
 type Thread = { id: string; title: string; updated_at: string };
 
@@ -137,6 +139,9 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
   );
   const { messages, sendMessage, status, stop, error, regenerate } = useChat({ id: threadId, messages: initial, transport, onFinish: onSaved });
   const [text, setText] = useState("");
+  const [preparing, setPreparing] = useState(false);
+  const [fileProgress, setFileProgress] = useState('');
+  const preparedCache = useRef(new Map<string, FileUIPart>());
   const taRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (status === "ready") taRef.current?.focus();
@@ -152,10 +157,37 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
     return () => clearInterval(iv);
   }, [busy]);
 
-  const send = (t: string) => {
-    if (!t.trim() || busy) return;
-    sendMessage({ text: t.trim() });
-    setText("");
+  const send = async (t: string, files: FileUIPart[] = []) => {
+    if ((!t.trim() && !files.length) || busy || preparing) return;
+    setPreparing(true);
+    try {
+      const uploaded: FileUIPart[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const part = files[i];
+        const cacheKey = `${part.filename}:${part.url}`;
+        const cached = preparedCache.current.get(cacheKey);
+        if (cached) { uploaded.push(cached); continue; }
+        setFileProgress(`Citesc ${part.filename || 'documentul'} · ${i + 1}/${files.length}`);
+        const { file, prepared } = await prepareArgusFile(part);
+        const form = new FormData();
+        form.append('threadId', threadId); form.append('file', file); form.append('prepared', JSON.stringify(prepared));
+        const response = await fetch(`${ARGUS_URL}?action=attachment_upload`, { method: 'POST', headers: await argusHeaders(), body: form });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Fișierul nu a putut fi încărcat.');
+        const uploadedPart = result as FileUIPart;
+        preparedCache.current.set(cacheKey, uploadedPart);
+        uploaded.push(uploadedPart);
+      }
+      setFileProgress('');
+      setText('');
+      setPreparing(false);
+      await sendMessage({ text: t.trim() || 'Citește și interpretează fișierele atașate. Prezintă datele importante și concluziile.', files: uploaded });
+      preparedCache.current.clear();
+    } catch (error) {
+      setText(t);
+      toast({ title: 'Fișierul nu a putut fi trimis', description: (error as Error).message, variant: 'destructive' });
+      throw error;
+    } finally { setPreparing(false); setFileProgress(''); }
   };
 
   const last = messages[messages.length - 1];
@@ -242,6 +274,7 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
                         )}
                         {m.parts.map((p: any, i) => {
                           if (p.type === "text") return <MessageResponse key={i}>{p.text}</MessageResponse>;
+                          if (p.type === 'file') return <SentAttachment key={i} file={p} threadId={threadId} />;
                           if (p.type === "tool-genereaza_raport" && p.state === "output-available") return <ReportCard key={i} output={p.output} />;
                           if (p.type === "tool-propune_actiune" && p.state === "output-available") return <ActionCard key={i} output={p.output} />;
                           return null;
@@ -296,16 +329,21 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
         <ConversationScrollButton />
       </Conversation>
       <div className="mx-auto w-full max-w-3xl p-3">
-        <PromptInput onSubmit={(msg) => send(msg.text ?? "")}>
+        {fileProgress && <div role="status" className="mb-2 flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{fileProgress}</div>}
+        <PromptInput onSubmit={(msg) => send(msg.text ?? "", msg.files)} accept={ARGUS_ACCEPT} multiple maxFiles={5} maxFileSize={MAX_FILE_BYTES}
+          onError={(err) => toast({ title: 'Fișier neacceptat', description: err.code === 'max_files' ? 'Poți atașa până la 5 fișiere la un mesaj.' : err.code === 'max_file_size' ? 'Fiecare fișier poate avea cel mult 25 MB.' : 'Alege poze JPG/PNG/WebP, PDF, Excel, Word (.docx), CSV sau TXT.', variant: 'destructive' })}>
+          <PendingAttachments disabled={busy || preparing} />
           <PromptInputTextarea
             ref={taRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Întreabă orice despre firmă…"
+            placeholder="Întreabă-l pe Argus sau atașează un document…"
+            disabled={preparing}
             autoFocus
           />
-          <PromptInputFooter className="justify-end">
-            <PromptInputSubmit status={status} onStop={stop} disabled={!text.trim() && status === "ready"} />
+          <PromptInputFooter className="justify-between">
+            <PromptInputTools><AttachFilesButton disabled={busy || preparing} /></PromptInputTools>
+            <AttachmentSubmit status={status} preparing={preparing} text={text} onStop={stop} />
           </PromptInputFooter>
         </PromptInput>
       </div>

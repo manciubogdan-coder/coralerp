@@ -162,6 +162,13 @@
       "when": 1792729365135,
       "tag": "0022_crm_romanian_frequency_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792739441255,
+      "tag": "0023_argus_private_attachments",
+      "breakpoints": true
     }
   ]
 }
