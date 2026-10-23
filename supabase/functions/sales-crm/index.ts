@@ -44,7 +44,7 @@ Deno.serve(async req=>{
     if(isInactive(last,frequency)){
      const body=`Ultima comandă: ${last}. Ritm obișnuit: ${frequency} zile.`;
      const prior=existingAlerts.find((a:any)=>a.customer_id===c.id&&a.kind==='inactivity');
-     if(!prior)writes.push(()=>check(db.from('crm_automated_alerts').insert({customer_id:c.id,kind:'inactivity',title:`${c.company} — fără comandă`,body})));
+     if(!prior)writes.push(()=>check(db.from('crm_automated_alerts').upsert({customer_id:c.id,kind:'inactivity',title:`${c.company} — fără comandă`,body},{onConflict:'customer_id,kind',ignoreDuplicates:true})));
      else if(prior.body!==body)writes.push(()=>check(db.from('crm_automated_alerts').update({body,status:'open',snoozed_until:null}).eq('id',prior.id)));
     }
     else if(existingAlerts.some((a:any)=>a.customer_id===c.id&&a.kind==='inactivity'&&a.status!=='resolved'))writes.push(()=>check(db.from('crm_automated_alerts').update({status:'resolved'}).eq('customer_id',c.id).eq('kind','inactivity')));
