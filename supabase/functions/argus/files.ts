@@ -69,7 +69,7 @@ export async function expandAttachments(messages: UIMessage[], c: Clients, userI
       imageCount += file.images.length;
       if (imageCount > 60 || textSize > 750000) throw new Error('Conversația are prea multe documente. Pornește o conversație nouă pentru următoarele fișiere.');
       parts.push({ type: 'text', text: `\n<document_atasat nume=${JSON.stringify(file.filename)}>\n${file.text}\n</document_atasat>` });
-      for (const url of file.images) parts.push({ type: 'file', mediaType: 'image/jpeg', url });
+      for (const url of file.images) parts.push({ type: 'file', mediaType: url.slice(5, url.indexOf(';')), url });
     }
     result.push({ ...message, parts });
   }
