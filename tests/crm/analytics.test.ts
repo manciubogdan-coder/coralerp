@@ -1,0 +1,10 @@
+import {test,expect} from 'bun:test';
+import {customerStats,salesAnalytics,recommendClients} from '../../src/lib/crm/analytics';
+import {emptyData,type Customer,type Order} from '../../src/lib/crm/model';
+const c:Customer={id:'c',name:'Contact',company:'Firma',role:'',phone:'',email:'',delivery_locations:[],senior_erp_id:'',segment:'IKA',order_frequency_days:7,last_order_at:null,created_at:'2026-01-01'};
+const o=(id:string,date:string,more:Partial<Order>={}):Order=>({id,customer_id:'c',order_date:date,quantity:10,sku:'Rucola',status:'Livrat',source:'senior',...more});const now=new Date('2026-10-23T12:00:00Z');
+test('mean frequency supports 2.5 days and risk strictly after frequency',()=>{const rows=[o('1','2026-10-16'),o('2','2026-10-18'),o('3','2026-10-21')];const s=customerStats(c,rows,false,now);expect(s.frequency).toBe(2.5);expect(s.risk).toBe(false);expect(customerStats(c,rows,false,new Date('2026-10-24T12:00:00Z')).risk).toBe(true);});
+test('simulated orders do not affect real frequency or revenue',()=>{const rows=[o('1','2026-10-22',{source:'simulation',amount:999,quantity_kg:500})];expect(customerStats(c,rows,false,now).averageValue).toBeNull();expect(salesAnalytics({...emptyData,customers:[c],orders:rows},false,now).price).toBeNull();});
+test('pieces cannot masquerade as kilograms',()=>{const s=customerStats(c,[o('1','2026-10-22',{unit:'caserole'})],false,now);expect(s.averageKg).toBeNull();expect(s.averagePieces).toBe(10);});
+test('line values aggregate once per document',()=>{const s=customerStats(c,[o('1','2026-10-22',{document_id:'D',amount:20,quantity_kg:2}),o('2','2026-10-22',{document_id:'D',amount:30,quantity_kg:3})],false,now);expect(s.orderCount).toBe(1);expect(s.averageValue).toBe(50);expect(s.averageKg).toBe(5);});
+test('surplus recommendations rank buying history for the requested SKU only',()=>{const data={...emptyData,customers:[c,{...c,id:'b'}],orders:[o('1','2026-10-22'),o('2','2026-10-22',{customer_id:'b',sku:'Spanac',quantity:999})]};expect(recommendClients(data,'Rucola',false).map(c=>c.id)).toEqual(['c']);});

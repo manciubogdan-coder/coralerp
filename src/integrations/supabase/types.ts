@@ -600,10 +600,12 @@ export type Database = {
       crm_customers: {
         Row: {
           company: string
+          contacts: Json
           created_at: string
           created_by: string
           delivery_locations: string[]
           email: string
+          frequency_days: number | null
           id: string
           last_order_at: string | null
           name: string
@@ -616,10 +618,12 @@ export type Database = {
         }
         Insert: {
           company: string
+          contacts?: Json
           created_at?: string
           created_by: string
           delivery_locations?: string[]
           email?: string
+          frequency_days?: number | null
           id?: string
           last_order_at?: string | null
           name: string
@@ -632,10 +636,12 @@ export type Database = {
         }
         Update: {
           company?: string
+          contacts?: Json
           created_at?: string
           created_by?: string
           delivery_locations?: string[]
           email?: string
+          frequency_days?: number | null
           id?: string
           last_order_at?: string | null
           name?: string
@@ -660,6 +666,7 @@ export type Database = {
           qa_notified: boolean
           quality_issue: boolean
           rating: number | null
+          sentiment: string | null
           subject: string
         }
         Insert: {
@@ -673,6 +680,7 @@ export type Database = {
           qa_notified?: boolean
           quality_issue?: boolean
           rating?: number | null
+          sentiment?: string | null
           subject?: string
         }
         Update: {
@@ -686,6 +694,7 @@ export type Database = {
           qa_notified?: boolean
           quality_issue?: boolean
           rating?: number | null
+          sentiment?: string | null
           subject?: string
         }
         Relationships: [
@@ -703,27 +712,33 @@ export type Database = {
           created_at: string
           customer_id: string
           id: string
+          monthly_volume_kg: number | null
           next_action: string
           next_action_date: string | null
           stage: string
+          stage_changed_at: string | null
           value: number
         }
         Insert: {
           created_at?: string
           customer_id: string
           id?: string
+          monthly_volume_kg?: number | null
           next_action?: string
           next_action_date?: string | null
           stage?: string
+          stage_changed_at?: string | null
           value?: number
         }
         Update: {
           created_at?: string
           customer_id?: string
           id?: string
+          monthly_volume_kg?: number | null
           next_action?: string
           next_action_date?: string | null
           stage?: string
+          stage_changed_at?: string | null
           value?: number
         }
         Relationships: [
@@ -738,34 +753,46 @@ export type Database = {
       }
       crm_orders: {
         Row: {
+          amount: number | null
           created_at: string
           customer_id: string
+          document_id: string | null
           id: string
           order_date: string
           quantity: number
+          quantity_kg: number | null
           sku: string
           source: string
           status: string
+          unit: string | null
         }
         Insert: {
+          amount?: number | null
           created_at?: string
           customer_id: string
+          document_id?: string | null
           id?: string
           order_date: string
           quantity: number
+          quantity_kg?: number | null
           sku: string
           source?: string
           status?: string
+          unit?: string | null
         }
         Update: {
+          amount?: number | null
           created_at?: string
           customer_id?: string
+          document_id?: string | null
           id?: string
           order_date?: string
           quantity?: number
+          quantity_kg?: number | null
           sku?: string
           source?: string
           status?: string
+          unit?: string | null
         }
         Relationships: [
           {

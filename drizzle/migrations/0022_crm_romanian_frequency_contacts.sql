@@ -1,0 +1,11 @@
+ALTER TABLE public.crm_customers ADD COLUMN contacts jsonb NOT NULL DEFAULT '[]'::jsonb, ADD COLUMN frequency_days numeric;
+ALTER TABLE public.crm_leads ADD COLUMN monthly_volume_kg numeric, ADD COLUMN stage_changed_at timestamptz;
+ALTER TABLE public.crm_orders ADD COLUMN amount numeric, ADD COLUMN unit text, ADD COLUMN document_id text, ADD COLUMN quantity_kg numeric;
+ALTER TABLE public.crm_interactions ADD COLUMN sentiment text;
+ALTER TABLE public.crm_customers ADD CONSTRAINT crm_frequency_positive CHECK (frequency_days IS NULL OR (frequency_days > 0 AND frequency_days <= 365));
+ALTER TABLE public.crm_orders ADD CONSTRAINT crm_amount_nonnegative CHECK (amount IS NULL OR amount >= 0), ADD CONSTRAINT crm_kg_nonnegative CHECK (quantity_kg IS NULL OR quantity_kg >= 0);
+ALTER TABLE public.crm_leads ADD CONSTRAINT crm_monthly_volume_nonnegative CHECK (monthly_volume_kg IS NULL OR monthly_volume_kg >= 0);
+ALTER TABLE public.crm_interactions ADD CONSTRAINT crm_sentiment_values CHECK (sentiment IS NULL OR sentiment IN ('positive','neutral','negative'));
+GRANT ALL ON public.crm_customers, public.crm_leads, public.crm_orders, public.crm_interactions TO service_role;
+COMMENT ON COLUMN public.crm_orders.amount IS 'Value of this order line in RON, nullable when unknown; never repeat document total on every line.';
+COMMENT ON COLUMN public.crm_orders.quantity_kg IS 'Measured kilograms for this line, nullable when only piece counts are known.';
