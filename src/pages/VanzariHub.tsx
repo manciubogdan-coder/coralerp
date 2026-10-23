@@ -13,7 +13,7 @@ import { ForceInventoryType } from "@/context/inventory-type";
 import NecesarComenzi from "@/components/vanzari/NecesarComenzi";
 
 const TABS = [
-  { key: "crm", label: "Sales CRM", icon: Users },
+  { key: "crm", label: "Relații Clienți", icon: Users },
   { key: "necesar", label: "Comenzi & Necesar", icon: FileStack },
   { key: "stoc-marfa", label: "Stoc Marfă Început Zi", icon: Package },
   { key: "consumuri", label: "Analiză Consumuri", icon: TrendingDown },
