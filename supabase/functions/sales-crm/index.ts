@@ -20,6 +20,8 @@ const headers={...corsHeaders,'Access-Control-Allow-Headers':`${corsHeaders['Acc
 const json=(v:unknown,status=200)=>new Response(JSON.stringify(v),{status,headers:{...headers,'Content-Type':'application/json'}});
 async function check(q:any){const r=await q;if(r.error){console.error('crm db',r.error.message);throw new Error('Operațiunea CRM nu a putut fi salvată.');}return r.data;}
 async function allFast(db:any,table:string,cols='*'){const {count,error}=await db.from(table).select('id',{count:'exact',head:true});if(error)throw new Error('Operațiunea CRM nu a putut fi salvată.');const pages=Array.from({length:Math.ceil((count||0)/1000)},(_,i)=>i*1000);const out:any[]=[];for(let i=0;i<pages.length;i+=12){const chunk=await Promise.all(pages.slice(i,i+12).map(o=>check(db.from(table).select(cols).order('id').range(o,o+999))));for(const c of chunk)out.push(...c);}return out;}
+// Greutatea se estimează din denumire (ex. „BUSUIOC 100 GR” × bucăți); fără greutate în nume rămâne necunoscută.
+const kgFromSku=(sku:string,qty:number)=>{const m=sku.toUpperCase().match(/(\d+(?:[.,]\d+)?)\s*(KG|GR|G)(?![A-Z])/);if(!m)return null;const v=Number(m[1].replace(',','.'));return Math.round(qty*(m[2]==='KG'?v:v/1000)*1000)/1000;};
 async function all(db:any,table:string){const rows:any[]=[];let offset=0;while(true){const data=await check(db.from(table).select('*').order('id').range(offset,offset+999));rows.push(...data);if(data.length<1000)return rows;offset+=1000;}}
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers});if(req.method!=='POST')return json({error:'Metodă neacceptată.'},405);
@@ -94,7 +96,7 @@ Deno.serve(async req=>{
     await check(db.from('crm_orders').delete().eq('source','senior').gte('order_date',mStart).lt('order_date',next));
     const lastOrder=new Map<string,string>();
     const inserts=rows.filter(r=>Number(r.qty)>0&&(r.amount==null||Number(r.amount)>=0)).map(r=>{const c=bySenior.get(String(r.pid));const day=String(r.d).slice(0,10);if(!lastOrder.has(c.id)||day>lastOrder.get(c.id)!)lastOrder.set(c.id,day);
-     return {customer_id:c.id,order_date:day,sku:String(r.sku||'').slice(0,200),quantity:Number(r.qty)||0,quantity_kg:null,amount:r.amount==null?null:Number(r.amount),unit:null,document_id:`CC-${r.docid}`.slice(0,120),status:'Comandă',source:'senior'};});
+     return {customer_id:c.id,order_date:day,sku:String(r.sku||'').slice(0,200),quantity:Number(r.qty)||0,quantity_kg:kgFromSku(String(r.sku||''),Number(r.qty)||0),amount:r.amount==null?null:Number(r.amount),unit:'buc',document_id:`CC-${r.docid}`.slice(0,120),status:'Comandă',source:'senior'};});
     for(let i=0;i<inserts.length;i+=1000)await check(db.from('crm_orders').insert(inserts.slice(i,i+1000)));
     const updates=[...lastOrder].filter(([cid,day])=>{const c=customers.find((x:any)=>x.id===cid);return !c?.last_order_at||day>c.last_order_at;});
     for(let i=0;i<updates.length;i+=25)await Promise.all(updates.slice(i,i+25).map(([cid,day])=>check(db.from('crm_customers').update({last_order_at:day,updated_at:new Date().toISOString()}).eq('id',cid))));
