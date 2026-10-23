@@ -37,16 +37,19 @@ Deno.serve(async req=>{
   if(b.action==='sentiment'){const output=await analyzeSentiment(b.body,req.signal);const h=new Headers(headers);output.headers.forEach((v,k)=>h.set(k,v));h.set('Content-Type','application/json');return new Response(JSON.stringify({sentiment:output.sentiment}),{headers:h});}
   if(b.action==='get'){
    const [customers,leads,interactions,orders,existingAlerts]=await Promise.all(['crm_customers','crm_leads','crm_interactions','crm_orders','crm_automated_alerts'].map(t=>t==='crm_orders'?allFast(db,t,'id,customer_id,order_date,sku,quantity,quantity_kg,amount,unit,document_id,status,source'):all(db,t)));
-   for(const c of customers){if(!leads.some((l:any)=>l.customer_id===c.id&&l.stage==='active'))continue;
-    const dates=orders.filter((o:any)=>o.customer_id===c.id&&o.source==='senior').map((o:any)=>o.order_date).sort();const real=dates.at(-1);const last=real||c.last_order_at;const frequency=orderFrequency(dates,c.frequency_days||c.order_frequency_days);
+   const activeIds=new Set(leads.filter((l:any)=>l.stage==='active').map((l:any)=>l.customer_id));const datesBy=new Map<string,string[]>();for(const o of orders){if(o.source!=='senior')continue;const l=datesBy.get(o.customer_id);if(l)l.push(o.order_date);else datesBy.set(o.customer_id,[o.order_date]);}
+   const writes:any[]=[];
+   for(const c of customers){if(!activeIds.has(c.id))continue;
+    const dates=(datesBy.get(c.id)||[]).sort();const real=dates.at(-1);const last=real||c.last_order_at;const frequency=orderFrequency(dates,c.frequency_days||c.order_frequency_days);
     if(isInactive(last,frequency)){
      const body=`Ultima comandă: ${last}. Ritm obișnuit: ${frequency} zile.`;
      const prior=existingAlerts.find((a:any)=>a.customer_id===c.id&&a.kind==='inactivity');
-     if(!prior)await check(db.from('crm_automated_alerts').insert({customer_id:c.id,kind:'inactivity',title:`${c.company} — fără comandă`,body}));
-     else if(prior.body!==body)await check(db.from('crm_automated_alerts').update({body,status:'open',snoozed_until:null}).eq('id',prior.id));
+     if(!prior)writes.push(()=>check(db.from('crm_automated_alerts').insert({customer_id:c.id,kind:'inactivity',title:`${c.company} — fără comandă`,body})));
+     else if(prior.body!==body)writes.push(()=>check(db.from('crm_automated_alerts').update({body,status:'open',snoozed_until:null}).eq('id',prior.id)));
     }
-    else await check(db.from('crm_automated_alerts').update({status:'resolved'}).eq('customer_id',c.id).eq('kind','inactivity'));
+    else if(existingAlerts.some((a:any)=>a.customer_id===c.id&&a.kind==='inactivity'&&a.status!=='resolved'))writes.push(()=>check(db.from('crm_automated_alerts').update({status:'resolved'}).eq('customer_id',c.id).eq('kind','inactivity')));
    }
+   for(let i=0;i<writes.length;i+=20)await Promise.all(writes.slice(i,i+20).map(w=>w()));
    return json({customers,leads,interactions,orders,alerts:await all(db,'crm_automated_alerts')});
   }
   if(b.action==='customer'){
