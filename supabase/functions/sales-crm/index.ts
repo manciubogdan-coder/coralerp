@@ -2,7 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3.25.76';
 import { LEGACY_URL, LEGACY_ANON } from '../_shared/appData.ts';
-import { CRM_STAGES, isInactive } from '../_shared/crmRules.ts';
+import { CRM_STAGES, isInactive, canAccessCrm } from '../_shared/crmRules.ts';
 const uuid=z.string().uuid(), text=z.string().trim().max(500);
 const customer=z.object({id:uuid.optional(),name:text.min(1),company:text.min(1),role:text,phone:text,email:z.union([z.string().email().max(254),z.literal('')]),delivery_locations:z.array(text).max(50),senior_erp_id:text,segment:z.enum(['Retail','HoReCa','Distribuitor']),order_frequency_days:z.number().int().min(1).max(365),last_order_at:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),stage:z.enum(CRM_STAGES),value:z.number().min(0).max(1e10),next_action:text,next_action_date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()});
 const schema=z.discriminatedUnion('action',[
@@ -24,29 +24,34 @@ Deno.serve(async req=>{
   const legacy=createClient(LEGACY_URL,LEGACY_ANON,{auth:{persistSession:false},global:{headers:{Authorization:`Bearer ${token}`}}});
   const {data,error}=await legacy.auth.getUser(token);if(error||!data.user)return json({error:'Sesiune invalidă.'},401);
   const [profile,roles]=await Promise.all([check(legacy.from('app_profiles').select('approved').eq('user_id',data.user.id).maybeSingle()),check(legacy.from('app_user_roles').select('role').eq('user_id',data.user.id))]);
-  if(!profile?.approved||!roles.some((r:any)=>['admin','picking_vanzari'].includes(r.role)))return json({error:'Acces rezervat echipei Vânzări.'},403);
+  if(!canAccessCrm(profile?.approved===true,roles.map((r:any)=>r.role)))return json({error:'Acces rezervat echipei Vânzări.'},403);
   const parsed=schema.safeParse(await req.json());if(!parsed.success)return json({error:'Verifică datele introduse.'},400);const b=parsed.data;
   const url=Deno.env.get('SUPABASE_URL'),key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');if(!url||!key)return json({error:'CRM indisponibil.'},503);
   const db=createClient(url,key,{auth:{persistSession:false}});
   if(b.action==='get'){
-   const [customers,leads,interactions,orders]=await Promise.all(['crm_customers','crm_leads','crm_interactions','crm_orders'].map(t=>all(db,t)));
+   const [customers,leads,interactions,orders,existingAlerts]=await Promise.all(['crm_customers','crm_leads','crm_interactions','crm_orders','crm_automated_alerts'].map(t=>all(db,t)));
    for(const c of customers){if(!leads.some((l:any)=>l.customer_id===c.id&&l.stage==='active'))continue;
     const real=orders.filter((o:any)=>o.customer_id===c.id&&o.source==='senior').map((o:any)=>o.order_date).sort().at(-1);const last=real||c.last_order_at;
-    if(isInactive(last,c.order_frequency_days))await check(db.from('crm_automated_alerts').upsert({customer_id:c.id,kind:'inactivity',title:`${c.company} — fără comandă`,body:`Ultima comandă: ${last}. Ritm obișnuit: ${c.order_frequency_days} zile.`},{onConflict:'customer_id,kind',ignoreDuplicates:true}));
+    if(isInactive(last,c.order_frequency_days)){
+     const body=`Ultima comandă: ${last}. Ritm obișnuit: ${c.order_frequency_days} zile.`;
+     const prior=existingAlerts.find((a:any)=>a.customer_id===c.id&&a.kind==='inactivity');
+     if(!prior)await check(db.from('crm_automated_alerts').insert({customer_id:c.id,kind:'inactivity',title:`${c.company} — fără comandă`,body}));
+     else if(prior.body!==body)await check(db.from('crm_automated_alerts').update({body,status:'open',snoozed_until:null}).eq('id',prior.id));
+    }
     else await check(db.from('crm_automated_alerts').update({status:'resolved'}).eq('customer_id',c.id).eq('kind','inactivity'));
    }
    return json({customers,leads,interactions,orders,alerts:await all(db,'crm_automated_alerts')});
   }
   if(b.action==='customer'){
    const {id,stage,value,next_action,next_action_date,...fields}=b.customer;
-   const saved=await check(db.from('crm_customers').upsert({...fields,...(id?{id}:{}),created_by:data.user.id,updated_at:new Date().toISOString()}).select().single());
+   const saved=await check(id?db.from('crm_customers').update({...fields,updated_at:new Date().toISOString()}).eq('id',id).select().single():db.from('crm_customers').insert({...fields,created_by:data.user.id}).select().single());
    await check(db.from('crm_leads').upsert({customer_id:saved.id,stage,value,next_action,next_action_date},{onConflict:'customer_id'}));return json({ok:true});
   }
   if(b.action==='stage'){await check(db.from('crm_leads').update({stage:b.stage}).eq('customer_id',b.customer_id));return json({ok:true});}
   if(b.action==='interaction'){
    const {action,...fields}=b;let notified=false;let recipients=0;
-   if(b.quality_issue){const r=await legacy.rpc('emit_notification_event',{p_event_key:'quality.completed',p_title_default:`CRM: problemă de calitate — ${b.subject}`,p_body:`Lot ${b.batch||'nespecificat'}: ${b.body}`,p_link:'/vanzari?tab=crm',p_payload:{source:'crm',customer_id:b.customer_id}});notified=!r.error&&Number(r.data)>0;recipients=Number(r.data)||0;}
-   await check(db.from('crm_interactions').insert({...fields,created_by:data.user.id,qa_notified:notified}));
+   const interaction=await check(db.from('crm_interactions').insert({...fields,created_by:data.user.id,qa_notified:false}).select().single());
+   if(b.quality_issue){const r=await legacy.rpc('emit_notification_event',{p_event_key:'quality.completed',p_title_default:`CRM: problemă de calitate — ${b.subject}`,p_body:`Lot ${b.batch||'nespecificat'}: ${b.body}`,p_link:'/vanzari?tab=crm',p_payload:{source:'crm',customer_id:b.customer_id}});notified=!r.error&&Number(r.data)>0;recipients=Number(r.data)||0;if(notified)await check(db.from('crm_interactions').update({qa_notified:true}).eq('id',interaction.id));}
    if(b.quality_issue)await check(db.from('crm_automated_alerts').upsert({customer_id:b.customer_id,kind:'quality',title:b.subject||'Problemă de calitate',body:`Lot ${b.batch||'nespecificat'} · ${b.body}`,status:'open',snoozed_until:null},{onConflict:'customer_id,kind'}));
    return json({ok:true,qa_notified:notified,recipients});
   }
