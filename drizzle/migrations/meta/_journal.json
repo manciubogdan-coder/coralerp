@@ -155,6 +155,13 @@
       "when": 1792728649159,
       "tag": "0021_crm_server_only_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792729365135,
+      "tag": "0022_crm_romanian_frequency_contacts",
+      "breakpoints": true
     }
   ]
 }
