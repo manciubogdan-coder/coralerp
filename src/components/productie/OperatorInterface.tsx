@@ -25,6 +25,7 @@ import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPoolTotals, setAlocareComanda } from "@/lib/productie/stockPool";
 import { useQueryClient } from "@tanstack/react-query";
+import DiscardedStockReset from './DiscardedStockReset';
 
 interface OperatorInterfaceProps {
   selectedLine: string;
@@ -1061,6 +1062,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           <CardContent className="pt-4 flex items-center gap-2 flex-wrap">
             <CalendarDays className="h-5 w-5 text-coral-primary" />
             <DateProductiePicker value={selectedDay} onChange={setSelectedDay} label="" />
+            <DiscardedStockReset day={selectedDay} />
             <span className="text-xs text-muted-foreground ml-2">
               {t("noTargetDate")}
             </span>
@@ -1147,6 +1149,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         <CardContent className="pt-4 flex items-center gap-2 flex-wrap">
           <CalendarDays className="h-5 w-5 text-coral-primary" />
           <DateProductiePicker value={selectedDay} onChange={setSelectedDay} label="" />
+          <DiscardedStockReset day={selectedDay} />
           <span className="text-xs text-muted-foreground ml-2">
             {t("noTargetDate")}
           </span>

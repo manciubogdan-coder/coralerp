@@ -1,4 +1,6 @@
 # Roadmap
+- [x] Add confirmed discarded-restock clearing and selected-day stock-allocation reset from operator date controls and Restocări; five rule tests and isolated browser confirmation/reset/zero-repeat flow passed, desktop/mobile checked. Real data has not been reset.
+- [ ] Verify discarded-stock reset in a real signed-in operational account — blocked by unavailable operational session; the isolated browser used test data only.
 - [x] Harden production recipe saving against early/double submits and destructive ingredient replacement; deploy shared Senior inheritance with proportional weights and same-weight groups. Repaired and read back 9 missing recipes and 110 missing group memberships; 11 domain tests pass. Mamamia has conflicting source compositions and remains for manual review.
 - [ ] Verify recipe saving end-to-end in the signed-in production configuration screen — blocked by unavailable operational session (Cloud has no auth users to mint); direct real ingredient save/readback succeeded.
 - [x] Add private Argus attachments for photos, Excel, PDF and Word, with thread-scoped references and follow-up context; five browser parser fixtures passed, three security/format tests passed, isolated composer submission rendered correctly, and real Gemini image/text analysis returned Rucola 120 pieces. Function deployed; build OK.

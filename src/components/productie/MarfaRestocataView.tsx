@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCreateOrder, useAutoDistributeToLine } from '@/hooks/productie/useProductionData';
 import { format } from 'date-fns';
 import { ro } from 'date-fns/locale';
+import DiscardedStockReset from './DiscardedStockReset';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import {
@@ -439,12 +440,13 @@ const MarfaRestocataView = () => {
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          <CardTitle className="flex flex-wrap gap-3 items-center justify-between">
             <div className="flex items-center">
               <PackagePlus className="h-5 w-5 mr-2" />
               Marfă Restocată (Surplus disponibil)
             </div>
-            <div className="flex items-center gap-2 print:hidden">
+            <div className="flex flex-wrap items-center gap-2 print:hidden">
+              <DiscardedStockReset />
               <Button variant="outline" size="sm" onClick={() => { setIstoricOpen(true); refetchIstoric(); }}>
                 <History className="h-4 w-4 mr-2" />
                 Vezi istoric
