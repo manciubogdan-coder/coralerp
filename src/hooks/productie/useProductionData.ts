@@ -785,8 +785,9 @@ export const useCreateOrder = () => {
         console.log('🔁 Comandă de reambalare - NU se alocă din restocări');
       }
       
-      // Verifică restocări disponibile pentru acest produs DOAR dacă NU e producție în avans/reambalare
-      if (!esteProductieAvans && !esteReambalare) {
+      // NU mai acoperim automat comenzile noi din stoc: operatorul este întrebat
+      // la pornirea producției dacă ia marfa din stoc (Picking) sau produce.
+      if (false && !esteProductieAvans && !esteReambalare) {
         const { data: restocariDisponibile } = await supabase
           .from('productie_restocari')
           .select('*')
