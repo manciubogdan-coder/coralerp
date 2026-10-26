@@ -23,6 +23,7 @@ import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
 import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchPoolTotals, setAlocareComanda } from "@/lib/productie/stockPool";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface OperatorInterfaceProps {
@@ -55,6 +56,44 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     const other = Array.from(new Set(days.filter(d => d && d !== todayISO())));
     if (!other.length) return true;
     return window.confirm(`ATENȚIE! Comanda este pentru ${other.map(fmtDay).join(', ')}, NU pentru azi (${fmtDay(todayISO())}).\n\nSigur vrei să o produci acum?`);
+  };
+  /**
+   * Întreabă operatorul dacă vrea să acopere comanda din marfa deja produsă (stoc / Picking).
+   * Returnează true dacă comanda a fost acoperită complet (nu mai trebuie pornită producția).
+   */
+  const askCoverFromStock = async (o: any): Promise<boolean> => {
+    if (!o?.produs_id) return false;
+    if (String(o.magazin || '').toUpperCase() === 'PRODUCTIE_AVANS' || String(o.magazin || '').toUpperCase() === 'REAMBALARE') return false;
+    const acoperit = Number(o.cantitate_reala_produsa || 0) + Number(o.cantitate_din_restock || 0);
+    const necesar = Math.max(0, Number(o.cantitate || 0) - acoperit);
+    if (necesar <= 0) return false;
+    let disponibil = 0;
+    try {
+      disponibil = (await fetchPoolTotals([o.produs_id])).get(o.produs_id) || 0;
+    } catch { return false; }
+    if (disponibil <= 0) return false;
+    const iau = Math.min(necesar, disponibil);
+    const ok = window.confirm(
+      `În stoc (Picking) există deja ${disponibil} buc din acest produs.\n\n` +
+      `Comanda mai are nevoie de ${necesar} buc.\n\n` +
+      `OK = iau ${iau} buc din stoc${iau >= necesar ? ' (comanda se finalizează fără producție)' : ', restul se produce'}\n` +
+      `Anulează = NU iau din stoc, produc tot`
+    );
+    if (!ok) return false;
+    try {
+      const final = await setAlocareComanda(o, Number(o.cantitate_din_restock || 0) + iau);
+      const complet = Number(o.cantitate_reala_produsa || 0) + final >= Number(o.cantitate || 0);
+      if (complet) {
+        await (supabase as any).from('productie_comenzi').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', o.id);
+      }
+      toast({ title: "Luat din stoc", description: `${final - Number(o.cantitate_din_restock || 0)} buc luate din stoc.` });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
+      return complet;
+    } catch (e: any) {
+      toast({ title: t("error"), description: e?.message || 'Nu am putut lua din stoc.', variant: "destructive" });
+      return false;
+    }
   };
   const moveOrdersToToday = async (ids: string[]) => {
     setMovingIds(ids);
@@ -275,6 +314,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     {
       const o: any = (orders || []).find((x: any) => x.id === currentOrderId);
       if (!confirmOtherDay([normalizeProductionDate(o?.data_productie) || todayISO()])) return;
+      if (await askCoverFromStock(o)) return;
     }
 
     try {
