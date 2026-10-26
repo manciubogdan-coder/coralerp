@@ -3,6 +3,10 @@
 // Autentificare: header X-Bridge-Token verificat față de SENIOR_ERP_BRIDGE_TOKEN.
 // Notă: se conectează la LEGACY DB (unde trăiește restul aplicației).
 
+
+// Acoperirea automată din stoc la import e oprită: comenzile rămân nefăcute
+// până când operatorul confirmă că ia marfa din stoc (Picking).
+const AUTO_STOCK = false;
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
@@ -509,7 +513,8 @@ Deno.serve(async (req) => {
         // 1) Alocare din restocări (surplus disponibil) - doar la INSERT nou
         let cantitateRamasa = cantitate;
         let cantitateDinRestock = 0;
-        try {
+        // Nu mai acoperim automat din stoc: operatorul decide la pornirea producției.
+        if (AUTO_STOCK) try {
           const { data: restocariDisp } = await supabase
             .from("productie_restocari")
             .select("id, cantitate_surplus, status")
@@ -656,7 +661,7 @@ Deno.serve(async (req) => {
   // (inclusiv comenzi create anterior care nu au primit alocare la insert).
   // ------------------------------------------------------------------
   let restockAlocat = 0;
-  try {
+  if (AUTO_STOCK) try {
     const { data: restDisp } = await supabase
       .from("productie_restocari")
       .select("id, produs_id, cantitate_surplus")
