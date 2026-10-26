@@ -502,6 +502,91 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   }
 
   // VIEW: Session Management (când e selectată o comandă)
+  const undoTodayProduction = async (order: any) => {
+    const today = todayISO();
+    const sess = (workSessions || []).filter((x: any) => x.comanda_id === order.id && String(x.created_at || '').slice(0, 10) === today);
+    const active = sess.filter((x: any) => x.status === 'activa');
+    const done = sess.filter((x: any) => x.status !== 'activa');
+    const qty = done.reduce((a: number, x: any) => a + Number(x.cantitate_produsa || 0), 0);
+    if (!window.confirm(`Anulezi producția de azi pentru „${order.productie_produse?.nume || ''}" (${qty} buc, ${sess.length} sesiuni)?\n\nComanda rămâne pe ${fmtDay(normalizeProductionDate(order.data_productie)!)} ca nefăcută, iar cantitatea se scoate din stocul de produs finit.`)) return;
+    setMovingIds([order.id]);
+    try {
+      const ids = sess.map((x: any) => x.id);
+      if (ids.length) {
+        await (supabase as any).from('productie_sesiuni_rebut').delete().in('sesiune_id', ids);
+        const { error } = await (supabase as any).from('productie_sesiuni_lucru').delete().in('id', ids);
+        if (error) throw error;
+      }
+      if (qty > 0) {
+        const { data: lots } = await (supabase as any).from('productie_restocari').select('id, cantitate_surplus')
+          .eq('comanda_originala_id', order.id).eq('data_productie', today).eq('status', 'disponibil');
+        let rest = qty;
+        for (const l of lots || []) {
+          if (rest <= 0) break;
+          const take = Math.min(rest, Number(l.cantitate_surplus || 0));
+          rest -= take;
+          await (supabase as any).from('productie_restocari').update({ cantitate_surplus: Number(l.cantitate_surplus) - take }).eq('id', l.id);
+        }
+      }
+      const { data: remaining } = await (supabase as any).from('productie_sesiuni_lucru').select('cantitate_produsa')
+        .eq('comanda_id', order.id).in('status', ['finalizata', 'partial']);
+      const produs = Math.min(Number(order.cantitate || 0), (remaining || []).reduce((a: number, x: any) => a + Number(x.cantitate_produsa || 0), 0));
+      const { error: e2 } = await (supabase as any).from('productie_comenzi').update({
+        cantitate_reala_produsa: produs,
+        status: produs >= Number(order.cantitate || 0) && produs > 0 ? 'completed' : produs > 0 ? 'partial' : 'pending',
+      }).eq('id', order.id);
+      if (e2) throw e2;
+      toast({ title: "Producția de azi a fost anulată", description: `Comanda apare din nou ca nefăcută pe ${fmtDay(normalizeProductionDate(order.data_productie)!)}.${active.length ? ' Sesiunea pornită a fost oprită.' : ''}` });
+      ['orders', 'work-sessions', 'restockings', 'marfa-restocata'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
+    } catch (e: any) {
+      toast({ title: t("error"), description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setMovingIds([]);
+    }
+  };
+
+  const wrongDayOrders = (() => {
+    const today = todayISO();
+    const touchedIds = new Set((workSessions || []).filter((x: any) => String(x.created_at || '').slice(0, 10) === today).map((x: any) => x.comanda_id));
+    return (orders || []).filter((o: any) => {
+      const dp = normalizeProductionDate(o.data_productie);
+      if (!dp || dp <= today || !touchedIds.has(o.id)) return false;
+      return view !== 'orders' || !currentLineId || lineMemberIds.includes(o.linie_id);
+    });
+  })();
+
+  const dayGuard = (
+    <>
+      {selectedDay !== todayISO() && (
+        <div className="sticky top-0 z-40 rounded-lg border-4 border-destructive bg-destructive text-destructive-foreground p-3 flex flex-wrap items-center gap-3 shadow-lg">
+          <AlertTriangle className="h-8 w-8 animate-pulse" />
+          <div className="flex-1 min-w-[180px]">
+            <div className="text-lg font-bold">ATENȚIE: NU lucrezi pe ziua de azi!</div>
+            <div className="text-sm">Vezi comenzile pentru <b>{fmtDay(selectedDay)}</b>. Azi este {fmtDay(todayISO())}.</div>
+          </div>
+          <Button variant="secondary" onClick={() => setSelectedDay(todayISO())}>Înapoi la azi</Button>
+        </div>
+      )}
+      {wrongDayOrders.length > 0 && (
+        <Card className="border-2 border-destructive">
+          <CardContent className="pt-4 space-y-2">
+            <div className="font-bold text-destructive flex items-center gap-2"><AlertTriangle className="h-5 w-5" />Comenzi din altă zi lucrate azi ({wrongDayOrders.length})</div>
+            <p className="text-sm text-muted-foreground">Dacă au fost produse din greșeală: <b>Mută pe azi</b> (producția rămâne, comanda devine de azi) sau <b>Anulează producția</b> (comanda rămâne pe ziua ei, ca nefăcută).</p>
+            {wrongDayOrders.map((o: any) => (
+              <div key={o.id} className="flex items-center gap-2 flex-wrap text-sm border rounded p-2">
+                <span className="font-medium flex-1 min-w-[140px]">{o.productie_produse?.nume || o.id} <span className="text-muted-foreground">· {o.magazin || ''} · {o.cantitate_reala_produsa || 0}/{o.cantitate} buc</span></span>
+                <Badge variant="outline">{fmtDay(normalizeProductionDate(o.data_productie)!)}</Badge>
+                <Button size="sm" variant="outline" disabled={movingIds.length > 0} onClick={() => moveOrdersToToday([o.id])}>Mută pe azi</Button>
+                <Button size="sm" variant="destructive" disabled={movingIds.length > 0} onClick={() => undoTodayProduction(o)}>Anulează producția</Button>
+              </div>
+            ))}
+            {wrongDayOrders.length > 1 && <Button size="sm" variant="outline" disabled={movingIds.length > 0} onClick={() => moveOrdersToToday(wrongDayOrders.map((o: any) => o.id))}>Mută toate pe azi</Button>}
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
+
   if (view === 'session' && currentOrderId) {
     const currentOrder = orders?.find(o => o.id === currentOrderId);
     const activeSession = activeSessions.find(session => session.comanda_id === currentOrderId && lineMemberIds.includes(session.linie_id));
@@ -930,44 +1015,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
 
 
-        {selectedDay !== todayISO() && (
-          <div className="rounded-lg border-4 border-destructive bg-destructive/10 p-4 flex flex-wrap items-center gap-3 animate-pulse">
-            <AlertTriangle className="h-8 w-8 text-destructive" />
-            <div className="flex-1 min-w-[200px]">
-              <div className="text-lg font-bold text-destructive">ATENȚIE: NU lucrezi pe ziua de azi!</div>
-              <div className="text-sm">Vezi comenzile pentru <b>{fmtDay(selectedDay)}</b>. Azi este {fmtDay(todayISO())}.</div>
-            </div>
-            <Button variant="destructive" onClick={() => setSelectedDay(todayISO())}>Înapoi la azi</Button>
-          </div>
-        )}
-        {(() => {
-          const today = todayISO();
-          const wrong = (orders || []).filter((o: any) => {
-            const dp = normalizeProductionDate(o.data_productie);
-            if (!dp || dp <= today) return false;
-            const touched = String(o.updated_at || '').slice(0, 10) === today;
-            const worked = o.status !== 'pending' && o.status !== 'assigned' || activeSessions.some(s => s.comanda_id === o.id);
-            return touched && worked && (!currentLineId || lineMemberIds.includes(o.linie_id));
-          });
-          if (!wrong.length) return null;
-          return (
-            <Card className="border-2 border-destructive">
-              <CardContent className="pt-4 space-y-2">
-                <div className="font-bold text-destructive flex items-center gap-2"><AlertTriangle className="h-5 w-5" />Comenzi din altă zi lucrate azi ({wrong.length})</div>
-                <p className="text-sm text-muted-foreground">Dacă au fost produse din greșeală azi, mută-le pe azi ca să apară corect.</p>
-                {wrong.map((o: any) => (
-                  <div key={o.id} className="flex items-center gap-2 flex-wrap text-sm border rounded p-2">
-                    <span className="font-medium flex-1">{o.productie_produse?.nume || o.client || o.id}</span>
-                    <Badge variant="outline">{fmtDay(normalizeProductionDate(o.data_productie)!)}</Badge>
-                    <Button size="sm" variant="outline" disabled={movingIds.length > 0} onClick={() => moveOrdersToToday([o.id])}>Mută pe azi</Button>
-                  </div>
-                ))}
-                {wrong.length > 1 && <Button size="sm" variant="destructive" disabled={movingIds.length > 0} onClick={() => moveOrdersToToday(wrong.map((o: any) => o.id))}>Mută toate pe azi</Button>}
-              </CardContent>
-            </Card>
-          );
-        })()}
-
+        {dayGuard}
         <Card className={selectedDay !== todayISO() ? "border-4 border-destructive" : "border-coral-200"}>
           <CardContent className="pt-4 flex items-center gap-2 flex-wrap">
             <CalendarDays className="h-5 w-5 text-coral-primary" />
@@ -1052,6 +1100,17 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         </h2>
         <p className="text-coral-primary mt-2">{t("selectLine")}</p>
       </div>
+
+      {dayGuard}
+      <Card className={selectedDay !== todayISO() ? "border-4 border-destructive" : "border-coral-200"}>
+        <CardContent className="pt-4 flex items-center gap-2 flex-wrap">
+          <CalendarDays className="h-5 w-5 text-coral-primary" />
+          <DateProductiePicker value={selectedDay} onChange={setSelectedDay} label="" />
+          <span className="text-xs text-muted-foreground ml-2">
+            {t("noTargetDate")}
+          </span>
+        </CardContent>
+      </Card>
 
       <div className="max-w-xl mx-auto">
         {searchInput}
