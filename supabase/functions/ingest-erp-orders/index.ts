@@ -8,6 +8,7 @@
 // până când operatorul confirmă că ia marfa din stoc (Picking).
 const AUTO_STOCK = false;
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { applyInheritance, loadInheritanceCatalog, readAll } from '../_shared/productRecipes.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -135,6 +136,9 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(LEGACY_URL, LEGACY_ANON);
+  const cloud = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
+  const catalog = await loadInheritanceCatalog(supabase, cloud);
+  const inherited = new Set<string>();
 
   // Normalizare pentru match după denumire (trim, lower, colapsare spații, fără diacritice)
   const norm = (s: string) =>
@@ -152,10 +156,10 @@ Deno.serve(async (req) => {
     { data: produseData },
     { data: clientiData },
   ] = await Promise.all([
-    supabase.from("erp_mapping_produse").select("cod_extern, produs_id"),
-    supabase.from("erp_mapping_magazine").select("cod_extern, nume_magazin"),
-    supabase.from("productie_produse").select("id, nume, unitate_masura"),
-    supabase.from("productie_clienti").select("id, nume_magazin, punct_livrare"),
+    readAll(supabase, "erp_mapping_produse", "id,cod_extern,produs_id").then(data => ({ data })),
+    readAll(supabase, "erp_mapping_magazine", "id,cod_extern,nume_magazin").then(data => ({ data })),
+    Promise.resolve({ data: catalog.products }),
+    readAll(supabase, "productie_clienti", "id,nume_magazin,punct_livrare").then(data => ({ data })),
   ]);
 
   const mapProduse = new Map<string, string>();
@@ -330,6 +334,17 @@ Deno.serve(async (req) => {
   }
 
   // Rezolvă (sau creează) un produs pornind de la linie. Returnează produs_id sau null.
+  async function inheritProduct(id: string, name?: string, unit?: string) {
+    if (inherited.has(id)) return;
+    try {
+      const product = catalog.products.find(p => p.id === id) ?? { id, nume: name ?? '', unitate_masura: unit };
+      const result = await applyInheritance(supabase, cloud, product, catalog);
+      inherited.add(id);
+      if (result.reason && result.reason !== 'Rețetă existentă') errors.push({ produs: product.nume, reteta: result.reason });
+    } catch (e: any) {
+      errors.push({ produs: id, reteta: e.message ?? String(e) });
+    }
+  }
   async function resolveProdus(linie: AvizLine): Promise<string | null> {
     const cod = String(linie.cod_produs || "").trim();
     const codKey = cod.toLowerCase();
@@ -337,7 +352,7 @@ Deno.serve(async (req) => {
 
     // 1) mapping după cod
     const mapped = mapProduse.get(codKey);
-    if (mapped) return mapped;
+    if (mapped) { await inheritProduct(mapped); return mapped; }
 
     const denumire = (linie.denumire_produs || "").trim();
     if (!denumire) return null;
@@ -356,6 +371,7 @@ Deno.serve(async (req) => {
         const lbl = `${cod} — ${denumire}`;
         if (!autoMappedProduse.includes(lbl)) autoMappedProduse.push(lbl);
       }
+      await inheritProduct(produsId);
       return produsId;
     }
 
@@ -382,6 +398,7 @@ Deno.serve(async (req) => {
     if (!mErr) mapProduse.set(codKey, newProd.id);
     const lbl = `${cod} — ${denumire}`;
     if (!autoCreatedProduse.includes(lbl)) autoCreatedProduse.push(lbl);
+    await inheritProduct(newProd.id, denumire, linie.um || 'buc');
     return newProd.id;
   }
 
