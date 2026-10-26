@@ -445,6 +445,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     let created = 0;
     for (const o of groupOrders) {
       if (activeSessions.some(s => s.comanda_id === o.id && lineMemberIds.includes(s.linie_id))) continue;
+      if (await askCoverFromStock(o)) continue;
       try {
         await createSessionMutation.mutateAsync({
           comanda_id: o.id,
