@@ -26,4 +26,8 @@ describe('Senior product recipe inheritance', () => {
   test('composition suffixes remain distinct', () => {
     expect(productIdentity('Mozaic cu rucola 500 g MC')?.family).not.toBe(productIdentity('Mozaic 500 g')?.family);
   });
+  test('conflicting existing compositions require manual review', () => {
+    const other = { ...recipes[0], id: 'other', produs_id: 'variant', productie_retete_ingrediente: [{ ingredient_id: 'c', cantitate_necesara: 200, unitate_masura: 'gr' }] };
+    expect(inheritancePlan({ id: 'new', nume: 'Mozaic 500 g MC' }, [...products, { id: 'variant', nume: 'Mozaic 200 g MC' }], [...recipes, other], {}).recipe).toBeNull();
+  });
 });

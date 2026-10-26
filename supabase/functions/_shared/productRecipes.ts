@@ -5,7 +5,7 @@ export type InheritanceRecipe = { id: string; produs_id: string; activa: boolean
 // Remove only known retailer/channel suffixes, never arbitrary composition words.
 export function productIdentity(name: string) {
   const text = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    .replace(/\bmega\s+image\b/g, '').replace(/\b(?:mc|pg|lidl|auchan|carrefour|penny|kaufland|gastro|horeca)\b/g, '')
+    .replace(/\bmega\s+image\b/g, '').replace(/\b(?:mc|mi|pg|lidl|auchan|carrefour|penny|kaufland|gastro|horeca)\b/g, '')
     .replace(/^\s*salata\s+/, '').replace(/\s+/g, ' ').trim();
   const match = text.match(/\b(\d+(?:[.,]\d+)?)\s*(kg|gr|g)\b/) ?? text.match(/\b(\d+(?:[.,]\d+)?)\b/);
   if (!match || match.index === undefined) return null;
