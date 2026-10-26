@@ -22,6 +22,8 @@ import OperatorDaySummary, { computeStats, pctOf, CATEGORIES, Stat, useIngredien
 import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
 import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface OperatorInterfaceProps {
   selectedLine: string;
@@ -46,6 +48,22 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const [selectedDay, setSelectedDay] = useState<string>(todayISO());
   const [ordersViewMode, setOrdersViewMode] = useState<'individual' | 'grouped'>('individual');
   const { t } = useOperatorT();
+  const queryClient = useQueryClient();
+  const [movingIds, setMovingIds] = useState<string[]>([]);
+  const fmtDay = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString('ro-RO', { weekday: 'long', day: '2-digit', month: '2-digit' });
+  const confirmOtherDay = (days: string[]) => {
+    const other = Array.from(new Set(days.filter(d => d && d !== todayISO())));
+    if (!other.length) return true;
+    return window.confirm(`ATENȚIE! Comanda este pentru ${other.map(fmtDay).join(', ')}, NU pentru azi (${fmtDay(todayISO())}).\n\nSigur vrei să o produci acum?`);
+  };
+  const moveOrdersToToday = async (ids: string[]) => {
+    setMovingIds(ids);
+    const { error } = await (supabase as any).from('productie_comenzi').update({ data_productie: todayISO() }).in('id', ids);
+    setMovingIds([]);
+    if (error) { toast({ title: t("error"), description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Comenzi mutate pe azi", description: `${ids.length} comenzi apar acum la ziua de azi.` });
+    queryClient.invalidateQueries({ queryKey: ['orders'] });
+  };
 
   const {
     data: lines,
@@ -254,6 +272,11 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       return;
     }
 
+    {
+      const o: any = (orders || []).find((x: any) => x.id === currentOrderId);
+      if (!confirmOtherDay([normalizeProductionDate(o?.data_productie) || todayISO()])) return;
+    }
+
     try {
       await createSessionMutation.mutateAsync({
         comanda_id: currentOrderId,
@@ -378,6 +401,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     }
     const idSet = new Set(orderIds);
     const groupOrders = lineOrders.filter((o: any) => idSet.has(o.id) && !isOrderDone(o));
+    if (!confirmOtherDay(groupOrders.map((o: any) => normalizeProductionDate(o.data_productie) || todayISO()))) return;
     let created = 0;
     for (const o of groupOrders) {
       if (activeSessions.some(s => s.comanda_id === o.id && lineMemberIds.includes(s.linie_id))) continue;
@@ -906,7 +930,45 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
 
 
-        <Card className="border-coral-200">
+        {selectedDay !== todayISO() && (
+          <div className="rounded-lg border-4 border-destructive bg-destructive/10 p-4 flex flex-wrap items-center gap-3 animate-pulse">
+            <AlertTriangle className="h-8 w-8 text-destructive" />
+            <div className="flex-1 min-w-[200px]">
+              <div className="text-lg font-bold text-destructive">ATENȚIE: NU lucrezi pe ziua de azi!</div>
+              <div className="text-sm">Vezi comenzile pentru <b>{fmtDay(selectedDay)}</b>. Azi este {fmtDay(todayISO())}.</div>
+            </div>
+            <Button variant="destructive" onClick={() => setSelectedDay(todayISO())}>Înapoi la azi</Button>
+          </div>
+        )}
+        {(() => {
+          const today = todayISO();
+          const wrong = (orders || []).filter((o: any) => {
+            const dp = normalizeProductionDate(o.data_productie);
+            if (!dp || dp <= today) return false;
+            const touched = String(o.updated_at || '').slice(0, 10) === today;
+            const worked = o.status !== 'pending' && o.status !== 'assigned' || activeSessions.some(s => s.comanda_id === o.id);
+            return touched && worked && (!currentLineId || lineMemberIds.includes(o.linie_id));
+          });
+          if (!wrong.length) return null;
+          return (
+            <Card className="border-2 border-destructive">
+              <CardContent className="pt-4 space-y-2">
+                <div className="font-bold text-destructive flex items-center gap-2"><AlertTriangle className="h-5 w-5" />Comenzi din altă zi lucrate azi ({wrong.length})</div>
+                <p className="text-sm text-muted-foreground">Dacă au fost produse din greșeală azi, mută-le pe azi ca să apară corect.</p>
+                {wrong.map((o: any) => (
+                  <div key={o.id} className="flex items-center gap-2 flex-wrap text-sm border rounded p-2">
+                    <span className="font-medium flex-1">{o.productie_produse?.nume || o.client || o.id}</span>
+                    <Badge variant="outline">{fmtDay(normalizeProductionDate(o.data_productie)!)}</Badge>
+                    <Button size="sm" variant="outline" disabled={movingIds.length > 0} onClick={() => moveOrdersToToday([o.id])}>Mută pe azi</Button>
+                  </div>
+                ))}
+                {wrong.length > 1 && <Button size="sm" variant="destructive" disabled={movingIds.length > 0} onClick={() => moveOrdersToToday(wrong.map((o: any) => o.id))}>Mută toate pe azi</Button>}
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        <Card className={selectedDay !== todayISO() ? "border-4 border-destructive" : "border-coral-200"}>
           <CardContent className="pt-4 flex items-center gap-2 flex-wrap">
             <CalendarDays className="h-5 w-5 text-coral-primary" />
             <DateProductiePicker value={selectedDay} onChange={setSelectedDay} label="" />
