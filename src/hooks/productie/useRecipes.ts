@@ -1,6 +1,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { readAll } from '../../../supabase/functions/_shared/productRecipes';
 
 export interface ProductieReteta {
   id: string;
@@ -42,24 +43,16 @@ export const useRecipes = () => {
     queryKey: ['recipes'],
     queryFn: async () => {
       console.log('Fetching recipes from database...');
-      const { data, error } = await supabase
-        .from('productie_retete')
-        .select(`
+      const data = await readAll(supabase, 'productie_retete', `
           *,
           productie_produse!inner(id, nume),
           productie_retete_ingrediente(
             *,
             productie_ingrediente(id, nume, unitate_masura)
           )
-        `)
-        .order('nume_reteta');
-      
-      if (error) {
-        console.error('Error fetching recipes:', error);
-        throw error;
-      }
+        `);
       console.log('Recipes fetched:', data);
-      return data as ProductieRetetaCompleta[];
+      return (data as ProductieRetetaCompleta[]).sort((a, b) => a.nume_reteta.localeCompare(b.nume_reteta));
     }
   });
 };
@@ -69,20 +62,14 @@ export const useRecipesByProduct = (productId: string) => {
   return useQuery({
     queryKey: ['recipes', productId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('productie_retete')
-        .select(`
+      const data = await readAll({ from: (table: string) => ({ select: (select: string) => supabase.from(table).select(select).eq('produs_id', productId) }) }, 'productie_retete', `
           *,
           productie_retete_ingrediente(
             *,
             productie_ingrediente(id, nume, unitate_masura)
           )
-        `)
-        .eq('produs_id', productId)
-        .order('versiune', { ascending: false });
-      
-      if (error) throw error;
-      return data as ProductieRetetaCompleta[];
+        `);
+      return (data as ProductieRetetaCompleta[]).sort((a, b) => Number(b.activa) - Number(a.activa) || b.versiune - a.versiune);
     },
     enabled: !!productId
   });
@@ -131,7 +118,10 @@ export const useCreateRecipe = () => {
           .from('productie_retete_ingrediente')
           .insert(ingredientData);
         
-        if (ingredientsError) throw ingredientsError;
+        if (ingredientsError) {
+          const { error: cleanupError } = await supabase.from('productie_retete').delete().eq('id', recipe.id);
+          throw new Error(`Ingredientele nu s-au salvat: ${ingredientsError.message}${cleanupError ? '. Rețeta goală a rămas; reîncearcă din editare.' : ''}`);
+        }
       }
 
       return recipe;
@@ -171,29 +161,22 @@ export const useUpdateRecipe = () => {
       
       if (error) throw error;
 
-      // Dacă sunt specificate ingrediente, le actualizează
+      // Preserve existing ingredient rows rather than deleting the entire recipe first.
       if (ingrediente) {
-        // Șterge ingredientele existente
-        await supabase
-          .from('productie_retete_ingrediente')
-          .delete()
-          .eq('reteta_id', id);
-
-        // Adaugă ingredientele noi
-        if (ingrediente.length > 0) {
-          const ingredientData = ingrediente.map(ing => ({
-            reteta_id: id,
-            ingredient_id: ing.ingredient_id,
-            cantitate_necesara: ing.cantitate_necesara,
-            unitate_masura: ing.unitate_masura,
-            observatii: ing.observatii
-          }));
-
-          const { error: ingredientsError } = await supabase
-            .from('productie_retete_ingrediente')
-            .insert(ingredientData);
-          
-          if (ingredientsError) throw ingredientsError;
+        const existing = await readAll({ from: (table: string) => ({ select: (select: string) => supabase.from(table).select(select).eq('reteta_id', id) }) }, 'productie_retete_ingrediente');
+        const remaining = [...existing];
+        for (const ing of ingrediente) {
+          const index = remaining.findIndex(row => row.ingredient_id === ing.ingredient_id);
+          const row = index >= 0 ? remaining.splice(index, 1)[0] : null;
+          const values = { ingredient_id: ing.ingredient_id, cantitate_necesara: ing.cantitate_necesara, unitate_masura: ing.unitate_masura, observatii: ing.observatii ?? '' };
+          const { error: saveError } = row
+            ? await supabase.from('productie_retete_ingrediente').update(values).eq('id', row.id)
+            : await supabase.from('productie_retete_ingrediente').insert({ ...values, reteta_id: id });
+          if (saveError) throw new Error(`Ingredientele nu s-au salvat: ${saveError.message}`);
+        }
+        for (const row of remaining) {
+          const { error: deleteError } = await supabase.from('productie_retete_ingrediente').delete().eq('id', row.id);
+          if (deleteError) throw new Error(`Ingredientul nu poate fi eliminat: ${deleteError.message}`);
         }
       }
 

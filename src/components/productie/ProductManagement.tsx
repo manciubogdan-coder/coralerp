@@ -44,6 +44,7 @@ const ProductManagement = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isGrupareOpen, setIsGrupareOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<ProductFormData>({
     nume: '',
     descriere: '',
@@ -69,8 +70,8 @@ const ProductManagement = () => {
   const deleteProductMutation = useDeleteProduct();
   const createRecipeMutation = useCreateRecipe();
   const updateRecipeMutation = useUpdateRecipe();
-  const { data: existingRecipes } = useRecipesByProduct(editingProduct?.id || '');
-  const { data: existingDistributionRules } = useDistributionRulesByProduct(editingProduct?.id || '');
+  const { data: existingRecipes, isLoading: recipesLoading, error: recipesError } = useRecipesByProduct(editingProduct?.id || '');
+  const { data: existingDistributionRules, isLoading: distributionLoading } = useDistributionRulesByProduct(editingProduct?.id || '');
 
   const { mutateAsync: createDistributionRule } = useCreateDistributionRule();
   const { mutateAsync: deleteDistributionRulesByProduct } = useDeleteDistributionRulesByProduct();
@@ -305,6 +306,11 @@ const ProductManagement = () => {
   };
 
   const handleSubmit = async () => {
+    if (saving || (editingProduct && (recipesLoading || distributionLoading))) return;
+    if (recipesError) {
+      toast({ variant: 'destructive', title: 'Rețeta nu s-a încărcat', description: 'Închide și redeschide produsul înainte să salvezi.' });
+      return;
+    }
     if (!formData.nume.trim()) {
       toast({
         variant: "destructive",
@@ -314,6 +320,7 @@ const ProductManagement = () => {
       return;
     }
 
+    setSaving(true);
     try {
       let productResult;
       
@@ -329,7 +336,7 @@ const ProductManagement = () => {
         });
 
         // Pentru editare, actualizăm rețeta existentă în loc să creăm una nouă
-        if (formData.ingredients.length > 0 && existingRecipes && existingRecipes.length > 0) {
+        if (existingRecipes && existingRecipes.length > 0) {
           console.log('🔄 Actualizez rețeta existentă:', existingRecipes[0].id);
           await updateRecipeMutation.mutateAsync({
             id: existingRecipes[0].id,
@@ -366,6 +373,8 @@ const ProductManagement = () => {
           descriere: formData.descriere,
           unitate_masura: formData.unitate_masura
         });
+        // If recipe persistence fails, retry the existing product instead of creating a duplicate.
+        setEditingProduct(productResult);
 
         // Pentru produs nou, creăm rețeta dacă avem ingrediente
         if (formData.ingredients.length > 0) {
@@ -433,6 +442,8 @@ const ProductManagement = () => {
         title: "Eroare",
         description: error.message || `A apărut o eroare la ${editingProduct ? 'actualizarea' : 'crearea'} produsului`
       });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -842,14 +853,14 @@ const ProductManagement = () => {
           </div>
 
           <div className="flex justify-end gap-4 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button type="button" variant="outline" disabled={saving} onClick={() => setIsDialogOpen(false)}>
               Anulează
             </Button>
             <Button 
               onClick={handleSubmit}
-              disabled={createProductMutation.isPending || updateProductMutation.isPending}
+              disabled={saving || Boolean(editingProduct && (recipesLoading || distributionLoading || recipesError))}
             >
-              {(createProductMutation.isPending || updateProductMutation.isPending) && (
+              {(saving || (editingProduct && (recipesLoading || distributionLoading))) && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               {editingProduct ? 'Actualizează' : 'Creează'} Produs
