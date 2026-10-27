@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Table, TableBody, TableCell, TableFoot, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CalendarIcon, FileSpreadsheet, Truck, Plus, Trash2 } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { ro } from "date-fns/locale";
@@ -257,17 +257,17 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
               </TableBody>
               <TableFooter>
                 <TableRow className="bg-muted/60 hover:bg-muted/60">
-                  <TableFoot colSpan={2} className="font-semibold">
+                  <TableCell colSpan={2} className="font-semibold">
                     Total
-                  </TableFoot>
-                  <TableFoot className="text-right font-semibold whitespace-nowrap">{fmt(palletTotals.kg)} kg</TableFoot>
-                  <TableFoot className="text-right whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="text-right font-semibold whitespace-nowrap">{fmt(palletTotals.kg)} kg</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
                     <span className="font-semibold">{fmt(palletTotals.pallets)} paleți</span>
                     <span className="block text-[11px] text-muted-foreground">
                       {palletTotals.wholePallets} paleți întregi de încărcat
                     </span>
-                  </TableFoot>
-                  <TableFoot />
+                  </TableCell>
+                  <TableCell />
                 </TableRow>
               </TableFooter>
             </Table>
