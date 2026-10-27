@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { canCompensateAdvance } from '../../src/lib/productie/advanceCompensation';
+import { canCompensateAdvance, compensateAdvanceQuantities } from '../../src/lib/productie/advanceCompensation';
 
 const babySpanacAdvance = { data_productie: '2026-10-27', created_at: '2026-10-27T03:50:23.962727+00:00' };
 
@@ -22,4 +22,30 @@ test('auto-generated advance is reduced by any same-day firm order, even one imp
   // (comenzi cu dată de livrare viitoare) — avansul automat trebuie totuși redus.
   expect(canCompensateAdvance(babySpanacAdvance, { data_productie: '2026-10-27', created_at: '2026-10-26T15:00:00Z' }, true)).toBe(true);
   expect(canCompensateAdvance(babySpanacAdvance, babySpanacAdvance, true)).toBe(true);
+});
+
+test('Rucola: 402 actually produced covers 432 earlier same-day firm pieces once, leaving 30', () => {
+  const advance = { ...babySpanacAdvance, cantitate: 402, cantitate_reala_produsa: 402 };
+  const firms = [258, 174].map(cantitate => ({ data_productie: '2026-10-27', created_at: '2026-10-27T00:00:00Z', cantitate, cantitate_reala_produsa: 0 }));
+  compensateAdvanceQuantities([{ order: advance, automatic: false }], firms);
+  expect(firms.map(f => f.cantitate_reala_produsa)).toEqual([258, 144]);
+  expect(advance.cantitate).toBe(0);
+  expect(advance.cantitate_reala_produsa).toBe(0);
+  expect(firms.reduce((sum, f) => sum + f.cantitate - f.cantitate_reala_produsa, 0)).toBe(30);
+});
+
+test('unproduced manual 600-piece advance is not completed by earlier firm orders', () => {
+  const advance = { ...babySpanacAdvance, cantitate: 600, cantitate_reala_produsa: 0 };
+  const firm = { ...babySpanacAdvance, created_at: '2026-10-26T15:00:00Z', cantitate: 600, cantitate_reala_produsa: 0 };
+  compensateAdvanceQuantities([{ order: advance, automatic: false }], [firm]);
+  expect(advance.cantitate).toBe(600);
+  expect(firm.cantitate_reala_produsa).toBe(0);
+});
+
+test('today’s produced 1000 spinach pieces never cover tomorrow', () => {
+  const advance = { ...babySpanacAdvance, cantitate: 1000, cantitate_reala_produsa: 1000 };
+  const firm = { ...babySpanacAdvance, data_productie: '2026-10-28', cantitate: 1000, cantitate_reala_produsa: 0 };
+  compensateAdvanceQuantities([{ order: advance, automatic: true }], [firm]);
+  expect(advance.cantitate_reala_produsa).toBe(1000);
+  expect(firm.cantitate_reala_produsa).toBe(0);
 });
