@@ -618,7 +618,7 @@ export const useOrders = () => {
               if (take <= 0) continue;
               if (take >= surplus) {
                 pendingWrites.push(
-                  supabase.from('productie_restocari').update({ status: 'folosit', cantitate_surplus: 0 }).eq('id', r.id) as any
+                  supabase.from('productie_restocari').update({ status: 'redistribuit', cantitate_surplus: 0 }).eq('id', r.id) as any
                 );
                 r.cantitate_surplus = 0;
               } else {
@@ -1233,7 +1233,7 @@ export const useFinishWorkSession = () => {
               // Consum total lotul de restocare
                await supabase
                  .from('productie_restocari')
-                 .update({ status: 'folosit', cantitate_surplus: 0 })
+                 .update({ status: 'redistribuit', cantitate_surplus: 0 })
                  .eq('id', restocata.id);
             } else {
               // Consum parțial lotul
