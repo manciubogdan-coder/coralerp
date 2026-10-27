@@ -24,6 +24,9 @@ interface Props {
   onOrderSelect: (orderId: string) => void;
   onStartGroup: (orderIds: string[], principalOperator: string, totalOperators: number, lineId?: string) => Promise<void>;
   onFinishGroup: (orderIds: string[], totalQty: number, rebut?: number) => Promise<void>;
+  stockTotals?: Map<string, number>;
+  onTakeStock?: (orderIds: string[]) => Promise<void>;
+  takingStock?: boolean;
 }
 
 const formatDur = (hours: number) => {
@@ -62,6 +65,9 @@ const GroupedOrdersView: React.FC<Props> = ({
   onOrderSelect,
   onStartGroup,
   onFinishGroup,
+  stockTotals,
+  onTakeStock,
+  takingStock,
 }) => {
   const { t } = useOperatorT();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -110,7 +116,7 @@ const GroupedOrdersView: React.FC<Props> = ({
           orders: [],
         });
       }
-      map.get(key)!.orders.push(o);
+      map.get(key)?.orders.push(o);
     }
     return Array.from(map.values());
   }, [orders, groupMap, selectedDay]);
@@ -188,6 +194,7 @@ const GroupedOrdersView: React.FC<Props> = ({
         const timp = lineCapacity && lineCapacity > 0 ? totalRamas / lineCapacity : 0;
         const isExpanded = !!expanded[g.key];
         const orderIds = g.orders.map((o) => o.id);
+        const availableStock = Math.max(0, ...g.orders.filter(o => o.magazin !== 'PRODUCTIE_AVANS' && o.magazin !== 'REAMBALARE' && o.tip_comanda !== 'PRODUCTIE_AVANS' && o.tip_comanda !== 'REAMBALARE').map(o => stockTotals?.get(o.produs_id) || 0));
 
         if (hideDone && visibleOrders.length === 0 && !hasActive) return null;
 
@@ -219,7 +226,13 @@ const GroupedOrdersView: React.FC<Props> = ({
                     )}
                   </div>
                 </button>
-                <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                  {availableStock > 0 && totalRamas > 0 && onTakeStock && (
+                    <Button size="sm" variant="outline" disabled={takingStock} onClick={() => onTakeStock(orderIds)}>
+                      <Package className="h-4 w-4 mr-1" />
+                      Ia din restocări · {availableStock} {g.unitate}
+                    </Button>
+                  )}
                   {hasActive ? (
                     <Button
                       size="sm"

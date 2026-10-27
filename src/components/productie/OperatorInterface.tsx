@@ -23,8 +23,9 @@ import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
 import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchPoolTotals, setAlocareComanda } from "@/lib/productie/stockPool";
-import { useQueryClient } from "@tanstack/react-query";
+import { fetchPoolRows, fetchPoolTotals, setAlocareComanda } from "@/lib/productie/stockPool";
+import { restockProductIds, restockNeeded } from '@/lib/productie/restockGroups';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import DiscardedStockReset from './DiscardedStockReset';
 import OrderPackaging from './OrderPackaging';
 
@@ -53,6 +54,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const { t } = useOperatorT();
   const queryClient = useQueryClient();
   const [movingIds, setMovingIds] = useState<string[]>([]);
+  const [takingStock, setTakingStock] = useState(false);
   const fmtDay = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString('ro-RO', { weekday: 'long', day: '2-digit', month: '2-digit' });
   const confirmOtherDay = (days: string[]) => {
     const other = Array.from(new Set(days.filter(d => d && d !== todayISO())));
@@ -63,7 +65,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
    * Întreabă operatorul dacă vrea să acopere comanda din marfa deja produsă (stoc / Picking).
    * Returnează true dacă comanda a fost acoperită complet (nu mai trebuie pornită producția).
    */
-  const askCoverFromStock = async (o: any): Promise<boolean> => {
+  const askCoverFromStock = async (o: any, confirm = true): Promise<boolean> => {
     if (!o?.produs_id) return false;
     if (String(o.magazin || '').toUpperCase() === 'PRODUCTIE_AVANS' || String(o.magazin || '').toUpperCase() === 'REAMBALARE') return false;
     const acoperit = Number(o.cantitate_reala_produsa || 0) + Number(o.cantitate_din_restock || 0);
@@ -71,30 +73,34 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     if (necesar <= 0) return false;
     let disponibil = 0;
     try {
-      disponibil = (await fetchPoolTotals([o.produs_id])).get(o.produs_id) || 0;
-    } catch { return false; }
+      disponibil = (await fetchPoolTotals([o.produs_id], groupMap || {})).get(o.produs_id) || 0;
+    } catch (error) { throw error; }
     if (disponibil <= 0) return false;
     const iau = Math.min(necesar, disponibil);
-    const ok = window.confirm(
-      `În stoc (Picking) există deja ${disponibil} buc din acest produs.\n\n` +
+    const ok = !confirm || window.confirm(
+      `În stoc (Picking) există deja ${disponibil} buc din acest produs / aceeași grupă.\n\n` +
       `Comanda mai are nevoie de ${necesar} buc.\n\n` +
       `OK = iau ${iau} buc din stoc${iau >= necesar ? ' (comanda se finalizează fără producție)' : ', restul se produce'}\n` +
       `Anulează = NU iau din stoc, produc tot`
     );
     if (!ok) return false;
     try {
-      const final = await setAlocareComanda(o, Number(o.cantitate_din_restock || 0) + iau);
+      const final = await setAlocareComanda(o, Number(o.cantitate_din_restock || 0) + iau, groupMap || {});
       const complet = Number(o.cantitate_reala_produsa || 0) + final >= Number(o.cantitate || 0);
       if (complet) {
-        await (supabase as any).from('productie_comenzi').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', o.id);
+        const { error } = await supabase.from('productie_comenzi').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', o.id);
+        if (error) throw error;
       }
       toast({ title: "Luat din stoc", description: `${final - Number(o.cantitate_din_restock || 0)} buc luate din stoc.` });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['marfa-restocata'] });
+      queryClient.invalidateQueries({ queryKey: ['operator-restock'] });
+      queryClient.invalidateQueries({ queryKey: ['restockings'] });
+      queryClient.invalidateQueries({ queryKey: ['pool-cautare-restocari'] });
       return complet;
     } catch (e: any) {
       toast({ title: t("error"), description: e?.message || 'Nu am putut lua din stoc.', variant: "destructive" });
-      return false;
+      throw e;
     }
   };
   const moveOrdersToToday = async (ids: string[]) => {
@@ -125,6 +131,30 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   } = useWorkSessions();
 
   const { data: groupMap } = useGrupareAmbalare();
+  const stockProductIds = Array.from(new Set((orders || []).map(o => o.produs_id).filter(Boolean))).sort();
+  const { data: stockTotals } = useQuery({
+    queryKey: ['operator-restock', stockProductIds, groupMap],
+    enabled: !!groupMap && stockProductIds.length > 0,
+    queryFn: () => fetchPoolTotals(stockProductIds, groupMap || {}),
+    refetchInterval: 15_000,
+  });
+  const takeGroupStock = async (ids: string[]) => {
+    if (takingStock) return;
+    setTakingStock(true);
+    try {
+      const selected = (orders || []).filter(o => ids.includes(o.id) && restockNeeded(o) > 0);
+      if (!confirmOtherDay(selected.map(o => normalizeProductionDate(o.data_productie) || todayISO()))) return;
+      const sources = selected.flatMap(o => restockProductIds(o.produs_id, groupMap || {}));
+      const available = (await fetchPoolRows(sources)).reduce((sum, row) => sum + Number(row.cantitate_surplus), 0);
+      const needed = selected.reduce((sum, o) => sum + restockNeeded(o), 0);
+      if (available <= 0) { toast({ title: 'Nu mai există restoc disponibil.' }); return; }
+      if (!window.confirm(`În restocări există ${available} buc din această grupă.\n\nMai sunt de făcut ${needed} buc. Ai fizic marfa în Picking și iei ${Math.min(available, needed)} buc de acolo?\n\nCantitatea luată se scade din restoc și din necesarul comenzilor. Anulează = nu folosesc restocul.`)) return;
+      for (const o of selected) await askCoverFromStock(o, false);
+      await queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
+    } catch (e: any) {
+      toast({ title: 'Preluarea din restoc nu s-a terminat.', description: e.message, variant: 'destructive' });
+    } finally { setTakingStock(false); }
+  };
   const addRebutMutation = useAddSessionRebut();
   const { map: lineGroupMap } = useLineGroupMap();
   const { utilajIds } = useUtilajIds();
@@ -315,13 +345,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       return;
     }
 
-    {
+    try {
       const o: any = (orders || []).find((x: any) => x.id === currentOrderId);
       if (!confirmOtherDay([normalizeProductionDate(o?.data_productie) || todayISO()])) return;
       if (await askCoverFromStock(o)) return;
-    }
-
-    try {
       await createSessionMutation.mutateAsync({
         comanda_id: currentOrderId,
         linie_id: effectiveSessionLineId,
@@ -449,8 +476,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     let created = 0;
     for (const o of groupOrders) {
       if (activeSessions.some(s => s.comanda_id === o.id && lineMemberIds.includes(s.linie_id))) continue;
-      if (await askCoverFromStock(o)) continue;
       try {
+        if (await askCoverFromStock(o)) continue;
         await createSessionMutation.mutateAsync({
           comanda_id: o.id,
           linie_id: targetLineId,
@@ -728,6 +755,12 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   </div>
 
                   <OrderPackaging order={currentOrder} />
+                  {restockNeeded(currentOrder) > 0 && (stockTotals?.get(currentOrder.produs_id) || 0) > 0 && (
+                    <Button variant="outline" disabled={takingStock} onClick={() => takeGroupStock([currentOrder.id])}>
+                      <Package className="h-4 w-4 mr-2" />
+                      Ia din restocări · {stockTotals?.get(currentOrder.produs_id)} buc disponibile
+                    </Button>
+                  )}
                   {/* Breakdown detaliat */}
                   {(cantitateRealaProadusa > 0 || cantitatedinRestock > 0) && (
                     <div className="text-xs space-y-1 bg-gray-50 p-2 rounded">
@@ -1103,6 +1136,9 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
               onOrderSelect={handleOrderSelect}
               onStartGroup={handleStartGroupSession}
               onFinishGroup={handleFinishGroupSession}
+              stockTotals={stockTotals}
+              onTakeStock={takeGroupStock}
+              takingStock={takingStock}
             />
           ) : (
             <>
