@@ -206,7 +206,7 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
             </div>
           </div>
 
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-lg overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
