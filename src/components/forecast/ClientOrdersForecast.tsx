@@ -39,6 +39,7 @@ interface Row {
   matched: boolean;
   perDayBrut: number[];
   perDayAvg: number[];
+  buffer?: number;
   perDate: Record<string, number>;
   avgDaily: number;
   coverDays: number | null;
@@ -279,6 +280,29 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       });
       setOrderDates(datesWithOrders);
 
+      // 4c. Stoc tampon = media zilnică a consumului din ultimele 7 zile (comenzi ferme)
+      const weekFrom = format(subDays(startOfDay(new Date()), 7), "yyyy-MM-dd");
+      const weekTo = format(subDays(startOfDay(new Date()), 1), "yyyy-MM-dd");
+      const weekOrders = await fetchAll(() =>
+        supabase
+          .from("productie_comenzi")
+          .select("id, produs_id, cantitate, status, tip_comanda")
+          .gte("data_productie", weekFrom)
+          .lte("data_productie", weekTo)
+          .order("id")
+      );
+      const weekNeed = new Map<string, number>();
+      weekOrders
+        .filter((o: any) => o.status !== "canceled_by_erp" && o.tip_comanda !== "PRODUCTIE_AVANS")
+        .forEach((o: any) => {
+          const recipe = recipeByProduct.get(o.produs_id);
+          (recipe?.productie_retete_ingrediente || []).forEach((ing: any) => {
+            const key = norm(ing.productie_ingrediente?.nume || "Necunoscut");
+            const qty = toKg((Number(ing.cantitate_necesara) || 0) * (Number(o.cantitate) || 0), ing.unitate_masura);
+            weekNeed.set(key, (weekNeed.get(key) || 0) + qty);
+          });
+        });
+
       // 5. Produse din depozit (PT + stoc)
       const { data: products } = await supabase.from(tables.products).select("*");
       const productByName = new Map<string, any>();
@@ -370,6 +394,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         return {
           perDayBrut,
           perDate: Object.fromEntries(Object.entries(futNeed.get(key) || {}).map(([d, q]) => [d, q * factor])),
+          buffer: ((weekNeed.get(key) || 0) / 7) * factor,
           perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
           key,
           productId: p?.id || null,
@@ -472,7 +497,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const result = supplierStockProjection(r.stock, dates, r.orderedPerDate, consumption);
       const offset = simulationDays.length - 2 - projDays.length;
       const end = offset + projDays.length;
-      const suggested = projDays.map((_, k) => suggestedOrderFor(result.start[offset + k], result.consum, offset + k));
+      const suggested = projDays.map((_, k) => suggestedOrderFor(result.remaining[offset + k], result.consum, offset + k, r.buffer || 0));
       map.set(r.key, {
         start: result.start.slice(offset, end), incoming: result.incoming.slice(offset, end),
         remaining: result.remaining.slice(offset, end), consum: result.consum.slice(offset, end), suggested,
@@ -765,7 +790,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Comandă (intrare)</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-400" /> Consum</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Stoc final zi</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> Comandă sugerată (consum azi + mâine + poimâine − stoc început)</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> Comandă sugerată (consum mâine + stoc tampon − stoc final; tampon = media zilnică din ultimele 7 zile)</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-destructive" /> Sub zero ⚠</span>
           </div>
 

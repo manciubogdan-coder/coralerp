@@ -8,8 +8,8 @@ describe("forecast groups", () => {
     expect(forecastGroupOf("Ceapa verde")).toBe("Aromate");
   });
   it("suggested order covers today, tomorrow and day after minus start stock", () => {
-    expect(suggestedOrderFor(50, [20, 30, 40], 0)).toBe(40);
-    expect(suggestedOrderFor(200, [20, 30, 40], 0)).toBe(0);
+    expect(suggestedOrderFor(50, [20, 30, 40], 0, 25)).toBe(5);
+    expect(suggestedOrderFor(10, [20, 30, 40], 0, 25)).toBe(45);
   });
 });
 
