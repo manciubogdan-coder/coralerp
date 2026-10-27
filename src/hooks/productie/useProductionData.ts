@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { POOL_MODE } from "@/lib/productie/stockPool";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
-import { canCompensateAdvance } from "@/lib/productie/advanceCompensation";
+import { compensateAdvanceQuantities } from "@/lib/productie/advanceCompensation";
 
 
 // Types pentru datele de producție
@@ -520,15 +520,26 @@ export const useOrders = () => {
       const pageCount = Math.max(1, Math.ceil(total / PAGE));
 
       // Comenzi, clienți și sesiuni — toate în paralel (nu secvențial)
-      const [pages, clientiRes, sesiuniRes] = await Promise.all([
+      const fetchSessions = async () => {
+        const sessions: any[] = [];
+        let from = 0;
+        while (true) {
+          const { data: rows, error } = await supabase.from('productie_sesiuni_lucru')
+            .select('id, comanda_id, cantitate_produsa, status')
+            .in('status', ['finalizata', 'partial']).order('id').range(from, from + PAGE - 1);
+          if (error) throw error;
+          sessions.push(...(rows || []));
+          if (!rows || rows.length < PAGE) break;
+          from += PAGE;
+        }
+        return sessions;
+      };
+      const [pages, clientiRes, sessions] = await Promise.all([
         Promise.all(
           Array.from({ length: pageCount }, (_, i) => fetchPage(i * PAGE))
         ),
         supabase.from('productie_clienti').select('*, productie_zone_livrare(*)'),
-        supabase
-          .from('productie_sesiuni_lucru')
-          .select('comanda_id, cantitate_produsa, status')
-          .in('status', ['finalizata', 'partial']),
+        fetchSessions(),
       ]);
 
       const data = pages.flat();
@@ -540,7 +551,7 @@ export const useOrders = () => {
 
       // Un singur query pentru sesiuni (înainte: câte un request la fiecare 50 de comenzi)
       const sesiuniMap = new Map<string, number>();
-      (sesiuniRes.data || []).forEach((s: any) => {
+      sessions.forEach((s: any) => {
         const prev = sesiuniMap.get(s.comanda_id) || 0;
         sesiuniMap.set(s.comanda_id, prev + Number(s.cantitate_produsa || 0));
       });
@@ -678,10 +689,15 @@ export const useOrders = () => {
         // altfel numele produsului normalizat (acoperă produsele duplicate cu același nume).
         let grupMap: Record<string, string> = {};
         try {
-          const { data: gr } = await supabaseCloud
-            .from('productie_grupare_ambalare')
-            .select('produs_id, grup_nume');
-          (gr || []).forEach((r: any) => { if (r.grup_nume) grupMap[r.produs_id] = String(r.grup_nume).trim().toLowerCase(); });
+          let from = 0;
+          while (true) {
+            const { data: gr, error } = await supabaseCloud.from('productie_grupare_ambalare')
+              .select('produs_id, grup_nume').order('produs_id').range(from, from + PAGE - 1);
+            if (error) throw error;
+            (gr || []).forEach((r: any) => { if (r.grup_nume) grupMap[r.produs_id] = String(r.grup_nume).trim().toLowerCase(); });
+            if (!gr || gr.length < PAGE) break;
+            from += PAGE;
+          }
         } catch { grupMap = {}; }
         const keyOf = (c: any) => {
           const g = grupMap[c.produs_id];
@@ -697,9 +713,13 @@ export const useOrders = () => {
           const k = keyOf(c);
           if (esteComandaProductieAvans(c)) {
             c.cantitate_initiala_avans = Number(c.cantitate || 0);
-            (advByProd.get(k) || advByProd.set(k, []).get(k)!).push(c);
+            const advances = advByProd.get(k) || [];
+            advances.push(c);
+            advByProd.set(k, advances);
           } else if (Number(c.cantitate || 0) > 0) {
-            (firmByProd.get(k) || firmByProd.set(k, []).get(k)!).push(c);
+            const firms = firmByProd.get(k) || [];
+            firms.push(c);
+            firmByProd.set(k, firms);
           }
         }
         const byCreated = (a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at));
@@ -708,43 +728,9 @@ export const useOrders = () => {
           if (!firms || firms.length === 0) continue;
           advs.sort(byCreated);
           firms.sort(byCreated);
-          const st = advs.map((a) => {
-            const A = Number(a.cantitate || 0);
-            const P = Math.min(A, Number(a.cantitate_produsa_sesiuni || 0) + Number(a.cantitate_din_restock || 0));
-            return { a, cap: A, prodLeft: P, reduce: 0 };
-          });
-          for (const f of firms) {
-            let demand = Math.max(0, Number(f.cantitate || 0) - Number(f.cantitate_din_restock || 0));
-            let unmet = Math.max(0, demand - Number(f.cantitate_reala_produsa || 0));
-            let fromAvans = 0;
-            for (const s of st) {
-              if (demand <= 0) break;
-              if (s.cap <= 0) continue;
-              // Compensare doar cu comenzi ferme din ACEEAȘI ZI cu avansul:
-              // ce se produce azi se trimite azi; un avans datat pe mâine acoperă
-              // comenzile de mâine, dar comenzile viitoare nu ating avansul de azi.
-              if (!canCompensateAdvance(s.a, f, autoAvansIds.has(String(s.a.id)))) continue;
-              const take = Math.min(demand, s.cap);
-              const fromProd = Math.min(unmet, s.prodLeft, take);
-              s.cap -= take;
-              s.prodLeft -= fromProd;
-              s.reduce += take - fromProd;
-              demand -= take;
-              unmet -= fromProd;
-              fromAvans += fromProd;
-            }
-            if (fromAvans > 0) {
-              f.cantitate_din_avans = fromAvans;
-              f.cantitate_reala_produsa = Number(f.cantitate_reala_produsa || 0) + fromAvans;
-            }
-          }
-          for (const s of st) {
-            if (s.reduce > 0) {
-              s.a.cantitate_scazuta_din_ferme = s.reduce;
-              s.a.cantitate = Math.max(0, Number(s.a.cantitate || 0) - s.reduce);
-              if (s.a.cantitate <= 0) s.a.status = 'completed';
-            }
-          }
+          compensateAdvanceQuantities(
+            advs.map(order => ({ order, automatic: autoAvansIds.has(String(order.id)) })), firms,
+          );
         }
       }
 
