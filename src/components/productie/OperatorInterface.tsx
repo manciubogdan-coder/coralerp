@@ -160,10 +160,20 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     return String(value).slice(0, 10);
   };
 
+  // Helper: o comandă este "finalizată/acoperită" pentru sortare
+  const isOrderDone = (o: any) => {
+    if (o.status === 'completed') return true;
+    const esteReambalare = o.magazin === 'REAMBALARE' || o.tip_comanda === 'REAMBALARE';
+    const acoperit = (o.cantitate_reala_produsa || 0) + (esteReambalare ? 0 : (o.cantitate_din_restock || 0));
+    return o.cantitate > 0 && acoperit >= o.cantitate;
+  };
+
   const matchesSelectedDay = (order: any) => {
     const dp = normalizeProductionDate((order as any).data_productie);
     if (dp) return dp === selectedDay;
-    return selectedDay === todayISO();
+    // Comenzile fără dată apar la „azi" doar dacă mai au treabă; cele
+    // finalizate sunt istoric vechi și nu trebuie să umple ziua curentă.
+    return selectedDay === todayISO() && !isOrderDone(order);
   };
 
   const [searchTerm, setSearchTerm] = useState("");
