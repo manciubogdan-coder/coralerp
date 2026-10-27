@@ -203,17 +203,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, name: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          name,
-        },
-      },
-    });
-    return { error };
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: redirectUrl,
+            data: {
+              name,
+            },
+          },
+        }),
+      );
+      return { error };
+    } catch (e) {
+      return { error: e as Error };
+    }
   };
 
   const signOut = async () => {
