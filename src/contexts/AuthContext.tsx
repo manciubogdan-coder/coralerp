@@ -86,11 +86,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       // Use raw query since types aren't generated yet
-      const { data: profileData, error: profileError } = await supabase
-        .from('app_profiles' as any)
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
+      const { data: profileData, error: profileError } = await withTimeout(
+        supabase
+          .from('app_profiles' as any)
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle(),
+      );
 
       if (profileError) {
         console.error('Error fetching profile:', profileError);
@@ -99,10 +101,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Fetch ALL roles for this user, not just admin.
-      const { data: roleRows, error: roleError } = await supabase
-        .from('app_user_roles' as any)
-        .select('role')
-        .eq('user_id', userId);
+      const { data: roleRows, error: roleError } = await withTimeout(
+        supabase
+          .from('app_user_roles' as any)
+          .select('role')
+          .eq('user_id', userId),
+      );
 
       if (roleError) {
         console.warn('Could not load user roles:', roleError.message);
