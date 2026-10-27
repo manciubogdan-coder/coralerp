@@ -17,6 +17,9 @@ test('never borrows packaging from another store or weight', () => {
 test('conflicting definitions stay unresolved instead of guessing', () => {
   expect(findOrderPackaging({ cantitate: 600, magazin: 'Mega Image', productie_produse: { nume: 'BABY SPANAC 100' } }, [...methods, { ...methods[0], units_per_case: '6' }])).toBeUndefined();
 });
+test('regional carton names do not hide an agreed units-per-case value', () => {
+  expect(findOrderPackaging({ cantitate: 600, magazin: 'Lidl Roman', productie_produse: { nume: 'BABY SPANAC 100 LIDL' } }, [...methods, { ...methods[1], tertiary_packaging: 'Alt carton regional' }])?.units_per_case).toBe('8');
+});
 test('cartons preserve loose pieces and do not calculate shared assortments', () => {
   expect(packagingQuantity(603, '4')).toEqual({ fullCases: 150, looseUnits: 3 });
   expect(packagingQuantity(600, '6+2')).toBeNull();

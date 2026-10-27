@@ -44,8 +44,9 @@ export function findOrderPackaging(order: PackagingOrder, methods: PackagingMeth
   const knownStore = methods.some(method => retailer(method.client_name) === store);
   const matches = knownStore ? storeMatches : candidates.filter(method => retailer(method.client_name) === client);
   // Duplicate regional rows are fine only when their packaging agrees.
-  if (!matches.length || new Set(matches.map(m => `${m.units_per_case}|${m.tertiary_packaging}`)).size > 1) return undefined;
-  return matches[0];
+  const first = matches[0];
+  if (!first || new Set(matches.map(m => m.units_per_case)).size > 1) return undefined;
+  return { ...first, tertiary_packaging: new Set(matches.map(m => m.tertiary_packaging)).size === 1 ? first.tertiary_packaging : '' };
 }
 
 export function packagingQuantity(quantity: number, units: string) {
