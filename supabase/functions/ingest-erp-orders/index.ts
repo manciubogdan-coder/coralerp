@@ -434,6 +434,15 @@ Deno.serve(async (req) => {
 
         const produsId = await resolveProdus(linie);
         if (!produsId) continue;
+        const seniorUnits = packagingUnits(linie.baxare);
+        if (seniorUnits) {
+          const { error: packagingError } = await cloud.from('productie_baxare_magazine').upsert({
+            produs_id: produsId, magazin_key: packagingStoreKey(numeMagazin), magazin: numeMagazin,
+            senior_units: seniorUnits, senior_code: linie.cod_produs, senior_date: dataOnly,
+            synced_at: new Date().toISOString(),
+          }, { onConflict: 'produs_id,magazin_key' });
+          if (packagingError) errors.push({ produs: linie.cod_produs, baxare: packagingError.message });
+        }
 
         const externKey = `${aviz.nr_aviz}::${linie.cod_produs}`;
         currentKeys.push(externKey);
