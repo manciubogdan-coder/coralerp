@@ -92,6 +92,7 @@ export const consumaDinPool = async (produsId: string, cantitate: number, groups
   const physicalRows = await fetchPoolRows(restockProductIds(produsId, groups));
   const physical = new Map(physicalRows.map(row => [row.id, Number(row.cantitate_surplus)]));
   const rows = (await fetchAvailablePoolRows(restockProductIds(produsId, groups), targetOrderId)).sort((a, b) =>
+    Number(b.comanda_originala_id === targetOrderId) - Number(a.comanda_originala_id === targetOrderId) ||
     (a.data_productie || '').localeCompare(b.data_productie || '') || a.id.localeCompare(b.id));
   let ramas = cantitate;
   let luat = 0;
