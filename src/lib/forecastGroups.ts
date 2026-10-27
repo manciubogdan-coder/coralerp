@@ -29,3 +29,18 @@ export const suggestedOrderFor = (start: number, consum: number[], i: number): n
   const need = (consum[i] || 0) + (consum[i + 1] || 0) + (consum[i + 2] || 0);
   return Math.max(need - (start || 0), 0);
 };
+
+/** Kg pe un palet: căpățâni 400, radicchio 500, frunze și aromate 220; altele necunoscut. */
+export const palletKgFor = (name: string): number | null => {
+  const n = norm(name);
+  if (n.includes("radic")) return 500;
+  if (n.includes("capatan")) return 400;
+  const g = forecastGroupOf(name);
+  if (g === "Aromate" || g === "Salate") return 220;
+  return null;
+};
+
+export const palletsFor = (name: string, kg: number): number | null => {
+  const per = palletKgFor(name);
+  return per && kg > 0 ? kg / per : null;
+};

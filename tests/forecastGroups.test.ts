@@ -12,3 +12,12 @@ describe("forecast groups", () => {
     expect(suggestedOrderFor(200, [20, 30, 40], 0)).toBe(0);
   });
 });
+
+import { palletKgFor as _pk } from "../src/lib/forecastGroups";
+import { test as _t, expect as _e } from "vitest";
+_t("kg pe palet", () => {
+  _e(_pk("Capatani salata verde")).toBe(400);
+  _e(_pk("Radicchio rosu")).toBe(500);
+  _e(_pk("Baby spanac bio")).toBe(220);
+  _e(_pk("Busuioc")).toBe(220);
+});

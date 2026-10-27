@@ -1,3 +1,4 @@
+import { palletsFor, palletKgFor } from "@/lib/forecastGroups";
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -205,6 +206,7 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
                   <TableHead>Produs</TableHead>
                   <TableHead>UM</TableHead>
                   <TableHead className="text-right w-[160px]">Cantitate</TableHead>
+                  <TableHead className="text-right">Paleți</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -231,6 +233,12 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
                         value={qtys[l.key] ?? ""}
                         onChange={(e) => setQtys((p) => ({ ...p, [l.key]: e.target.value }))}
                       />
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap text-sm">
+                      {(() => {
+                        const pal = String(l.unit || "kg").toLowerCase() === "kg" ? palletsFor(l.name, Number(qtys[l.key]) || 0) : null;
+                        return pal === null ? "—" : `${pal.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} (${palletKgFor(l.name)} kg/palet)`;
+                      })()}
                     </TableCell>
                     <TableCell className="w-[40px]">
                       <Button variant="ghost" size="icon" onClick={() => setRows((p) => p.filter((r) => r.key !== l.key))}>
