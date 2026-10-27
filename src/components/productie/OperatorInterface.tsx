@@ -143,7 +143,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     setTakingStock(true);
     try {
       const selected = (orders || []).filter(o => ids.includes(o.id) && restockNeeded(o) > 0);
-      if (!confirmOtherDay(selected.map(o => normalizeProductionDate(o.data_productie) || todayISO()))) return;
+      if (!confirmOtherDay(selected.map(o => normalizeProductionDate((o as any).data_productie) || todayISO()))) return;
       const sources = selected.flatMap(o => restockProductIds(o.produs_id, groupMap || {}));
       const available = (await fetchPoolRows(sources)).reduce((sum, row) => sum + Number(row.cantitate_surplus), 0);
       const needed = selected.reduce((sum, o) => sum + restockNeeded(o), 0);

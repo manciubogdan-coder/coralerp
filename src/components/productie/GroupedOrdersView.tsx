@@ -194,7 +194,7 @@ const GroupedOrdersView: React.FC<Props> = ({
         const timp = lineCapacity && lineCapacity > 0 ? totalRamas / lineCapacity : 0;
         const isExpanded = !!expanded[g.key];
         const orderIds = g.orders.map((o) => o.id);
-        const availableStock = Math.max(0, ...g.orders.filter(o => o.magazin !== 'PRODUCTIE_AVANS' && o.magazin !== 'REAMBALARE' && o.tip_comanda !== 'PRODUCTIE_AVANS' && o.tip_comanda !== 'REAMBALARE').map(o => stockTotals?.get(o.produs_id) || 0));
+        const availableStock = Math.max(0, ...g.orders.filter((o: any) => o.magazin !== 'PRODUCTIE_AVANS' && o.magazin !== 'REAMBALARE' && o.tip_comanda !== 'PRODUCTIE_AVANS' && o.tip_comanda !== 'REAMBALARE').map(o => stockTotals?.get(o.produs_id) || 0));
 
         if (hideDone && visibleOrders.length === 0 && !hasActive) return null;
 
