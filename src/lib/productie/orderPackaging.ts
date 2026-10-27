@@ -3,8 +3,9 @@ export type PackagingMethod = {
   units_per_case: string; tertiary_packaging: string;
 };
 export type PackagingOrder = {
+  produs_id?: string;
   magazin?: string; baxare?: string; cantitate: number;
-  productie_clienti?: { nume?: string; nickname?: string };
+  productie_clienti?: { nume?: string; nume_magazin?: string; nickname?: string };
   productie_produse?: { nume?: string };
 };
 const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')

@@ -12,6 +12,8 @@ import { createLovableAiGatewayRunIdFetch } from "../_shared/run-id.ts";
 import { isDue, runAgent } from "./agents.ts";
 import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 import { actionTools, handleActionDecision } from "./actions.ts";
+import { syncSeniorPackaging } from '../_shared/seniorPackaging.ts';
+import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments } from "./files.ts";
 import {
   LEGACY_ANON,
@@ -356,6 +358,23 @@ async function addCard(c: ReturnType<typeof makeClients>, userId: string, templa
 
 async function handlePackaging(action: string, url: URL, req: Request, c: ReturnType<typeof makeClients>) {
   const id = url.searchParams.get("id") ?? "";
+  if (action === 'packaging_senior_sync' || action === 'packaging_store_save') {
+    const b = await req.json();
+    if (typeof b.produs_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(b.produs_id)) return json({ error: 'Produs invalid.' }, 400);
+    const { data: product, error: productError } = await c.legacyUser.from('productie_produse').select('id').eq('id', b.produs_id).maybeSingle();
+    if (productError) throw productError;
+    if (!product) return json({ error: 'Produsul nu există.' }, 404);
+    if (action === 'packaging_senior_sync') return json(await syncSeniorPackaging(c.legacy, c.cloud, b.produs_id));
+    const store = typeof b.magazin === 'string' ? b.magazin.trim() : '';
+    const units = b.units === null ? null : packagingUnits(b.units);
+    if (!store || store.length > 200 || (b.units !== null && !units)) return json({ error: 'Alege magazinul și o baxare validă.' }, 400);
+    const { data, error } = await c.cloud.from('productie_baxare_magazine').upsert({
+      produs_id: b.produs_id, magazin_key: packagingStoreKey(store), magazin: store,
+      manual_units: units, updated_at: new Date().toISOString(),
+    }, { onConflict: 'produs_id,magazin_key' }).select().single();
+    if (error) throw error;
+    return json(data);
+  }
   if (action === "packaging_save") {
     const b = await req.json();
     const clean = (value: unknown, max = 200) => String(value ?? "").trim().slice(0, max);

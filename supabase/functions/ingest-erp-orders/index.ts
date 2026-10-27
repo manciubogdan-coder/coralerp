@@ -9,6 +9,7 @@
 const AUTO_STOCK = false;
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { applyInheritance, loadInheritanceCatalog, readAll } from '../_shared/productRecipes.ts';
+import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -22,6 +23,7 @@ const corsHeaders = {
 };
 
 interface AvizLine {
+  baxare?: string | null;
   cod_produs: string;
   denumire_produs?: string;
   cantitate: number;
@@ -432,6 +434,15 @@ Deno.serve(async (req) => {
 
         const produsId = await resolveProdus(linie);
         if (!produsId) continue;
+        const seniorUnits = packagingUnits(linie.baxare);
+        if (seniorUnits) {
+          const { error: packagingError } = await cloud.from('productie_baxare_magazine').upsert({
+            produs_id: produsId, magazin_key: packagingStoreKey(numeMagazin), magazin: numeMagazin,
+            senior_units: seniorUnits, senior_code: linie.cod_produs, senior_date: dataOnly,
+            synced_at: new Date().toISOString(),
+          }, { onConflict: 'produs_id,magazin_key' });
+          if (packagingError) errors.push({ produs: linie.cod_produs, baxare: packagingError.message });
+        }
 
         const externKey = `${aviz.nr_aviz}::${linie.cod_produs}`;
         currentKeys.push(externKey);
@@ -590,7 +601,7 @@ Deno.serve(async (req) => {
             punct_livrare: punctLivrare,
             produs_id: produsId,
             cantitate,
-            baxare: linie.observatie || null,
+            baxare: packagingUnits(linie.baxare) || linie.observatie || null,
             status: statusFinal,
             linie_id: linieId,
             cantitate_din_restock: cantitateDinRestock,

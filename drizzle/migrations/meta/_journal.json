@@ -169,6 +169,13 @@
       "when": 1792739441255,
       "tag": "0023_argus_private_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793078514172,
+      "tag": "0024_senior_product_store_packaging",
+      "breakpoints": true
     }
   ]
 }

@@ -1587,6 +1587,42 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_baxare_magazine: {
+        Row: {
+          magazin: string
+          magazin_key: string
+          manual_units: string | null
+          produs_id: string
+          senior_code: string | null
+          senior_date: string | null
+          senior_units: string | null
+          synced_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          magazin: string
+          magazin_key: string
+          manual_units?: string | null
+          produs_id: string
+          senior_code?: string | null
+          senior_date?: string | null
+          senior_units?: string | null
+          synced_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          magazin?: string
+          magazin_key?: string
+          manual_units?: string | null
+          produs_id?: string
+          senior_code?: string | null
+          senior_date?: string | null
+          senior_units?: string | null
+          synced_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       productie_comenzi_audit: {
         Row: {
           action: string

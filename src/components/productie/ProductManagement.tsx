@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle, Download } from 'lucide-react';
 import GrupareAmbalareDialog from './GrupareAmbalareDialog';
+import ProductPackagingEditor from './ProductPackagingEditor';
 import { exportToExcel } from '@/lib/excelExport';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -851,6 +852,8 @@ const ProductManagement = () => {
               )}
             </div>
           </div>
+
+          {editingProduct && <ProductPackagingEditor key={editingProduct.id} productId={editingProduct.id} />}
 
           <div className="flex justify-end gap-4 pt-4 border-t">
             <Button type="button" variant="outline" disabled={saving} onClick={() => setIsDialogOpen(false)}>
