@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CalendarIcon, FileSpreadsheet, Truck } from "lucide-react";
+import { CalendarIcon, FileSpreadsheet, Truck, Plus, Trash2 } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -44,6 +44,8 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
   const [supplierId, setSupplierId] = useState("");
   const [deliveryDate, setDeliveryDate] = useState<Date>(addDays(new Date(), 3));
   const [qtys, setQtys] = useState<Record<string, string>>({});
+  const [rows, setRows] = useState<OrderLineInput[]>([]);
+  const [products, setProducts] = useState<{ id: string; name: string; default_unit?: string; cod_produs?: string }[]>([]);
   const [saving, setSaving] = useState(false);
 
   const suppliersTable =
@@ -55,12 +57,32 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
       ? "etichete_product_orders"
       : "product_orders";
 
+  const productsTable =
+    inventoryType === "ambalaje" ? "ambalaje_products" : inventoryType === "etichete" ? "etichete_products" : "products";
+
+  const addRow = () =>
+    setRows((p) => [...p, { key: `new-${Date.now()}-${p.length}`, name: "", unit: "kg", qty: 0, productId: null }]);
+  const setRowName = (key: string, name: string) => {
+    const match = products.find((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+    setRows((p) => p.map((r) => (r.key === key
+      ? { ...r, name, productId: match?.id || null, code: match?.cod_produs || null, unit: match?.default_unit || r.unit }
+      : r)));
+  };
+
   useEffect(() => {
     if (!open) return;
     setQtys(Object.fromEntries(lines.map((l) => [l.key, String(Math.round(Math.max(l.qty, 0) * 100) / 100)])));
+    setRows(lines);
     (async () => {
       const { data } = await supabase.from(suppliersTable).select("id, name").order("name");
       setSuppliers((data as any) || []);
+      const all: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data: page } = await supabase.from(productsTable).select("*").order("name").range(from, from + 999);
+        all.push(...(page || []));
+        if (!page || page.length < 1000) break;
+      }
+      setProducts(all);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, lines]);
@@ -69,7 +91,8 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
 
   const handleGenerate = async () => {
     if (!supplierName) return;
-    const items = lines
+    const items = rows
+      .filter((l) => l.name.trim())
       .map((l) => ({
         product_id: l.productId || null,
         product_code: l.code || null,
@@ -182,12 +205,23 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
                   <TableHead>Produs</TableHead>
                   <TableHead>UM</TableHead>
                   <TableHead className="text-right w-[160px]">Cantitate</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lines.map((l) => (
+                {rows.map((l) => (
                   <TableRow key={l.key}>
-                    <TableCell className="font-medium">{l.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Input
+                        list="supplier-order-products"
+                        value={l.name}
+                        placeholder="Alege sau scrie produsul..."
+                        onChange={(e) => setRowName(l.key, e.target.value)}
+                      />
+                      {l.name && !l.productId && (
+                        <span className="text-[10px] text-muted-foreground">produs nou — apare doar în Excel</span>
+                      )}
+                    </TableCell>
                     <TableCell>{l.unit}</TableCell>
                     <TableCell className="text-right">
                       <Input
@@ -198,11 +232,22 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
                         onChange={(e) => setQtys((p) => ({ ...p, [l.key]: e.target.value }))}
                       />
                     </TableCell>
+                    <TableCell className="w-[40px]">
+                      <Button variant="ghost" size="icon" onClick={() => setRows((p) => p.filter((r) => r.key !== l.key))}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            <datalist id="supplier-order-products">
+              {products.map((p) => <option key={p.id} value={p.name} />)}
+            </datalist>
           </div>
+          <Button variant="outline" size="sm" onClick={addRow}>
+            <Plus className="h-4 w-4 mr-1" /> Adaugă produs
+          </Button>
         </div>
 
         <DialogFooter className="p-6 pt-3 border-t">
