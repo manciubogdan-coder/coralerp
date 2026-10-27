@@ -12,6 +12,7 @@ test('same product uses packaging for its own store, including retailer/new suff
 test('never borrows packaging from another store or weight', () => {
   expect(findOrderPackaging({ cantitate: 600, magazin: 'Auchan', productie_produse: { nume: 'BABY SPANAC 100' } }, methods)).toBeUndefined();
   expect(findOrderPackaging({ cantitate: 600, magazin: 'Mega Image', productie_produse: { nume: 'BABY SPANAC 200' } }, methods)).toBeUndefined();
+  expect(findOrderPackaging({ cantitate: 600, magazin: 'Lidl Roman', productie_clienti: { nume: 'Mega Image' }, productie_produse: { nume: 'BABY SPANAC 200' } }, [...methods, { ...methods[0], weight: '200g' }])).toBeUndefined();
 });
 test('conflicting definitions stay unresolved instead of guessing', () => {
   expect(findOrderPackaging({ cantitate: 600, magazin: 'Mega Image', productie_produse: { nume: 'BABY SPANAC 100' } }, [...methods, { ...methods[0], units_per_case: '6' }])).toBeUndefined();

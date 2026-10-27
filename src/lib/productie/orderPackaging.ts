@@ -41,7 +41,8 @@ export function findOrderPackaging(order: PackagingOrder, methods: PackagingMeth
     return source?.family === identity.family && source.grams === identity.grams;
   });
   const storeMatches = candidates.filter(method => retailer(method.client_name) === store);
-  const matches = storeMatches.length ? storeMatches : candidates.filter(method => retailer(method.client_name) === client);
+  const knownStore = methods.some(method => retailer(method.client_name) === store);
+  const matches = knownStore ? storeMatches : candidates.filter(method => retailer(method.client_name) === client);
   // Duplicate regional rows are fine only when their packaging agrees.
   if (!matches.length || new Set(matches.map(m => `${m.units_per_case}|${m.tertiary_packaging}`)).size > 1) return undefined;
   return matches[0];
