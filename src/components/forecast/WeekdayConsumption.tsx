@@ -14,6 +14,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import CreateSupplierOrderDialog, { OrderLineInput } from "./CreateSupplierOrderDialog";
+import { supplierDeliverySchedules } from "@/lib/supplierDeliveries";
 
 interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -39,7 +40,7 @@ interface Row {
   leadTime: number;
   suggestedQty: number;
   ordered: number;
-  orderedEta: Date | null;
+  orderedPerDate: Record<string, number>;
   coverAfterOrder: number | null;
   coverDateAfterOrder: Date | null;
 }
@@ -215,25 +216,16 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
           : inventoryType === "etichete"
           ? "etichete_product_orders"
           : "product_orders";
-      const { data: pendingOrders } = await supabase
-        .from(ordersTable)
-        .select("product_id, quantity_ordered, expected_delivery_date, status")
-        .in("status", ["pending", "ordered"]);
-      const today0 = startOfDay(new Date());
-      const orderedByProduct = new Map<string, { qty: number; eta: Date | null }>();
-      (pendingOrders || []).filter((o: any) => {
-        if (!o.expected_delivery_date) return false;
-        return new Date(o.expected_delivery_date) >= today0;
-      }).forEach((o: any) => {
-        if (!o.product_id) return;
-        const cur = orderedByProduct.get(o.product_id) || { qty: 0, eta: null as Date | null };
-        cur.qty += Number(o.quantity_ordered) || 0;
-        if (o.expected_delivery_date) {
-          const d = new Date(o.expected_delivery_date);
-          if (!cur.eta || d < cur.eta) cur.eta = d;
-        }
-        orderedByProduct.set(o.product_id, cur);
-      });
+      const pendingOrders = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase.from(ordersTable)
+          .select("id, product_id, quantity_ordered, expected_delivery_date, status")
+          .in("status", ["pending", "ordered"]).order("id").range(from, from + 999);
+        if (error) throw error;
+        pendingOrders.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      const orderedByProduct = supplierDeliverySchedules(pendingOrders, format(new Date(), "yyyy-MM-dd"));
 
       const totalDays = counts.reduce((a, b) => a + b, 0) || 1;
 
@@ -265,7 +257,7 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
             leadTime,
             suggestedQty,
             ordered: ord?.qty || 0,
-            orderedEta: ord?.eta || null,
+            orderedPerDate: ord?.perDate || {},
             coverAfterOrder,
             coverDateAfterOrder: coverAfterOrder !== null ? addDays(new Date(), Math.floor(coverAfterOrder)) : null,
           };
@@ -462,11 +454,11 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
                           <Truck className="h-3 w-3 mr-1" />
                           {r.ordered.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                         </Badge>
-                        {r.orderedEta && (
-                          <span className="block text-[10px] text-muted-foreground mt-0.5">
-                            {format(r.orderedEta, "dd MMM", { locale: ro })}
+                        {Object.entries(r.orderedPerDate || {}).sort(([a], [b]) => a.localeCompare(b)).map(([date, qty]) => (
+                          <span key={date} className="block text-[10px] text-muted-foreground mt-0.5">
+                            {format(new Date(`${date}T00:00:00`), "dd MMM", { locale: ro })}: {qty.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} {r.unit}
                           </span>
-                        )}
+                        ))}
                       </>
                     ) : (
                       <span className="text-muted-foreground">—</span>

@@ -12,6 +12,7 @@ import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import CreateSupplierOrderDialog, { OrderLineInput } from "./CreateSupplierOrderDialog";
+import { supplierDeliverySchedules, supplierStockProjection } from "@/lib/supplierDeliveries";
 
 interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -29,7 +30,7 @@ interface Row {
   brut: number;
   stock: number;
   ordered: number;
-  orderedEta: Date | null;
+  orderedPerDate: Record<string, number>;
   diff: number;
   matched: boolean;
   perDayBrut: number[];
@@ -325,26 +326,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           : inventoryType === "etichete"
           ? "etichete_product_orders"
           : "product_orders";
-      const { data: pendingOrders } = await supabase
+      const pendingOrders = await fetchAll(() => supabase
         .from(ordersTable)
-        .select("product_id, quantity_ordered, expected_delivery_date, status")
-        .in("status", ["pending", "ordered"]);
-      const today0 = startOfDay(new Date());
-      const orderedByProduct = new Map<string, { qty: number; eta: Date | null }>();
-      (pendingOrders || []).filter((o: any) => {
-        // ignorăm comenzile vechi (data estimată de livrare a trecut) — sunt reziduale
-        if (!o.expected_delivery_date) return false;
-        return new Date(o.expected_delivery_date) >= today0;
-      }).forEach((o: any) => {
-        if (!o.product_id) return;
-        const cur = orderedByProduct.get(o.product_id) || { qty: 0, eta: null as Date | null };
-        cur.qty += Number(o.quantity_ordered) || 0;
-        if (o.expected_delivery_date) {
-          const d = new Date(o.expected_delivery_date);
-          if (!cur.eta || d < cur.eta) cur.eta = d;
-        }
-        orderedByProduct.set(o.product_id, cur);
-      });
+        .select("id, product_id, quantity_ordered, expected_delivery_date, status")
+        .in("status", ["pending", "ordered"])
+        .order("id"));
+      const orderedByProduct = supplierDeliverySchedules(pendingOrders, todayStr);
 
       // 5c. Termen de livrare per produs
       const { data: settingsRows } = await supabase.from(tables.settings).select("product_id, lead_time_days");
@@ -385,7 +372,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           brut,
           stock,
           ordered: ord?.qty || 0,
-          orderedEta: ord?.eta || null,
+          orderedPerDate: ord?.perDate || {},
           diff: stock - brut,
           matched: !!p,
           avgDaily,
@@ -463,36 +450,21 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       { start: number[]; incoming: number[]; remaining: number[]; consum: number[]; outDate: Date | null }
     >();
     filtered.forEach((r) => {
-      let running = r.stock;
-      let incomingLeft = r.ordered;
-      const start: number[] = [];
-      const incoming: number[] = [];
-      const remaining: number[] = [];
-      const consum: number[] = [];
-      let outDate: Date | null = null;
-      projDays.forEach((d) => {
-        start.push(running);
-        let inQty = 0;
-        if (incomingLeft > 0 && r.orderedEta && startOfDay(r.orderedEta) <= d) {
-          inQty = incomingLeft;
-          running += incomingLeft;
-          incomingLeft = 0;
-        }
-        incoming.push(inQty);
-        // Dacă ziua are comenzi reale → consum din comenzi × rețete; altfel media din referință.
-        const dk = format(d, "yyyy-MM-dd");
-        // Istoric → media consumului pe ziua săptămânii din perioada de referință aleasă.
-        // Live → comenzile reale existente pe acea zi.
-        const need =
-          mode === "live" && orderDates.has(dk) ? r.perDate[dk] || 0 : r.perDayAvg[isoDay(d)] || 0;
-        running -= need;
-        consum.push(need);
-        remaining.push(Math.max(running, 0));
-        if (running < 0 && !outDate) outDate = d;
-        // Lipsa unei zile nu se reportează: a doua zi pornim de la 0, nu de la minus.
-        if (running < 0) running = 0;
+      const firstDay = projDays[0];
+      if (!firstDay) return;
+      // Run from the stock snapshot day even when the visible range starts later.
+      const simulationStart = startOfDay(new Date()) < firstDay ? startOfDay(new Date()) : firstDay;
+      const simulationDays = eachDayOfInterval({ start: simulationStart, end: projDays[projDays.length - 1] });
+      const dates = simulationDays.map((d) => format(d, "yyyy-MM-dd"));
+      const consumption = simulationDays.map((d, i) =>
+        mode === "live" && orderDates.has(dates[i]) ? r.perDate[dates[i]] || 0 : r.perDayAvg[isoDay(d)] || 0);
+      const result = supplierStockProjection(r.stock, dates, r.orderedPerDate, consumption);
+      const offset = simulationDays.length - projDays.length;
+      map.set(r.key, {
+        start: result.start.slice(offset), incoming: result.incoming.slice(offset),
+        remaining: result.remaining.slice(offset), consum: result.consum.slice(offset),
+        outDate: result.outDate ? new Date(`${result.outDate}T00:00:00`) : null,
       });
-      map.set(r.key, { start, incoming, remaining, consum, outDate });
     });
     return map;
   }, [filtered, projDays, orderDates, mode]);
@@ -514,6 +486,24 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   );
 
   const exportExcel = () => {
+    if (view === "proiectie") {
+      const data = filtered.map((r) => {
+        const line: Record<string, string | number> = { Material: r.name, "U.M.": r.unit };
+        const values = projection.get(r.key);
+        projDays.forEach((d, i) => {
+          const date = format(d, "dd.MM.yyyy");
+          line[`${date} - Stoc început`] = Math.round((values?.start[i] || 0) * 100) / 100;
+          line[`${date} - Comandă`] = Math.round((values?.incoming[i] || 0) * 100) / 100;
+          line[`${date} - Consum`] = Math.round((values?.consum[i] || 0) * 100) / 100;
+          line[`${date} - Stoc final`] = Math.round((values?.remaining[i] || 0) * 100) / 100;
+        });
+        return line;
+      });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Proiecție zi cu zi");
+      XLSX.writeFile(wb, `ForecastLivrari_${format(projFrom, "yyyyMMdd")}_${format(projTo, "yyyyMMdd")}.xlsx`);
+      return;
+    }
     const data = filtered.map((r) => {
       const base: Record<string, any> = {
         Grupă: r.group,
@@ -985,11 +975,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                               <Truck className="h-3 w-3 mr-1" />
                               {r.ordered.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                             </Badge>
-                            {r.orderedEta && (
-                              <span className="block text-[10px] text-muted-foreground mt-0.5">
-                                {format(r.orderedEta, "dd MMM", { locale: ro })}
+                            {Object.entries(r.orderedPerDate || {}).sort(([a], [b]) => a.localeCompare(b)).map(([date, qty]) => (
+                              <span key={date} className="block text-[10px] text-muted-foreground mt-0.5">
+                                {format(new Date(`${date}T00:00:00`), "dd MMM", { locale: ro })}: {qty.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} {r.unit}
                               </span>
-                            )}
+                            ))}
                           </>
                         ) : (
                           <span className="text-muted-foreground">—</span>
