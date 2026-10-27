@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { POOL_MODE } from "@/lib/productie/stockPool";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
+import { canCompensateAdvance } from "@/lib/productie/advanceCompensation";
 
 
 // Types pentru datele de producție
@@ -704,7 +705,7 @@ export const useOrders = () => {
               // Compensare doar cu comenzi ferme din ACEEAȘI ZI cu avansul:
               // ce se produce azi se trimite azi; un avans datat pe mâine acoperă
               // comenzile de mâine, dar comenzile viitoare nu ating avansul de azi.
-              if (dayOf(s.a) !== dayOf(f)) continue;
+              if (!canCompensateAdvance(s.a, f)) continue;
               const take = Math.min(demand, s.cap);
               const fromProd = Math.min(unmet, s.prodLeft, take);
               s.cap -= take;
