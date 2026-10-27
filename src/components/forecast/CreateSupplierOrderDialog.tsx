@@ -1,4 +1,4 @@
-import { palletsFor, palletKgFor } from "@/lib/forecastGroups";
+import { palletsFor, palletKgFor, summarizePallets } from "@/lib/forecastGroups";
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFoot, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CalendarIcon, FileSpreadsheet, Truck, Plus, Trash2 } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { ro } from "date-fns/locale";
@@ -39,6 +39,8 @@ interface Props {
   lines: OrderLineInput[];
   onCreated?: () => void;
 }
+
+const fmt = (n: number, max = 2) => n.toLocaleString("ro-RO", { maximumFractionDigits: max });
 
 const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, inventoryType, lines, onCreated }) => {
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
@@ -89,6 +91,11 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
   }, [open, lines]);
 
   const supplierName = useMemo(() => suppliers.find((s) => s.id === supplierId)?.name || "", [suppliers, supplierId]);
+
+  const palletTotals = useMemo(
+    () => summarizePallets(rows.map((l) => ({ name: l.name, unit: l.unit, qty: Number(qtys[l.key]) || 0 }))),
+    [rows, qtys]
+  );
 
   const handleGenerate = async () => {
     if (!supplierName) return;
@@ -237,7 +244,7 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
                     <TableCell className="text-right whitespace-nowrap text-sm">
                       {(() => {
                         const pal = String(l.unit || "kg").toLowerCase() === "kg" ? palletsFor(l.name, Number(qtys[l.key]) || 0) : null;
-                        return pal === null ? "—" : `${pal.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} (${palletKgFor(l.name)} kg/palet)`;
+                        return pal === null ? "—" : `${fmt(pal)} (${palletKgFor(l.name)} kg/palet)`;
                       })()}
                     </TableCell>
                     <TableCell className="w-[40px]">
@@ -248,6 +255,21 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
                   </TableRow>
                 ))}
               </TableBody>
+              <TableFooter>
+                <TableRow className="bg-muted/60 hover:bg-muted/60">
+                  <TableFoot colSpan={2} className="font-semibold">
+                    Total
+                  </TableFoot>
+                  <TableFoot className="text-right font-semibold whitespace-nowrap">{fmt(palletTotals.kg)} kg</TableFoot>
+                  <TableFoot className="text-right whitespace-nowrap">
+                    <span className="font-semibold">{fmt(palletTotals.pallets)} paleți</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {palletTotals.wholePallets} paleți întregi de încărcat
+                    </span>
+                  </TableFoot>
+                  <TableFoot />
+                </TableRow>
+              </TableFooter>
             </Table>
             <datalist id="supplier-order-products">
               {products.map((p) => <option key={p.id} value={p.name} />)}
@@ -256,9 +278,22 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
           <Button variant="outline" size="sm" onClick={addRow}>
             <Plus className="h-4 w-4 mr-1" /> Adaugă produs
           </Button>
+
+          {palletTotals.byClass.length > 0 && (
+            <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+              {palletTotals.byClass.map((c) => (
+                <span key={c.perPalletKg}>
+                  {fmt(c.pallets)} paleți de {c.perPalletKg} kg = {fmt(c.kg)} kg
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <DialogFooter className="p-6 pt-3 border-t">
+          <div className="text-sm font-medium mr-auto">
+            Total: {fmt(palletTotals.pallets)} paleți ({palletTotals.wholePallets} de încărcat)
+          </div>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Anulează
           </Button>

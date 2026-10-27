@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { ro } from 'date-fns/locale';
+import { palletKgFor, summarizePallets } from './forecastGroups';
 
 interface PurchaseOrderItem {
   product_code: string | null;
@@ -33,6 +34,12 @@ const generateOrderNumber = (): string => {
   return `CMD-${year}${month}${day}-${random}`;
 };
 
+const palletsOfItem = (item: PurchaseOrderItem): number | null => {
+  if (String(item.unit || "kg").toLowerCase() !== "kg") return null;
+  const per = palletKgFor(item.product_name);
+  return per && item.quantity > 0 ? Math.round((item.quantity / per) * 100) / 100 : null;
+};
+
 export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: string) => {
   const orderNumber = generateOrderNumber();
   const orderDate = data.order_date || new Date();
@@ -45,6 +52,10 @@ export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: stri
   const earliestDelivery = deliveryDates.length > 0 
     ? new Date(Math.min(...deliveryDates.map(d => d.getTime())))
     : new Date(orderDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const palletTotals = summarizePallets(
+    data.items.map(i => ({ name: i.product_name, unit: i.unit, qty: i.quantity }))
+  );
 
   // Creăm workbook
   const wb = XLSX.utils.book_new();
@@ -59,7 +70,7 @@ export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: stri
 
   // Header - Titlu
   sheetData.push([]);
-  sheetData.push(["", "", "COMANDĂ DE ACHIZIȚIE", "", "", ""]);
+  sheetData.push(["", "", "COMANDĂ DE ACHIZIȚIE", "", "", "", ""]);
   sheetData.push([]);
 
   // Număr comandă și dată
@@ -86,24 +97,32 @@ export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: stri
 
   // Header tabel produse
   const tableHeaderRow = sheetData.length;
-  sheetData.push(["Nr.", "Cod Produs", "Denumire Produs", "Cantitate", "U.M.", "Data Livrare"]);
+  sheetData.push(["Nr.", "Cod Produs", "Denumire Produs", "Cantitate", "U.M.", "Paleți", "Data Livrare"]);
 
   // Produse
   data.items.forEach((item, index) => {
+    const pal = palletsOfItem(item);
     sheetData.push([
       index + 1,
       item.product_code || "-",
       item.product_name,
       item.quantity,
       item.unit,
+      pal === null ? "-" : pal,
       item.expected_delivery_date ? format(item.expected_delivery_date, "dd.MM.yyyy") : format(earliestDelivery, "dd.MM.yyyy")
     ]);
   });
 
-  // Total produse
+  // Total produse și paleți
   const totalRow = sheetData.length;
   sheetData.push([]);
-  sheetData.push(["", "", "TOTAL PRODUSE:", data.items.length, "", ""]);
+  sheetData.push(["", "", "TOTAL PRODUSE:", data.items.length, "", palletTotals.pallets > 0 ? Math.round(palletTotals.pallets * 100) / 100 : "", ""]);
+  if (palletTotals.pallets > 0) {
+    sheetData.push(["", "", "TOTAL PALEȚI DE ÎNCĂRCAT:", palletTotals.wholePallets, "", `${Math.round(palletTotals.kg * 100) / 100} kg`, ""]);
+    palletTotals.byClass.forEach(c => {
+      sheetData.push(["", "", `Paleți de ${c.perPalletKg} kg:`, Math.round(c.pallets * 100) / 100, "", `${Math.round(c.kg * 100) / 100} kg`, ""]);
+    });
+  }
   sheetData.push([]);
 
   // Termeni și condiții
@@ -113,13 +132,13 @@ export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: stri
   sheetData.push([]);
 
   // Semnături
-  sheetData.push(["CUMPĂRĂTOR", "", "", "", "FURNIZOR", ""]);
+  sheetData.push(["CUMPĂRĂTOR", "", "", "", "", "FURNIZOR", ""]);
   sheetData.push([]);
-  sheetData.push(["Semnătură:", "_____________________", "", "", "Semnătură:", "_____________________"]);
+  sheetData.push(["Semnătură:", "_____________________", "", "", "", "Semnătură:", "_____________________"]);
   sheetData.push([]);
-  sheetData.push(["Data:", "_____________________", "", "", "Data:", "_____________________"]);
+  sheetData.push(["Data:", "_____________________", "", "", "", "Data:", "_____________________"]);
   sheetData.push([]);
-  sheetData.push(["Ștampila:", "", "", "", "Ștampila:", ""]);
+  sheetData.push(["Ștampila:", "", "", "", "", "Ștampila:", ""]);
 
   // Creăm sheet-ul
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
@@ -131,12 +150,13 @@ export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: stri
     { wch: 40 },  // Denumire Produs
     { wch: 12 },  // Cantitate
     { wch: 8 },   // U.M.
+    { wch: 10 },  // Paleți
     { wch: 14 }   // Data Livrare
   ];
 
   // Merge cells pentru titlu
   ws['!merges'] = [
-    { s: { r: 1, c: 2 }, e: { r: 1, c: 4 } }, // Titlu "COMANDĂ DE ACHIZIȚIE"
+    { s: { r: 1, c: 2 }, e: { r: 1, c: 5 } }, // Titlu "COMANDĂ DE ACHIZIȚIE"
   ];
 
   // Asigură formatarea numerică pentru cantități
@@ -148,6 +168,11 @@ export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: stri
     if (ws[cellAddr] && typeof ws[cellAddr].v === 'number') {
       ws[cellAddr].t = 'n';
       ws[cellAddr].z = '#,##0';
+    }
+    const palAddr = XLSX.utils.encode_cell({ r, c: 5 }); // Coloana Paleți
+    if (ws[palAddr] && typeof ws[palAddr].v === 'number') {
+      ws[palAddr].t = 'n';
+      ws[palAddr].z = '#,##0.00';
     }
   }
 
