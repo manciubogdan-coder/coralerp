@@ -9,6 +9,7 @@
 const AUTO_STOCK = false;
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { applyInheritance, loadInheritanceCatalog, readAll } from '../_shared/productRecipes.ts';
+import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -22,6 +23,7 @@ const corsHeaders = {
 };
 
 interface AvizLine {
+  baxare?: string | null;
   cod_produs: string;
   denumire_produs?: string;
   cantitate: number;
@@ -590,7 +592,7 @@ Deno.serve(async (req) => {
             punct_livrare: punctLivrare,
             produs_id: produsId,
             cantitate,
-            baxare: linie.observatie || null,
+            baxare: packagingUnits(linie.baxare) || linie.observatie || null,
             status: statusFinal,
             linie_id: linieId,
             cantitate_din_restock: cantitateDinRestock,

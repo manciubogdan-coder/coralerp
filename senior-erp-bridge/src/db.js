@@ -90,8 +90,11 @@ async function fetchAvizeSince(sinceDate) {
         l.Cantitate                   AS cantitate,
         l.Cantitate_Disponibila       AS cantitate_acceptata,
         l.UM_Id                       AS um,
-        l.Descriere                   AS observatie
+        l.Descriere                   AS observatie,
+        bx.ContinutBAX                AS baxare
       FROM [dbo].[C_D_Note_Contabile] l
+      OUTER APPLY (SELECT TOP 1 b.ContinutBAX FROM [extensions].[CT_CantitateBAX] b
+        WHERE b.CodArticol=l.D_ID ORDER BY b.LastModifiedOn DESC,b.Id DESC) bx
       WHERE l.H_Id IN (${placeholders})
     `;
     const rows = await query(sqlLinii, chunk);
@@ -127,6 +130,7 @@ async function fetchAvizeSince(sinceDate) {
           l.cantitate_acceptata != null ? Number(l.cantitate_acceptata) : null,
         um: l.um ? String(l.um) : null,
         observatie: l.observatie || null,
+        baxare: l.baxare || null,
       });
     });
   }
