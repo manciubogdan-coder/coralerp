@@ -15,6 +15,7 @@ import CreateSupplierOrderDialog, { OrderLineInput } from "./CreateSupplierOrder
 import { supplierDeliverySchedules, supplierStockProjection } from "@/lib/supplierDeliveries";
 import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge";
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
+import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
 interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -59,19 +60,8 @@ const norm = (s: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
 
-const AROMATE_KEYS = [
-  "menta", "busuioc", "patrunjel", "marar", "cimbru", "cimbrisor", "rozmarin", "oregano",
-  "leustean", "tarhon", "coriandru", "arpagic", "ceapaverde", "salvie", "melisa", "roinita",
-  "lavanda", "sovarv", "aromat", "chivas",
-];
-
-// Tot ce nu este plantă aromatică se consideră salată (mono sau mix).
-const groupOf = (name: string): string => {
-  const n = norm(name);
-  if (AROMATE_KEYS.some((k) => n.includes(k))) return "Aromate";
-  return "Salate";
-};
-const GROUP_ORDER = ["Salate", "Aromate"];
+const groupOf = forecastGroupOf;
+const GROUP_ORDER = FORECAST_GROUP_ORDER;
 
 
 const toKg = (q: number, u?: string) => {
@@ -459,23 +449,26 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   const projection = useMemo(() => {
     const map = new Map<
       string,
-      { start: number[]; incoming: number[]; remaining: number[]; consum: number[]; outDate: Date | null }
+      { start: number[]; incoming: number[]; remaining: number[]; consum: number[]; suggested: number[]; outDate: Date | null }
     >();
     filtered.forEach((r) => {
       const firstDay = projDays[0];
       if (!firstDay) return;
       // Run from the stock snapshot day even when the visible range starts later.
       const simulationStart = startOfDay(new Date()) < firstDay ? startOfDay(new Date()) : firstDay;
-      const simulationDays = eachDayOfInterval({ start: simulationStart, end: projDays[projDays.length - 1] });
+      // Two extra days so the suggested order can look at tomorrow and the day after.
+      const simulationDays = eachDayOfInterval({ start: simulationStart, end: addDays(projDays[projDays.length - 1], 2) });
       const dates = simulationDays.map((d) => format(d, "yyyy-MM-dd"));
       const consumption = simulationDays.map((d, i) =>
         mode === "live" && orderDates.has(dates[i]) ? r.perDate[dates[i]] || 0 : r.perDayAvg[isoDay(d)] || 0);
       const result = supplierStockProjection(r.stock, dates, r.orderedPerDate, consumption);
-      const offset = simulationDays.length - projDays.length;
+      const offset = simulationDays.length - 2 - projDays.length;
+      const end = offset + projDays.length;
+      const suggested = projDays.map((_, k) => suggestedOrderFor(result.start[offset + k], result.consum, offset + k));
       map.set(r.key, {
-        start: result.start.slice(offset), incoming: result.incoming.slice(offset),
-        remaining: result.remaining.slice(offset), consum: result.consum.slice(offset),
-        outDate: result.outDate ? new Date(`${result.outDate}T00:00:00`) : null,
+        start: result.start.slice(offset, end), incoming: result.incoming.slice(offset, end),
+        remaining: result.remaining.slice(offset, end), consum: result.consum.slice(offset, end), suggested,
+        outDate: result.outDate && result.outDate <= dates[end - 1] ? new Date(`${result.outDate}T00:00:00`) : null,
       });
     });
     return map;
