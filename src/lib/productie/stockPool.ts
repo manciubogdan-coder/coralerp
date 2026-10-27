@@ -79,7 +79,7 @@ export const consumaDinPool = async (produsId: string, cantitate: number, groups
     if (disponibil <= 0) continue;
     const take = Math.min(ramas, disponibil);
     const { data, error } = await supabase.from('productie_restocari')
-      .update({ cantitate_surplus: disponibil - take, status: take >= disponibil ? 'folosit' : 'disponibil', updated_at: new Date().toISOString() })
+      .update({ cantitate_surplus: disponibil - take, status: take >= disponibil ? 'redistribuit' : 'disponibil', updated_at: new Date().toISOString() })
       .eq('id', r.id).eq('status', 'disponibil').eq('cantitate_surplus', disponibil).select('id');
     if (error) throw error;
     if (!data?.length) continue;
