@@ -28,3 +28,4 @@
 - Advance compensation requires same-day firm orders created strictly later. Why: older demand must not complete a new advance plan.
 - Purchase forecasts share date-keyed supplier schedules and stock projections with paginated reads. Why: deliveries must retain each ETA in both screen and Excel.
 - Leaf warnings share receipt-based Bucharest day rules and original positive-stock lots. Why: grouping must not hide old lots or age fresh stock.
+- AuthContext wraps all legacy-DB auth/profile calls in `withTimeout` (20s) with a clear Romanian error. Why: the external legacy Supabase project can pause/hang, and without a timeout the app sat on "Se autentifică..." forever.
