@@ -723,7 +723,7 @@ export const useOrders = () => {
               // Compensare doar cu comenzi ferme din ACEEAȘI ZI cu avansul:
               // ce se produce azi se trimite azi; un avans datat pe mâine acoperă
               // comenzile de mâine, dar comenzile viitoare nu ating avansul de azi.
-              if (!canCompensateAdvance(s.a, f)) continue;
+              if (!canCompensateAdvance(s.a, f, autoAvansIds.has(String(s.a.id)))) continue;
               const take = Math.min(demand, s.cap);
               const fromProd = Math.min(unmet, s.prodLeft, take);
               s.cap -= take;
