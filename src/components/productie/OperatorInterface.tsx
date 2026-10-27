@@ -198,14 +198,6 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     </div>
   );
 
-  // Helper: o comandă este "finalizată/acoperită" pentru sortare
-  const isOrderDone = (o: any) => {
-    if (o.status === 'completed') return true;
-    const esteReambalare = o.magazin === 'REAMBALARE' || o.tip_comanda === 'REAMBALARE';
-    const acoperit = (o.cantitate_reala_produsa || 0) + (esteReambalare ? 0 : (o.cantitate_din_restock || 0));
-    return o.cantitate > 0 && acoperit >= o.cantitate;
-  };
-
   // Prepare orders for pagination - only for the selected line when viewing orders
   const lineOrders = view === 'orders' && currentLineId ? orders?.filter(order => {
     if (!order.linie_id || !lineMemberIds.includes(order.linie_id)) return false;
