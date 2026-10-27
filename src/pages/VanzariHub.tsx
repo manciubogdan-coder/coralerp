@@ -11,10 +11,13 @@ import BackToHubButton from "@/components/BackToHubButton";
 import PrereceptieView from "@/components/inventory/PrereceptieView";
 import { ForceInventoryType } from "@/context/inventory-type";
 import NecesarComenzi from "@/components/vanzari/NecesarComenzi";
+import SalesForecast from "@/components/vanzari/SalesForecast";
+import { TrendingUp } from "lucide-react";
 
 const TABS = [
   { key: "crm", label: "Relații Clienți", icon: Users },
   { key: "necesar", label: "Comenzi & Necesar", icon: FileStack },
+  { key: "forecast", label: "Forecast Vânzări", icon: TrendingUp },
   { key: "stoc-marfa", label: "Stoc Marfă Început Zi", icon: Package },
   { key: "consumuri", label: "Analiză Consumuri", icon: TrendingDown },
   { key: "restocari", label: "Restocări Marfă", icon: Truck },
@@ -58,6 +61,10 @@ const VanzariHub: React.FC = () => {
         </TabsList>
 
         <TabsContent value="crm"><SalesCrm /></TabsContent>
+
+        <TabsContent value="forecast">
+          <Card><CardContent className="p-4"><SalesForecast /></CardContent></Card>
+        </TabsContent>
 
         <TabsContent value="necesar">
           <Card><CardContent className="p-4"><NecesarComenzi /></CardContent></Card>
