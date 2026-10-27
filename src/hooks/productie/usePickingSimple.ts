@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { POOL_MODE, fetchPoolTotals, consumaDinPool } from '@/lib/productie/stockPool';
+import { POOL_MODE, fetchPoolRows, fetchPoolTotals, consumaDinPool } from '@/lib/productie/stockPool';
 
 
 // Tipuri
@@ -172,6 +172,10 @@ export const useComenziDisponibile = () => {
       // plus ce e deja alocat comenzii (cantitate_din_restock).
       const poolTotals = POOL_MODE ? await fetchPoolTotals(productIds) : new Map<string, number>();
       const poolRamas = new Map(poolTotals);
+      const ownPool = new Map<string, number>();
+      if (POOL_MODE) for (const lot of await fetchPoolRows(productIds)) {
+        if (lot.comanda_originala_id) ownPool.set(lot.comanda_originala_id, (ownPool.get(lot.comanda_originala_id) || 0) + Number(lot.cantitate_surplus));
+      }
 
       // Grupare pe magazin|punct_livrare (fiecare comandă rămâne separată)
       const grouped = new Map<string, ComenziDisponibile>();
@@ -197,9 +201,10 @@ export const useComenziDisponibile = () => {
         let realizat: number;
         if (POOL_MODE) {
           const disponibilPool = poolRamas.get(com.produs_id) || 0;
-          const poateLua = Math.min(Math.max(0, cantitateComanda - alocat), disponibilPool);
+          const reserved = Math.min(Math.max(0, cantitateComanda - alocat), ownPool.get(com.id) || 0);
+          const poateLua = Math.min(Math.max(0, cantitateComanda - alocat - reserved), disponibilPool);
           poolRamas.set(com.produs_id, disponibilPool - poateLua);
-          realizat = alocat + poateLua;
+          realizat = alocat + reserved + poateLua;
         } else {
           realizat = (cantitateProdusaMap.get(com.id) || 0) + alocat;
         }
@@ -360,6 +365,10 @@ export const usePickingProduse = (sesiuneId?: string) => {
       const poolTotals = POOL_MODE
         ? await fetchPoolTotals((comenziDetalii || []).map((c: any) => c.produs_id))
         : new Map<string, number>();
+      const ownPool = new Map<string, number>();
+      if (POOL_MODE) for (const lot of await fetchPoolRows((comenziDetalii || []).map((c: any) => c.produs_id))) {
+        if (lot.comanda_originala_id) ownPool.set(lot.comanda_originala_id, (ownPool.get(lot.comanda_originala_id) || 0) + Number(lot.cantitate_surplus));
+      }
 
       const map = new Map((comenziDetalii || []).map((c: any) => [c.id, c]));
       const enriched = (data || []).map((p: any) => {
@@ -367,7 +376,10 @@ export const usePickingProduse = (sesiuneId?: string) => {
         const total = Number(c?.cantitate ?? p.cantitate_comandata ?? 0);
         const alocat = Number(c?.cantitate_din_restock || 0);
         const produsId = c?.produs_id || p.produs_id;
-        const poolDisponibil = POOL_MODE ? Number(poolTotals.get(produsId) || 0) : 0;
+        const reserved = Math.min(Math.max(0, total - alocat), ownPool.get(p.sesiune_lucru_id) || 0);
+        const free = POOL_MODE ? Number(poolTotals.get(produsId) || 0) : 0;
+        const poolDisponibil = POOL_MODE ? reserved + free : 0;
+        if (POOL_MODE) poolTotals.set(produsId, Math.max(0, free - Math.max(0, total - alocat - reserved)));
         const realizat = POOL_MODE
           ? Math.min(total, alocat + poolDisponibil)
           : (produsMap.get(p.sesiune_lucru_id) || 0) + alocat;
@@ -421,7 +433,7 @@ export const useUpdatePickingProdus = () => {
         const dejaAlocat = Number(cantitate_alocata || 0);
         const necesar = numarat - dejaAlocat;
         if (necesar > 0) {
-          const luat = await consumaDinPool(produs_id, necesar);
+          const luat = await consumaDinPool(produs_id, necesar, {}, comanda_id);
           if (luat > 0) {
             await supabase
               .from('productie_comenzi')
@@ -525,7 +537,7 @@ export const useAlocaDinPool = () => {
       cantitate_alocata: number;
       cantitate: number;
     }) => {
-      const luat = await consumaDinPool(params.produs_id, params.cantitate);
+      const luat = await consumaDinPool(params.produs_id, params.cantitate, {}, params.comanda_id);
       if (luat > 0) {
         const { error } = await supabase
           .from('productie_comenzi')
