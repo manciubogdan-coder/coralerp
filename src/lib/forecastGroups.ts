@@ -42,3 +42,42 @@ export const palletsFor = (name: string, kg: number): number | null => {
   const per = palletKgFor(name);
   return per && kg > 0 ? kg / per : null;
 };
+
+export interface PalletClass {
+  perPalletKg: number;
+  kg: number;
+  pallets: number;
+}
+
+export interface PalletSummary {
+  kg: number;
+  pallets: number;
+  wholePallets: number;
+  byClass: PalletClass[];
+}
+
+/** Totalizarea paleților unei comenzi: kg, paleți exacti și paleți întregi de încărcat. */
+export const summarizePallets = (rows: { name: string; unit?: string; qty: number }[]): PalletSummary => {
+  const byClass = new Map<number, number>();
+  let kg = 0;
+  let wholePallets = 0;
+  for (const r of rows) {
+    if (String(r.unit || "kg").toLowerCase() !== "kg") continue;
+    const per = palletKgFor(r.name);
+    const qty = Math.max(Number(r.qty) || 0, 0);
+    if (!per || qty <= 0) continue;
+    kg += qty;
+    wholePallets += Math.ceil(qty / per);
+    byClass.set(per, (byClass.get(per) || 0) + qty);
+  }
+  const classes = [...byClass.entries()]
+    .map(([perPalletKg, k]) => ({ perPalletKg, kg: k, pallets: k / perPalletKg }))
+    .sort((a, b) => b.perPalletKg - a.perPalletKg);
+  return {
+    kg,
+    pallets: classes.reduce((s, c) => s + c.pallets, 0),
+    wholePallets,
+    byClass: classes,
+  };
+};
+
