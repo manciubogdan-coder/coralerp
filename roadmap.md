@@ -1,5 +1,5 @@
 # Roadmap
-- [ ] Fix purchase forecasts lumping supplier deliveries onto the earliest date; preserve each delivery date in projections and Excel, with regression tests.
+- [x] Fix purchase forecasts lumping supplier deliveries onto the earliest date; date-keyed paginated reads, per-date quantities in both forecast tabs, and daily projection Excel. Three rule tests passed; isolated browser verified 100 today / 200 two days later and numeric Excel readback without runtime errors; build OK. Real operational-account verification unavailable.
 - [x] Replace sheet-based packaging with exact product/store Senior values and protected editable overrides in product configuration; 89 real definitions synced/read back, nine tests pass, isolated real-data UI verified without errors. Missing explicit Senior values remain unspecified.
 - [ ] Verify product/store correction save in a real signed-in operational account — blocked by unavailable external operational session.
 - [ ] Install updated senior-erp-bridge on Senior host for automatic packaging import — blocked by the locally installed bridge; per-product live refresh is available without installation.
