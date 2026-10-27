@@ -24,7 +24,7 @@
 - Senior product inheritance uses the shared productRecipes matcher with explicit retailer suffixes, compatible recipe composition and paginated reads across operational recipes and Cloud groups; existing recipes/groups are never overwritten. Why: new weights need proportional ingredients without merging unrelated products or erasing manual setup.
 - Recipe editing preserves existing ingredient row IDs and checks each write; the product editor locks the full save until recipes and distribution finish loading. Why: destructive replacement and early/double submits can lose ingredients or duplicate recipes.
 - Discarded finished-goods resets use a shared preview/apply service with paginated reads, checked compare-and-set writes, pool clearing before date-scoped allocation resets and session-derived status; never call allocation-return helpers. Why: discarded goods must not reappear, real production must survive, and partial/concurrent changes must be visible; legacy database access does not provide a transaction here.
-- Manual restocking inserts validated unallocated lots and refreshes stock after checked writes. Why: physical entries must not complete orders.
+- Manual restocks stay unallocated; operator group-aware FIFO requires confirmation, even in active sessions. Why: stock must not auto-complete demand.
 - Advance compensation requires same-day firm orders created strictly later. Why: older demand must not complete a new advance plan.
 - Purchase forecasts share date-keyed supplier schedules and stock projections with paginated reads. Why: deliveries must retain each ETA in both screen and Excel.
 - Leaf warnings share receipt-based Bucharest day rules and original positive-stock lots. Why: grouping must not hide old lots or age fresh stock.
