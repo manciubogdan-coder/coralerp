@@ -501,6 +501,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           line[`${date} - Comandă`] = Math.round((values?.incoming[i] || 0) * 100) / 100;
           line[`${date} - Consum`] = Math.round((values?.consum[i] || 0) * 100) / 100;
           line[`${date} - Stoc final`] = Math.round((values?.remaining[i] || 0) * 100) / 100;
+          line[`${date} - Comandă sugerată`] = Math.round((values?.suggested[i] || 0) * 100) / 100;
         });
         return line;
       });
@@ -640,9 +641,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           <FileDown className="h-4 w-4 mr-2" />
           Export Excel
         </Button>
-        <Button onClick={() => setOrderOpen(true)} disabled={selected.size === 0}>
+        <Button onClick={() => setOrderOpen(true)}>
           <Truck className="h-4 w-4 mr-2" />
-          Comandă furnizor ({selected.size})
+          Creare comandă furnizor{selected.size > 0 ? ` (${selected.size})` : ""}
         </Button>
 
         <div className="flex gap-1">
@@ -756,6 +757,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Comandă (intrare)</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-400" /> Consum</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Stoc final zi</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> Comandă sugerată (consum azi + mâine + poimâine − stoc început)</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-destructive" /> Sub zero ⚠</span>
           </div>
 
@@ -798,7 +800,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       {projDays.map((d) => (
                         <th
                           key={d.toISOString()}
-                          colSpan={4}
+                          colSpan={5}
                           className="sticky top-0 z-20 bg-background border-b border-r px-2 h-8 text-center whitespace-nowrap font-semibold"
                         >
                           {WEEKDAYS[isoDay(d)].slice(0, 3).toLowerCase()} {format(d, "d MMM", { locale: ro })}
@@ -817,8 +819,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                           <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-rose-600 whitespace-nowrap">
                             Consum
                           </th>
-                          <th className="sticky top-8 z-20 bg-background border-b border-r px-2 h-7 text-right text-[10px] font-medium text-emerald-600 whitespace-nowrap">
+                          <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-emerald-600 whitespace-nowrap">
                             Stoc final
+                          </th>
+                          <th
+                            title="Consum azi + mâine + poimâine minus stocul de început al zilei"
+                            className="sticky top-8 z-20 bg-background border-b border-r px-2 h-7 text-right text-[10px] font-medium text-primary whitespace-nowrap"
+                          >
+                            Comandă sugerată
                           </th>
                         </React.Fragment>
                       ))}
@@ -859,11 +867,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                                 </td>
                                 <td
                                   className={cn(
-                                    "p-1.5 text-right border-r whitespace-nowrap font-semibold",
+                                    "p-1.5 text-right whitespace-nowrap font-semibold",
                                     end < 0 ? "bg-destructive/10 text-destructive" : "text-emerald-700"
                                   )}
                                 >
                                   {fmt(end)}
+                                </td>
+                                <td className="p-1.5 text-right border-r whitespace-nowrap font-semibold bg-primary/5 text-primary">
+                                  {(pr?.suggested[i] ?? 0) > 0 ? fmt(pr!.suggested[i]) : <span className="text-muted-foreground font-normal">—</span>}
                                 </td>
                               </React.Fragment>
                             );
