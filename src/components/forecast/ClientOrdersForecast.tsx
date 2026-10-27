@@ -15,6 +15,7 @@ import CreateSupplierOrderDialog, { OrderLineInput } from "./CreateSupplierOrder
 import { supplierDeliverySchedules, supplierStockProjection } from "@/lib/supplierDeliveries";
 import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge";
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
+import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
 interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -59,19 +60,8 @@ const norm = (s: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
 
-const AROMATE_KEYS = [
-  "menta", "busuioc", "patrunjel", "marar", "cimbru", "cimbrisor", "rozmarin", "oregano",
-  "leustean", "tarhon", "coriandru", "arpagic", "ceapaverde", "salvie", "melisa", "roinita",
-  "lavanda", "sovarv", "aromat", "chivas",
-];
-
-// Tot ce nu este plantă aromatică se consideră salată (mono sau mix).
-const groupOf = (name: string): string => {
-  const n = norm(name);
-  if (AROMATE_KEYS.some((k) => n.includes(k))) return "Aromate";
-  return "Salate";
-};
-const GROUP_ORDER = ["Salate", "Aromate"];
+const groupOf = forecastGroupOf;
+const GROUP_ORDER = FORECAST_GROUP_ORDER;
 
 
 const toKg = (q: number, u?: string) => {
@@ -459,23 +449,26 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   const projection = useMemo(() => {
     const map = new Map<
       string,
-      { start: number[]; incoming: number[]; remaining: number[]; consum: number[]; outDate: Date | null }
+      { start: number[]; incoming: number[]; remaining: number[]; consum: number[]; suggested: number[]; outDate: Date | null }
     >();
     filtered.forEach((r) => {
       const firstDay = projDays[0];
       if (!firstDay) return;
       // Run from the stock snapshot day even when the visible range starts later.
       const simulationStart = startOfDay(new Date()) < firstDay ? startOfDay(new Date()) : firstDay;
-      const simulationDays = eachDayOfInterval({ start: simulationStart, end: projDays[projDays.length - 1] });
+      // Two extra days so the suggested order can look at tomorrow and the day after.
+      const simulationDays = eachDayOfInterval({ start: simulationStart, end: addDays(projDays[projDays.length - 1], 2) });
       const dates = simulationDays.map((d) => format(d, "yyyy-MM-dd"));
       const consumption = simulationDays.map((d, i) =>
         mode === "live" && orderDates.has(dates[i]) ? r.perDate[dates[i]] || 0 : r.perDayAvg[isoDay(d)] || 0);
       const result = supplierStockProjection(r.stock, dates, r.orderedPerDate, consumption);
-      const offset = simulationDays.length - projDays.length;
+      const offset = simulationDays.length - 2 - projDays.length;
+      const end = offset + projDays.length;
+      const suggested = projDays.map((_, k) => suggestedOrderFor(result.start[offset + k], result.consum, offset + k));
       map.set(r.key, {
-        start: result.start.slice(offset), incoming: result.incoming.slice(offset),
-        remaining: result.remaining.slice(offset), consum: result.consum.slice(offset),
-        outDate: result.outDate ? new Date(`${result.outDate}T00:00:00`) : null,
+        start: result.start.slice(offset, end), incoming: result.incoming.slice(offset, end),
+        remaining: result.remaining.slice(offset, end), consum: result.consum.slice(offset, end), suggested,
+        outDate: result.outDate && result.outDate <= dates[end - 1] ? new Date(`${result.outDate}T00:00:00`) : null,
       });
     });
     return map;
@@ -508,6 +501,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           line[`${date} - Comandă`] = Math.round((values?.incoming[i] || 0) * 100) / 100;
           line[`${date} - Consum`] = Math.round((values?.consum[i] || 0) * 100) / 100;
           line[`${date} - Stoc final`] = Math.round((values?.remaining[i] || 0) * 100) / 100;
+          line[`${date} - Comandă sugerată`] = Math.round((values?.suggested[i] || 0) * 100) / 100;
         });
         return line;
       });
@@ -647,9 +641,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           <FileDown className="h-4 w-4 mr-2" />
           Export Excel
         </Button>
-        <Button onClick={() => setOrderOpen(true)} disabled={selected.size === 0}>
+        <Button onClick={() => setOrderOpen(true)}>
           <Truck className="h-4 w-4 mr-2" />
-          Comandă furnizor ({selected.size})
+          Creare comandă furnizor{selected.size > 0 ? ` (${selected.size})` : ""}
         </Button>
 
         <div className="flex gap-1">
@@ -763,6 +757,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Comandă (intrare)</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-400" /> Consum</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Stoc final zi</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> Comandă sugerată (consum azi + mâine + poimâine − stoc început)</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-destructive" /> Sub zero ⚠</span>
           </div>
 
@@ -805,7 +800,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       {projDays.map((d) => (
                         <th
                           key={d.toISOString()}
-                          colSpan={4}
+                          colSpan={5}
                           className="sticky top-0 z-20 bg-background border-b border-r px-2 h-8 text-center whitespace-nowrap font-semibold"
                         >
                           {WEEKDAYS[isoDay(d)].slice(0, 3).toLowerCase()} {format(d, "d MMM", { locale: ro })}
@@ -824,8 +819,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                           <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-rose-600 whitespace-nowrap">
                             Consum
                           </th>
-                          <th className="sticky top-8 z-20 bg-background border-b border-r px-2 h-7 text-right text-[10px] font-medium text-emerald-600 whitespace-nowrap">
+                          <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-emerald-600 whitespace-nowrap">
                             Stoc final
+                          </th>
+                          <th
+                            title="Consum azi + mâine + poimâine minus stocul de început al zilei"
+                            className="sticky top-8 z-20 bg-background border-b border-r px-2 h-7 text-right text-[10px] font-medium text-primary whitespace-nowrap"
+                          >
+                            Comandă sugerată
                           </th>
                         </React.Fragment>
                       ))}
@@ -866,11 +867,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                                 </td>
                                 <td
                                   className={cn(
-                                    "p-1.5 text-right border-r whitespace-nowrap font-semibold",
+                                    "p-1.5 text-right whitespace-nowrap font-semibold",
                                     end < 0 ? "bg-destructive/10 text-destructive" : "text-emerald-700"
                                   )}
                                 >
                                   {fmt(end)}
+                                </td>
+                                <td className="p-1.5 text-right border-r whitespace-nowrap font-semibold bg-primary/5 text-primary">
+                                  {(pr?.suggested[i] ?? 0) > 0 ? fmt(pr!.suggested[i]) : <span className="text-muted-foreground font-normal">—</span>}
                                 </td>
                               </React.Fragment>
                             );
