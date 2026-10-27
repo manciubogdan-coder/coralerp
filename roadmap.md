@@ -1,5 +1,6 @@
 # Roadmap
-- [ ] Show product/store-specific packaging beside order quantities in production and operator screens; preserve quantities and statuses.
+- [x] Show product/store-specific packaging beside order quantities in production and operator screens; quantities/statuses unchanged. Five tests pass, build OK; isolated browser using real catalog confirms Mega Image 4 buc/bax and Lidl 8 buc/bax, no runtime errors.
+- [ ] Verify packaging on real signed-in production/operator orders — blocked by unavailable operational account session; isolated real-catalog display verified.
 - [x] Fix newly created advance orders appearing completed through compensation against older firm orders; seven tests pass. Real-data isolated UI confirms Baby spanac 100 MI: 600 pieces, assigned, pending (1), completed (0); stock and production unchanged. Full signed-in creation flow remains unavailable without an operational session.
 - [x] Add confirmed discarded-restock clearing and selected-day stock-allocation reset from operator date controls and Restocări; five rule tests and isolated browser confirmation/reset/zero-repeat flow passed, desktop/mobile checked. Real data has not been reset.
 - [ ] Verify discarded-stock reset in a real signed-in operational account — blocked by unavailable operational session; the isolated browser used test data only.
