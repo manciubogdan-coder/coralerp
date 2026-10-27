@@ -17,6 +17,7 @@ import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SabloaneComenziClient from "./SabloaneComenziClient";
+import OrderPackaging from './OrderPackaging';
 
 const OrderManagementReal = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -565,6 +566,7 @@ const OrderManagementReal = () => {
                             <div className="text-sm text-gray-500">
                               {cantitateComandată} {order.productie_produse?.unitate_masura}
                             </div>
+                            <OrderPackaging order={order} />
                             {cantitateRamasaDeProdus > 0 && (
                               <div className="text-xs text-red-600">
                                 ⚠️ Mai trebuie: {cantitateRamasaDeProdus} {order.productie_produse?.unitate_masura}

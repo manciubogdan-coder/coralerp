@@ -10,6 +10,7 @@ import { Package, Clock, ChevronDown, ChevronRight, Play, CheckCircle, Users, Fa
 import { ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/useProductionData";
 import { useOperatorT } from "@/lib/operatorI18n";
 import { OrderHistoryButton } from "./OrderHistoryDialog";
+import OrderPackaging from "./OrderPackaging";
 
 interface Props {
   orders: ProductieComanda[];
@@ -298,6 +299,7 @@ const GroupedOrdersView: React.FC<Props> = ({
                       >
                         <div className="min-w-0 flex-1">
                           <div className="text-xs font-medium text-coral-primary">{o.numar_comanda}</div>
+                          <OrderPackaging order={o} />
                           <div className="text-xs text-gray-600 truncate">
                             {o.magazin}
                             {o.productie_clienti?.nickname && (
