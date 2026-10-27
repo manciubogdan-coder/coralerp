@@ -656,6 +656,24 @@ export const useOrders = () => {
         const lookback = new Date();
         lookback.setDate(lookback.getDate() - 21);
         const minDay = lookback.toISOString().slice(0, 10);
+        // Avansurile generate AUTOMAT (cron/matrice) sunt marcate în auditul din Cloud —
+        // ele se reduc cu orice comandă fermă din aceeași zi, chiar dacă comanda a fost
+        // importată din Senior înainte de generarea avansului. Avansurile manuale rămân
+        // protejate: le reduc doar comenzile ferme create strict după ele.
+        const autoAvansIds = new Set<string>();
+        try {
+          let audFrom = 0;
+          for (;;) {
+            const { data: aud } = await supabaseCloud
+              .from('productie_comenzi_audit')
+              .select('comanda_ids')
+              .eq('source', 'productie-avans-auto')
+              .range(audFrom, audFrom + 999);
+            (aud || []).forEach((r: any) => (r.comanda_ids || []).forEach((id: any) => autoAvansIds.add(String(id))));
+            if (!aud || aud.length < 1000) break;
+            audFrom += 1000;
+          }
+        } catch { /* dacă auditul nu poate fi citit, avansurile rămân tratate ca manuale */ }
         // Cheia de potrivire: grupa de ambalare (dacă produsul e într-o grupă),
         // altfel numele produsului normalizat (acoperă produsele duplicate cu același nume).
         let grupMap: Record<string, string> = {};
