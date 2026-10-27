@@ -343,6 +343,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
 
       const totalDays = counts.reduce((a, b) => a + b, 0) || 1;
 
+      // Produse din depozit fără consum în perioadă, dar cu stoc sau comenzi în curs, apar și ele în listă.
+      (products || []).forEach((p: any) => {
+        const k = norm(p.name);
+        if (need.has(k)) return;
+        if ((stockByProduct.get(p.id) || 0) > 0 || orderedByProduct.get(p.id)?.qty)
+          need.set(k, { name: p.name, qty: 0, perDay: [0, 0, 0, 0, 0, 0, 0] });
+      });
+
       const result: Row[] = [...need.entries()].map(([key, v]) => {
         const p = productByName.get(key);
         const pt = Number(p?.pt_percent) || 0;
