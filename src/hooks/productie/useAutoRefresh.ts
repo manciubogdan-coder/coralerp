@@ -18,8 +18,7 @@ export const useAutoRefresh = ({
   useEffect(() => {
     if (!enabled) return;
 
-    // Auto-refresh silențios - fără mesaje în consolă
-    const intervalId = setInterval(() => {
+    const invalidate = () => {
       // Invalidez cache-urile specifice dacă sunt date
       if (queryKeys.length > 0) {
         queryKeys.forEach(queryKey => {
@@ -35,10 +34,23 @@ export const useAutoRefresh = ({
         queryClient.invalidateQueries({ queryKey: ['products'] });
         queryClient.invalidateQueries({ queryKey: ['lines'] });
       }
-    }, interval);
+    };
+
+    // Auto-refresh silențios - fără mesaje în consolă
+    const intervalId = setInterval(invalidate, interval);
+
+    // Reîmprospătare imediată când ecranul/tableta se trezește din sleep —
+    // altfel un ecran lăsat deschis peste noapte arată datele de ieri.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') invalidate();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
 
     return () => {
       clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
     };
   }, [queryClient, interval, enabled, queryKeys]);
 };
