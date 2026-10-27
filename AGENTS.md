@@ -24,7 +24,7 @@
 - Recipe editing preserves existing ingredient row IDs and checks each write; the product editor locks the full save until recipes and distribution finish loading. Why: destructive replacement and early/double submits can lose ingredients or duplicate recipes.
 - Discarded finished-goods resets use a shared preview/apply service with paginated reads, checked compare-and-set writes, pool clearing before date-scoped allocation resets and session-derived status; never call allocation-return helpers. Why: discarded goods must not reappear, real production must survive, partial/concurrent changes must be visible.
 - Origin reservations protect firm production: Picking uses its own goods; other orders use free surplus with confirmation. Why: today's goods must not cover tomorrow.
-- Advance compensation requires same-day firm orders created strictly later. Why: older demand must not complete a new advance plan.
+- Advance compensation: auto advances reduce with any same-day firm order; manual ones only with later firm orders. Why: Senior imports precede generation.
 - Purchase forecasts share date-keyed supplier schedules and stock projections with paginated reads. Why: deliveries must retain each ETA in both screen and Excel.
 - Leaf warnings share receipt-based Bucharest day rules and original positive-stock lots. Why: grouping must not hide old lots or age fresh stock.
 - AuthContext wraps legacy-DB auth/profile calls in `withTimeout` (20s) with a clear Romanian error. Why: the external legacy Supabase project can pause/hang and login spun forever.
