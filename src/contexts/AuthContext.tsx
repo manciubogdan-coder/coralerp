@@ -41,6 +41,27 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Dacă serverul de date nu răspunde (ex: proiect pus pe pauză), cererile
+// Supabase pot rămâne blocate la infinit și aplicația arăta „Se autentifică..."
+// la nesfârșit. Înfășurăm apelurile critice într-un timeout cu mesaj clar.
+const AUTH_TIMEOUT_MS = 20000;
+
+const withTimeout = <T,>(promise: PromiseLike<T>, ms = AUTH_TIMEOUT_MS): Promise<T> =>
+  Promise.race([
+    Promise.resolve(promise),
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              'Serverul de date nu răspunde momentan. Verifică conexiunea sau reîncearcă în câteva minute.',
+            ),
+          ),
+        ms,
+      ),
+    ),
+  ]);
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -65,11 +86,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       // Use raw query since types aren't generated yet
-      const { data: profileData, error: profileError } = await supabase
-        .from('app_profiles' as any)
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
+      const { data: profileData, error: profileError } = await withTimeout(
+        supabase
+          .from('app_profiles' as any)
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle(),
+      );
 
       if (profileError) {
         console.error('Error fetching profile:', profileError);
@@ -78,10 +101,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Fetch ALL roles for this user, not just admin.
-      const { data: roleRows, error: roleError } = await supabase
-        .from('app_user_roles' as any)
-        .select('role')
-        .eq('user_id', userId);
+      const { data: roleRows, error: roleError } = await withTimeout(
+        supabase
+          .from('app_user_roles' as any)
+          .select('role')
+          .eq('user_id', userId),
+      );
 
       if (roleError) {
         console.warn('Could not load user roles:', roleError.message);
@@ -144,8 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // THEN check for existing session
-    supabase.auth
-      .getSession()
+    withTimeout(supabase.auth.getSession())
       .then(async ({ data: { session } }) => {
         setSession(session);
         setUser(session?.user ?? null);
@@ -169,27 +193,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+      );
+      return { error };
+    } catch (e) {
+      return { error: e as Error };
+    }
   };
 
   const signUp = async (email: string, password: string, name: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          name,
-        },
-      },
-    });
-    return { error };
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: redirectUrl,
+            data: {
+              name,
+            },
+          },
+        }),
+      );
+      return { error };
+    } catch (e) {
+      return { error: e as Error };
+    }
   };
 
   const signOut = async () => {
