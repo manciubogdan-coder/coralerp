@@ -975,7 +975,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                               <Truck className="h-3 w-3 mr-1" />
                               {r.ordered.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                             </Badge>
-                            {Object.entries(r.orderedPerDate).sort(([a], [b]) => a.localeCompare(b)).map(([date, qty]) => (
+                            {Object.entries(r.orderedPerDate || {}).sort(([a], [b]) => a.localeCompare(b)).map(([date, qty]) => (
                               <span key={date} className="block text-[10px] text-muted-foreground mt-0.5">
                                 {format(new Date(`${date}T00:00:00`), "dd MMM", { locale: ro })}: {qty.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} {r.unit}
                               </span>
