@@ -72,7 +72,7 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
   useEffect(() => {
     if (!open) return;
     setQtys(Object.fromEntries(lines.map((l) => [l.key, String(Math.round(Math.max(l.qty, 0) * 100) / 100)])));
-    setRows(lines);
+    setRows(lines.length ? lines : [{ key: `new-${Date.now()}`, name: "", unit: "kg", qty: 0, productId: null }]);
     (async () => {
       const { data } = await supabase.from(suppliersTable).select("id, name").order("name");
       setSuppliers((data as any) || []);
