@@ -8,6 +8,7 @@ import { ProductieComanda, ProductieSesiuneLucru } from "@/hooks/productie/usePr
 import { Package, AlertTriangle, CheckCircle, Clock, Factory, Archive, Play, Users } from "lucide-react";
 import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
+import OrderPackaging from "./OrderPackaging";
 import { useOrderCuts } from "@/hooks/productie/useOrderCuts";
 
 interface OrdersTableProps {
@@ -117,6 +118,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                     {procentProgres}%
                   </div>
                 </div>
+                <OrderPackaging order={order} quantity={Math.max(0, cantitateComandată - cutOf(order.id))} />
                 <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mb-2">
                   <div className={`h-2 rounded-full ${
                     procentProgres >= 100 ? 'bg-green-500' : procentProgres >= 50 ? 'bg-blue-500' : 'bg-amber-500'
@@ -225,11 +227,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                           </>
                         )}
                       </div>
-                      {(order as any).baxare && (
-                        <div className="text-xs px-2 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 font-medium">
-                          📝 {(order as any).baxare}
-                        </div>
-                      )}
+                      <OrderPackaging order={order} quantity={Math.max(0, cantitateComandată - cutOf(order.id))} />
                       {cantitateRamasaDeProdus > 0 && (
                         <div className="text-xs text-red-600 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3" />

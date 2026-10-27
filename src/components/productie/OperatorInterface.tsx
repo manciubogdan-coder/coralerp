@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchPoolTotals, setAlocareComanda } from "@/lib/productie/stockPool";
 import { useQueryClient } from "@tanstack/react-query";
 import DiscardedStockReset from './DiscardedStockReset';
+import OrderPackaging from './OrderPackaging';
 
 interface OperatorInterfaceProps {
   selectedLine: string;
@@ -726,6 +727,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                     </div>
                   </div>
 
+                  <OrderPackaging order={currentOrder} />
                   {/* Breakdown detaliat */}
                   {(cantitateRealaProadusa > 0 || cantitatedinRestock > 0) && (
                     <div className="text-xs space-y-1 bg-gray-50 p-2 rounded">
@@ -1184,6 +1186,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                     <span className="font-semibold">{o.productie_produse?.nume || '-'}</span>
                     <span className="text-sm text-muted-foreground">{o.magazin || o.productie_clienti?.nume || ''}</span>
                     <span className="text-sm">{o.cantitate} {t("pcs")}</span>
+                    <OrderPackaging order={o} />
                     <Badge variant="outline" className="ml-auto">{dl?.nume}</Badge>
                     {done && <CheckCircle className="h-4 w-4 text-green-600" />}
                   </button>
