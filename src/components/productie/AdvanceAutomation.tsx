@@ -177,6 +177,18 @@ const AdvanceAutomation = ({ onGenerated }: { onGenerated?: () => void }) => {
         target_date: targetDate, source: "manual", orders_created: created.length,
         details: { sursa: gridSource, items: valid.map((g) => ({ produs: g.produs_nume, cantitate: g.cantitate, linie: g.linie_nume })) },
       });
+      // Marcăm aceste comenzi ca avansuri generate din matrice (estimări): ele se
+      // reduc cu orice comandă fermă din aceeași zi, spre deosebire de avansurile
+      // adăugate individual, care sunt decizii deliberate de producție în plus.
+      try {
+        await cloud.from("productie_comenzi_audit").insert({
+          table_name: "productie_comenzi", action: "insert",
+          record_ids: created.map((c: any) => c.id),
+          comanda_ids: created.map((c: any) => c.id),
+          changes: { sursa: `matrice (${gridSource})`, target_date: targetDate, count: created.length },
+          page_path: "/productie", source: "productie-avans-auto",
+        });
+      } catch { /* auditul e informativ — nu blocăm crearea */ }
       queryClient.invalidateQueries({ queryKey: ["avans-log"] });
       toast.success(`${created.length} comenzi de producție în avans create pentru ${targetDate}.`);
       setGenOpen(false);
