@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Correct Picking readiness against actual completed production and same-day advance; isolate selected-day open sessions and verify without changing stored production.
 - [x] Correct completed advance compensation against earlier same-day firm demand and prevent duplicate displayed production; paginate session/group reads. Real Rucola data read and browser-loaded calculation confirms 402 covered / 30 remaining, zero duplicate advance count; 45 tests pass, build OK, no stored stock/production modified.
 - [ ] Verify compensated quantities in signed-in Operator UI — blocked by unavailable external operational session; browser reaches login, real data calculation verified separately.
 - [x] Protect production awaiting Picking through shared origin reservations in operator availability, redistribution, picking reads and FIFO writes; own-order Picking retains access, other orders see only free surplus. Eighteen tests pass; browser-loaded rule verifies 1000 today / zero tomorrow without mutations; build OK. Existing real allocations/stock not modified.
