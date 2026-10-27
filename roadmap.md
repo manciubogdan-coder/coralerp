@@ -1,5 +1,7 @@
 # Roadmap
-- [ ] Replace sheet-based order packaging with verified Senior product/store values and editable product configuration overrides; preserve order quantities/statuses.
+- [x] Replace sheet-based packaging with exact product/store Senior values and protected editable overrides in product configuration; 89 real definitions synced/read back, nine tests pass, isolated real-data UI verified without errors. Missing explicit Senior values remain unspecified.
+- [ ] Verify product/store correction save in a real signed-in operational account — blocked by unavailable external operational session.
+- [ ] Install updated senior-erp-bridge on Senior host for automatic packaging import — blocked by the locally installed bridge; per-product live refresh is available without installation.
 - [x] Show product/store-specific packaging beside order quantities in production and operator screens; quantities/statuses unchanged. Five tests pass, build OK; isolated browser using real catalog confirms Mega Image 4 buc/bax and Lidl 8 buc/bax, no runtime errors.
 - [ ] Verify packaging on real signed-in production/operator orders — blocked by unavailable operational account session; isolated real-catalog display verified.
 - [x] Fix newly created advance orders appearing completed through compensation against older firm orders; seven tests pass. Real-data isolated UI confirms Baby spanac 100 MI: 600 pieces, assigned, pending (1), completed (0); stock and production unchanged. Full signed-in creation flow remains unavailable without an operational session.
