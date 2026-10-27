@@ -39,6 +39,7 @@ interface Row {
   matched: boolean;
   perDayBrut: number[];
   perDayAvg: number[];
+  buffer?: number;
   perDate: Record<string, number>;
   avgDaily: number;
   coverDays: number | null;
