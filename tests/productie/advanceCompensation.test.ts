@@ -14,4 +14,12 @@ test('later firm orders still compensate advance within the same production day'
 
 test('future production days never reduce today’s advance', () => {
   expect(canCompensateAdvance(babySpanacAdvance, { data_productie: '2026-10-28', created_at: '2026-10-27T04:00:00Z' })).toBe(false);
+  expect(canCompensateAdvance(babySpanacAdvance, { data_productie: '2026-10-28', created_at: '2026-10-27T04:00:00Z' }, true)).toBe(false);
+});
+
+test('auto-generated advance is reduced by any same-day firm order, even one imported earlier', () => {
+  // Senior import poate crea comenzile ferme ÎNAINTE de generarea avansului
+  // (comenzi cu dată de livrare viitoare) — avansul automat trebuie totuși redus.
+  expect(canCompensateAdvance(babySpanacAdvance, { data_productie: '2026-10-27', created_at: '2026-10-26T15:00:00Z' }, true)).toBe(true);
+  expect(canCompensateAdvance(babySpanacAdvance, babySpanacAdvance, true)).toBe(true);
 });
