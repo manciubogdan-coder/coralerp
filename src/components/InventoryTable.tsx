@@ -12,6 +12,8 @@ import { exportToExcel } from "@/lib/excelExport";
 import { toast } from "@/hooks/use-custom-toast";
 import { useInventoryType } from "@/context/inventory-type";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import { agedLeafLots } from "@/lib/leafStockAge";
+import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 
 interface InventoryTableProps {
   inventory: InventoryItem[];
@@ -178,7 +180,8 @@ const InventoryTable = ({
         name: `Produs: ${product}`,
         quantity: totalNetQuantity,
         unit: items[0]?.unit || '',
-        isHeader: true
+        isHeader: true,
+        ...({ items } as object)
       };
       
       return [headerItem, ...items];
@@ -202,7 +205,8 @@ const InventoryTable = ({
         quantity: totalNetQuantity,
         unit: items[0]?.unit || '',
         supplier: supplier,
-        isHeader: true
+        isHeader: true,
+        ...({ items } as object)
       };
       
       return [headerItem, ...items];
@@ -320,8 +324,9 @@ const InventoryTable = ({
                   (item.product_id ? products[item.product_id]?.cod_produs : undefined) ||
                   "-";
                 const cellCls = "px-1 py-1.5 print:px-1 print:py-1 print:border print:border-gray-300 print:text-xs text-[11px] leading-tight whitespace-normal break-words";
+                const agedLots = inventoryType === 'materii-prime' ? agedLeafLots([item]) : [];
                 return (
-                  <TableRow key={item.id} className={`print:break-inside-avoid ${item.isHeader ? "bg-gray-100 font-medium print:bg-gray-200" : ""}`}>
+                  <TableRow key={item.id} className={`print:break-inside-avoid ${agedLots.length ? "bg-destructive/10 text-destructive hover:bg-destructive/15" : item.isHeader ? "bg-gray-100 font-medium print:bg-gray-200" : ""}`}>
                     <TableCell className={cellCls}>{item.entry_number || '-'}</TableCell>
                     <TableCell
                       className={cellCls}
@@ -344,6 +349,7 @@ const InventoryTable = ({
 
                     <TableCell className={`${cellCls} ${item.isHeader ? "font-bold" : "font-medium"}`}>
                       {productName}
+                      <LeafStockWarning name={productName} lots={agedLots} />
                     </TableCell>
                     <TableCell className={cellCls}>{productCode}</TableCell>
                     <TableCell className={`${cellCls} text-right`}>{formatQuantity(item.quantity)}</TableCell>

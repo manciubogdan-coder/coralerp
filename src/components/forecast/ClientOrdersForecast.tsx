@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import CreateSupplierOrderDialog, { OrderLineInput } from "./CreateSupplierOrderDialog";
 import { supplierDeliverySchedules, supplierStockProjection } from "@/lib/supplierDeliveries";
+import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge";
+import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 
 interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -29,6 +31,7 @@ interface Row {
   pt: number;
   brut: number;
   stock: number;
+  agedLots?: AgedLeafLot[];
   ordered: number;
   orderedPerDate: Record<string, number>;
   diff: number;
@@ -306,11 +309,19 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         snapRows.push(...page);
         if (page.length < 1000) break;
       }
-      let inv: any[] = snapRows;
-      if (!snapRows.length) {
-        const { data: cur } = await supabase.from(tables.inventory).select("product_id, quantity").gt("quantity", 0);
-        inv = cur || [];
+      const currentLots = await fetchAll(() => supabase.from(tables.inventory)
+        .select("id, name, product_id, quantity, unit, receipt_date, lot_number, supplier, document_number")
+        .gt("quantity", 0).order("id"));
+      const agedByName = new Map<string, AgedLeafLot[]>();
+      if (inventoryType === "materii-prime") {
+        agedLeafLots(currentLots).forEach((lot) => {
+          const key = leafStockKey(lot.item.name);
+          const group = agedByName.get(key) || [];
+          group.push(lot);
+          agedByName.set(key, group);
+        });
       }
+      const inv: any[] = snapRows.length ? snapRows : currentLots;
       const stockByProduct = new Map<string, number>();
       inv.forEach((i: any) => {
         if (!i.product_id) return;
@@ -371,6 +382,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           pt,
           brut,
           stock,
+          agedLots: agedByName.get(leafStockKey(name)) || [],
           ordered: ord?.qty || 0,
           orderedPerDate: ord?.perDate || {},
           diff: stock - brut,
@@ -843,7 +855,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                             const fmt = (n: number) => n.toLocaleString("ro-RO", { maximumFractionDigits: 1 });
                             return (
                               <React.Fragment key={d.toISOString()}>
-                                <td className="p-1.5 text-right text-sky-700 whitespace-nowrap">{fmt(st)}</td>
+                                <td className={cn("p-1.5 text-right whitespace-nowrap", r.agedLots?.length ? "bg-destructive/10 text-destructive" : "text-sky-700")}>
+                                  {i === 0 && r.agedLots?.length ? <LeafStockWarning name={r.name} lots={r.agedLots}>{fmt(st)}</LeafStockWarning> : fmt(st)}
+                                </td>
                                 <td className="p-1.5 text-right whitespace-nowrap">
                                   {inQty > 0 ? <span className="text-amber-600 font-medium">+{fmt(inQty)}</span> : <span className="text-muted-foreground">—</span>}
                                 </td>
@@ -967,7 +981,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       <td className="p-2 text-right font-semibold text-primary">
                         {r.brut.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
                       </td>
-                      <td className="p-2 text-right">{r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}</td>
+                      <td className={cn("p-2 text-right", r.agedLots?.length && "bg-destructive/10 text-destructive")}>
+                        {r.stock.toLocaleString("ro-RO", { maximumFractionDigits: 2 })}
+                        <LeafStockWarning name={r.name} lots={r.agedLots || []} />
+                      </td>
                       <td className="p-2 text-right whitespace-nowrap">
                         {r.ordered > 0 ? (
                           <>
