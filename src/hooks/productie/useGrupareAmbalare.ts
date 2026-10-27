@@ -10,12 +10,16 @@ export const useGrupareAmbalare = () => {
   return useQuery({
     queryKey: ["productie_grupare_ambalare"],
     queryFn: async () => {
-      const { data, error } = await supabaseCloud
-        .from("productie_grupare_ambalare")
-        .select("produs_id, grup_nume");
-      if (error) throw error;
       const map: Record<string, string> = {};
-      (data || []).forEach((r: any) => { map[r.produs_id] = r.grup_nume; });
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabaseCloud.from("productie_grupare_ambalare")
+          .select("produs_id, grup_nume").order('produs_id').range(from, from + 999);
+        if (error) throw error;
+        (data || []).forEach((r: any) => { map[r.produs_id] = r.grup_nume; });
+        if (!data || data.length < 1000) break;
+        from += 1000;
+      }
       return map;
     },
     staleTime: 60_000,

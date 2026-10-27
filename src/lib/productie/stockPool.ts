@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { restockProductIds } from './restockGroups';
 
 /**
  * POOL MODE
@@ -29,66 +30,63 @@ export const fetchPoolRows = async (produsIds: string[]): Promise<PoolRow[]> => 
   if (ids.length === 0) return [];
   const batches = await Promise.all(
     chunk(ids, 50).map(async (batch) => {
+      const rows: PoolRow[] = [];
+      let from = 0;
+      while (true) {
       const { data, error } = await supabase
         .from('productie_restocari')
         .select('id, produs_id, cantitate_surplus, data_productie')
         .eq('status', 'disponibil')
         .gt('cantitate_surplus', 0)
         .in('produs_id', batch)
-        .order('data_productie', { ascending: true });
+        .order('data_productie', { ascending: true }).order('id')
+        .range(from, from + 999);
       if (error) throw error;
-      return (data || []) as PoolRow[];
+      rows.push(...(data || []) as PoolRow[]);
+      if (!data || data.length < 1000) break;
+      from += 1000;
+      }
+      return rows;
     })
   );
   return batches.flat();
 };
 
 /** Total disponibil în pool, grupat pe produs. */
-export const fetchPoolTotals = async (produsIds: string[]): Promise<Map<string, number>> => {
-  const rows = await fetchPoolRows(produsIds);
+export const fetchPoolTotals = async (produsIds: string[], groups: Record<string, string> = {}): Promise<Map<string, number>> => {
+  const rows = await fetchPoolRows(produsIds.flatMap(id => restockProductIds(id, groups)));
   const map = new Map<string, number>();
   rows.forEach((r) => {
     map.set(r.produs_id, (map.get(r.produs_id) || 0) + Number(r.cantitate_surplus || 0));
   });
-  return map;
+  return new Map(produsIds.map(id => [id, restockProductIds(id, groups).reduce((total, source) => total + (map.get(source) || 0), 0)]));
 };
 
 /**
  * Consumă FIFO din pool pentru un produs.
  * Returnează cantitatea efectiv alocată (poate fi mai mică decât cea cerută).
  */
-export const consumaDinPool = async (produsId: string, cantitate: number): Promise<number> => {
+export const consumaDinPool = async (produsId: string, cantitate: number, groups: Record<string, string> = {}): Promise<number> => {
   if (!produsId || cantitate <= 0) return 0;
-  const rows = await fetchPoolRows([produsId]);
+  const rows = (await fetchPoolRows(restockProductIds(produsId, groups))).sort((a, b) =>
+    (a.data_productie || '').localeCompare(b.data_productie || '') || a.id.localeCompare(b.id));
   let ramas = cantitate;
   let luat = 0;
-  const writes: Promise<any>[] = [];
 
   for (const r of rows) {
     if (ramas <= 0) break;
     const disponibil = Number(r.cantitate_surplus || 0);
     if (disponibil <= 0) continue;
     const take = Math.min(ramas, disponibil);
-    if (take >= disponibil) {
-      writes.push(
-        supabase
-          .from('productie_restocari')
-          .update({ status: 'folosit', cantitate_surplus: 0, updated_at: new Date().toISOString() })
-          .eq('id', r.id) as any
-      );
-    } else {
-      writes.push(
-        supabase
-          .from('productie_restocari')
-          .update({ cantitate_surplus: disponibil - take, updated_at: new Date().toISOString() })
-          .eq('id', r.id) as any
-      );
-    }
+    const { data, error } = await supabase.from('productie_restocari')
+      .update({ cantitate_surplus: disponibil - take, status: take >= disponibil ? 'folosit' : 'disponibil', updated_at: new Date().toISOString() })
+      .eq('id', r.id).eq('status', 'disponibil').eq('cantitate_surplus', disponibil).select('id');
+    if (error) throw error;
+    if (!data?.length) continue;
     luat += take;
     ramas -= take;
   }
 
-  if (writes.length > 0) await Promise.all(writes);
   return luat;
 };
 
@@ -119,7 +117,8 @@ export const adaugaInPool = async (
  */
 export const setAlocareComanda = async (
   comanda: { id: string; produs_id: string; cantitate_din_restock?: number | null },
-  cantitateDorita: number
+  cantitateDorita: number,
+  groups: Record<string, string> = {}
 ): Promise<number> => {
   const curent = Number(comanda.cantitate_din_restock || 0);
   const tinta = Math.max(0, cantitateDorita);
@@ -128,7 +127,7 @@ export const setAlocareComanda = async (
 
   let final = curent;
   if (delta > 0) {
-    const luat = await consumaDinPool(comanda.produs_id, delta);
+    const luat = await consumaDinPool(comanda.produs_id, delta, groups);
     final = curent + luat;
   } else {
     await adaugaInPool(comanda.produs_id, -delta, comanda.id);
