@@ -12,7 +12,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, Search, CalendarIcon, FileSpreadsheet, Package, Truck, Check, X, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { Loader2, Search, CalendarIcon, FileSpreadsheet, Package, Truck, Check, X, ChevronDown, ChevronRight, Trash2, Pencil } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -60,6 +62,51 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
   const [pendingExportGroup, setPendingExportGroup] = useState<SupplierOrderGroup | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<HistoryOrder | null>(null);
+  const [editForm, setEditForm] = useState({ supplier_id: "", quantity: "", delivery: "", status: "ordered", notes: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openEdit = (o: HistoryOrder) => {
+    setEditing(o);
+    setEditForm({
+      supplier_id: o.supplier_id || "",
+      quantity: String(o.quantity_ordered ?? ""),
+      delivery: o.expected_delivery_date ? format(o.expected_delivery_date, "yyyy-MM-dd") : "",
+      status: o.status,
+      notes: o.notes || "",
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    const qty = Number(editForm.quantity);
+    if (!(qty > 0)) {
+      toast({ title: "Cantitatea trebuie să fie mai mare ca 0", variant: "destructive" });
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const { error } = await supabase
+        .from(getTableNames().orders)
+        .update({
+          supplier_id: editForm.supplier_id || null,
+          quantity_ordered: qty,
+          expected_delivery_date: editForm.delivery || null,
+          status: editForm.status,
+          notes: editForm.notes || null,
+        } as any)
+        .eq("id", editing.id);
+      if (error) throw error;
+      toast({ title: "Comanda a fost actualizată" });
+      setEditing(null);
+      fetchOrders();
+    } catch (e) {
+      console.error("Error updating order:", e);
+      toast({ title: "Eroare la salvarea comenzii", variant: "destructive" });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
 
   const getTableNames = () => {
@@ -604,7 +651,7 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                           <TableHead>Status</TableHead>
                           <TableHead>Data Livrare Est.</TableHead>
                           <TableHead>Note</TableHead>
-                          <TableHead className="w-[50px]"></TableHead>
+                          <TableHead className="w-[90px]"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -634,7 +681,10 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                             <TableCell className="max-w-[150px] truncate" title={order.notes || ""}>
                               {order.notes || "-"}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(order)} aria-label="Editează comanda">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
@@ -672,6 +722,56 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
           })
         )}
       </div>
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editează comanda — {editing?.product_name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Furnizor</Label>
+              <Select value={editForm.supplier_id || "none"} onValueChange={(v) => setEditForm((f) => ({ ...f, supplier_id: v === "none" ? "" : v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  <SelectItem value="none">Fără furnizor</SelectItem>
+                  {suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Cantitate ({editing?.unit})</Label>
+              <Input type="number" step="0.01" value={editForm.quantity} onChange={(e) => setEditForm((f) => ({ ...f, quantity: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Data livrare estimată</Label>
+              <Input type="date" value={editForm.delivery} onChange={(e) => setEditForm((f) => ({ ...f, delivery: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Status</Label>
+              <Select value={editForm.status} onValueChange={(v) => setEditForm((f) => ({ ...f, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">În așteptare</SelectItem>
+                  <SelectItem value="ordered">Comandat</SelectItem>
+                  <SelectItem value="delivered">Livrat</SelectItem>
+                  <SelectItem value="cancelled">Anulat</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Note</Label>
+              <Input value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>Anulează</Button>
+            <Button onClick={saveEdit} disabled={savingEdit}>
+              {savingEdit && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Salvează
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog for selecting supplier when exporting orders without supplier */}
       <SupplierSelectDialog
