@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Fix newly created advance orders appearing completed through compensation against older firm orders; verify Baby spanac 100 MI without altering production or stock.
 - [x] Add confirmed discarded-restock clearing and selected-day stock-allocation reset from operator date controls and Restocări; five rule tests and isolated browser confirmation/reset/zero-repeat flow passed, desktop/mobile checked. Real data has not been reset.
 - [ ] Verify discarded-stock reset in a real signed-in operational account — blocked by unavailable operational session; the isolated browser used test data only.
 - [x] Harden production recipe saving against early/double submits and destructive ingredient replacement; deploy shared Senior inheritance with proportional weights and same-weight groups. Repaired and read back 9 missing recipes and 110 missing group memberships; 11 domain tests pass. Mamamia has conflicting source compositions and remains for manual review.
