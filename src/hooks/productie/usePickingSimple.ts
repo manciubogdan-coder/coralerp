@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { POOL_MODE, fetchPoolRows, fetchPoolTotals, consumaDinPool } from '@/lib/productie/stockPool';
 
+import { useOrders } from './useProductionData';
+import { pickingDay, pickingReadiness } from '@/lib/productie/pickingReadiness';
 
 // Tipuri
 export interface ComenziDisponibile {
@@ -59,68 +61,26 @@ const chunk = <T,>(arr: T[], size = 50): T[][] => {
 };
 
 export const useComenziDisponibile = () => {
+  const production = useOrders();
   return useQuery({
-    queryKey: ['comenzi-disponibile-picking'],
+    enabled: !!production.data,
+    queryKey: ['comenzi-disponibile-picking', production.dataUpdatedAt],
     staleTime: 60_000,
     gcTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
     queryFn: async () => {
-      // Aduc comenzile din ultimele 14 zile + cele viitoare, ca să se vadă și
-      // restanțele din zilele trecute (filtrarea pe zi se face în UI).
-      const todayKey = new Date().toLocaleDateString('en-CA');
+      // Reuse the exact session-derived, same-day advance projection shown in Production.
+      // Include pending firm demand, but never advance/repack orders as Picking deliveries.
       const lookback = new Date();
       lookback.setDate(lookback.getDate() - 14);
-      const fromKey = lookback.toLocaleDateString('en-CA');
-      const fromIso = new Date(`${fromKey}T00:00:00`).toISOString();
-
-      // Iau comenzile de CLIENT (NU avans) care au ajuns cel puțin în producție.
-      const comenzi: any[] = [];
-      const PAGE = 1000;
-      for (let from = 0; ; from += PAGE) {
-        const { data, error } = await supabase
-          .from('productie_comenzi')
-          .select('id, magazin, punct_livrare, status, numar_comanda, produs_id, cantitate, cantitate_din_restock, data_productie, created_at')
-          .neq('magazin', 'Producție în avans')
-          .neq('magazin', 'Productie in avans')
-          .neq('magazin', 'AVANS')
-          .neq('magazin', 'PRODUCTIE_AVANS')
-          .neq('magazin', 'PRODUCȚIE_AVANS')
-          .in('status', ['assigned', 'in_progress', 'partial', 'completed'])
-          .gt('cantitate', 0)
-          .or(`data_productie.gte.${fromKey},and(data_productie.is.null,created_at.gte.${fromIso})`)
-          .order('created_at', { ascending: false })
-          .range(from, from + PAGE - 1);
-        if (error) throw error;
-        comenzi.push(...(data || []));
-        if (!data || data.length < PAGE) break;
-      }
-      void todayKey;
-
-
-      if (comenzi.length === 0) return [] as ComenziDisponibile[];
-
-      // Verific pentru fiecare comandă cantitatea produsă efectiv (batch-uri paralele)
-      const comenziIds = comenzi.map((c: any) => c.id);
-      const sesiuniBatches = await Promise.all(
-        chunk(comenziIds, 100).map(async (ids) => {
-          const { data, error } = await supabase
-            .from('productie_sesiuni_lucru')
-            .select('comanda_id, cantitate_produsa')
-            .in('comanda_id', ids)
-            .in('status', ['finalizata', 'partial']);
-          if (error) throw error;
-          return data || [];
-        })
-      );
-      const sesiuniLucru: any[] = sesiuniBatches.flat();
-
-
-      // Calculez cantitatea produsă pentru fiecare comandă
-      const cantitateProdusaMap = new Map<string, number>();
-      sesiuniLucru.forEach((s: any) => {
-        const current = cantitateProdusaMap.get(s.comanda_id) || 0;
-        cantitateProdusaMap.set(s.comanda_id, current + Number(s.cantitate_produsa || 0));
-      });
+      const fromKey = pickingDay({ created_at: lookback.toISOString() });
+      const comenzi = (production.data || []).filter((order: any) =>
+        !['producție în avans', 'productie in avans', 'avans', 'productie_avans', 'producție_avans', 'reambalare'].includes(String(order.magazin || '').trim().toLowerCase()) &&
+        !['PRODUCTIE_AVANS', 'REAMBALARE'].includes(String(order.tip_comanda || '').toUpperCase()) &&
+        ['pending', 'assigned', 'in_progress', 'partial', 'completed'].includes(order.status) &&
+        pickingDay(order) >= fromKey && Number(order.cantitate || 0) > 0);
+      if (!comenzi.length) return [] as ComenziDisponibile[];
 
       // Nu mai filtrez comenzile neproduse: le arăt pe toate, dar marcate ca „în producție”
       const comenziProduse = comenzi.filter((com: any) => Number(com.cantitate || 0) > 0);
@@ -131,12 +91,15 @@ export const useComenziDisponibile = () => {
       const comenziProduseIds = comenziProduse.map((c: any) => c.id);
       const pickingBatches = await Promise.all(
         chunk(comenziProduseIds, 100).map(async (ids) => {
-          const { data, error } = await supabase
-            .from('picking_produse')
-            .select('sesiune_lucru_id')
-            .in('sesiune_lucru_id', ids);
-          if (error) throw error;
-          return data || [];
+          const rows: any[] = [];
+          for (let from = 0; ; from += 1000) {
+            const { data, error } = await supabase.from('picking_produse')
+              .select('id, sesiune_lucru_id').in('sesiune_lucru_id', ids).order('id').range(from, from + 999);
+            if (error) throw error;
+            rows.push(...(data || []));
+            if (!data || data.length < 1000) break;
+          }
+          return rows;
         })
       );
       const pickingRows: any[] = pickingBatches.flat();
@@ -170,8 +133,6 @@ export const useComenziDisponibile = () => {
 
       // POOL_MODE: disponibilul real vine din pool-ul de marfă produsă (restocări),
       // plus ce e deja alocat comenzii (cantitate_din_restock).
-      const poolTotals = POOL_MODE ? await fetchPoolTotals(productIds) : new Map<string, number>();
-      const poolRamas = new Map(poolTotals);
       const ownPool = new Map<string, number>();
       if (POOL_MODE) for (const lot of await fetchPoolRows(productIds)) {
         if (lot.comanda_originala_id) ownPool.set(lot.comanda_originala_id, (ownPool.get(lot.comanda_originala_id) || 0) + Number(lot.cantitate_surplus));
@@ -180,7 +141,7 @@ export const useComenziDisponibile = () => {
       // Grupare pe magazin|punct_livrare (fiecare comandă rămâne separată)
       const grouped = new Map<string, ComenziDisponibile>();
       comenziDisponibile.forEach((com: any) => {
-        const zi = (com.data_productie || com.created_at || '').toString().slice(0, 10);
+        const zi = pickingDay(com);
         const key = `${com.magazin}|${com.punct_livrare}|${zi}`;
         if (!grouped.has(key)) {
           grouped.set(key, {
@@ -193,22 +154,15 @@ export const useComenziDisponibile = () => {
             produse: []
           });
         }
-        const entry = grouped.get(key)!;
+        const entry = grouped.get(key);
+        if (!entry) return;
         const det = produseMap.get(com.produs_id) || { nume: 'Produs', unitate_masura: '' };
 
         const cantitateComanda = Number(com.cantitate || 0);
         const alocat = Number(com.cantitate_din_restock || 0);
-        let realizat: number;
-        if (POOL_MODE) {
-          const disponibilPool = poolRamas.get(com.produs_id) || 0;
-          const reserved = Math.min(Math.max(0, cantitateComanda - alocat), ownPool.get(com.id) || 0);
-          const poateLua = Math.min(Math.max(0, cantitateComanda - alocat - reserved), disponibilPool);
-          poolRamas.set(com.produs_id, disponibilPool - poateLua);
-          realizat = alocat + reserved + poateLua;
-        } else {
-          realizat = (cantitateProdusaMap.get(com.id) || 0) + alocat;
-        }
-        const gata = realizat >= cantitateComanda - 1e-6;
+        const { realized: realizat, ready: gata } = pickingReadiness(
+          cantitateComanda, Number(com.cantitate_reala_produsa || 0), alocat, ownPool.get(com.id) || 0,
+        );
 
         // Adaug fiecare comandă ca un produs separat (nu mai agreghez)
         entry.total_produse += 1;
@@ -237,6 +191,8 @@ export const useComenziDisponibile = () => {
 export const usePickingSesiuni = (status?: string) => {
   return useQuery({
     queryKey: ['picking-sesiuni', status],
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       let query = supabase
         .from('picking_sesiuni')
@@ -252,9 +208,14 @@ export const usePickingSesiuni = (status?: string) => {
         query = query.eq('status', status);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as PickingSesiune[];
+      const rows: PickingSesiune[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await query.range(from, from + 999);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      return rows;
     }
   });
 };
@@ -267,6 +228,7 @@ export const useCreatePickingSesiune = () => {
     mutationFn: async (params: {
       magazin: string;
       punct_livrare: string;
+      data_sesiune: string;
       operator_nume: string;
       produse: {
         sesiune_lucru_id: string;
@@ -282,6 +244,7 @@ export const useCreatePickingSesiune = () => {
         .insert({
           magazin: params.magazin,
           punct_livrare: params.punct_livrare,
+          data_sesiune: params.data_sesiune,
           operator_nume: params.operator_nume,
           status: 'in_lucru'
         })
@@ -322,8 +285,11 @@ export const useCreatePickingSesiune = () => {
 
 // Hook pentru produsele din sesiune
 export const usePickingProduse = (sesiuneId?: string) => {
+  const production = useOrders();
   return useQuery({
-    queryKey: ['picking-produse', sesiuneId],
+    queryKey: ['picking-produse', sesiuneId, production.dataUpdatedAt],
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       if (!sesiuneId) return [];
 
@@ -339,28 +305,8 @@ export const usePickingProduse = (sesiuneId?: string) => {
       const comandaIds = (data || []).map((p: any) => p.sesiune_lucru_id).filter(Boolean);
       if (comandaIds.length === 0) return data as any[];
 
-      const { data: comenziDetalii, error: comenziErr } = await supabase
-        .from('productie_comenzi')
-        .select('id, produs_id, cantitate, cantitate_din_restock')
-        .in('id', comandaIds);
-
-      if (comenziErr) throw comenziErr;
-
-      // Cantitatea efectiv produsă pe linie (sesiuni de lucru)
-      const sesiuniLucru: any[] = [];
-      for (const ids of chunk(comandaIds)) {
-        const { data: s, error: sErr } = await supabase
-          .from('productie_sesiuni_lucru')
-          .select('comanda_id, cantitate_produsa')
-          .in('comanda_id', ids)
-          .in('status', ['finalizata', 'partial']);
-        if (sErr) throw sErr;
-        sesiuniLucru.push(...(s || []));
-      }
-      const produsMap = new Map<string, number>();
-      sesiuniLucru.forEach((s: any) => {
-        produsMap.set(s.comanda_id, (produsMap.get(s.comanda_id) || 0) + Number(s.cantitate_produsa || 0));
-      });
+      const ids = new Set(comandaIds);
+      const comenziDetalii = (production.data || []).filter(c => ids.has(c.id));
 
       const poolTotals = POOL_MODE
         ? await fetchPoolTotals((comenziDetalii || []).map((c: any) => c.produs_id))
@@ -380,9 +326,9 @@ export const usePickingProduse = (sesiuneId?: string) => {
         const free = POOL_MODE ? Number(poolTotals.get(produsId) || 0) : 0;
         const poolDisponibil = POOL_MODE ? reserved + free : 0;
         if (POOL_MODE) poolTotals.set(produsId, Math.max(0, free - Math.max(0, total - alocat - reserved)));
-        const realizat = POOL_MODE
-          ? Math.min(total, alocat + poolDisponibil)
-          : (produsMap.get(p.sesiune_lucru_id) || 0) + alocat;
+        const { realized: realizat, ready } = pickingReadiness(
+          total, Number(c?.cantitate_reala_produsa || 0), alocat, reserved,
+        );
         return {
           ...p,
           comanda_id: p.sesiune_lucru_id,
@@ -392,14 +338,14 @@ export const usePickingProduse = (sesiuneId?: string) => {
           cantitate_alocata: alocat,
           pool_disponibil: poolDisponibil,
           cantitate_realizata: Math.min(realizat, total),
-          gata_productie: realizat >= total - 1e-6,
+          gata_productie: ready,
         };
       });
 
       return enriched as any[];
 
     },
-    enabled: !!sesiuneId
+    enabled: !!sesiuneId && !!production.data
   });
 };
 

@@ -23,6 +23,10 @@ import {
 import { useAuth } from '@/contexts/productie/AuthContext';
 import MarfaRestocataView from './MarfaRestocataView';
 import RedistribuireProductie from './RedistribuireProductie';
+import { matchesPickingDay, pickingDay, pickingToday } from '@/lib/productie/pickingReadiness';
+import { useAutoRefresh } from '@/hooks/productie/useAutoRefresh';
+
+const PICKING_REFRESH_KEYS = [['orders'], ['comenzi-disponibile-picking'], ['picking-produse'], ['picking-sesiuni']];
 
 
 const PickingManagementSimple = () => {
@@ -34,7 +38,7 @@ const PickingManagementSimple = () => {
   const [sesiuneFinalizataSelectata, setSesiuneFinalizataSelectata] = useState<string | null>(null);
   const [operatorNume, setOperatorNume] = useState(user?.email?.split('@')[0] || '');
   const [dataFiltru, setDataFiltru] = useState<string>('');
-  const todayKey = new Date().toLocaleDateString('en-CA');
+  const todayKey = pickingToday();
   const [dataDisponibile, setDataDisponibile] = useState<string>(todayKey);
   const [modDisponibile, setModDisponibile] = useState<'zi' | 'restante' | 'toate'>('zi');
 
@@ -47,14 +51,14 @@ const PickingManagementSimple = () => {
   const updateProdus = useUpdatePickingProdus();
   const finalizareSesiune = useFinalizareSesiune();
   const alocaDinPool = useAlocaDinPool();
+  useAutoRefresh({ queryKeys: PICKING_REFRESH_KEYS });
 
 
   const restante = (comenziDisponibile || []).filter(c => c.data && c.data < todayKey);
-  const comenziAfisate = (comenziDisponibile || []).filter(c => {
-    if (modDisponibile === 'toate') return true;
-    if (modDisponibile === 'restante') return c.data && c.data < todayKey;
-    return c.data === dataDisponibile;
-  });
+  const comenziAfisate = (comenziDisponibile || []).filter(c =>
+    matchesPickingDay(c.data, dataDisponibile, modDisponibile, todayKey));
+  const sesiuniActiveAfisate = (sesiuniActive || []).filter(s =>
+    matchesPickingDay(pickingDay(s), dataDisponibile, modDisponibile, todayKey));
 
   // Filtrare sesiuni finalizate după dată
   const sesiuniFiltrate = dataFiltru
@@ -68,6 +72,7 @@ const PickingManagementSimple = () => {
     createSesiune.mutate({
       magazin: comanda.magazin,
       punct_livrare: comanda.punct_livrare,
+      data_sesiune: comanda.data,
       operator_nume: operatorNume || 'operator',
       produse: comanda.produse.map(p => ({
         sesiune_lucru_id: p.sesiune_lucru_id,
@@ -223,8 +228,9 @@ const PickingManagementSimple = () => {
               <CardContent>
                 {loadingComenzi && <p>Se încarcă...</p>}
 
-                {!loadingComenzi && restante.length > 0 && modDisponibile !== 'restante' && (
-                  <button
+                {!loadingComenzi && restante.length > 0 && modDisponibile === 'toate' && (
+                  <Button
+                    variant="outline"
                     onClick={() => setModDisponibile('restante')}
                     className="w-full text-left mb-4 p-3 rounded-lg border border-orange-300 bg-orange-50 dark:bg-orange-950/30 hover:border-orange-500 transition-colors"
                   >
@@ -234,7 +240,7 @@ const PickingManagementSimple = () => {
                         Ai {restante.length} comen{restante.length === 1 ? 'dă' : 'zi'} din zilele trecute care nu au fost pregătite. Click pentru a le vedea →
                       </span>
                     </div>
-                  </button>
+                  </Button>
                 )}
 
                 {!loadingComenzi && comenziAfisate.length === 0 && (
@@ -282,18 +288,19 @@ const PickingManagementSimple = () => {
               </CardContent>
             </Card>
 
-            {sesiuniActive && sesiuniActive.length > 0 && (
+            {sesiuniActiveAfisate.length > 0 && (
               <Card className="mt-6">
                 <CardHeader>
                   <CardTitle>Sesiuni Active de Picking</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {sesiuniActive.map(sesiune => (
+                    {sesiuniActiveAfisate.map(sesiune => (
                       <div key={sesiune.id} className="flex items-center justify-between p-3 border rounded">
                         <div>
                           <p className="font-medium">{sesiune.magazin} - {sesiune.punct_livrare}</p>
                           <p className="text-sm text-muted-foreground">Operator: {sesiune.operator_nume}</p>
+                          <Badge variant={pickingDay(sesiune) < todayKey ? 'destructive' : 'outline'}>{pickingDay(sesiune)}</Badge>
                         </div>
                         <Button
                           variant="outline"
