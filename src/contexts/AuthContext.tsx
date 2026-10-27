@@ -41,6 +41,27 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Dacă serverul de date nu răspunde (ex: proiect pus pe pauză), cererile
+// Supabase pot rămâne blocate la infinit și aplicația arăta „Se autentifică..."
+// la nesfârșit. Înfășurăm apelurile critice într-un timeout cu mesaj clar.
+const AUTH_TIMEOUT_MS = 20000;
+
+const withTimeout = <T,>(promise: PromiseLike<T>, ms = AUTH_TIMEOUT_MS): Promise<T> =>
+  Promise.race([
+    Promise.resolve(promise),
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              'Serverul de date nu răspunde momentan. Verifică conexiunea sau reîncearcă în câteva minute.',
+            ),
+          ),
+        ms,
+      ),
+    ),
+  ]);
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
