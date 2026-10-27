@@ -169,8 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // THEN check for existing session
-    supabase.auth
-      .getSession()
+    withTimeout(supabase.auth.getSession())
       .then(async ({ data: { session } }) => {
         setSession(session);
         setUser(session?.user ?? null);
