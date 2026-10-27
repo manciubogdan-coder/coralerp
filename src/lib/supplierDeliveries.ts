@@ -29,7 +29,7 @@ export function supplierDeliverySchedules(orders: SupplierDeliveryOrder[], today
 export function supplierStockProjection(
   stock: number,
   dates: string[],
-  deliveries: Record<string, number>,
+  deliveries: Record<string, number> | null | undefined,
   consumption: number[],
 ) {
   let running = stock;
@@ -39,7 +39,7 @@ export function supplierStockProjection(
   let outDate: string | null = null;
   dates.forEach((date, i) => {
     start.push(running);
-    const qty = deliveries[date] || 0;
+    const qty = deliveries?.[date] || 0;
     incoming.push(qty);
     running += qty - (consumption[i] || 0);
     if (running < 0 && !outDate) outDate = date;

@@ -7,6 +7,14 @@ const orders = [
   { product_id: 'rucola', quantity_ordered: 50, expected_delivery_date: '2026-10-29', status: 'ordered' },
 ];
 
+test('rows retained from an older open forecast tolerate a missing delivery schedule', () => {
+  for (const deliveries of [undefined, null]) {
+    const projection = supplierStockProjection(50, ['2026-10-27', '2026-10-28'], deliveries, [10, 10]);
+    expect(projection.incoming).toEqual([0, 0]);
+    expect(projection.remaining).toEqual([40, 30]);
+  }
+});
+
 test('multiple delivery days stay separate, while same-day quantities add together', () => {
   expect(supplierDeliverySchedules(orders, '2026-10-27').get('rucola')).toEqual({
     qty: 350, perDate: { '2026-10-27': 100, '2026-10-29': 250 },
