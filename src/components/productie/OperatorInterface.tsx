@@ -23,7 +23,7 @@ import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
 import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchPoolRows, fetchPoolTotals, setAlocareComanda } from "@/lib/productie/stockPool";
+import { fetchAvailablePoolRows, fetchPoolTotals, setAlocareComanda } from "@/lib/productie/stockPool";
 import { restockProductIds, restockNeeded } from '@/lib/productie/restockGroups';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import DiscardedStockReset from './DiscardedStockReset';
@@ -78,7 +78,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     if (disponibil <= 0) return false;
     const iau = Math.min(necesar, disponibil);
     const ok = !confirm || window.confirm(
-      `În stoc (Picking) există deja ${disponibil} buc din acest produs / aceeași grupă.\n\n` +
+      `Există ${disponibil} buc de restoc liber din acest produs / aceeași grupă (fără marfa rezervată altor comenzi).\n\n` +
       `Comanda mai are nevoie de ${necesar} buc.\n\n` +
       `OK = iau ${iau} buc din stoc${iau >= necesar ? ' (comanda se finalizează fără producție)' : ', restul se produce'}\n` +
       `Anulează = NU iau din stoc, produc tot`
@@ -145,7 +145,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       const selected = (orders || []).filter(o => ids.includes(o.id) && restockNeeded(o) > 0);
       if (!confirmOtherDay(selected.map(o => normalizeProductionDate((o as any).data_productie) || todayISO()))) return;
       const sources = selected.flatMap(o => restockProductIds(o.produs_id, groupMap || {}));
-      const available = (await fetchPoolRows(sources)).reduce((sum, row) => sum + Number(row.cantitate_surplus), 0);
+      const available = (await fetchAvailablePoolRows(sources)).reduce((sum, row) => sum + Number(row.cantitate_surplus), 0);
       const needed = selected.reduce((sum, o) => sum + restockNeeded(o), 0);
       if (available <= 0) { toast({ title: 'Nu mai există restoc disponibil.' }); return; }
       if (!window.confirm(`În restocări există ${available} buc din această grupă.\n\nMai sunt de făcut ${needed} buc. Ai fizic marfa în Picking și iei ${Math.min(available, needed)} buc de acolo?\n\nCantitatea luată se scade din restoc și din necesarul comenzilor. Anulează = nu folosesc restocul.`)) return;

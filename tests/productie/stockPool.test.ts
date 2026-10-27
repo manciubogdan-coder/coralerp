@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 
-const lot = { id: 'lot', produs_id: 'stock', cantitate_surplus: 320, data_productie: '2026-10-27', status: 'disponibil' };
+const lot = { id: 'lot', produs_id: 'stock', cantitate_surplus: 320, data_productie: '2026-10-27', status: 'disponibil', comanda_originala_id: null as string | null };
 const allocations: Record<string, number> = {};
 mock.module('../../src/integrations/supabase/client', () => ({
   supabase: { from(table: string) {
@@ -10,7 +10,7 @@ mock.module('../../src/integrations/supabase/client', () => ({
       select() { return chain; }, order() { return chain; },
       eq(key: string, value: any) { filters[key] = value; return chain; },
       gt() { return chain; }, in() { return chain; },
-      range() { return Promise.resolve({ data: lot.status === 'disponibil' ? [{ ...lot }] : [], error: null }); },
+      range() { return Promise.resolve({ data: table === 'productie_comenzi' ? [{ id: 'today', cantitate: 1000, cantitate_din_restock: 0, magazin: 'MEGA IMAGE' }] : lot.status === 'disponibil' ? [{ ...lot }] : [], error: null }); },
       update(value: Record<string, any>) { patch = value; return chain; },
       then(resolve: (value: any) => void) {
         if (table === 'productie_restocari' && patch) {
@@ -26,7 +26,7 @@ mock.module('../../src/integrations/supabase/client', () => ({
     return chain;
   } },
 }));
-const { setAlocareComanda } = await import('../../src/lib/productie/stockPool');
+const { setAlocareComanda, fetchPoolTotals, consumaDinPool } = await import('../../src/lib/productie/stockPool');
 
 test('partial allocation followed by exhaustion uses accepted status and does not allocate twice', async () => {
   const groups = { stock: 'Mamamia150G punga', mi: 'Mamamia150G punga' };
@@ -39,4 +39,13 @@ test('partial allocation followed by exhaustion uses accepted status and does no
   expect(allocations).toEqual({ first: 282, second: 38 });
   expect(await setAlocareComanda({ id: 'second', produs_id: 'mi', cantitate_din_restock: 38 }, 336, groups)).toBe(38);
   expect(1194 - allocations.first - allocations.second).toBe(874);
+});
+
+test('reserved 1000 pieces are invisible to tomorrow but consumable by todays Picking', async () => {
+  Object.assign(lot, { status: 'disponibil', cantitate_surplus: 1000, comanda_originala_id: 'today' });
+  expect((await fetchPoolTotals(['stock'])).get('stock')).toBe(0);
+  expect(await setAlocareComanda({ id: 'tomorrow', produs_id: 'stock' }, 1000)).toBe(0);
+  expect(lot.cantitate_surplus).toBe(1000);
+  expect(await consumaDinPool('stock', 1000, {}, 'today')).toBe(1000);
+  expect(lot.cantitate_surplus).toBe(0);
 });

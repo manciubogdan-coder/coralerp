@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { restockProductIds } from './restockGroups';
+import { availablePoolLots, type PoolOrigin } from './poolReservations';
 
 /**
  * POOL MODE
@@ -16,6 +17,7 @@ export interface PoolRow {
   produs_id: string;
   cantitate_surplus: number;
   data_productie: string | null;
+  comanda_originala_id?: string | null;
 }
 
 const chunk = <T,>(arr: T[], size = 50): T[][] => {
@@ -35,7 +37,7 @@ export const fetchPoolRows = async (produsIds: string[]): Promise<PoolRow[]> => 
       while (true) {
       const { data, error } = await supabase
         .from('productie_restocari')
-        .select('id, produs_id, cantitate_surplus, data_productie')
+        .select('id, produs_id, cantitate_surplus, data_productie, comanda_originala_id')
         .eq('status', 'disponibil')
         .gt('cantitate_surplus', 0)
         .in('produs_id', batch)
@@ -52,9 +54,28 @@ export const fetchPoolRows = async (produsIds: string[]): Promise<PoolRow[]> => 
   return batches.flat();
 };
 
+/** Free surplus plus the target order's own goods, never another order's reserved production. */
+export const fetchAvailablePoolRows = async (produsIds: string[], targetOrderId?: string): Promise<PoolRow[]> => {
+  const rows = await fetchPoolRows(produsIds);
+  const ids = Array.from(new Set(rows.map(row => row.comanda_originala_id).filter((id): id is string => !!id)));
+  const origins: PoolOrigin[] = [];
+  for (const batch of chunk(ids)) {
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase.from('productie_comenzi')
+        .select('id, cantitate, cantitate_din_restock, magazin, tip_comanda').in('id', batch).order('id').range(from, from + 999);
+      if (error) throw error;
+      origins.push(...(data || []) as PoolOrigin[]);
+      if (!data || data.length < 1000) break;
+      from += 1000;
+    }
+  }
+  return availablePoolLots(rows, origins, targetOrderId);
+};
+
 /** Total disponibil în pool, grupat pe produs. */
-export const fetchPoolTotals = async (produsIds: string[], groups: Record<string, string> = {}): Promise<Map<string, number>> => {
-  const rows = await fetchPoolRows(produsIds.flatMap(id => restockProductIds(id, groups)));
+export const fetchPoolTotals = async (produsIds: string[], groups: Record<string, string> = {}, targetOrderId?: string): Promise<Map<string, number>> => {
+  const rows = await fetchAvailablePoolRows(produsIds.flatMap(id => restockProductIds(id, groups)), targetOrderId);
   const map = new Map<string, number>();
   rows.forEach((r) => {
     map.set(r.produs_id, (map.get(r.produs_id) || 0) + Number(r.cantitate_surplus || 0));
@@ -66,9 +87,12 @@ export const fetchPoolTotals = async (produsIds: string[], groups: Record<string
  * Consumă FIFO din pool pentru un produs.
  * Returnează cantitatea efectiv alocată (poate fi mai mică decât cea cerută).
  */
-export const consumaDinPool = async (produsId: string, cantitate: number, groups: Record<string, string> = {}): Promise<number> => {
+export const consumaDinPool = async (produsId: string, cantitate: number, groups: Record<string, string> = {}, targetOrderId?: string): Promise<number> => {
   if (!produsId || cantitate <= 0) return 0;
-  const rows = (await fetchPoolRows(restockProductIds(produsId, groups))).sort((a, b) =>
+  const physicalRows = await fetchPoolRows(restockProductIds(produsId, groups));
+  const physical = new Map(physicalRows.map(row => [row.id, Number(row.cantitate_surplus)]));
+  const rows = (await fetchAvailablePoolRows(restockProductIds(produsId, groups), targetOrderId)).sort((a, b) =>
+    Number(b.comanda_originala_id === targetOrderId) - Number(a.comanda_originala_id === targetOrderId) ||
     (a.data_productie || '').localeCompare(b.data_productie || '') || a.id.localeCompare(b.id));
   let ramas = cantitate;
   let luat = 0;
@@ -78,9 +102,11 @@ export const consumaDinPool = async (produsId: string, cantitate: number, groups
     const disponibil = Number(r.cantitate_surplus || 0);
     if (disponibil <= 0) continue;
     const take = Math.min(ramas, disponibil);
+    const physicalQty = physical.get(r.id);
+    if (physicalQty === undefined || physicalQty < disponibil) continue;
     const { data, error } = await supabase.from('productie_restocari')
-      .update({ cantitate_surplus: disponibil - take, status: take >= disponibil ? 'redistribuit' : 'disponibil', updated_at: new Date().toISOString() })
-      .eq('id', r.id).eq('status', 'disponibil').eq('cantitate_surplus', disponibil).select('id');
+      .update({ cantitate_surplus: physicalQty - take, status: take >= physicalQty ? 'redistribuit' : 'disponibil', updated_at: new Date().toISOString() })
+      .eq('id', r.id).eq('status', 'disponibil').eq('cantitate_surplus', physicalQty).select('id');
     if (error) throw error;
     if (!data?.length) continue;
     luat += take;
