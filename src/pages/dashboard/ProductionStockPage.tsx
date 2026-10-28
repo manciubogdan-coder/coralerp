@@ -30,6 +30,7 @@ import ConsumptionAnalytics from "@/components/productie/ConsumptionAnalytics";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import Reports from "@/components/productie/Reports";
 import SeniorErpImport from "@/components/productie/SeniorErpImport";
+import RestockAllocationSettings from '@/components/productie/RestockAllocationSettings';
 
 const ProductionStockPage = () => {
   const navigate = useNavigate();
@@ -157,6 +158,7 @@ const ProductionStockPage = () => {
           </TabsContent>
 
           <TabsContent value="config">
+            <div className="mb-5"><RestockAllocationSettings /></div>
             <Tabs defaultValue="lines" className="w-full">
               <TabsList className="flex flex-wrap gap-1 h-auto">
                 <TabsTrigger value="lines">Linii</TabsTrigger>

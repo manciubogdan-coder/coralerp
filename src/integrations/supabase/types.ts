@@ -1737,6 +1737,27 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_restock_settings: {
+        Row: {
+          auto_enabled: boolean
+          id: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          auto_enabled?: boolean
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          auto_enabled?: boolean
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       productie_sesiuni_rebut: {
         Row: {
           cantitate: number

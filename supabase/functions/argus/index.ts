@@ -455,6 +455,16 @@ Deno.serve(async (req) => {
 
 
     switch (action) {
+      case 'restock_mode_save': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        const body = await req.json();
+        if (typeof body.auto_enabled !== 'boolean') return json({ error: 'Alege pornit sau oprit.' }, 400);
+        const { data, error } = await c.cloud.from('productie_restock_settings').upsert({
+          id: true, auto_enabled: body.auto_enabled, updated_by: userId, updated_at: new Date().toISOString(),
+        }).select('auto_enabled').single();
+        if (error) throw error;
+        return json(data);
+      }
       case "attachment_upload": {
         try { return json(await uploadAttachment(req, c, userId)); }
         catch (e) { return json({ error: (e as Error).message }, 400); }

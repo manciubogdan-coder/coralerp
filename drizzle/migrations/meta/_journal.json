@@ -176,6 +176,13 @@
       "when": 1793078514172,
       "tag": "0024_senior_product_store_packaging",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793163347869,
+      "tag": "0025_production_restock_settings",
+      "breakpoints": true
     }
   ]
 }
