@@ -10,6 +10,7 @@ const AUTO_STOCK = false;
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { applyInheritance, loadInheritanceCatalog, readAll } from '../_shared/productRecipes.ts';
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
+import { plannedQuantity } from '../_shared/erpQuantity.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -450,13 +451,7 @@ Deno.serve(async (req) => {
         // Dacă lipsește, folosim cantitatea comandată inițială.
         const cantitateComandata = Number(linie.cantitate) || 0;
         const acceptata = linie.cantitate_acceptata != null ? Number(linie.cantitate_acceptata) : NaN;
-        const cantitate = Number.isFinite(acceptata) && acceptata > 0 ? acceptata : cantitateComandata;
-
-        // Skip retururi (cantitate <= 0)
-        if (cantitate <= 0) {
-          skipped++;
-          continue;
-        }
+        const cantitate = plannedQuantity(cantitateComandata, Number.isFinite(acceptata) ? acceptata : null);
 
         // Verifică dacă rândul există deja (upsert)
         const { data: existing } = await supabase
@@ -465,6 +460,12 @@ Deno.serve(async (req) => {
           .eq("sursa", "senior-erp")
           .eq("extern_nr_aviz", externKey)
           .maybeSingle();
+
+        // Skip retururi (cantitate <= 0)
+        if (cantitate <= 0) {
+          skipped++;
+          continue;
+        }
 
         if (existing) {
           const ex: any = existing;

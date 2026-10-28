@@ -29,6 +29,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import DiscardedStockReset from './DiscardedStockReset';
 import OrderPackaging from './OrderPackaging';
 import { loadAutomaticRestock, offerRestockAtStart } from '@/lib/productie/restockAllocationMode';
+import { useProductionRealtime } from '@/hooks/productie/useProductionRealtime';
+import { useAutoRefresh } from '@/hooks/productie/useAutoRefresh';
 
 interface OperatorInterfaceProps {
   selectedLine: string;
@@ -56,6 +58,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const queryClient = useQueryClient();
   const [movingIds, setMovingIds] = useState<string[]>([]);
   const [takingStock, setTakingStock] = useState(false);
+  // Actualizare live între operatori: realtime pe comenzi/sesiuni/restocări +
+  // polling de siguranță la 60s dacă realtime nu e activat pe bază.
+  useProductionRealtime();
+  useAutoRefresh({ interval: 60_000 });
   const fmtDay = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString('ro-RO', { weekday: 'long', day: '2-digit', month: '2-digit' });
   const confirmOtherDay = (days: string[]) => {
     const other = Array.from(new Set(days.filter(d => d && d !== todayISO())));
