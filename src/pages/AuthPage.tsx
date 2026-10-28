@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Package } from 'lucide-react';
 import { z } from 'zod';
+import AccountLoadingError from '@/components/AccountLoadingError';
 
 const emailSchema = z.string().email('Email invalid');
 const passwordSchema = z.string().min(6, 'Parola trebuie să aibă minim 6 caractere');
@@ -23,7 +24,7 @@ const AuthPage: React.FC = () => {
   const [signupName, setSignupName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   
-  const { signIn, signUp, user, isApproved, isLoading: authLoading } = useAuth();
+  const { signIn, signUp, user, isApproved, isLoading: authLoading, loadingError } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -136,6 +137,8 @@ const AuthPage: React.FC = () => {
       setSignupName('');
     }
   };
+
+  if (loadingError) return <AccountLoadingError message={loadingError} />;
 
   if (authLoading) {
     return (

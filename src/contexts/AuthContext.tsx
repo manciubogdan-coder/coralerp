@@ -1,66 +1,12 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import type { User, Session } from '@supabase/supabase-js';
+import { AuthContext, type AppProfile } from './authState';
 import { supabase } from '@/integrations/supabase/client';
+import { AUTH_CONNECTION_ERROR, AUTH_TIMEOUT_MS, withAuthTimeout as withTimeout } from '@/lib/authTimeout';
 import {
   DEPARTMENT_ROLES,
   type DepartmentRole,
 } from '@/lib/departments';
-
-interface AppProfile {
-  id: string;
-  user_id: string;
-  email: string;
-  name: string | null;
-  approved: boolean;
-  created_at: string;
-  updated_at: string;
-  // extensii noi
-  avatar_url?: string | null;
-  display_name?: string | null;
-  theme_mode?: "light" | "dark" | "auto" | null;
-  theme_palette?: "coral" | "blue" | "green" | "violet" | "mocha" | null;
-  chat_background?: string | null;
-}
-
-interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  profile: AppProfile | null;
-  isAdmin: boolean;
-  isApproved: boolean;
-  isLoading: boolean;
-  /** Rolurile pe departamente atribuite userului curent (fără 'admin'). */
-  departments: DepartmentRole[];
-  /** True dacă userul are accesul cerut (admin trece automat). */
-  hasDepartment: (dept: DepartmentRole) => boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
-  signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Dacă serverul de date nu răspunde (ex: proiect pus pe pauză), cererile
-// Supabase pot rămâne blocate la infinit și aplicația arăta „Se autentifică..."
-// la nesfârșit. Înfășurăm apelurile critice într-un timeout cu mesaj clar.
-const AUTH_TIMEOUT_MS = 20000;
-
-const withTimeout = <T,>(promise: PromiseLike<T>, ms = AUTH_TIMEOUT_MS): Promise<T> =>
-  Promise.race([
-    Promise.resolve(promise),
-    new Promise<never>((_, reject) =>
-      setTimeout(
-        () =>
-          reject(
-            new Error(
-              'Serverul de date nu răspunde momentan. Verifică conexiunea sau reîncearcă în câteva minute.',
-            ),
-          ),
-        ms,
-      ),
-    ),
-  ]);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -77,39 +23,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [departments, setDepartments] = useState<DepartmentRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
+  const profileRequestRef = useRef(0);
 
   const fetchProfile = async (userId: string) => {
+    const request = ++profileRequestRef.current;
     let nextProfile: AppProfile | null = null;
     let nextIsAdmin = false;
     let nextDepartments: DepartmentRole[] = [];
 
     try {
       // Use raw query since types aren't generated yet
-      const { data: profileData, error: profileError } = await withTimeout(
+      const [profileResult, roleResult] = await withTimeout(Promise.all([
         supabase
           .from('app_profiles' as any)
           .select('*')
           .eq('user_id', userId)
           .maybeSingle(),
-      );
+        supabase.from('app_user_roles' as any).select('role').eq('user_id', userId),
+      ]));
+      if (request !== profileRequestRef.current) return;
+      const { data: profileData, error: profileError } = profileResult;
+      const { data: roleRows, error: roleError } = roleResult;
 
       if (profileError) {
-        console.error('Error fetching profile:', profileError);
+        throw profileError;
       } else {
         nextProfile = (profileData as unknown as AppProfile) ?? null;
       }
 
       // Fetch ALL roles for this user, not just admin.
-      const { data: roleRows, error: roleError } = await withTimeout(
-        supabase
-          .from('app_user_roles' as any)
-          .select('role')
-          .eq('user_id', userId),
-      );
-
       if (roleError) {
-        console.warn('Could not load user roles:', roleError.message);
+        throw roleError;
       } else if (roleRows) {
         const roles = (roleRows as unknown as Array<{ role: string }>).map((r) => r.role);
         nextIsAdmin = roles.includes('admin');
@@ -118,78 +64,107 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
       }
     } catch (error) {
-      console.error('Error in fetchProfile:', error);
+      if (request === profileRequestRef.current) setLoadingError(AUTH_CONNECTION_ERROR);
+      throw error;
     } finally {
-      setProfile(nextProfile);
-      setIsAdmin(nextIsAdmin);
-      setDepartments(nextDepartments);
+      if (request === profileRequestRef.current) {
+        setProfile(nextProfile);
+        setIsAdmin(nextIsAdmin);
+        setDepartments(nextDepartments);
+      }
     }
   };
 
   const refreshProfile = async () => {
     if (user) {
       setIsLoading(true);
-      await fetchProfile(user.id);
-      setIsLoading(false);
+      setLoadingError(null);
+      try { await fetchProfile(user.id); }
+      catch { /* Connection error is displayed by the account gate. */ }
+      finally { setIsLoading(false); }
     }
   };
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      const nextUserId = session?.user?.id ?? null;
+    let active = true;
+    let sessionReceived = false;
+    let deferredProfile: ReturnType<typeof setTimeout> | undefined;
+    currentUserIdRef.current = null;
+    const startupTimer = setTimeout(() => {
+      if (!active) return;
+      profileRequestRef.current++;
+      setLoadingError(AUTH_CONNECTION_ERROR);
+      setIsLoading(false);
+    }, AUTH_TIMEOUT_MS);
+
+    const applySession = (nextSession: Session | null) => {
+      if (!active) return;
+      const nextUserId = nextSession?.user?.id ?? null;
       const prevUserId = currentUserIdRef.current;
-
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        // Dacă e același user (ex: TOKEN_REFRESHED sau revenire pe tab),
-        // NU punem isLoading=true — altfel se remontează toată aplicația
-        // și se pierde pagina/tabul curent.
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      if (nextSession?.user) {
         if (prevUserId === nextUserId) return;
-
         currentUserIdRef.current = nextUserId;
+        profileRequestRef.current++;
+        setProfile(null);
+        setIsAdmin(false);
+        setDepartments([]);
+        setLoadingError(null);
         setIsLoading(true);
-        // Defer Supabase calls with setTimeout to avoid deadlock
-        setTimeout(() => {
-          (async () => {
-            await fetchProfile(session.user.id);
-            setIsLoading(false);
-          })();
+        clearTimeout(deferredProfile);
+        deferredProfile = setTimeout(async () => {
+          if (!active || currentUserIdRef.current !== nextUserId) return;
+          try { await fetchProfile(nextSession.user.id); }
+          catch { /* fetchProfile exposes a retryable connection error. */ }
+          finally {
+            if (active && currentUserIdRef.current === nextUserId) {
+              clearTimeout(startupTimer);
+              setIsLoading(false);
+            }
+          }
         }, 0);
       } else {
+        clearTimeout(startupTimer);
+        clearTimeout(deferredProfile);
+        profileRequestRef.current++;
         currentUserIdRef.current = null;
         setProfile(null);
         setIsAdmin(false);
+        setDepartments([]);
+        setLoadingError(null);
         setIsLoading(false);
       }
+    };
+    // Set up auth state listener FIRST
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      sessionReceived = true;
+      applySession(nextSession);
     });
 
     // THEN check for existing session
     withTimeout(supabase.auth.getSession())
-      .then(async ({ data: { session } }) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          if (currentUserIdRef.current === session.user.id) return;
-          currentUserIdRef.current = session.user.id;
-          setIsLoading(true);
-          await fetchProfile(session.user.id);
-          setIsLoading(false);
-        } else {
-          currentUserIdRef.current = null;
-          setIsLoading(false);
-        }
+      .then(({ data: { session }, error }) => {
+        if (!active || sessionReceived) return;
+        if (error) throw error;
+        applySession(session);
       })
       .catch(() => {
+        if (!active || sessionReceived) return;
+        clearTimeout(startupTimer);
+        setLoadingError(AUTH_CONNECTION_ERROR);
         setIsLoading(false);
       });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      clearTimeout(startupTimer);
+      clearTimeout(deferredProfile);
+      profileRequestRef.current++;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -247,6 +222,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAdmin,
         isApproved,
         isLoading,
+        loadingError,
         departments,
         hasDepartment,
         signIn,
