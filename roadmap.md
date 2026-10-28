@@ -1,4 +1,6 @@
 # Roadmap
+- [x] Reduce overlapping production refreshes: non-cancelling invalidation, bounded history pagination, cached client lookup, no global mutation refetch; remove duplicate Picking polling and notification-read feedback, single-flight collaboration with Realtime/60s visible fallback. 59 tests pass; public browser startup reaches login without errors. Cloud healthy; screenshot concerns the external operational DB, whose full metrics are inaccessible.
+- [ ] Verify signed-in production performance and external DB error causes after rollout — blocked by unavailable external operational session/metrics; no claim of measured live speedup.
 - [x] Isolate auth context identity from refreshed components; browser verifies clean startup and Auth/Theme live updates without runtime errors; three tests pass, build OK. Real operational-account startup remains blocked as noted below.
 - [x] Bound account initialization to 20s, ignore stale reads and show retry instead of endless loading/false approval redirects; three tests pass, browser verifies normal login and synthetic stalled-refresh → retry → login, no runtime errors, build OK.
 - [ ] Verify startup with the real operational account — blocked by unavailable external operational session; public startup and simulated recovery verified.

@@ -68,7 +68,6 @@ export const useComenziDisponibile = () => {
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: true,
-    refetchInterval: 30_000,
     queryFn: async () => {
       // Reuse the exact session-derived, same-day advance projection shown in Production.
       // Include pending firm demand, but never advance/repack orders as Picking deliveries.

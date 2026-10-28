@@ -4,6 +4,7 @@ import { toast } from "@/hooks/use-toast";
 import { POOL_MODE } from "@/lib/productie/stockPool";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { compensateAdvanceQuantities } from "@/lib/productie/advanceCompensation";
+import { refreshProductionQueries } from '@/lib/productie/refreshProductionQueries';
 
 
 // Types pentru datele de producție
@@ -113,9 +114,7 @@ const refreshProductionCaches = async (queryClient: QueryClient) => {
 
   // Invalidăm doar query-urile ACTIVE și nu așteptăm refetch-ul complet:
   // UI-ul se actualizează în fundal, iar acțiunea utilizatorului se termină instant.
-  queryKeys.forEach((queryKey) =>
-    queryClient.invalidateQueries({ queryKey, refetchType: 'active' })
-  );
+  void refreshProductionQueries(queryClient, queryKeys.map(key => key[0]));
 };
 
 
@@ -491,6 +490,7 @@ export const useDeleteClient = () => {
 
 // Hook pentru încărcarea comenzilor cu relațiile corecte - AFIȘEAZĂ TOATE COMENZILE (inclusiv finalizate)
 export const useOrders = () => {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: ['orders'],
     staleTime: 60_000,
@@ -506,18 +506,24 @@ export const useOrders = () => {
           .select(selectStr)
           .order('updated_at', { ascending: false })
           .order('created_at', { ascending: false })
+          .order('id', { ascending: true })
           .range(from, from + PAGE - 1);
         if (error) throw error;
         return data || [];
       };
 
-      // Prima pagină + numărul total, ca să putem cere restul paginilor ÎN PARALEL
-      const { count } = await supabase
-        .from('productie_comenzi')
-        .select('id', { count: 'exact', head: true });
-
-      const total = count ?? 0;
-      const pageCount = Math.max(1, Math.ceil(total / PAGE));
+      // Bounded pagination: do not flood the database with every history page at once.
+      const fetchOrders = async () => {
+        const rows: any[] = [];
+        let from = 0;
+        while (true) {
+          const page = await fetchPage(from);
+          rows.push(...page);
+          if (page.length < PAGE) break;
+          from += PAGE;
+        }
+        return rows;
+      };
 
       // Comenzi, clienți și sesiuni — toate în paralel (nu secvențial)
       const fetchSessions = async () => {
@@ -534,18 +540,29 @@ export const useOrders = () => {
         }
         return sessions;
       };
-      const [pages, clientiRes, sessions] = await Promise.all([
-        Promise.all(
-          Array.from({ length: pageCount }, (_, i) => fetchPage(i * PAGE))
-        ),
-        supabase.from('productie_clienti').select('*, productie_zone_livrare(*)'),
+      const [data, clients, sessions] = await Promise.all([
+        fetchOrders(),
+        queryClient.fetchQuery({
+          queryKey: ['clients', 'production-order-lookup'], staleTime: 5 * 60_000,
+          queryFn: async () => {
+            const rows: any[] = [];
+            let from = 0;
+            while (true) {
+              const { data, error } = await supabase.from('productie_clienti')
+                .select('*, productie_zone_livrare(*)').order('id').range(from, from + PAGE - 1);
+              if (error) throw error;
+              rows.push(...(data || []));
+              if (!data || data.length < PAGE) break;
+              from += PAGE;
+            }
+            return rows;
+          },
+        }),
         fetchSessions(),
       ]);
 
-      const data = pages.flat();
-
       const clientiMap = new Map<string, any>();
-      (clientiRes.data || []).forEach((c: any) => {
+      clients.forEach((c: any) => {
         clientiMap.set(`${c.nume_magazin}||${c.punct_livrare}`, c);
       });
 

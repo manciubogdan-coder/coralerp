@@ -1,6 +1,7 @@
 
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { refreshProductionQueries } from '@/lib/productie/refreshProductionQueries';
 
 interface UseAutoRefreshOptions {
   interval?: number; // în milisecunde, default 30 secunde
@@ -14,25 +15,22 @@ export const useAutoRefresh = ({
   queryKeys = []
 }: UseAutoRefreshOptions = {}) => {
   const queryClient = useQueryClient();
+  const keysSignature = JSON.stringify(queryKeys);
 
   useEffect(() => {
     if (!enabled) return;
 
     const invalidate = () => {
+      if (document.visibilityState === 'hidden') return;
+      const keys: string[][] = JSON.parse(keysSignature);
       // Invalidez cache-urile specifice dacă sunt date
-      if (queryKeys.length > 0) {
-        queryKeys.forEach(queryKey => {
-          queryClient.invalidateQueries({ queryKey });
+      if (keys.length > 0) {
+        keys.forEach(queryKey => {
+          void queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
         });
       } else {
         // Invalidez toate cache-urile importante pentru producție
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
-        queryClient.invalidateQueries({ queryKey: ['production-orders'] });
-        queryClient.invalidateQueries({ queryKey: ['productie-comenzi'] });
-        queryClient.invalidateQueries({ queryKey: ['restockings'] });
-        queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
-        queryClient.invalidateQueries({ queryKey: ['products'] });
-        queryClient.invalidateQueries({ queryKey: ['lines'] });
+        void refreshProductionQueries(queryClient, ['orders', 'production-orders', 'productie-comenzi', 'restockings', 'work-sessions']);
       }
     };
 
@@ -52,5 +50,5 @@ export const useAutoRefresh = ({
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
-  }, [queryClient, interval, enabled, queryKeys]);
+  }, [queryClient, interval, enabled, keysSignature]);
 };
