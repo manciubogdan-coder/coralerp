@@ -9,6 +9,7 @@ import { Package, AlertTriangle, CheckCircle, Clock, Factory, Archive, Play, Use
 import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 import OrderPackaging from "./OrderPackaging";
+import { OrderHistoryButton } from "./OrderHistoryDialog";
 import { useOrderCuts } from "@/hooks/productie/useOrderCuts";
 
 interface OrdersTableProps {
@@ -164,12 +165,15 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                     </div>
                   )}
                 </div>
-                <Button
-                  size="sm"
-                  className={`w-full mt-2 ${order.status === 'completed' ? "bg-green-600 hover:bg-green-700" : "bg-coral-primary hover:bg-coral-600"} text-white text-xs`}
-                >
-                  {order.status === 'completed' ? <><CheckCircle className="w-3 h-3 mr-1" />Vezi</> : <><Clock className="w-3 h-3 mr-1" />Accesează</>}
-                </Button>
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    size="sm"
+                    className={`flex-1 ${order.status === 'completed' ? "bg-green-600 hover:bg-green-700" : "bg-coral-primary hover:bg-coral-600"} text-white text-xs`}
+                  >
+                    {order.status === 'completed' ? <><CheckCircle className="w-3 h-3 mr-1" />Vezi</> : <><Clock className="w-3 h-3 mr-1" />Accesează</>}
+                  </Button>
+                  <OrderHistoryButton orderIds={[order.id]} title={`${order.productie_produse?.nume || ''} — ${order.numar_comanda}`} />
+                </div>
               </div>
             );
           })}
@@ -405,25 +409,28 @@ const OrdersTable: React.FC<OrdersTableProps> = ({ orders, onOrderSelect, totalI
                   </TableCell>
                   
                   <TableCell>
-                    <Button 
-                      size="sm" 
-                      className={order.status === 'completed' ? 
-                        "bg-green-600 hover:bg-green-700 text-white text-xs" : 
-                        "bg-coral-primary hover:bg-coral-600 text-white text-xs"
-                      }
-                    >
-                      {order.status === 'completed' ? (
-                        <>
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Vezi
-                        </>
-                      ) : (
-                        <>
-                          <Clock className="w-3 h-3 mr-1" />
-                          Accesează
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button 
+                        size="sm" 
+                        className={order.status === 'completed' ? 
+                          "bg-green-600 hover:bg-green-700 text-white text-xs" : 
+                          "bg-coral-primary hover:bg-coral-600 text-white text-xs"
+                        }
+                      >
+                        {order.status === 'completed' ? (
+                          <>
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Vezi
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-3 h-3 mr-1" />
+                            Accesează
+                          </>
+                        )}
+                      </Button>
+                      <OrderHistoryButton orderIds={[order.id]} title={`${order.productie_produse?.nume || ''} — ${order.numar_comanda}`} />
+                    </div>
                   </TableCell>
                 </TableRow>
               );
