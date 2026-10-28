@@ -506,6 +506,7 @@ export const useOrders = () => {
           .select(selectStr)
           .order('updated_at', { ascending: false })
           .order('created_at', { ascending: false })
+          .order('id', { ascending: true })
           .range(from, from + PAGE - 1);
         if (error) throw error;
         return data || [];
@@ -542,7 +543,7 @@ export const useOrders = () => {
       const [data, clients, sessions] = await Promise.all([
         fetchOrders(),
         queryClient.fetchQuery({
-          queryKey: ['production-order-clients'], staleTime: 5 * 60_000,
+          queryKey: ['clients', 'production-order-lookup'], staleTime: 5 * 60_000,
           queryFn: async () => {
             const rows: any[] = [];
             let from = 0;
