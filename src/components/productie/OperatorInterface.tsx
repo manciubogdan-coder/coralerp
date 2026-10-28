@@ -127,7 +127,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const {
     data: orders,
     isLoading: ordersLoading
-  } = useOrders();
+  } = useOrders(selectedDay);
 
   const createSessionMutation = useCreateWorkSession();
   const finishSessionMutation = useFinishWorkSession();
