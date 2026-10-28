@@ -1,5 +1,5 @@
 # Roadmap
-- [ ] Prevent auth-context replacement during live updates; verify clean startup and live-update recovery without the ThemeProvider crash.
+- [x] Isolate auth context identity from refreshed components; browser verifies clean startup and Auth/Theme live updates without runtime errors; three tests pass, build OK. Real operational-account startup remains blocked as noted below.
 - [x] Bound account initialization to 20s, ignore stale reads and show retry instead of endless loading/false approval redirects; three tests pass, browser verifies normal login and synthetic stalled-refresh → retry → login, no runtime errors, build OK.
 - [ ] Verify startup with the real operational account — blocked by unavailable external operational session; public startup and simulated recovery verified.
 - [x] Default automatic restock offers OFF at individual/grouped production start; shared Configurări switch with Argus admin-validated save; manual allocation/reservations preserved. Live Cloud OFF/read and blocked anonymous write verified, isolated setting UI OFF, 55 production tests pass, build OK; Argus deployed.
