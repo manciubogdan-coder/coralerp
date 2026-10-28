@@ -27,4 +27,4 @@
 - Production/Picking share same-day advance projections; fully reduced advances display completed; never persist projections. Manual unproduced plans require later firms. Picking uses max(production, own pool) and selected Bucharest day. Why: protect goods, avoid duplicates and zero-work jobs.
 - Purchase forecasts share date-keyed supplier schedules and stock projections with paginated reads. Why: deliveries must retain each ETA in both screen and Excel.
 - Leaf warnings share receipt-based Bucharest day rules and original positive-stock lots. Why: grouping must not hide old lots or age fresh stock.
-- AuthContext times out legacy auth/profile calls after 20s with a Romanian error. Why: avoid endless login.
+- Auth startup has a 20s retryable deadline; parallel profile/role reads ignore stale results. Why: prevent endless login and false approval redirects.
