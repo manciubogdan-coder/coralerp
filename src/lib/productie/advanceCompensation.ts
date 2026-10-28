@@ -23,6 +23,7 @@ export function canCompensateAdvance(
 
 type QuantityOrder = CompensationOrder & {
   cantitate: number;
+  status?: string;
   cantitate_reala_produsa?: number;
   cantitate_produsa_sesiuni?: number;
   cantitate_din_restock?: number;
@@ -30,7 +31,7 @@ type QuantityOrder = CompensationOrder & {
   cantitate_scazuta_din_ferme?: number;
 };
 
-// Projection only: never change stored sessions, stock or order status.
+// Projection only: completion applies to the displayed order, never stored data.
 export function compensateAdvanceQuantities(
   advances: { order: QuantityOrder; automatic: boolean }[],
   firms: QuantityOrder[],
@@ -70,6 +71,7 @@ export function compensateAdvanceQuantities(
     if (balance.reduction <= 0) continue;
     balance.order.cantitate_scazuta_din_ferme = balance.reduction;
     balance.order.cantitate = Math.max(0, Number(balance.order.cantitate || 0) - balance.reduction);
+    if (balance.order.cantitate === 0) balance.order.status = 'completed';
     const restock = Number(balance.order.cantitate_din_restock || 0);
     const fromRestock = Math.max(0, balance.transferred - Number(balance.order.cantitate_reala_produsa || 0));
     balance.order.cantitate_din_restock = Math.max(0, restock - fromRestock);
