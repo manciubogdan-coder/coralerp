@@ -28,6 +28,7 @@ import { restockProductIds, restockNeeded } from '@/lib/productie/restockGroups'
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import DiscardedStockReset from './DiscardedStockReset';
 import OrderPackaging from './OrderPackaging';
+import { loadAutomaticRestock, offerRestockAtStart } from '@/lib/productie/restockAllocationMode';
 
 interface OperatorInterfaceProps {
   selectedLine: string;
@@ -348,7 +349,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     try {
       const o: any = (orders || []).find((x: any) => x.id === currentOrderId);
       if (!confirmOtherDay([normalizeProductionDate(o?.data_productie) || todayISO()])) return;
-      if (await askCoverFromStock(o)) return;
+      if (await offerRestockAtStart(loadAutomaticRestock, () => askCoverFromStock(o))) return;
       await createSessionMutation.mutateAsync({
         comanda_id: currentOrderId,
         linie_id: effectiveSessionLineId,
@@ -477,7 +478,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     for (const o of groupOrders) {
       if (activeSessions.some(s => s.comanda_id === o.id && lineMemberIds.includes(s.linie_id))) continue;
       try {
-        if (await askCoverFromStock(o)) continue;
+        if (await offerRestockAtStart(loadAutomaticRestock, () => askCoverFromStock(o))) continue;
         await createSessionMutation.mutateAsync({
           comanda_id: o.id,
           linie_id: targetLineId,
