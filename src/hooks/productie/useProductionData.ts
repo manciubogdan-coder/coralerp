@@ -488,7 +488,10 @@ export const useDeleteClient = () => {
   });
 };
 
-// Hook pentru încărcarea comenzilor cu relațiile corecte - AFIȘEAZĂ TOATE COMENZILE (inclusiv finalizate)
+// Fereastra de comenzi încărcate pe ecranele de producție (aliniată cu compensarea avansurilor).
+export const ORDERS_WINDOW_DAYS = 21;
+
+// Hook pentru încărcarea comenzilor recente (inclusiv finalizate) cu relațiile corecte
 export const useOrders = () => {
   const queryClient = useQueryClient();
   return useQuery({
@@ -500,13 +503,21 @@ export const useOrders = () => {
       const selectStr =
         '*, productie_produse(id, nume, unitate_masura, created_at, updated_at), productie_linii(id, nume)';
 
+      // Ecranele de producție lucrează pe zilele curente: citim doar comenzile din
+      // ultimele ORDERS_WINDOW_DAYS zile (după data de producție), plus viitoare și
+      // cele fără dată. Întregul istoric (~30.000 comenzi, ~18 MB) bloca încărcarea.
+      const since = new Date();
+      since.setDate(since.getDate() - ORDERS_WINDOW_DAYS);
+      const sinceDay = since.toISOString().slice(0, 10);
+      const windowFilter = `data_productie.gte.${sinceDay},data_productie.is.null`;
+
       // Paginăm DOAR după cheia primară (indexată). Sortarea după updated_at pe tot
-      // tabelul (fără index) depășea timpul limită al bazei la fiecare pagină și
-      // bloca încărcarea paginii Operator; ordinea se refăcea oricum local.
+      // tabelul (fără index) depășea timpul limită al bazei; ordinea se reface local.
       const fetchPage = async (from: number) => {
         const { data, error } = await supabase
           .from('productie_comenzi')
           .select(selectStr)
+          .or(windowFilter)
           .order('id', { ascending: true })
           .range(from, from + PAGE - 1);
         if (error) throw error;
@@ -517,7 +528,8 @@ export const useOrders = () => {
       const fetchOrders = async () => {
         const { count, error } = await supabase
           .from('productie_comenzi')
-          .select('id', { count: 'exact', head: true });
+          .select('id', { count: 'exact', head: true })
+          .or(windowFilter);
         if (error) throw error;
         const total = Number(count || 0);
         const offsets: number[] = [];
