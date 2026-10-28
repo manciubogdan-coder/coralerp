@@ -35,17 +35,41 @@ test('Rucola: 402 actually produced covers 432 earlier same-day firm pieces once
 });
 
 test('unproduced manual 600-piece advance is not completed by earlier firm orders', () => {
-  const advance = { ...babySpanacAdvance, cantitate: 600, cantitate_reala_produsa: 0 };
+  const advance = { ...babySpanacAdvance, cantitate: 600, cantitate_reala_produsa: 0, status: 'pending' };
   const firm = { ...babySpanacAdvance, created_at: '2026-10-26T15:00:00Z', cantitate: 600, cantitate_reala_produsa: 0 };
   compensateAdvanceQuantities([{ order: advance, automatic: false }], [firm]);
   expect(advance.cantitate).toBe(600);
+  expect(advance.status).toBe('pending');
   expect(firm.cantitate_reala_produsa).toBe(0);
 });
 
 test('today’s produced 1000 spinach pieces never cover tomorrow', () => {
-  const advance = { ...babySpanacAdvance, cantitate: 1000, cantitate_reala_produsa: 1000 };
+  const advance = { ...babySpanacAdvance, cantitate: 1000, cantitate_reala_produsa: 1000, status: 'assigned' };
   const firm = { ...babySpanacAdvance, data_productie: '2026-10-28', cantitate: 1000, cantitate_reala_produsa: 0 };
   compensateAdvanceQuantities([{ order: advance, automatic: true }], [firm]);
   expect(advance.cantitate_reala_produsa).toBe(1000);
+  expect(advance.status).toBe('assigned');
   expect(firm.cantitate_reala_produsa).toBe(0);
+});
+
+test('fully compensated automatic advances display completed without changing the stored order', () => {
+  for (const status of ['pending', 'assigned', 'in_progress']) {
+    const stored = { ...babySpanacAdvance, cantitate: 402, cantitate_reala_produsa: 0, status };
+    const projected = { ...stored };
+    const firm = { ...babySpanacAdvance, created_at: '2026-10-26T15:00:00Z', cantitate: 432, cantitate_reala_produsa: 0 };
+    compensateAdvanceQuantities([{ order: projected, automatic: true }], [firm]);
+    expect(projected.cantitate).toBe(0);
+    expect(projected.status).toBe('completed');
+    expect(stored.cantitate).toBe(402);
+    expect(stored.status).toBe(status);
+    expect(firm.cantitate_reala_produsa).toBe(0);
+  }
+});
+
+test('partially compensated automatic advance keeps its open status and remaining quantity', () => {
+  const advance = { ...babySpanacAdvance, cantitate: 600, cantitate_reala_produsa: 0, status: 'assigned' };
+  const firm = { ...babySpanacAdvance, cantitate: 402, cantitate_reala_produsa: 0 };
+  compensateAdvanceQuantities([{ order: advance, automatic: true }], [firm]);
+  expect(advance.cantitate).toBe(198);
+  expect(advance.status).toBe('assigned');
 });
