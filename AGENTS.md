@@ -28,3 +28,4 @@
 - Purchase forecasts share date-keyed supplier schedules and stock projections with paginated reads. Why: deliveries must retain each ETA in both screen and Excel.
 - Leaf warnings share receipt-based Bucharest day rules and original positive-stock lots. Why: grouping must not hide old lots or age fresh stock.
 - Auth context is isolated in authState for refresh stability; startup has a 20s retry gate and stale-read guards. Why: avoid blank screens and endless login.
+- Operator screens use useProductionRealtime (productie_comenzi/sesiuni_lucru/restocari) + 60s polling fallback; legacy DB needs those tables in the supabase_realtime publication. Why: all operators must see order changes without manual refresh.
