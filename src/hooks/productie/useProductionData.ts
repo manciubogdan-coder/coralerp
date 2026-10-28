@@ -488,14 +488,27 @@ export const useDeleteClient = () => {
   });
 };
 
-// Fereastra de comenzi încărcate pe ecranele de producție (aliniată cu compensarea avansurilor).
-export const ORDERS_WINDOW_DAYS = 21;
+// La prima încărcare: ieri, azi, mâine (plus comenzile fără dată). Alte zile se
+// încarcă la cerere când utilizatorul alege data respectivă.
+const isoDay = (d: Date) => {
+  const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+};
+const shiftDay = (day: string, n: number) => { const d = new Date(`${day}T12:00:00`); d.setDate(d.getDate() + n); return isoDay(d); };
+export const ordersWindow = (day?: string) => {
+  const today = isoDay(new Date());
+  const ref = day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : today;
+  const from = [shiftDay(today, -1), shiftDay(ref, -1)].sort()[0];
+  const to = [shiftDay(today, 1), shiftDay(ref, 1)].sort()[1];
+  return { from, to };
+};
 
 // Hook pentru încărcarea comenzilor recente (inclusiv finalizate) cu relațiile corecte
-export const useOrders = () => {
+export const useOrders = (day?: string) => {
   const queryClient = useQueryClient();
+  const win = ordersWindow(day);
   return useQuery({
-    queryKey: ['orders'],
+    queryKey: ['orders', win.from, win.to],
+    placeholderData: (prev: any) => prev,
     staleTime: 60_000,
     gcTime: 10 * 60_000,
     queryFn: async () => {
@@ -506,10 +519,7 @@ export const useOrders = () => {
       // Ecranele de producție lucrează pe zilele curente: citim doar comenzile din
       // ultimele ORDERS_WINDOW_DAYS zile (după data de producție), plus viitoare și
       // cele fără dată. Întregul istoric (~30.000 comenzi, ~18 MB) bloca încărcarea.
-      const since = new Date();
-      since.setDate(since.getDate() - ORDERS_WINDOW_DAYS);
-      const sinceDay = since.toISOString().slice(0, 10);
-      const windowFilter = `data_productie.gte.${sinceDay},data_productie.is.null`;
+      const windowFilter = `and(data_productie.gte.${win.from},data_productie.lte.${win.to}),data_productie.is.null`;
 
       // Paginăm DOAR după cheia primară (indexată). Sortarea după updated_at pe tot
       // tabelul (fără index) depășea timpul limită al bazei; ordinea se reface local.
