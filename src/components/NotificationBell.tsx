@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,12 +29,15 @@ const NotificationBell: React.FC = () => {
   const { chatUnread, taskUnread, totalUnread, markChatSeen, markTasksSeen, refresh } = useCollaborationAlerts();
   const [items, setItems] = useState<Notif[]>([]);
   const [open, setOpen] = useState(false);
+  const loading = useRef(false);
 
   const dbUnread = items.filter((i) => !i.read_at).length;
   const unread = Math.max(dbUnread, totalUnread);
 
   const load = async () => {
-    if (!user) return;
+    if (!user || loading.current) return;
+    loading.current = true;
+    try {
     const { data } = await (supabase as any)
       .from("notifications")
       .select("id,title,body,link,read_at,created_at")
@@ -42,13 +45,15 @@ const NotificationBell: React.FC = () => {
       .order("created_at", { ascending: false })
       .limit(30);
     setItems((data as Notif[]) ?? []);
-    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
+    } finally { loading.current = false; }
   };
 
   useEffect(() => {
     if (!user) return;
     load();
-    const interval = window.setInterval(load, 5000);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, 60_000);
     const channel = (supabase as any)
       .channel(`notif-${user.id}`)
       .on(
@@ -122,6 +127,7 @@ const NotificationBell: React.FC = () => {
     setOpen(false);
     if (n.link) navigate(n.link);
     load();
+    window.dispatchEvent(new Event("collaboration-alerts-refresh"));
   };
 
   if (!user) return null;

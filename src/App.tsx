@@ -2,7 +2,7 @@ import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import NotificationBell from "@/components/NotificationBell";
@@ -59,29 +59,7 @@ import { CollaborationAlertsProvider } from "@/contexts/CollaborationAlertsConte
 import { PresenceProvider } from "@/contexts/PresenceContext";
 import CollaborationAlertBadges from "@/components/CollaborationAlertBadges";
 
-const productionRefreshKeys = [
-  ['orders'],
-  ['production-orders'],
-  ['productie-comenzi'],
-  ['work-sessions'],
-  ['restockings'],
-  ['marfa-restocata'],
-  ['marfa-restocata-istoric'],
-  ['products'],
-  ['production-lines'],
-  ['lines'],
-];
-
 const queryClient = new QueryClient({
-  mutationCache: new MutationCache({
-    onSuccess: async () => {
-      await Promise.all(
-        productionRefreshKeys.map((queryKey) =>
-          queryClient.refetchQueries({ queryKey, type: 'active' })
-        )
-      );
-    },
-  }),
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,

@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +28,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
   const location = useLocation();
   const [chatUnread, setChatUnread] = useState(0);
   const [taskUnread, setTaskUnread] = useState(0);
+  const refreshing = useRef(false);
 
   const markTasksSeen = useCallback(() => {
     if (!user?.id) return;
@@ -130,6 +131,9 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
       setTaskUnread(0);
       return;
     }
+    if (refreshing.current) return;
+    refreshing.current = true;
+    try {
     const [chatResult, taskResult, notifResult] = await Promise.allSettled([
       loadChatUnread(),
       loadTaskUnread(),
@@ -140,6 +144,7 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
     const notifUnread = notifResult.status === "fulfilled" ? notifResult.value : { chat: 0, task: 0 };
     setChatUnread(Math.max(nextChatUnread, notifUnread.chat));
     setTaskUnread(Math.max(nextTaskUnread, notifUnread.task));
+    } finally { refreshing.current = false; }
   }, [loadChatUnread, loadNotificationUnread, loadTaskUnread, user?.id]);
 
   useEffect(() => {
@@ -147,10 +152,27 @@ export const CollaborationAlertsProvider: React.FC<{ children: React.ReactNode }
     if (location.pathname.startsWith("/chat")) markChatSeen();
     if (location.pathname.startsWith("/taskuri")) markTasksSeen();
     refresh();
-    const interval = window.setInterval(refresh, 5000);
+    const visibleRefresh = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    const interval = window.setInterval(visibleRefresh, 60_000);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleRefresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(visibleRefresh, 400);
+    };
+    const channel = supabase.channel(`collaboration-alerts-${user.id}-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_tasks' }, scheduleRefresh)
+      .subscribe();
+    document.addEventListener('visibilitychange', visibleRefresh);
     window.addEventListener("collaboration-alerts-refresh", refresh);
     return () => {
       window.clearInterval(interval);
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', visibleRefresh);
       window.removeEventListener("collaboration-alerts-refresh", refresh);
     };
   }, [location.pathname, markTasksSeen, refresh, user?.id]);

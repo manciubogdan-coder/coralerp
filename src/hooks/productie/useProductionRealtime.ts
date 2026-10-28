@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { refreshProductionQueries } from '@/lib/productie/refreshProductionQueries';
 
 // Cheile de cache folosite de ecranele de producție/operator.
 const PRODUCTION_KEYS = [
@@ -45,9 +46,7 @@ export const useProductionRealtime = (enabled = true) => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;
-        PRODUCTION_KEYS.forEach((key) =>
-          queryClient.invalidateQueries({ queryKey: [key], refetchType: 'active' })
-        );
+        void refreshProductionQueries(queryClient, PRODUCTION_KEYS);
       }, 400);
     };
 
