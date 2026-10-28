@@ -11,6 +11,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { applyInheritance, loadInheritanceCatalog, readAll } from '../_shared/productRecipes.ts';
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { plannedQuantity } from '../_shared/erpQuantity.ts';
+import { cancellationPatch, isErpCancellationApplied } from './cancellation.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -629,7 +630,7 @@ Deno.serve(async (req) => {
 
       // Liniile care nu mai există în Senior pentru acest aviz:
       //  - pending → DELETE
-      //  - non-pending: mutăm ce s-a produs pe restocare, marcăm cantitate=0 + status='canceled_by_erp'
+      //  - non-pending: păstrăm istoricul, cantitate=0 + status='completed' (acceptat de baza operațională)
       try {
         const { data: existingForAviz } = await supabase
           .from("productie_comenzi")
@@ -641,7 +642,7 @@ Deno.serve(async (req) => {
         );
         for (const r of disparute as any[]) {
           // deja procesată la o rulare anterioară — nu o mai reprocesăm
-          if (r.status === "canceled_by_erp") continue;
+          if (isErpCancellationApplied(r)) continue;
           if (r.status === "pending") {
             const { error: dErr } = await supabase
               .from("productie_comenzi")
@@ -671,9 +672,10 @@ Deno.serve(async (req) => {
           }
           const { error: uErr } = await supabase
             .from("productie_comenzi")
-            .update({ cantitate: 0, status: "canceled_by_erp" })
+            .update(cancellationPatch())
             .eq("id", r.id);
-          if (!uErr) deleted++;
+          if (uErr) errors.push({ aviz: aviz.nr_aviz, produs: r.extern_nr_aviz, cancel: uErr.message });
+          else deleted++;
         }
       } catch (e: any) {
         errors.push({ aviz: aviz.nr_aviz, del: e.message });
