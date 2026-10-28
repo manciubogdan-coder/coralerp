@@ -517,7 +517,7 @@ export const useOrders = (day?: string) => {
         '*, productie_produse(id, nume, unitate_masura, created_at, updated_at), productie_linii(id, nume)';
 
       // Ecranele de producție lucrează pe zilele curente: citim doar comenzile din
-      // ultimele ORDERS_WINDOW_DAYS zile (după data de producție), plus viitoare și
+      // fereastra ieri–mâine (sau ziua aleasă ±1), plus comenzile
       // cele fără dată. Întregul istoric (~30.000 comenzi, ~18 MB) bloca încărcarea.
       const windowFilter = `and(data_productie.gte.${win.from},data_productie.lte.${win.to}),data_productie.is.null`;
 
