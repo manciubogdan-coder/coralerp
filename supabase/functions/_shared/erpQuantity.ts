@@ -1,33 +1,24 @@
 /**
  * Decide cantitatea planificată a unei linii de comandă importată din Senior ERP.
  *
- * Regula de bază: „Acceptat" (Cantitate_Disponibila) are prioritate; dacă lipsește,
- * folosim cantitatea comandată.
+ * Regula: „Acceptat" (Cantitate_Disponibila) are prioritate; dacă lipsește sau e 0,
+ * folosim cantitatea comandată. La reimport, orice schimbare a acestor câmpuri în
+ * Senior se propagă prin comparația cu cantitatea stocată (făcută de apelant).
  *
- * Excepție pentru comenzi deja importate: dacă „Acceptat" e identic cu ce avem
- * stocat, dar cantitatea comandată s-a schimbat, înseamnă că editarea s-a făcut
- * pe „Cantitate" și „Acceptat" a rămas vechi — urmăm cantitatea comandată,
- * altfel modificarea din Senior nu s-ar propaga în aplicație.
+ * Notă: dacă în Senior se modifică doar „Cantitate" dar „Acceptat" rămâne completat
+ * cu valoarea veche, valoarea confirmată (Acceptat) câștigă — este cantitatea
+ * angajată față de client. Pentru ca modificarea să se propage, se actualizează
+ * și „Acceptat" în Senior.
  */
 export function plannedQuantity(
   cantitateComandata: number,
-  cantitateAcceptata: number | null | undefined,
-  storedCantitate?: number | null
+  cantitateAcceptata: number | null | undefined
 ): number {
   const acceptata =
     cantitateAcceptata != null && Number.isFinite(Number(cantitateAcceptata))
       ? Number(cantitateAcceptata)
       : NaN;
 
-  if (Number.isFinite(acceptata) && acceptata > 0) {
-    if (
-      storedCantitate != null &&
-      Math.abs(acceptata - storedCantitate) < 0.0001 &&
-      Math.abs(cantitateComandata - storedCantitate) > 0.0001
-    ) {
-      return cantitateComandata;
-    }
-    return acceptata;
-  }
+  if (Number.isFinite(acceptata) && acceptata > 0) return acceptata;
   return cantitateComandata;
 }
