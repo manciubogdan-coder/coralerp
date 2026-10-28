@@ -26,4 +26,4 @@
 - Purchase forecasts share date-keyed supplier schedules and stock projections with paginated reads. Why: deliveries must retain each ETA in both screen and Excel.
 - Leaf warnings share receipt-based Bucharest day rules and original positive-stock lots. Why: grouping must not hide old lots or age fresh stock.
 - Auth context is isolated in authState for refresh stability; startup has a 20s retry gate and stale-read guards. Why: avoid blank screens and endless login.
-- Operator screens use Realtime + 60s visible fallback, coalesced non-cancelling invalidations; mutations refresh own caches. useOrders reads a recent data_productie window, id-ordered, 4 pages concurrently, sorted locally. Collaboration: Realtime + 60s single-flight. Why: full-history updated_at sorts timed out and froze Operator.
+- Operator screens use Realtime + 60s visible fallback, coalesced non-cancelling invalidations; mutations refresh own caches. useOrders reads selected day ±1 (default yesterday–tomorrow) on demand, id-ordered, 4 pages concurrently, sorted locally. Collaboration: Realtime + 60s single-flight. Why: full-history updated_at sorts timed out and froze Operator.
