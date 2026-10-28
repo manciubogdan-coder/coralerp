@@ -451,21 +451,15 @@ Deno.serve(async (req) => {
         // Dacă lipsește, folosim cantitatea comandată inițială.
         const cantitateComandata = Number(linie.cantitate) || 0;
         const acceptata = linie.cantitate_acceptata != null ? Number(linie.cantitate_acceptata) : NaN;
+        const cantitate = plannedQuantity(cantitateComandata, Number.isFinite(acceptata) ? acceptata : null);
 
-        // Verifică dacă rândul există deja (upsert) — înainte de a decide cantitatea,
-        // ca să detectăm editările făcute pe „Cantitate" cu „Acceptat" rămas vechi.
+        // Verifică dacă rândul există deja (upsert)
         const { data: existing } = await supabase
           .from("productie_comenzi")
           .select("id, cantitate, status, magazin, data_productie, produs_id")
           .eq("sursa", "senior-erp")
           .eq("extern_nr_aviz", externKey)
           .maybeSingle();
-
-        const cantitate = plannedQuantity(
-          cantitateComandata,
-          Number.isFinite(acceptata) ? acceptata : null,
-          existing ? Number((existing as any).cantitate) || 0 : null
-        );
 
         // Skip retururi (cantitate <= 0)
         if (cantitate <= 0) {
