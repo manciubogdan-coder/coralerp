@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Diagnose excessive production requests and reduce overlapping refreshes without changing orders, stock or live operator updates.
 - [x] Isolate auth context identity from refreshed components; browser verifies clean startup and Auth/Theme live updates without runtime errors; three tests pass, build OK. Real operational-account startup remains blocked as noted below.
 - [x] Bound account initialization to 20s, ignore stale reads and show retry instead of endless loading/false approval redirects; three tests pass, browser verifies normal login and synthetic stalled-refresh → retry → login, no runtime errors, build OK.
 - [ ] Verify startup with the real operational account — blocked by unavailable external operational session; public startup and simulated recovery verified.
