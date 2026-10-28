@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Default automatic restock offers OFF at individual/grouped production start; add shared production configuration switch with protected save; preserve explicit manual allocation and reservations.
 - [x] Correct Picking list/details readiness using shared production projection, without duplicate own-pool counts or unconfirmed free-stock completion; filter active sessions by selected Bucharest day, save selected day on new sessions and refresh automatically. Fifty production tests pass; build OK; stored production unchanged.
 - [ ] Verify corrected Picking counts and selected-day sessions with the real operational account — blocked by unavailable external session; browser redirects to login without runtime errors.
 - [x] Correct completed advance compensation against earlier same-day firm demand and prevent duplicate displayed production; paginate session/group reads. Real Rucola data read and browser-loaded calculation confirms 402 covered / 30 remaining, zero duplicate advance count; 45 tests pass, build OK, no stored stock/production modified.
