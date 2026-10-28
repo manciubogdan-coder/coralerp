@@ -450,21 +450,32 @@ Deno.serve(async (req) => {
         // Dacă lipsește, folosim cantitatea comandată inițială.
         const cantitateComandata = Number(linie.cantitate) || 0;
         const acceptata = linie.cantitate_acceptata != null ? Number(linie.cantitate_acceptata) : NaN;
-        const cantitate = Number.isFinite(acceptata) && acceptata > 0 ? acceptata : cantitateComandata;
 
-        // Skip retururi (cantitate <= 0)
-        if (cantitate <= 0) {
-          skipped++;
-          continue;
-        }
-
-        // Verifică dacă rândul există deja (upsert)
+        // Verifică dacă rândul există deja (upsert) — înainte de a decide cantitatea,
+        // ca să detectăm editările făcute pe „Cantitate" cu „Acceptat" rămas vechi.
         const { data: existing } = await supabase
           .from("productie_comenzi")
           .select("id, cantitate, status, magazin, data_productie, produs_id")
           .eq("sursa", "senior-erp")
           .eq("extern_nr_aviz", externKey)
           .maybeSingle();
+
+        let cantitate = Number.isFinite(acceptata) && acceptata > 0 ? acceptata : cantitateComandata;
+        if (existing && Number.isFinite(acceptata) && acceptata > 0) {
+          const stocata = Number((existing as any).cantitate) || 0;
+          // „Acceptat" e neschimbat față de ce avem, dar „Cantitate" comandată s-a
+          // modificat → editarea s-a făcut pe Cantitate, Acceptat e rămas vechi:
+          // urmăm cantitatea comandată, altfel modificarea nu s-ar propaga.
+          if (Math.abs(acceptata - stocata) < 0.0001 && Math.abs(cantitateComandata - stocata) > 0.0001) {
+            cantitate = cantitateComandata;
+          }
+        }
+
+        // Skip retururi (cantitate <= 0)
+        if (cantitate <= 0) {
+          skipped++;
+          continue;
+        }
 
         if (existing) {
           const ex: any = existing;
