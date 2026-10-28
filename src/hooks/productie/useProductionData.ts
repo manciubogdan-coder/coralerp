@@ -500,28 +500,50 @@ export const useOrders = () => {
       const selectStr =
         '*, productie_produse(id, nume, unitate_masura, created_at, updated_at), productie_linii(id, nume)';
 
+      // Paginăm DOAR după cheia primară (indexată). Sortarea după updated_at pe tot
+      // tabelul (fără index) depășea timpul limită al bazei la fiecare pagină și
+      // bloca încărcarea paginii Operator; ordinea se refăcea oricum local.
       const fetchPage = async (from: number) => {
         const { data, error } = await supabase
           .from('productie_comenzi')
           .select(selectStr)
-          .order('updated_at', { ascending: false })
-          .order('created_at', { ascending: false })
           .order('id', { ascending: true })
           .range(from, from + PAGE - 1);
         if (error) throw error;
         return data || [];
       };
 
-      // Bounded pagination: do not flood the database with every history page at once.
+      // Paginare limitată: câteva pagini simultan, nu toate odată și nici una câte una.
       const fetchOrders = async () => {
+        const { count, error } = await supabase
+          .from('productie_comenzi')
+          .select('id', { count: 'exact', head: true });
+        if (error) throw error;
+        const total = Number(count || 0);
+        const offsets: number[] = [];
+        for (let o = 0; o < total + PAGE; o += PAGE) offsets.push(o);
+        const pages: any[][] = new Array(offsets.length);
+        const CONCURRENCY = 4;
+        let next = 0;
+        const worker = async () => {
+          while (next < offsets.length) {
+            const i = next++;
+            pages[i] = await fetchPage(offsets[i]);
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, offsets.length) }, worker));
+        const seen = new Set<string>();
         const rows: any[] = [];
-        let from = 0;
-        while (true) {
-          const page = await fetchPage(from);
-          rows.push(...page);
-          if (page.length < PAGE) break;
-          from += PAGE;
+        for (const page of pages) for (const r of page || []) {
+          if (seen.has(r.id)) continue;
+          seen.add(r.id);
+          rows.push(r);
         }
+        const ts = (v: any) => (v ? new Date(v).getTime() : 0);
+        rows.sort((a, b) =>
+          ts(b.updated_at) - ts(a.updated_at) ||
+          ts(b.created_at) - ts(a.created_at) ||
+          String(a.id).localeCompare(String(b.id)));
         return rows;
       };
 
