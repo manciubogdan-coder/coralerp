@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import type { DepartmentRole } from '@/lib/departments';
+import AccountLoadingError from '@/components/AccountLoadingError';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -15,7 +16,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireAdmin = false,
   requireDepartment,
 }) => {
-  const { user, isApproved, isAdmin, hasDepartment, isLoading } = useAuth();
+  const { user, isApproved, isAdmin, hasDepartment, isLoading, loadingError } = useAuth();
+
+  if (loadingError) return <AccountLoadingError message={loadingError} />;
 
   if (isLoading) {
     return (
