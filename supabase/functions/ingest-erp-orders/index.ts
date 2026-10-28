@@ -10,6 +10,7 @@ const AUTO_STOCK = false;
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { applyInheritance, loadInheritanceCatalog, readAll } from '../_shared/productRecipes.ts';
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
+import { plannedQuantity } from '../_shared/erpQuantity.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -460,16 +461,11 @@ Deno.serve(async (req) => {
           .eq("extern_nr_aviz", externKey)
           .maybeSingle();
 
-        let cantitate = Number.isFinite(acceptata) && acceptata > 0 ? acceptata : cantitateComandata;
-        if (existing && Number.isFinite(acceptata) && acceptata > 0) {
-          const stocata = Number((existing as any).cantitate) || 0;
-          // „Acceptat" e neschimbat față de ce avem, dar „Cantitate" comandată s-a
-          // modificat → editarea s-a făcut pe Cantitate, Acceptat e rămas vechi:
-          // urmăm cantitatea comandată, altfel modificarea nu s-ar propaga.
-          if (Math.abs(acceptata - stocata) < 0.0001 && Math.abs(cantitateComandata - stocata) > 0.0001) {
-            cantitate = cantitateComandata;
-          }
-        }
+        const cantitate = plannedQuantity(
+          cantitateComandata,
+          Number.isFinite(acceptata) ? acceptata : null,
+          existing ? Number((existing as any).cantitate) || 0 : null
+        );
 
         // Skip retururi (cantitate <= 0)
         if (cantitate <= 0) {
