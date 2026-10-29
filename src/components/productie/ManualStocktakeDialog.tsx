@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatInTimeZone } from 'date-fns-tz';
 import { ClipboardCheck, Loader2, Plus, Trash2 } from 'lucide-react';
@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const blank = (productId: string): CountRow => ({ id: crypto.randomUUID(), productId, units: '', cases: '' });
 export default function ManualStocktakeDialog() {
@@ -38,10 +37,12 @@ export default function ManualStocktakeDialog() {
     if (!catalog.has(key)) catalog.set(key, { id: product.id, name });
   }
   const options = Array.from(catalog.values()).sort((a, b) => a.name.localeCompare(b.name, 'ro'));
-  if (open && !initialized.current && products.isSuccess && groups.isSuccess) {
-    initialized.current = true;
-    setRows(options.map(option => blank(option.id)));
-  }
+  useEffect(() => {
+    if (open && !initialized.current && products.isSuccess && groups.isSuccess) {
+      initialized.current = true;
+      setRows(options.map(option => blank(option.id)));
+    }
+  }, [open, products.isSuccess, groups.isSuccess, products.data, groups.data]);
   const names = new Map(options.map(option => [option.id, option.name]));
   const total = rows.reduce((sum, row) => { try { return sum + countUnits(row); } catch { return sum; } }, 0);
   const update = (id: string, patch: Partial<CountRow>) => setRows(previous => previous.map(row => row.id === id ? { ...row, ...patch } : row));
@@ -78,7 +79,7 @@ export default function ManualStocktakeDialog() {
             {rows.filter(row => !search || (names.get(row.productId) || '').toLocaleLowerCase('ro').includes(search.toLocaleLowerCase('ro'))).map(row => {
               let quantity = 0; try { quantity = countUnits(row); } catch { /* Incomplete row. */ }
               return <div key={row.id} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_100px_100px_80px_80px] gap-2 py-3 items-end">
-                <div><Label>Grupă / produs</Label><Select value={row.productId} disabled={saving} onValueChange={id => update(row.id, { productId: id })}><SelectTrigger aria-label="Grupă / produs"><SelectValue placeholder="Alege grupa" /></SelectTrigger><SelectContent>{options.map(option => <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label>Grupă / produs</Label><select className="h-10 w-full border border-input rounded-md bg-background text-foreground px-3 text-sm" aria-label="Grupă / produs" value={row.productId} disabled={saving} onChange={e => update(row.id, { productId: e.target.value })}><option value="">Alege grupa</option>{options.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></div>
                 <div><Label>Buc/bax</Label><Input aria-label={`Buc/bax ${names.get(row.productId) || 'rând nou'}`} type="number" min="1" step="1" disabled={saving} value={row.units} onChange={e => update(row.id, { units: e.target.value })} /></div>
                 <div><Label>Baxuri</Label><Input aria-label={`Baxuri ${names.get(row.productId) || 'rând nou'}`} type="number" min="0" step="1" disabled={saving} value={row.cases} onChange={e => update(row.id, { cases: e.target.value })} /></div>
                 <strong className="pb-2">{quantity} buc</strong><div className="flex gap-1"><Button title="Altă baxare, aceeași grupă" aria-label="Altă baxare" size="icon" variant="ghost" disabled={saving} onClick={() => setRows(previous => { const next = [...previous]; next.splice(next.findIndex(item => item.id === row.id) + 1, 0, blank(row.productId)); return next; })}><Plus className="h-4 w-4" /></Button><Button title="Elimină rând" aria-label="Elimină rând" size="icon" variant="ghost" disabled={saving} onClick={() => setRows(previous => previous.filter(item => item.id !== row.id))}><Trash2 className="h-4 w-4" /></Button></div>

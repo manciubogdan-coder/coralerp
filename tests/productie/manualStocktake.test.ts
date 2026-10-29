@@ -19,3 +19,6 @@ test('old lots are zeroed unavailable rather than deleted or returned to invento
   expect(clearedStockPatch().cantitate_surplus).toBe(0);
   expect(clearedStockPatch().status).toBe('redistribuit');
 });
+test('even an empty stock replacement requires a valid production date', () => {
+  expect(() => buildCount([], new Set(), '')).toThrow();
+});

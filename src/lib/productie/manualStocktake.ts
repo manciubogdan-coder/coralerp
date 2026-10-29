@@ -8,6 +8,7 @@ export function countUnits(row: CountRow): number {
   return units * cases;
 }
 export function buildCount(rows: CountRow[], allowedIds: Set<string>, day: string) {
+  manualRestockPayload('date-validation', 1, day);
   const totals = new Map<string, number>();
   for (const row of rows) {
     if (!row.units.trim() && !row.cases.trim()) continue;
