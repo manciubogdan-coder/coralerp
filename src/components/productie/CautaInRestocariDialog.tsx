@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Search, PackagePlus } from 'lucide-react';
-import { fetchAvailablePoolRows } from '@/lib/productie/stockPool';
 
 interface Props {
   open: boolean;
@@ -62,7 +61,6 @@ const CautaInRestocariDialog = ({ open, onOpenChange, numeProdus, cantitateNeces
       }
 
       const ids = Array.from(new Set(rows.map((r) => r.produs_id).filter(Boolean)));
-      const freeRows = await fetchAvailablePoolRows(ids);
       const produse: any[] = [];
       for (let i = 0; i < ids.length; i += 50) {
         const { data } = await supabase
@@ -74,7 +72,7 @@ const CautaInRestocariDialog = ({ open, onOpenChange, numeProdus, cantitateNeces
       const map = new Map(produse.map((p: any) => [p.id, p]));
 
       const grupe = new Map<string, any>();
-      freeRows.forEach((r) => {
+      rows.forEach((r) => {
         const det: any = map.get(r.produs_id);
         const nume = det?.nume || 'Produs necunoscut';
         if (!grupe.has(r.produs_id)) {
