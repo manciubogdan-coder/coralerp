@@ -29,3 +29,20 @@ test('scheduled quality report preserves inclusive credit calculation for each s
     group.rows[0].pierdere_calitativa_procent='5';
   }
 });
+
+test('Rucola supplier reports claim quality on 638kg and shortage of 33kg separately',()=>{
+  const row:any={denumire_produs:'Rucola',producator:'De Divitiis',unit:'kg',cantitate_document:'671',cantitate_receptionata:638,pierdere_calitativa_procent:'30',defects:[],observations:'',photos:[]};
+  for(const lang of ['ro','en','it'] as const) for(const version of ['v1','v2'] as const) {
+    const renderer=createQualityEmail('2026-10-28',lang,version);
+    for (const rows of [[row], [row,{...row,cantitate_document:'505',cantitate_receptionata:494,pierdere_calitativa_procent:'0'}]]) {
+      const group:any={supplierName:'De Divitiis',documentNumber:'1',rows};
+      const result=renderer.getQualityLines(group,lang)[0];
+      expect(result.creditKg).toBe(191);
+      expect(renderer.getEmailTableRows(group,lang)[0].credit).toBe('191kg');
+      if(rows.length===1) {
+        expect(result.shortageKg).toBe(33);
+        expect(result.recvQty).toBe(638);
+      }
+    }
+  }
+});

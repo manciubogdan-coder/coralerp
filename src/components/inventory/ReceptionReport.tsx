@@ -41,7 +41,7 @@ import {
   aggregateByType,
 } from "@/lib/receptionBreakdown";
 import { resolveMissingOperators } from "@/lib/receptionOperator";
-import { isSupplierQualityLoss, supplierQualityCreditQuantity } from "@/lib/receptionQuality";
+import { isSupplierQualityLoss, supplierQualityCreditQuantity, supplierQualityLossBase } from "@/lib/receptionQuality";
 import QualityEmailAutomation from "@/components/inventory/QualityEmailAutomation";
 import QualityFinalization from "@/components/inventory/QualityFinalization";
 
@@ -697,13 +697,9 @@ const ReceptionReport: React.FC = () => {
   const calcPierdereKg = (r: ReportRow) => {
     const proc = parseFloat(r.pierdere_calitativa_procent);
     if (isNaN(proc)) return null;
-    // Pierderea se calculează pe cantitatea de pe document, DAR dacă surplusul
-    // se declară furnizorului (depășește toleranța), baza devine cantitatea
-    // recepționată efectiv (ex. 363.5 × 28%, nu 200 × 28%).
+    // Diferența cantitativă raportată separat nu intră în baza pierderii calitative.
     const doc = parseFloat(r.cantitate_document);
-    const tol = getTol(r.product_id);
-    const surplusDeclarat = !isNaN(doc) && doc > 0 && (r.cantitate_receptionata - doc) > tol.over;
-    const base = surplusDeclarat || isNaN(doc) ? effectiveReceived(r) : doc;
+    const base = supplierQualityLossBase(doc, r.cantitate_receptionata, getTol(r.product_id), effectiveReceived(r));
     return (base * proc) / 100;
   };
   // Pierdere (kg) se afișează/raportează rotunjit la întreg (1.34 -> 1, 1.55 -> 2)
@@ -1430,9 +1426,7 @@ const ReceptionReport: React.FC = () => {
     if (affected.length > 0) {
       if (wholeProduct) {
         const p = affected[0].p;
-        // Surplus declarat furnizorului → baza = cantitatea recepționată efectiv; altfel = documentul
-        const surplusDecl = docQty != null && docQty > 0 && (weighed - docQty) > tol.over;
-        const base = docQty != null && docQty > 0 && !surplusDecl ? docQty : recvQty;
+        const base = supplierQualityLossBase(docQty, weighed, tol);
         if (isSupplierQualityLoss(p)) { creditKg = supplierQualityCreditQuantity(base, p); creditText = kgTxt(creditKg, unit); }
         else creditText = "Warning!";
       } else {
@@ -1442,8 +1436,7 @@ const ReceptionReport: React.FC = () => {
             const docR = parseFloat(r.cantitate_document);
             const tolR = getTol(r.product_id);
             const recvR = Number(r.cantitate_receptionata) || 0;
-            const surplusR = !isNaN(docR) && docR > 0 && (recvR - docR) > tolR.over;
-            const baseR = !isNaN(docR) && docR > 0 && !surplusR ? docR : recvR;
+            const baseR = supplierQualityLossBase(docR, recvR, tolR);
             const kg = supplierQualityCreditQuantity(baseR, p);
             creditKg += kg;
             lines.push(`${lotLabel(r)} - ${kgTxt(kg, unit)}`);

@@ -1,4 +1,4 @@
-import { isSupplierQualityLoss, supplierQualityCreditQuantity } from './credit.ts';
+import { isSupplierQualityLoss, supplierQualityCreditQuantity, supplierQualityLossBase } from './credit.ts';
 export type EmailLang = "en" | "ro" | "it";
 type EmailContent = Record<EmailLang,string>;
 const escapeHtml = (v: unknown) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
@@ -217,9 +217,7 @@ export function createQualityEmail(day: string, emailLang: EmailLang, emailVersi
     if (affected.length > 0) {
       if (wholeProduct) {
         const p = affected[0].p;
-        // Surplus declarat furnizorului → baza = cantitatea recepționată efectiv; altfel = documentul
-        const surplusDecl = docQty != null && docQty > 0 && (weighed - docQty) > tol.over;
-        const base = docQty != null && docQty > 0 && !surplusDecl ? docQty : recvQty;
+        const base = supplierQualityLossBase(docQty, weighed, tol);
         if (isSupplierQualityLoss(p)) { creditKg = supplierQualityCreditQuantity(base, p); creditText = kgTxt(creditKg, unit); }
         else creditText = "Warning!";
       } else {
@@ -229,8 +227,7 @@ export function createQualityEmail(day: string, emailLang: EmailLang, emailVersi
             const docR = parseFloat(r.cantitate_document);
             const tolR = getTol(r.product_id);
             const recvR = Number(r.cantitate_receptionata) || 0;
-            const surplusR = !isNaN(docR) && docR > 0 && (recvR - docR) > tolR.over;
-            const baseR = !isNaN(docR) && docR > 0 && !surplusR ? docR : recvR;
+            const baseR = supplierQualityLossBase(docR, recvR, tolR);
             const kg = supplierQualityCreditQuantity(baseR, p);
             creditKg += kg;
             lines.push(`${lotLabel(r)} - ${kgTxt(kg, unit)}`);
