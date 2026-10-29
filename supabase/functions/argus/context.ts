@@ -14,6 +14,7 @@ export async function rollingContext(messages: UIMessage[], c: Clients, userId: 
   if (data && data.covered_messages <= prefix.length && data.prefix_hash === await contextHash(prefix.slice(0, data.covered_messages))) {
     covered = data.covered_messages; summary = data.summary;
   }
+  if (covered === prefix.length && summary) return { summary, recent: messages.slice(prefix.length) };
   while (covered < prefix.length) {
     const batch: string[] = [];
     let size = 0;

@@ -234,7 +234,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
   }
   const result = streamText({
     model,
-    instructions: instructions(today) + `\nConversația: ${threadId}. Memorie comprimată (detalii recuperabile):\n${context.summary}\nManifest documente:\n${compactData(manifest.map(f => ({ ...f, summary: summaries.get(f.reference) ?? 'Nesintetizat; recitește originalul.' })))}`,
+    instructions: instructions(today) + `\nConversația: ${threadId}. Memorie comprimată (detalii recuperabile):\n${context.summary}\nManifest documente:\n${compactData(manifest.map(f => ({ ...f, summary: attachmentManifest(context.recent).some(r => r.reference === f.reference) ? 'Context recent' : summaries.get(f.reference) ?? 'Nesintetizat; recitește originalul.' })))}`,
     maxRetries: 0,
     messages: await convertToModelMessages(history),
     tools,
