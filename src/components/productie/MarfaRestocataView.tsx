@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { ro } from 'date-fns/locale';
 import DiscardedStockReset from './DiscardedStockReset';
 import ManualRestockDialog from './ManualRestockDialog';
+import StocktakeOctober28Dialog from './StocktakeOctober28Dialog';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import {
@@ -448,6 +449,7 @@ const MarfaRestocataView = () => {
             </div>
             <div className="flex flex-wrap items-center gap-2 print:hidden">
               <ManualRestockDialog />
+              <StocktakeOctober28Dialog />
               <DiscardedStockReset />
               <Button variant="outline" size="sm" onClick={() => { setIstoricOpen(true); refetchIstoric(); }}>
                 <History className="h-4 w-4 mr-2" />

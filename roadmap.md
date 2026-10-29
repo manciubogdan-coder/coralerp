@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Prepare authenticated one-time import of handwritten 28 October stocktake (27 products, 3782 units), explicit group choices where ambiguous, duplicate prevention and readback; actual insertion requires the user's operational session.
 - [x] Align Operator manual totals, restock search and manual redistribution/transfer with physical stock including reserved lots; automatic access stays protected, FIFO compare-and-set prevents double consumption. 57 production tests pass; build OK.
 - [ ] Verify manual restock taking in the real operational account — blocked by unavailable external operational session (Cloud has no auth users to mint); test confirms 1000 shown, 76 taken, 924 remaining and no duplicate consumption.
 - [x] Correct screenshot-confirmed canceled_by_erp rejection: removed Senior lines keep zero quantity/completed and skip repeat cancellation; ingest deployed, seven tests pass. No operational history deleted by this change.
