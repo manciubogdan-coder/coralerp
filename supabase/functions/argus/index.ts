@@ -15,6 +15,7 @@ import { actionTools, handleActionDecision } from "./actions.ts";
 import { syncSeniorPackaging } from '../_shared/seniorPackaging.ts';
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments } from "./files.ts";
+import { validChatMessages, readChatHistory } from "./chatHistory.ts";
 import {
   LEGACY_ANON,
   addDays,
@@ -117,7 +118,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
   const body = await req.json();
   const threadId = String(body.threadId ?? "");
   const messages = body.messages as UIMessage[];
-  if (!threadId || !Array.isArray(messages) || messages.length > 200 || messages.some(m => !m || !['user', 'assistant'].includes(m.role) || !Array.isArray(m.parts))) return json({ error: "Cerere invalidă" }, 400);
+  if (!threadId || !validChatMessages(messages)) return json({ error: "Mesaj invalid. Reîncarcă această conversație și încearcă din nou." }, 400);
   const { data: th } = await c.cloud.from("argus_threads").select("id,title").eq("id", threadId).eq("user_id", userId).maybeSingle();
   if (!th) return json({ error: "Conversația nu există" }, 404);
 
@@ -506,9 +507,10 @@ Deno.serve(async (req) => {
         const id = url.searchParams.get("id") ?? "";
         const { data: th } = await c.cloud.from("argus_threads").select("id,title").eq("id", id).eq("user_id", userId).maybeSingle();
         if (!th) return json({ error: "Conversația nu există" }, 404);
-        const { data, error } = await c.cloud.from("argus_messages").select("message").eq("thread_id", id).order("created_at");
-        if (error) throw error;
-        return json({ thread: th, messages: (data ?? []).map((r: any) => r.message) });
+        const data = await readChatHistory<{ message: UIMessage }>((from, to) =>
+          c.cloud.from("argus_messages").select("message").eq("thread_id", id)
+            .order("created_at").order("id").range(from, to));
+        return json({ thread: th, messages: data.map(r => r.message) });
       }
       case "action": {
         const b = await req.json();

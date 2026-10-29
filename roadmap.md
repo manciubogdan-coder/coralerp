@@ -1,4 +1,6 @@
 # Roadmap
+- [x] Remove confirmed Argus 200-message dead end (one real thread has 201 valid messages), paginate full history and clear stale errors before retry/new sends; seven Argus tests pass, build OK, argus deployed. No stored conversations modified.
+- [ ] Verify retry → answer → reload in the real Argus account — blocked by unavailable external operational session; Cloud session mint reports no auth users.
 - [x] Correct reception quality-loss base for separately reported shortages in UI/Excel and manual/scheduled whole-product/lot emails; Rucola 671/638/33 kg regression verifies 191 kg rounded quality credit; 12 tests pass, quality-emails deployed. No reports sent or stored reception data changed.
 - [ ] Verify corrected reception report in the real operational account — blocked by unavailable external operational session (Cloud has no auth users to mint).
 - [x] Replace fixed photo import with reusable all-group manual stocktake, multiple packaging rows, confirmation and checked whole-stock replacement without deleting history. Six rule tests pass; build OK; old fixed import removed.
