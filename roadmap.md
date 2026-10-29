@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Align Operator manual restock totals and consumption with all physical available stock, including reserved origin lots; preserve automatic reservation rules and confirm-taking flow.
 - [x] Correct screenshot-confirmed canceled_by_erp rejection: removed Senior lines keep zero quantity/completed and skip repeat cancellation; ingest deployed, seven tests pass. No operational history deleted by this change.
 - [ ] Verify new Senior sync cycles no longer raise cancellation 23514 errors — blocked by unavailable external operational DB logs/session; deployment and regression tests verified.
 - [x] Reduce overlapping production refreshes: non-cancelling invalidation, bounded history pagination, cached client lookup, no global mutation refetch; remove duplicate Picking polling and notification-read feedback, single-flight collaboration with Realtime/60s visible fallback. 59 tests pass; public browser startup reaches login without errors. Cloud healthy; screenshot concerns the external operational DB, whose full metrics are inaccessible.
