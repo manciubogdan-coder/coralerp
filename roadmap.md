@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Optimize Argus through compact tool results, cached attachment synthesis with scoped rereading, persisted verified rolling context and on-demand schema; test savings without claiming doubled intelligence or guaranteed live token reduction.
 - [x] Remove confirmed Argus 200-message dead end (one real thread has 201 valid messages), paginate full history and clear stale errors before retry/new sends; seven Argus tests pass, build OK, argus deployed. No stored conversations modified.
 - [ ] Verify retry → answer → reload in the real Argus account — blocked by unavailable external operational session; Cloud session mint reports no auth users.
 - [x] Correct reception quality-loss base for separately reported shortages in UI/Excel and manual/scheduled whole-product/lot emails; Rucola 671/638/33 kg regression verifies 191 kg rounded quality credit; 12 tests pass, quality-emails deployed. No reports sent or stored reception data changed.

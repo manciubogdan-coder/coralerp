@@ -252,6 +252,73 @@ export type Database = {
         }
         Relationships: []
       }
+      argus_attachment_summaries: {
+        Row: {
+          reference: string
+          summary: string
+          thread_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          reference: string
+          summary: string
+          thread_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          reference?: string
+          summary?: string
+          thread_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "argus_attachment_summaries_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "argus_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      argus_context_cache: {
+        Row: {
+          covered_messages: number
+          prefix_hash: string
+          summary: string
+          thread_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          covered_messages: number
+          prefix_hash: string
+          summary: string
+          thread_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          covered_messages?: number
+          prefix_hash?: string
+          summary?: string
+          thread_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "argus_context_cache_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "argus_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       argus_daily_summaries: {
         Row: {
           content: string
