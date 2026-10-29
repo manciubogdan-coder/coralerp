@@ -1,6 +1,8 @@
 # Roadmap
+- [x] Replace fixed photo import with reusable all-group manual stocktake, multiple packaging rows, confirmation and checked whole-stock replacement without deleting history. Six rule tests pass; build OK; old fixed import removed.
+- [ ] Verify manual stocktake replacement in the operational account — blocked by unavailable external session; isolated browser verification did not complete. No stock modified by the agent. Client-side replacement is checked but not transactional; failures report partial progress.
 - [x] Prepare authenticated one-time import of handwritten 28 October stocktake (27 products, 3782 units), explicit group choices where ambiguous, stable IDs/duplicate prevention and checked readback. 32 tests pass; build OK; public browser reaches login without runtime errors.
-- [ ] Insert and verify the 28 October sheet in the operational account — blocked by unavailable operational session; user can use Restocări → Introdu foaia 28.10 → confirm after selecting ambiguous groups. No inventory inserted by the agent.
+- [x] Retire photo import at user's request; no photo inventory inserted.
 - [x] Align Operator manual totals, restock search and manual redistribution/transfer with physical stock including reserved lots; automatic access stays protected, FIFO compare-and-set prevents double consumption. 57 production tests pass; build OK.
 - [ ] Verify manual restock taking in the real operational account — blocked by unavailable external operational session (Cloud has no auth users to mint); test confirms 1000 shown, 76 taken, 924 remaining and no duplicate consumption.
 - [x] Correct screenshot-confirmed canceled_by_erp rejection: removed Senior lines keep zero quantity/completed and skip repeat cancellation; ingest deployed, seven tests pass. No operational history deleted by this change.
