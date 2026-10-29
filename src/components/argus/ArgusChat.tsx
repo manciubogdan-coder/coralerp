@@ -137,7 +137,7 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
       }),
     [threadId],
   );
-  const { messages, sendMessage, status, stop, error, regenerate } = useChat({ id: threadId, messages: initial, transport, onFinish: onSaved });
+  const { messages, sendMessage, status, stop, error, regenerate, clearError } = useChat({ id: threadId, messages: initial, transport, onFinish: onSaved });
   const [text, setText] = useState("");
   const [preparing, setPreparing] = useState(false);
   const [fileProgress, setFileProgress] = useState('');
@@ -159,6 +159,7 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
 
   const send = async (t: string, files: FileUIPart[] = []) => {
     if ((!t.trim() && !files.length) || busy || preparing) return;
+    clearError();
     setPreparing(true);
     try {
       const uploaded: FileUIPart[] = [];
@@ -188,6 +189,12 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
       toast({ title: 'Fișierul nu a putut fi trimis', description: (error as Error).message, variant: 'destructive' });
       throw error;
     } finally { setPreparing(false); setFileProgress(''); }
+  };
+
+  const retry = async () => {
+    if (busy || preparing) return;
+    clearError();
+    await regenerate();
   };
 
   const last = messages[messages.length - 1];
@@ -314,14 +321,14 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
               <div className="font-medium text-destructive">Argus a terminat, dar nu a scris un răspuns.</div>
               <div className="mt-1 text-muted-foreground">Nu mai trebuie să aștepți. Încearcă din nou sau reformulează mai precis (perioadă, linie, produs).</div>
-              <Button size="sm" className="mt-2" onClick={() => regenerate()}>Încearcă din nou</Button>
+              <Button size="sm" className="mt-2" onClick={retry} disabled={busy || preparing}>Încearcă din nou</Button>
             </div>
           )}
           {error && (
             <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {error.message}
               <div>
-                <Button size="sm" variant="outline" className="mt-2" onClick={() => regenerate()}>Încearcă din nou</Button>
+                <Button size="sm" variant="outline" className="mt-2" onClick={retry} disabled={busy || preparing}>Încearcă din nou</Button>
               </div>
             </div>
           )}
