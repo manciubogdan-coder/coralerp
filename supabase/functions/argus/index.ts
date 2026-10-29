@@ -128,8 +128,11 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
   const run = createLovableAiGatewayRunIdFetch();
   const model = gateway(run);
   const summarize = async (prompt: string, limit: number) => {
-    const summary = streamText({ model, prompt, maxOutputTokens: limit, abortSignal: req.signal, maxRetries: 0 });
-    return (await summary.text).trim();
+    // Gemini's reasoning consumes the output budget too; never cache a cut-off summary.
+    const summary = streamText({ model, prompt, maxOutputTokens: Math.max(4096, limit), abortSignal: req.signal, maxRetries: 0 });
+    const text = (await summary.text).trim();
+    if (await summary.finishReason === 'length') throw new Error('Sinteza a fost întreruptă; memoria anterioară rămâne păstrată.');
+    return text;
   };
   let context: Awaited<ReturnType<typeof rollingContext>>;
   let summaries: Map<string, string>;
