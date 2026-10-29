@@ -482,7 +482,7 @@ export const useAlocaDinPool = () => {
       cantitate_alocata: number;
       cantitate: number;
     }) => {
-      const luat = await consumaDinPool(params.produs_id, params.cantitate, {}, params.comanda_id);
+      const luat = await consumaDinPool(params.produs_id, params.cantitate, {}, params.comanda_id, 'physical');
       if (luat > 0) {
         const { error } = await supabase
           .from('productie_comenzi')

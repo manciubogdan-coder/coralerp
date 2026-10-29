@@ -49,3 +49,15 @@ test('reserved 1000 pieces are invisible to tomorrow but consumable by todays Pi
   expect(await consumaDinPool('stock', 1000, {}, 'today')).toBe(1000);
   expect(lot.cantitate_surplus).toBe(0);
 });
+
+test('manual Operator total includes all 1000 reserved pieces across product group and taking reduces the same physical stock', async () => {
+  Object.assign(lot, { status: 'disponibil', cantitate_surplus: 1000, comanda_originala_id: 'today' });
+  const groups = { stock: 'Spinach500', tomorrowVariant: 'Spinach500' };
+  expect((await fetchPoolTotals(['tomorrowVariant'], groups, undefined, 'physical')).get('tomorrowVariant')).toBe(1000);
+  expect(await setAlocareComanda({ id: 'tomorrowManual', produs_id: 'tomorrowVariant' }, 76, groups, 'physical')).toBe(76);
+  expect(lot.cantitate_surplus).toBe(924);
+  expect((await fetchPoolTotals(['tomorrowVariant'], groups, undefined, 'physical')).get('tomorrowVariant')).toBe(924);
+  expect(await consumaDinPool('stock', 1000, {}, 'today')).toBe(924);
+  expect(lot.cantitate_surplus).toBe(0);
+  expect(await consumaDinPool('stock', 1000, {}, 'today', 'physical')).toBe(0);
+});

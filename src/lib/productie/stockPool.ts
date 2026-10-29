@@ -12,6 +12,9 @@ import { availablePoolLots, type PoolOrigin } from './poolReservations';
  */
 export const POOL_MODE = true;
 
+/** Only an explicitly confirmed manual transfer may take another order's reserved goods. */
+export type PoolAccess = 'reserved' | 'physical';
+
 export interface PoolRow {
   id: string;
   produs_id: string;
@@ -74,8 +77,9 @@ export const fetchAvailablePoolRows = async (produsIds: string[], targetOrderId?
 };
 
 /** Total disponibil în pool, grupat pe produs. */
-export const fetchPoolTotals = async (produsIds: string[], groups: Record<string, string> = {}, targetOrderId?: string): Promise<Map<string, number>> => {
-  const rows = await fetchAvailablePoolRows(produsIds.flatMap(id => restockProductIds(id, groups)), targetOrderId);
+export const fetchPoolTotals = async (produsIds: string[], groups: Record<string, string> = {}, targetOrderId?: string, access: PoolAccess = 'reserved'): Promise<Map<string, number>> => {
+  const sources = produsIds.flatMap(id => restockProductIds(id, groups));
+  const rows = access === 'physical' ? await fetchPoolRows(sources) : await fetchAvailablePoolRows(sources, targetOrderId);
   const map = new Map<string, number>();
   rows.forEach((r) => {
     map.set(r.produs_id, (map.get(r.produs_id) || 0) + Number(r.cantitate_surplus || 0));
@@ -87,11 +91,11 @@ export const fetchPoolTotals = async (produsIds: string[], groups: Record<string
  * Consumă FIFO din pool pentru un produs.
  * Returnează cantitatea efectiv alocată (poate fi mai mică decât cea cerută).
  */
-export const consumaDinPool = async (produsId: string, cantitate: number, groups: Record<string, string> = {}, targetOrderId?: string): Promise<number> => {
+export const consumaDinPool = async (produsId: string, cantitate: number, groups: Record<string, string> = {}, targetOrderId?: string, access: PoolAccess = 'reserved'): Promise<number> => {
   if (!produsId || cantitate <= 0) return 0;
   const physicalRows = await fetchPoolRows(restockProductIds(produsId, groups));
   const physical = new Map(physicalRows.map(row => [row.id, Number(row.cantitate_surplus)]));
-  const rows = (await fetchAvailablePoolRows(restockProductIds(produsId, groups), targetOrderId)).sort((a, b) =>
+  const rows = (access === 'physical' ? physicalRows : await fetchAvailablePoolRows(restockProductIds(produsId, groups), targetOrderId)).sort((a, b) =>
     Number(b.comanda_originala_id === targetOrderId) - Number(a.comanda_originala_id === targetOrderId) ||
     (a.data_productie || '').localeCompare(b.data_productie || '') || a.id.localeCompare(b.id));
   let ramas = cantitate;
@@ -144,7 +148,8 @@ export const adaugaInPool = async (
 export const setAlocareComanda = async (
   comanda: { id: string; produs_id: string; cantitate_din_restock?: number | null },
   cantitateDorita: number,
-  groups: Record<string, string> = {}
+  groups: Record<string, string> = {},
+  access: PoolAccess = 'reserved'
 ): Promise<number> => {
   const curent = Number(comanda.cantitate_din_restock || 0);
   const tinta = Math.max(0, cantitateDorita);
@@ -153,7 +158,7 @@ export const setAlocareComanda = async (
 
   let final = curent;
   if (delta > 0) {
-    const luat = await consumaDinPool(comanda.produs_id, delta, groups);
+    const luat = await consumaDinPool(comanda.produs_id, delta, groups, undefined, access);
     final = curent + luat;
   } else {
     await adaugaInPool(comanda.produs_id, -delta, comanda.id);

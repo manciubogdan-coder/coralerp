@@ -23,7 +23,7 @@ import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
 import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAvailablePoolRows, fetchPoolTotals, setAlocareComanda } from "@/lib/productie/stockPool";
+import { fetchPoolRows, fetchPoolTotals, setAlocareComanda, type PoolAccess } from "@/lib/productie/stockPool";
 import { restockProductIds, restockNeeded } from '@/lib/productie/restockGroups';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import DiscardedStockReset from './DiscardedStockReset';
@@ -72,7 +72,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
    * Întreabă operatorul dacă vrea să acopere comanda din marfa deja produsă (stoc / Picking).
    * Returnează true dacă comanda a fost acoperită complet (nu mai trebuie pornită producția).
    */
-  const askCoverFromStock = async (o: any, confirm = true): Promise<boolean> => {
+  const askCoverFromStock = async (o: any, confirm = true, access: PoolAccess = 'reserved'): Promise<boolean> => {
     if (!o?.produs_id) return false;
     if (String(o.magazin || '').toUpperCase() === 'PRODUCTIE_AVANS' || String(o.magazin || '').toUpperCase() === 'REAMBALARE') return false;
     const acoperit = Number(o.cantitate_reala_produsa || 0) + Number(o.cantitate_din_restock || 0);
@@ -80,7 +80,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     if (necesar <= 0) return false;
     let disponibil = 0;
     try {
-      disponibil = (await fetchPoolTotals([o.produs_id], groupMap || {})).get(o.produs_id) || 0;
+      disponibil = (await fetchPoolTotals([o.produs_id], groupMap || {}, undefined, access)).get(o.produs_id) || 0;
     } catch (error) { throw error; }
     if (disponibil <= 0) return false;
     const iau = Math.min(necesar, disponibil);
@@ -92,7 +92,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     );
     if (!ok) return false;
     try {
-      const final = await setAlocareComanda(o, Number(o.cantitate_din_restock || 0) + iau, groupMap || {});
+      const final = await setAlocareComanda(o, Number(o.cantitate_din_restock || 0) + iau, groupMap || {}, access);
       const complet = Number(o.cantitate_reala_produsa || 0) + final >= Number(o.cantitate || 0);
       if (complet) {
         const { error } = await supabase.from('productie_comenzi').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', o.id);
@@ -140,9 +140,9 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const { data: groupMap } = useGrupareAmbalare();
   const stockProductIds = Array.from(new Set((orders || []).map(o => o.produs_id).filter(Boolean))).sort();
   const { data: stockTotals } = useQuery({
-    queryKey: ['operator-restock', stockProductIds, groupMap],
+    queryKey: ['operator-restock', 'physical', stockProductIds, groupMap],
     enabled: !!groupMap && stockProductIds.length > 0,
-    queryFn: () => fetchPoolTotals(stockProductIds, groupMap || {}),
+    queryFn: () => fetchPoolTotals(stockProductIds, groupMap || {}, undefined, 'physical'),
     refetchInterval: 15_000,
   });
   const takeGroupStock = async (ids: string[]) => {
@@ -152,11 +152,11 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       const selected = (orders || []).filter(o => ids.includes(o.id) && restockNeeded(o) > 0);
       if (!confirmOtherDay(selected.map(o => normalizeProductionDate((o as any).data_productie) || todayISO()))) return;
       const sources = selected.flatMap(o => restockProductIds(o.produs_id, groupMap || {}));
-      const available = (await fetchAvailablePoolRows(sources)).reduce((sum, row) => sum + Number(row.cantitate_surplus), 0);
+      const available = (await fetchPoolRows(sources)).reduce((sum, row) => sum + Number(row.cantitate_surplus), 0);
       const needed = selected.reduce((sum, o) => sum + restockNeeded(o), 0);
       if (available <= 0) { toast({ title: 'Nu mai există restoc disponibil.' }); return; }
-      if (!window.confirm(`În restocări există ${available} buc din această grupă.\n\nMai sunt de făcut ${needed} buc. Ai fizic marfa în Picking și iei ${Math.min(available, needed)} buc de acolo?\n\nCantitatea luată se scade din restoc și din necesarul comenzilor. Anulează = nu folosesc restocul.`)) return;
-      for (const o of selected) await askCoverFromStock(o, false);
+      if (!window.confirm(`În restocări există ${available} buc din această grupă, din toate loturile, inclusiv marfa destinată altor comenzi.\n\nMai sunt de făcut ${needed} buc. Ai fizic marfa și iei ${Math.min(available, needed)} buc?\n\nCantitatea luată se scade din restoc și din necesarul comenzilor selectate; nu mai rămâne disponibilă livrării inițiale. Anulează = nu folosesc restocul.`)) return;
+      for (const o of selected) await askCoverFromStock(o, false, 'physical');
       await queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
     } catch (e: any) {
       toast({ title: 'Preluarea din restoc nu s-a terminat.', description: e.message, variant: 'destructive' });

@@ -61,7 +61,7 @@ const RedistribuireProductie = () => {
       const produsIds = Array.from(new Set((comenzi || []).map((c: any) => c.produs_id).filter(Boolean)));
       const [{ data: produse }, pool] = await Promise.all([
         supabase.from('productie_produse').select('id, nume, unitate_masura').in('id', produsIds.length ? produsIds : ['-']),
-        fetchPoolTotals(produsIds as string[]),
+        fetchPoolTotals(produsIds as string[], {}, undefined, 'physical'),
       ]);
 
       const produseMap = new Map((produse || []).map((p: any) => [p.id, p]));
@@ -138,7 +138,7 @@ const RedistribuireProductie = () => {
       for (const c of g.comenzi as ComandaRow[]) {
         const tinta = getVal(c);
         if (Math.abs(tinta - Number(c.cantitate_din_restock || 0)) < 1e-9) continue;
-        await setAlocareComanda(c, tinta);
+        await setAlocareComanda(c, tinta, {}, 'physical');
       }
       toast.success('Repartizare salvată');
       setValori({});
