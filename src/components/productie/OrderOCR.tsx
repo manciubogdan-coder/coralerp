@@ -147,7 +147,8 @@ export default function OrderOCR() {
      return acc;
    }, {} as Record<string, { produs_id: string | null; produs_nume: string; total_cantitate: number; comenzi: any[] }>) || {};
  
-   const aggregatedList = Object.values(aggregatedOrders).sort((a, b) => 
+   type AggregatedOrder = { produs_id: string | null; produs_nume: string; total_cantitate: number; comenzi: any[] };
+   const aggregatedList = (Object.values(aggregatedOrders) as AggregatedOrder[]).sort((a, b) => 
      a.produs_nume.localeCompare(b.produs_nume)
    );
  
