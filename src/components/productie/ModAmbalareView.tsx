@@ -1,3 +1,4 @@
+import { NumberInput } from "@/components/ui/number-input";
 import { useEffect, useMemo, useState } from "react";
 import { Edit2, Loader2, PackageOpen, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -128,7 +129,7 @@ export default function ModAmbalareView() {
         <Field label="Client *"><Input value={form.client_name} onChange={(e) => update("client_name", e.target.value)} /></Field><Field label="Subgrupă"><Input value={form.subgroup ?? ""} onChange={(e) => update("subgroup", e.target.value || null)} placeholder="Opțional" /></Field>
         <Field label="Produs *"><Input value={form.product_name} onChange={(e) => update("product_name", e.target.value)} /></Field><Field label="Gramaj *"><Input value={form.weight} onChange={(e) => update("weight", e.target.value)} /></Field>
         <Field label="Ambalaj primar *"><Input value={form.primary_packaging} onChange={(e) => update("primary_packaging", e.target.value)} /></Field><Field label="Ambalaj terțiar / cutie *"><Input value={form.tertiary_packaging} onChange={(e) => update("tertiary_packaging", e.target.value)} /></Field>
-        <Field label="Bucăți / bax *"><Input value={form.units_per_case} onChange={(e) => update("units_per_case", e.target.value)} /></Field><Field label="Ordine"><Input type="number" min={1} value={form.position} onChange={(e) => update("position", Math.max(1, Number(e.target.value) || 1))} /></Field>
+        <Field label="Bucăți / bax *"><Input value={form.units_per_case} onChange={(e) => update("units_per_case", e.target.value)} /></Field><Field label="Ordine"><NumberInput min={1} integer minValue={1} value={form.position} onValueChange={(n) => update("position", n)} /></Field>
       </div><DialogFooter><Button variant="outline" onClick={() => setEditing(undefined)}>Renunță</Button><Button onClick={save} disabled={saving}>{saving && <Loader2 className="animate-spin" />}Salvează</Button></DialogFooter>
     </DialogContent></Dialog>
 

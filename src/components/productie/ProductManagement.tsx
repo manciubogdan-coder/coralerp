@@ -1,3 +1,4 @@
+import { NumberInput } from "@/components/ui/number-input";
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -708,12 +709,12 @@ const ProductManagement = () => {
                   </div>
                   <div>
                     <Label className="text-sm">Cantitate</Label>
-                    <Input
+                    <NumberInput
                       type="number"
                       placeholder="Cantitate"
                       className="h-8"
                       value={currentIngredient.cantitate_necesara}
-                      onChange={(e) => setCurrentIngredient({ ...currentIngredient, cantitate_necesara: parseFloat(e.target.value) || 1 })}
+                      onValueChange={(n) => setCurrentIngredient({ ...currentIngredient, cantitate_necesara: n })}
                     />
                   </div>
                 </div>
@@ -805,14 +806,14 @@ const ProductManagement = () => {
                   </div>
                   <div>
                     <Label className="text-sm">Prioritate</Label>
-                    <Input
+                    <NumberInput
                       type="number"
                       placeholder="1-10"
                       min="1"
                       max="10"
                       className="h-8"
                       value={currentLine.prioritate}
-                      onChange={(e) => setCurrentLine({...currentLine, prioritate: parseInt(e.target.value) || 1})}
+                      integer onValueChange={(n) => setCurrentLine({...currentLine, prioritate: n})}
                     />
                   </div>
                 </div>

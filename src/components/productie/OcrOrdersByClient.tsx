@@ -1,3 +1,4 @@
+import { NumberInput } from "@/components/ui/number-input";
  import { useState } from "react";
  import { format } from "date-fns";
  import { ro } from "date-fns/locale";
@@ -574,11 +575,11 @@
              </div>
              <div className="space-y-2">
                <label className="text-sm font-medium">Cantitate</label>
-               <Input
+               <NumberInput
                  type="number"
                  min="1"
                  value={editQuantity}
-                 onChange={(e) => setEditQuantity(parseInt(e.target.value) || 1)}
+                 integer onValueChange={setEditQuantity}
                />
              </div>
            </div>
@@ -626,11 +627,11 @@
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Cantitate</label>
-                <Input
+                <NumberInput
                   type="number"
                   min="1"
                   value={addQuantity}
-                  onChange={(e) => setAddQuantity(parseInt(e.target.value) || 1)}
+                  integer onValueChange={setAddQuantity}
                 />
               </div>
             </div>

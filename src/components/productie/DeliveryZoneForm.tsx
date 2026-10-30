@@ -1,3 +1,4 @@
+import { NumberInput } from "@/components/ui/number-input";
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -86,13 +87,13 @@ const DeliveryZoneForm = ({ zone, onSuccess, onCancel }: DeliveryZoneFormProps) 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="prioritate">Prioritate (1 = cea mai înaltă)</Label>
-              <Input
+              <NumberInput
                 id="prioritate"
                 type="number"
                 min="1"
                 max="10"
                 value={formData.prioritate}
-                onChange={(e) => setFormData({...formData, prioritate: parseInt(e.target.value) || 1})}
+                integer onValueChange={(n) => setFormData({...formData, prioritate: n})}
               />
             </div>
 

@@ -1,3 +1,4 @@
+import { NumberInput } from "@/components/ui/number-input";
 import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -385,13 +386,13 @@ const GroupedOrdersView: React.FC<Props> = ({
             </div>
             <div className="space-y-1">
               <Label className="text-coral-primary font-medium">{t("totalOperators")}</Label>
-              <Input
+              <NumberInput
                 type="number"
                 min={1}
                 step={1}
                 inputMode="numeric"
                 value={totalOperators}
-                onChange={(e) => setTotalOperators(Math.max(1, parseInt(e.target.value) || 1))}
+                integer minValue={1} onValueChange={setTotalOperators}
               />
             </div>
           </div>

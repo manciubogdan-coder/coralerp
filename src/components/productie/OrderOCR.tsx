@@ -1,3 +1,4 @@
+import { NumberInput } from "@/components/ui/number-input";
 // @ts-nocheck
 import { useState, useCallback } from "react";
  import { format } from "date-fns";
@@ -1908,11 +1909,11 @@ export default function OrderOCR() {
                             </Select>
                           </TableCell>
                           <TableCell>
-                            <Input 
+                            <NumberInput 
                               type="number" 
                               min="1" 
                               value={product.cantitate} 
-                              onChange={(e) => updateProductQuantity(order.id, idx, parseInt(e.target.value) || 1)}
+                              integer onValueChange={(n) => updateProductQuantity(order.id, idx, n)}
                               className="w-24"
                               disabled={order.status === 'saved'}
                             />

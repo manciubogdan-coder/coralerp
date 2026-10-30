@@ -1,3 +1,4 @@
+import { NumberInput } from "@/components/ui/number-input";
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
@@ -163,21 +164,21 @@ const ProductOrderSettings: React.FC<ProductOrderSettingsProps> = ({ inventoryTy
                 <TableCell className="font-medium">{setting.product_name}</TableCell>
                 <TableCell>{setting.unit}</TableCell>
                 <TableCell>
-                  <Input
+                  <NumberInput
                     type="number"
                     min={1}
                     value={setting.lead_time_days}
-                    onChange={(e) => handleChange(setting.product_id, "lead_time_days", parseInt(e.target.value) || 1)}
+                    integer onValueChange={(n) => handleChange(setting.product_id, "lead_time_days", n)}
                     className="w-24"
                   />
                 </TableCell>
                 <TableCell>
-                  <Input
+                  <NumberInput
                     type="number"
                     min={1}
                     step={inventoryType === "etichete" ? 1 : 0.01}
                     value={setting.min_order_quantity}
-                    onChange={(e) => handleChange(setting.product_id, "min_order_quantity", parseFloat(e.target.value) || 1)}
+                    onValueChange={(n) => handleChange(setting.product_id, "min_order_quantity", n)}
                     className="w-32"
                   />
                 </TableCell>
