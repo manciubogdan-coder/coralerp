@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 
-type Props = Omit<React.ComponentProps<"input">, "value" | "onChange" | "type"> & {
+type Props = Omit<React.ComponentProps<"input">, "value" | "onChange"> & {
   value: number;
   onValueChange: (value: number) => void;
   /** Value restored when the field is left empty on blur. */
