@@ -1,3 +1,4 @@
+import { NumberInput } from "@/components/ui/number-input";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -540,11 +541,11 @@ const LineDistribution = () => {
             </div>
             <div>
               <label className="text-sm font-medium">Numărul de Angajați</label>
-              <input
+              <NumberInput
                 type="number"
                 min="1"
                 value={employeeCount}
-                onChange={(e) => setEmployeeCount(parseInt(e.target.value) || 1)}
+                integer minValue={1} onValueChange={setEmployeeCount}
                 className="w-full mt-1 px-3 py-2 border rounded-md"
               />
             </div>

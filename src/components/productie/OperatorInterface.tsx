@@ -1,3 +1,4 @@
+import { NumberInput } from "@/components/ui/number-input";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1007,13 +1008,13 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                 </div>
                 <div>
                   <Label className="text-coral-primary font-medium mb-2 block">{t("totalOperators")}</Label>
-                  <Input
+                  <NumberInput
                     type="number"
                     min="1"
                     step="1"
                     inputMode="numeric"
                     value={totalOperators}
-                    onChange={(e) => setTotalOperators(Math.max(1, parseInt(e.target.value) || 1))}
+                    integer minValue={1} onValueChange={setTotalOperators}
                     className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
                   />
                 </div>

@@ -1,3 +1,4 @@
+import { NumberInput } from "@/components/ui/number-input";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -202,12 +203,12 @@ const OrderFormNew = ({ onClose, onSuccess }: OrderFormNewProps) => {
               
               <div className="sm:col-span-3">
                 <Label htmlFor="cantitate" className="text-sm">Cantitate</Label>
-                <Input
+                <NumberInput
                   id="cantitate"
                   type="number"
                   min="1"
                   value={currentCantitate}
-                  onChange={(e) => setCurrentCantitate(parseInt(e.target.value) || 1)}
+                  integer onValueChange={setCurrentCantitate}
                   className="h-9"
                 />
               </div>
