@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PickingManagementSimple from "@/components/productie/PickingManagementSimple";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import DepozitMP from "@/components/productie/DepozitMP";
+import HusePaleti from "@/components/inventory/HusePaleti";
 
 const PickingPage = () => {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ const PickingPage = () => {
             <TabsTrigger value="depozit">Depozit MP</TabsTrigger>
             <TabsTrigger value="picking">Picking</TabsTrigger>
             <TabsTrigger value="restocking">Marfă Restocată</TabsTrigger>
+            <TabsTrigger value="huse">Huse paleți</TabsTrigger>
           </TabsList>
 
           <TabsContent value="depozit">
@@ -39,6 +41,10 @@ const PickingPage = () => {
 
           <TabsContent value="restocking">
             <MarfaRestocataView />
+          </TabsContent>
+
+          <TabsContent value="huse">
+            <HusePaleti zona="picking" />
           </TabsContent>
         </Tabs>
 

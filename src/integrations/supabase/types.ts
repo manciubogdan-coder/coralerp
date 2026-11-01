@@ -1138,6 +1138,48 @@ export type Database = {
         }
         Relationships: []
       }
+      huse_paleti_miscari: {
+        Row: {
+          cantitate: number
+          created_at: string
+          created_by_email: string | null
+          destinatie: string | null
+          document: string | null
+          id: string
+          observatii: string | null
+          occurred_at: string
+          persoana: string | null
+          tip: string
+          zona: string
+        }
+        Insert: {
+          cantitate: number
+          created_at?: string
+          created_by_email?: string | null
+          destinatie?: string | null
+          document?: string | null
+          id?: string
+          observatii?: string | null
+          occurred_at?: string
+          persoana?: string | null
+          tip: string
+          zona?: string
+        }
+        Update: {
+          cantitate?: number
+          created_at?: string
+          created_by_email?: string | null
+          destinatie?: string | null
+          document?: string | null
+          id?: string
+          observatii?: string | null
+          occurred_at?: string
+          persoana?: string | null
+          tip?: string
+          zona?: string
+        }
+        Relationships: []
+      }
       inventar_session_items: {
         Row: {
           applied: boolean

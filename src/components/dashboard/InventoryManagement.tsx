@@ -13,6 +13,7 @@ import { DailyLotConsumption } from "@/components/inventory/DailyLotConsumption"
 import DailyStockQuality from "@/components/inventory/DailyStockQuality";
 import { StockCountManagement } from "@/components/inventory/StockCountManagement";
 import { TuburiFolieStock } from "@/components/inventory/TuburiFolieStock";
+import HusePaleti from "@/components/inventory/HusePaleti";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PrereceptieView from "@/components/inventory/PrereceptieView";
 
@@ -109,6 +110,9 @@ const InventoryManagement = () => {
           <TabsTrigger value="daily-quality" className="flex-shrink-0 text-xs md:text-sm">Stoc Zilnic Calitate</TabsTrigger>
           <TabsTrigger value="daily-consumption" className="flex-shrink-0 text-xs md:text-sm">Consum Zilnic pe Loturi</TabsTrigger>
           <TabsTrigger value="inventar" className="flex-shrink-0 text-xs md:text-sm">Inventar</TabsTrigger>
+          {inventoryType === 'materii-prime' && (
+            <TabsTrigger value="huse" className="flex-shrink-0 text-xs md:text-sm">Huse paleți</TabsTrigger>
+          )}
           {inventoryType === 'ambalaje' && (
             <TabsTrigger value="tuburi" className="flex-shrink-0 text-xs md:text-sm">Role / Tuburi folie</TabsTrigger>
           )}
@@ -181,6 +185,11 @@ const InventoryManagement = () => {
             <StockCountManagement key={refreshKey} />
           </div>
         </TabsContent>
+        {inventoryType === 'materii-prime' && (
+          <TabsContent value="huse">
+            <div className="bg-card rounded-lg shadow-md p-4"><HusePaleti zona="depozit_mp" /></div>
+          </TabsContent>
+        )}
         {inventoryType === 'ambalaje' && (
           <TabsContent value="tuburi">
             <div className="bg-white rounded-lg shadow-md p-4">
