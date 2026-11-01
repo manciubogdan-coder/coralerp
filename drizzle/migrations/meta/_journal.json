@@ -197,6 +197,13 @@
       "when": 1793541246264,
       "tag": "0027_huse_paleti",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793542812041,
+      "tag": "0028_huse_paleti_detalii",
+      "breakpoints": true
     }
   ]
 }
