@@ -1141,40 +1141,58 @@ export type Database = {
       huse_paleti_miscari: {
         Row: {
           cantitate: number
+          client: string | null
           created_at: string
           created_by_email: string | null
+          cursa: string | null
           destinatie: string | null
           document: string | null
+          functie: string | null
           id: string
+          nr_remorca: string | null
           observatii: string | null
           occurred_at: string
           persoana: string | null
+          poza_path: string | null
+          sofer: string | null
           tip: string
           zona: string
         }
         Insert: {
           cantitate: number
+          client?: string | null
           created_at?: string
           created_by_email?: string | null
+          cursa?: string | null
           destinatie?: string | null
           document?: string | null
+          functie?: string | null
           id?: string
+          nr_remorca?: string | null
           observatii?: string | null
           occurred_at?: string
           persoana?: string | null
+          poza_path?: string | null
+          sofer?: string | null
           tip: string
           zona?: string
         }
         Update: {
           cantitate?: number
+          client?: string | null
           created_at?: string
           created_by_email?: string | null
+          cursa?: string | null
           destinatie?: string | null
           document?: string | null
+          functie?: string | null
           id?: string
+          nr_remorca?: string | null
           observatii?: string | null
           occurred_at?: string
           persoana?: string | null
+          poza_path?: string | null
+          sofer?: string | null
           tip?: string
           zona?: string
         }
