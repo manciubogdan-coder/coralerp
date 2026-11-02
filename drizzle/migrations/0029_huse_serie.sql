@@ -1,0 +1,1 @@
+ALTER TABLE public.huse_paleti_miscari ADD COLUMN IF NOT EXISTS serie_husa text;
