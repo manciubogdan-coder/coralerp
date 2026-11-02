@@ -881,6 +881,26 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         <div className="space-y-4">
           <StockGapDialog open={!!gapRow} onOpenChange={(v) => !v && setGapKey(null)} name={gapRow?.name || ''}
             unit={gapRow?.unit || ''} today={todayKey} gap={gap} shifted={(gapRow?.shifted || []).filter(u => !projDays[0] || u.day >= format(projDays[0], 'yyyy-MM-dd'))} />
+          {problemRows.length > 0 && (
+            <div className="rounded-lg border-2 border-destructive/60 bg-destructive/5 p-3 space-y-2">
+              <div className="font-semibold text-sm text-destructive">
+                ⚠ {problemRows.length} {problemRows.length === 1 ? "ingredient are" : "ingrediente au"} stocul diferit de cel așteptat
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Stocul de început de zi este stocul scriptic salvat automat în sistem la 05:00 (cu cât s-a terminat ziua anterioară), nu o numărătoare fizică.
+              </div>
+              <ul className="space-y-1 text-xs">
+                {problemRows.map((r) => (
+                  <li key={r.key}>
+                    <button type="button" onClick={() => setGapKey(r.key)} className="text-left hover:underline">
+                      <span className="font-semibold text-destructive">{r.name}</span>
+                      <span className="text-foreground">: {issuesByKey.get(r.key)!.map((i) => i.text).join(" · ")}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground items-center">
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-400" /> Stoc început zi</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Comandă (intrare)</span>
@@ -967,15 +987,22 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                   <tbody>
                     {g.items.map((r) => {
                       const pr = projection.get(r.key);
+                      const issues = issuesByKey.get(r.key);
                       return (
-                        <tr key={r.key} className="border-b hover:bg-muted/40">
-                          <td className="sticky left-0 z-10 bg-background border-r p-2 font-medium min-w-[190px]">
-                            <button type="button" onClick={() => setGapKey(r.key)} className="text-left hover:underline" title="Vezi de unde vine diferența de stoc">
-                              {r.name}
+                        <tr key={r.key} className={cn("border-b hover:bg-muted/40", issues && "bg-destructive/5")}>
+                          <td className={cn("sticky left-0 z-10 bg-background border-r p-2 font-medium min-w-[190px]", issues && "border-l-4 border-l-destructive")}>
+                            <button type="button" onClick={() => setGapKey(r.key)} className={cn("text-left hover:underline", issues && "text-destructive")} title="Vezi de unde vine diferența de stoc">
+                              {issues && "⚠ "}{r.name}
                             </button>
-                            <button type="button" onClick={() => setGapKey(r.key)} className="block text-[10px] font-normal text-primary hover:underline">
-                              De ce am atât?
-                            </button>
+                            {issues ? (
+                              <button type="button" onClick={() => setGapKey(r.key)} className="block text-left text-[10px] font-normal text-destructive hover:underline max-w-[180px]">
+                                {issues[0].text}
+                              </button>
+                            ) : (
+                              <button type="button" onClick={() => setGapKey(r.key)} className="block text-[10px] font-normal text-primary hover:underline">
+                                De ce am atât?
+                              </button>
+                            )}
                           </td>
                           <td className="sticky left-[190px] z-10 bg-background border-r p-2 text-muted-foreground uppercase">
                             {r.unit}
