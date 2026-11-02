@@ -12,6 +12,7 @@ import { ro } from "date-fns/locale";
 import { formatInTimeZone } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import ProductionUsageBreakdown from '@/components/production/ProductionUsageBreakdown';
 
 interface ConsumptionReportProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -389,6 +390,7 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
           </Table>
         </div>
       )}
+      {inventoryType === 'materii-prime' && <ProductionUsageBreakdown from={format(fromDate, 'yyyy-MM-dd')} to={format(toDate, 'yyyy-MM-dd')} />}
     </div>
   );
 };
