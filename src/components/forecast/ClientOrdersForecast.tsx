@@ -20,6 +20,7 @@ import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/
 import { aggregateSnapshots, businessDay, dayBounds, explainStockGap, historicalCommitments, materialQuantity, readPages, reconcileProjection, transferStockQuantity } from '@/lib/forecastReconciliation';
 import StockGapDialog from './StockGapDialog';
 import { loadProductionUsage } from '@/lib/productionUsage';
+import type { ProductionUsage } from '@/lib/forecastReconciliation';
 import ProductionUsageBreakdown from '@/components/production/ProductionUsageBreakdown';
 
 interface Props {
@@ -47,6 +48,7 @@ interface Row {
   outbound: Record<string, number>;
   otherDays: Record<string, number>;
   advances: Record<string, number>;
+  shifted?: ProductionUsage[];
   qualityLoss: Record<string, number>;
   diff: number;
   matched: boolean;
@@ -392,6 +394,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       usage.forEach(u => { for (const [include, target] of [[u.otherDay, otherByName], [u.advance, advanceByName]] as const) {
         if (include) { const m = target[u.key] ||= {}; m[u.day] = (m[u.day] || 0) + u.quantity; }
       }});
+      const shiftedByName: Record<string, ProductionUsage[]> = {};
+      usage.forEach(u => { if (u.otherDay || u.advance) (shiftedByName[u.key] ||= []).push(u); });
       const currentLots = await fetchAll(() => supabase.from(tables.inventory)
         .select("id, name, product_id, quantity, unit, receipt_date, lot_number, supplier, document_number")
         .gt("quantity", 0).order("id"));
@@ -465,7 +469,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           commitments: commitments[p?.id] || {}, snapshots: snapshotsByProduct[p?.id] || {},
           received: receivedByProduct[p?.id] || {}, outbound: outboundByProduct[p?.id] || {},
           returned: returnedByProduct[p?.id] || {},
-          otherDays: otherByName[key] || {}, advances: advanceByName[key] || {},
+          otherDays: otherByName[key] || {}, advances: advanceByName[key] || {}, shifted: shiftedByName[key] || [],
           perDayBrut,
           perDate: Object.fromEntries(Object.entries(futNeed.get(key) || {}).map(([d, q]) => [d, q * factor])),
           buffer: ((weekNeed.get(key) || 0) / 7) * factor,
@@ -869,7 +873,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       ) : view === "proiectie" ? (
         <div className="space-y-4">
           <StockGapDialog open={!!gapRow} onOpenChange={(v) => !v && setGapKey(null)} name={gapRow?.name || ''}
-            unit={gapRow?.unit || ''} today={todayKey} gap={gap} />
+            unit={gapRow?.unit || ''} today={todayKey} gap={gap} shifted={(gapRow?.shifted || []).filter(u => !projDays[0] || u.day >= format(projDays[0], 'yyyy-MM-dd'))} />
           <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground items-center">
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-400" /> Stoc început zi</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Comandă (intrare)</span>
