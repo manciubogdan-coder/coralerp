@@ -96,4 +96,4 @@ test('explainStockGap splits the missing rucola stock into exact causes', async 
   test('ignores gaps under 5% of expected stock', () => {
     expect(stockGapIssues({ ...base, gap: -200 }, 'kg')).toEqual([]);
   });
-});
+}
