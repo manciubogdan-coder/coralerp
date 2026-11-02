@@ -30,6 +30,14 @@ export function HusePaleti({ zona }: { zona: HusaZona }) {
   const [destinatie, setDestinatie] = useState("");
   const [document, setDocument] = useState("");
   const [obs, setObs] = useState("");
+  const [data, setData] = useState(today);
+  const [functie, setFunctie] = useState(zona === "picking" ? "Picking" : "Magazioner");
+  const [remorca, setRemorca] = useState("");
+  const [client, setClient] = useState("");
+  const [cursa, setCursa] = useState("");
+  const [sofer, setSofer] = useState("");
+  const [poza, setPoza] = useState<File | null>(null);
+  const [fileKey, setFileKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [from, setFrom] = useState(() => today().slice(0, 8) + "01");
   const [to, setTo] = useState(today);
@@ -51,17 +59,28 @@ export function HusePaleti({ zona }: { zona: HusaZona }) {
       if (!p || q > p.afara) return toast.error(`${persoana} are doar ${p?.afara ?? 0} huse nereturnate`);
     }
     if (tip === "predare" && q > all.inDepozit) return toast.error(`În depozit sunt doar ${all.inDepozit} huse`);
+    if (tip !== "intrare" && !remorca.trim()) return toast.error("Scrie numărul de înmatriculare al remorcii");
+    if (zona === "picking" && tip === "predare" && (!client.trim() || !sofer.trim())) return toast.error("Completează clientul și numele șoferului");
+    if (tip !== "intrare" && !poza) return toast.error(zona === "picking" ? "Atașează poza paletului încărcat" : "Atașează poza husei în remorcă");
     setBusy(true);
+    let poza_path: string | null = null;
+    if (poza) {
+      poza_path = `${zona}/${Date.now()}-${poza.name.replace(/[^\w.-]/g, "_")}`;
+      const up = await (supabaseCloud as any).storage.from("huse-poze").upload(poza_path, poza);
+      if (up.error) { setBusy(false); return toast.error("Poza nu s-a încărcat: " + up.error.message); }
+    }
+    const now = new Date(); const occurred_at = data === today() ? now.toISOString() : new Date(data + "T12:00:00").toISOString();
     let email: string | null = null;
     try { const { supabase } = await import("@/integrations/supabase/client"); email = (await supabase.auth.getUser()).data.user?.email ?? null; } catch { /* ignore */ }
     const { error } = await (supabaseCloud as any).from("huse_paleti_miscari").insert({
       tip, cantitate: q, zona, persoana: persoana.trim() || null, destinatie: destinatie.trim() || null,
-      document: document.trim() || null, observatii: obs.trim() || null, created_by_email: email,
+      document: document.trim() || null, observatii: obs.trim() || null, created_by_email: email, occurred_at,
+      functie, nr_remorca: remorca.trim() || null, client: client.trim() || null, cursa: cursa.trim() || null, sofer: sofer.trim() || null, poza_path,
     });
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success("Salvat");
-    setCant(""); setDestinatie(""); setDocument(""); setObs("");
+    setCant(""); setDestinatie(""); setRemorca(""); setClient(""); setCursa(""); setSofer(""); setPoza(null); setFileKey((k) => k + 1); setDocument(""); setObs("");
     load();
   };
 
@@ -70,6 +89,12 @@ export function HusePaleti({ zona }: { zona: HusaZona }) {
     const { error } = await (supabaseCloud as any).from("huse_paleti_miscari").delete().eq("id", id);
     if (error) return toast.error(error.message);
     load();
+  };
+
+  const openPoza = async (path: string) => {
+    const { data: d, error } = await (supabaseCloud as any).storage.from("huse-poze").createSignedUrl(path, 600);
+    if (error) return toast.error(error.message);
+    window.open(d.signedUrl, "_blank");
   };
 
   const exportExcel = () => {
@@ -91,8 +116,8 @@ export function HusePaleti({ zona }: { zona: HusaZona }) {
       ...all.persoane.map((p) => [p.persoana, p.predate, p.returnate, p.pierdute, p.afara, p.ultima ? fmt(p.ultima) : ""]),
     ]), "La cine sunt");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ["Data", "Tip", "Cantitate", "Zonă", "Persoană", "Destinație", "Document", "Observații", "Introdus de"],
-      ...period.map((r) => [fmt(r.occurred_at), TIP_LABEL[r.tip], r.cantitate, ZONA_LABEL[r.zona], r.persoana || "", r.destinatie || "", r.document || "", r.observatii || "", r.created_by_email || ""]),
+      ["Data", "Tip", "Cantitate", "Zonă", "Recepționată/predată de", "Funcție", "Nr. remorcă", "Client", "Cursă", "Șofer", "Poză", "Destinație", "Document", "Observații", "Introdus de"],
+      ...period.map((r: any) => [fmt(r.occurred_at), TIP_LABEL[r.tip], r.cantitate, ZONA_LABEL[r.zona], r.persoana || "", r.functie || "", r.nr_remorca || "", r.client || "", r.cursa || "", r.sofer || "", r.poza_path ? "Da" : "Nu", r.destinatie || "", r.document || "", r.observatii || "", r.created_by_email || ""]),
     ]), "Mișcări");
     XLSX.writeFile(wb, `Huse_paleti_${from}_${to}.xlsx`);
   };
@@ -118,14 +143,27 @@ export function HusePaleti({ zona }: { zona: HusaZona }) {
           ))}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <div><div className="text-xs">Data</div><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
+          <div><div className="text-xs">Funcție</div><select className="h-10 w-full rounded-md border bg-background px-2" value={functie} onChange={(e) => setFunctie(e.target.value)}><option>Magazioner</option><option>Picking</option></select></div>
           <Input inputMode="numeric" placeholder="Număr huse" value={cant} onChange={(e) => setCant(e.target.value.replace(/\D/g, ""))} />
           {tip !== "intrare" && (
             <>
-              <Input list="huse-persoane" placeholder={tip === "predare" ? "Cui le dai (șofer / coleg)" : "De la cine vin"} value={persoana} onChange={(e) => setPersoana(e.target.value)} />
+              <Input list="huse-persoane" placeholder="Recepționată / predată de (nume prenume)" value={persoana} onChange={(e) => setPersoana(e.target.value)} />
               <datalist id="huse-persoane">{persoaneCunoscute.map((p) => <option key={p} value={p} />)}</datalist>
             </>
           )}
-          {tip === "predare" && <Input placeholder="Unde pleacă (client / cursă)" value={destinatie} onChange={(e) => setDestinatie(e.target.value)} />}
+          {tip !== "intrare" && <Input placeholder="Nr. înmatriculare remorcă" value={remorca} onChange={(e) => setRemorca(e.target.value.toUpperCase())} />}
+          {zona === "picking" && tip !== "intrare" && (
+            <>
+              <Input placeholder="Client" value={client} onChange={(e) => setClient(e.target.value)} />
+              <Input placeholder="Cursă" value={cursa} onChange={(e) => setCursa(e.target.value)} />
+              <Input placeholder="Nume șofer" value={sofer} onChange={(e) => setSofer(e.target.value)} />
+            </>
+          )}
+          {tip !== "intrare" && (
+            <div><div className="text-xs">{zona === "picking" ? "Poză la paletul încărcat" : "Poză la husa în remorcă"}</div>
+              <Input key={fileKey} type="file" accept="image/*" capture="environment" onChange={(e) => setPoza(e.target.files?.[0] ?? null)} /></div>
+          )}
           <Input placeholder="Document (opțional)" value={document} onChange={(e) => setDocument(e.target.value)} />
           <Input placeholder="Observații" value={obs} onChange={(e) => setObs(e.target.value)} />
         </div>
@@ -155,16 +193,18 @@ export function HusePaleti({ zona }: { zona: HusaZona }) {
         <div className="text-sm text-muted-foreground">În perioadă: plecate {pb.predate} · întoarse {pb.returnate} · intrate {pb.intrate} · pierdute {pb.pierdute}</div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left border-b"><th className="py-1">Data</th><th>Tip</th><th>Cant.</th><th>Zonă</th><th>Persoană</th><th>Destinație</th><th>Doc.</th><th></th></tr></thead>
+            <thead><tr className="text-left border-b"><th className="py-1">Data</th><th>Tip</th><th>Cant.</th><th>Zonă</th><th>Persoană</th><th>Funcție</th><th>Remorcă</th><th>Client / cursă / șofer</th><th>Poză</th><th></th></tr></thead>
             <tbody>
               {period.map((r) => (
                 <tr key={r.id} className="border-b">
                   <td className="py-1 whitespace-nowrap">{fmt(r.occurred_at)}</td><td>{TIP_LABEL[r.tip]}</td><td>{r.cantitate}</td>
-                  <td>{ZONA_LABEL[r.zona]}</td><td>{r.persoana}</td><td>{r.destinatie}</td><td>{r.document}</td>
+                  <td>{ZONA_LABEL[r.zona]}</td><td>{r.persoana}</td><td>{(r as any).functie}</td><td>{(r as any).nr_remorca}</td>
+                  <td>{[(r as any).client, (r as any).cursa, (r as any).sofer].filter(Boolean).join(" · ") || r.destinatie}</td>
+                  <td>{(r as any).poza_path && <Button size="sm" variant="link" onClick={() => openPoza((r as any).poza_path)}>Vezi</Button>}</td>
                   <td><Button size="icon" variant="ghost" onClick={() => remove(r.id)}><Trash2 className="h-4 w-4" /></Button></td>
                 </tr>
               ))}
-              {!period.length && <tr><td colSpan={8} className="py-3 text-center text-muted-foreground">Nicio mișcare în perioadă</td></tr>}
+              {!period.length && <tr><td colSpan={10} className="py-3 text-center text-muted-foreground">Nicio mișcare în perioadă</td></tr>}
             </tbody>
           </table>
         </div>
