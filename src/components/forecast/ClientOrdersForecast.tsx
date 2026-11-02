@@ -12,10 +12,14 @@ import { ro } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import CreateSupplierOrderDialog, { OrderLineInput } from "./CreateSupplierOrderDialog";
-import { supplierDeliverySchedules, supplierStockProjection } from "@/lib/supplierDeliveries";
+import { supplierDeliverySchedules } from "@/lib/supplierDeliveries";
 import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge";
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
+
+import { businessDay, dayBounds, historicalCommitments, materialQuantity, readPages, reconcileProjection } from '@/lib/forecastReconciliation';
+import { loadProductionUsage } from '@/lib/productionUsage';
+import ProductionUsageBreakdown from '@/components/production/ProductionUsageBreakdown';
 
 interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -35,6 +39,12 @@ interface Row {
   agedLots?: AgedLeafLot[];
   ordered: number;
   orderedPerDate: Record<string, number>;
+  commitments: Record<string, number>;
+  snapshots: Record<string, number>;
+  received: Record<string, number>;
+  outbound: Record<string, number>;
+  otherDays: Record<string, number>;
+  advances: Record<string, number>;
   diff: number;
   matched: boolean;
   perDayBrut: number[];
@@ -87,6 +97,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   const [rows, setRows] = useState<Row[]>([]);
   const [orderDates, setOrderDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [stockSource, setStockSource] = useState('');
   const [ordersCount, setOrdersCount] = useState(0);
   const [missingRecipes, setMissingRecipes] = useState<string[]>([]);
   const [dayCounts, setDayCounts] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
@@ -193,7 +204,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       });
       setDayCounts(counts);
 
-      if (orders.length === 0) {
+      if (false && orders.length === 0) {
         setRows([]);
         setMissingRecipes([]);
         setLoading(false);
@@ -202,15 +213,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
 
 
       // 2. Rețete active
-      const { data: recipes, error: e3 } = await supabase
+      const recipes = await readPages(() => supabase
         .from("productie_retete")
         .select(
           `produs_id, activa,
            productie_retete_ingrediente(ingredient_id, cantitate_necesara, unitate_masura,
              productie_ingrediente(id, nume, unitate_masura))`
         )
-        .eq("activa", true);
-      if (e3) throw e3;
+        .eq("activa", true).order("id"));
 
       const recipeByProduct = new Map<string, any>();
       (recipes || []).forEach((r: any) => {
@@ -218,7 +228,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       });
 
       // 3. Produse finite (pentru nume la produsele fără rețetă)
-      const { data: finite } = await supabase.from("productie_produse").select("id, nume");
+      const finite = await readPages(() => supabase.from("productie_produse").select("id, nume").order("id"));
       const finiteMap = new Map<string, string>();
       (finite || []).forEach((p: any) => finiteMap.set(p.id, p.nume));
 
@@ -304,7 +314,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         });
 
       // 5. Produse din depozit (PT + stoc)
-      const { data: products } = await supabase.from(tables.products).select("*");
+      const products = await readPages(() => supabase.from(tables.products).select("*").order("id"));
       const productByName = new Map<string, any>();
       (products || []).forEach((p: any) => productByName.set(norm(p.name), p));
 
@@ -312,17 +322,61 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const snapTable = inventoryType === "ambalaje"
         ? "ambalaje_daily_stock_snapshots"
         : inventoryType === "etichete" ? "etichete_daily_stock_snapshots" : "daily_stock_snapshots";
-      const _d = new Date();
-      const todayStr = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, "0")}-${String(_d.getDate()).padStart(2, "0")}`;
-      const snapRows: any[] = [];
-      for (let from = 0; ; from += 1000) {
-        const { data: page, error: snapErr } = await supabase
-          .from(snapTable).select("product_id, quantity")
-          .eq("snapshot_date", todayStr).range(from, from + 999);
-        if (snapErr || !page?.length) break;
-        snapRows.push(...page);
-        if (page.length < 1000) break;
+      const todayStr = businessDay(new Date().toISOString());
+      const historyFrom = format(projFrom < today ? projFrom : today, 'yyyy-MM-dd');
+      const historyTo = format(addDays(projTo > today ? projTo : today, 1), 'yyyy-MM-dd');
+      const allSnapshots = await readPages(() => supabase.from(snapTable)
+        .select('product_id, quantity, snapshot_date').gte('snapshot_date', historyFrom)
+        .lte('snapshot_date', historyTo).order('id'));
+      const snapRows = allSnapshots.filter(i => i.snapshot_date === todayStr);
+      setStockSource(snapRows.length ? `Stoc de început: ${todayStr}` : 'Snapshotul de azi lipsește; stocul curent nu reprezintă începutul zilei.');
+      const snapshotsByProduct: Record<string, Record<string, number>> = {};
+      // A snapshot exists for a date globally: absent products on that date have zero stock.
+      const snapshotDates = [...new Set(allSnapshots.map(i => i.snapshot_date))];
+      products.forEach(p => { snapshotsByProduct[p.id] = Object.fromEntries(snapshotDates.map(d => [d, 0])); });
+      allSnapshots.forEach(i => { if (i.product_id) {
+        const m = snapshotsByProduct[i.product_id] ||= {};
+        m[i.snapshot_date] = (m[i.snapshot_date] || 0) + Number(i.quantity || 0);
+      }});
+      const prefix = inventoryType === 'materii-prime' ? '' : `${inventoryType}_`;
+      const receipts = await readPages(() => supabase.from(`${prefix}reception_records`)
+        .select('id, product_id, name, original_quantity, net_quantity, unit, receipt_date')
+        .gte('receipt_date', dayBounds(historyFrom).start).lte('receipt_date', dayBounds(historyTo).end).order('id'));
+      const receivedByProduct: Record<string, Record<string, number>> = {};
+      receipts.forEach(r => {
+        const id = r.product_id || productByName.get(norm(r.name))?.id;
+        if (!id) return;
+        const m = receivedByProduct[id] ||= {}; const d = businessDay(r.receipt_date);
+        m[d] = (m[d] || 0) + materialQuantity(r.net_quantity ?? r.original_quantity, r.unit);
+      });
+      const transferTable = `${prefix}stock_transfers`;
+      const transferItemsTable = `${prefix}stock_transfer_items`;
+      const transfers = await readPages(() => supabase.from(transferTable).select('id, transfer_date')
+        .gte('transfer_date', inventoryType === 'etichete' ? dayBounds(historyFrom).start : historyFrom)
+        .lte('transfer_date', inventoryType === 'etichete' ? dayBounds(historyTo).end : historyTo).order('id'));
+      const transferDates = new Map(transfers.map(t => [t.id, businessDay(t.transfer_date)]));
+      const outboundByProduct: Record<string, Record<string, number>> = {};
+      for (let i = 0; i < transfers.length; i += 50) {
+        const items = await readPages(() => supabase.from(transferItemsTable)
+          .select('id, transfer_id, inventory_item_id, quantity').in('transfer_id', transfers.slice(i, i + 50).map(t => t.id)).order('id'));
+        const ids = [...new Set(items.map(t => t.inventory_item_id).filter(Boolean))];
+        const invMap = new Map<string, any>();
+        for (let j = 0; j < ids.length; j += 50) {
+          const inv = await readPages(() => supabase.from(tables.inventory).select('id, product_id, unit')
+            .in('id', ids.slice(j, j + 50)).order('id'));
+          inv.forEach(r => invMap.set(r.id, r));
+        }
+        items.forEach(t => { const inv = invMap.get(t.inventory_item_id); const d = transferDates.get(t.transfer_id);
+          if (!inv?.product_id || !d) return;
+          const m = outboundByProduct[inv.product_id] ||= {};
+          m[d] = (m[d] || 0) + materialQuantity(t.quantity, inv.unit);
+        });
       }
+      const usage = inventoryType === 'materii-prime' ? await loadProductionUsage(historyFrom, historyTo) : [];
+      const otherByName: Record<string, Record<string, number>> = {}, advanceByName: Record<string, Record<string, number>> = {};
+      usage.forEach(u => { for (const [include, target] of [[u.otherDay, otherByName], [u.advance, advanceByName]] as const) {
+        if (include) { const m = target[u.key] ||= {}; m[u.day] = (m[u.day] || 0) + u.quantity; }
+      }});
       const currentLots = await fetchAll(() => supabase.from(tables.inventory)
         .select("id, name, product_id, quantity, unit, receipt_date, lot_number, supplier, document_number")
         .gt("quantity", 0).order("id"));
@@ -354,9 +408,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const pendingOrders = await fetchAll(() => supabase
         .from(ordersTable)
         .select("id, product_id, quantity_ordered, expected_delivery_date, status")
-        .in("status", ["pending", "ordered"])
         .order("id"));
       const orderedByProduct = supplierDeliverySchedules(pendingOrders, todayStr);
+      const commitments = historicalCommitments(pendingOrders);
 
       // 5c. Termen de livrare per produs
       const { data: settingsRows } = await supabase.from(tables.settings).select("product_id, lead_time_days");
@@ -371,7 +425,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       (products || []).forEach((p: any) => {
         const k = norm(p.name);
         if (need.has(k)) return;
-        if ((stockByProduct.get(p.id) || 0) > 0 || orderedByProduct.get(p.id)?.qty)
+        if ((stockByProduct.get(p.id) || 0) > 0 || commitments[p.id] || receivedByProduct[p.id] || snapshotsByProduct[p.id])
           need.set(k, { name: p.name, qty: 0, perDay: [0, 0, 0, 0, 0, 0, 0] });
       });
 
@@ -392,6 +446,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const coverAfterOrder = avgDaily > 0 ? totalAfterOrder / avgDaily : null;
         const name = p?.name || v.name;
         return {
+          commitments: commitments[p?.id] || {}, snapshots: snapshotsByProduct[p?.id] || {},
+          received: receivedByProduct[p?.id] || {}, outbound: outboundByProduct[p?.id] || {},
+          otherDays: otherByName[key] || {}, advances: advanceByName[key] || {},
           perDayBrut,
           perDate: Object.fromEntries(Object.entries(futNeed.get(key) || {}).map(([d, q]) => [d, q * factor])),
           buffer: ((weekNeed.get(key) || 0) / 7) * factor,
@@ -433,7 +490,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventoryType]);
+  }, [inventoryType, projFrom, projTo]);
 
   const applyPreset = (days: string) => {
     setPreset(days);
@@ -480,34 +537,22 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   }, [projFrom, projTo]);
 
   const projection = useMemo(() => {
-    const map = new Map<
-      string,
-      { start: number[]; incoming: number[]; remaining: number[]; consum: number[]; suggested: number[]; outDate: Date | null }
-    >();
-    filtered.forEach((r) => {
-      const firstDay = projDays[0];
-      if (!firstDay) return;
-      // Run from the stock snapshot day even when the visible range starts later.
-      const simulationStart = startOfDay(new Date()) < firstDay ? startOfDay(new Date()) : firstDay;
-      // Two extra days so the suggested order can look at tomorrow and the day after.
+    const map = new Map<string, ReturnType<typeof reconcileProjection>>();
+    const today = businessDay(new Date().toISOString());
+    filtered.forEach(r => {
+      const first = projDays[0]; if (!first) return;
+      const simulationStart = first < startOfDay(new Date()) ? first : startOfDay(new Date());
       const simulationDays = eachDayOfInterval({ start: simulationStart, end: addDays(projDays[projDays.length - 1], 2) });
-      const dates = simulationDays.map((d) => format(d, "yyyy-MM-dd"));
-      const consumption = simulationDays.map((d, i) =>
-        mode === "live" && orderDates.has(dates[i]) ? r.perDate[dates[i]] || 0 : r.perDayAvg[isoDay(d)] || 0);
-      const result = supplierStockProjection(r.stock, dates, r.orderedPerDate, consumption);
-      const offset = simulationDays.length - 2 - projDays.length;
-      const end = offset + projDays.length;
-      const suggested = projDays.map((_, k) => suggestedOrderFor(result.remaining[offset + k], result.consum, offset + k, r.buffer || 0));
-      map.set(r.key, {
-        start: result.start.slice(offset, end), incoming: result.incoming.slice(offset, end),
-        remaining: result.remaining.slice(offset, end), consum: result.consum.slice(offset, end), suggested,
-        outDate: result.outDate && result.outDate <= dates[end - 1] ? new Date(`${result.outDate}T00:00:00`) : null,
-      });
+      const dates = simulationDays.map(d => format(d, 'yyyy-MM-dd'));
+      const demand = simulationDays.map((d, i) => mode === 'live' && orderDates.has(dates[i])
+        ? r.perDate[dates[i]] || 0 : r.perDayAvg[isoDay(d)] || 0);
+      const result = reconcileProjection({ dates, today, anchor: r.snapshots[today] ?? null,
+        snapshots: r.snapshots, ordered: r.orderedPerDate, received: r.received, outbound: r.outbound, demand });
+      const offset = dates.indexOf(format(first, 'yyyy-MM-dd'));
+      map.set(r.key, result.slice(offset, offset + projDays.length));
     });
     return map;
   }, [filtered, projDays, orderDates, mode]);
-
-
 
   const orderLines: OrderLineInput[] = useMemo(
     () =>
@@ -530,11 +575,17 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const values = projection.get(r.key);
         projDays.forEach((d, i) => {
           const date = format(d, "dd.MM.yyyy");
-          line[`${date} - Stoc început`] = Math.round((values?.start[i] || 0) * 100) / 100;
-          line[`${date} - Comandă`] = Math.round((values?.incoming[i] || 0) * 100) / 100;
-          line[`${date} - Consum`] = Math.round((values?.consum[i] || 0) * 100) / 100;
-          line[`${date} - Stoc final`] = Math.round((values?.remaining[i] || 0) * 100) / 100;
-          line[`${date} - Comandă sugerată`] = Math.round((values?.suggested[i] || 0) * 100) / 100;
+          const v = values?.[i];
+          const day = format(d, 'yyyy-MM-dd');
+          line[`${date} - Stoc început`] = v?.opening ?? 'Lipsă snapshot';
+          line[`${date} - Comandat`] = r.commitments[day] || 0;
+          line[`${date} - Recepționat net`] = r.received[day] || 0;
+          line[`${date} - Consum / ieșiri`] = v?.consumption || 0;
+          line[`${date} - Alte zile (estimat)`] = r.otherDays[day] || 0;
+          line[`${date} - Avans (estimat)`] = r.advances[day] || 0;
+          line[`${date} - Stoc final calculat`] = v?.closing ?? 'Necunoscut';
+          line[`${date} - Abatere neexplicată`] = v?.residual ?? 'Necunoscut';
+          line[`${date} - Comandă sugerată`] = v?.closing == null ? 'Necunoscut' : suggestedOrderFor(v.closing, projDays.map((_, j) => values?.[j]?.consumption || 0), i, r.buffer || 0);
         });
         return line;
       });
@@ -695,7 +746,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       {view === "proiectie" && (
         <div className="flex flex-wrap gap-3 items-end border rounded-md p-3 bg-muted/30">
           <div className="text-sm font-medium w-full">
-            Perioada de proiecție (viitor) — cât și până când îmi ajunge marfa
+            Perioada stocului — istoric și proiecție
             <span className="ml-2 font-normal text-xs text-muted-foreground">
               Referință medie:{" "}
               {mode === "live"
@@ -771,6 +822,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       </p>
 
 
+      {view === 'proiectie' && <p className="text-xs text-muted-foreground">{stockSource} Trecut: snapshot zilnic + recepționat net − ieșiri din depozit. Abaterea față de snapshotul următor nu este automat pierdere. Viitor: estimare cu comenzile încă nelivrate; comenzile livrate rămân în coloana Comandat.</p>}
       {missingRecipes.length > 0 && (
         <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
           Produse din comenzi fără rețetă activă (neincluse în calcul): {missingRecipes.join(", ")}
@@ -833,7 +885,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       {projDays.map((d) => (
                         <th
                           key={d.toISOString()}
-                          colSpan={5}
+                          colSpan={9}
                           className="sticky top-0 z-20 bg-background border-b border-r px-2 h-8 text-center whitespace-nowrap font-semibold"
                         >
                           {WEEKDAYS[isoDay(d)].slice(0, 3).toLowerCase()} {format(d, "d MMM", { locale: ro })}
@@ -847,16 +899,20 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                             Stoc înc.
                           </th>
                           <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-amber-600 whitespace-nowrap">
-                            Comandă
+                            Comandat
                           </th>
+                          <th className={stickyHead}>Recepționat net</th>
                           <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-rose-600 whitespace-nowrap">
-                            Consum
+                            Consum / ieșiri
                           </th>
                           <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-emerald-600 whitespace-nowrap">
                             Stoc final
                           </th>
+                          <th className={stickyHead}>Alte zile (est.)</th>
+                          <th className={stickyHead}>Avans (est.)</th>
+                          <th className={stickyHead}>Abatere neexplicată</th>
                           <th
-                            title="Consum azi + mâine + poimâine minus stocul de început al zilei"
+                            title="Consum mâine et tampon"
                             className="sticky top-8 z-20 bg-background border-b border-r px-2 h-7 text-right text-[10px] font-medium text-primary whitespace-nowrap"
                           >
                             Comandă sugerată
@@ -872,45 +928,26 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                         <tr key={r.key} className="border-b hover:bg-muted/40">
                           <td className="sticky left-0 z-10 bg-background border-r p-2 font-medium min-w-[190px]">
                             {r.name}
-                            {pr?.outDate && (
-                              <span className="block text-[10px] text-destructive font-normal">
-                                fără stoc din {format(pr.outDate, "d MMM", { locale: ro })}
-                              </span>
-                            )}
+
                           </td>
                           <td className="sticky left-[190px] z-10 bg-background border-r p-2 text-muted-foreground uppercase">
                             {r.unit}
                           </td>
                           {projDays.map((d, i) => {
-                            const st = pr?.start[i] ?? 0;
-                            const inQty = pr?.incoming[i] ?? 0;
-                            const cons = pr?.consum[i] ?? 0;
-                            const end = pr?.remaining[i] ?? 0;
-                            const fmt = (n: number) => n.toLocaleString("ro-RO", { maximumFractionDigits: 1 });
-                            return (
-                              <React.Fragment key={d.toISOString()}>
-                                <td className={cn("p-1.5 text-right whitespace-nowrap", r.agedLots?.length ? "bg-destructive/10 text-destructive" : "text-sky-700")}>
-                                  {i === 0 && r.agedLots?.length ? <LeafStockWarning name={r.name} lots={r.agedLots}>{fmt(st)}</LeafStockWarning> : fmt(st)}
-                                </td>
-                                <td className="p-1.5 text-right whitespace-nowrap">
-                                  {inQty > 0 ? <span className="text-amber-600 font-medium">+{fmt(inQty)}</span> : <span className="text-muted-foreground">—</span>}
-                                </td>
-                                <td className="p-1.5 text-right whitespace-nowrap">
-                                  {cons > 0 ? <span className="text-rose-600">-{fmt(cons)}</span> : <span className="text-muted-foreground">—</span>}
-                                </td>
-                                <td
-                                  className={cn(
-                                    "p-1.5 text-right whitespace-nowrap font-semibold",
-                                    end < 0 ? "bg-destructive/10 text-destructive" : "text-emerald-700"
-                                  )}
-                                >
-                                  {fmt(end)}
-                                </td>
-                                <td className="p-1.5 text-right border-r whitespace-nowrap font-semibold bg-primary/5 text-primary">
-                                  {(pr?.suggested[i] ?? 0) > 0 ? fmt(pr!.suggested[i]) : <span className="text-muted-foreground font-normal">—</span>}
-                                </td>
-                              </React.Fragment>
-                            );
+                            const v = pr?.[i]; const day = format(d, 'yyyy-MM-dd');
+                            const fmt = (n: number | null | undefined) => n == null ? '—' : n.toLocaleString('ro-RO', { maximumFractionDigits: 1 });
+                            const suggestion = v?.closing == null ? null : suggestedOrderFor(v.closing, projDays.map((_, j) => pr?.[j]?.consumption || 0), i, r.buffer || 0);
+                            return <React.Fragment key={day}>
+                              <td className="p-2 text-right tabular-nums" title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}</td>
+                              <td className="p-2 text-right tabular-nums">{fmt(r.commitments[day] || 0)}</td>
+                              <td className="p-2 text-right tabular-nums text-primary">{fmt(r.received[day] || 0)}</td>
+                              <td className="p-2 text-right tabular-nums">{fmt(v?.consumption)}</td>
+                              <td className={cn('p-2 text-right tabular-nums', v?.closing != null && v.closing < 0 && 'text-destructive')}>{fmt(v?.closing)}</td>
+                              <td className="p-2 text-right tabular-nums">{fmt(r.otherDays[day] || 0)}</td>
+                              <td className="p-2 text-right tabular-nums">{fmt(r.advances[day] || 0)}</td>
+                              <td className={cn('p-2 text-right tabular-nums', !!v?.residual && 'text-destructive')}>{fmt(v?.residual)}</td>
+                              <td className="p-2 text-right border-r tabular-nums text-primary">{fmt(suggestion)}</td>
+                            </React.Fragment>;
                           })}
                         </tr>
                       );
@@ -1102,6 +1139,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         </div>
       )}
 
+      {inventoryType === 'materii-prime' && <ProductionUsageBreakdown from={format(projFrom, 'yyyy-MM-dd')} to={format(projTo, 'yyyy-MM-dd')} />}
       <CreateSupplierOrderDialog
         open={orderOpen}
         onOpenChange={setOrderOpen}
