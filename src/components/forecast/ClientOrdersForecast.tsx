@@ -595,7 +595,6 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     filtered.forEach((r) => { const i = stockGapIssues(gapFor(r), r.unit?.toLowerCase()); if (i.length) m.set(r.key, i); });
     return m;
   }, [filtered, gapFor]);
-  const problemRows = filtered.filter((r) => issuesByKey.has(r.key));
   const gapRow = gapKey ? filtered.find((r) => r.key === gapKey) : undefined;
   const gap = useMemo(() => gapFor(gapRow), [gapRow, gapFor]);
 
@@ -881,26 +880,6 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         <div className="space-y-4">
           <StockGapDialog open={!!gapRow} onOpenChange={(v) => !v && setGapKey(null)} name={gapRow?.name || ''}
             unit={gapRow?.unit || ''} today={todayKey} gap={gap} shifted={(gapRow?.shifted || []).filter(u => !projDays[0] || u.day >= format(projDays[0], 'yyyy-MM-dd'))} />
-          {problemRows.length > 0 && (
-            <div className="rounded-lg border-2 border-destructive/60 bg-destructive/5 p-3 space-y-2">
-              <div className="font-semibold text-sm text-destructive">
-                ⚠ {problemRows.length} {problemRows.length === 1 ? "ingredient are" : "ingrediente au"} stocul diferit de cel așteptat
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                Stocul de început de zi este stocul scriptic salvat automat în sistem la 05:00 (cu cât s-a terminat ziua anterioară), nu o numărătoare fizică.
-              </div>
-              <ul className="space-y-1 text-xs">
-                {problemRows.map((r) => (
-                  <li key={r.key}>
-                    <button type="button" onClick={() => setGapKey(r.key)} className="text-left hover:underline">
-                      <span className="font-semibold text-destructive">{r.name}</span>
-                      <span className="text-foreground">: {issuesByKey.get(r.key)!.map((i) => i.text).join(" · ")}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
           <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground items-center">
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-400" /> Stoc început zi</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Comandă (intrare)</span>
@@ -1013,7 +992,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                             const suggestion = v?.closing == null ? null : suggestedOrderFor(v.closing, projDays.map((_, j) => pr?.[j]?.consumption || 0), i, r.buffer || 0);
                             const ordered = r.commitments[day] || 0; const received = r.received[day] || 0;
                             return <React.Fragment key={day}>
-                              <td className="p-2 text-right tabular-nums" title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}</td>
+                              <td className={cn("p-2 text-right tabular-nums", day === todayKey && r.agedLots?.length && "bg-destructive/10 text-destructive")} title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}{day === todayKey && <LeafStockWarning name={r.name} lots={r.agedLots || []} />}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(ordered)}</td>
                               <td className={cn('p-2 text-right tabular-nums', received < ordered && day <= todayKey && 'text-destructive')}>{fmt(received)}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(v ? v.consumption - (r.returned[day] || 0) : null)}</td>
