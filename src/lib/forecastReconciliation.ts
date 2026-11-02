@@ -134,3 +134,23 @@ export function explainStockGap(input: {
     gap: expected === null || actual === null ? null : actual - expected,
   };
 }
+
+export type StockGap = ReturnType<typeof explainStockGap>;
+export type StockGapIssue = { kind: 'received' | 'consumed' | 'unexplained' | 'returned'; value: number; text: string };
+
+/** Problemele semnificative (≥10 unități și ≥5% din stocul așteptat), sortate după impact. */
+export function stockGapIssues(gap: StockGap | null, unit = ''): StockGapIssue[] {
+  if (!gap || gap.gap === null) return [];
+  const limit = Math.max(10, Math.abs(gap.expected ?? 0) * 0.05);
+  if (Math.abs(gap.gap) < limit) return [];
+  const f = (n: number) => `${Math.round(Math.abs(n)).toLocaleString('ro-RO')} ${unit}`.trim();
+  const list: StockGapIssue[] = [
+    { kind: 'received', value: gap.receivedVsOrdered, text: gap.receivedVsOrdered < 0 ? `Recepționat cu ${f(gap.receivedVsOrdered)} mai puțin decât s-a comandat` : `Recepționat cu ${f(gap.receivedVsOrdered)} peste comandă` },
+    { kind: 'consumed', value: -gap.consumedOverPlan, text: gap.consumedOverPlan > 0 ? `Ieșit din depozit cu ${f(gap.consumedOverPlan)} peste necesarul comenzilor` : `Ieșit din depozit cu ${f(gap.consumedOverPlan)} sub necesarul comenzilor` },
+    { kind: 'returned', value: gap.returned, text: `Retururi din producție: ${f(gap.returned)}` },
+  ];
+  if (gap.unexplained !== null) list.push({ kind: 'unexplained', value: gap.unexplained, text: gap.unexplained < 0
+    ? `Stocul scriptic din snapshot are cu ${f(gap.unexplained)} mai puțin decât rezultă din recepții și transferuri (mișcare neînregistrată sau corecție manuală)`
+    : `Stocul scriptic din snapshot are cu ${f(gap.unexplained)} mai mult decât rezultă din recepții și transferuri` });
+  return list.filter(i => Math.abs(i.value) >= limit).sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+}
