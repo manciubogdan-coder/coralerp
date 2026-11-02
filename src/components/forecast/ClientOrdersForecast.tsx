@@ -577,20 +577,27 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
 
   const todayKey = businessDay(new Date().toISOString());
   const [gapKey, setGapKey] = useState<string | null>(null);
-  const gapRow = gapKey ? filtered.find((r) => r.key === gapKey) : undefined;
-  const gap = useMemo(() => {
-    if (!gapRow || !projDays[0]) return null;
+  const gapFor = useCallback((row: any) => {
+    if (!row || !projDays[0]) return null;
     const first = format(projDays[0], 'yyyy-MM-dd');
     if (first >= todayKey) return null;
     const dates = eachDayOfInterval({ start: projDays[0], end: startOfDay(new Date()) }).map((d) => format(d, 'yyyy-MM-dd'));
     const planned: Record<string, number> = {};
     dates.forEach((day) => {
-      planned[day] = day in gapRow.perDate ? gapRow.perDate[day] || 0 : gapRow.perDayAvg[isoDay(new Date(`${day}T12:00:00`))] || 0;
+      planned[day] = day in row.perDate ? row.perDate[day] || 0 : row.perDayAvg[isoDay(new Date(`${day}T12:00:00`))] || 0;
     });
-    return explainStockGap({ dates, today: todayKey, snapshots: gapRow.snapshots, ordered: gapRow.commitments,
-      received: gapRow.received, returned: gapRow.returned, outbound: gapRow.outbound, planned,
-      advances: gapRow.advances, otherDays: gapRow.otherDays, qualityLoss: gapRow.qualityLoss });
-  }, [gapRow, projDays, todayKey]);
+    return explainStockGap({ dates, today: todayKey, snapshots: row.snapshots, ordered: row.commitments,
+      received: row.received, returned: row.returned, outbound: row.outbound, planned,
+      advances: row.advances, otherDays: row.otherDays, qualityLoss: row.qualityLoss });
+  }, [projDays, todayKey]);
+  const issuesByKey = useMemo(() => {
+    const m = new Map<string, StockGapIssue[]>();
+    filtered.forEach((r) => { const i = stockGapIssues(gapFor(r), r.unit?.toLowerCase()); if (i.length) m.set(r.key, i); });
+    return m;
+  }, [filtered, gapFor]);
+  const problemRows = filtered.filter((r) => issuesByKey.has(r.key));
+  const gapRow = gapKey ? filtered.find((r) => r.key === gapKey) : undefined;
+  const gap = useMemo(() => gapFor(gapRow), [gapRow, gapFor]);
 
   const orderLines: OrderLineInput[] = useMemo(
     () =>
