@@ -13,6 +13,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import ProductionUsageBreakdown from '@/components/production/ProductionUsageBreakdown';
+import { businessDay, readPages, transferStockQuantity } from '@/lib/forecastReconciliation';
 
 interface ConsumptionReportProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -140,13 +141,11 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
       
       for (let i = 0; i < productionTransferIds.length; i += batchSize) {
         const batch = productionTransferIds.slice(i, i + batchSize);
-        const { data: batchData, error: batchError } = await supabase
+        const batchData = await readPages(() => supabase
           .from(tables.transfers)
-          .select("quantity, inventory_item_id, transfer_id")
-          .in("transfer_id", batch);
-        
-        if (batchError) throw batchError;
-        if (batchData) allTransferItems = [...allTransferItems, ...batchData];
+          .select("quantity, net_quantity, unit, inventory_item_id, transfer_id")
+          .in("transfer_id", batch).order('id'));
+        allTransferItems.push(...batchData);
       }
 
       // Get inventory items to map to products - also in batches
@@ -154,15 +153,18 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
       
       // Map inventory_item_id -> product_id
       let inventoryToProductMap = new Map<string, string>();
+      const inventoryUnits = new Map<string, string>();
       if (inventoryItemIds.length > 0) {
         for (let i = 0; i < inventoryItemIds.length; i += batchSize) {
           const batch = inventoryItemIds.slice(i, i + batchSize);
-          const { data: invData } = await supabase
+          const { data: invData, error: invError } = await supabase
             .from(tables.inventory)
-            .select("id, product_id")
+            .select("id, product_id, unit")
             .in("id", batch);
           
+          if (invError) throw invError;
           (invData || []).forEach((item: any) => {
+            inventoryUnits.set(item.id, item.unit);
             if (item.product_id) {
               inventoryToProductMap.set(item.id, item.product_id);
             }
@@ -190,14 +192,15 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
         const transferDate = transferDateMap.get(transfer.transfer_id);
         if (!transferDate) return;
 
-        const date = format(new Date(transferDate), "yyyy-MM-dd");
+        const date = businessDay(transferDate);
         
         if (!productDailyConsumption.has(productId)) {
           productDailyConsumption.set(productId, new Map());
         }
         
-        const dailyMap = productDailyConsumption.get(productId)!;
-        dailyMap.set(date, (dailyMap.get(date) || 0) + transfer.quantity);
+        const dailyMap = productDailyConsumption.get(productId);
+        if (!dailyMap) return;
+        dailyMap.set(date, (dailyMap.get(date) || 0) + transferStockQuantity(transfer, inventoryUnits.get(transfer.inventory_item_id)));
       });
 
       // Calculate stats for each product

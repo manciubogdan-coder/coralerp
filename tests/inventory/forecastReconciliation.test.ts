@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { businessDay, dayBounds, historicalCommitments, reconcileProjection, sessionUsage, stockVariance } from '../../src/lib/forecastReconciliation';
+import { aggregateSnapshots, businessDay, dayBounds, historicalCommitments, reconcileProjection, sessionUsage, stockVariance, transferStockQuantity } from '../../src/lib/forecastReconciliation';
 
 test('delivered historical commitments remain visible at their ETA but cancelled do not', () => {
   expect(historicalCommitments([
@@ -35,4 +35,34 @@ test('Bucharest dates and historical DST boundaries do not use current browser o
   expect(businessDay('2026-11-01T22:30:00Z')).toBe('2026-11-02');
   expect(dayBounds('2026-10-24').start).toBe('2026-10-23T21:00:00.000Z');
   expect(dayBounds('2026-11-02').start).toBe('2026-11-01T22:00:00.000Z');
+});
+
+test('transfer consumes net goods, not gross goods plus transport packaging', () => {
+  expect(transferStockQuantity({ quantity: 1415.5, net_quantity: 1000, unit: 'kg' })).toBe(1000);
+  expect(transferStockQuantity({ quantity: 100, net_quantity: 0, unit: 'kg' })).toBe(0);
+  expect(transferStockQuantity({ quantity: 2000, unit: 'g' })).toBe(2);
+});
+test('snapshot quantities aggregate all matching lots and convert units, without inventing zeros', () => {
+  const totals = aggregateSnapshots([
+    { name: 'Rucola', quantity: 2000, unit: 'kg', snapshot_date: '2026-10-27' },
+    { name: 'Rucola', quantity: 1000000, unit: 'g', snapshot_date: '2026-10-27' },
+    { name: 'Baby spanac', quantity: 0, unit: 'kg', snapshot_date: '2026-10-28' },
+  ], row => row.name);
+  expect(totals.Rucola['2026-10-27']).toBe(3000);
+  expect(totals.Rucola['2026-10-28']).toBeUndefined();
+  expect(totals['Baby spanac']['2026-10-28']).toBe(0);
+});
+test('warehouse returns restore balance without counting production consumption again', () => {
+  const result = reconcileProjection({ dates: ['2026-10-27'], today: '2026-11-02', anchor: 1855,
+    snapshots: { '2026-10-27': 3000, '2026-10-28': 2417 }, ordered: { '2026-10-27': 1540 },
+    received: { '2026-10-27': 293.5 }, returned: { '2026-10-27': 123.5 },
+    outbound: { '2026-10-27': 1000 }, demand: [1415.5] });
+  expect(result[0].closing).toBe(2417);
+  expect(result[0].residual).toBe(0);
+});
+test('today includes receipts already arrived and only outstanding supplier deliveries', () => {
+  const result = reconcileProjection({ dates: ['2026-11-02'], today: '2026-11-02', anchor: 1855,
+    snapshots: { '2026-11-02': 1855 }, ordered: { '2026-11-02': 200 },
+    received: { '2026-11-02': 800 }, outbound: {}, demand: [1000] });
+  expect(result[0].closing).toBe(1855);
 });

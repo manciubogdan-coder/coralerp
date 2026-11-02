@@ -22,6 +22,24 @@ export async function readPages(build: () => any): Promise<any[]> {
   }
 }
 
+// Transfer quantity includes transport packaging; only net quantity leaves stock.
+export function transferStockQuantity(item: any, inventoryUnit?: string) {
+  return materialQuantity(item.net_quantity ?? item.quantity, item.unit || inventoryUnit);
+}
+
+// An absent product row is not proof of zero stock or snapshot completeness.
+export function aggregateSnapshots(rows: any[], resolveKey: (row: any) => string | undefined) {
+  const totals: Record<string, Record<string, number>> = {};
+  for (const row of rows) {
+    const key = resolveKey(row);
+    if (!key) continue;
+    const day = businessDay(row.snapshot_date);
+    const dates = totals[key] ||= {};
+    dates[day] = (dates[day] || 0) + materialQuantity(row.quantity, row.unit);
+  }
+  return totals;
+}
+
 // Commitments remain visible after delivery; they are never treated as actual receipts.
 export function historicalCommitments(orders: any[]) {
   const result: Record<string, Record<string, number>> = {};
@@ -66,14 +84,15 @@ export function stockVariance(opening: number | null, closing: number | null, re
 export function reconcileProjection(input: {
   dates: string[]; today: string; anchor: number | null;
   snapshots: Record<string, number>; ordered: Record<string, number>;
-  received: Record<string, number>; outbound: Record<string, number>; demand: number[];
+  received: Record<string, number>; outbound: Record<string, number>; returned?: Record<string, number>; demand: number[];
 }) {
   let running: number | null = input.anchor;
   return input.dates.map((day, i) => {
     const historical = day < input.today;
     const observed = input.snapshots[day] ?? null;
     const opening = day <= input.today ? observed : running;
-    const incoming = historical ? input.received[day] || 0 : input.ordered[day] || 0;
+    const incoming = (input.received[day] || 0) + (input.returned?.[day] || 0)
+      + (historical ? 0 : input.ordered[day] || 0);
     const consumption = historical ? input.outbound[day] || 0 : input.demand[i] || 0;
     const closing = opening === null ? null : opening + incoming - consumption;
     const nextDay = new Date(`${day}T12:00:00Z`); nextDay.setUTCDate(nextDay.getUTCDate() + 1);

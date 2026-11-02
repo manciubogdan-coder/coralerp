@@ -17,7 +17,7 @@ import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
-import { businessDay, dayBounds, historicalCommitments, materialQuantity, readPages, reconcileProjection } from '@/lib/forecastReconciliation';
+import { aggregateSnapshots, businessDay, dayBounds, historicalCommitments, materialQuantity, readPages, reconcileProjection, transferStockQuantity } from '@/lib/forecastReconciliation';
 import { loadProductionUsage } from '@/lib/productionUsage';
 import ProductionUsageBreakdown from '@/components/production/ProductionUsageBreakdown';
 
@@ -42,6 +42,7 @@ interface Row {
   commitments: Record<string, number>;
   snapshots: Record<string, number>;
   received: Record<string, number>;
+  returned: Record<string, number>;
   outbound: Record<string, number>;
   otherDays: Record<string, number>;
   advances: Record<string, number>;
@@ -319,25 +320,19 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const historyFrom = format(projFrom < today ? projFrom : today, 'yyyy-MM-dd');
       const historyTo = format(addDays(projTo > today ? projTo : today, 1), 'yyyy-MM-dd');
       const allSnapshots = await readPages(() => supabase.from(snapTable)
-        .select('product_id, quantity, snapshot_date').gte('snapshot_date', historyFrom)
+        .select('product_id, name, quantity, unit, snapshot_date').gte('snapshot_date', historyFrom)
         .lte('snapshot_date', historyTo).order('id'));
       const snapRows = allSnapshots.filter(i => i.snapshot_date === todayStr);
       setStockSource(snapRows.length ? `Stoc de început: ${todayStr}` : 'Snapshotul de azi lipsește; stocul curent nu reprezintă începutul zilei.');
-      const snapshotsByProduct: Record<string, Record<string, number>> = {};
-      // A snapshot exists for a date globally: absent products on that date have zero stock.
-      const snapshotDates = [...new Set(allSnapshots.map(i => i.snapshot_date))];
-      products.forEach(p => { snapshotsByProduct[p.id] = Object.fromEntries(snapshotDates.map(d => [d, 0])); });
-      allSnapshots.forEach(i => { if (i.product_id) {
-        const m = snapshotsByProduct[i.product_id] ||= {};
-        m[i.snapshot_date] = (m[i.snapshot_date] || 0) + Number(i.quantity || 0);
-      }});
+      const resolveProduct = (item: any) => productByName.get(norm(item.name))?.id || item.product_id;
+      const snapshotsByProduct = aggregateSnapshots(allSnapshots, resolveProduct);
       const prefix = inventoryType === 'materii-prime' ? '' : `${inventoryType}_`;
       const receipts = await readPages(() => supabase.from(`${prefix}reception_records`)
         .select('id, product_id, name, original_quantity, net_quantity, unit, receipt_date')
         .gte('receipt_date', dayBounds(historyFrom).start).lte('receipt_date', dayBounds(historyTo).end).order('id'));
       const receivedByProduct: Record<string, Record<string, number>> = {};
       receipts.forEach(r => {
-        const id = r.product_id || productByName.get(norm(r.name))?.id;
+        const id = resolveProduct(r);
         if (!id) return;
         const m = receivedByProduct[id] ||= {}; const d = businessDay(r.receipt_date);
         m[d] = (m[d] || 0) + materialQuantity(r.net_quantity ?? r.original_quantity, r.unit);
@@ -349,7 +344,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           .select('inventory_id, pierdere_calitativa_procent').in('inventory_id', receipts.slice(i, i + 50).map(r => r.id)).order('inventory_id')));
       }
       const qualityMap = new Map(qualityRows.map(r => [r.inventory_id, r]));
-      receipts.forEach(r => { const id = r.product_id || productByName.get(norm(r.name))?.id;
+      receipts.forEach(r => { const id = resolveProduct(r);
         if (!id) return;
         const m = qualityByProduct[id] ||= {}; const d = businessDay(r.receipt_date);
         m[d] = (m[d] || 0) + materialQuantity(r.net_quantity ?? r.original_quantity, r.unit) * (Number(qualityMap.get(r.id)?.pierdere_calitativa_procent) || 0) / 100;
@@ -363,20 +358,34 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const outboundByProduct: Record<string, Record<string, number>> = {};
       for (let i = 0; i < transfers.length; i += 50) {
         const items = await readPages(() => supabase.from(transferItemsTable)
-          .select('id, transfer_id, inventory_item_id, quantity').in('transfer_id', transfers.slice(i, i + 50).map(t => t.id)).order('id'));
+          .select('id, transfer_id, inventory_item_id, quantity, net_quantity, unit').in('transfer_id', transfers.slice(i, i + 50).map(t => t.id)).order('id'));
         const ids = [...new Set(items.map(t => t.inventory_item_id).filter(Boolean))];
         const invMap = new Map<string, any>();
         for (let j = 0; j < ids.length; j += 50) {
-          const inv = await readPages(() => supabase.from(tables.inventory).select('id, product_id, unit')
+          const inv = await readPages(() => supabase.from(tables.inventory).select('id, product_id, name, unit')
             .in('id', ids.slice(j, j + 50)).order('id'));
           inv.forEach(r => invMap.set(r.id, r));
         }
         items.forEach(t => { const inv = invMap.get(t.inventory_item_id); const d = transferDates.get(t.transfer_id);
-          if (!inv?.product_id || !d) return;
-          const m = outboundByProduct[inv.product_id] ||= {};
-          m[d] = (m[d] || 0) + materialQuantity(t.quantity, inv.unit);
+          const id = inv ? resolveProduct(inv) : undefined;
+          if (!id || !d) return;
+          const m = outboundByProduct[id] ||= {};
+          m[d] = (m[d] || 0) + transferStockQuantity(t, inv.unit);
         });
       }
+      const returnedByProduct: Record<string, Record<string, number>> = {};
+      const historyTable = `${prefix}inventory_history`;
+      // These entries belong to the warehouse ledger, not production consumption.
+      const returns = await readPages(() => supabase.from(historyTable)
+        .select('id, product_id, name, quantity, unit, operation_date')
+        .in('action', ['transfer_in', 'return', 'return_from_production'])
+        .gte('operation_date', inventoryType === 'etichete' ? dayBounds(historyFrom).start : historyFrom)
+        .lte('operation_date', inventoryType === 'etichete' ? dayBounds(historyTo).end : historyTo).order('id'));
+      returns.forEach(r => {
+        const id = resolveProduct(r); if (!id || !r.operation_date) return;
+        const d = businessDay(r.operation_date), m = returnedByProduct[id] ||= {};
+        m[d] = (m[d] || 0) + materialQuantity(r.quantity, r.unit);
+      });
       const usage = inventoryType === 'materii-prime' ? await loadProductionUsage(historyFrom, historyTo) : [];
       const otherByName: Record<string, Record<string, number>> = {}, advanceByName: Record<string, Record<string, number>> = {};
       usage.forEach(u => { for (const [include, target] of [[u.otherDay, otherByName], [u.advance, advanceByName]] as const) {
@@ -397,10 +406,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const inv: any[] = snapRows.length ? snapRows : currentLots;
       const stockByProduct = new Map<string, number>();
       inv.forEach((i: any) => {
-        if (!i.product_id) return;
-        const q = Number(i.quantity) || 0;
+        const id = resolveProduct(i); if (!id) return;
+        const q = materialQuantity(i.quantity, i.unit);
         if (q <= 0) return;
-        stockByProduct.set(i.product_id, (stockByProduct.get(i.product_id) || 0) + q);
+        stockByProduct.set(id, (stockByProduct.get(id) || 0) + q);
       });
 
       // 5b. Comenzi către furnizor în curs (nelivrate)
@@ -454,6 +463,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           qualityLoss: qualityByProduct[p?.id] || {},
           commitments: commitments[p?.id] || {}, snapshots: snapshotsByProduct[p?.id] || {},
           received: receivedByProduct[p?.id] || {}, outbound: outboundByProduct[p?.id] || {},
+          returned: returnedByProduct[p?.id] || {},
           otherDays: otherByName[key] || {}, advances: advanceByName[key] || {},
           perDayBrut,
           perDate: Object.fromEntries(Object.entries(futNeed.get(key) || {}).map(([d, q]) => [d, q * factor])),
@@ -553,7 +563,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const demand = simulationDays.map((d, i) => mode === 'live' && orderDates.has(dates[i])
         ? r.perDate[dates[i]] || 0 : r.perDayAvg[isoDay(d)] || 0);
       const result = reconcileProjection({ dates, today, anchor: r.snapshots[today] ?? null,
-        snapshots: r.snapshots, ordered: r.orderedPerDate, received: r.received, outbound: r.outbound, demand });
+        snapshots: r.snapshots, ordered: r.orderedPerDate, received: r.received, returned: r.returned, outbound: r.outbound, demand });
       const offset = dates.indexOf(format(first, 'yyyy-MM-dd'));
       map.set(r.key, result.slice(offset, offset + projDays.length));
     });
@@ -586,6 +596,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           line[`${date} - Stoc început`] = v?.opening ?? 'Lipsă snapshot';
           line[`${date} - Comandat`] = r.commitments[day] || 0;
           line[`${date} - Recepționat net`] = r.received[day] || 0;
+          line[`${date} - Retur în depozit`] = r.returned[day] || 0;
           line[`${date} - Consum / ieșiri`] = v?.consumption || 0;
           line[`${date} - Alte zile (estimat)`] = r.otherDays[day] || 0;
           line[`${date} - Avans (estimat)`] = r.advances[day] || 0;
@@ -830,7 +841,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       </p>
 
 
-      {view === 'proiectie' && <p className="text-xs text-muted-foreground">{stockSource} Trecut: snapshot zilnic + recepționat net − ieșiri din depozit. Abaterea față de snapshotul următor nu este automat pierdere. Recepționat − comandat este o comparație pe zi, nu o potrivire pe document (livrările pot întârzia). Pierderea calitativă este raportată separat, fără o a doua scădere din stoc; avansul și alte zile se pot suprapune și sunt deja incluse în consumul sesiunilor. Viitor: estimare cu comenzile încă nelivrate; comenzile livrate rămân în coloana Comandat.</p>}
+      {view === 'proiectie' && <p className="text-xs text-muted-foreground">{stockSource}</p>}
       {missingRecipes.length > 0 && (
         <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
           Produse din comenzi fără rețetă activă (neincluse în calcul): {missingRecipes.join(", ")}
@@ -893,7 +904,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       {projDays.map((d) => (
                         <th
                           key={d.toISOString()}
-                          colSpan={11}
+                          colSpan={12}
                           className="sticky top-0 z-20 bg-background border-b border-r px-2 h-8 text-center whitespace-nowrap font-semibold"
                         >
                           {WEEKDAYS[isoDay(d)].slice(0, 3).toLowerCase()} {format(d, "d MMM", { locale: ro })}
@@ -910,11 +921,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                             Comandat
                           </th>
                           <th className={stickyHead}>Recepționat net</th>
+                          <th className={stickyHead}>Retur în depozit</th>
                           <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-rose-600 whitespace-nowrap">
                             Consum / ieșiri
                           </th>
                           <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-emerald-600 whitespace-nowrap">
-                            Stoc final
+                            Stoc final calculat
                           </th>
                           <th className={stickyHead}>Alte zile (est.)</th>
                           <th className={stickyHead}>Avans (est.)</th>
@@ -951,13 +963,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                               <td className="p-2 text-right tabular-nums" title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(r.commitments[day] || 0)}</td>
                               <td className="p-2 text-right tabular-nums text-primary">{fmt(r.received[day] || 0)}</td>
+                              <td className="p-2 text-right tabular-nums">{fmt(r.returned[day] || 0)}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(v?.consumption)}</td>
                               <td className={cn('p-2 text-right tabular-nums', v?.closing != null && v.closing < 0 && 'text-destructive')}>{fmt(v?.closing)}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(r.otherDays[day] || 0)}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(r.advances[day] || 0)}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(r.qualityLoss[day] || 0)}</td>
                               <td className="p-2 text-right tabular-nums">{fmt((r.received[day] || 0) - (r.commitments[day] || 0))}</td>
-                              <td className={cn('p-2 text-right tabular-nums', !!v?.residual && 'text-destructive')}>{fmt(v?.residual)}</td>
+                              <td title="Stocul observat în ziua următoare minus stocul final calculat; diferența nu este automat pierdere." className={cn('p-2 text-right tabular-nums', !!v?.residual && 'text-destructive')}>{fmt(v?.residual)}</td>
                               <td className="p-2 text-right border-r tabular-nums text-primary">{fmt(suggestion)}</td>
                             </React.Fragment>;
                           })}
