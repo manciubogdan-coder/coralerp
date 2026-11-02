@@ -1,7 +1,7 @@
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { explainStockGap } from "@/lib/forecastReconciliation";
+import { explainStockGap, type ProductionUsage } from "@/lib/forecastReconciliation";
 import { cn } from "@/lib/utils";
 
 type Gap = ReturnType<typeof explainStockGap>;
@@ -12,9 +12,10 @@ const signed = (n: number | null) => (n == null ? "—" : `${n > 0 ? "+" : ""}${
 const dayLabel = (d: string) => format(new Date(`${d}T12:00:00`), "EEE d MMM", { locale: ro });
 
 export default function StockGapDialog({
-  open, onOpenChange, name, unit, today, gap,
-}: { open: boolean; onOpenChange: (v: boolean) => void; name: string; unit: string; today: string; gap: Gap | null }) {
+  open, onOpenChange, name, unit, today, gap, shifted = [],
+}: { shifted?: ProductionUsage[]; open: boolean; onOpenChange: (v: boolean) => void; name: string; unit: string; today: string; gap: Gap | null }) {
   const u = unit.toLowerCase();
+  const u_ = u;
   const first = gap?.days[0]?.day;
   const missing = gap?.days.filter((d) => d.opening == null).map((d) => dayLabel(d.day)) || [];
   const causes = gap ? [
@@ -103,6 +104,37 @@ export default function StockGapDialog({
                 ))}
               </tbody>
             </table>
+            <div className="rounded-md border">
+              <div className="px-3 py-2 border-b font-medium">Producție lucrată pentru alte zile / avans</div>
+              {shifted.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-muted-foreground">Nu s-a lucrat nimic pentru alte zile în perioada aleasă.</p>
+              ) : (
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b text-muted-foreground">
+                      <th className="text-left p-1.5">Lucrat în</th>
+                      <th className="text-left p-1.5">Comanda era pentru</th>
+                      <th className="text-left p-1.5">Produs</th>
+                      <th className="text-left p-1.5">Client</th>
+                      <th className="text-right p-1.5">{name} consumat (est.)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...shifted].sort((a, b) => a.day.localeCompare(b.day)).map((u, i) => (
+                      <tr key={i} className="border-b">
+                        <td className="p-1.5 capitalize">{dayLabel(u.day)}</td>
+                        <td className={cn("p-1.5 capitalize", u.targetDay && u.targetDay > u.day && "text-destructive")}>
+                          {u.advance ? "Avans" : u.targetDay ? `${dayLabel(u.targetDay)}${u.targetDay > u.day ? " (viitor)" : " (trecut)"}` : "—"}
+                        </td>
+                        <td className="p-1.5">{u.product}</td>
+                        <td className="p-1.5">{u.client}</td>
+                        <td className="p-1.5 text-right tabular-nums">{fmt(u.quantity)} {u_}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         )}
       </DialogContent>
