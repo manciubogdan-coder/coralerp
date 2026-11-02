@@ -595,15 +595,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           const day = format(d, 'yyyy-MM-dd');
           line[`${date} - Stoc început`] = v?.opening ?? 'Lipsă snapshot';
           line[`${date} - Comandat`] = r.commitments[day] || 0;
-          line[`${date} - Recepționat net`] = r.received[day] || 0;
-          line[`${date} - Retur în depozit`] = r.returned[day] || 0;
-          line[`${date} - Consum / ieșiri`] = v?.consumption || 0;
-          line[`${date} - Alte zile (estimat)`] = r.otherDays[day] || 0;
-          line[`${date} - Avans (estimat)`] = r.advances[day] || 0;
-          line[`${date} - Pierdere calitativă raportată`] = r.qualityLoss[day] || 0;
-          line[`${date} - Recepționat minus comandat (nu dovadă lipsă)`] = (r.received[day] || 0) - (r.commitments[day] || 0);
-          line[`${date} - Stoc final calculat`] = v?.closing ?? 'Necunoscut';
-          line[`${date} - Abatere neexplicată`] = v?.residual ?? 'Necunoscut';
+          line[`${date} - Recepționat`] = r.received[day] || 0;
+          line[`${date} - Consum`] = v ? v.consumption - (r.returned[day] || 0) : 0;
+          line[`${date} - Stoc final`] = v?.closing ?? 'Necunoscut';
           line[`${date} - Comandă sugerată`] = v?.closing == null ? 'Necunoscut' : suggestedOrderFor(v.closing, projDays.map((_, j) => values?.[j]?.consumption || 0), i, r.buffer || 0);
         });
         return line;
@@ -904,7 +898,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       {projDays.map((d) => (
                         <th
                           key={d.toISOString()}
-                          colSpan={12}
+                          colSpan={6}
                           className="sticky top-0 z-20 bg-background border-b border-r px-2 h-8 text-center whitespace-nowrap font-semibold"
                         >
                           {WEEKDAYS[isoDay(d)].slice(0, 3).toLowerCase()} {format(d, "d MMM", { locale: ro })}
@@ -920,19 +914,15 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                           <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-amber-600 whitespace-nowrap">
                             Comandat
                           </th>
-                          <th className={stickyHead}>Recepționat net</th>
-                          <th className={stickyHead}>Retur în depozit</th>
+                          <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-amber-700 whitespace-nowrap">
+                            Recepționat
+                          </th>
                           <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-rose-600 whitespace-nowrap">
-                            Consum / ieșiri
+                            Consum
                           </th>
                           <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-emerald-600 whitespace-nowrap">
-                            Stoc final calculat
+                            Stoc final
                           </th>
-                          <th className={stickyHead}>Alte zile (est.)</th>
-                          <th className={stickyHead}>Avans (est.)</th>
-                          <th className={stickyHead}>Pierdere calitativă raportată</th>
-                          <th className={stickyHead}>Recepționat − comandat</th>
-                          <th className={stickyHead}>Abatere neexplicată</th>
                           <th
                             title="Consum mâine + tampon"
                             className="sticky top-8 z-20 bg-background border-b border-r px-2 h-7 text-right text-[10px] font-medium text-primary whitespace-nowrap"
@@ -949,8 +939,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       return (
                         <tr key={r.key} className="border-b hover:bg-muted/40">
                           <td className="sticky left-0 z-10 bg-background border-r p-2 font-medium min-w-[190px]">
-                            {r.name}
-
+                            <button type="button" onClick={() => setGapKey(r.key)} className="text-left hover:underline" title="Vezi de unde vine diferența de stoc">
+                              {r.name}
+                            </button>
+                            <button type="button" onClick={() => setGapKey(r.key)} className="block text-[10px] font-normal text-primary hover:underline">
+                              De ce am atât?
+                            </button>
                           </td>
                           <td className="sticky left-[190px] z-10 bg-background border-r p-2 text-muted-foreground uppercase">
                             {r.unit}
@@ -959,18 +953,13 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                             const v = pr?.[i]; const day = format(d, 'yyyy-MM-dd');
                             const fmt = (n: number | null | undefined) => n == null ? '—' : n.toLocaleString('ro-RO', { maximumFractionDigits: 1 });
                             const suggestion = v?.closing == null ? null : suggestedOrderFor(v.closing, projDays.map((_, j) => pr?.[j]?.consumption || 0), i, r.buffer || 0);
+                            const ordered = r.commitments[day] || 0; const received = r.received[day] || 0;
                             return <React.Fragment key={day}>
                               <td className="p-2 text-right tabular-nums" title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}</td>
-                              <td className="p-2 text-right tabular-nums">{fmt(r.commitments[day] || 0)}</td>
-                              <td className="p-2 text-right tabular-nums text-primary">{fmt(r.received[day] || 0)}</td>
-                              <td className="p-2 text-right tabular-nums">{fmt(r.returned[day] || 0)}</td>
-                              <td className="p-2 text-right tabular-nums">{fmt(v?.consumption)}</td>
+                              <td className="p-2 text-right tabular-nums">{fmt(ordered)}</td>
+                              <td className={cn('p-2 text-right tabular-nums', received < ordered && day <= todayKey && 'text-destructive')}>{fmt(received)}</td>
+                              <td className="p-2 text-right tabular-nums">{fmt(v ? v.consumption - (r.returned[day] || 0) : null)}</td>
                               <td className={cn('p-2 text-right tabular-nums', v?.closing != null && v.closing < 0 && 'text-destructive')}>{fmt(v?.closing)}</td>
-                              <td className="p-2 text-right tabular-nums">{fmt(r.otherDays[day] || 0)}</td>
-                              <td className="p-2 text-right tabular-nums">{fmt(r.advances[day] || 0)}</td>
-                              <td className="p-2 text-right tabular-nums">{fmt(r.qualityLoss[day] || 0)}</td>
-                              <td className="p-2 text-right tabular-nums">{fmt((r.received[day] || 0) - (r.commitments[day] || 0))}</td>
-                              <td title="Stocul observat în ziua următoare minus stocul final calculat; diferența nu este automat pierdere." className={cn('p-2 text-right tabular-nums', !!v?.residual && 'text-destructive')}>{fmt(v?.residual)}</td>
                               <td className="p-2 text-right border-r tabular-nums text-primary">{fmt(suggestion)}</td>
                             </React.Fragment>;
                           })}
