@@ -66,3 +66,20 @@ test('today includes receipts already arrived and only outstanding supplier deli
     received: { '2026-11-02': 800 }, outbound: {}, demand: [1000] });
   expect(result[0].closing).toBe(1855);
 });
+test('explainStockGap splits the missing rucola stock into exact causes', async () => {
+  const { explainStockGap } = await import('../../src/lib/forecastReconciliation');
+  const r = explainStockGap({
+    dates: ['2026-10-26', '2026-10-27', '2026-10-28'], today: '2026-10-28',
+    snapshots: { '2026-10-26': 1500, '2026-10-27': 1200, '2026-10-28': 1855 },
+    ordered: { '2026-10-26': 1100, '2026-10-27': 1100 }, received: { '2026-10-26': 372, '2026-10-27': 1132 },
+    returned: { '2026-10-27': 210 }, outbound: { '2026-10-26': 658.5, '2026-10-27': 700 },
+    planned: { '2026-10-26': 400, '2026-10-27': 400 }, advances: { '2026-10-26': 40 }, otherDays: {}, qualityLoss: {},
+  });
+  expect(r.expected).toBe(2900);
+  expect(r.actual).toBe(1855);
+  expect(r.receivedVsOrdered).toBe(-696);
+  expect(r.consumedOverPlan).toBe(558.5);
+  expect(r.unexplained).toBe(-0.5);
+  expect(r.gap).toBe(-1045);
+  expect(r.receivedVsOrdered + r.returned - r.consumedOverPlan + (r.unexplained ?? 0)).toBeCloseTo(r.gap!, 6);
+});

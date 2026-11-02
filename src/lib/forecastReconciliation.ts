@@ -102,3 +102,35 @@ export function reconcileProjection(input: {
     return { opening, closing, observed, incoming, consumption, residual };
   });
 }
+export interface StockGapDay {
+  day: string; opening: number | null; ordered: number; received: number; returned: number;
+  outbound: number; planned: number; advances: number; otherDays: number; qualityLoss: number;
+}
+// Exact decomposition of today's observed stock versus the plan made on the first day:
+// expected = start + ordered − planned; actual − expected = (received − ordered) + returns − (outbound − planned) + unexplained.
+export function explainStockGap(input: {
+  dates: string[]; today: string; snapshots: Record<string, number>;
+  ordered: Record<string, number>; received: Record<string, number>; returned: Record<string, number>;
+  outbound: Record<string, number>; planned: Record<string, number>;
+  advances: Record<string, number>; otherDays: Record<string, number>; qualityLoss: Record<string, number>;
+}) {
+  const days: StockGapDay[] = input.dates.filter(d => d < input.today).map(day => ({
+    day, opening: input.snapshots[day] ?? null, ordered: input.ordered[day] || 0,
+    received: input.received[day] || 0, returned: input.returned[day] || 0,
+    outbound: input.outbound[day] || 0, planned: input.planned[day] || 0,
+    advances: input.advances[day] || 0, otherDays: input.otherDays[day] || 0, qualityLoss: input.qualityLoss[day] || 0,
+  }));
+  const sum = (k: keyof Omit<StockGapDay, 'day' | 'opening'>) => days.reduce((s, d) => s + d[k], 0);
+  const start = days.length ? days[0].opening : null;
+  const actual = input.snapshots[input.today] ?? null;
+  const ordered = sum('ordered'), received = sum('received'), returned = sum('returned');
+  const outbound = sum('outbound'), planned = sum('planned');
+  const expected = start === null ? null : start + ordered - planned;
+  const unexplained = start === null || actual === null ? null : actual - (start + received + returned - outbound);
+  return {
+    days, start, actual, expected, ordered, received, returned, outbound, planned,
+    advances: sum('advances'), otherDays: sum('otherDays'), qualityLoss: sum('qualityLoss'),
+    receivedVsOrdered: received - ordered, consumedOverPlan: outbound - planned, unexplained,
+    gap: expected === null || actual === null ? null : actual - expected,
+  };
+}
