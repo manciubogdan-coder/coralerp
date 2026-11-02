@@ -19,6 +19,7 @@ import { DateRange } from "react-day-picker";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { useOrderCuts, useSetOrderCut } from "@/hooks/productie/useOrderCuts";
 import { Scissors } from "lucide-react";
+import ProductionUsageBreakdown from '@/components/production/ProductionUsageBreakdown';
 
 interface OrderDetail {
   comanda_id: string;
@@ -737,12 +738,12 @@ const ConsumptionAnalytics = () => {
                 <TableRow>
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Ingredient</TableHead>
-                  <TableHead>Consumat (kg)</TableHead>
+                  <TableHead>Consumat estimat, zi comandă (kg)</TableHead>
                   <TableHead>Necesar Pending (kg)</TableHead>
                   <TableHead>Total (kg)</TableHead>
                   <TableHead>Scos din depozit (kg)</TableHead>
-                  <TableHead>Pierdere (kg)</TableHead>
-                  <TableHead>Pierdere (%)</TableHead>
+                  <TableHead>Abatere ieșiri / necesar (kg)</TableHead>
+                  <TableHead>Abatere ieșiri / necesar (%)</TableHead>
                   <TableHead>Stoc început zi (kg)</TableHead>
                   <TableHead>Diferență (kg)</TableHead>
                   <TableHead>Comenzi Finalizate</TableHead>
@@ -924,6 +925,7 @@ const ConsumptionAnalytics = () => {
           )}
         </CardContent>
       </Card>
+      <ProductionUsageBreakdown from={startDate} to={endDate} />
     </div>
   );
 };
