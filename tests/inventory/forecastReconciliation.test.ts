@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { aggregateSnapshots, businessDay, dayBounds, historicalCommitments, reconcileProjection, sessionUsage, stockVariance, transferStockQuantity } from '../../src/lib/forecastReconciliation';
+import { stockGapIssues } from "../../src/lib/forecastReconciliation";
 
 test('delivered historical commitments remain visible at their ETA but cancelled do not', () => {
   expect(historicalCommitments([
@@ -83,3 +84,16 @@ test('explainStockGap splits the missing rucola stock into exact causes', async 
   expect(r.gap).toBe(-1045);
   expect(r.receivedVsOrdered + r.returned - r.consumedOverPlan + (r.unexplained ?? 0)).toBeCloseTo(r.gap!, 6);
 });
+
+{
+  const base = { days: [], start: 3000, actual: 1855, expected: 4529, ordered: 2000, received: 2000, returned: 0,
+    outbound: 3568, planned: 1441, advances: 0, otherDays: 0, qualityLoss: 0,
+    receivedVsOrdered: 0, consumedOverPlan: 2127, unexplained: -577, gap: -2674 } as any;
+  test('flags the ingredient and lists the biggest cause first', () => {
+    const issues = stockGapIssues(base, 'kg');
+    expect(issues.map(i => i.kind)).toEqual(['consumed', 'unexplained']);
+  });
+  test('ignores gaps under 5% of expected stock', () => {
+    expect(stockGapIssues({ ...base, gap: -200 }, 'kg')).toEqual([]);
+  });
+}

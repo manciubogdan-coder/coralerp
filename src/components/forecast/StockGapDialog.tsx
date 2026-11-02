@@ -22,7 +22,7 @@ export default function StockGapDialog({
     { label: "Recepționat față de comandat", value: gap.receivedVsOrdered, hint: `comandat ${fmt(gap.ordered)} ${u}, recepționat ${fmt(gap.received)} ${u}` },
     { label: "Retururi în depozit", value: gap.returned, hint: "marfă întoarsă din producție" },
     { label: "Consumat față de necesarul planificat", value: -gap.consumedOverPlan, hint: `ieșit din depozit ${fmt(gap.outbound)} ${u}, necesar din comenzi ${fmt(gap.planned)} ${u}` },
-    { label: "Diferență de inventar neexplicată", value: gap.unexplained, hint: "stocul numărat dimineața nu se potrivește cu mișcările înregistrate" },
+    { label: "Diferență scriptică neexplicată", value: gap.unexplained, hint: "stocul scriptic salvat automat la 05:00 (nu numărat fizic) nu se potrivește cu recepțiile și transferurile înregistrate — probabil o corecție manuală de stoc sau o ieșire fără bon de transfer" },
   ] : [];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

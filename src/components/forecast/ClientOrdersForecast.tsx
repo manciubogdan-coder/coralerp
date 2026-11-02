@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
-import { aggregateSnapshots, businessDay, dayBounds, explainStockGap, historicalCommitments, materialQuantity, readPages, reconcileProjection, transferStockQuantity } from '@/lib/forecastReconciliation';
+import { aggregateSnapshots, businessDay, dayBounds, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, materialQuantity, readPages, reconcileProjection, transferStockQuantity } from '@/lib/forecastReconciliation';
 import StockGapDialog from './StockGapDialog';
 import { loadProductionUsage } from '@/lib/productionUsage';
 import type { ProductionUsage } from '@/lib/forecastReconciliation';
@@ -577,20 +577,27 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
 
   const todayKey = businessDay(new Date().toISOString());
   const [gapKey, setGapKey] = useState<string | null>(null);
-  const gapRow = gapKey ? filtered.find((r) => r.key === gapKey) : undefined;
-  const gap = useMemo(() => {
-    if (!gapRow || !projDays[0]) return null;
+  const gapFor = useCallback((row: any) => {
+    if (!row || !projDays[0]) return null;
     const first = format(projDays[0], 'yyyy-MM-dd');
     if (first >= todayKey) return null;
     const dates = eachDayOfInterval({ start: projDays[0], end: startOfDay(new Date()) }).map((d) => format(d, 'yyyy-MM-dd'));
     const planned: Record<string, number> = {};
     dates.forEach((day) => {
-      planned[day] = day in gapRow.perDate ? gapRow.perDate[day] || 0 : gapRow.perDayAvg[isoDay(new Date(`${day}T12:00:00`))] || 0;
+      planned[day] = day in row.perDate ? row.perDate[day] || 0 : row.perDayAvg[isoDay(new Date(`${day}T12:00:00`))] || 0;
     });
-    return explainStockGap({ dates, today: todayKey, snapshots: gapRow.snapshots, ordered: gapRow.commitments,
-      received: gapRow.received, returned: gapRow.returned, outbound: gapRow.outbound, planned,
-      advances: gapRow.advances, otherDays: gapRow.otherDays, qualityLoss: gapRow.qualityLoss });
-  }, [gapRow, projDays, todayKey]);
+    return explainStockGap({ dates, today: todayKey, snapshots: row.snapshots, ordered: row.commitments,
+      received: row.received, returned: row.returned, outbound: row.outbound, planned,
+      advances: row.advances, otherDays: row.otherDays, qualityLoss: row.qualityLoss });
+  }, [projDays, todayKey]);
+  const issuesByKey = useMemo(() => {
+    const m = new Map<string, StockGapIssue[]>();
+    filtered.forEach((r) => { const i = stockGapIssues(gapFor(r), r.unit?.toLowerCase()); if (i.length) m.set(r.key, i); });
+    return m;
+  }, [filtered, gapFor]);
+  const problemRows = filtered.filter((r) => issuesByKey.has(r.key));
+  const gapRow = gapKey ? filtered.find((r) => r.key === gapKey) : undefined;
+  const gap = useMemo(() => gapFor(gapRow), [gapRow, gapFor]);
 
   const orderLines: OrderLineInput[] = useMemo(
     () =>
@@ -874,6 +881,26 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         <div className="space-y-4">
           <StockGapDialog open={!!gapRow} onOpenChange={(v) => !v && setGapKey(null)} name={gapRow?.name || ''}
             unit={gapRow?.unit || ''} today={todayKey} gap={gap} shifted={(gapRow?.shifted || []).filter(u => !projDays[0] || u.day >= format(projDays[0], 'yyyy-MM-dd'))} />
+          {problemRows.length > 0 && (
+            <div className="rounded-lg border-2 border-destructive/60 bg-destructive/5 p-3 space-y-2">
+              <div className="font-semibold text-sm text-destructive">
+                ⚠ {problemRows.length} {problemRows.length === 1 ? "ingredient are" : "ingrediente au"} stocul diferit de cel așteptat
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Stocul de început de zi este stocul scriptic salvat automat în sistem la 05:00 (cu cât s-a terminat ziua anterioară), nu o numărătoare fizică.
+              </div>
+              <ul className="space-y-1 text-xs">
+                {problemRows.map((r) => (
+                  <li key={r.key}>
+                    <button type="button" onClick={() => setGapKey(r.key)} className="text-left hover:underline">
+                      <span className="font-semibold text-destructive">{r.name}</span>
+                      <span className="text-foreground">: {issuesByKey.get(r.key)!.map((i) => i.text).join(" · ")}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground items-center">
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-400" /> Stoc început zi</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Comandă (intrare)</span>
@@ -960,15 +987,22 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                   <tbody>
                     {g.items.map((r) => {
                       const pr = projection.get(r.key);
+                      const issues = issuesByKey.get(r.key);
                       return (
-                        <tr key={r.key} className="border-b hover:bg-muted/40">
-                          <td className="sticky left-0 z-10 bg-background border-r p-2 font-medium min-w-[190px]">
-                            <button type="button" onClick={() => setGapKey(r.key)} className="text-left hover:underline" title="Vezi de unde vine diferența de stoc">
-                              {r.name}
+                        <tr key={r.key} className={cn("border-b hover:bg-muted/40", issues && "bg-destructive/5")}>
+                          <td className={cn("sticky left-0 z-10 bg-background border-r p-2 font-medium min-w-[190px]", issues && "border-l-4 border-l-destructive")}>
+                            <button type="button" onClick={() => setGapKey(r.key)} className={cn("text-left hover:underline", issues && "text-destructive")} title="Vezi de unde vine diferența de stoc">
+                              {issues && "⚠ "}{r.name}
                             </button>
-                            <button type="button" onClick={() => setGapKey(r.key)} className="block text-[10px] font-normal text-primary hover:underline">
-                              De ce am atât?
-                            </button>
+                            {issues ? (
+                              <button type="button" onClick={() => setGapKey(r.key)} className="block text-left text-[10px] font-normal text-destructive hover:underline max-w-[180px]">
+                                {issues[0].text}
+                              </button>
+                            ) : (
+                              <button type="button" onClick={() => setGapKey(r.key)} className="block text-[10px] font-normal text-primary hover:underline">
+                                De ce am atât?
+                              </button>
+                            )}
                           </td>
                           <td className="sticky left-[190px] z-10 bg-background border-r p-2 text-muted-foreground uppercase">
                             {r.unit}
