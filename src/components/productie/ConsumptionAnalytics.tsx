@@ -742,8 +742,8 @@ const ConsumptionAnalytics = () => {
                   <TableHead>Necesar Pending (kg)</TableHead>
                   <TableHead>Total (kg)</TableHead>
                   <TableHead>Scos din depozit (kg)</TableHead>
-                  <TableHead>Écart ieșiri / necesar (kg)</TableHead>
-                  <TableHead>Écart ieșiri / necesar (%)</TableHead>
+                  <TableHead>Abatere ieșiri / necesar (kg)</TableHead>
+                  <TableHead>Abatere ieșiri / necesar (%)</TableHead>
                   <TableHead>Stoc început zi (kg)</TableHead>
                   <TableHead>Diferență (kg)</TableHead>
                   <TableHead>Comenzi Finalizate</TableHead>
@@ -925,6 +925,7 @@ const ConsumptionAnalytics = () => {
           )}
         </CardContent>
       </Card>
+      <ProductionUsageBreakdown from={startDate} to={endDate} />
     </div>
   );
 };

@@ -45,6 +45,7 @@ interface Row {
   outbound: Record<string, number>;
   otherDays: Record<string, number>;
   advances: Record<string, number>;
+  qualityLoss: Record<string, number>;
   diff: number;
   matched: boolean;
   perDayBrut: number[];
@@ -204,14 +205,6 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       });
       setDayCounts(counts);
 
-      if (false && orders.length === 0) {
-        setRows([]);
-        setMissingRecipes([]);
-        setLoading(false);
-        return;
-      }
-
-
       // 2. Rețete active
       const recipes = await readPages(() => supabase
         .from("productie_retete")
@@ -349,6 +342,18 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const m = receivedByProduct[id] ||= {}; const d = businessDay(r.receipt_date);
         m[d] = (m[d] || 0) + materialQuantity(r.net_quantity ?? r.original_quantity, r.unit);
       });
+      const qualityByProduct: Record<string, Record<string, number>> = {};
+      const qualityRows: any[] = [];
+      for (let i = 0; i < receipts.length; i += 50) {
+        qualityRows.push(...await readPages(() => supabase.from('reception_report_data')
+          .select('inventory_id, pierdere_calitativa_procent').in('inventory_id', receipts.slice(i, i + 50).map(r => r.id)).order('inventory_id')));
+      }
+      const qualityMap = new Map(qualityRows.map(r => [r.inventory_id, r]));
+      receipts.forEach(r => { const id = r.product_id || productByName.get(norm(r.name))?.id;
+        if (!id) return;
+        const m = qualityByProduct[id] ||= {}; const d = businessDay(r.receipt_date);
+        m[d] = (m[d] || 0) + materialQuantity(r.net_quantity ?? r.original_quantity, r.unit) * (Number(qualityMap.get(r.id)?.pierdere_calitativa_procent) || 0) / 100;
+      });
       const transferTable = `${prefix}stock_transfers`;
       const transferItemsTable = `${prefix}stock_transfer_items`;
       const transfers = await readPages(() => supabase.from(transferTable).select('id, transfer_date')
@@ -446,6 +451,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const coverAfterOrder = avgDaily > 0 ? totalAfterOrder / avgDaily : null;
         const name = p?.name || v.name;
         return {
+          qualityLoss: qualityByProduct[p?.id] || {},
           commitments: commitments[p?.id] || {}, snapshots: snapshotsByProduct[p?.id] || {},
           received: receivedByProduct[p?.id] || {}, outbound: outboundByProduct[p?.id] || {},
           otherDays: otherByName[key] || {}, advances: advanceByName[key] || {},
@@ -583,6 +589,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           line[`${date} - Consum / ieșiri`] = v?.consumption || 0;
           line[`${date} - Alte zile (estimat)`] = r.otherDays[day] || 0;
           line[`${date} - Avans (estimat)`] = r.advances[day] || 0;
+          line[`${date} - Pierdere calitativă raportată`] = r.qualityLoss[day] || 0;
+          line[`${date} - Recepționat minus comandat (nu dovadă lipsă)`] = (r.received[day] || 0) - (r.commitments[day] || 0);
           line[`${date} - Stoc final calculat`] = v?.closing ?? 'Necunoscut';
           line[`${date} - Abatere neexplicată`] = v?.residual ?? 'Necunoscut';
           line[`${date} - Comandă sugerată`] = v?.closing == null ? 'Necunoscut' : suggestedOrderFor(v.closing, projDays.map((_, j) => values?.[j]?.consumption || 0), i, r.buffer || 0);
@@ -822,7 +830,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       </p>
 
 
-      {view === 'proiectie' && <p className="text-xs text-muted-foreground">{stockSource} Trecut: snapshot zilnic + recepționat net − ieșiri din depozit. Abaterea față de snapshotul următor nu este automat pierdere. Viitor: estimare cu comenzile încă nelivrate; comenzile livrate rămân în coloana Comandat.</p>}
+      {view === 'proiectie' && <p className="text-xs text-muted-foreground">{stockSource} Trecut: snapshot zilnic + recepționat net − ieșiri din depozit. Abaterea față de snapshotul următor nu este automat pierdere. Recepționat − comandat este o comparație pe zi, nu o potrivire pe document (livrările pot întârzia). Pierderea calitativă este raportată separat, fără o a doua scădere din stoc; avansul și alte zile se pot suprapune și sunt deja incluse în consumul sesiunilor. Viitor: estimare cu comenzile încă nelivrate; comenzile livrate rămân în coloana Comandat.</p>}
       {missingRecipes.length > 0 && (
         <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
           Produse din comenzi fără rețetă activă (neincluse în calcul): {missingRecipes.join(", ")}
@@ -885,7 +893,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       {projDays.map((d) => (
                         <th
                           key={d.toISOString()}
-                          colSpan={9}
+                          colSpan={11}
                           className="sticky top-0 z-20 bg-background border-b border-r px-2 h-8 text-center whitespace-nowrap font-semibold"
                         >
                           {WEEKDAYS[isoDay(d)].slice(0, 3).toLowerCase()} {format(d, "d MMM", { locale: ro })}
@@ -910,9 +918,11 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                           </th>
                           <th className={stickyHead}>Alte zile (est.)</th>
                           <th className={stickyHead}>Avans (est.)</th>
+                          <th className={stickyHead}>Pierdere calitativă raportată</th>
+                          <th className={stickyHead}>Recepționat − comandat</th>
                           <th className={stickyHead}>Abatere neexplicată</th>
                           <th
-                            title="Consum mâine et tampon"
+                            title="Consum mâine + tampon"
                             className="sticky top-8 z-20 bg-background border-b border-r px-2 h-7 text-right text-[10px] font-medium text-primary whitespace-nowrap"
                           >
                             Comandă sugerată
@@ -945,6 +955,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                               <td className={cn('p-2 text-right tabular-nums', v?.closing != null && v.closing < 0 && 'text-destructive')}>{fmt(v?.closing)}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(r.otherDays[day] || 0)}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(r.advances[day] || 0)}</td>
+                              <td className="p-2 text-right tabular-nums">{fmt(r.qualityLoss[day] || 0)}</td>
+                              <td className="p-2 text-right tabular-nums">{fmt((r.received[day] || 0) - (r.commitments[day] || 0))}</td>
                               <td className={cn('p-2 text-right tabular-nums', !!v?.residual && 'text-destructive')}>{fmt(v?.residual)}</td>
                               <td className="p-2 text-right border-r tabular-nums text-primary">{fmt(suggestion)}</td>
                             </React.Fragment>;
