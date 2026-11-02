@@ -17,7 +17,8 @@ import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
-import { aggregateSnapshots, businessDay, dayBounds, historicalCommitments, materialQuantity, readPages, reconcileProjection, transferStockQuantity } from '@/lib/forecastReconciliation';
+import { aggregateSnapshots, businessDay, dayBounds, explainStockGap, historicalCommitments, materialQuantity, readPages, reconcileProjection, transferStockQuantity } from '@/lib/forecastReconciliation';
+import StockGapDialog from './StockGapDialog';
 import { loadProductionUsage } from '@/lib/productionUsage';
 import ProductionUsageBreakdown from '@/components/production/ProductionUsageBreakdown';
 
@@ -569,6 +570,23 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     });
     return map;
   }, [filtered, projDays, orderDates, mode]);
+
+  const todayKey = businessDay(new Date().toISOString());
+  const [gapKey, setGapKey] = useState<string | null>(null);
+  const gapRow = gapKey ? filtered.find((r) => r.key === gapKey) : undefined;
+  const gap = useMemo(() => {
+    if (!gapRow || !projDays[0]) return null;
+    const first = format(projDays[0], 'yyyy-MM-dd');
+    if (first >= todayKey) return null;
+    const dates = eachDayOfInterval({ start: projDays[0], end: startOfDay(new Date()) }).map((d) => format(d, 'yyyy-MM-dd'));
+    const planned: Record<string, number> = {};
+    dates.forEach((day) => {
+      planned[day] = day in gapRow.perDate ? gapRow.perDate[day] || 0 : gapRow.perDayAvg[isoDay(new Date(`${day}T12:00:00`))] || 0;
+    });
+    return explainStockGap({ dates, today: todayKey, snapshots: gapRow.snapshots, ordered: gapRow.commitments,
+      received: gapRow.received, returned: gapRow.returned, outbound: gapRow.outbound, planned,
+      advances: gapRow.advances, otherDays: gapRow.otherDays, qualityLoss: gapRow.qualityLoss });
+  }, [gapRow, projDays, todayKey]);
 
   const orderLines: OrderLineInput[] = useMemo(
     () =>
