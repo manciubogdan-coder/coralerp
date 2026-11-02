@@ -1154,6 +1154,7 @@ export type Database = {
           occurred_at: string
           persoana: string | null
           poza_path: string | null
+          serie_husa: string | null
           sofer: string | null
           tip: string
           zona: string
@@ -1173,6 +1174,7 @@ export type Database = {
           occurred_at?: string
           persoana?: string | null
           poza_path?: string | null
+          serie_husa?: string | null
           sofer?: string | null
           tip: string
           zona?: string
@@ -1192,6 +1194,7 @@ export type Database = {
           occurred_at?: string
           persoana?: string | null
           poza_path?: string | null
+          serie_husa?: string | null
           sofer?: string | null
           tip?: string
           zona?: string
