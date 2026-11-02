@@ -868,6 +868,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         <div className="text-center py-8 text-muted-foreground">Nu există comenzi de client în perioada selectată.</div>
       ) : view === "proiectie" ? (
         <div className="space-y-4">
+          <StockGapDialog open={!!gapRow} onOpenChange={(v) => !v && setGapKey(null)} name={gapRow?.name || ''}
+            unit={gapRow?.unit || ''} today={todayKey} gap={gap} />
           <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground items-center">
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-400" /> Stoc început zi</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Comandă (intrare)</span>
