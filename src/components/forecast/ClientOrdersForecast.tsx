@@ -336,7 +336,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const id = resolveProduct(r);
         if (!id) return;
         const m = receivedByProduct[id] ||= {}; const d = businessDay(r.receipt_date);
-        m[d] = (m[d] || 0) + materialQuantity(r.net_quantity ?? r.original_quantity, r.unit);
+        m[d] = (m[d] || 0) + materialQuantity(r.original_quantity ?? r.net_quantity, r.unit);
       });
       const qualityByProduct: Record<string, Record<string, number>> = {};
       const qualityRows: any[] = [];
@@ -348,7 +348,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       receipts.forEach(r => { const id = resolveProduct(r);
         if (!id) return;
         const m = qualityByProduct[id] ||= {}; const d = businessDay(r.receipt_date);
-        m[d] = (m[d] || 0) + materialQuantity(r.net_quantity ?? r.original_quantity, r.unit) * (Number(qualityMap.get(r.id)?.pierdere_calitativa_procent) || 0) / 100;
+        m[d] = (m[d] || 0) + materialQuantity(r.original_quantity ?? r.net_quantity, r.unit) * (Number(qualityMap.get(r.id)?.pierdere_calitativa_procent) || 0) / 100;
       });
       const transferTable = `${prefix}stock_transfers`;
       const transferItemsTable = `${prefix}stock_transfer_items`;
