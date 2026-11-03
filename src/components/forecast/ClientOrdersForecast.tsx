@@ -479,6 +479,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           need.set(k, { name: p.name, qty: 0, perDay: [0, 0, 0, 0, 0, 0, 0] });
       });
 
+      const transferRefDays = eachDayOfInterval({ start: avgStart, end: addDays(today, -1) }).map(d => format(d, 'yyyy-MM-dd'));
       const result: Row[] = [...need.entries()].map(([key, v]) => {
         const p = productByName.get(key);
         const pt = Number(p?.pt_percent) || 0;
