@@ -17,7 +17,7 @@ import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
-import { aggregateSnapshots, businessDay, dayBounds, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isProductionDestination, materialQuantity, readPages, reconcileProjection, transferStockQuantity } from '@/lib/forecastReconciliation';
+import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isProductionDestination, materialQuantity, readPages, reconcileProjection, transferStockQuantity, weekdayAverages } from '@/lib/forecastReconciliation';
 import ConsumptionSourcesDialog, { type ConsumptionSource } from './ConsumptionSourcesDialog';
 import StockGapDialog from './StockGapDialog';
 import { loadProductionUsage } from '@/lib/productionUsage';
@@ -58,6 +58,7 @@ interface Row {
   matched: boolean;
   perDayBrut: number[];
   perDayAvg: number[];
+  refAvg: number[];
   buffer?: number;
   perDate: Record<string, number>;
   avgDaily: number;
@@ -117,6 +118,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   // Grupe minimizate în tabel
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [consumptionSelection, setConsumptionSelection] = useState<{ key: string; day: string; index: number } | null>(null);
+  const [refRange, setRefRange] = useState<{ from: Date; to: Date }>({ from: subDays(new Date(), 7), to: subDays(new Date(), 1) });
 
 
   const getTableNames = () => {
@@ -502,6 +504,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           otherDays: otherByName[key] || {}, advances: advanceByName[key] || {}, shifted: shiftedByName[key] || [],
           perDayBrut,
           perDate: Object.fromEntries(Object.entries(futNeed.get(key) || {}).map(([d, q]) => [d, q * factor])),
+          refAvg: weekdayAverages(Object.fromEntries(Object.entries(futNeed.get(key) || {}).map(([d, q]) => [d, q * factor])), refDays),
           buffer: ((weekNeed.get(key) || 0) / 7) * factor,
           perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
           key,
