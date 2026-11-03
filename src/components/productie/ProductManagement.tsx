@@ -18,6 +18,7 @@ import GrupareAmbalareDialog from './GrupareAmbalareDialog';
 import ProductPackagingEditor from './ProductPackagingEditor';
 import MixedCartonEditor from './MixedCartonEditor';
 import { useMixedCartons } from '@/hooks/productie/useMixedCartons';
+import { syncCartonRecipes } from '@/lib/productie/cartonRecipes';
 import { exportToExcel } from '@/lib/excelExport';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -53,6 +54,13 @@ const ProductManagement = () => {
   const [distributionHydrated, setDistributionHydrated] = useState(false);
   const [cartonProduct, setCartonProduct] = useState<any>(null);
   const { data: cartons = [] } = useMixedCartons();
+  const cartonSyncDone = React.useRef(false);
+  // Self-heal: cartons configured before automatic carton recipes get theirs on first open.
+  React.useEffect(() => {
+    if (cartonSyncDone.current || !cartons.some(c => c.enabled)) return;
+    cartonSyncDone.current = true;
+    syncCartonRecipes().then(r => { if (r.updated) queryClient.invalidateQueries({ queryKey: ['recipes'] }); }).catch(e => console.error('Rețetele baxurilor mixte nu s-au actualizat', e));
+  }, [cartons]);
   const [formData, setFormData] = useState<ProductFormData>({
     nume: '',
     descriere: '',

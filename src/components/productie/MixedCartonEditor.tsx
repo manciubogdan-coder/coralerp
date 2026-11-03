@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { syncCartonRecipes } from '@/lib/productie/cartonRecipes';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -30,6 +31,9 @@ export default function MixedCartonEditor({ product, products, recipeIds, editRe
       setBusy(true);
       await edgeFetchJson(ARGUS_URL.replace(/\/argus$/, '/mixed-cartons'), { method: 'POST', headers: await argusHeaders(), body: { produs_id: product.id, aliases: aliases.split('\n').map(x => x.trim()).filter(Boolean), components: parts, enabled } });
       await cache.invalidateQueries({ queryKey: ['mixed-cartons'] });
+      const synced = await syncCartonRecipes(product.id);
+      await cache.invalidateQueries({ queryKey: ['recipes'] });
+      if (synced.missing.length) toast.warning(`Rețeta baxului nu se poate calcula: lipsește rețeta la ${synced.missing.join(', ')}.`);
       toast.success('Compoziția baxului a fost salvată. Comenzile deja desfăcute își păstrează compoziția.');
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Nu am putut salva baxul.'); } finally { setBusy(false); }
   };
