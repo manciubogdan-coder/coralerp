@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { aggregateSnapshots, businessDay, dayBounds, historicalCommitments, reconcileProjection, sessionUsage, stockVariance, transferStockQuantity } from '../../src/lib/forecastReconciliation';
+import { aggregateSnapshots, businessDay, dayBounds, historicalCommitments, isProductionDestination, reconcileProjection, sessionUsage, stockVariance, transferStockQuantity } from '../../src/lib/forecastReconciliation';
 import { stockGapIssues } from "../../src/lib/forecastReconciliation";
 
 test('delivered historical commitments remain visible at their ETA but cancelled do not', () => {
@@ -24,7 +24,7 @@ test('missing historical snapshot stays unknown, zero stock remains known', () =
 test('future remains signed and never hides negative stock or counts delivered commitment twice', () => {
   const result = reconcileProjection({ dates: ['2026-11-02', '2026-11-03'], today: '2026-11-02', anchor: 1855,
     snapshots: { '2026-11-02': 1855 }, ordered: { '2026-11-03': 100 }, received: {}, outbound: {}, demand: [2000, 50] });
-  expect(result.map(r => r.closing)).toEqual([-145, -95]);
+  expect(result.map(r => r.closing)).toEqual([1855, 1905]);
 });
 test('completed sessions attribute actual produced quantity to worked day and other order day, using custom recipe', () => {
   const usage = sessionUsage([{ comanda_id: 'a', ora_sfarsit: '2026-11-01T22:30:00Z', status: 'finalizata', cantitate_produsa: 100 }],
@@ -61,11 +61,29 @@ test('warehouse returns restore balance without counting production consumption 
   expect(result[0].closing).toBe(2417);
   expect(result[0].residual).toBe(0);
 });
-test('today includes receipts already arrived and only outstanding supplier deliveries', () => {
+test('today counts only received quantities when a receipt exists, never ordered plus received', () => {
   const result = reconcileProjection({ dates: ['2026-11-02'], today: '2026-11-02', anchor: 1855,
     snapshots: { '2026-11-02': 1855 }, ordered: { '2026-11-02': 200 },
     received: { '2026-11-02': 800 }, outbound: {}, demand: [1000] });
-  expect(result[0].closing).toBe(1855);
+  expect(result[0].incoming).toBe(800);
+  expect(result[0].closing).toBe(2655);
+});
+test('today consumption matches production issues, not three times recipe demand, with other issues affecting stock only', () => {
+  const result = reconcileProjection({ dates: ['2026-11-03'], today: '2026-11-03', anchor: 1000,
+    snapshots: { '2026-11-03': 1000 }, ordered: {}, received: {}, returned: { '2026-11-03': 20 },
+    outbound: { '2026-11-03': 120 }, actualConsumption: { '2026-11-03': 100 }, demand: [300] });
+  expect(result[0].consumption).toBe(100);
+  expect(result[0].closing).toBe(900);
+});
+test('future receipts also replace commitments, including an explicitly recorded zero', () => {
+  const result = reconcileProjection({ dates: ['2026-11-04', '2026-11-05'], today: '2026-11-03', anchor: 1000,
+    snapshots: {}, ordered: { '2026-11-04': 500, '2026-11-05': 500 }, received: { '2026-11-04': 200, '2026-11-05': 0 }, outbound: {}, demand: [100, 100] });
+  expect(result.map(r => r.closing)).toEqual([1100, 1000]);
+});
+test('consumption report and projection recognize the same production destinations', () => {
+  expect(isProductionDestination('Producție')).toBe(true);
+  expect(isProductionDestination('PRODUCTIE salate')).toBe(true);
+  expect(isProductionDestination('Client')).toBe(false);
 });
 test('explainStockGap splits the missing rucola stock into exact causes', async () => {
   const { explainStockGap } = await import('../../src/lib/forecastReconciliation');
