@@ -29,7 +29,7 @@ import * as XLSX from 'xlsx';
 
 import { parsePdfToRawData } from "@/lib/productie/parsePdfToTable";
 import TemplateWizard from "@/components/productie/TemplateWizard";
-import { loadMixedCartons } from '@/hooks/productie/useMixedCartons';
+import { loadMixedCartons, useMixedCartons } from '@/hooks/productie/useMixedCartons';
 import { findCarton, expandCarton } from '../../../supabase/functions/_shared/mixedCartons';
 import ScanColumnPicker, { type ScanColumnConfig } from "@/components/productie/ScanColumnPicker";
 
@@ -40,6 +40,7 @@ interface ExtractedProduct {
   gramaj: string;
   cantitate: number;
   confidence: number;
+  carton_unit?: 'bax' | 'buc';
   matched_product_id?: string;
 }
 
@@ -90,6 +91,7 @@ export default function OrderOCR() {
 
   const { data: clients } = useClients();
   const { data: products } = useProducts();
+  const { data: cartonDefinitions = [] } = useMixedCartons();
   const createOrder = useCreateOrder();
   const autoDistribute = useAutoDistributeToLine();
 
@@ -1580,7 +1582,8 @@ export default function OrderOCR() {
 
            // Save to OCR orders table instead of creating production orders
            const carton = findCarton(definitions, product.matched_product_id, product.nume_produs);
-           const componentRows = carton ? expandCarton(carton, product.cantitate) : [{ produs_id: product.matched_product_id, nume: product.nume_produs, quantity: product.cantitate, gramaj: null }];
+           if (carton && !product.carton_unit) throw new Error(`${product.nume_produs}: alege Baxuri sau Bucăți totale înainte de salvare.`);
+           const componentRows = carton ? expandCarton(carton, product.cantitate, product.carton_unit) : [{ produs_id: product.matched_product_id, nume: product.nume_produs, quantity: product.cantitate, gramaj: null }];
            for (const component of componentRows) ocrRecords.push({
              data_comanda: format(selectedDate, 'yyyy-MM-dd'),
              client_id: client.id,
@@ -1926,6 +1929,7 @@ export default function OrderOCR() {
                           </TableCell>
                           <TableCell>
                             {getConfidenceBadge(product.confidence)}
+                            {findCarton(cartonDefinitions, product.matched_product_id, product.nume_produs) && <Select value={product.carton_unit ?? ''} onValueChange={v => setExtractedOrders(prev => prev.map(o => o.id === order.id ? { ...o, products: o.products.map((p, j) => j === idx ? { ...p, carton_unit: v as 'bax' | 'buc' } : p) } : o))}><SelectTrigger className="w-44"><SelectValue placeholder="Alege unitatea" /></SelectTrigger><SelectContent><SelectItem value="bax">Baxuri mixte</SelectItem><SelectItem value="buc">Bucăți totale în bax</SelectItem></SelectContent></Select>}
                           </TableCell>
                           <TableCell>
                             <Button 
