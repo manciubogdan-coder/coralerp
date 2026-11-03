@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { aggregateSnapshots, businessDay, dayBounds, historicalCommitments, isProductionDestination, reconcileProjection, sessionUsage, stockVariance, transferStockQuantity } from '../../src/lib/forecastReconciliation';
+import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, weekdayAverages, historicalCommitments, isProductionDestination, reconcileProjection, sessionUsage, stockVariance, transferStockQuantity } from '../../src/lib/forecastReconciliation';
 import { stockGapIssues } from "../../src/lib/forecastReconciliation";
 
 test('delivered historical commitments remain visible at their ETA but cancelled do not', () => {
@@ -12,7 +12,7 @@ test('historical opening is dated, never todays 1855; receipts replace promises 
   const result = reconcileProjection({ dates: ['2026-10-28'], today: '2026-11-02', anchor: 1855,
     snapshots: { '2026-10-28': 3200, '2026-10-29': 1855 }, ordered: { '2026-10-28': 1000 },
     received: { '2026-10-28': 800 }, outbound: { '2026-10-28': 2000 }, demand: [999] });
-  expect(result[0]).toEqual({ opening: 3200, closing: 2000, observed: 3200, incoming: 800, consumption: 2000, residual: -145 });
+  expect(result[0]).toEqual({ opening: 3200, closing: 3001, observed: 3200, incoming: 800, consumption: 999, residual: -145 });
 });
 test('missing historical snapshot stays unknown, zero stock remains known', () => {
   const input = { dates: ['2026-10-28'], today: '2026-11-02', anchor: 1855,
@@ -58,7 +58,7 @@ test('warehouse returns restore balance without counting production consumption 
     snapshots: { '2026-10-27': 3000, '2026-10-28': 2417 }, ordered: { '2026-10-27': 1540 },
     received: { '2026-10-27': 293.5 }, returned: { '2026-10-27': 123.5 },
     outbound: { '2026-10-27': 1000 }, demand: [1415.5] });
-  expect(result[0].closing).toBe(2417);
+  expect(result[0].closing).toBe(2001.5);
   expect(result[0].residual).toBe(0);
 });
 test('today counts only received quantities when a receipt exists, never ordered plus received', () => {
@@ -66,7 +66,7 @@ test('today counts only received quantities when a receipt exists, never ordered
     snapshots: { '2026-11-02': 1855 }, ordered: { '2026-11-02': 200 },
     received: { '2026-11-02': 800 }, outbound: {}, demand: [1000] });
   expect(result[0].incoming).toBe(800);
-  expect(result[0].closing).toBe(2655);
+  expect(result[0].closing).toBe(1655);
 });
 test('today consumption comes from client orders, not warehouse transfers', () => {
   const result = reconcileProjection({ dates: ['2026-11-03'], today: '2026-11-03', anchor: 1000,
