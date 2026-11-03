@@ -83,11 +83,46 @@ export function stockVariance(opening: number | null, closing: number | null, re
   return opening === null || closing === null ? null : closing - (opening + receipts - outbound);
 }
 
+const isAdvanceOrder = (o: any) => o.tip_comanda === 'PRODUCTIE_AVANS' || o.magazin === 'PRODUCTIE_AVANS';
+
+/**
+ * Order quantities that drive raw-material consumption for their production day.
+ * Firm orders count fully; same-day advance plans only add the part not already
+ * covered by firm orders of the same product (max(firm, advance) per product/day).
+ */
+export function effectiveOrderQuantities<T extends { produs_id?: string | null; data_productie?: string | null; cantitate?: unknown; status?: string; tip_comanda?: string; magazin?: string }>(orders: T[]) {
+  const live = orders.filter(o => o.produs_id && o.data_productie && o.status !== 'canceled_by_erp');
+  const firmTotals = new Map<string, number>(), advanceTotals = new Map<string, number>();
+  const keyOf = (o: T) => `${o.produs_id}|${String(o.data_productie).slice(0, 10)}`;
+  for (const o of live) {
+    const m = isAdvanceOrder(o) ? advanceTotals : firmTotals;
+    m.set(keyOf(o), (m.get(keyOf(o)) || 0) + (Number(o.cantitate) || 0));
+  }
+  return live.map(o => {
+    const qty = Number(o.cantitate) || 0;
+    if (!isAdvanceOrder(o)) return { order: o, quantity: qty, advance: false };
+    const advance = advanceTotals.get(keyOf(o)) || 0, firm = firmTotals.get(keyOf(o)) || 0;
+    const share = advance > 0 ? qty / advance : 0;
+    return { order: o, quantity: Math.max(0, advance - firm) * share, advance: true };
+  }).filter(r => r.quantity > 0);
+}
+
+/** Weekday average over every reference day (days without orders count as zero). */
+export function weekdayAverages(totals: Record<string, number>, days: string[]) {
+  const sums = [0, 0, 0, 0, 0, 0, 0], counts = [0, 0, 0, 0, 0, 0, 0];
+  for (const day of days) {
+    const w = (new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7;
+    counts[w] += 1; sums[w] += totals[day] || 0;
+  }
+  return sums.map((s, i) => counts[i] ? s / counts[i] : 0);
+}
+
 export function reconcileProjection(input: {
   dates: string[]; today: string; anchor: number | null;
   snapshots: Record<string, number>; ordered: Record<string, number>;
-  received: Record<string, number>; outbound: Record<string, number>; returned?: Record<string, number>; demand: number[];
-  actualConsumption?: Record<string, number>;
+  received: Record<string, number>; outbound: Record<string, number>; returned?: Record<string, number>;
+  /** Consumption per day from client orders × recipes (estimated average where no orders exist). */
+  demand: number[];
 }) {
   let running: number | null = input.anchor;
   return input.dates.map((day, i) => {
@@ -97,14 +132,12 @@ export function reconcileProjection(input: {
     const hasReceipt = Object.prototype.hasOwnProperty.call(input.received, day);
     const incoming = (hasReceipt ? input.received[day] || 0 : historical ? 0 : input.ordered[day] || 0)
       + (input.returned?.[day] || 0);
-    const consumption = day <= input.today
-      ? (input.actualConsumption ?? input.outbound)[day] || 0 : input.demand[i] || 0;
-    // The warehouse balance includes all issues; the consumption report includes production only.
-    const deduction = day <= input.today ? input.outbound[day] || 0 : consumption;
-    const closing = opening === null ? null : opening + incoming - deduction;
+    const consumption = input.demand[i] || 0;
+    const closing = opening === null ? null : opening + incoming - consumption;
     const nextDay = new Date(`${day}T12:00:00Z`); nextDay.setUTCDate(nextDay.getUTCDate() + 1);
     const nextSnapshot = input.snapshots[nextDay.toISOString().slice(0, 10)] ?? null;
-    const residual = historical ? stockVariance(opening, nextSnapshot, incoming, deduction) : null;
+    // Ledger check against real warehouse issues, independent of order-based consumption.
+    const residual = historical ? stockVariance(opening, nextSnapshot, incoming, input.outbound[day] || 0) : null;
     running = closing;
     return { opening, closing, observed, incoming, consumption, residual };
   });
