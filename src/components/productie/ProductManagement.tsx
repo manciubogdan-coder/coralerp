@@ -49,6 +49,8 @@ const ProductManagement = () => {
   const [isGrupareOpen, setIsGrupareOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [recipesHydrated, setRecipesHydrated] = useState(false);
+  const [distributionHydrated, setDistributionHydrated] = useState(false);
   const [cartonProduct, setCartonProduct] = useState<any>(null);
   const { data: cartons = [] } = useMixedCartons();
   const [formData, setFormData] = useState<ProductFormData>({
@@ -76,8 +78,10 @@ const ProductManagement = () => {
   const deleteProductMutation = useDeleteProduct();
   const createRecipeMutation = useCreateRecipe();
   const updateRecipeMutation = useUpdateRecipe();
-  const { data: existingRecipes, isLoading: recipesLoading, error: recipesError } = useRecipesByProduct(editingProduct?.id || '');
-  const { data: existingDistributionRules, isLoading: distributionLoading } = useDistributionRulesByProduct(editingProduct?.id || '');
+  const { data: existingRecipes, isLoading: recipesLoading, error: recipesError, refetch: retryRecipes } = useRecipesByProduct(editingProduct?.id || '');
+  const { data: existingDistributionRules, isLoading: distributionLoading, error: distributionError, refetch: retryDistribution } = useDistributionRulesByProduct(editingProduct?.id || '');
+  const editingCarton = cartons.find(c => c.enabled && c.produs_id === editingProduct?.id);
+  const editorLoading = Boolean(editingProduct && (!recipesHydrated || !distributionHydrated));
 
   const { mutateAsync: createDistributionRule } = useCreateDistributionRule();
   const { mutateAsync: deleteDistributionRulesByProduct } = useDeleteDistributionRulesByProduct();
@@ -152,7 +156,7 @@ const ProductManagement = () => {
 
   // Effect pentru a actualiza form data când se încarcă rețetele existente
   useEffect(() => {
-    if (editingProduct && existingRecipes && existingRecipes.length > 0) {
+    if (isDialogOpen && editingProduct && !recipesHydrated && !recipesLoading && !recipesError && existingRecipes) {
       const mappedIngredients = existingRecipes[0]?.productie_retete_ingrediente?.map(recipeIngredient => ({
         ingredient_id: recipeIngredient.ingredient_id,
         nume_ingredient: recipeIngredient.productie_ingrediente?.nume || 'Necunoscut',
@@ -165,12 +169,13 @@ const ProductManagement = () => {
         ...prev,
         ingredients: mappedIngredients
       }));
+      setRecipesHydrated(true);
     }
-  }, [editingProduct, existingRecipes]);
+  }, [isDialogOpen, editingProduct, existingRecipes, recipesLoading, recipesError, recipesHydrated]);
 
   // Effect pentru a actualiza regulile de distribuire când se încarcă
   useEffect(() => {
-    if (editingProduct && existingDistributionRules && existingDistributionRules.length > 0) {
+    if (isDialogOpen && editingProduct && !distributionHydrated && !distributionLoading && !distributionError && existingDistributionRules) {
       const mappedDistribution = existingDistributionRules.map(rule => ({
         linie_id: rule.linie_preferata_id,
         nume_linie: rule.productie_linii?.nume || 'Necunoscut',
@@ -181,8 +186,9 @@ const ProductManagement = () => {
         ...prev,
         lineDistribution: mappedDistribution
       }));
+      setDistributionHydrated(true);
     }
-  }, [editingProduct, existingDistributionRules]);
+  }, [isDialogOpen, editingProduct, existingDistributionRules, distributionLoading, distributionError, distributionHydrated]);
 
   const resetForm = () => {
     setFormData({
@@ -206,6 +212,8 @@ const ProductManagement = () => {
   };
 
   const openEdit = (product: any) => {
+    setRecipesHydrated(false);
+    setDistributionHydrated(false);
     setEditingProduct(product);
     
     setFormData({
@@ -312,8 +320,8 @@ const ProductManagement = () => {
   };
 
   const handleSubmit = async () => {
-    if (saving || (editingProduct && (recipesLoading || distributionLoading))) return;
-    if (recipesError) {
+    if (saving || editorLoading) return;
+    if (recipesError || distributionError) {
       toast({ variant: 'destructive', title: 'Rețeta nu s-a încărcat', description: 'Închide și redeschide produsul înainte să salvezi.' });
       return;
     }
@@ -381,6 +389,8 @@ const ProductManagement = () => {
         });
         // If recipe persistence fails, retry the existing product instead of creating a duplicate.
         setEditingProduct(productResult);
+        setRecipesHydrated(true);
+        setDistributionHydrated(true);
 
         // Pentru produs nou, creăm rețeta dacă avem ingrediente
         if (formData.ingredients.length > 0) {
@@ -662,7 +672,15 @@ const ProductManagement = () => {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {editingProduct && (recipesError || distributionError) ? (
+            <div role="alert" className="space-y-2 text-destructive">
+              <p>Rețeta sau liniile nu s-au putut încărca. Datele salvate nu au fost șterse.</p>
+              <Button variant="outline" onClick={() => { void retryRecipes(); void retryDistribution(); }}>Încearcă din nou</Button>
+            </div>
+          ) : editorLoading ? (
+            <p role="status" className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Se încarcă rețeta și liniile pentru {editingProduct?.nume}…</p>
+          ) : null}
+          <fieldset disabled={saving || editorLoading} hidden={editorLoading} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Informații Produs</h3>
               <div className="space-y-2">
@@ -693,7 +711,13 @@ const ProductManagement = () => {
 
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Rețetă Produs</h3>
-
+              {editingCarton ? <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Bax mixt — rețete pe produs component</p>
+                {editingCarton.components.map(component => <div key={component.produs_id} className="space-y-1">
+                  <p className="text-sm font-medium">{component.units} buc {component.nume}</p>
+                  <Button variant="link" className="h-auto px-0" onClick={() => { const product = products?.find(p => p.id === component.produs_id); if (product) openEdit(product); }}>Deschide rețeta / bucată</Button>
+                </div>)}
+              </div> : <>
               {/* Form pentru adăugare ingredient */}
               <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
                 <div className="grid grid-cols-2 gap-2">
@@ -782,6 +806,8 @@ const ProductManagement = () => {
                   </div>
                 </div>
               )}
+              {formData.ingredients.length === 0 && <p className="text-sm text-muted-foreground">Nu există ingrediente salvate pentru acest produs.</p>}
+              </>}
             </div>
 
             {/* Secțiunea pentru Distribuție pe Linii */}
@@ -860,7 +886,7 @@ const ProductManagement = () => {
                 </div>
               )}
             </div>
-          </div>
+          </fieldset>
 
           {editingProduct && <ProductPackagingEditor key={editingProduct.id} productId={editingProduct.id} />}
 
@@ -870,7 +896,7 @@ const ProductManagement = () => {
             </Button>
             <Button 
               onClick={handleSubmit}
-              disabled={saving || Boolean(editingProduct && (recipesLoading || distributionLoading || recipesError))}
+              disabled={saving || editorLoading || Boolean(editingProduct && (recipesError || distributionError))}
             >
               {(saving || (editingProduct && (recipesLoading || distributionLoading))) && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
