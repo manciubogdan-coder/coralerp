@@ -17,7 +17,7 @@ import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
-import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isProductionDestination, materialQuantity, readPages, reconcileProjection, transferStockQuantity, weekdayAverages } from '@/lib/forecastReconciliation';
+import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isProductionDestination, materialQuantity, netPendingDeliveries, readPages, reconcileProjection, transferStockQuantity, weekdayAverages } from '@/lib/forecastReconciliation';
 import ConsumptionSourcesDialog, { type ConsumptionSource } from './ConsumptionSourcesDialog';
 import StockGapDialog from './StockGapDialog';
 import { loadProductionUsage } from '@/lib/productionUsage';
@@ -603,10 +603,15 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   }, [projFrom, projTo]);
 
   const todayKey = businessDay(new Date().toISOString());
-  // Consumul unei zile: transferurile reale din depozit în producție (ieri/azi/trecut);
-  // zilele viitoare folosesc media transferurilor din aceeași zi a săptămânii (ultimele 4 săptămâni).
-  const dayDemand = useCallback((row: any, day: string) => day <= todayKey ? row.actualConsumption[day] || 0
-    : row.transferAvg[isoDay(new Date(`${day}T12:00:00`))] || 0, [todayKey]);
+  // Consumul unei zile: zilele trecute = transferurile reale din depozit în producție;
+  // azi (zi în curs) = media istorică a zilei, sau transferurile de azi dacă le-au depășit deja;
+  // zilele viitoare = media transferurilor din aceeași zi a săptămânii (ultimele 4 săptămâni).
+  const dayDemand = useCallback((row: any, day: string) => {
+    const avg = row.transferAvg[isoDay(new Date(`${day}T12:00:00`))] || 0;
+    if (day < todayKey) return row.actualConsumption[day] || 0;
+    if (day === todayKey) return Math.max(avg, row.actualConsumption[day] || 0);
+    return avg;
+  }, [todayKey]);
 
   const projection = useMemo(() => {
     const map = new Map<string, ReturnType<typeof reconcileProjection>>();
@@ -616,8 +621,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const simulationDays = eachDayOfInterval({ start: simulationStart, end: addDays(projDays[projDays.length - 1], 2) });
       const dates = simulationDays.map(d => format(d, 'yyyy-MM-dd'));
       const demand = dates.map(d => dayDemand(r, d));
+      const ordered = netPendingDeliveries({ ordered: r.orderedPerDate, received: r.received, commitments: r.commitments, today: todayKey });
       const result = reconcileProjection({ dates, today: todayKey, anchor: r.snapshots[todayKey] ?? null,
-        snapshots: r.snapshots, ordered: r.orderedPerDate, received: r.received, returned: r.returned, outbound: r.outbound, demand });
+        snapshots: r.snapshots, ordered, received: r.received, returned: r.returned, outbound: r.outbound, demand });
       const offset = dates.indexOf(format(first, 'yyyy-MM-dd'));
       map.set(r.key, result.slice(offset, offset + projDays.length));
     });
@@ -649,11 +655,18 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     if (!row) return null;
     const { day, index } = consumptionSelection;
     const total = projection.get(row.key)?.[index]?.consumption || 0;
-    const actual = day <= todayKey;
     const weekday = format(new Date(`${day}T12:00:00`), 'EEEE', { locale: ro });
-    const sources = actual ? row.consumptionSources.filter(s => s.day === day)
+    const transfers = row.consumptionSources.filter(s => s.day === day);
+    const transferredSoFar = row.actualConsumption[day] || 0;
+    const avg = row.transferAvg[isoDay(new Date(`${day}T12:00:00`))] || 0;
+    const actual = day < todayKey || (day === todayKey && transferredSoFar > avg);
+    const fmtQ = (n: number) => n.toLocaleString('ro-RO', { maximumFractionDigits: 2 });
+    const sources = actual ? transfers
       : total > 0
-        ? [{ id: 'average', day, source: `Medie transferuri în producție de ${weekday}`, detail: `Media bonurilor de transfer către producție din ultimele 4 săptămâni (${weekday})`, quantity: total }]
+        ? [{ id: 'average', day, source: `Medie transferuri în producție de ${weekday}`,
+            detail: `Media bonurilor de transfer către producție din ultimele 4 săptămâni (${weekday})`
+              + (day === todayKey ? `\nTransferat azi până acum: ${fmtQ(transferredSoFar)} ${row.unit} (ziua nu s-a terminat)` : ''),
+            quantity: total }]
         : [];
     return { name: row.name, unit: row.unit, day, sources, total, estimated: !actual };
   }, [consumptionSelection, filtered, projection, todayKey]);

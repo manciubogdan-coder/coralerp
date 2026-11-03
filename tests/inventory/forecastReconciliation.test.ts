@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, weekdayAverages, historicalCommitments, isProductionDestination, reconcileProjection, sessionUsage, stockVariance, transferStockQuantity } from '../../src/lib/forecastReconciliation';
+import { netPendingDeliveries, aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, weekdayAverages, historicalCommitments, isProductionDestination, reconcileProjection, sessionUsage, stockVariance, transferStockQuantity } from '../../src/lib/forecastReconciliation';
 import { stockGapIssues } from "../../src/lib/forecastReconciliation";
 
 test('delivered historical commitments remain visible at their ETA but cancelled do not', () => {
@@ -134,3 +134,16 @@ test('explainStockGap splits the missing rucola stock into exact causes', async 
     expect(stockGapIssues({ ...base, gap: -200 }, 'kg')).toEqual([]);
   });
 }
+
+test('receipt yesterday for an order due today is not added again', () => {
+  expect(netPendingDeliveries({ ordered: { '2026-11-03': 500 }, received: { '2026-11-02': 500 },
+    commitments: { '2026-11-03': 500 }, today: '2026-11-03' })['2026-11-03']).toBe(0);
+});
+test('early receipt today cancels tomorrow\'s pending order', () => {
+  expect(netPendingDeliveries({ ordered: { '2026-11-04': 300 }, received: { '2026-11-03': 200 },
+    commitments: { '2026-11-04': 300 }, today: '2026-11-03' })['2026-11-04']).toBe(100);
+});
+test('receipt matching its own due day leaves later orders intact', () => {
+  expect(netPendingDeliveries({ ordered: { '2026-11-04': 300 }, received: { '2026-11-02': 400 },
+    commitments: { '2026-11-02': 400, '2026-11-04': 300 }, today: '2026-11-03' })['2026-11-04']).toBe(300);
+});
