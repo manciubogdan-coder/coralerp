@@ -15,7 +15,7 @@ import { actionTools, handleActionDecision } from "./actions.ts";
 import { syncSeniorPackaging } from '../_shared/seniorPackaging.ts';
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments, attachmentSummaries, rereadAttachment } from "./files.ts";
-import { validChatMessages, readChatHistory } from "./chatHistory.ts";
+import { validChatMessages, readChatHistory, repairChatMessageIds } from "./chatHistory.ts";
 import { rollingContext } from "./context.ts";
 import { compactData, attachmentManifest, messageText } from "./contextRules.ts";
 import {
@@ -119,7 +119,7 @@ Limitează-te la maxim 10-15 interogări; apoi scrie OBLIGATORIU răspunsul fina
 async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userId: string) {
   const body = await req.json();
   const threadId = String(body.threadId ?? "");
-  const messages = body.messages as UIMessage[];
+  const messages = repairChatMessageIds(body.messages as UIMessage[], threadId);
   if (!threadId || !validChatMessages(messages)) return json({ error: "Mesaj invalid. Reîncarcă această conversație și încearcă din nou." }, 400);
   const { data: th } = await c.cloud.from("argus_threads").select("id,title").eq("id", threadId).eq("user_id", userId).maybeSingle();
   if (!th) return json({ error: "Conversația nu există" }, 404);
@@ -253,6 +253,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
   return withLovableAiGatewayRunIdHeader(result.toUIMessageStreamResponse({
     headers: corsHeaders,
     originalMessages: messages,
+    generateMessageId: () => crypto.randomUUID(),
     sendReasoning: true,
     onError: friendlyError,
     onFinish: async ({ messages: all, isAborted }) => {
@@ -576,10 +577,10 @@ Deno.serve(async (req) => {
         const id = url.searchParams.get("id") ?? "";
         const { data: th } = await c.cloud.from("argus_threads").select("id,title").eq("id", id).eq("user_id", userId).maybeSingle();
         if (!th) return json({ error: "Conversația nu există" }, 404);
-        const data = await readChatHistory<{ message: UIMessage }>((from, to) =>
-          c.cloud.from("argus_messages").select("message").eq("thread_id", id)
+        const data = await readChatHistory<{ id: string; message: UIMessage }>((from, to) =>
+          c.cloud.from("argus_messages").select("id,message").eq("thread_id", id)
             .order("created_at").order("id").range(from, to));
-        return json({ thread: th, messages: data.map(r => r.message) });
+        return json({ thread: th, messages: data.map(r => repairChatMessageIds([r.message], r.id)[0]) });
       }
       case "action": {
         const b = await req.json();

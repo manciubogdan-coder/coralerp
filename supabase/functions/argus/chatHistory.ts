@@ -1,3 +1,20 @@
+/** Repair legacy empty SDK IDs without changing content, order or valid IDs.
+ * Scoped positions are stable across retries; reserve existing IDs to avoid collisions.
+ * Malformed containers/roles/parts remain the validator's responsibility.
+ */
+export function repairChatMessageIds<T extends { id: string }>(messages: T[], scope: string): T[] {
+  if (!Array.isArray(messages)) return messages;
+  const used = new Set(messages.map(m => m?.id).filter(id => typeof id === 'string' && id.length > 0));
+  return messages.map((m, index) => {
+    if (!m || typeof m !== 'object' || m.id !== '') return m;
+    const base = `legacy:${scope}:${index}`;
+    let id = base;
+    for (let suffix = 1; used.has(id); suffix++) id = `${base}:${suffix}`;
+    used.add(id);
+    return { ...m, id };
+  });
+}
+
 /** Validate message structure, not conversation age/length. Never discard saved turns. */
 export function validChatMessages(messages: unknown): messages is Array<{
   id: string; role: 'user' | 'assistant'; parts: Array<Record<string, unknown>>;
