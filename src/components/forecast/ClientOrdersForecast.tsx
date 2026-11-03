@@ -48,6 +48,7 @@ interface Row {
   returned: Record<string, number>;
   outbound: Record<string, number>;
   actualConsumption: Record<string, number>;
+  transferAvg: number[];
   consumptionSources: ConsumptionSource[];
   plannedSources: ConsumptionSource[];
   otherDays: Record<string, number>;
