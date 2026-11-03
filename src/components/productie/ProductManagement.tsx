@@ -680,7 +680,7 @@ const ProductManagement = () => {
           ) : editorLoading ? (
             <p role="status" className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Se încarcă rețeta și liniile pentru {editingProduct?.nume}…</p>
           ) : null}
-          <fieldset disabled={saving || editorLoading} hidden={editorLoading} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <fieldset disabled={saving || editorLoading} className={editorLoading ? 'hidden' : 'grid grid-cols-1 lg:grid-cols-3 gap-6'}>
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Informații Produs</h3>
               <div className="space-y-2">
