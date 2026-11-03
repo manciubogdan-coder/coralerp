@@ -23,6 +23,7 @@ import {
 import { addTubMiscare, isFolie } from "@/lib/tuburi";
 import { type PrereceptieLinie, breakdownText, markLineReceived } from "@/lib/prereceptie";
 import { PrereceptiePicker } from "./PrereceptiePicker";
+import { operationDate } from "@/lib/operationDate";
 
 interface ReceptionRegistrationProps {
   products: Product[];
@@ -228,7 +229,7 @@ export function ReceptionRegistration({
           unit: unitToSave,
           pallet_type_id: dominantPalletId,
           pallet_count: totalPalletCount || 0,
-          receipt_date: new Date().toISOString()
+          receipt_date: operationDate().timestamp
         } as any)
         .select('id')
         .single();

@@ -27,6 +27,7 @@ import { TransferQRDialog } from "./TransferQRDialog";
 import { fetchGgnCode } from "@/lib/ggnCodes";
 import { addTubMiscare, isFolie } from "@/lib/tuburi";
 import type { TransferLabelData } from "./TransferQRLabel";
+import { operationDate } from "@/lib/operationDate";
 
 interface StockTransferFormProps {
   onTransferComplete?: () => void;
@@ -83,7 +84,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
   const form = useForm<TransferFormValues>({
     defaultValues: {
-      transferDate: new Date().toISOString().split("T")[0],
+      transferDate: operationDate().day,
       destination: "Producție",
       notes: "",
     },
@@ -91,6 +92,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
   useEffect(() => {
     if (isOpen) {
+      form.setValue("transferDate", operationDate().day);
       fetchInventory();
       fetchCrateTypes();
     } else {
@@ -433,11 +435,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       });
       return;
     }
+    form.setValue("transferDate", operationDate().day);
     setShowConfirm(true);
   };
 
   const executeTransfer = async () => {
-    const formData = form.getValues();
+    const formData = { ...form.getValues(), transferDate: operationDate().day };
     setIsSubmitting(true);
 
     try {
@@ -734,7 +737,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                       <FormItem>
                         <FormLabel>Data transferului</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} />
+                          <Input type="date" {...field} readOnly aria-readonly="true" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

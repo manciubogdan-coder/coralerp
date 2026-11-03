@@ -286,7 +286,6 @@ export const ReceptionHistory = () => {
         unit: editFormData.unit,
         document_number: editFormData.document_number || null,
         lot_number: editFormData.lot_number || null,
-        receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
         obs: editFormData.obs || null,
         nonconform_percent: editFormData.nonconform_percent ?? 0,
         supplier_id: editFormData.supplier_id || null,
@@ -324,7 +323,6 @@ export const ReceptionHistory = () => {
         unit: editFormData.unit,
         document_number: editFormData.document_number || null,
         lot_number: editFormData.lot_number || null,
-        receipt_date: editFormData.receipt_date ? new Date(editFormData.receipt_date + 'T00:00:00.000Z').toISOString() : null,
         supplier_id: editFormData.supplier_id || null,
         supplier_name: supplierNameResolved,
         manufacturer_id: editFormData.manufacturer_id || null,
@@ -401,12 +399,10 @@ export const ReceptionHistory = () => {
           const p = productsList.find(x => x.id === id);
           return p ? `${p.name}${p.cod_produs ? ` (${p.cod_produs})` : ''}` : '';
         };
-        const oldDateIso = editingItem.receipt_date ? editingItem.receipt_date.split('T')[0] : '';
         const fields: Array<{ field: string; old: any; new: any }> = [
           { field: 'Nume produs', old: editingItem.name || '', new: editFormData.name || '' },
           { field: 'Cantitate', old: Number(editingItem.quantity ?? 0), new: Number(editFormData.quantity ?? 0) },
           { field: 'UM', old: editingItem.unit || '', new: editFormData.unit || '' },
-          { field: 'Data recepție', old: oldDateIso, new: editFormData.receipt_date || '' },
           { field: 'Document', old: editingItem.document_number || '', new: editFormData.document_number || '' },
           { field: 'Lot', old: editingItem.lot_number || '', new: editFormData.lot_number || '' },
           { field: 'Observații', old: editingItem.obs || '', new: editFormData.obs || '' },
@@ -941,7 +937,8 @@ export const ReceptionHistory = () => {
                   id="receipt_date"
                   type="date"
                   value={editFormData.receipt_date}
-                  onChange={(e) => setEditFormData({...editFormData, receipt_date: e.target.value})}
+                  readOnly
+                  aria-readonly="true"
                   className="h-9 text-sm"
                 />
               </div>
