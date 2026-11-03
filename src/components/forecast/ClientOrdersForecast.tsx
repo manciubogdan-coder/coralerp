@@ -337,7 +337,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         ? "ambalaje_daily_stock_snapshots"
         : inventoryType === "etichete" ? "etichete_daily_stock_snapshots" : "daily_stock_snapshots";
       const todayStr = businessDay(new Date().toISOString());
-      const historyFrom = format(projFrom < today ? projFrom : today, 'yyyy-MM-dd');
+      // Include 4 weeks before today so future days can use the weekday average of production transfers.
+      const avgStart = addDays(today, -28);
+      const historyFrom = format(projFrom < avgStart ? projFrom : avgStart, 'yyyy-MM-dd');
       const historyTo = format(addDays(projTo > today ? projTo : today, 1), 'yyyy-MM-dd');
       const allSnapshots = await readPages(() => supabase.from(snapTable)
         .select('product_id, name, quantity, unit, snapshot_date').gte('snapshot_date', historyFrom)
@@ -498,6 +500,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           commitments: commitments[p?.id] || {}, snapshots: snapshotsByProduct[p?.id] || {},
           received: receivedByProduct[p?.id] || {}, outbound: outboundByProduct[p?.id] || {},
           actualConsumption: actualByProduct[p?.id] || {}, consumptionSources: sourcesByProduct[p?.id] || [],
+          transferAvg: weekdayAverages(actualByProduct[p?.id] || {}, transferRefDays),
           plannedSources: (plannedByName[key] || []).map(s => ({ ...s, quantity: s.quantity * factor,
             detail: `${s.detail} · PT ${pt}%` })),
           returned: returnedByProduct[p?.id] || {},
