@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { validChatMessages, readChatHistory } from '../../supabase/functions/argus/chatHistory';
+import { validChatMessages, readChatHistory, repairChatMessageIds } from '../../supabase/functions/argus/chatHistory';
 
 const turns = (n: number) => Array.from({ length: n }, (_, i) => ({
   id: `message-${i}`, role: i % 2 ? 'assistant' : 'user',
@@ -35,4 +35,31 @@ test('reopening a 1001-turn chat retains every message in order', async () => {
 
 test('failed history pages do not return a truncated transcript', async () => {
   await expect(readChatHistory(async () => ({ data: null, error: new Error('read failed') }))).rejects.toThrow('read failed');
+});
+
+test('existing chat with empty assistant IDs continues and retries without losing any parts', () => {
+  const messages = turns(124);
+  const parts = [{ type: 'text', text: 'Calcul folie open close' },
+    { type: 'tool-genereaza_raport', output: { total: 18.5 } },
+    { type: 'tool-propune_actiune', output: { id: 'pending-action' } }];
+  messages[1] = { id: '', role: 'assistant', parts: parts as typeof messages[number]['parts'] };
+  messages[3].id = '';
+  expect(validChatMessages(messages)).toBe(false);
+  const repaired = repairChatMessageIds(messages, 'existing-thread');
+  expect(validChatMessages(repaired)).toBe(true);
+  expect(repaired).toHaveLength(124);
+  expect(repaired[1].parts).toEqual(parts);
+  expect(new Set(repaired.map(m => m.id)).size).toBe(124);
+  expect(repairChatMessageIds(messages, 'existing-thread')).toEqual(repaired);
+  expect(repairChatMessageIds(repaired, 'existing-thread')).toEqual(repaired);
+  expect(messages[1].id).toBe('');
+  expect(validChatMessages([...repaired, { id: 'next', role: 'user', parts: [{ type: 'text', text: 'Continuăm' }] }])).toBe(true);
+});
+
+test('legacy repair avoids valid IDs and does not admit privileged or malformed messages', () => {
+  const repaired = repairChatMessageIds([{ id: '', role: 'assistant', parts: [] },
+    { id: 'legacy:thread:0', role: 'user', parts: [] }], 'thread');
+  expect(repaired.map(m => m.id)).toEqual(['legacy:thread:0:1', 'legacy:thread:0']);
+  expect(validChatMessages(repairChatMessageIds([{ id: '', role: 'system', parts: [] }], 'thread'))).toBe(false);
+  expect(validChatMessages(repairChatMessageIds([{ id: '', role: 'user', parts: [null] }], 'thread'))).toBe(false);
 });
