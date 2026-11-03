@@ -12,6 +12,7 @@ import { applyInheritance, loadInheritanceCatalog, readAll } from '../_shared/pr
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { plannedQuantity } from '../_shared/erpQuantity.ts';
 import { cancellationPatch, isErpCancellationApplied } from './cancellation.ts';
+import { findCarton, expandCarton, type MixedCarton } from '../_shared/mixedCartons.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -25,6 +26,8 @@ const corsHeaders = {
 };
 
 interface AvizLine {
+  resolved_product_id?: string;
+  external_key?: string;
   baxare?: string | null;
   cod_produs: string;
   denumire_produs?: string;
@@ -142,6 +145,13 @@ Deno.serve(async (req) => {
   const supabase = createClient(LEGACY_URL, LEGACY_ANON);
   const cloud = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
   const catalog = await loadInheritanceCatalog(supabase, cloud);
+  const cartonDefinitions: MixedCarton[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await cloud.from('productie_baxuri_mixte').select('*').order('produs_id').range(offset, offset + 999);
+    if (error) return json({ error: 'Compozițiile baxurilor nu s-au încărcat; importul a fost oprit.' }, 503);
+    cartonDefinitions.push(...(data ?? []) as MixedCarton[]);
+    if (!data || data.length < 1000) break;
+  }
   const inherited = new Set<string>();
 
   // Normalizare pentru match după denumire (trim, lower, colapsare spații, fără diacritice)
@@ -350,6 +360,7 @@ Deno.serve(async (req) => {
     }
   }
   async function resolveProdus(linie: AvizLine): Promise<string | null> {
+    if (linie.resolved_product_id) return linie.resolved_product_id;
     const cod = String(linie.cod_produs || "").trim();
     const codKey = cod.toLowerCase();
     if (!codKey) return null;
@@ -424,7 +435,35 @@ Deno.serve(async (req) => {
       const dataOnly = String(aviz.data_aviz || "").slice(0, 10);
       const currentKeys: string[] = [];
 
-      for (const linie of aviz.linii || []) {
+      const expandedLines: AvizLine[] = [];
+      for (const source of aviz.linii || []) {
+        const sourceKey = `${aviz.nr_aviz}::${source.cod_produs}`;
+        const { data: saved, error: savedError } = await cloud.from('productie_baxuri_importuri').select('definition').eq('source_key', sourceKey).maybeSingle();
+        if (savedError) throw savedError;
+        const definition = saved?.definition as MixedCarton | undefined ?? findCarton(cartonDefinitions, mapProduse.get(String(source.cod_produs).trim().toLowerCase()), source.denumire_produs);
+        if (!definition) { expandedLines.push(source); continue; }
+        const unit = cartonNameUnit(source.um);
+        const ordered = expandCarton(definition, Number(source.cantitate), unit);
+        const accepted = source.cantitate_acceptata == null ? null : expandCarton(definition, Number(source.cantitate_acceptata), unit);
+        // Never reinterpret production already recorded against the old commercial SKU.
+        const { data: old, error: oldError } = await supabase.from('productie_comenzi').select('id,cantitate,status,cantitate_din_restock').eq('sursa', 'senior-erp').eq('extern_nr_aviz', sourceKey).maybeSingle();
+        if (oldError) throw oldError;
+        if (old && Number(old.cantitate) > 0) {
+          const { count, error: sessionError } = await supabase.from('productie_sesiuni_lucru').select('id', { count: 'exact', head: true }).eq('comanda_id', old.id);
+          if (sessionError) throw sessionError;
+          if (count || Number(old.cantitate_din_restock) > 0 || !['pending', 'assigned'].includes(old.status)) throw new Error(`${definition.denumire}: comanda veche are producție/alocări; necesită verificare manuală înainte de desfacere.`);
+          const { data: cleared, error: clearError } = await supabase.from('productie_comenzi').update(cancellationPatch()).eq('id', old.id).eq('status', old.status).eq('cantitate', old.cantitate).select('id').maybeSingle();
+          if (clearError || !cleared) throw new Error('Comanda veche s-a schimbat; importul baxului a fost oprit.');
+        }
+        const { error: snapshotError } = await cloud.from('productie_baxuri_importuri').upsert({ source_key: sourceKey, definition, source_quantity: ordered[0]?.cartons ?? 0, updated_at: new Date().toISOString() });
+        if (snapshotError) throw snapshotError;
+        for (let i = 0; i < ordered.length; i++) {
+          const part = ordered[i];
+          if (!catalog.products.some(p => p.id === part.produs_id)) throw new Error(`${part.nume}: produsul component nu există.`);
+          expandedLines.push({ ...source, resolved_product_id: part.produs_id, external_key: `${sourceKey}::component::${part.produs_id}`, denumire_produs: part.nume, cantitate: part.quantity, cantitate_acceptata: accepted?.[i]?.quantity ?? null, um: 'buc', baxare: String(part.units) });
+        }
+      }
+      for (const linie of expandedLines) {
         // Skip linii care nu sunt produse reale (reduceri, discount-uri, transport etc.)
         const denumireLower = String((linie as any).denumire_produs || "").toLowerCase();
         const codLower = String(linie.cod_produs || "").toLowerCase();
@@ -446,7 +485,7 @@ Deno.serve(async (req) => {
           if (packagingError) errors.push({ produs: linie.cod_produs, baxare: packagingError.message });
         }
 
-        const externKey = `${aviz.nr_aviz}::${linie.cod_produs}`;
+        const externKey = linie.external_key ?? `${aviz.nr_aviz}::${linie.cod_produs}`;
         currentKeys.push(externKey);
         // Cantitatea planificată = „Acceptat" din Senior ERP (Cantitate_Disponibila).
         // Dacă lipsește, folosim cantitatea comandată inițială.
@@ -464,6 +503,10 @@ Deno.serve(async (req) => {
 
         // Skip retururi (cantitate <= 0)
         if (cantitate <= 0) {
+          if (existing && !isErpCancellationApplied(existing)) {
+            const { error } = await supabase.from('productie_comenzi').update(cancellationPatch()).eq('id', existing.id);
+            if (error) throw error;
+          }
           skipped++;
           continue;
         }
@@ -795,4 +838,11 @@ Deno.serve(async (req) => {
     erori: errors,
   });
 });
+
+function cartonNameUnit(um?: string): 'bax' | 'buc' {
+  const unit = String(um ?? '').trim().toLowerCase();
+  // Configured mixed commercial SKUs are cartons by default even when Senior labels them "buc".
+  if (!unit || /^(buc|bax|col|cut|cart|box)/.test(unit)) return 'bax';
+  throw new Error(`Unitatea ${um} nu este compatibilă cu un bax mixt.`);
+}
 

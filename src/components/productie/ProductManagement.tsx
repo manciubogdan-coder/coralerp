@@ -16,6 +16,8 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2, Package, Loader2, Layers, CheckCircle2, XCircle, Download } from 'lucide-react';
 import GrupareAmbalareDialog from './GrupareAmbalareDialog';
 import ProductPackagingEditor from './ProductPackagingEditor';
+import MixedCartonEditor from './MixedCartonEditor';
+import { useMixedCartons } from '@/hooks/productie/useMixedCartons';
 import { exportToExcel } from '@/lib/excelExport';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -47,6 +49,8 @@ const ProductManagement = () => {
   const [isGrupareOpen, setIsGrupareOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [cartonProduct, setCartonProduct] = useState<any>(null);
+  const { data: cartons = [] } = useMixedCartons();
   const [formData, setFormData] = useState<ProductFormData>({
     nume: '',
     descriere: '',
@@ -584,7 +588,7 @@ const ProductManagement = () => {
                 ) : (
                   filteredProducts.map((product) => (
                     <TableRow key={product.id}>
-                      <TableCell>{product.nume}</TableCell>
+                      <TableCell>{product.nume}{cartons.find(c => c.enabled && c.produs_id === product.id) && <div className="text-xs text-primary">Bax mixt · {cartons.find(c => c.produs_id === product.id)?.components.map(c => `${c.units} ${c.nume}`).join(' + ')}</div>}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {(productCodesMap.get(product.id) || []).join(', ') || '—'}
                       </TableCell>
@@ -611,6 +615,7 @@ const ProductManagement = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setCartonProduct(product)}><Package className="h-3 w-3" />Bax mixt</Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -646,6 +651,9 @@ const ProductManagement = () => {
       </Card>
 
       
+      <Dialog open={Boolean(cartonProduct)} onOpenChange={o => { if (!o) setCartonProduct(null); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto"><DialogHeader><DialogTitle>{cartonProduct?.nume}</DialogTitle></DialogHeader>{cartonProduct && <MixedCartonEditor product={cartonProduct} products={products ?? []} recipeIds={productsWithRecipe} editRecipe={p => { setCartonProduct(null); openEdit(p); }} />}</DialogContent>
+      </Dialog>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
