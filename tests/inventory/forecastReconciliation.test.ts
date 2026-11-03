@@ -23,8 +23,8 @@ test('missing historical snapshot stays unknown, zero stock remains known', () =
 });
 test('future remains signed and never hides negative stock or counts delivered commitment twice', () => {
   const result = reconcileProjection({ dates: ['2026-11-02', '2026-11-03'], today: '2026-11-02', anchor: 1855,
-    snapshots: { '2026-11-02': 1855 }, ordered: { '2026-11-03': 100 }, received: {}, outbound: {}, demand: [2000, 50] });
-  expect(result.map(r => r.closing)).toEqual([1855, 1905]);
+    snapshots: { '2026-11-02': 1855 }, ordered: { '2026-11-03': 100 }, received: {}, outbound: { '2026-11-02': 2000 }, demand: [2000, 50] });
+  expect(result.map(r => r.closing)).toEqual([-145, -95]);
 });
 test('completed sessions attribute actual produced quantity to worked day and other order day, using custom recipe', () => {
   const usage = sessionUsage([{ comanda_id: 'a', ora_sfarsit: '2026-11-01T22:30:00Z', status: 'finalizata', cantitate_produsa: 100 }],
