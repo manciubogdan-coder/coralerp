@@ -595,9 +595,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   }, [projFrom, projTo]);
 
   const todayKey = businessDay(new Date().toISOString());
-  // Consumul unei zile: comenzile clienților × rețete; media de referință doar în zilele viitoare fără comenzi.
-  const dayDemand = useCallback((row: any, day: string) => orderDates.has(day) ? row.perDate[day] || 0
-    : day > todayKey ? row.refAvg[isoDay(new Date(`${day}T12:00:00`))] || 0 : 0, [orderDates, todayKey]);
+  // Consumul unei zile: transferurile reale din depozit în producție (ieri/azi/trecut);
+  // zilele viitoare folosesc media transferurilor din aceeași zi a săptămânii (ultimele 4 săptămâni).
+  const dayDemand = useCallback((row: any, day: string) => day <= todayKey ? row.actualConsumption[day] || 0
+    : row.transferAvg[isoDay(new Date(`${day}T12:00:00`))] || 0, [todayKey]);
 
   const projection = useMemo(() => {
     const map = new Map<string, ReturnType<typeof reconcileProjection>>();
@@ -640,14 +641,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     if (!row) return null;
     const { day, index } = consumptionSelection;
     const total = projection.get(row.key)?.[index]?.consumption || 0;
-    const fromOrders = orderDates.has(day);
+    const actual = day <= todayKey;
     const weekday = format(new Date(`${day}T12:00:00`), 'EEEE', { locale: ro });
-    const sources = fromOrders ? row.plannedSources.filter(s => s.day === day)
-      : day > todayKey && total > 0
-        ? [{ id: 'average', day, source: `Medie de ${weekday} (încă nu există comenzi)`, detail: `Media comenzilor de ${weekday} din ${format(refRange.from, 'dd.MM.yyyy')} – ${format(refRange.to, 'dd.MM.yyyy')} · PT ${row.pt}%`, quantity: total }]
+    const sources = actual ? row.consumptionSources.filter(s => s.day === day)
+      : total > 0
+        ? [{ id: 'average', day, source: `Medie transferuri în producție de ${weekday}`, detail: `Media bonurilor de transfer către producție din ultimele 4 săptămâni (${weekday})`, quantity: total }]
         : [];
-    return { name: row.name, unit: row.unit, day, sources, total, estimated: !fromOrders };
-  }, [consumptionSelection, filtered, projection, todayKey, orderDates, refRange]);
+    return { name: row.name, unit: row.unit, day, sources, total, estimated: !actual };
+  }, [consumptionSelection, filtered, projection, todayKey]);
 
   const orderLines: OrderLineInput[] = useMemo(
     () =>
