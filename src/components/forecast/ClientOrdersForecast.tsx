@@ -655,11 +655,18 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     if (!row) return null;
     const { day, index } = consumptionSelection;
     const total = projection.get(row.key)?.[index]?.consumption || 0;
-    const actual = day <= todayKey;
     const weekday = format(new Date(`${day}T12:00:00`), 'EEEE', { locale: ro });
-    const sources = actual ? row.consumptionSources.filter(s => s.day === day)
+    const transfers = row.consumptionSources.filter(s => s.day === day);
+    const transferredSoFar = row.actualConsumption[day] || 0;
+    const avg = row.transferAvg[isoDay(new Date(`${day}T12:00:00`))] || 0;
+    const actual = day < todayKey || (day === todayKey && transferredSoFar > avg);
+    const fmtQ = (n: number) => n.toLocaleString('ro-RO', { maximumFractionDigits: 2 });
+    const sources = actual ? transfers
       : total > 0
-        ? [{ id: 'average', day, source: `Medie transferuri în producție de ${weekday}`, detail: `Media bonurilor de transfer către producție din ultimele 4 săptămâni (${weekday})`, quantity: total }]
+        ? [{ id: 'average', day, source: `Medie transferuri în producție de ${weekday}`,
+            detail: `Media bonurilor de transfer către producție din ultimele 4 săptămâni (${weekday})`
+              + (day === todayKey ? `\nTransferat azi până acum: ${fmtQ(transferredSoFar)} ${row.unit} (ziua nu s-a terminat)` : ''),
+            quantity: total }]
         : [];
     return { name: row.name, unit: row.unit, day, sources, total, estimated: !actual };
   }, [consumptionSelection, filtered, projection, todayKey]);
