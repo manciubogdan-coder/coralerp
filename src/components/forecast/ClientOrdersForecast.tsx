@@ -382,16 +382,23 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const outboundByProduct: Record<string, Record<string, number>> = {};
       const actualByProduct: Record<string, Record<string, number>> = {};
       const sourcesByProduct: Record<string, ConsumptionSource[]> = {};
-      for (let i = 0; i < transfers.length; i += 50) {
-        const items = await readPages(() => supabase.from(transferItemsTable)
-          .select('id, transfer_id, inventory_item_id, quantity, net_quantity, unit').in('transfer_id', transfers.slice(i, i + 50).map(t => t.id)).order('id'));
+      // Read transfer lines and their lots in parallel batches (sequential reads made the page very slow).
+      const chunks = <T,>(list: T[], size = 50) => Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, i * size + size));
+      const parallel = async <T, R>(list: T[], fn: (x: T) => Promise<R[]>, limit = 6) => {
+        const out: R[] = []; let next = 0;
+        await Promise.all(Array.from({ length: Math.min(limit, list.length) }, async () => {
+          while (next < list.length) { const x = list[next++]; out.push(...await fn(x)); }
+        }));
+        return out;
+      };
+      {
+        const items = await parallel(chunks(transfers.map(t => t.id)), (batch) => readPages(() => supabase.from(transferItemsTable)
+          .select('id, transfer_id, inventory_item_id, quantity, net_quantity, unit').in('transfer_id', batch).order('id')));
         const ids = [...new Set(items.map(t => t.inventory_item_id).filter(Boolean))];
         const invMap = new Map<string, any>();
-        for (let j = 0; j < ids.length; j += 50) {
-          const inv = await readPages(() => supabase.from(tables.inventory).select('id, product_id, name, unit, lot_number, document_number')
-            .in('id', ids.slice(j, j + 50)).order('id'));
-          inv.forEach(r => invMap.set(r.id, r));
-        }
+        const invRows = await parallel(chunks(ids), (batch) => readPages(() => supabase.from(tables.inventory)
+          .select('id, product_id, name, unit, lot_number, document_number').in('id', batch).order('id')));
+        invRows.forEach((r: any) => invMap.set(r.id, r));
         items.forEach(t => { const inv = invMap.get(t.inventory_item_id); const d = transferDates.get(t.transfer_id);
           const id = inv ? resolveProduct(inv) : undefined;
           if (!id || !d) return;
@@ -407,7 +414,6 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
               detail: `Lot: ${inv.lot_number || '—'} · Document recepție: ${inv.document_number || '—'}\nTransfer: ${t.transfer_id}` });
           }
         });
-      }
       const returnedByProduct: Record<string, Record<string, number>> = {};
       const historyTable = `${prefix}inventory_history`;
       // These entries belong to the warehouse ledger, not production consumption.
