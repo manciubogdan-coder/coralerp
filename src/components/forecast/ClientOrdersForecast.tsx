@@ -48,6 +48,7 @@ interface Row {
   returned: Record<string, number>;
   outbound: Record<string, number>;
   actualConsumption: Record<string, number>;
+  transferAvg: number[];
   consumptionSources: ConsumptionSource[];
   plannedSources: ConsumptionSource[];
   otherDays: Record<string, number>;
@@ -337,7 +338,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         ? "ambalaje_daily_stock_snapshots"
         : inventoryType === "etichete" ? "etichete_daily_stock_snapshots" : "daily_stock_snapshots";
       const todayStr = businessDay(new Date().toISOString());
-      const historyFrom = format(projFrom < today ? projFrom : today, 'yyyy-MM-dd');
+      // Include 4 weeks before today so future days can use the weekday average of production transfers.
+      const avgStart = addDays(today, -28);
+      const historyFrom = format(projFrom < avgStart ? projFrom : avgStart, 'yyyy-MM-dd');
       const historyTo = format(addDays(projTo > today ? projTo : today, 1), 'yyyy-MM-dd');
       const allSnapshots = await readPages(() => supabase.from(snapTable)
         .select('product_id, name, quantity, unit, snapshot_date').gte('snapshot_date', historyFrom)
@@ -477,6 +480,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           need.set(k, { name: p.name, qty: 0, perDay: [0, 0, 0, 0, 0, 0, 0] });
       });
 
+      const transferRefDays = eachDayOfInterval({ start: avgStart, end: addDays(today, -1) }).map(d => format(d, 'yyyy-MM-dd'));
       const result: Row[] = [...need.entries()].map(([key, v]) => {
         const p = productByName.get(key);
         const pt = Number(p?.pt_percent) || 0;
@@ -498,6 +502,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           commitments: commitments[p?.id] || {}, snapshots: snapshotsByProduct[p?.id] || {},
           received: receivedByProduct[p?.id] || {}, outbound: outboundByProduct[p?.id] || {},
           actualConsumption: actualByProduct[p?.id] || {}, consumptionSources: sourcesByProduct[p?.id] || [],
+          transferAvg: weekdayAverages(actualByProduct[p?.id] || {}, transferRefDays),
           plannedSources: (plannedByName[key] || []).map(s => ({ ...s, quantity: s.quantity * factor,
             detail: `${s.detail} · PT ${pt}%` })),
           returned: returnedByProduct[p?.id] || {},
@@ -591,9 +596,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   }, [projFrom, projTo]);
 
   const todayKey = businessDay(new Date().toISOString());
-  // Consumul unei zile: comenzile clienților × rețete; media de referință doar în zilele viitoare fără comenzi.
-  const dayDemand = useCallback((row: any, day: string) => orderDates.has(day) ? row.perDate[day] || 0
-    : day > todayKey ? row.refAvg[isoDay(new Date(`${day}T12:00:00`))] || 0 : 0, [orderDates, todayKey]);
+  // Consumul unei zile: transferurile reale din depozit în producție (ieri/azi/trecut);
+  // zilele viitoare folosesc media transferurilor din aceeași zi a săptămânii (ultimele 4 săptămâni).
+  const dayDemand = useCallback((row: any, day: string) => day <= todayKey ? row.actualConsumption[day] || 0
+    : row.transferAvg[isoDay(new Date(`${day}T12:00:00`))] || 0, [todayKey]);
 
   const projection = useMemo(() => {
     const map = new Map<string, ReturnType<typeof reconcileProjection>>();
@@ -636,14 +642,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     if (!row) return null;
     const { day, index } = consumptionSelection;
     const total = projection.get(row.key)?.[index]?.consumption || 0;
-    const fromOrders = orderDates.has(day);
+    const actual = day <= todayKey;
     const weekday = format(new Date(`${day}T12:00:00`), 'EEEE', { locale: ro });
-    const sources = fromOrders ? row.plannedSources.filter(s => s.day === day)
-      : day > todayKey && total > 0
-        ? [{ id: 'average', day, source: `Medie de ${weekday} (încă nu există comenzi)`, detail: `Media comenzilor de ${weekday} din ${format(refRange.from, 'dd.MM.yyyy')} – ${format(refRange.to, 'dd.MM.yyyy')} · PT ${row.pt}%`, quantity: total }]
+    const sources = actual ? row.consumptionSources.filter(s => s.day === day)
+      : total > 0
+        ? [{ id: 'average', day, source: `Medie transferuri în producție de ${weekday}`, detail: `Media bonurilor de transfer către producție din ultimele 4 săptămâni (${weekday})`, quantity: total }]
         : [];
-    return { name: row.name, unit: row.unit, day, sources, total, estimated: !fromOrders };
-  }, [consumptionSelection, filtered, projection, todayKey, orderDates, refRange]);
+    return { name: row.name, unit: row.unit, day, sources, total, estimated: !actual };
+  }, [consumptionSelection, filtered, projection, todayKey]);
 
   const orderLines: OrderLineInput[] = useMemo(
     () =>
