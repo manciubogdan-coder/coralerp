@@ -33,7 +33,13 @@ Deno.serve(async req => {
       return { ...part, nume: p.nume, gramaj: weight ? Number(weight[1].replace(',', '.')) : null };
     });
     const row: MixedCarton = { ...b, denumire: source.nume, components };
-    const existing = await readAll(c.cloud, 'productie_baxuri_mixte', '*', 'produs_id');
+    const existing: MixedCarton[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await c.cloud.from('productie_baxuri_mixte').select('*').order('produs_id').range(offset, offset + 999);
+      if (error) throw error;
+      existing.push(...(data ?? []) as MixedCarton[]);
+      if (!data || data.length < 1000) break;
+    }
     validateCarton(row, existing);
     const { data, error } = await c.cloud.from('productie_baxuri_mixte').upsert({ ...row, updated_at: new Date().toISOString() }).select().single();
     if (error) throw error;

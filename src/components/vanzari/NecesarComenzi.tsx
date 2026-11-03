@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { makeSheets, withTemplatePack } from "@/lib/vanzari/orderSheets";
 import { orderWorkbook } from "@/lib/vanzari/orderWorkbook";
 import OrderSheetTable from "./OrderSheetTable";
+import { loadMixedCartons } from '@/hooks/productie/useMixedCartons';
+import { findCarton, expandCarton } from '../../../supabase/functions/_shared/mixedCartons';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 
@@ -227,10 +229,21 @@ export default function NecesarComenzi() {
         if (!r.ok || res.error) throw new Error(res.error || "Eroare la citire");
         const client = norm(res.client) || "NECUNOSCUT";
         const email = (await supabase.auth.getUser()).data.user?.email ?? null;
+        const definitions = await loadMixedCartons();
+        const expanded = (res.linii || []).filter((x: any) => Number(x.bucati) > 0).flatMap((x: any, i: number) => {
+          const carton = findCarton(definitions, null, x.produs);
+          if (!carton) {
+            if (/lupino.*amorino|amorino.*lupino|silhouette.*primavera|primavera.*silhouette/i.test(x.produs)) throw new Error(`${x.produs}: configurează întâi Bax mixt în Configurări produse și denumirea exactă de import.`);
+            return [x];
+          }
+          if (!['bax', 'buc'].includes(x.unitate_cantitate)) throw new Error(`${x.produs}: unitatea bax/buc nu este clară în document. Nu am salvat comanda.`);
+          const group = crypto.randomUUID();
+          return expandCarton(carton, Number(x.bucati), x.unitate_cantitate).map(c => ({ ...x, produs: c.nume, gramaj: c.gramaj, bucati: c.quantity, buc_bax: c.units, produs_id: c.produs_id, carton_group: group, carton_source: carton.denumire, carton_quantity: c.cartons, carton_units: c.units }));
+        });
         const { data: doc, error } = await supabaseCloud.from("vanzari_necesar_documente").insert({ zi, client, file_name: file.name, nr_comanda: res.nr_comanda, created_by_email: email }).select().single();
         if (error) throw error;
-        const rows = (res.linii || []).filter((x: any) => Number(x.bucati) > 0).map((x: any, i: number) => {
-          const base: any = { document_id: doc.id, zi, client, depozit: x.depozit, nr_comanda: x.nr_comanda || res.nr_comanda, produs: String(x.produs).toUpperCase(), gramaj: x.gramaj, bucati: Number(x.bucati), taiat: 0, buc_bax: x.buc_bax, position: i };
+        const rows = expanded.map((x: any, i: number) => {
+          const base: any = { document_id: doc.id, zi, client, depozit: x.depozit, nr_comanda: x.nr_comanda || res.nr_comanda, produs: String(x.produs).toUpperCase(), gramaj: x.gramaj, bucati: Number(x.bucati), taiat: 0, buc_bax: x.buc_bax, position: i, produs_id: x.produs_id ?? null, carton_group: x.carton_group ?? null, carton_source: x.carton_source ?? null, carton_quantity: x.carton_quantity ?? null, carton_units: x.carton_units ?? null };
           const pk = matchPack(base);
           if (pk) { base.ambalaj_primar = pk.primary_packaging; base.ambalaj_tertiar = pk.tertiary_packaging; base.buc_bax = base.buc_bax || Number(pk.units_per_case) || null; }
           return withTemplatePack(base);

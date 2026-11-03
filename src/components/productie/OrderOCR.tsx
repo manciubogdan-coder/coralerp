@@ -29,6 +29,8 @@ import * as XLSX from 'xlsx';
 
 import { parsePdfToRawData } from "@/lib/productie/parsePdfToTable";
 import TemplateWizard from "@/components/productie/TemplateWizard";
+import { loadMixedCartons } from '@/hooks/productie/useMixedCartons';
+import { findCarton, expandCarton } from '../../../supabase/functions/_shared/mixedCartons';
 import ScanColumnPicker, { type ScanColumnConfig } from "@/components/productie/ScanColumnPicker";
 
 
@@ -1567,6 +1569,7 @@ export default function OrderOCR() {
 
     try {
        const ocrRecords = [];
+       const definitions = await loadMixedCartons();
        
       for (const order of ordersToSave) {
         const client = clients?.find(c => c.id === order.client.matched_client_id);
@@ -1576,14 +1579,16 @@ export default function OrderOCR() {
           if (!product.matched_product_id || product.cantitate <= 0) continue;
 
            // Save to OCR orders table instead of creating production orders
-           ocrRecords.push({
+           const carton = findCarton(definitions, product.matched_product_id, product.nume_produs);
+           const componentRows = carton ? expandCarton(carton, product.cantitate) : [{ produs_id: product.matched_product_id, nume: product.nume_produs, quantity: product.cantitate, gramaj: null }];
+           for (const component of componentRows) ocrRecords.push({
              data_comanda: format(selectedDate, 'yyyy-MM-dd'),
              client_id: client.id,
              client_nume: `${client.nume_magazin} - ${client.punct_livrare}`,
-             produs_id: product.matched_product_id,
-             produs_nume: product.nume_produs,
-             cantitate: product.cantitate,
-             gramaj: product.gramaj || null,
+             produs_id: component.produs_id,
+             produs_nume: component.nume,
+             cantitate: component.quantity,
+             gramaj: component.gramaj ? String(component.gramaj) : product.gramaj || null,
              fisier_sursa: order.file_name,
              status: 'pending',
           });

@@ -7,6 +7,8 @@ Extrage TOATE liniile de produs cu cantitate > 0 și returnează JSON conform sc
 - produs: denumire curată fără prefix de client și fără gramaj (ex RUCOLA, BABY SPANAC, SALATA ARMONIA, BUSUIOC)
 - gramaj: grame sau null
 - bucati: număr BUCĂȚI (dacă documentul dă doar baxuri/colete, înmulțește cu buc/bax)
+- Pentru un produs comercial combinat (ex. "Mixuri salate Lupino/Amorino" sau "Mixuri salate Silhouette/Primavera"), NU înmulți și NU îl desface: păstrează denumirea combinată și cantitatea originală în bucati, unitate_cantitate="bax" dacă sunt baxuri/colete; "buc" dacă sunt explicit bucăți totale. Dacă unitatea nu se poate stabili, unitate_cantitate=null. Conversia se face după compoziția configurată, nu inventa raportul.
+- Pentru produsele individuale unitate_cantitate="buc" după conversia de mai sus. Nu interpreta 6+2 drept două baxuri.
 - depozit: depozit/platformă/magazin dacă documentul are mai multe, altfel null; câte o linie per depozit.
 Nu inventa.`;
 
@@ -23,7 +25,7 @@ const SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["depozit", "nr_comanda", "produs", "gramaj", "bucati", "buc_bax"],
+        required: ["depozit", "nr_comanda", "produs", "gramaj", "bucati", "buc_bax", "unitate_cantitate"],
         properties: {
           depozit: { type: ["string", "null"] },
           nr_comanda: { type: ["string", "null"] },
@@ -31,6 +33,7 @@ const SCHEMA = {
           gramaj: { type: ["number", "null"] },
           bucati: { type: "number" },
           buc_bax: { type: ["number", "null"] },
+          unitate_cantitate: { type: ["string", "null"], enum: ["bax", "buc", null] },
         },
       },
     },
