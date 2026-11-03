@@ -6,6 +6,8 @@ import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { compensateAdvanceQuantities } from "@/lib/productie/advanceCompensation";
 import { refreshProductionQueries } from '@/lib/productie/refreshProductionQueries';
 import { claimSessionFinish } from '@/lib/productie/finishSession';
+import { loadMixedCartons } from './useMixedCartons';
+import { findCarton, expandCarton } from '../../../supabase/functions/_shared/mixedCartons';
 
 
 // Types pentru datele de producție
@@ -836,6 +838,20 @@ export const useCreateOrder = () => {
       data_productie?: string | null;
     }) => {
       console.log('🆕 Creez comandă nouă:', orderData);
+      const definitions = await loadMixedCartons();
+      const carton = findCarton(definitions, orderData.produs_id);
+      if (carton) {
+        const components = expandCarton(carton, orderData.cantitate);
+        const { data, error } = await supabase.from('productie_comenzi').insert(components.map(c => ({
+          ...orderData, produs_id: c.produs_id, cantitate: c.quantity,
+          baxare: String(c.units), numar_comanda: '', cantitate_din_restock: 0,
+          status: orderData.status ?? 'pending', linie_id: orderData.linie_id ?? null,
+        }))).select();
+        if (error) throw error;
+        const first = data?.[0];
+        if (!first) throw new Error('Baxul nu a putut fi desfăcut în comenzi.');
+        return { ...first, component_orders: data };
+      }
       
       let cantitateRamasa = orderData.cantitate;
       let cantitatedinRestock = 0;

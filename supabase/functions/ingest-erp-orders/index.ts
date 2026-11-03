@@ -440,11 +440,12 @@ Deno.serve(async (req) => {
         const sourceKey = `${aviz.nr_aviz}::${source.cod_produs}`;
         const { data: saved, error: savedError } = await cloud.from('productie_baxuri_importuri').select('definition').eq('source_key', sourceKey).maybeSingle();
         if (savedError) throw savedError;
-        const definition = saved?.definition as MixedCarton | undefined ?? findCarton(cartonDefinitions, mapProduse.get(String(source.cod_produs).trim().toLowerCase()), source.denumire_produs);
+        const definition = (saved?.definition as MixedCarton | undefined) ?? findCarton(cartonDefinitions, mapProduse.get(String(source.cod_produs).trim().toLowerCase()), source.denumire_produs);
         if (!definition) { expandedLines.push(source); continue; }
         const unit = cartonNameUnit(source.um);
         const ordered = expandCarton(definition, Number(source.cantitate), unit);
         const accepted = source.cantitate_acceptata == null ? null : expandCarton(definition, Number(source.cantitate_acceptata), unit);
+        for (const part of ordered) if (!catalog.products.some(p => p.id === part.produs_id)) throw new Error(`${part.nume}: produsul component nu există.`);
         // Never reinterpret production already recorded against the old commercial SKU.
         const { data: old, error: oldError } = await supabase.from('productie_comenzi').select('id,cantitate,status,cantitate_din_restock').eq('sursa', 'senior-erp').eq('extern_nr_aviz', sourceKey).maybeSingle();
         if (oldError) throw oldError;
@@ -476,7 +477,7 @@ Deno.serve(async (req) => {
         const produsId = await resolveProdus(linie);
         if (!produsId) continue;
         const seniorUnits = packagingUnits(linie.baxare);
-        if (seniorUnits) {
+        if (seniorUnits && !linie.resolved_product_id) {
           const { error: packagingError } = await cloud.from('productie_baxare_magazine').upsert({
             produs_id: produsId, magazin_key: packagingStoreKey(numeMagazin), magazin: numeMagazin,
             senior_units: seniorUnits, senior_code: linie.cod_produs, senior_date: dataOnly,
@@ -494,12 +495,14 @@ Deno.serve(async (req) => {
         const cantitate = plannedQuantity(cantitateComandata, Number.isFinite(acceptata) ? acceptata : null);
 
         // Verifică dacă rândul există deja (upsert)
-        const { data: existing } = await supabase
+        const { data: existing, error: existingError } = await supabase
           .from("productie_comenzi")
           .select("id, cantitate, status, magazin, data_productie, produs_id")
           .eq("sursa", "senior-erp")
           .eq("extern_nr_aviz", externKey)
           .maybeSingle();
+
+        if (existingError) throw existingError;
 
         // Skip retururi (cantitate <= 0)
         if (cantitate <= 0) {
