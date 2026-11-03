@@ -1,5 +1,6 @@
 # Roadmap
-- [ ] Prevent the video-confirmed second finalization of a completed production session, preserve numeric editing and verify 186 → zero cannot overwrite production.
+- [x] Prevent repeated production-session completion with an active-status conditional write, immediate cache update and exit to order list; use draft-friendly inputs for individual/group quantities and rebut. Regression proves 186 → zero cannot overwrite; 65 production tests pass, build OK. Existing production unchanged.
+- [ ] Verify production completion in the real signed-in operator account — blocked by unavailable external operational session; only regression tests and uploaded-video evidence verified.
 - [x] Lock reception/transfer dates in all warehouse forms; new transfers capture current Bucharest day at confirmation, receipts keep actual recording timestamp, reception edits omit dates. Four date-rule tests pass; build OK. Existing documents unchanged.
 - [ ] Verify date locking in real signed-in warehouse forms — blocked by unavailable external operational session; Cloud session mint reports no auth users. No stock or documents inserted to test.
 - [x] Correct forecast/consumption gross-transfer deductions to net, include warehouse returns and today's actual receipts, aggregate name-resolved snapshot lots with units and leave absent product snapshots unknown. Sixteen tests pass; isolated UI and numeric Excel verify 1855 + 800 + 100 − 7 = 2748, build OK. Recorded stock unchanged; exact historical operational figures remain blocked by the unavailable external session below.
