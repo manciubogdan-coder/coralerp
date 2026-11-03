@@ -17,7 +17,7 @@ export default function ConsumptionSourcesDialog({ selection, onClose }: {
     <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
       <DialogHeader>
         <DialogTitle>Consum — {selection?.name}</DialogTitle>
-        <DialogDescription>{selection?.day} · {selection?.estimated ? 'Nu există încă comenzi pentru această zi; consumul este estimat din media zilei respective a săptămânii.' : 'Consum din comenzile clienților × rețetă, cu pierdere tehnologică. Avansul se adaugă doar peste comenzile ferme ale aceluiași produs.'}</DialogDescription>
+        <DialogDescription>{selection?.day} · {selection?.estimated ? 'Consum estimat din media transferurilor în producție din aceeași zi a săptămânii (ultimele 4 săptămâni).' : 'Consum real: bonurile de transfer din depozit în producție din această zi.'}</DialogDescription>
       </DialogHeader>
       <div className="min-h-0 overflow-auto">
         <table className="w-full text-sm">
