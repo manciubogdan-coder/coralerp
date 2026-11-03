@@ -381,6 +381,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   };
 
   const handleFinishSession = async (sessionId: string, cantitate: number, rebut: number = 0) => {
+    if (!Number.isFinite(cantitate) || cantitate < 0 || !Number.isFinite(rebut) || rebut < 0) {
+      toast({ title: t("error"), description: "Introdu cantități valide înainte de finalizare.", variant: "destructive" });
+      return;
+    }
     const session = activeSessions.find(s => s.id === sessionId);
     if (!session) return;
 
@@ -433,6 +437,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       setTotalOperators(1);
       setProducedQuantity(0);
       setRebutQuantity(0);
+      setView('orders');
     } catch (error) {
       toast({
         title: t("error"),
@@ -929,12 +934,15 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   <Label htmlFor="produced" className="text-coral-primary font-medium">
                     {t("producedQtyThisSession")}
                   </Label>
-                  <Input
+                  <NumberInput
                     id="produced"
                     type="number"
                     min="0"
-                    value={producedQuantity.toString()}
-                    onChange={(e) => setProducedQuantity(parseInt(e.target.value))}
+                    value={producedQuantity}
+                    onValueChange={setProducedQuantity}
+                    integer
+                    fallback={0}
+                    minValue={0}
                     placeholder={t("enterProducedQty")}
                     className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
                   />
@@ -944,14 +952,16 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   <Label htmlFor="rebut" className="text-coral-primary font-medium">
                     {t("rebutQty")}
                   </Label>
-                  <Input
+                  <NumberInput
                     id="rebut"
                     type="number"
                     min="0"
                     step="0.01"
                     inputMode="decimal"
-                    value={rebutQuantity.toString()}
-                    onChange={(e) => setRebutQuantity(parseFloat(e.target.value) || 0)}
+                    value={rebutQuantity}
+                    onValueChange={setRebutQuantity}
+                    fallback={0}
+                    minValue={0}
                     placeholder="0,00"
                     className="border-coral-200 focus:border-coral-primary focus:ring-coral-primary"
                   />

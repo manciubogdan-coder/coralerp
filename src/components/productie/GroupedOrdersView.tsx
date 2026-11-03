@@ -430,21 +430,26 @@ const GroupedOrdersView: React.FC<Props> = ({
               {t("finishGroupDesc")}
             </p>
             <Label className="text-coral-primary font-medium">{t("totalProducedQty")}</Label>
-            <Input
+            <NumberInput
               type="number"
               min={0}
-              value={totalQty.toString()}
-              onChange={(e) => setTotalQty(parseInt(e.target.value) || 0)}
+              value={totalQty}
+              onValueChange={setTotalQty}
+              integer
+              fallback={0}
+              minValue={0}
               placeholder="ex: 500"
             />
             <Label className="text-coral-primary font-medium">{t("rebutQty")}</Label>
-            <Input
+            <NumberInput
               type="number"
               min={0}
               step="0.01"
               inputMode="decimal"
-              value={rebutQty.toString()}
-              onChange={(e) => setRebutQty(parseFloat(e.target.value) || 0)}
+              value={rebutQty}
+              onValueChange={setRebutQty}
+              fallback={0}
+              minValue={0}
               placeholder="0,00"
             />
             <p className="text-xs text-muted-foreground">{t("rebutHint")}</p>

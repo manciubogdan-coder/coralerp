@@ -4,7 +4,7 @@
 - Sales order UI and Excel exports use a shared orderDocument renderer and sanitized original template style metadata; replacement quantities map to existing cuts. Why: preserve customer-specific merged layouts and formatting in both outputs without importing example orders.
 - Senior ERP data: reports read live via the `erp_mirror` queue (`_live_requests`), served by the outbound-only `senior-erp-mirror/` agent through `erp-mirror` (bridge token); only `erp_mirror_essential_tables()` stay mirrored, saved reports keep their last result in `_reports`; streaming uses sequential batches with adaptive pauses, prereception reads have cancellation and bounded waits. Why: a full mirror overloaded Cloud; live reads stay current without competing with mirror writes.
 - ERP mirror history filtering uses business dates/accounting periods and source FK relationships, never audit dates; period predicates use validated six-digit text comparisons (no TRY_CONVERT/TRY_CAST — Senior rejects them); unknown scopes stay full and retained. Why: restricting transfers must not break document relationships or erase history.
-- ERP: array_append; removed lines stay zero/completed, repeats skipped. Why: avoid array/cancellation errors.
+- ERP: array_append; removed lines zero/completed; skip repeats. Why: avoid errors.
 - CEO accounting filters operate on whole accounting periods; commercial browsing uses validated columns, bounded server-side pages and explicit date-column selection. Why: monthly balances cannot support daily precision and raw ERP sources must not imply unverified business roles or totals.
 - CEO commercial indicators use one admin-validated live Senior SQL query via the existing queue, with verified document types, one row per header and deduplicated partners; failures must not silently use the mirror. Why: current commercial figures must not depend on an incomplete copy or inflated joins; header amounts are not net accounting revenue.
 - CEO P&L is computed live from the Senior accounting journal (`C_H_Note_Contabile_Detalii_Conturi`, closing notes NCICV excluded); the mirrored trial balance is only a fallback. Why: Senior's trial balance lags months behind the journal.
@@ -24,7 +24,8 @@
 - Restock defaults reservation-aware; manual uses physical FIFO. Stocktake uses session/RLS, stages unavailable lots, CAS-clears old stock and verifies activation. Why: replace counts without adding over stock or deleting history.
 - Production/Picking share same-day advance projections; fully reduced advances display completed; never persist projections. Manual unproduced plans require later firms. Picking uses max(production, own pool) and selected Bucharest day. Why: protect goods, avoid duplicates and zero-work jobs.
 - Forecasts use name-resolved dated snapshots, net transfers, receipts/returns; absent snapshots stay unknown. Keep commitments/residuals separate; never deduct session usage twice. Paginate. Why: no packaging losses or false zeros.
-- Leaf warnings use receipt-based Bucharest days and original positive lots. Why: preserve lot age.
-- Warehouse dates use operationDate at confirmation; edits omit dates. Why: prevent manual backdating.
-- Auth context is isolated in authState for refresh stability; startup has a 20s retry gate and stale-read guards. Why: avoid blank screens and endless login.
+- Leaf age: Bucharest receipt days, original positive lots. Why: preserve age.
+- Warehouse dates: operationDate at confirmation; edits omit dates. Why: no backdating.
+- Session finish claims active status and updates cache. Why: prevent repeat overwrites.
+- Auth uses isolated authState, 20s retry gate and stale-read guards. Why: avoid blank screens/endless login.
 - Operator screens use Realtime + 60s visible fallback, coalesced non-cancelling invalidations; mutations refresh own caches. useOrders reads selected day ±1 (default yesterday–tomorrow) on demand, id-ordered, 4 pages concurrently, sorted locally. Collaboration: Realtime + 60s single-flight. Why: full-history updated_at sorts timed out and froze Operator.
