@@ -263,13 +263,20 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
 
       setMissingRecipes([...missing].slice(0, 30));
 
-      // 4b. Planned demand, not actual consumption.
-      const futFrom = format(startOfDay(new Date()), "yyyy-MM-dd");
+      // 4b. Consumul zilnic = comenzile clienților × rețete (avansul doar peste comenzile ferme din aceeași zi).
+      // Media pe zi a săptămânii vine din perioada de referință (trecut) și se folosește doar în zilele viitoare fără comenzi.
+      const yesterday = subDays(today, 1);
+      const refStart = startOfDay(rangeFrom) > yesterday ? yesterday : startOfDay(rangeFrom);
+      const refEnd = startOfDay(rangeTo) > yesterday ? yesterday : startOfDay(rangeTo) < refStart ? refStart : startOfDay(rangeTo);
+      const refDays = eachDayOfInterval({ start: refStart, end: refEnd }).map(d => format(d, "yyyy-MM-dd"));
+      setRefRange({ from: refStart, to: refEnd });
+      const simStart = projFrom < today ? startOfDay(projFrom) : today;
+      const futFrom = format(refStart < simStart ? refStart : simStart, "yyyy-MM-dd");
       const futTo = format(addDays(new Date(), 90), "yyyy-MM-dd");
       const futOrders = await fetchAll(() =>
         supabase
           .from("productie_comenzi")
-          .select("id, produs_id, cantitate, data_productie, status, magazin")
+          .select("id, produs_id, cantitate, data_productie, status, magazin, tip_comanda")
           .gte("data_productie", futFrom)
           .lte("data_productie", futTo)
           .order("id")
@@ -277,17 +284,16 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const futNeed = new Map<string, Record<string, number>>();
       const plannedByName: Record<string, ConsumptionSource[]> = {};
       const datesWithOrders = new Set<string>();
-      futOrders.filter((o: any) => o.status !== "canceled_by_erp").forEach((o: any) => {
-        if (!o.produs_id || !o.data_productie) return;
+      effectiveOrderQuantities(futOrders).forEach(({ order: o, quantity, advance }: any) => {
         const dk = String(o.data_productie).slice(0, 10);
         datesWithOrders.add(dk);
         const recipe = recipeByProduct.get(o.produs_id);
         (recipe?.productie_retete_ingrediente || []).forEach((ing: any) => {
           const key = norm(ing.productie_ingrediente?.nume || "Necunoscut");
-          const qty = toKg((Number(ing.cantitate_necesara) || 0) * (Number(o.cantitate) || 0), ing.unitate_masura);
+          const qty = toKg((Number(ing.cantitate_necesara) || 0) * quantity, ing.unitate_masura);
           (plannedByName[key] ||= []).push({ id: `${o.id}:${ing.ingredient_id}`, day: dk,
             source: finiteMap.get(o.produs_id) || o.produs_id,
-            detail: `${o.magazin || 'Client nespecificat'} · ${o.cantitate} × ${ing.cantitate_necesara} ${ing.unitate_masura} · comanda ${o.id}`, quantity: qty });
+            detail: `${advance ? 'Avans (peste comenzile ferme)' : o.magazin || 'Client nespecificat'} · ${Number(quantity.toFixed(2))} × ${ing.cantitate_necesara} ${ing.unitate_masura}`, quantity: qty });
           const rec = futNeed.get(key) || {};
           rec[dk] = (rec[dk] || 0) + qty;
           futNeed.set(key, rec);
