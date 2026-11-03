@@ -211,6 +211,13 @@
       "when": 1793592879040,
       "tag": "0029_huse_serie",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793682901848,
+      "tag": "0030_mixed_carton_definitions",
+      "breakpoints": true
     }
   ]
 }

@@ -1753,6 +1753,54 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_baxuri_importuri: {
+        Row: {
+          definition: Json
+          source_key: string
+          source_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          definition: Json
+          source_key: string
+          source_quantity: number
+          updated_at?: string
+        }
+        Update: {
+          definition?: Json
+          source_key?: string
+          source_quantity?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      productie_baxuri_mixte: {
+        Row: {
+          aliases: Json
+          components: Json
+          denumire: string
+          enabled: boolean
+          produs_id: string
+          updated_at: string
+        }
+        Insert: {
+          aliases?: Json
+          components?: Json
+          denumire: string
+          enabled?: boolean
+          produs_id: string
+          updated_at?: string
+        }
+        Update: {
+          aliases?: Json
+          components?: Json
+          denumire?: string
+          enabled?: boolean
+          produs_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       productie_comenzi_audit: {
         Row: {
           action: string
@@ -2672,6 +2720,10 @@ export type Database = {
           ambalaj_tertiar: string | null
           buc_bax: number | null
           bucati: number
+          carton_group: string | null
+          carton_quantity: number | null
+          carton_source: string | null
+          carton_units: number | null
           client: string
           created_at: string
           depozit: string | null
@@ -2691,6 +2743,10 @@ export type Database = {
           ambalaj_tertiar?: string | null
           buc_bax?: number | null
           bucati?: number
+          carton_group?: string | null
+          carton_quantity?: number | null
+          carton_source?: string | null
+          carton_units?: number | null
           client: string
           created_at?: string
           depozit?: string | null
@@ -2710,6 +2766,10 @@ export type Database = {
           ambalaj_tertiar?: string | null
           buc_bax?: number | null
           bucati?: number
+          carton_group?: string | null
+          carton_quantity?: number | null
+          carton_source?: string | null
+          carton_units?: number | null
           client?: string
           created_at?: string
           depozit?: string | null
