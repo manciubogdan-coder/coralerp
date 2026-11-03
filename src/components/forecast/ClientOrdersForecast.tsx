@@ -414,6 +414,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
               detail: `Lot: ${inv.lot_number || '—'} · Document recepție: ${inv.document_number || '—'}\nTransfer: ${t.transfer_id}` });
           }
         });
+      }
       const returnedByProduct: Record<string, Record<string, number>> = {};
       const historyTable = `${prefix}inventory_history`;
       // These entries belong to the warehouse ledger, not production consumption.
