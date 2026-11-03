@@ -238,7 +238,7 @@ export default function NecesarComenzi() {
           }
           if (!['bax', 'buc'].includes(x.unitate_cantitate)) throw new Error(`${x.produs}: unitatea bax/buc nu este clară în document. Nu am salvat comanda.`);
           const group = crypto.randomUUID();
-          return expandCarton(carton, Number(x.bucati), x.unitate_cantitate).map(c => ({ ...x, produs: c.nume, gramaj: c.gramaj, bucati: c.quantity, buc_bax: c.units, produs_id: c.produs_id, carton_group: group, carton_source: carton.denumire, carton_quantity: c.cartons, carton_units: c.units }));
+          return expandCarton(carton, Number(x.bucati), x.unitate_cantitate).map(c => ({ ...x, produs: c.nume.replace(/\b\d+(?:[.,]\d+)?\s*(?:gr|g)\b/ig, '').replace(/\bLIDL\b/ig, '').trim(), gramaj: c.gramaj, bucati: c.quantity, buc_bax: c.units, produs_id: c.produs_id, carton_group: group, carton_source: carton.denumire, carton_quantity: c.cartons, carton_units: c.units }));
         });
         const { data: doc, error } = await supabaseCloud.from("vanzari_necesar_documente").insert({ zi, client, file_name: file.name, nr_comanda: res.nr_comanda, created_by_email: email }).select().single();
         if (error) throw error;

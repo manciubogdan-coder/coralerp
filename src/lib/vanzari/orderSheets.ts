@@ -4,6 +4,7 @@ export type OrderLine = {
   id: string; client: string; depozit: string | null; nr_comanda: string | null;
   produs: string; gramaj: number | null; bucati: number; taiat: number;
   buc_bax: number | null; ambalaj_primar: string | null; ambalaj_tertiar: string | null;
+  carton_group?: string | null; carton_source?: string | null; carton_quantity?: number | null; carton_units?: number | null;
 };
 export const normalize = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 export const finalQty = (l: OrderLine) => Math.max(0, l.bucati - l.taiat);
