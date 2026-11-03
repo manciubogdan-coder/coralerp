@@ -27,6 +27,8 @@ export function transferStockQuantity(item: any, inventoryUnit?: string) {
   return materialQuantity(item.net_quantity ?? item.quantity, item.unit || inventoryUnit);
 }
 
+export const isProductionDestination = (destination: string | null | undefined) => materialKey(destination || '').includes('produc');
+
 // An absent product row is not proof of zero stock or snapshot completeness.
 export function aggregateSnapshots(rows: any[], resolveKey: (row: any) => string | undefined) {
   const totals: Record<string, Record<string, number>> = {};
@@ -85,19 +87,24 @@ export function reconcileProjection(input: {
   dates: string[]; today: string; anchor: number | null;
   snapshots: Record<string, number>; ordered: Record<string, number>;
   received: Record<string, number>; outbound: Record<string, number>; returned?: Record<string, number>; demand: number[];
+  actualConsumption?: Record<string, number>;
 }) {
   let running: number | null = input.anchor;
   return input.dates.map((day, i) => {
     const historical = day < input.today;
     const observed = input.snapshots[day] ?? null;
     const opening = day <= input.today ? observed : running;
-    const incoming = (input.received[day] || 0) + (input.returned?.[day] || 0)
-      + (historical ? 0 : input.ordered[day] || 0);
-    const consumption = historical ? input.outbound[day] || 0 : input.demand[i] || 0;
-    const closing = opening === null ? null : opening + incoming - consumption;
+    const hasReceipt = Object.prototype.hasOwnProperty.call(input.received, day);
+    const incoming = (hasReceipt ? input.received[day] || 0 : historical ? 0 : input.ordered[day] || 0)
+      + (input.returned?.[day] || 0);
+    const consumption = day <= input.today
+      ? (input.actualConsumption ?? input.outbound)[day] || 0 : input.demand[i] || 0;
+    // The warehouse balance includes all issues; the consumption report includes production only.
+    const deduction = day <= input.today ? input.outbound[day] || 0 : consumption;
+    const closing = opening === null ? null : opening + incoming - deduction;
     const nextDay = new Date(`${day}T12:00:00Z`); nextDay.setUTCDate(nextDay.getUTCDate() + 1);
     const nextSnapshot = input.snapshots[nextDay.toISOString().slice(0, 10)] ?? null;
-    const residual = historical ? stockVariance(opening, nextSnapshot, incoming, consumption) : null;
+    const residual = historical ? stockVariance(opening, nextSnapshot, incoming, deduction) : null;
     running = closing;
     return { opening, closing, observed, incoming, consumption, residual };
   });

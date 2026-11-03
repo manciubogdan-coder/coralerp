@@ -17,7 +17,8 @@ import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
-import { aggregateSnapshots, businessDay, dayBounds, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, materialQuantity, readPages, reconcileProjection, transferStockQuantity } from '@/lib/forecastReconciliation';
+import { aggregateSnapshots, businessDay, dayBounds, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isProductionDestination, materialQuantity, readPages, reconcileProjection, transferStockQuantity } from '@/lib/forecastReconciliation';
+import ConsumptionSourcesDialog, { type ConsumptionSource } from './ConsumptionSourcesDialog';
 import StockGapDialog from './StockGapDialog';
 import { loadProductionUsage } from '@/lib/productionUsage';
 import type { ProductionUsage } from '@/lib/forecastReconciliation';
@@ -46,6 +47,9 @@ interface Row {
   received: Record<string, number>;
   returned: Record<string, number>;
   outbound: Record<string, number>;
+  actualConsumption: Record<string, number>;
+  consumptionSources: ConsumptionSource[];
+  plannedSources: ConsumptionSource[];
   otherDays: Record<string, number>;
   advances: Record<string, number>;
   shifted?: ProductionUsage[];
@@ -112,6 +116,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   const [projTo, setProjTo] = useState<Date>(startOfDay(addDays(new Date(), 6)));
   // Grupe minimizate în tabel
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [consumptionSelection, setConsumptionSelection] = useState<{ key: string; day: string; index: number } | null>(null);
 
 
   const getTableNames = () => {
@@ -258,18 +263,19 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
 
       setMissingRecipes([...missing].slice(0, 30));
 
-      // 4b. Consum real din comenzile existente pe zilele viitoare (rețetă × cantitate)
+      // 4b. Planned demand, not actual consumption.
       const futFrom = format(startOfDay(new Date()), "yyyy-MM-dd");
       const futTo = format(addDays(new Date(), 90), "yyyy-MM-dd");
       const futOrders = await fetchAll(() =>
         supabase
           .from("productie_comenzi")
-          .select("id, produs_id, cantitate, data_productie, status")
+          .select("id, produs_id, cantitate, data_productie, status, magazin")
           .gte("data_productie", futFrom)
           .lte("data_productie", futTo)
           .order("id")
       );
       const futNeed = new Map<string, Record<string, number>>();
+      const plannedByName: Record<string, ConsumptionSource[]> = {};
       const datesWithOrders = new Set<string>();
       futOrders.filter((o: any) => o.status !== "canceled_by_erp").forEach((o: any) => {
         if (!o.produs_id || !o.data_productie) return;
@@ -279,6 +285,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         (recipe?.productie_retete_ingrediente || []).forEach((ing: any) => {
           const key = norm(ing.productie_ingrediente?.nume || "Necunoscut");
           const qty = toKg((Number(ing.cantitate_necesara) || 0) * (Number(o.cantitate) || 0), ing.unitate_masura);
+          (plannedByName[key] ||= []).push({ id: `${o.id}:${ing.ingredient_id}`, day: dk,
+            source: finiteMap.get(o.produs_id) || o.produs_id,
+            detail: `${o.magazin || 'Client nespecificat'} · ${o.cantitate} × ${ing.cantitate_necesara} ${ing.unitate_masura} · comanda ${o.id}`, quantity: qty });
           const rec = futNeed.get(key) || {};
           rec[dk] = (rec[dk] || 0) + qty;
           futNeed.set(key, rec);
@@ -354,18 +363,21 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       });
       const transferTable = `${prefix}stock_transfers`;
       const transferItemsTable = `${prefix}stock_transfer_items`;
-      const transfers = await readPages(() => supabase.from(transferTable).select('id, transfer_date')
+      const transfers = await readPages(() => supabase.from(transferTable).select('id, transfer_date, destination')
         .gte('transfer_date', inventoryType === 'etichete' ? dayBounds(historyFrom).start : historyFrom)
         .lte('transfer_date', inventoryType === 'etichete' ? dayBounds(historyTo).end : historyTo).order('id'));
       const transferDates = new Map(transfers.map(t => [t.id, businessDay(t.transfer_date)]));
+      const transferHeaders = new Map(transfers.map(t => [t.id, t]));
       const outboundByProduct: Record<string, Record<string, number>> = {};
+      const actualByProduct: Record<string, Record<string, number>> = {};
+      const sourcesByProduct: Record<string, ConsumptionSource[]> = {};
       for (let i = 0; i < transfers.length; i += 50) {
         const items = await readPages(() => supabase.from(transferItemsTable)
           .select('id, transfer_id, inventory_item_id, quantity, net_quantity, unit').in('transfer_id', transfers.slice(i, i + 50).map(t => t.id)).order('id'));
         const ids = [...new Set(items.map(t => t.inventory_item_id).filter(Boolean))];
         const invMap = new Map<string, any>();
         for (let j = 0; j < ids.length; j += 50) {
-          const inv = await readPages(() => supabase.from(tables.inventory).select('id, product_id, name, unit')
+          const inv = await readPages(() => supabase.from(tables.inventory).select('id, product_id, name, unit, lot_number, document_number')
             .in('id', ids.slice(j, j + 50)).order('id'));
           inv.forEach(r => invMap.set(r.id, r));
         }
@@ -373,7 +385,16 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           const id = inv ? resolveProduct(inv) : undefined;
           if (!id || !d) return;
           const m = outboundByProduct[id] ||= {};
-          m[d] = (m[d] || 0) + transferStockQuantity(t, inv.unit);
+          const quantity = transferStockQuantity(t, inv.unit);
+          m[d] = (m[d] || 0) + quantity;
+          const header = transferHeaders.get(t.transfer_id);
+          if (isProductionDestination(header?.destination)) {
+            const actual = actualByProduct[id] ||= {};
+            actual[d] = (actual[d] || 0) + quantity;
+            (sourcesByProduct[id] ||= []).push({ id: t.id, day: d, quantity,
+              source: `Bon transfer · ${header?.destination}`,
+              detail: `Lot: ${inv.lot_number || '—'} · Document recepție: ${inv.document_number || '—'}\nTransfer: ${t.transfer_id}` });
+          }
         });
       }
       const returnedByProduct: Record<string, Record<string, number>> = {};
@@ -468,6 +489,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           qualityLoss: qualityByProduct[p?.id] || {},
           commitments: commitments[p?.id] || {}, snapshots: snapshotsByProduct[p?.id] || {},
           received: receivedByProduct[p?.id] || {}, outbound: outboundByProduct[p?.id] || {},
+          actualConsumption: actualByProduct[p?.id] || {}, consumptionSources: sourcesByProduct[p?.id] || [],
+          plannedSources: (plannedByName[key] || []).map(s => ({ ...s, quantity: s.quantity * factor,
+            detail: `${s.detail} · PT ${pt}%` })),
           returned: returnedByProduct[p?.id] || {},
           otherDays: otherByName[key] || {}, advances: advanceByName[key] || {}, shifted: shiftedByName[key] || [],
           perDayBrut,
@@ -568,7 +592,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const demand = simulationDays.map((d, i) => mode === 'live' && orderDates.has(dates[i])
         ? r.perDate[dates[i]] || 0 : r.perDayAvg[isoDay(d)] || 0);
       const result = reconcileProjection({ dates, today, anchor: r.snapshots[today] ?? null,
-        snapshots: r.snapshots, ordered: r.orderedPerDate, received: r.received, returned: r.returned, outbound: r.outbound, demand });
+        snapshots: r.snapshots, ordered: r.orderedPerDate, received: r.received, returned: r.returned, outbound: r.outbound,
+        actualConsumption: r.actualConsumption, demand });
       const offset = dates.indexOf(format(first, 'yyyy-MM-dd'));
       map.set(r.key, result.slice(offset, offset + projDays.length));
     });
@@ -597,6 +622,19 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   }, [filtered, gapFor]);
   const gapRow = gapKey ? filtered.find((r) => r.key === gapKey) : undefined;
   const gap = useMemo(() => gapFor(gapRow), [gapRow, gapFor]);
+  const consumptionDetail = useMemo(() => {
+    if (!consumptionSelection) return null;
+    const row = filtered.find(r => r.key === consumptionSelection.key);
+    if (!row) return null;
+    const { day, index } = consumptionSelection;
+    const total = projection.get(row.key)?.[index]?.consumption || 0;
+    const actual = day <= todayKey;
+    const explicit = mode === 'live' && orderDates.has(day);
+    const sources = actual ? row.consumptionSources.filter(s => s.day === day)
+      : explicit ? row.plannedSources.filter(s => s.day === day)
+      : [{ id: 'average', day, source: 'Medie pentru ziua săptămânii', detail: `Referință: ${format(fromDate, 'dd.MM.yyyy')} – ${format(toDate, 'dd.MM.yyyy')} · PT ${row.pt}%`, quantity: total }];
+    return { name: row.name, unit: row.unit, day, sources, total, actual };
+  }, [consumptionSelection, filtered, projection, todayKey, mode, orderDates, fromDate, toDate]);
 
   const orderLines: OrderLineInput[] = useMemo(
     () =>
@@ -624,7 +662,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           line[`${date} - Stoc început`] = v?.opening ?? 'Lipsă snapshot';
           line[`${date} - Comandat`] = r.commitments[day] || 0;
           line[`${date} - Recepționat`] = r.received[day] || 0;
-          line[`${date} - Consum`] = v ? v.consumption - (r.returned[day] || 0) : 0;
+          line[`${date} - Consum`] = v?.consumption || 0;
           line[`${date} - Stoc final`] = v?.closing ?? 'Necunoscut';
           line[`${date} - Comandă sugerată`] = v?.closing == null ? 'Necunoscut' : suggestedOrderFor(v.closing, projDays.map((_, j) => values?.[j]?.consumption || 0), i, r.buffer || 0);
         });
@@ -855,7 +893,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
               { locale: ro }
             )} (${ordersCount} comenzi) și este proiectată în viitor pentru a estima necesarul și pe câte zile ajunge stocul.`}
         {view === "proiectie" &&
-          ` Proiecție: stoc curent (+ comenzi furnizor cu ETA în interval) minus consumul mediu pe fiecare zi din ${format(
+          ` Proiecție: recepțiile înlocuiesc comenzile în stocul final; până azi consumul este cel din transferurile către producție, iar pentru viitor este necesar estimat. Perioada ${format(
             projFrom,
             "dd MMM",
             { locale: ro }
@@ -995,7 +1033,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                               <td className={cn("p-2 text-right tabular-nums", day === todayKey && r.agedLots?.length && "bg-destructive/10 text-destructive")} title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}{day === todayKey && <LeafStockWarning name={r.name} lots={r.agedLots || []} />}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(ordered)}</td>
                               <td className={cn('p-2 text-right tabular-nums', received < ordered && day <= todayKey && 'text-destructive')}>{fmt(received)}</td>
-                              <td className="p-2 text-right tabular-nums">{fmt(v ? v.consumption - (r.returned[day] || 0) : null)}</td>
+                              <td className="p-2 text-right tabular-nums"><Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums" title={day <= todayKey ? 'Vezi transferurile către producție' : 'Vezi sursele necesarului estimat'} onClick={() => setConsumptionSelection({ key: r.key, day, index: i })}>{fmt(v?.consumption)}</Button></td>
                               <td className={cn('p-2 text-right tabular-nums', v?.closing != null && v.closing < 0 && 'text-destructive')}>{fmt(v?.closing)}</td>
                               <td className="p-2 text-right border-r tabular-nums text-primary">{fmt(suggestion)}</td>
                             </React.Fragment>;
@@ -1191,6 +1229,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       )}
 
       {inventoryType === 'materii-prime' && <ProductionUsageBreakdown from={format(projFrom, 'yyyy-MM-dd')} to={format(projTo, 'yyyy-MM-dd')} />}
+      <ConsumptionSourcesDialog selection={consumptionDetail} onClose={() => setConsumptionSelection(null)} />
       <CreateSupplierOrderDialog
         open={orderOpen}
         onOpenChange={setOrderOpen}
