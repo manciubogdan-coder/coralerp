@@ -68,12 +68,31 @@ test('today counts only received quantities when a receipt exists, never ordered
   expect(result[0].incoming).toBe(800);
   expect(result[0].closing).toBe(2655);
 });
-test('today consumption matches production issues, not three times recipe demand, with other issues affecting stock only', () => {
+test('today consumption comes from client orders, not warehouse transfers', () => {
   const result = reconcileProjection({ dates: ['2026-11-03'], today: '2026-11-03', anchor: 1000,
     snapshots: { '2026-11-03': 1000 }, ordered: {}, received: {}, returned: { '2026-11-03': 20 },
-    outbound: { '2026-11-03': 120 }, actualConsumption: { '2026-11-03': 100 }, demand: [300] });
-  expect(result[0].consumption).toBe(100);
-  expect(result[0].closing).toBe(900);
+    outbound: { '2026-11-03': 900 }, demand: [300] });
+  expect(result[0].consumption).toBe(300);
+  expect(result[0].closing).toBe(720);
+});
+test('same-day advance adds only what firm orders of the same product do not cover', () => {
+  const r = effectiveOrderQuantities([
+    { produs_id: 'lupino', data_productie: '2026-11-04', cantitate: 100 },
+    { produs_id: 'lupino', data_productie: '2026-11-04', cantitate: 150, tip_comanda: 'PRODUCTIE_AVANS' },
+    { produs_id: 'amorino', data_productie: '2026-11-04', cantitate: 200 },
+    { produs_id: 'amorino', data_productie: '2026-11-04', cantitate: 150, tip_comanda: 'PRODUCTIE_AVANS' },
+    { produs_id: 'rucola', data_productie: '2026-11-05', cantitate: 80, magazin: 'PRODUCTIE_AVANS' },
+    { produs_id: 'rucola', data_productie: '2026-11-05', cantitate: 50, status: 'canceled_by_erp' },
+  ]);
+  const total = (id: string) => r.filter(x => x.order.produs_id === id).reduce((s, x) => s + x.quantity, 0);
+  expect(total('lupino')).toBe(150);
+  expect(total('amorino')).toBe(200);
+  expect(total('rucola')).toBe(80);
+});
+test('weekday average counts reference days without orders as zero', () => {
+  // 2026-10-28 and 2026-11-04 are Wednesdays
+  const avg = weekdayAverages({ '2026-10-28': 1000 }, ['2026-10-28', '2026-11-04']);
+  expect(avg[2]).toBe(500);
 });
 test('future receipts also replace commitments, including an explicitly recorded zero', () => {
   const result = reconcileProjection({ dates: ['2026-11-04', '2026-11-05'], today: '2026-11-03', anchor: 1000,
