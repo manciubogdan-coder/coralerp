@@ -27,6 +27,8 @@ export function transferStockQuantity(item: any, inventoryUnit?: string) {
   return materialQuantity(item.net_quantity ?? item.quantity, item.unit || inventoryUnit);
 }
 
+export const isProductionDestination = (destination: string | null | undefined) => materialKey(destination || '').includes('produc');
+
 // An absent product row is not proof of zero stock or snapshot completeness.
 export function aggregateSnapshots(rows: any[], resolveKey: (row: any) => string | undefined) {
   const totals: Record<string, Record<string, number>> = {};

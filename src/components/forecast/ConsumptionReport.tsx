@@ -13,7 +13,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import ProductionUsageBreakdown from '@/components/production/ProductionUsageBreakdown';
-import { businessDay, readPages, transferStockQuantity } from '@/lib/forecastReconciliation';
+import { businessDay, isProductionDestination, materialKey, readPages, transferStockQuantity } from '@/lib/forecastReconciliation';
 
 interface ConsumptionReportProps {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -70,11 +70,10 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
       const tables = getTableNames();
 
       // Fetch all products
-      const { data: productsData, error: productsError } = await supabase
+      const productsData = await readPages(() => supabase
         .from(tables.products)
-        .select("id, name, cod_produs, default_unit");
-
-      if (productsError) throw productsError;
+        .select("id, name, cod_produs, default_unit").order('id'));
+      const productByName = new Map(productsData.map(p => [materialKey(p.name), p.id]));
 
       // Fetch transfers in date range
       // NOTE: tables are not consistent: etichete_stock_transfers.transfer_date is timestamptz,
@@ -104,6 +103,7 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
           .select("id, transfer_date, destination")
           .gte("transfer_date", fromStr)
           .lte("transfer_date", toStr)
+          .order('id')
           .range(page * pageSize, (page + 1) * pageSize - 1);
         
         if (pageError) throw pageError;
@@ -120,10 +120,7 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
       console.log(`[ConsumptionReport] Fetched ${allTransfersMain.length} total transfers`);
 
       // Filter production transfers
-      const productionTransfers = allTransfersMain.filter(t => {
-        const dest = t.destination?.toLowerCase() || "";
-        return dest.includes("produc") || dest.includes("producție") || dest.includes("productie");
-      });
+      const productionTransfers = allTransfersMain.filter(t => isProductionDestination(t.destination));
       
       console.log(`[ConsumptionReport] Found ${productionTransfers.length} production transfers`);
 
@@ -159,14 +156,15 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
           const batch = inventoryItemIds.slice(i, i + batchSize);
           const { data: invData, error: invError } = await supabase
             .from(tables.inventory)
-            .select("id, product_id, unit")
+            .select("id, product_id, name, unit")
             .in("id", batch);
           
           if (invError) throw invError;
           (invData || []).forEach((item: any) => {
             inventoryUnits.set(item.id, item.unit);
-            if (item.product_id) {
-              inventoryToProductMap.set(item.id, item.product_id);
+            const id = productByName.get(materialKey(item.name || '')) || item.product_id;
+            if (id) {
+              inventoryToProductMap.set(item.id, id);
             }
           });
         }
