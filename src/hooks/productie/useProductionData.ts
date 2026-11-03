@@ -5,6 +5,7 @@ import { POOL_MODE } from "@/lib/productie/stockPool";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { compensateAdvanceQuantities } from "@/lib/productie/advanceCompensation";
 import { refreshProductionQueries } from '@/lib/productie/refreshProductionQueries';
+import { claimSessionFinish } from '@/lib/productie/finishSession';
 
 
 // Types pentru datele de producție
@@ -1212,21 +1213,9 @@ export const useFinishWorkSession = () => {
       console.log('🔄 ÎNCEPE finalizarea sesiunii:', { id, cantitate_produsa, status, comanda_id });
       
       // Finalizez sesiunea de lucru
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('productie_sesiuni_lucru')
-        .update({
-          cantitate_produsa,
-          status,
-          ora_sfarsit: new Date().toISOString()
-        })
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (sessionError) {
-        console.error('❌ Eroare la finalizarea sesiunii:', sessionError);
-        throw sessionError;
-      }
+      const sessionData = await claimSessionFinish(supabase, id, cantitate_produsa, status);
+      queryClient.setQueryData<ProductieSesiuneLucru[]>(['work-sessions'], previous =>
+        previous?.map(session => session.id === id ? { ...session, ...sessionData } : session));
 
       console.log('✅ Sesiunea finalizată cu succes:', sessionData);
 
