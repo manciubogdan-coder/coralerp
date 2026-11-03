@@ -24,7 +24,7 @@
 - Discarded finished-goods resets use a shared preview/apply service with paginated reads, checked compare-and-set writes, pool clearing before date-scoped allocation resets and session-derived status; never call allocation-return helpers. Why: discarded goods must not reappear, real production must survive, partial/concurrent changes must be visible.
 - Restock defaults reservation-aware; manual uses physical FIFO. Stocktake uses session/RLS, stages unavailable lots, CAS-clears old stock and verifies activation. Why: replace counts without adding over stock or deleting history.
 - Production/Picking share same-day advance projections; fully reduced advances display completed; never persist projections. Manual unproduced plans require later firms. Picking uses max(production, own pool) and selected Bucharest day. Why: protect goods, avoid duplicates and zero-work jobs.
-- Forecast: dated/name-resolved snapshots; receipts replace promises; net issues drive closing stock. Through today consumption uses shared production-transfer filters/sources, future demand is estimated. Returns separate; paginate. Why: no double arrivals or false zeros.
+- Forecast: dated/name-resolved snapshots; receipts replace promises; consumption = orders × recipes (advance only above same-day firm), weekday average only for future order-less days; transfers are ledger checks; paginate. Why: no double counts or false zeros.
 - Leaf age: Bucharest receipt days, original positive lots. Why: preserve age.
 - Warehouse dates: operationDate at confirmation; edits omit dates. Why: no backdating.
 - Session finish claims active status and updates cache. Why: prevent repeat overwrites.
