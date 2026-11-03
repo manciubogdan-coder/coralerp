@@ -18,8 +18,10 @@ import GrupareAmbalareDialog from './GrupareAmbalareDialog';
 import ProductPackagingEditor from './ProductPackagingEditor';
 import MixedCartonEditor from './MixedCartonEditor';
 import { useMixedCartons } from '@/hooks/productie/useMixedCartons';
+import { syncCartonRecipes } from '@/lib/productie/cartonRecipes';
 import { exportToExcel } from '@/lib/excelExport';
 import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Ingredient {
   ingredient_id: string;
@@ -53,6 +55,14 @@ const ProductManagement = () => {
   const [distributionHydrated, setDistributionHydrated] = useState(false);
   const [cartonProduct, setCartonProduct] = useState<any>(null);
   const { data: cartons = [] } = useMixedCartons();
+  const queryClient = useQueryClient();
+  const cartonSyncDone = React.useRef(false);
+  // Self-heal: cartons configured before automatic carton recipes get theirs on first open.
+  React.useEffect(() => {
+    if (cartonSyncDone.current || !cartons.some(c => c.enabled)) return;
+    cartonSyncDone.current = true;
+    syncCartonRecipes().then(r => { if (r.updated) queryClient.invalidateQueries({ queryKey: ['recipes'] }); }).catch(e => console.error('Rețetele baxurilor mixte nu s-au actualizat', e));
+  }, [cartons]);
   const [formData, setFormData] = useState<ProductFormData>({
     nume: '',
     descriere: '',
@@ -613,7 +623,9 @@ const ProductManagement = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        {productsWithRecipe.has(product.id) ? (
+                        {(() => { const carton = cartons.find(c => c.enabled && c.produs_id === product.id); if (!carton) return null; const lack = carton.components.filter(c => !productsWithRecipe.has(c.produs_id)); return lack.length
+                          ? <Badge variant="outline" className="border-destructive text-destructive"><XCircle className="h-3 w-3 mr-1" /> Lipsește rețeta: {lack.map(c => c.nume).join(', ')}</Badge>
+                          : <Badge variant="outline" className="border-emerald-500 text-emerald-600"><CheckCircle2 className="h-3 w-3 mr-1" /> Bax mixt · din componente</Badge>; })() ?? (productsWithRecipe.has(product.id) ? (
                           <Badge variant="outline" className="border-emerald-500 text-emerald-600">
                             <CheckCircle2 className="h-3 w-3 mr-1" /> Are rețetă
                           </Badge>
@@ -621,7 +633,7 @@ const ProductManagement = () => {
                           <Badge variant="outline" className="border-destructive text-destructive">
                             <XCircle className="h-3 w-3 mr-1" /> Fără rețetă
                           </Badge>
-                        )}
+                        ))}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

@@ -2,6 +2,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { readAll } from '../../../supabase/functions/_shared/productRecipes';
+import { syncCartonRecipes } from '@/lib/productie/cartonRecipes';
+
+// A component recipe change must also refresh every mixed carton that contains it.
+const refreshCartons = (produsId?: string) => produsId ? syncCartonRecipes(produsId).catch(e => console.error('Rețeta baxului mixt nu s-a actualizat', e)) : Promise.resolve();
 
 export interface ProductieReteta {
   id: string;
@@ -126,7 +130,8 @@ export const useCreateRecipe = () => {
 
       return recipe;
     },
-    onSuccess: () => {
+    onSuccess: async (recipe: any) => {
+      await refreshCartons(recipe?.produs_id);
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
     }
   });
@@ -182,7 +187,8 @@ export const useUpdateRecipe = () => {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async (data: any) => {
+      await refreshCartons(data?.produs_id);
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
     }
   });
