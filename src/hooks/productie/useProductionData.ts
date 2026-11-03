@@ -8,6 +8,7 @@ import { refreshProductionQueries } from '@/lib/productie/refreshProductionQueri
 import { claimSessionFinish } from '@/lib/productie/finishSession';
 import { loadMixedCartons } from './useMixedCartons';
 import { findCarton, expandCarton } from '../../../supabase/functions/_shared/mixedCartons';
+import { readAll } from '../../../supabase/functions/_shared/productRecipes';
 
 
 // Types pentru datele de producție
@@ -295,13 +296,8 @@ export const useProducts = () => {
   return useQuery({
     queryKey: ['products'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('productie_produse')
-        .select('*')
-        .order('nume');
-      
-      if (error) throw error;
-      return data as ProductieProds[];
+      const data = await readAll(supabase, 'productie_produse');
+      return (data as ProductieProds[]).sort((a, b) => a.nume.localeCompare(b.nume) || a.id.localeCompare(b.id));
     }
   });
 };
