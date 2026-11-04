@@ -396,6 +396,33 @@ export type Database = {
         }
         Relationships: []
       }
+      argus_memory: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          fact: string
+          id: string
+          source_thread: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          fact: string
+          id?: string
+          source_thread?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          fact?: string
+          id?: string
+          source_thread?: string | null
+        }
+        Relationships: []
+      }
       argus_messages: {
         Row: {
           created_at: string
