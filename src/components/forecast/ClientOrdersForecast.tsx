@@ -1079,6 +1079,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                                     <PopoverContent className="w-72 text-xs space-y-1">
                                       <div className="font-semibold mb-1">Comandă sugerată — {r.name}</div>
                                       <div className="flex justify-between"><span>Consum ziua următoare</span><span className="tabular-nums">+{fmt(pr?.[i + 1]?.consumption || 0)} {r.unit}</span></div>
+                                      <div className="flex justify-between"><span>Pierdere tehnologică (PT {r.pt || 0}%)</span><span className="tabular-nums">+{fmt((pr?.[i + 1]?.consumption || 0) * (r.pt || 0) / 100)} {r.unit}</span></div>
                                       <div className="flex justify-between"><span>Stoc tampon (media 7 zile)</span><span className="tabular-nums">+{fmt(r.buffer || 0)} {r.unit}</span></div>
                                       <div className="flex justify-between"><span>Stoc final {format(d, 'dd.MM')}</span><span className="tabular-nums">−{fmt(v?.closing ?? 0)} {r.unit}</span></div>
                                       <div className="flex justify-between border-t pt-1 font-semibold"><span>Total sugerat</span><span className="tabular-nums">{fmt(suggestion)} {r.unit}</span></div>
