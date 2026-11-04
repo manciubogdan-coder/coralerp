@@ -21,10 +21,17 @@ test('missing historical snapshot stays unknown, zero stock remains known', () =
   expect(reconcileProjection({ ...input, snapshots: { '2026-10-28': 0 } })[0].opening).toBe(0);
   expect(stockVariance(null, 1855, 800, 2000)).toBeNull();
 });
-test('future remains signed and never hides negative stock or counts delivered commitment twice', () => {
+test('negative closing stays visible but next day starts from zero', () => {
   const result = reconcileProjection({ dates: ['2026-11-02', '2026-11-03'], today: '2026-11-02', anchor: 1855,
     snapshots: { '2026-11-02': 1855 }, ordered: { '2026-11-03': 100 }, received: {}, outbound: { '2026-11-02': 2000 }, demand: [2000, 50] });
-  expect(result.map(r => r.closing)).toEqual([-145, -95]);
+  expect(result.map(r => r.closing)).toEqual([-145, 50]);
+  expect(result[1].opening).toBe(0);
+});
+
+test('ingredient with no stock today still projects future days from zero', () => {
+  const result = reconcileProjection({ dates: ['2026-11-04', '2026-11-05'], today: '2026-11-04', anchor: null,
+    snapshots: {}, ordered: { '2026-11-05': 30 }, received: {}, outbound: {}, demand: [0, 10] });
+  expect(result.map(r => r.closing)).toEqual([0, 20]);
 });
 test('completed sessions attribute actual produced quantity to worked day and other order day, using custom recipe', () => {
   const usage = sessionUsage([{ comanda_id: 'a', ora_sfarsit: '2026-11-01T22:30:00Z', status: 'finalizata', cantitate_produsa: 100 }],
