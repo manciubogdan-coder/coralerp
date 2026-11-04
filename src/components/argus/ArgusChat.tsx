@@ -325,6 +325,11 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
               <Button size="sm" className="mt-2" onClick={retry} disabled={busy || preparing}>Încearcă din nou</Button>
             </div>
           )}
+          {lastFailed && status === "ready" && !error && (
+            <div>
+              <Button size="sm" variant="outline" onClick={retry} disabled={busy || preparing}>Încearcă din nou</Button>
+            </div>
+          )}
           {error && (
             <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {error.message}
