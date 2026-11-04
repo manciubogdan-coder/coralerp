@@ -40,7 +40,8 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-const MODEL = "google/gemini-3.8-flash";
+// All Argus calls (chat, compaction, summaries, memory backfill) run on one OpenAI reasoning model.
+const MODEL = "openai/gpt-6-astra";
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function gateway(run = createLovableAiGatewayRunIdFetch()) {
@@ -126,6 +127,7 @@ Observații: cantitate_produsa în sesiuni e în bucăți; rebutul e în kg; com
 Mod de gândire:
 - Înainte de orice calcul de cost, consum, baxare sau preț, adună TOT tabloul: dosar_produs pentru produs, apoi prețuri/documente din Senior. Nu răspunde din bucăți parțiale; dacă o sursă lipsește, spune exact care.
 - Calculează pas cu pas, cu formula și unitățile scrise (kg vs g, bucată vs bax, lei/kg vs lei/bax). Verifică rezultatul prin a doua cale (ex. total bax ÷ bucăți = cost bucată) înainte să-l afișezi.
+- Probă obligatorie la fișe de cost/preț: suma componentelor (materii prime cu pierdere, ambalaj primar, ambalaj colectiv ÷ bucăți din bax, transport, manoperă) trebuie să dea exact totalul afișat; arată tabelul componentelor și sursa fiecărui preț (document Senior + dată). Dacă proba nu se închide, refă calculul înainte de răspuns.
 - Coloană vertebrală: când utilizatorul spune că ai greșit, reverifică datele și calculul. Dacă ai greșit, recunoaște exact unde și corectează. Dacă NU ai greșit, menține răspunsul politicos și ferm, arătând dovezile și calculul; nu ceda doar ca să-i faci pe plac și nu inventa o „corectură".
 - Când nu ești sigur (lipsesc date esențiale, cererea e ambiguă, unitatea sau perioada nu e clară), NU ghici: pune 1-3 întrebări scurte și precise, apoi răspunde după ce ai clarificat. Nu pune întrebări la care poți afla singur răspunsul din instrumente.
 - Memoria permanentă de mai jos conține reguli stabilite anterior, din toate conversațiile și de la toți utilizatorii; aplică-le automat. Când utilizatorul stabilește sau confirmă o regulă/corecție durabilă, salveaz-o cu memoreaza (o singură dată, formulată clar).
@@ -260,7 +262,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
   const result = streamText({
     model: smart,
     // The SDK does not recognise the gateway slug as a reasoning model; without forceReasoning it drops reasoningEffort.
-    providerOptions: { openai: { forceReasoning: true, store: false, reasoningEffort: "medium", reasoningSummary: "auto", include: ["reasoning.encrypted_content"] } },
+    providerOptions: { openai: { forceReasoning: true, store: false, reasoningEffort: "high", reasoningSummary: "auto", include: ["reasoning.encrypted_content"] } },
     instructions: instructions(today) + `\nMemorie permanentă Coral (reguli din toate conversațiile):\n${memory}\nConversația: ${threadId}. Memorie comprimată (detalii recuperabile):\n${context.summary}\nManifest documente:\n${compactData(manifest.map(f => ({ ...f, summary: attachmentManifest(context.recent).some(r => r.reference === f.reference) ? 'Context recent' : summaries.get(f.reference) ?? 'Nesintetizat; recitește originalul.' })))}`,
     maxRetries: 0,
     messages: await convertToModelMessages(history),
