@@ -1070,7 +1070,22 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                               <td className={cn('p-2 text-right tabular-nums', received < ordered && day <= todayKey && 'text-destructive')}>{fmt(received)}</td>
                               <td className="p-2 text-right tabular-nums"><Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums" title={day <= todayKey ? 'Vezi transferurile către producție' : 'Vezi sursele necesarului estimat'} onClick={() => setConsumptionSelection({ key: r.key, day, index: i })}>{fmt(v?.consumption)}</Button></td>
                               <td className={cn('p-2 text-right tabular-nums', v?.closing != null && v.closing < 0 && 'text-destructive')}>{fmt(v?.closing)}</td>
-                              <td className="p-2 text-right border-r tabular-nums text-primary">{fmt(suggestion)}</td>
+                              <td className="p-2 text-right border-r tabular-nums text-primary">
+                                {suggestion == null ? '—' : (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button type="button" className="tabular-nums hover:underline">{fmt(suggestion)}</button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-72 text-xs space-y-1">
+                                      <div className="font-semibold mb-1">Comandă sugerată — {r.name}</div>
+                                      <div className="flex justify-between"><span>Consum ziua următoare</span><span className="tabular-nums">+{fmt(pr?.[i + 1]?.consumption || 0)} {r.unit}</span></div>
+                                      <div className="flex justify-between"><span>Stoc tampon (media 7 zile)</span><span className="tabular-nums">+{fmt(r.buffer || 0)} {r.unit}</span></div>
+                                      <div className="flex justify-between"><span>Stoc final {format(d, 'dd.MM')}</span><span className="tabular-nums">−{fmt(v?.closing ?? 0)} {r.unit}</span></div>
+                                      <div className="flex justify-between border-t pt-1 font-semibold"><span>Total sugerat</span><span className="tabular-nums">{fmt(suggestion)} {r.unit}</span></div>
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                              </td>
                             </React.Fragment>;
                           })}
                         </tr>

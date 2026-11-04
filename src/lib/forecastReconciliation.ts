@@ -160,7 +160,11 @@ export function reconcileProjection(input: {
   return input.dates.map((day, i) => {
     const historical = day < input.today;
     const observed = input.snapshots[day] ?? null;
-    const opening = day <= input.today ? observed : running;
+    // A negative closing never carries forward: physical stock cannot start a day below zero.
+    // Missing snapshot today/future means no stock (zero), so suggestions keep computing.
+    const opening = day < input.today ? observed
+      : day === input.today ? (observed ?? 0)
+      : Math.max(running ?? 0, 0);
     const hasReceipt = Object.prototype.hasOwnProperty.call(input.received, day);
     const incoming = (hasReceipt ? input.received[day] || 0 : historical ? 0 : input.ordered[day] || 0)
       + (input.returned?.[day] || 0);
