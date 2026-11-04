@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { netPendingDeliveries, aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, weekdayAverages, historicalCommitments, isProductionDestination, reconcileProjection, sessionUsage, stockVariance, transferStockQuantity } from '../../src/lib/forecastReconciliation';
+import { sevenDayBuffer, netPendingDeliveries, aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, weekdayAverages, historicalCommitments, isProductionDestination, reconcileProjection, sessionUsage, stockVariance, transferStockQuantity } from '../../src/lib/forecastReconciliation';
 import { stockGapIssues } from "../../src/lib/forecastReconciliation";
 
 test('delivered historical commitments remain visible at their ETA but cancelled do not', () => {
@@ -32,6 +32,28 @@ test('ingredient with no stock today still projects future days from zero', () =
   const result = reconcileProjection({ dates: ['2026-11-04', '2026-11-05'], today: '2026-11-04', anchor: null,
     snapshots: {}, ordered: { '2026-11-05': 30 }, received: {}, outbound: {}, demand: [0, 10] });
   expect(result.map(r => r.closing)).toEqual([0, 20]);
+});
+test('positive closing carries identically across history, today and future despite differing snapshots', () => {
+  const result = reconcileProjection({ dates: ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05'], today: '2026-11-04', anchor: 999,
+    snapshots: { '2026-11-02': 100, '2026-11-03': 800, '2026-11-04': 999 }, ordered: {}, received: {}, outbound: {}, demand: [20, 10, 5, 5] });
+  expect(result.map(r => r.opening)).toEqual([100, 80, 70, 65]);
+  expect(result.map(r => r.closing)).toEqual([80, 70, 65, 60]);
+});
+test('negative historical closing resets to zero even at the transition to today', () => {
+  const result = reconcileProjection({ dates: ['2026-11-03', '2026-11-04'], today: '2026-11-04', anchor: 999,
+    snapshots: { '2026-11-03': 10, '2026-11-04': 999 }, ordered: {}, received: {}, outbound: {}, demand: [30, 5] });
+  expect(result[0].closing).toBe(-20);
+  expect(result[1].opening).toBe(0);
+});
+test('buffer exposes exactly seven completed days including zero days, without PT or today', () => {
+  const result = sevenDayBuffer({ '2026-10-27': 999, '2026-10-28': 70, '2026-10-30': 140, '2026-11-03': 490, '2026-11-04': 999 }, '2026-11-04');
+  expect(result.days).toEqual([
+    { day: '2026-10-28', quantity: 70 }, { day: '2026-10-29', quantity: 0 },
+    { day: '2026-10-30', quantity: 140 }, { day: '2026-10-31', quantity: 0 },
+    { day: '2026-11-01', quantity: 0 }, { day: '2026-11-02', quantity: 0 }, { day: '2026-11-03', quantity: 490 },
+  ]);
+  expect(result.total).toBe(700);
+  expect(result.average).toBe(100);
 });
 test('completed sessions attribute actual produced quantity to worked day and other order day, using custom recipe', () => {
   const usage = sessionUsage([{ comanda_id: 'a', ora_sfarsit: '2026-11-01T22:30:00Z', status: 'finalizata', cantitate_produsa: 100 }],

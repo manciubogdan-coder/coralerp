@@ -24,9 +24,9 @@ export const forecastGroupOf = (name: string): string => {
   return "Salate";
 };
 
-/** Comanda sugerată pentru ziua i: consumul zilei următoare (cu pierderea tehnologică PT) + stocul tampon minus stocul final al zilei. */
-export const suggestedOrderFor = (finalStock: number, consum: number[], i: number, buffer = 0, pt = 0): number =>
-  Math.max((consum[i + 1] || 0) * (1 + (pt || 0) / 100) + (buffer || 0) - (finalStock || 0), 0);
+/** Comanda sugerată: consumul zilei următoare + tampon − stoc final, fără adaos PT. */
+export const suggestedOrderFor = (finalStock: number, consum: number[], i: number, buffer = 0): number =>
+  Math.max((consum[i + 1] || 0) + (buffer || 0) - (finalStock || 0), 0);
 
 /** Kg pe un palet: căpățâni 400, radicchio 500, frunze și aromate 220; altele necunoscut. */
 export const palletKgFor = (name: string): number | null => {

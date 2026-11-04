@@ -17,7 +17,7 @@ import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
-import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isProductionDestination, materialQuantity, netPendingDeliveries, readPages, reconcileProjection, transferStockQuantity, weekdayAverages } from '@/lib/forecastReconciliation';
+import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isProductionDestination, materialQuantity, netPendingDeliveries, readPages, reconcileProjection, sevenDayBuffer, transferStockQuantity, weekdayAverages } from '@/lib/forecastReconciliation';
 import ConsumptionSourcesDialog, { type ConsumptionSource } from './ConsumptionSourcesDialog';
 import StockGapDialog from './StockGapDialog';
 import { loadProductionUsage } from '@/lib/productionUsage';
@@ -61,6 +61,7 @@ interface Row {
   perDayAvg: number[];
   refAvg: number[];
   buffer?: number;
+  bufferDetail: ReturnType<typeof sevenDayBuffer>;
   perDate: Record<string, number>;
   avgDaily: number;
   coverDays: number | null;
@@ -305,29 +306,6 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       });
       setOrderDates(datesWithOrders);
 
-      // 4c. Stoc tampon = media zilnică a consumului din ultimele 7 zile (comenzi ferme)
-      const weekFrom = format(subDays(startOfDay(new Date()), 7), "yyyy-MM-dd");
-      const weekTo = format(subDays(startOfDay(new Date()), 1), "yyyy-MM-dd");
-      const weekOrders = await fetchAll(() =>
-        supabase
-          .from("productie_comenzi")
-          .select("id, produs_id, cantitate, status, tip_comanda")
-          .gte("data_productie", weekFrom)
-          .lte("data_productie", weekTo)
-          .order("id")
-      );
-      const weekNeed = new Map<string, number>();
-      weekOrders
-        .filter((o: any) => o.status !== "canceled_by_erp" && o.tip_comanda !== "PRODUCTIE_AVANS")
-        .forEach((o: any) => {
-          const recipe = recipeByProduct.get(o.produs_id);
-          (recipe?.productie_retete_ingrediente || []).forEach((ing: any) => {
-            const key = norm(ing.productie_ingrediente?.nume || "Necunoscut");
-            const qty = toKg((Number(ing.cantitate_necesara) || 0) * (Number(o.cantitate) || 0), ing.unitate_masura);
-            weekNeed.set(key, (weekNeed.get(key) || 0) + qty);
-          });
-        });
-
       // 5. Produse din depozit (PT + stoc)
       const products = await readPages(() => supabase.from(tables.products).select("*").order("id"));
       const productByName = new Map<string, any>();
@@ -504,6 +482,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         const totalAfterOrder = stock + orderedQty + suggestedQty;
         const coverAfterOrder = avgDaily > 0 ? totalAfterOrder / avgDaily : null;
         const name = p?.name || v.name;
+        const bufferDetail = sevenDayBuffer(actualByProduct[p?.id] || {}, todayStr);
         return {
           qualityLoss: qualityByProduct[p?.id] || {},
           commitments: commitments[p?.id] || {}, snapshots: snapshotsByProduct[p?.id] || {},
@@ -517,7 +496,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           perDayBrut,
           perDate: Object.fromEntries(Object.entries(futNeed.get(key) || {}).map(([d, q]) => [d, q * factor])),
           refAvg: weekdayAverages(Object.fromEntries(Object.entries(futNeed.get(key) || {}).map(([d, q]) => [d, q * factor])), refDays),
-          buffer: ((weekNeed.get(key) || 0) / 7) * factor,
+          buffer: bufferDetail.average,
+          bufferDetail,
           perDayAvg: perDayBrut.map((q, i) => (counts[i] > 0 ? q / counts[i] : 0)),
           key,
           productId: p?.id || null,
@@ -699,7 +679,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           line[`${date} - Recepționat`] = r.received[day] || 0;
           line[`${date} - Consum`] = v?.consumption || 0;
           line[`${date} - Stoc final`] = v?.closing ?? 'Necunoscut';
-          line[`${date} - Comandă sugerată`] = v?.closing == null ? 'Necunoscut' : suggestedOrderFor(v.closing, projDays.map((_, j) => values?.[j]?.consumption || 0), i, r.buffer || 0, r.pt || 0);
+          line[`${date} - Comandă sugerată`] = v?.closing == null ? 'Necunoscut' : suggestedOrderFor(v.closing, [0, dayDemand(r, format(addDays(d, 1), 'yyyy-MM-dd'))], 0, r.buffer || 0);
         });
         return line;
       });
@@ -1062,7 +1042,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                           {projDays.map((d, i) => {
                             const v = pr?.[i]; const day = format(d, 'yyyy-MM-dd');
                             const fmt = (n: number | null | undefined) => n == null ? '—' : n.toLocaleString('ro-RO', { maximumFractionDigits: 1 });
-                            const suggestion = v?.closing == null ? null : suggestedOrderFor(v.closing, projDays.map((_, j) => pr?.[j]?.consumption || 0), i, r.buffer || 0, r.pt || 0);
+                            const nextConsumption = dayDemand(r, format(addDays(d, 1), 'yyyy-MM-dd'));
+                            const suggestion = v?.closing == null ? null : suggestedOrderFor(v.closing, [0, nextConsumption], 0, r.buffer || 0);
                             const ordered = r.commitments[day] || 0; const received = r.received[day] || 0;
                             return <React.Fragment key={day}>
                               <td className={cn("p-2 text-right tabular-nums", day === todayKey && r.agedLots?.length && "bg-destructive/10 text-destructive")} title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}{day === todayKey && <LeafStockWarning name={r.name} lots={r.agedLots || []} />}</td>
@@ -1074,14 +1055,18 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                                 {suggestion == null ? '—' : (
                                   <Popover>
                                     <PopoverTrigger asChild>
-                                      <button type="button" className="tabular-nums hover:underline">{fmt(suggestion)}</button>
+                                      <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums" aria-label={`Comandă sugerată ${r.name} ${format(d, 'dd.MM')}`}>{fmt(suggestion)}</Button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-72 text-xs space-y-1">
+                                    <PopoverContent className="w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto text-xs space-y-2">
                                       <div className="font-semibold mb-1">Comandă sugerată — {r.name}</div>
-                                      <div className="flex justify-between"><span>Consum ziua următoare</span><span className="tabular-nums">+{fmt(pr?.[i + 1]?.consumption || 0)} {r.unit}</span></div>
-                                      <div className="flex justify-between"><span>Pierdere tehnologică (PT {r.pt || 0}%)</span><span className="tabular-nums">+{fmt((pr?.[i + 1]?.consumption || 0) * (r.pt || 0) / 100)} {r.unit}</span></div>
-                                      <div className="flex justify-between"><span>Stoc tampon (media 7 zile)</span><span className="tabular-nums">+{fmt(r.buffer || 0)} {r.unit}</span></div>
-                                      <div className="flex justify-between"><span>Stoc final {format(d, 'dd.MM')}</span><span className="tabular-nums">−{fmt(v?.closing ?? 0)} {r.unit}</span></div>
+                                      <div className="flex justify-between gap-3"><span>Consum {format(addDays(d, 1), 'dd.MM')}</span><span className="tabular-nums whitespace-nowrap">+{fmt(nextConsumption)} {r.unit}</span></div>
+                                      <div className="border-y py-2 space-y-1">
+                                        <div className="font-medium">Tampon · transferuri în producție</div>
+                                        {r.bufferDetail.days.map(b => <div key={b.day} className="flex justify-between gap-3 text-muted-foreground"><span>{format(new Date(`${b.day}T12:00:00`), 'EEE dd.MM', { locale: ro })}</span><span className="tabular-nums whitespace-nowrap">{fmt(b.quantity)} {r.unit}</span></div>)}
+                                        <div className="flex justify-between gap-3 border-t pt-1"><span>Total 7 zile</span><span className="tabular-nums whitespace-nowrap">{fmt(r.bufferDetail.total)} {r.unit}</span></div>
+                                        <div className="flex justify-between gap-3 font-medium"><span>Media = total ÷ 7</span><span className="tabular-nums whitespace-nowrap">+{fmt(r.buffer || 0)} {r.unit}</span></div>
+                                      </div>
+                                      <div className="flex justify-between gap-3"><span>Stoc final {format(d, 'dd.MM')}</span><span className="tabular-nums whitespace-nowrap">{(v?.closing ?? 0) < 0 ? '+' : '−'}{fmt(Math.abs(v?.closing ?? 0))} {r.unit}</span></div>
                                       <div className="flex justify-between border-t pt-1 font-semibold"><span>Total sugerat</span><span className="tabular-nums">{fmt(suggestion)} {r.unit}</span></div>
                                     </PopoverContent>
                                   </Popover>
