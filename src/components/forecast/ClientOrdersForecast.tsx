@@ -699,7 +699,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           line[`${date} - Recepționat`] = r.received[day] || 0;
           line[`${date} - Consum`] = v?.consumption || 0;
           line[`${date} - Stoc final`] = v?.closing ?? 'Necunoscut';
-          line[`${date} - Comandă sugerată`] = v?.closing == null ? 'Necunoscut' : suggestedOrderFor(v.closing, projDays.map((_, j) => values?.[j]?.consumption || 0), i, r.buffer || 0);
+          line[`${date} - Comandă sugerată`] = v?.closing == null ? 'Necunoscut' : suggestedOrderFor(v.closing, projDays.map((_, j) => values?.[j]?.consumption || 0), i, r.buffer || 0, r.pt || 0);
         });
         return line;
       });
@@ -1062,7 +1062,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                           {projDays.map((d, i) => {
                             const v = pr?.[i]; const day = format(d, 'yyyy-MM-dd');
                             const fmt = (n: number | null | undefined) => n == null ? '—' : n.toLocaleString('ro-RO', { maximumFractionDigits: 1 });
-                            const suggestion = v?.closing == null ? null : suggestedOrderFor(v.closing, projDays.map((_, j) => pr?.[j]?.consumption || 0), i, r.buffer || 0);
+                            const suggestion = v?.closing == null ? null : suggestedOrderFor(v.closing, projDays.map((_, j) => pr?.[j]?.consumption || 0), i, r.buffer || 0, r.pt || 0);
                             const ordered = r.commitments[day] || 0; const received = r.received[day] || 0;
                             return <React.Fragment key={day}>
                               <td className={cn("p-2 text-right tabular-nums", day === todayKey && r.agedLots?.length && "bg-destructive/10 text-destructive")} title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}{day === todayKey && <LeafStockWarning name={r.name} lots={r.agedLots || []} />}</td>
