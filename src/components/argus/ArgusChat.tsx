@@ -205,7 +205,8 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
   const writing = status === "streaming" && lastHasText;
   const pct = writing ? 95 : Math.min(90, Math.round(((lastTools + 1) / MAX_STEPS) * 100) + 5);
   const elapsed = startedAt ? Math.max(0, Math.round((now - startedAt) / 1000)) : 0;
-  const emptyFinish = status === "ready" && lastIsAssistant && !lastHasText && !last.parts.some((p: any) => p.type === "tool-genereaza_raport" || p.type === "tool-propune_actiune");
+  const lastFailed = lastIsAssistant && (last.metadata as any)?.failed === true;
+  const emptyFinish = status === "ready" && !error && lastIsAssistant && !lastFailed && !lastHasText && !last.parts.some((p: any) => p.type === "tool-genereaza_raport" || p.type === "tool-propune_actiune");
 
   const [agentDraft, setAgentDraft] = useState<any | null>(null);
   const textOf = (m: UIMessage) => m.parts.map((p: any) => (p.type === "text" ? p.text : "")).join("\n").trim();

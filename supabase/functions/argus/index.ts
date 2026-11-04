@@ -607,7 +607,7 @@ Deno.serve(async (req) => {
         const data = await readChatHistory<{ id: string; message: UIMessage }>((from, to) =>
           c.cloud.from("argus_messages").select("id,message").eq("thread_id", id)
             .order("created_at").order("id").range(from, to));
-        return json({ thread: th, messages: data.map(r => repairChatMessageIds([r.message], r.id)[0]) });
+        return json({ thread: th, messages: data.map(r => markFailedTurn(repairChatMessageIds([r.message], r.id)[0] as any, 'Răspunsul anterior a rămas gol.')) });
       }
       case "action": {
         const b = await req.json();
