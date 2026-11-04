@@ -10,6 +10,9 @@ describe("forecast groups", () => {
   it("suggested order covers today, tomorrow and day after minus start stock", () => {
     expect(suggestedOrderFor(50, [20, 30, 40], 0, 25)).toBe(5);
     expect(suggestedOrderFor(10, [20, 30, 40], 0, 25)).toBe(45);
+    // PT se aplică pe consumul zilei următoare: 30 * 1.1 + 25 - 10 = 48
+    expect(suggestedOrderFor(10, [20, 30, 40], 0, 25, 10)).toBeCloseTo(48);
+    expect(suggestedOrderFor(10, [20, 30, 40], 0, 25, 0)).toBe(45);
   });
 });
 
