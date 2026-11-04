@@ -17,7 +17,7 @@ import { actionTools, handleActionDecision } from "./actions.ts";
 import { syncSeniorPackaging } from '../_shared/seniorPackaging.ts';
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments, attachmentSummaries, rereadAttachment } from "./files.ts";
-import { validChatMessages, readChatHistory, repairChatMessageIds } from "./chatHistory.ts";
+import { validChatMessages, readChatHistory, repairChatMessageIds, isEmptyAssistant, markFailedTurn } from "./chatHistory.ts";
 import { rollingContext } from "./context.ts";
 import { compactData, attachmentManifest, messageText } from "./contextRules.ts";
 import {
@@ -246,6 +246,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
   try { expanded = await expandAttachments(context.recent, c, userId, threadId, summaries); }
   catch (e) { return json({ error: (e as Error).message }, 400); }
   const history: UIMessage[] = expanded
+    .filter((m) => !(m.metadata as any)?.failed && !isEmptyAssistant(m as any))
     .map((m) => m.role !== "assistant" ? m : {
       ...m,
       parts: (m.parts as any[]).filter((p) => p.type === "text" && String(p.text ?? "").trim()),
@@ -258,7 +259,8 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
   }
   const result = streamText({
     model: smart,
-    providerOptions: { openai: { store: false, reasoningEffort: "medium", reasoningSummary: "auto", include: ["reasoning.encrypted_content"] } },
+    // The SDK does not recognise the gateway slug as a reasoning model; without forceReasoning it drops reasoningEffort.
+    providerOptions: { openai: { forceReasoning: true, store: false, reasoningEffort: "medium", reasoningSummary: "auto", include: ["reasoning.encrypted_content"] } },
     instructions: instructions(today) + `\nMemorie permanentă Coral (reguli din toate conversațiile):\n${memory}\nConversația: ${threadId}. Memorie comprimată (detalii recuperabile):\n${context.summary}\nManifest documente:\n${compactData(manifest.map(f => ({ ...f, summary: attachmentManifest(context.recent).some(r => r.reference === f.reference) ? 'Context recent' : summaries.get(f.reference) ?? 'Nesintetizat; recitește originalul.' })))}`,
     maxRetries: 0,
     messages: await convertToModelMessages(history),
@@ -272,14 +274,17 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     abortSignal: req.signal,
   });
 
+  let lastError = "";
   return withLovableAiGatewayRunIdHeader(result.toUIMessageStreamResponse({
     headers: corsHeaders,
     originalMessages: messages,
     generateMessageId: () => crypto.randomUUID(),
     sendReasoning: true,
-    onError: friendlyError,
-    onFinish: async ({ messages: all, isAborted }) => {
+    onError: (e) => { lastError = friendlyError(e); console.error("argus chat error", threadId, e); return lastError; },
+    onFinish: async ({ messages: finished, isAborted }) => {
       if (isAborted) return;
+      // Never save a blank reply: it hides the real error and looks like "Argus finished without answering".
+      const all = finished.map((m, i) => i === finished.length - 1 ? markFailedTurn(m, lastError) : m);
       const answer = messageText(all.at(-1) ?? {});
       if (answer) for (const file of manifest.filter(f => !summaries.has(f.reference))) {
         // No extra model call; preserve the first visual analysis, never the pixels.
