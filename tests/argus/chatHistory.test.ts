@@ -63,3 +63,18 @@ test('legacy repair avoids valid IDs and does not admit privileged or malformed 
   expect(validChatMessages(repairChatMessageIds([{ id: '', role: 'system', parts: [] }], 'thread'))).toBe(false);
   expect(validChatMessages(repairChatMessageIds([{ id: '', role: 'user', parts: [null] }], 'thread'))).toBe(false);
 });
+import { isEmptyAssistant, markFailedTurn } from '../../supabase/functions/argus/chatHistory';
+
+test('a blank assistant reply is saved as a visible failed turn with the error', () => {
+  const failed = markFailedTurn({ id: 'a', role: 'assistant', parts: [{ type: 'step-start' }] }, 'Eroare: timeout');
+  expect((failed.metadata as any).failed).toBe(true);
+  expect(failed.parts[0].text).toContain('Eroare: timeout');
+});
+
+test('replies with text or tool results are never marked failed', () => {
+  const text = { id: 'a', role: 'assistant', parts: [{ type: 'text', text: 'Preț: 4,20' }] };
+  const tools = { id: 'b', role: 'assistant', parts: [{ type: 'tool-senior_sql', state: 'output-available' }] };
+  expect(markFailedTurn(text, 'x')).toBe(text);
+  expect(markFailedTurn(tools, 'x')).toBe(tools);
+  expect(isEmptyAssistant({ role: 'user', parts: [] })).toBe(false);
+});

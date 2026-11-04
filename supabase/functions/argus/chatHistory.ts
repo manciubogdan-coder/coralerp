@@ -15,6 +15,21 @@ export function repairChatMessageIds<T extends { id: string }>(messages: T[], sc
   });
 }
 
+/** True when an assistant turn carries nothing the user can read or act on. */
+export function isEmptyAssistant(m: { role: string; parts?: Array<Record<string, any>> }): boolean {
+  return m.role === 'assistant' && !(m.parts ?? []).some(p =>
+    (p.type === 'text' && String(p.text ?? '').trim()) || String(p.type).startsWith('tool-'));
+}
+
+/** Replace an empty failed turn with a visible, saved explanation instead of a blank reply.
+ * Marked `failed` so it is never replayed to the model as an answer. */
+export function markFailedTurn<T extends { role: string; parts: any[]; metadata?: unknown }>(m: T, reason: string): T {
+  if (!isEmptyAssistant(m)) return m;
+  const why = reason.trim() || 'Modelul nu a trimis niciun răspuns.';
+  return { ...m, metadata: { ...(m.metadata as object ?? {}), failed: true },
+    parts: [{ type: 'text', text: `⚠️ Argus nu a putut termina răspunsul. ${why} Apasă „Încearcă din nou".` }] };
+}
+
 /** Validate message structure, not conversation age/length. Never discard saved turns. */
 export function validChatMessages(messages: unknown): messages is Array<{
   id: string; role: 'user' | 'assistant'; parts: Array<Record<string, unknown>>;
