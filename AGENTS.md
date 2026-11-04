@@ -30,3 +30,4 @@
 - Session finish claims active status and updates cache. Why: prevent repeat overwrites.
 - Auth uses isolated authState, 20s retry gate and stale-read guards. Why: avoid blank screens/endless login.
 - Operator screens use Realtime + 60s visible fallback, coalesced non-cancelling invalidations; mutations refresh own caches. useOrders reads selected day ±1 (default yesterday–tomorrow) on demand, id-ordered, 4 pages concurrently, sorted locally. Collaboration: Realtime + 60s single-flight. Why: full-history updated_at sorts timed out and froze Operator.
+- Argus never saves a blank assistant turn: it is stored as a visible failed turn with the error (metadata.failed) and excluded from model history. Why: blank saves hid the real error and showed "terminat fără răspuns".
