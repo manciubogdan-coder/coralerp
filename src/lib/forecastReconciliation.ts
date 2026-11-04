@@ -120,6 +120,16 @@ export function weekdayAverages(totals: Record<string, number>, days: string[]) 
 const shiftDay = (day: string, delta: number) => {
   const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + delta); return d.toISOString().slice(0, 10);
 };
+
+/** Seven completed Bucharest calendar days, using the same actual consumption as the projection. */
+export function sevenDayBuffer(consumption: Record<string, number>, today: string) {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const day = shiftDay(today, i - 7);
+    return { day, quantity: consumption[day] || 0 };
+  });
+  const total = days.reduce((sum, d) => sum + d.quantity, 0);
+  return { days, total, average: total / 7 };
+}
 /**
  * Pending supplier deliveries minus goods already received for them (early, late or today),
  * so a reception is never added on top of the order it fulfils.
@@ -160,10 +170,11 @@ export function reconcileProjection(input: {
   return input.dates.map((day, i) => {
     const historical = day < input.today;
     const observed = input.snapshots[day] ?? null;
-    // A negative closing never carries forward: physical stock cannot start a day below zero.
-    // Missing snapshot today/future means no stock (zero), so suggestions keep computing.
-    const opening = day < input.today ? observed
-      : day === input.today ? (observed ?? 0)
+    // Anchor once; subsequent days carry the calculated closing, not a different snapshot.
+    // Preserve unknown historical openings; restart from a dated observation if no balance exists.
+    const opening: number | null = i > 0 && running !== null ? Math.max(running, 0)
+      : historical ? observed
+      : day === input.today ? Math.max(observed ?? 0, 0)
       : Math.max(running ?? 0, 0);
     const hasReceipt = Object.prototype.hasOwnProperty.call(input.received, day);
     const incoming = (hasReceipt ? input.received[day] || 0 : historical ? 0 : input.ordered[day] || 0)

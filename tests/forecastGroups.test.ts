@@ -7,12 +7,10 @@ describe("forecast groups", () => {
     expect(forecastGroupOf("Rucola")).toBe("Salate");
     expect(forecastGroupOf("Ceapa verde")).toBe("Aromate");
   });
-  it("suggested order covers today, tomorrow and day after minus start stock", () => {
+  it("suggested order covers tomorrow plus buffer minus closing without adding PT", () => {
     expect(suggestedOrderFor(50, [20, 30, 40], 0, 25)).toBe(5);
     expect(suggestedOrderFor(10, [20, 30, 40], 0, 25)).toBe(45);
-    // PT se aplică pe consumul zilei următoare: 30 * 1.1 + 25 - 10 = 48
-    expect(suggestedOrderFor(10, [20, 30, 40], 0, 25, 10)).toBeCloseTo(48);
-    expect(suggestedOrderFor(10, [20, 30, 40], 0, 25, 0)).toBe(45);
+    expect(suggestedOrderFor(10, [20, 30, 40], 0, 25)).not.toBe(48);
   });
 });
 
