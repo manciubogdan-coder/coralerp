@@ -267,7 +267,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         });
       });
 
-      setMissingRecipes([...missing].slice(0, 30));
+      setMissingRecipes(inventoryType === "materii-prime" ? [...missing].slice(0, 30) : []);
 
       // 4b. Consumul zilnic = comenzile clienților × rețete (avansul doar peste comenzile ferme din aceeași zi).
       // Media pe zi a săptămânii vine din perioada de referință (trecut) și se folosește doar în zilele viitoare fără comenzi.
@@ -463,7 +463,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       (products || []).forEach((p: any) => {
         const k = norm(p.name);
         if (need.has(k)) return;
-        if ((stockByProduct.get(p.id) || 0) > 0 || commitments[p.id] || receivedByProduct[p.id] || snapshotsByProduct[p.id])
+        if (inventoryType !== "materii-prime" || (stockByProduct.get(p.id) || 0) > 0 || commitments[p.id] || receivedByProduct[p.id] || snapshotsByProduct[p.id])
           need.set(k, { name: p.name, qty: 0, perDay: [0, 0, 0, 0, 0, 0, 0] });
       });
 
@@ -526,7 +526,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       });
 
       result.sort((a, b) => a.diff - b.diff);
-      setRows(result);
+      // Ambalaje/etichete: doar produsele din depozitul respectiv, nu ingredientele din rețete.
+      setRows(inventoryType === "materii-prime" ? result : result.filter((r) => r.matched));
     } catch (e) {
       console.error("[ClientOrdersForecast]", e);
       toast({ title: "Eroare la calculul necesarului", variant: "destructive" });
