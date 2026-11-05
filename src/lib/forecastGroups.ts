@@ -81,3 +81,18 @@ export const summarizePallets = (rows: { name: string; unit?: string; qty: numbe
   };
 };
 
+
+// Ambalaje/etichete: grupă după tipul din denumire (Folie, Caserole, Cutii...).
+export const PACK_TYPES: [string, string[]][] = [
+  ["Folie", ["folie", "ribon", "banda"]], ["Caserole", ["caserol", "barcut"]], ["Capace", ["capac"]],
+  ["Cutii", ["cuti", "carton"]], ["Pungi", ["pung"]], ["Etichete", ["etichet"]],
+  ["Paleți și lădițe", ["palet", "euro", "ladit", "coltar"]], ["Tacâmuri", ["furculit", "lingurit", "tacam"]],
+];
+export const packGroupOf = (name: string) => {
+  const n = (name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  const hit = PACK_TYPES.find(([, keys]) => keys.some((k) => n.startsWith(k)))
+    || PACK_TYPES.find(([, keys]) => keys.some((k) => n.includes(k)));
+  if (hit) return hit[0];
+  const w = (name || "").trim().split(/\s+/)[0] || "Altele";
+  return w.length > 2 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : "Altele";
+};

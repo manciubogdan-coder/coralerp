@@ -18,6 +18,7 @@ import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
 import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isProductionDestination, materialQuantity, netPendingDeliveries, readPages, reconcileProjection, sevenDayBuffer, transferStockQuantity, weekdayAverages } from '@/lib/forecastReconciliation';
+import { PACK_TYPES, packGroupOf } from '@/lib/forecastGroups';
 import ConsumptionSourcesDialog, { type ConsumptionSource } from './ConsumptionSourcesDialog';
 import StockGapDialog from './StockGapDialog';
 import { loadProductionUsage } from '@/lib/productionUsage';
@@ -84,20 +85,7 @@ const norm = (s: string) =>
     .replace(/[^a-z0-9]/g, "");
 
 const groupOf = forecastGroupOf;
-// Ambalaje/etichete: grupă după tipul din denumire (Folie, Caserole, Cutii...).
-const PACK_TYPES: [string, string[]][] = [
-  ["Folie", ["folie", "ribon", "banda"]], ["Caserole", ["caserol", "barcut"]], ["Capace", ["capac"]],
-  ["Cutii", ["cuti", "carton"]], ["Pungi", ["pung"]], ["Etichete", ["etichet"]],
-  ["Paleți și lădițe", ["palet", "euro", "ladit", "coltar"]], ["Tacâmuri", ["furculit", "lingurit", "tacam"]],
-];
-const packGroupOf = (name: string) => {
-  const n = norm(name);
-  const hit = PACK_TYPES.find(([, keys]) => keys.some((k) => n.startsWith(k)))
-    || PACK_TYPES.find(([, keys]) => keys.some((k) => n.includes(k)));
-  if (hit) return hit[0];
-  const w = (name || "").trim().split(/\s+/)[0] || "Altele";
-  return w.length > 2 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : "Altele";
-};
+
 const GROUP_ORDER = FORECAST_GROUP_ORDER;
 
 
