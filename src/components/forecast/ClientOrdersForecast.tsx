@@ -677,7 +677,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
         else if (q > 0) { estimated = true; sources.push({ id: `avg-${d}`, day: d, source: `${label} · estimat`,
           detail: `Media transferurilor în producție din ultimele 4 săptămâni, în aceeași zi a săptămânii`, quantity: q }); }
       });
-      return { name: row.name, unit: row.unit, day: consumptionSelection.day, sources, total, estimated };
+      const wk = consumptionSelection.week; return { name: row.name, unit: row.unit, day: `Săptămâna ${format(new Date(`${wk[0].day}T12:00:00`), 'dd.MM')} – ${format(new Date(`${wk[wk.length - 1].day}T12:00:00`), 'dd.MM.yyyy')}`, sources, total, estimated };
     }
     const { day, index } = consumptionSelection;
     const total = projection.get(row.key)?.[index]?.consumption || 0;
