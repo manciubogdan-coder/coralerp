@@ -49,13 +49,8 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 function gateway(run = createLovableAiGatewayRunIdFetch()) {
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("LOVABLE_API_KEY lipsește");
-  const provider = createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-    fetch: run.fetch,
-  });
-  return provider(MODEL);
+  // gpt-6-astra supports tools only on the Responses surface.
+  return createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: run.fetch }).responses(MODEL);
 }
 
 // Main chat brain: deep-reasoning model; summaries/compaction stay on the cheaper gateway() model.
