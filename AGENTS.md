@@ -30,4 +30,3 @@
 - Session finish claims active status and updates cache. Why: prevent repeat overwrites.
 - Auth uses isolated authState, 20s retry gate and stale-read guards. Why: avoid blank screens/endless login.
 - Operator screens use Realtime + 60s visible fallback, coalesced non-cancelling invalidations; mutations refresh own caches. useOrders reads selected day ±1 (default yesterday–tomorrow) on demand, id-ordered, 4 pages concurrently, sorted locally. Collaboration: Realtime + 60s single-flight. Why: full-history updated_at sorts timed out and froze Operator.
-- Price sheets (Calculator preț screen and Argus `calculeaza_pret`) are computed only by `_shared/priceSheet.ts` from live Senior data loaded by `_shared/priceCalcSenior.ts`; overhead rates are 12-month journal averages and stay user-editable. Why: the AI must never invent cost figures and screen/chat must match.

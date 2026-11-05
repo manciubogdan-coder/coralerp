@@ -1,0 +1,1 @@
+- Price sheets (Calculator preț screen, Argus `calculeaza_pret`) are computed only by `_shared/priceSheet.ts` from live Senior data (`_shared/priceCalcSenior.ts`); overhead rates are 12-month journal averages, user-editable. Why: AI must not invent costs; screen and chat must match.
