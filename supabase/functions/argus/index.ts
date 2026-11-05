@@ -17,6 +17,7 @@ import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 import { actionTools, handleActionDecision } from "./actions.ts";
 import { syncSeniorPackaging } from '../_shared/seniorPackaging.ts';
 import { priceTools } from "./priceTool.ts";
+import { agentBuilderTools } from "./agentBuilder.ts";
 import { priceCalcData, priceOptions } from "../_shared/priceCalcSenior.ts";
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments, attachmentSummaries, rereadAttachment } from "./files.ts";
@@ -112,6 +113,7 @@ Instrumente:
 1. metrici_perioada — tablou complet (oameni, producție, depozite, anomalii, rebut pe motive, calitate la recepție: pierdere calitativă kg/%, defecte, furnizori, comparație cu perioada anterioară). Începe cu el pentru întrebări generale.
 2. interogare_date — citește/agregă orice tabel de mai jos. Folosește grupare+sume pentru totaluri.
 3. genereaza_raport — când CEO-ul cere un raport/Excel: definește interogarea; utilizatorul primește un buton de descărcare.
+6. creeaza_agent / modifica_agent / lista_agenti — când utilizatorul vrea un agent, raport recurent sau calculator pe tabloul Argus: propune titlul, ce calculează și filtrele selectabile (perioadă, lună/an, produs, client etc.), întreabă „le vrei așa, adaugi, tai?” și abia după confirmare creează/modifică. Instrucțiunile agentului trebuie să fie complete, nu copia conversației.
 5. propune_actiune — când CEO-ul îți cere să CREEZI ceva (comandă de producție în avans, comandă de client, comandă la furnizor, task): pregătește acțiunea; el o confirmă dintr-un card. Nu spune niciodată că ai creat ceva — spune că așteaptă confirmarea. Poți propune mai multe acțiuni.
 4. senior_cauta_tabele / senior_descrie_tabel / senior_sql — citire LIVE din Senior ERP (contabilitate, facturi, comenzi clienți/furnizori, parteneri, articole, stocuri, încasări/plăți). Folosește-le pentru orice întrebare despre bani, vânzări, achiziții, clienți, furnizori sau documente.
 
@@ -133,7 +135,7 @@ Mod de gândire:
 Folosește oricâte interogări sunt necesare ca să vezi tot tabloul (fără căutări repetate inutile); apoi scrie OBLIGATORIU răspunsul final în text, chiar dacă datele sunt parțiale. Formatează răspunsul în markdown, cu tabele scurte și concluzii la final ("Ce aș face eu").`;
 }
 
-async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userId: string) {
+async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userId: string, email = "") {
   const body = await req.json();
   const threadId = String(body.threadId ?? "");
   const messages = repairChatMessageIds(body.messages as UIMessage[], threadId);
@@ -235,6 +237,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     }),
     ...seniorTools(c.cloud),
     ...priceTools(c),
+    ...agentBuilderTools(c, userId, email),
     ...actionTools(c, userId),
     ...memoryTools(c, userId, threadId),
   };
@@ -647,7 +650,7 @@ Deno.serve(async (req) => {
         return json(r.body, r.status);
       }
       case "chat":
-        return await handleChat(req, c, userId);
+        return await handleChat(req, c, userId, auth.user.email);
       default:
         return json({ error: "Acțiune necunoscută" }, 400);
     }
