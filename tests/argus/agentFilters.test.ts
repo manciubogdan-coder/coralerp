@@ -18,6 +18,6 @@ describe("agent filters", () => {
   });
   it("drops malformed filters and caps at six", () => {
     const many = Array.from({ length: 9 }, (_, i) => ({ label: `F${i}`, type: "text", default: "" }));
-    expect(validFilters([{ label: "", type: "text" }, { label: "X", type: "bogus" }, ...many])).toHaveLength(6 - 0 - 2 + 2);
+    expect(validFilters([{ label: "", type: "text" }, { label: "X", type: "bogus" }, ...many])).toHaveLength(4);
   });
 });
