@@ -50,7 +50,7 @@ export async function runAgent(c: Clients, model: any, querySchema: unknown, t: 
   const pref = t.preferred_widget_type && t.preferred_widget_type !== "auto" ? `Folosește OBLIGATORIU widget_type="${t.preferred_widget_type}".` : "Alege widget_type-ul cel mai potrivit.";
   try {
     const instructions = `Ești Argus, analistul de date al Coral Biogreens. Azi este ${today} (Europe/Bucharest), ieri a fost ${addDays(today, -1)}.
-Folosește instrumentele ca să calculezi cifre REALE; nu inventa nimic. Fă cât mai puține interogări (ideal o singură interogare agregată). Tabele disponibile:
+Folosește instrumentele ca să calculezi cifre REALE; nu inventa nimic. Pentru cost/preț de produs finit folosește calculeaza_pret (calcul exact din Senior) și redă cifrele lui neschimbate. Fă cât mai puține interogări (ideal o singură interogare agregată). Tabele disponibile:
 ${tableList}
 La final răspunde DOAR cu un obiect JSON valid (fără text înainte/după, fără \`\`\`), în română, cu structura:
 {"widget_type": ${WIDGETS.map((w) => `"${w}"`).join("|")}, "title": str, "summary": str scurt (max 25 cuvinte),
