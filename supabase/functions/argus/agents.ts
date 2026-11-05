@@ -4,6 +4,8 @@ import { addDays, bucharestDay, overviewWithTrend, runQuery, TABLES, type Client
 import { describeFilters, validFilters } from "./agentFilters.ts";
 import { priceTools } from "./priceTool.ts";
 import { loadMemory } from "./memoryStore.ts";
+import { memoryTools } from "./memory.ts";
+import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const WIDGETS = ["bar_chart", "line_chart", "pie_chart", "kpi", "table", "markdown"];
 
@@ -12,6 +14,9 @@ const tableList = Object.entries(TABLES).map(([k, v]) => `- ${k}: ${v.desc}`).jo
 export function agentTools(c: Clients, querySchema: unknown) {
   return {
     ...priceTools(c),
+    // Agents need the same live Senior access as chat: invoices, purchases, partners, stocks.
+    ...seniorTools(c.cloud),
+    dosar_produs: memoryTools(c as any, "agent", "").dosar_produs,
     metrici_perioada: tool({
       description: "Tablou complet pe o perioadă (oameni, producție, depozite, anomalii, rebut, calitate).",
       inputSchema: jsonSchema<{ de_la: string; pana_la: string }>({
@@ -56,8 +61,16 @@ Memoria permanentă Coral este comună cu chatul. Aplică regulile de business c
 <memorie_permanenta>
 ${memory}
 </memorie_permanenta>
-Folosește instrumentele ca să calculezi cifre REALE; nu inventa nimic. Pentru cost/preț de produs finit folosește calculeaza_pret (calcul exact din Senior) și redă cifrele lui neschimbate. Fă cât mai puține interogări (ideal o singură interogare agregată). Tabele disponibile:
+Folosește instrumentele ca să calculezi cifre REALE; nu inventa nimic. Pentru cost/preț de produs finit folosește calculeaza_pret (calcul exact din Senior) și redă cifrele lui neschimbate. Fă cât mai puține interogări, dar suficiente ca să ai cifre reale.
+Date din aplicație (interogare_date / metrici_perioada):
 ${tableList}
+Senior ERP LIVE (senior_cauta_tabele / senior_descrie_tabel / senior_sql) — sursa pentru facturi, achiziții, vânzări, prețuri, parteneri, articole, stocuri, contabilitate:
+${SENIOR_GUIDE}
+Reguli de execuție:
+- Filtrele cu valoarea „Toate”, gol sau „Automat” înseamnă fără restricție / alegere automată; NU căuta un articol numit „Toate”. Pentru un text (ex. „spanac mare”) caută articolele Senior cu LIKE pe denumire și include toate potrivirile relevante.
+- Dacă un SQL dă eroare sau 0 rânduri, verifică schema (senior_descrie_tabel), corectează și reîncearcă; încearcă și sinonime/denumiri parțiale.
+- INTERZIS să livrezi tabele pline de N/D. Dacă după încercări tot nu ai date, răspunde scurt în markdown: ce ai căutat, ce interogare a eșuat și mesajul exact al erorii.
+- Livrează direct rezultatul (cifre, tabele, concluzie), nu planul analizei și nu metodologia.
 La final răspunde DOAR cu un obiect JSON valid (fără text înainte/după, fără \`\`\`), în română, cu structura:
 {"widget_type": ${WIDGETS.map((w) => `"${w}"`).join("|")}, "title": str, "summary": str scurt (max 25 cuvinte),
  "kpi_data": {"value": str, "unit": str, "trend": str|null, "is_positive": bool} (pentru kpi),
