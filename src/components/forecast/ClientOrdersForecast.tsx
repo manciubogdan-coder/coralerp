@@ -113,10 +113,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   const [ordersCount, setOrdersCount] = useState(0);
   const [missingRecipes, setMissingRecipes] = useState<string[]>([]);
   const [dayCounts, setDayCounts] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
-  const [view, setView] = useState<"total" | "weekday" | "proiectie">("weekday");
+  // Ambalaje și etichete: proiecția se arată pe săptămâni, nu zi cu zi.
+  const weekly = inventoryType !== "materii-prime";
+  const [view, setView] = useState<"total" | "weekday" | "proiectie">(weekly ? "proiectie" : "weekday");
   // Perioada de proiecție (viitor) — independentă de perioada de referință
   const [projFrom, setProjFrom] = useState<Date>(startOfDay(new Date()));
-  const [projTo, setProjTo] = useState<Date>(startOfDay(addDays(new Date(), 6)));
+  const [projTo, setProjTo] = useState<Date>(startOfDay(addDays(new Date(), weekly ? 27 : 6)));
   // Grupe minimizate în tabel
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [consumptionSelection, setConsumptionSelection] = useState<{ key: string; day: string; index: number } | null>(null);
@@ -579,8 +581,20 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     const end = startOfDay(projTo);
     if (end < start) return [start];
     const list = eachDayOfInterval({ start, end });
-    return list.slice(0, 60);
-  }, [projFrom, projTo]);
+    return list.slice(0, weekly ? 182 : 60);
+  }, [projFrom, projTo, weekly]);
+
+  // Coloanele proiecției: o zi, sau o săptămână Luni–Duminică (zilele din perioada aleasă).
+  const projCols = useMemo(() => {
+    if (!weekly) return projDays.map((d, i) => ({ key: format(d, 'yyyy-MM-dd'), first: d, last: d, idx: [i] }));
+    const cols: { key: string; first: Date; last: Date; idx: number[] }[] = [];
+    projDays.forEach((d, i) => {
+      const cur = cols[cols.length - 1];
+      if (cur && isoDay(d) !== 0) { cur.idx.push(i); cur.last = d; }
+      else cols.push({ key: format(d, 'yyyy-MM-dd'), first: d, last: d, idx: [i] });
+    });
+    return cols;
+  }, [projDays, weekly]);
 
   const todayKey = businessDay(new Date().toISOString());
   // Consumul unei zile: zilele trecute = transferurile reale din depozit în producție;
@@ -832,7 +846,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
             Total perioadă
           </Button>
           <Button size="sm" variant={view === "proiectie" ? "default" : "outline"} onClick={() => setView("proiectie")}>
-            Proiecție zi cu zi
+            {weekly ? "Proiecție pe săptămâni" : "Proiecție zi cu zi"}
           </Button>
         </div>
       </div>
@@ -850,11 +864,15 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           </div>
 
           <div className="flex gap-1">
-            {[
+            {(weekly ? [
+              { v: 28, l: "4 săpt." },
+              { v: 56, l: "8 săpt." },
+              { v: 84, l: "12 săpt." },
+            ] : [
               { v: 7, l: "Următoarea săpt." },
               { v: 14, l: "2 săpt." },
               { v: 30, l: "30 zile" },
-            ].map((p) => (
+            ]).map((p) => (
               <Button
                 key={p.v}
                 size="sm"
@@ -978,19 +996,21 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                       >
                         U.M.
                       </th>
-                      {projDays.map((d) => (
+                      {projCols.map((c) => (
                         <th
-                          key={d.toISOString()}
+                          key={c.key}
                           colSpan={6}
                           className="sticky top-0 z-20 bg-background border-b border-r px-2 h-8 text-center whitespace-nowrap font-semibold"
                         >
-                          {WEEKDAYS[isoDay(d)].slice(0, 3).toLowerCase()} {format(d, "d MMM", { locale: ro })}
+                          {weekly
+                            ? `Săpt. ${format(c.first, "d MMM", { locale: ro })} – ${format(c.last, "d MMM", { locale: ro })}`
+                            : `${WEEKDAYS[isoDay(c.first)].slice(0, 3).toLowerCase()} ${format(c.first, "d MMM", { locale: ro })}`}
                         </th>
                       ))}
                     </tr>
                     <tr>
-                      {projDays.map((d) => (
-                        <React.Fragment key={d.toISOString()}>
+                      {projCols.map((c) => (
+                        <React.Fragment key={c.key}>
                           <th className="sticky top-8 z-20 bg-background border-b px-2 h-7 text-right text-[10px] font-medium text-sky-600 whitespace-nowrap">
                             Stoc înc.
                           </th>
@@ -1007,7 +1027,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                             Stoc final
                           </th>
                           <th
-                            title="Consum mâine + tampon"
+                            title={weekly ? "Consum săptămâna următoare + tampon" : "Consum mâine + tampon"}
                             className="sticky top-8 z-20 bg-background border-b border-r px-2 h-7 text-right text-[10px] font-medium text-primary whitespace-nowrap"
                           >
                             Comandă sugerată
@@ -1039,17 +1059,23 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                           <td className="sticky left-[190px] z-10 bg-background border-r p-2 text-muted-foreground uppercase">
                             {r.unit}
                           </td>
-                          {projDays.map((d, i) => {
-                            const v = pr?.[i]; const day = format(d, 'yyyy-MM-dd');
+                          {projCols.map((c) => {
+                            const i = c.idx[0]; const d = c.first; const day = c.key;
+                            const sum = (f: (j: number, dk: string) => number) => c.idx.reduce((a, j) => a + f(j, format(projDays[j], 'yyyy-MM-dd')), 0);
+                            const lastV = pr?.[c.idx[c.idx.length - 1]];
+                            const v0 = pr?.[i];
+                            const v = v0 && { ...v0, consumption: sum((j) => pr?.[j]?.consumption || 0), closing: lastV?.closing ?? null };
                             const fmt = (n: number | null | undefined) => n == null ? '—' : n.toLocaleString('ro-RO', { maximumFractionDigits: 1 });
-                            const nextConsumption = dayDemand(r, format(addDays(d, 1), 'yyyy-MM-dd'));
-                            const suggestion = v?.closing == null ? null : suggestedOrderFor(v.closing, [0, nextConsumption], 0, r.buffer || 0);
-                            const ordered = r.commitments[day] || 0; const received = r.received[day] || 0;
+                            const nextConsumption = weekly
+                              ? Array.from({ length: 7 }, (_, k) => dayDemand(r, format(addDays(c.last, k + 1), 'yyyy-MM-dd'))).reduce((a, b) => a + b, 0)
+                              : dayDemand(r, format(addDays(d, 1), 'yyyy-MM-dd'));
+                            const suggestion = v?.closing == null ? null : suggestedOrderFor(v.closing, [0, nextConsumption], 0, (r.buffer || 0) * (weekly ? 7 : 1));
+                            const ordered = sum((_, dk) => r.commitments[dk] || 0); const received = sum((_, dk) => r.received[dk] || 0);
                             return <React.Fragment key={day}>
-                              <td className={cn("p-2 text-right tabular-nums", day === todayKey && r.agedLots?.length && "bg-destructive/10 text-destructive")} title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}{day === todayKey && <LeafStockWarning name={r.name} lots={r.agedLots || []} />}</td>
+                              <td className={cn("p-2 text-right tabular-nums", !weekly && day === todayKey && r.agedLots?.length && "bg-destructive/10 text-destructive")} title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}{day === todayKey && <LeafStockWarning name={r.name} lots={r.agedLots || []} />}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(ordered)}</td>
                               <td className={cn('p-2 text-right tabular-nums', received < ordered && day <= todayKey && 'text-destructive')}>{fmt(received)}</td>
-                              <td className="p-2 text-right tabular-nums"><Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums" title={day <= todayKey ? 'Vezi transferurile către producție' : 'Vezi sursele necesarului estimat'} onClick={() => setConsumptionSelection({ key: r.key, day, index: i })}>{fmt(v?.consumption)}</Button></td>
+                              <td className="p-2 text-right tabular-nums">{weekly ? fmt(v?.consumption) : <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums" title={day <= todayKey ? 'Vezi transferurile către producție' : 'Vezi sursele necesarului estimat'} onClick={() => setConsumptionSelection({ key: r.key, day, index: i })}>{fmt(v?.consumption)}</Button>}</td>
                               <td className={cn('p-2 text-right tabular-nums', v?.closing != null && v.closing < 0 && 'text-destructive')}>{fmt(v?.closing)}</td>
                               <td className="p-2 text-right border-r tabular-nums text-primary">
                                 {suggestion == null ? '—' : (
@@ -1059,14 +1085,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                                     </PopoverTrigger>
                                     <PopoverContent className="w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto text-xs space-y-2">
                                       <div className="font-semibold mb-1">Comandă sugerată — {r.name}</div>
-                                      <div className="flex justify-between gap-3"><span>Consum {format(addDays(d, 1), 'dd.MM')}</span><span className="tabular-nums whitespace-nowrap">+{fmt(nextConsumption)} {r.unit}</span></div>
+                                      <div className="flex justify-between gap-3"><span>{weekly ? 'Consum săptămâna următoare' : `Consum ${format(addDays(d, 1), 'dd.MM')}`}</span><span className="tabular-nums whitespace-nowrap">+{fmt(nextConsumption)} {r.unit}</span></div>
                                       <div className="border-y py-2 space-y-1">
                                         <div className="font-medium">Tampon · transferuri în producție</div>
                                         {r.bufferDetail.days.map(b => <div key={b.day} className="flex justify-between gap-3 text-muted-foreground"><span>{format(new Date(`${b.day}T12:00:00`), 'EEE dd.MM', { locale: ro })}</span><span className="tabular-nums whitespace-nowrap">{fmt(b.quantity)} {r.unit}</span></div>)}
                                         <div className="flex justify-between gap-3 border-t pt-1"><span>Total 7 zile</span><span className="tabular-nums whitespace-nowrap">{fmt(r.bufferDetail.total)} {r.unit}</span></div>
-                                        <div className="flex justify-between gap-3 font-medium"><span>Media = total ÷ 7</span><span className="tabular-nums whitespace-nowrap">+{fmt(r.buffer || 0)} {r.unit}</span></div>
+                                        <div className="flex justify-between gap-3 font-medium"><span>{weekly ? 'Tampon pe săptămână = total 7 zile' : 'Media = total ÷ 7'}</span><span className="tabular-nums whitespace-nowrap">+{fmt((r.buffer || 0) * (weekly ? 7 : 1))} {r.unit}</span></div>
                                       </div>
-                                      <div className="flex justify-between gap-3"><span>Stoc final {format(d, 'dd.MM')}</span><span className="tabular-nums whitespace-nowrap">{(v?.closing ?? 0) < 0 ? '+' : '−'}{fmt(Math.abs(v?.closing ?? 0))} {r.unit}</span></div>
+                                      <div className="flex justify-between gap-3"><span>Stoc final {format(c.last, 'dd.MM')}</span><span className="tabular-nums whitespace-nowrap">{(v?.closing ?? 0) < 0 ? '+' : '−'}{fmt(Math.abs(v?.closing ?? 0))} {r.unit}</span></div>
                                       <div className="flex justify-between border-t pt-1 font-semibold"><span>Total sugerat</span><span className="tabular-nums">{fmt(suggestion)} {r.unit}</span></div>
                                     </PopoverContent>
                                   </Popover>
