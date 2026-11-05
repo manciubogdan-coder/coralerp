@@ -4,6 +4,7 @@ import { createOpenAI } from "npm:@ai-sdk/openai@4";
 import { loadMemory, memoryTools, backfillMemory } from "./memory.ts";
 import {
   convertToModelMessages,
+  generateText,
   isStepCount,
   jsonSchema,
   streamText,
@@ -12,6 +13,7 @@ import {
 } from "npm:ai@7.0.123";
 import { createLovableAiGatewayRunIdFetch, withLovableAiGatewayRunIdHeader } from "../_shared/run-id.ts";
 import { isDue, runAgent } from "./agents.ts";
+import { validFilters } from "./agentFilters.ts";
 import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 import { actionTools, handleActionDecision } from "./actions.ts";
 import { syncSeniorPackaging } from '../_shared/seniorPackaging.ts';
@@ -379,10 +381,30 @@ async function handleAgents(action: string, url: URL, req: Request, c: ReturnTyp
         title, description: String(b.description ?? "").slice(0, 500), prompt_instructions: prompt,
         preferred_widget_type: w, schedule_type: s, is_public: !!b.is_public, created_by: userId, created_by_name: email,
         last_scheduled_at: s === "on_demand" ? null : new Date().toISOString(),
+        params: validFilters(b.params),
       }).select("*").single();
       if (error) throw error;
       await addCard(c, userId, t.id, w.endsWith("chart") || w === "table" ? 2 : 1);
       return json(t);
+    }
+    case "agent_propose_filters": {
+      // Argus proposes editable filters for a report saved from chat; the user confirms/edits before saving.
+      const b = await req.json();
+      const q = String(b.question ?? "").slice(0, 2000), a = String(b.answer ?? "").slice(0, 3000);
+      try {
+        const res = await generateText({
+          model: gateway(),
+          instructions: `Ești Argus. Utilizatorul salvează un raport ca agent reutilizabil. Propune filtrele pe care ar vrea să le schimbe la fiecare rulare (perioadă, produs, client/magazin, furnizor, linie etc.), doar cele relevante cererii, max 5.
+Răspunde DOAR cu JSON: {"mesaj": str (o frază scurtă în română care explică de ce le propui), "filtre": [{"label": str, "type": "period"|"text"|"choice", "options": [str] (doar la choice), "default": str}]}
+La period, default este unul din: today, yesterday, last_7, last_30, this_month, last_month. La text/choice, default este valoarea folosită în cerere sau "" pentru toate.`,
+          prompt: `Cererea:\n${q}\n\nRăspunsul lui Argus:\n${a}`,
+        });
+        const raw = res.text.trim(), s = raw.indexOf("{"), e = raw.lastIndexOf("}");
+        const parsed = s >= 0 && e > s ? JSON.parse(raw.slice(s, e + 1)) : {};
+        return json({ mesaj: String(parsed.mesaj ?? "").slice(0, 300), filtre: validFilters(parsed.filtre) });
+      } catch (e) {
+        return json({ mesaj: "", filtre: [{ name: "perioada", label: "Perioadă", type: "period", default: "last_30" }], eroare: friendlyError(e) });
+      }
     }
     case "agent_add": {
       const { data: t } = await c.cloud.from("argus_report_templates").select("id,is_public,created_by").eq("id", id).maybeSingle();
@@ -394,7 +416,8 @@ async function handleAgents(action: string, url: URL, req: Request, c: ReturnTyp
       const { data: card } = await c.cloud.from("argus_user_dashboard_cards").select("id").eq("user_id", userId).eq("template_id", id).maybeSingle();
       if (!card) return json({ error: "Agentul nu e pe tabloul tău." }, 404);
       const { data: t } = await c.cloud.from("argus_report_templates").select("*").eq("id", id).single();
-      const r = await runAgent(c, gateway(), querySchema, t, "manual");
+      const body = await req.json().catch(() => ({}));
+      const r = await runAgent(c, gateway(), querySchema, t, "manual", body?.values && typeof body.values === "object" ? body.values : {});
       if (!r.ok && (r.status === 402 || r.status === 403 || r.status === 429)) return json({ error: friendlyError({ status: r.status }) }, r.status);
       return json({ ok: r.ok });
     }
@@ -429,6 +452,7 @@ async function handleAgents(action: string, url: URL, req: Request, c: ReturnTyp
         if (b.schedule_type !== "on_demand") patch.last_scheduled_at = new Date().toISOString();
       }
       if (typeof b.is_public === "boolean") patch.is_public = b.is_public;
+      if (Array.isArray(b.params)) patch.params = validFilters(b.params);
       if (!Object.keys(patch).length) return json({ error: "Nimic de modificat." }, 400);
       const { data: t, error } = await c.cloud.from("argus_report_templates").update(patch).eq("id", id).eq("created_by", userId).select("id").maybeSingle();
       if (error) throw error;
