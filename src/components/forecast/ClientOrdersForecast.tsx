@@ -84,6 +84,20 @@ const norm = (s: string) =>
     .replace(/[^a-z0-9]/g, "");
 
 const groupOf = forecastGroupOf;
+// Ambalaje/etichete: grupă după tipul din denumire (Folie, Caserole, Cutii...).
+const PACK_TYPES: [string, string[]][] = [
+  ["Folie", ["folie", "ribon", "banda"]], ["Caserole", ["caserol", "barcut"]], ["Capace", ["capac"]],
+  ["Cutii", ["cuti", "carton"]], ["Pungi", ["pung"]], ["Etichete", ["etichet"]],
+  ["Paleți și lădițe", ["palet", "euro", "ladit", "coltar"]], ["Tacâmuri", ["furculit", "lingurit", "tacam"]],
+];
+const packGroupOf = (name: string) => {
+  const n = norm(name);
+  const hit = PACK_TYPES.find(([, keys]) => keys.some((k) => n.startsWith(k)))
+    || PACK_TYPES.find(([, keys]) => keys.some((k) => n.includes(k)));
+  if (hit) return hit[0];
+  const w = (name || "").trim().split(/\s+/)[0] || "Altele";
+  return w.length > 2 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : "Altele";
+};
 const GROUP_ORDER = FORECAST_GROUP_ORDER;
 
 
@@ -121,7 +135,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   const [projTo, setProjTo] = useState<Date>(startOfDay(addDays(new Date(), weekly ? 27 : 6)));
   // Grupe minimizate în tabel
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [consumptionSelection, setConsumptionSelection] = useState<{ key: string; day: string; index: number } | null>(null);
+  const [consumptionSelection, setConsumptionSelection] = useState<{ key: string; day: string; index: number; week?: { day: string; index: number }[] } | null>(null);
   const [refRange, setRefRange] = useState<{ from: Date; to: Date }>({ from: subDays(new Date(), 7), to: subDays(new Date(), 1) });
 
 
@@ -504,7 +518,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           key,
           productId: p?.id || null,
           name,
-          group: inventoryType === "materii-prime" ? groupOf(name) : inventoryType === "ambalaje" ? "Ambalaje" : "Etichete",
+          group: inventoryType === "materii-prime" ? groupOf(name) : packGroupOf(name),
           unit: p?.default_unit || "kg",
           net: v.qty,
           pt,
@@ -571,10 +585,12 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   }, [rows, searchTerm]);
 
   const grouped = useMemo(() => {
-    return [...GROUP_ORDER, "Ambalaje", "Etichete"].map((g) => ({ group: g, items: filtered.filter((r) => r.group === g) })).filter(
+    const order = inventoryType === "materii-prime" ? GROUP_ORDER
+      : [...PACK_TYPES.map(([g]) => g), ...[...new Set(filtered.map((r) => r.group))].filter((g) => !PACK_TYPES.some(([t]) => t === g)).sort()];
+    return order.map((g) => ({ group: g, items: filtered.filter((r) => r.group === g) })).filter(
       (g) => g.items.length > 0
     );
-  }, [filtered]);
+  }, [filtered, inventoryType]);
 
   // ==== Proiecție viitoare: descărcarea stocului zi de zi ====
   const projDays = useMemo(() => {
@@ -648,6 +664,21 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     if (!consumptionSelection) return null;
     const row = filtered.find(r => r.key === consumptionSelection.key);
     if (!row) return null;
+    const fmtQ = (n: number) => n.toLocaleString('ro-RO', { maximumFractionDigits: 2 });
+    if (consumptionSelection.week) {
+      const pr = projection.get(row.key);
+      const sources: ConsumptionSource[] = []; let total = 0; let estimated = false;
+      consumptionSelection.week.forEach(({ day: d, index: i }) => {
+        const q = pr?.[i]?.consumption || 0; total += q;
+        const label = format(new Date(`${d}T12:00:00`), 'EEEE dd.MM', { locale: ro });
+        const avg = row.transferAvg[isoDay(new Date(`${d}T12:00:00`))] || 0;
+        const actual = d < todayKey || (d === todayKey && (row.actualConsumption[d] || 0) > avg);
+        if (actual) row.consumptionSources.filter(s => s.day === d).forEach(s => sources.push({ ...s, source: `${label} · ${s.source}` }));
+        else if (q > 0) { estimated = true; sources.push({ id: `avg-${d}`, day: d, source: `${label} · estimat`,
+          detail: `Media transferurilor în producție din ultimele 4 săptămâni, în aceeași zi a săptămânii`, quantity: q }); }
+      });
+      return { name: row.name, unit: row.unit, day: consumptionSelection.day, sources, total, estimated };
+    }
     const { day, index } = consumptionSelection;
     const total = projection.get(row.key)?.[index]?.consumption || 0;
     const weekday = format(new Date(`${day}T12:00:00`), 'EEEE', { locale: ro });
@@ -655,7 +686,6 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     const transferredSoFar = row.actualConsumption[day] || 0;
     const avg = row.transferAvg[isoDay(new Date(`${day}T12:00:00`))] || 0;
     const actual = day < todayKey || (day === todayKey && transferredSoFar > avg);
-    const fmtQ = (n: number) => n.toLocaleString('ro-RO', { maximumFractionDigits: 2 });
     const sources = actual ? transfers
       : total > 0
         ? [{ id: 'average', day, source: `Medie transferuri în producție de ${weekday}`,
@@ -1079,7 +1109,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                               <td className={cn("p-2 text-right tabular-nums", !weekly && day === todayKey && r.agedLots?.length && "bg-destructive/10 text-destructive")} title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}{day === todayKey && <LeafStockWarning name={r.name} lots={r.agedLots || []} />}</td>
                               <td className="p-2 text-right tabular-nums">{fmt(ordered)}</td>
                               <td className={cn('p-2 text-right tabular-nums', received < ordered && day <= todayKey && 'text-destructive')}>{fmt(received)}</td>
-                              <td className="p-2 text-right tabular-nums">{weekly ? fmt(v?.consumption) : <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums" title={day <= todayKey ? 'Vezi transferurile către producție' : 'Vezi sursele necesarului estimat'} onClick={() => setConsumptionSelection({ key: r.key, day, index: i })}>{fmt(v?.consumption)}</Button>}</td>
+                              <td className="p-2 text-right tabular-nums">{weekly ? <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums" title="Vezi cum s-a calculat consumul pe săptămână" onClick={() => setConsumptionSelection({ key: r.key, day, index: i, week: c.idx.map((j) => ({ day: format(projDays[j], 'yyyy-MM-dd'), index: j })) })}>{fmt(v?.consumption)}</Button> : <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums" title={day <= todayKey ? 'Vezi transferurile către producție' : 'Vezi sursele necesarului estimat'} onClick={() => setConsumptionSelection({ key: r.key, day, index: i })}>{fmt(v?.consumption)}</Button>}</td>
                               <td className={cn('p-2 text-right tabular-nums', v?.closing != null && v.closing < 0 && 'text-destructive')}>{fmt(v?.closing)}</td>
                               <td className="p-2 text-right border-r tabular-nums text-primary">
                                 {suggestion == null ? '—' : (
