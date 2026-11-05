@@ -1,15 +1,9 @@
 // Shared long-term memory for Argus: durable business facts visible to every user and chat.
 import { jsonSchema, tool } from "npm:ai@7.0.123";
 import { messageText } from "./contextRules.ts";
+export { loadMemory } from "./memoryStore.ts";
 
 type C = { cloud: any; legacy: any };
-const MAX_FACTS = 400;
-
-export async function loadMemory(c: C): Promise<string> {
-  const { data, error } = await c.cloud.from("argus_memory").select("fact,category,created_at").order("created_at", { ascending: false }).limit(MAX_FACTS);
-  if (error || !data?.length) return "(încă goală)";
-  return data.reverse().map((r: any) => `- [${r.category}] ${r.fact}`).join("\n");
-}
 
 export function memoryTools(c: C, userId: string, threadId: string) {
   return {
