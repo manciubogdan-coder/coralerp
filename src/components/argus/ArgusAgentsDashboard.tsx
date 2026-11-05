@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { toast } from "@/hooks/use-toast";
 import { argusFetch } from "@/lib/argusApi";
 import ArgusWidgetRenderer from "./ArgusWidgetRenderer";
+import { AgentFilterBar, AgentFiltersEditor, type AgentFilter } from "./AgentFilters";
 
 const SCHED: Record<string, string> = { on_demand: "La cerere", daily: "Zilnic", weekly: "Săptămânal", monthly: "Lunar" };
 const WIDGET: Record<string, string> = { auto: "Auto", bar_chart: "Bare", line_chart: "Linie", pie_chart: "Pie", kpi: "KPI", table: "Tabel", markdown: "Text" };
@@ -51,9 +52,10 @@ export default function ArgusAgentsDashboard() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  const [values, setValues] = useState<Record<string, Record<string, string>>>({});
   const run = async (templateId: string) => {
     setRunning((s) => ({ ...s, [templateId]: true }));
-    try { await argusFetch("agent_run", { id: templateId }, {}); }
+    try { await argusFetch("agent_run", { id: templateId }, { values: values[templateId] ?? {} }); }
     catch (e) { toast({ title: "Agentul nu a putut rula", description: (e as Error).message, variant: "destructive" }); }
     finally { setRunning((s) => ({ ...s, [templateId]: false })); load(); }
   };
@@ -142,6 +144,12 @@ export default function ArgusAgentsDashboard() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1">
+                  <AgentFilterBar
+                    filters={Array.isArray(t.params) ? t.params : []}
+                    values={values[c.template_id] ?? r?.content_json?.filtre ?? {}}
+                    onChange={(v) => setValues((s) => ({ ...s, [c.template_id]: v }))}
+                    onRun={() => run(c.template_id)} busy={busy}
+                  />
                   {busy ? (
                     <div className="space-y-2"><Skeleton className="h-40" /><p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Argus analizează datele…</p></div>
                   ) : r?.status === "completed" && r.content_json ? (
@@ -172,18 +180,33 @@ export default function ArgusAgentsDashboard() {
 }
 
 export function CreateReportModal({ open, onOpenChange, onCreated, initial }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: (id: string) => void; initial?: any | null }) {
-  const empty = { title: "", description: "", prompt_instructions: "", preferred_widget_type: "auto", schedule_type: "on_demand", is_public: false };
+  const empty = { title: "", description: "", prompt_instructions: "", preferred_widget_type: "auto", schedule_type: "on_demand", is_public: false, params: [] as AgentFilter[] };
   const [f, setF] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [proposal, setProposal] = useState("");
+  const [proposing, setProposing] = useState(false);
+  const source = initial?.propose as { question: string; answer: string } | undefined;
+  const propose = async (wish = "") => {
+    if (!source) return;
+    setProposing(true);
+    try {
+      const r = await argusFetch<any>("agent_propose_filters", {}, { question: source.question + (wish ? `\n\nUtilizatorul vrea exact aceste filtre: ${wish}` : ""), answer: source.answer });
+      setProposal(r.mesaj ?? ""); setF((x) => ({ ...x, params: r.filtre ?? [] }));
+    } catch (e) { toast({ title: "Nu am putut propune filtre", description: (e as Error).message, variant: "destructive" }); }
+    finally { setProposing(false); }
+  };
   useEffect(() => {
     if (!open) return;
+    setProposal("");
     setF(initial ? {
       title: initial.title ?? "", description: initial.description ?? "",
       prompt_instructions: initial.prompt_instructions ?? "",
       preferred_widget_type: initial.preferred_widget_type ?? "auto",
       schedule_type: initial.schedule_type ?? "on_demand", is_public: !!initial.is_public,
+      params: Array.isArray(initial.params) ? initial.params : [],
     } : empty);
-  }, [open, initial]);
+    if (initial?.propose) propose();
+  }, [open, initial]); // eslint-disable-line react-hooks/exhaustive-deps
   const submit = async () => {
     setSaving(true);
     try {
@@ -222,13 +245,14 @@ export function CreateReportModal({ open, onOpenChange, onCreated, initial }: { 
               </Select>
             </div>
           </div>
+          <AgentFiltersEditor filters={f.params} onChange={(params) => setF({ ...f, params })} proposal={proposal} proposing={proposing} onRepropose={source ? propose : undefined} />
           <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
             <span>Public — salvează în Librăria CoralERP pentru toți colegii</span>
             <Switch checked={f.is_public} onCheckedChange={(v) => setF({ ...f, is_public: v })} />
           </label>
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={saving || !f.title.trim() || !f.prompt_instructions.trim()}>{saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{initial ? "Salvează modificările" : "Creează și Execută Acum"}</Button>
+          <Button onClick={submit} disabled={saving || proposing || !f.title.trim() || !f.prompt_instructions.trim()}>{saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{initial ? "Salvează modificările" : "Creează și Execută Acum"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
