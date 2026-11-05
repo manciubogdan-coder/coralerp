@@ -85,7 +85,7 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
       fetchOrders();
     } catch (e) {
       console.error("Bulk update failed:", e);
-      toast({ title: "Eroare la actualizarea în bulk", description: "Nicio modificare parțială nu a fost confirmată; reîncarcă și verifică.", variant: "destructive" });
+      toast({ title: "Eroare la actualizarea în bulk", variant: "destructive" });
       fetchOrders();
     } finally { setBulkSaving(false); }
   };
@@ -548,9 +548,9 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
             <input type="date" className="h-8 rounded-md border bg-background px-2 text-sm" value={bulkDelivery} onChange={(e) => setBulkDelivery(e.target.value)} />
             <select className="h-8 rounded-md border bg-background px-2 text-sm" value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} aria-label="Status nou">
               <option value="">Status neschimbat</option>
-              <option value="ordered">Comandat</option>
-              <option value="delivered">Livrat</option>
-              <option value="cancelled">Anulat</option>
+              <option value="ordered">Comandată</option>
+              <option value="delivered">Livrată</option>
+              <option value="cancelled">Anulată</option>
             </select>
             <Button size="sm" disabled={bulkSaving || (!bulkDelivery && !bulkStatus)} onClick={applyBulk}>
               {bulkSaving ? "Se salvează…" : `Aplică la ${selected.size}`}
@@ -788,9 +788,9 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">În așteptare</SelectItem>
-                  <SelectItem value="ordered">Comandat</SelectItem>
-                  <SelectItem value="delivered">Livrat</SelectItem>
-                  <SelectItem value="cancelled">Anulat</SelectItem>
+                  <SelectItem value="ordered">Comandată</SelectItem>
+                  <SelectItem value="delivered">Livrată</SelectItem>
+                  <SelectItem value="cancelled">Anulată</SelectItem>
                 </SelectContent>
               </Select>
             </div>
