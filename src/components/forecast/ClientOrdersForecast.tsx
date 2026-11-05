@@ -504,7 +504,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           key,
           productId: p?.id || null,
           name,
-          group: groupOf(name),
+          group: inventoryType === "materii-prime" ? groupOf(name) : inventoryType === "ambalaje" ? "Ambalaje" : "Etichete",
           unit: p?.default_unit || "kg",
           net: v.qty,
           pt,
@@ -571,7 +571,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   }, [rows, searchTerm]);
 
   const grouped = useMemo(() => {
-    return GROUP_ORDER.map((g) => ({ group: g, items: filtered.filter((r) => r.group === g) })).filter(
+    return [...GROUP_ORDER, "Ambalaje", "Etichete"].map((g) => ({ group: g, items: filtered.filter((r) => r.group === g) })).filter(
       (g) => g.items.length > 0
     );
   }, [filtered]);
