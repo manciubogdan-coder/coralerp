@@ -48,8 +48,14 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 function gateway(run = createLovableAiGatewayRunIdFetch()) {
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("LOVABLE_API_KEY lipsește");
-  // gpt-6-astra supports tools only on the Responses surface.
-  return createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: run.fetch }).responses(MODEL);
+  // gpt-6-astra supports tools only on the Responses surface; store:false so tool steps resend items inline.
+  const fetchNoStore: typeof fetch = (input, init) => {
+    if (init?.body && typeof init.body === "string") {
+      try { const j = JSON.parse(init.body); j.store = false; init = { ...init, body: JSON.stringify(j) }; } catch { /* keep body */ }
+    }
+    return run.fetch(input, init);
+  };
+  return createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: fetchNoStore }).responses(MODEL);
 }
 
 // Main chat brain: deep-reasoning model; summaries/compaction stay on the cheaper gateway() model.
