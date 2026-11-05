@@ -48,14 +48,8 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 function gateway(run = createLovableAiGatewayRunIdFetch()) {
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("LOVABLE_API_KEY lipsește");
-  // gpt-6-astra supports tools only on the Responses surface; store:false so tool steps resend items inline.
-  const fetchNoStore: typeof fetch = (input, init) => {
-    if (init?.body && typeof init.body === "string") {
-      try { const j = JSON.parse(init.body); j.store = false; init = { ...init, body: JSON.stringify(j) }; } catch { /* keep body */ }
-    }
-    return run.fetch(input, init);
-  };
-  return createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: fetchNoStore }).responses(MODEL);
+  // gpt-6-astra supports tools only on the Responses surface.
+  return createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: run.fetch }).responses(MODEL);
 }
 
 // Main chat brain: deep-reasoning model; summaries/compaction stay on the cheaper gateway() model.
@@ -150,7 +144,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
   const smart = brain(run);
   const summarize = async (prompt: string, limit: number) => {
     // Gemini's reasoning consumes the output budget too; never cache a cut-off summary.
-    const summary = streamText({ model, prompt, maxOutputTokens: Math.max(4096, limit), abortSignal: req.signal, maxRetries: 0 });
+    const summary = streamText({ model, providerOptions: { openai: { store: false } }, prompt, maxOutputTokens: Math.max(4096, limit), abortSignal: req.signal, maxRetries: 0 });
     const text = (await summary.text).trim();
     if (await summary.finishReason === 'length') throw new Error('Sinteza a fost întreruptă; memoria anterioară rămâne păstrată.');
     return text;
@@ -325,7 +319,7 @@ async function handleSummary(c: ReturnType<typeof makeClients>, refresh: boolean
   const full = await overviewWithTrend(c, y, y);
   const stats = { ...full, calitate: { ...full.calitate, probleme: full.calitate.probleme.slice(0, 25).map(({ poze, ...x }: any) => ({ ...x, poze: poze.length })) }, depozite: Object.fromEntries(Object.entries(full.depozite).map(([k, v]: any) => [k, { ...v, lista: undefined }])), rebut: { ...full.rebut, inregistrari: full.rebut.inregistrari.slice(0, 20) } };
   const result = streamText({
-    model: gateway(),
+    model: gateway(), providerOptions: { openai: { store: false, include: ["reasoning.encrypted_content"] } },
     instructions: `Ești Argus, analistul CEO-ului Coral Biogreens. Scrie rezumatul de dimineață în română, markdown, maxim 300 de cuvinte, cu secțiunile: **Ce a mers bine**, **Ce nu a mers**, **Pierderi, rebut și calitate** (rebut kg și pe motive, pierdere calitativă la recepție în kg și %, defecte, furnizori cu marfă proastă, câte poze de neconformitate), **Oameni**, **De urmărit azi**. Folosește doar cifrele primite, compară cu ziua anterioară. Fără introducere.`,
     prompt: `Date pentru ziua ${y} (JSON):\n${JSON.stringify(stats).slice(0, 60000)}`,
   });
@@ -393,7 +387,7 @@ async function handleAgents(action: string, url: URL, req: Request, c: ReturnTyp
       const q = String(b.question ?? "").slice(0, 2000), a = String(b.answer ?? "").slice(0, 3000);
       try {
         const res = await generateText({
-          model: gateway(),
+          model: gateway(), providerOptions: { openai: { store: false, include: ["reasoning.encrypted_content"] } },
           instructions: `Ești Argus. Utilizatorul salvează un raport ca agent reutilizabil. Propune filtrele pe care ar vrea să le schimbe la fiecare rulare (perioadă, produs, client/magazin, furnizor, linie etc.), doar cele relevante cererii, max 5.
 Răspunde DOAR cu JSON: {"mesaj": str (o frază scurtă în română care explică de ce le propui), "filtre": [{"label": str, "type": "period"|"text"|"choice", "options": [str] (doar la choice), "default": str}]}
 La period, default este unul din: today, yesterday, last_7, last_30, this_month, last_month. La text/choice, default este valoarea folosită în cerere sau "" pentru toate.`,
