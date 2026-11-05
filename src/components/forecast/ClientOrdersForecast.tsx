@@ -684,21 +684,24 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const data = filtered.map((r) => {
         const line: Record<string, string | number> = { Material: r.name, "U.M.": r.unit };
         const values = projection.get(r.key);
-        projDays.forEach((d, i) => {
-          const date = format(d, "dd.MM.yyyy");
-          const v = values?.[i];
-          const day = format(d, 'yyyy-MM-dd');
-          line[`${date} - Stoc început`] = v?.opening ?? 'Lipsă snapshot';
-          line[`${date} - Comandat`] = r.commitments[day] || 0;
-          line[`${date} - Recepționat`] = r.received[day] || 0;
-          line[`${date} - Consum`] = v?.consumption || 0;
-          line[`${date} - Stoc final`] = v?.closing ?? 'Necunoscut';
-          line[`${date} - Comandă sugerată`] = v?.closing == null ? 'Necunoscut' : suggestedOrderFor(v.closing, [0, dayDemand(r, format(addDays(d, 1), 'yyyy-MM-dd'))], 0, r.buffer || 0);
+        projCols.forEach((c) => {
+          const date = weekly ? `Săpt. ${format(c.first, "dd.MM")}–${format(c.last, "dd.MM.yyyy")}` : format(c.first, "dd.MM.yyyy");
+          const dks = c.idx.map((j) => format(projDays[j], 'yyyy-MM-dd'));
+          const first = values?.[c.idx[0]]; const closing = values?.[c.idx[c.idx.length - 1]]?.closing ?? null;
+          const next = weekly
+            ? Array.from({ length: 7 }, (_, k) => dayDemand(r, format(addDays(c.last, k + 1), 'yyyy-MM-dd'))).reduce((x, y) => x + y, 0)
+            : dayDemand(r, format(addDays(c.first, 1), 'yyyy-MM-dd'));
+          line[`${date} - Stoc început`] = first?.opening ?? 'Lipsă snapshot';
+          line[`${date} - Comandat`] = dks.reduce((x, dk) => x + (r.commitments[dk] || 0), 0);
+          line[`${date} - Recepționat`] = dks.reduce((x, dk) => x + (r.received[dk] || 0), 0);
+          line[`${date} - Consum`] = c.idx.reduce((x, j) => x + (values?.[j]?.consumption || 0), 0);
+          line[`${date} - Stoc final`] = closing ?? 'Necunoscut';
+          line[`${date} - Comandă sugerată`] = closing == null ? 'Necunoscut' : suggestedOrderFor(closing, [0, next], 0, (r.buffer || 0) * (weekly ? 7 : 1));
         });
         return line;
       });
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Proiecție zi cu zi");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), weekly ? "Proiecție săptămânală" : "Proiecție zi cu zi");
       XLSX.writeFile(wb, `ForecastLivrari_${format(projFrom, "yyyyMMdd")}_${format(projTo, "yyyyMMdd")}.xlsx`);
       return;
     }
