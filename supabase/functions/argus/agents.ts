@@ -60,6 +60,7 @@ La final răspunde DOAR cu un obiect JSON valid (fără text înainte/după, fă
 Pentru pie_chart folosește o singură serie. ${pref}`;
     const res = await generateText({
       model,
+      providerOptions: { openai: { store: false, include: ["reasoning.encrypted_content"] } },
       tools: agentTools(c, querySchema),
       stopWhen: isStepCount(50),
       instructions,
@@ -76,6 +77,7 @@ Pentru pie_chart folosește o singură serie. ${pref}`;
       // Model stopped after tool calls or wrote prose: ask once more, no tools, for the final JSON.
       const fin = await generateText({
         model,
+      providerOptions: { openai: { store: false, include: ["reasoning.encrypted_content"] } },
         instructions,
         messages: [
           { role: "user", content: `Agent: ${t.title}\nInstrucțiuni: ${t.prompt_instructions}${filters.text}` },
