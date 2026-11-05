@@ -83,7 +83,7 @@ Pentru pie_chart folosește o singură serie. ${pref}`;
       model,
       providerOptions: { openai: { store: false, include: ["reasoning.encrypted_content"] } },
       tools: agentTools(c, querySchema),
-      stopWhen: isStepCount(50),
+      stopWhen: isStepCount(30),
       instructions,
       prompt: `Agent: ${t.title}\n${t.description ?? ""}\nInstrucțiuni: ${t.prompt_instructions}${filters.text}`,
     });

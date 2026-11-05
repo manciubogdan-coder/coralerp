@@ -353,7 +353,7 @@ async function latestReports(c: ReturnType<typeof makeClients>, ids: string[]) {
     .in("template_id", ids).order("executed_at", { ascending: false }).limit(ids.length * 4);
   const pending: Record<string, boolean> = {};
   for (const r of data ?? []) {
-    if (r.status === "pending" && Date.now() - new Date(r.executed_at).getTime() < 5 * 60_000) pending[r.template_id] = true;
+    if (r.status === "pending" && Date.now() - new Date(r.executed_at).getTime() < 10 * 60_000) pending[r.template_id] = true;
     if (!out[r.template_id] && r.status !== "pending") out[r.template_id] = r;
   }
   for (const id of ids) if (pending[id]) out[id] = { ...(out[id] ?? {}), running: true };
@@ -422,9 +422,13 @@ La period, default este unul din: today, yesterday, last_7, last_30, this_month,
       if (!card) return json({ error: "Agentul nu e pe tabloul tău." }, 404);
       const { data: t } = await c.cloud.from("argus_report_templates").select("*").eq("id", id).single();
       const body = await req.json().catch(() => ({}));
-      const r = await runAgent(c, gateway(), querySchema, t, "manual", body?.values && typeof body.values === "object" ? body.values : {});
-      if (!r.ok && (r.status === 402 || r.status === 403 || r.status === 429)) return json({ error: friendlyError({ status: r.status }) }, r.status);
-      return json({ ok: r.ok });
+      // Live Senior reads can take minutes: run in the background; the dashboard polls the pending report.
+      const job = runAgent(c, gateway(), querySchema, t, "manual", body?.values && typeof body.values === "object" ? body.values : {}).catch((e) => console.error("agent_run", e));
+      const wu = (globalThis as any).EdgeRuntime?.waitUntil;
+      if (wu) { wu.call((globalThis as any).EdgeRuntime, job); return json({ ok: true, background: true }); }
+      const r: any = await job;
+      if (r && !r.ok && (r.status === 402 || r.status === 403 || r.status === 429)) return json({ error: friendlyError({ status: r.status }) }, r.status);
+      return json({ ok: !!r?.ok });
     }
     case "agent_card_update": {
       const b = await req.json();
