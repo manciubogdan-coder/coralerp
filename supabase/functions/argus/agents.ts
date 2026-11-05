@@ -1,6 +1,7 @@
 import { generateText, isStepCount, jsonSchema, tool } from "npm:ai@7.0.123";
 import { addDays, bucharestDay, overviewWithTrend, runQuery, TABLES, type Clients, type QuerySpec } from "./data.ts";
 
+import { describeFilters, validFilters } from "./agentFilters.ts";
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const WIDGETS = ["bar_chart", "line_chart", "pie_chart", "kpi", "table", "markdown"];
 
@@ -39,10 +40,11 @@ export function agentTools(c: Clients, querySchema: unknown) {
   };
 }
 
-export async function runAgent(c: Clients, model: any, querySchema: unknown, t: any, executionType: "manual" | "cron") {
+export async function runAgent(c: Clients, model: any, querySchema: unknown, t: any, executionType: "manual" | "cron", values: Record<string, unknown> = {}) {
   const { data: rep } = await c.cloud.from("argus_generated_reports")
     .insert({ template_id: t.id, status: "pending", execution_type: executionType }).select("id").single();
   const today = bucharestDay();
+  const filters = describeFilters(validFilters(t.params), values, today);
   const pref = t.preferred_widget_type && t.preferred_widget_type !== "auto" ? `Folosește OBLIGATORIU widget_type="${t.preferred_widget_type}".` : "Alege widget_type-ul cel mai potrivit.";
   try {
     const instructions = `Ești Argus, analistul de date al Coral Biogreens. Azi este ${today} (Europe/Bucharest), ieri a fost ${addDays(today, -1)}.
@@ -61,7 +63,7 @@ Pentru pie_chart folosește o singură serie. ${pref}`;
       tools: agentTools(c, querySchema),
       stopWhen: isStepCount(50),
       instructions,
-      prompt: `Agent: ${t.title}\n${t.description ?? ""}\nInstrucțiuni: ${t.prompt_instructions}`,
+      prompt: `Agent: ${t.title}\n${t.description ?? ""}\nInstrucțiuni: ${t.prompt_instructions}${filters.text}`,
     });
     const extract = (txt: string) => {
       const raw = (txt ?? "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
@@ -76,7 +78,7 @@ Pentru pie_chart folosește o singură serie. ${pref}`;
         model,
         instructions,
         messages: [
-          { role: "user", content: `Agent: ${t.title}\nInstrucțiuni: ${t.prompt_instructions}` },
+          { role: "user", content: `Agent: ${t.title}\nInstrucțiuni: ${t.prompt_instructions}${filters.text}` },
           ...(res.response?.messages ?? []),
           { role: "user", content: "Pe baza datelor obținute mai sus, răspunde ACUM doar cu obiectul JSON final cerut." },
         ] as any,
@@ -87,6 +89,7 @@ Pentru pie_chart folosește o singură serie. ${pref}`;
     }
     if (!content) throw new Error("Argus nu a returnat date structurate.");
     if (!WIDGETS.includes(content.widget_type)) content.widget_type = "markdown";
+    content.filtre = filters.used;
     await c.cloud.from("argus_generated_reports").update({ status: "completed", content_json: content, executed_at: new Date().toISOString() }).eq("id", rep!.id);
     return { ok: true as const };
   } catch (e) {
