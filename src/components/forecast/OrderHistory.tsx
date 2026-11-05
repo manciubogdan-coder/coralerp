@@ -65,6 +65,30 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
   const [editing, setEditing] = useState<HistoryOrder | null>(null);
   const [editForm, setEditForm] = useState({ supplier_id: "", quantity: "", delivery: "", status: "ordered", notes: "" });
   const [savingEdit, setSavingEdit] = useState(false);
+  const [bulkDelivery, setBulkDelivery] = useState("");
+  const [bulkStatus, setBulkStatus] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const applyBulk = async () => {
+    const patch: Record<string, unknown> = {};
+    if (bulkDelivery) patch.expected_delivery_date = bulkDelivery;
+    if (bulkStatus) patch.status = bulkStatus;
+    if (!Object.keys(patch).length) { toast({ title: "Alege o dată de livrare sau un status", variant: "destructive" }); return; }
+    const ids = Array.from(selected);
+    setBulkSaving(true);
+    try {
+      for (let i = 0; i < ids.length; i += 50) {
+        const { error } = await supabase.from(getTableNames().orders).update(patch as any).in("id", ids.slice(i, i + 50));
+        if (error) throw error;
+      }
+      toast({ title: `${ids.length} comenzi actualizate` });
+      setBulkDelivery(""); setBulkStatus(""); setSelected(new Set());
+      fetchOrders();
+    } catch (e) {
+      console.error("Bulk update failed:", e);
+      toast({ title: "Eroare la actualizarea în bulk", variant: "destructive" });
+      fetchOrders();
+    } finally { setBulkSaving(false); }
+  };
 
   const openEdit = (o: HistoryOrder) => {
     setEditing(o);
@@ -519,7 +543,18 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
       {selected.size > 0 && (
         <div className="flex items-center justify-between gap-3 border rounded-lg p-3 bg-muted/40">
           <span className="text-sm font-medium">{selected.size} rânduri selectate</span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-xs text-muted-foreground">Mută livrarea pe</label>
+            <input type="date" className="h-8 rounded-md border bg-background px-2 text-sm" value={bulkDelivery} onChange={(e) => setBulkDelivery(e.target.value)} />
+            <select className="h-8 rounded-md border bg-background px-2 text-sm" value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} aria-label="Status nou">
+              <option value="">Status neschimbat</option>
+              <option value="ordered">Comandată</option>
+              <option value="delivered">Livrată</option>
+              <option value="cancelled">Anulată</option>
+            </select>
+            <Button size="sm" disabled={bulkSaving || (!bulkDelivery && !bulkStatus)} onClick={applyBulk}>
+              {bulkSaving ? "Se salvează…" : `Aplică la ${selected.size}`}
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
               Deselectează
             </Button>
@@ -753,9 +788,9 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ inventoryType }) => {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">În așteptare</SelectItem>
-                  <SelectItem value="ordered">Comandat</SelectItem>
-                  <SelectItem value="delivered">Livrat</SelectItem>
-                  <SelectItem value="cancelled">Anulat</SelectItem>
+                  <SelectItem value="ordered">Comandată</SelectItem>
+                  <SelectItem value="delivered">Livrată</SelectItem>
+                  <SelectItem value="cancelled">Anulată</SelectItem>
                 </SelectContent>
               </Select>
             </div>
