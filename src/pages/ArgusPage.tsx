@@ -13,6 +13,7 @@ import BackToHubButton from "@/components/BackToHubButton";
 import { MessageResponse } from "@/components/ai-elements/message";
 import ArgusChat from "@/components/argus/ArgusChat";
 import ArgusAgentsDashboard from "@/components/argus/ArgusAgentsDashboard";
+import PriceCalculator from "@/components/argus/PriceCalculator";
 import { argusFetch } from "@/lib/argusApi";
 import argusLogo from "@/assets/argus-logo.png";
 
@@ -413,7 +414,7 @@ const ArgusPage: React.FC = () => {
   const { threadId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const tab = location.pathname.includes("/argus/chat") ? "chat" : location.pathname.includes("/argus/agenti") ? "agenti" : "tablou";
+  const tab = location.pathname.includes("/argus/chat") ? "chat" : location.pathname.includes("/argus/agenti") ? "agenti" : location.pathname.includes("/argus/calculator-pret") ? "pret" : "tablou";
   return (
     <div className="container mx-auto space-y-4 px-2 py-3 md:px-6 md:py-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -425,17 +426,18 @@ const ArgusPage: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Tabs value={tab} onValueChange={(v) => navigate(v === "chat" ? "/administrativ/argus/chat" : v === "agenti" ? "/administrativ/argus/agenti" : "/administrativ/argus")}>
+          <Tabs value={tab} onValueChange={(v) => navigate(v === "chat" ? "/administrativ/argus/chat" : v === "agenti" ? "/administrativ/argus/agenti" : v === "pret" ? "/administrativ/argus/calculator-pret" : "/administrativ/argus")}>
             <TabsList>
               <TabsTrigger value="tablou">Tablou de bord</TabsTrigger>
               <TabsTrigger value="agenti">Agenți & Rapoarte</TabsTrigger>
+              <TabsTrigger value="pret">Calculator preț</TabsTrigger>
               <TabsTrigger value="chat">Întreabă-l pe Argus</TabsTrigger>
             </TabsList>
           </Tabs>
           <BackToHubButton />
         </div>
       </div>
-      {tab === "chat" ? <ArgusChat threadId={threadId} /> : tab === "agenti" ? <ArgusAgentsDashboard /> : <Dashboard />}
+      {tab === "chat" ? <ArgusChat threadId={threadId} /> : tab === "agenti" ? <ArgusAgentsDashboard /> : tab === "pret" ? <PriceCalculator /> : <Dashboard />}
     </div>
   );
 };
