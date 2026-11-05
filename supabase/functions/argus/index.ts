@@ -1,5 +1,4 @@
 import { corsHeaders as baseCors } from "npm:@supabase/supabase-js@2/cors";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible";
 import { createOpenAI } from "npm:@ai-sdk/openai@4";
 import { loadMemory, memoryTools, backfillMemory } from "./memory.ts";
 import {
