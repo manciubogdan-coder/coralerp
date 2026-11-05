@@ -13,6 +13,15 @@ export const PRESET_LABEL: Record<string, string> = {
 const TYPE_LABEL = { period: "Perioadă", text: "Text liber", choice: "Listă de opțiuni" };
 
 /** One filter value control: period preset (+ custom range), text or choice. */
+const READY_FILTERS: AgentFilter[] = [
+  { name: "perioada", label: "Perioadă", type: "period", default: "last_30" },
+  { name: "produs", label: "Produs", type: "text", default: "" },
+  { name: "client", label: "Client", type: "choice", options: ["Lidl", "Kaufland", "Mega Image", "Carrefour", "Auchan", "Profi", "Penny", "Metro", "Selgros", "Horeca"], default: "" },
+  { name: "furnizor", label: "Furnizor", type: "text", default: "" },
+  { name: "linie", label: "Linie de producție", type: "text", default: "" },
+  { name: "grupare", label: "Grupare rezultat", type: "choice", options: ["Pe zi", "Pe săptămână", "Pe lună", "Pe produs", "Pe client"], default: "" },
+];
+
 function FilterInput({ f, value, onChange }: { f: AgentFilter; value: string; onChange: (v: string) => void }) {
   if (f.type === "period") {
     const custom = value.includes("..") || value === "custom";
@@ -67,7 +76,6 @@ export function AgentFiltersEditor({ filters, onChange, proposal, proposing, onR
 }) {
   const [wish, setWish] = useState("");
   const set = (i: number, patch: Partial<AgentFilter>) => onChange(filters.map((f, j) => (j === i ? { ...f, ...patch } : f)));
-  const add = () => onChange([...filters, { name: `filtru_${Date.now() % 100000}`, label: "Filtru nou", type: "text", default: "" }]);
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="text-sm font-medium">Filtre pe care le vei putea schimba la fiecare rulare</div>
@@ -98,7 +106,16 @@ export function AgentFiltersEditor({ filters, onChange, proposal, proposing, onR
           </div>
         </div>
       ))}
-      <Button size="sm" variant="outline" onClick={add}><Plus className="mr-1 h-3.5 w-3.5" />Adaugă filtru</Button>
+      <div className="space-y-1">
+        <div className="text-xs text-muted-foreground">Apasă ca să adaugi un filtru gata făcut:</div>
+        <div className="flex flex-wrap gap-1.5">
+          {READY_FILTERS.filter((r) => !filters.some((f) => f.name === r.name)).map((r) => (
+            <Button key={r.name} size="sm" variant="outline" className="h-7 text-xs" onClick={() => onChange([...filters, { ...r }])}>
+              <Plus className="mr-1 h-3 w-3" />{r.label}
+            </Button>
+          ))}
+        </div>
+      </div>
       {onRepropose && (
         <div className="flex gap-2 pt-1">
           <Input className="h-8 text-xs" value={wish} onChange={(e) => setWish(e.target.value)} placeholder="Scrie-mi exact ce filtre vrei (ex: perioadă, produs și magazin din listă)" />
