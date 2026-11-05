@@ -1,5 +1,6 @@
 import { NumberInput } from "@/components/ui/number-input";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { forecastGroupOf, FORECAST_GROUP_ORDER, PACK_TYPES, packGroupOf } from "@/lib/forecastGroups";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-custom-toast";
 import { Button } from "@/components/ui/button";
@@ -123,6 +124,22 @@ const ProductOrderSettings: React.FC<ProductOrderSettingsProps> = ({ inventoryTy
   };
 
   const hasAnyChanges = settings.some(s => s.hasChanges);
+  const [search, setSearch] = useState("");
+  const [range, setRange] = useState("all");
+  const rangeOf = (name: string) => (inventoryType === "materii-prime" ? forecastGroupOf(name) : packGroupOf(name));
+  const ranges = useMemo(() => {
+    const present = new Set(settings.map((s) => rangeOf(s.product_name)));
+    const base = inventoryType === "materii-prime" ? FORECAST_GROUP_ORDER : PACK_TYPES.map(([g]) => g);
+    return [...base.filter((g) => present.has(g)), ...[...present].filter((g) => !base.includes(g)).sort()];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings, inventoryType]);
+  const groups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = settings.filter((s) => (!q || s.product_name.toLowerCase().includes(q) || (s.product_code || "").toLowerCase().includes(q))
+      && (range === "all" || rangeOf(s.product_name) === range));
+    return ranges.map((g) => ({ g, items: list.filter((s) => rangeOf(s.product_name) === g) })).filter((x) => x.items.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings, search, range, ranges]);
 
   if (loading) {
     return (
@@ -144,6 +161,14 @@ const ProductOrderSettings: React.FC<ProductOrderSettingsProps> = ({ inventoryTy
         </Button>
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <Input className="h-9 max-w-xs" placeholder="Caută produs sau cod…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <select className="h-9 rounded-md border bg-background px-2 text-sm" value={range} onChange={(e) => setRange(e.target.value)} aria-label="Gamă">
+          <option value="all">Toate gamele</option>
+          {ranges.map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
+      </div>
+
       <div className="border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
@@ -156,7 +181,15 @@ const ProductOrderSettings: React.FC<ProductOrderSettingsProps> = ({ inventoryTy
             </TableRow>
           </TableHeader>
           <TableBody>
-            {settings.map(setting => (
+            {groups.length === 0 && (
+              <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground">Niciun produs găsit</TableCell></TableRow>
+            )}
+            {groups.map(({ g, items }) => (
+              <React.Fragment key={g}>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableCell colSpan={5} className="py-2 font-semibold">{g} <span className="font-normal text-muted-foreground">({items.length})</span></TableCell>
+              </TableRow>
+            {items.map(setting => (
               <TableRow key={setting.product_id} className={setting.hasChanges ? "bg-amber-50" : ""}>
                 <TableCell className="font-mono text-sm">
                   {setting.product_code || "-"}
@@ -183,6 +216,8 @@ const ProductOrderSettings: React.FC<ProductOrderSettingsProps> = ({ inventoryTy
                   />
                 </TableCell>
               </TableRow>
+            ))}
+              </React.Fragment>
             ))}
           </TableBody>
         </Table>
