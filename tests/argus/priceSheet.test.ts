@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { componentKind, computeSheet, effectiveQty, isServiceComponent, ratePeriod, withMargin } from "../../supabase/functions/_shared/priceSheet";
-import { matchLoss } from "../../supabase/functions/_shared/priceCalcSenior";
+import { componentKind, computeSheet, effectiveQty, isServiceComponent, ratePeriod, withMargin, matchLoss } from "../../supabase/functions/_shared/priceSheet";
+
 
 const rates = { labourPerPiece: 0.778, utilitiesPerPiece: 0.0567, supplyPerKg: 2, distributionPerPiece: 4.125, clientFeePerPiece: 0.5584, eurRate: 5.2473, eurBufferPct: 1.5, techLossPct: 0, marginPct: 0 };
 

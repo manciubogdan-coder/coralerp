@@ -138,3 +138,20 @@ export function ratePeriod(year: number, month: number) {
   const last = new Date(Date.UTC(year, month - 2, 1));
   return { from: ym(start), to: ym(last), startDay: start.toISOString().slice(0, 10), endDay: end.toISOString().slice(0, 10) };
 }
+
+const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bvrac\b/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+
+/** Technological loss from Coral ERP raw-material settings: exact name, else the longest app name contained in the Senior name. */
+export function matchLoss(seniorName: string, products: Array<{ name: string; pt_percent: number | null }>) {
+  const s = norm(seniorName);
+  let best: { name: string; pt: number } | null = null;
+  for (const p of products) {
+    if (p.pt_percent == null) continue;
+    const a = norm(p.name);
+    if (!a) continue;
+    if (a === s) return { name: p.name, pt: Number(p.pt_percent) };
+    if ((s.includes(a) || a.includes(s)) && (!best || a.length > norm(best.name).length)) best = { name: p.name, pt: Number(p.pt_percent) };
+  }
+  return best;
+}
+

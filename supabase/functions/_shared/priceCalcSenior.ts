@@ -1,6 +1,7 @@
 // Live Senior reads for the price calculator. Every rate is derived from Senior data and returned with its source.
 import { seniorLive } from "./senior.ts";
-import { componentKind, isServiceComponent, ratePer, ratePeriod, type SheetComponent } from "./priceSheet.ts";
+export { matchLoss } from "./priceSheet.ts";
+import { componentKind, isServiceComponent, matchLoss, ratePer, ratePeriod, type SheetComponent } from "./priceSheet.ts";
 
 type Rpc = { rpc: (fn: string, args?: Record<string, unknown>) => any };
 const SQL = (sb: Rpc, sql: string) => seniorLive(sb, "sql", { sql }, 55000).then((r: any) => (Array.isArray(r) ? r : []));
@@ -58,22 +59,6 @@ export async function findPartners(sb: Rpc, name: string) {
   if (!q.length) return [];
   const like = q.map((w) => `p.Denumire LIKE N'%${w}%'`).join(" AND ");
   return SQL(sb, `SELECT TOP 10 p.Partener_ID id, p.Denumire name FROM dbo.D_Parteneri p WITH (NOLOCK) WHERE p.IsClient=1 AND ${like} ORDER BY p.Denumire`);
-}
-
-const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bvrac\b/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-
-/** Technological loss from Coral ERP raw-material settings: exact name, else the longest app name contained in the Senior name. */
-export function matchLoss(seniorName: string, products: Array<{ name: string; pt_percent: number | null }>) {
-  const s = norm(seniorName);
-  let best: { name: string; pt: number } | null = null;
-  for (const p of products) {
-    if (p.pt_percent == null) continue;
-    const a = norm(p.name);
-    if (!a) continue;
-    if (a === s) return { name: p.name, pt: Number(p.pt_percent) };
-    if ((s.includes(a) || a.includes(s)) && (!best || a.length > norm(best.name).length)) best = { name: p.name, pt: Number(p.pt_percent) };
-  }
-  return best;
 }
 
 export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: unknown; partnerId?: unknown; year?: unknown; month?: unknown }) {
