@@ -11,6 +11,7 @@ export interface SheetComponent {
   price: number | null; // RON per recipe unit
   priceSource: string;
   lossPct: number; // raw materials only: technological loss, 19 = 19%
+  lossSource?: string;
 }
 
 export interface SheetRates {

@@ -141,7 +141,7 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
     loss = data ?? [];
   } catch { loss = []; }
 
-  const components: SheetComponent[] = rows.map((r) => {
+  const components: SheetComponent[] = rows.map((r): SheetComponent => {
     const name = String(r.name).trim(), unit = String(r.um ?? "").trim() || "BUC";
     const p = prices.get(Number(r.id));
     const annual = p && num(p.q12) > 0 ? num(p.v12) / num(p.q12) : null;
@@ -153,7 +153,7 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
       priceSource: annual != null ? "medie NIR 12 luni" : p?.lastp != null ? `ultimul preț ${String(p.lastd).slice(0, 10)}` : "fără achiziții în Senior",
       lossPct: m ? m.pt : 0,
       ...(kind === "mp" ? { lossSource: m ? `PT Coral ERP: ${m.name}` : "fără PT setat" } : {}),
-    } as SheetComponent;
+    };
   });
 
   const acc = new Map(journal.map((r: any) => [String(r.cont), { cont: String(r.cont), name: String(r.name ?? ""), value: Math.round(num(r.v) * 100) / 100 }]));
