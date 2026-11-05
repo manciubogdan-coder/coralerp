@@ -2,6 +2,7 @@ import { generateText, isStepCount, jsonSchema, tool } from "npm:ai@7.0.123";
 import { addDays, bucharestDay, overviewWithTrend, runQuery, TABLES, type Clients, type QuerySpec } from "./data.ts";
 
 import { describeFilters, validFilters } from "./agentFilters.ts";
+import { priceTools } from "./priceTool.ts";
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const WIDGETS = ["bar_chart", "line_chart", "pie_chart", "kpi", "table", "markdown"];
 
@@ -9,6 +10,7 @@ const tableList = Object.entries(TABLES).map(([k, v]) => `- ${k}: ${v.desc}`).jo
 
 export function agentTools(c: Clients, querySchema: unknown) {
   return {
+    ...priceTools(c),
     metrici_perioada: tool({
       description: "Tablou complet pe o perioadă (oameni, producție, depozite, anomalii, rebut, calitate).",
       inputSchema: jsonSchema<{ de_la: string; pana_la: string }>({
