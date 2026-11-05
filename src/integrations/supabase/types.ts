@@ -467,6 +467,7 @@ export type Database = {
           id: string
           is_public: boolean
           last_scheduled_at: string | null
+          params: Json
           preferred_widget_type: string
           prompt_instructions: string
           schedule_type: string
@@ -480,6 +481,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           last_scheduled_at?: string | null
+          params?: Json
           preferred_widget_type?: string
           prompt_instructions: string
           schedule_type?: string
@@ -493,6 +495,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           last_scheduled_at?: string | null
+          params?: Json
           preferred_widget_type?: string
           prompt_instructions?: string
           schedule_type?: string
