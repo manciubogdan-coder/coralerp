@@ -55,7 +55,17 @@ export default function ArgusAgentsDashboard() {
   const [values, setValues] = useState<Record<string, Record<string, string>>>({});
   const run = async (templateId: string) => {
     setRunning((s) => ({ ...s, [templateId]: true }));
-    try { await argusFetch("agent_run", { id: templateId }, { values: values[templateId] ?? {} }); }
+    try {
+      const r = await argusFetch<any>("agent_run", { id: templateId }, { values: values[templateId] ?? {} });
+      // The agent runs in the background on the server; poll until its report is no longer pending (max ~8 min).
+      if (r?.background) {
+        for (let i = 0; i < 96; i++) {
+          await new Promise((res) => setTimeout(res, 5000));
+          const l = await argusFetch<any>("agents_list").catch(() => null);
+          if (l && !l.reports?.[templateId]?.running) break;
+        }
+      }
+    }
     catch (e) { toast({ title: "Agentul nu a putut rula", description: (e as Error).message, variant: "destructive" }); }
     finally { setRunning((s) => ({ ...s, [templateId]: false })); load(); }
   };
