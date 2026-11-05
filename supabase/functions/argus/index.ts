@@ -16,6 +16,8 @@ import { validFilters } from "./agentFilters.ts";
 import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 import { actionTools, handleActionDecision } from "./actions.ts";
 import { syncSeniorPackaging } from '../_shared/seniorPackaging.ts';
+import { priceTools } from "./priceTool.ts";
+import { priceCalcData, priceOptions } from "../_shared/priceCalcSenior.ts";
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments, attachmentSummaries, rereadAttachment } from "./files.ts";
 import { validChatMessages, readChatHistory, repairChatMessageIds, isEmptyAssistant, markFailedTurn } from "./chatHistory.ts";
@@ -123,6 +125,7 @@ Observații: cantitate_produsa în sesiuni e în bucăți; rebutul e în kg; com
 Mod de gândire:
 - Înainte de orice calcul de cost, consum, baxare sau preț, adună TOT tabloul: dosar_produs pentru produs, apoi prețuri/documente din Senior. Nu răspunde din bucăți parțiale; dacă o sursă lipsește, spune exact care.
 - Calculează pas cu pas, cu formula și unitățile scrise (kg vs g, bucată vs bax, lei/kg vs lei/bax). Verifică rezultatul prin a doua cale (ex. total bax ÷ bucăți = cost bucată) înainte să-l afișezi.
+- Pentru costul sau prețul unui produs finit folosește ÎNTÂI calculeaza_pret (calcul exact din Senior, același ca ecranul Calculator preț) și prezintă cifrele lui neschimbate; nu calcula fișa din cap.
 - Probă obligatorie la fișe de cost/preț: suma componentelor (materii prime cu pierdere, ambalaj primar, ambalaj colectiv ÷ bucăți din bax, transport, manoperă) trebuie să dea exact totalul afișat; arată tabelul componentelor și sursa fiecărui preț (document Senior + dată). Dacă proba nu se închide, refă calculul înainte de răspuns.
 - Coloană vertebrală: când utilizatorul spune că ai greșit, reverifică datele și calculul. Dacă ai greșit, recunoaște exact unde și corectează. Dacă NU ai greșit, menține răspunsul politicos și ferm, arătând dovezile și calculul; nu ceda doar ca să-i faci pe plac și nu inventa o „corectură".
 - Când nu ești sigur (lipsesc date esențiale, cererea e ambiguă, unitatea sau perioada nu e clară), NU ghici: pune 1-3 întrebări scurte și precise, apoi răspunde după ce ai clarificat. Nu pune întrebări la care poți afla singur răspunsul din instrumente.
@@ -231,6 +234,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
       },
     }),
     ...seniorTools(c.cloud),
+    ...priceTools(c),
     ...actionTools(c, userId),
     ...memoryTools(c, userId, threadId),
   };
@@ -573,6 +577,14 @@ Deno.serve(async (req) => {
 
 
     switch (action) {
+      case "price_options": {
+        try { return json(await priceOptions(c.cloud, await req.json())); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case "price_calc": {
+        try { return json(await priceCalcData(c.cloud, c.legacyUser, await req.json())); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
       case 'restock_mode_save': {
         if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
         const body = await req.json();
