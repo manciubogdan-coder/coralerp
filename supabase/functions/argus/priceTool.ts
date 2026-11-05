@@ -3,7 +3,7 @@ import { jsonSchema, tool } from "npm:ai@7.0.123";
 import { computeSheet } from "../_shared/priceSheet.ts";
 import { defaultRates, findArticles, findPartners, priceCalcData } from "../_shared/priceCalcSenior.ts";
 
-type C = { cloud: any; legacy: any };
+type C = { cloud: any; legacy: any; legacyUser?: any };
 
 export function priceTools(c: C) {
   return {
@@ -36,7 +36,7 @@ export function priceTools(c: C) {
             partner = ps.find((p: any) => String(p.name).trim().toLowerCase() === client.trim().toLowerCase()) ?? ps[0];
           }
           const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Bucharest" }));
-          const d = await priceCalcData(c.cloud, c.legacy, { articolId: art.id, partnerId: partner?.id ?? null, year: an ?? now.getFullYear(), month: luna ?? now.getMonth() + 1 });
+          const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: art.id, partnerId: partner?.id ?? null, year: an ?? now.getFullYear(), month: luna ?? now.getMonth() + 1 });
           const sheet = computeSheet({ unitsPerCase: d.product.unitsPerCase, components: d.components, rates: defaultRates(d, marja ?? 0) });
           const lastSale = [...d.salesHistory].reverse().find((h) => h.price != null) ?? null;
           return {

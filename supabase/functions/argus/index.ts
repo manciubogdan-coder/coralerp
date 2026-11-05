@@ -582,7 +582,7 @@ Deno.serve(async (req) => {
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case "price_calc": {
-        try { return json(await priceCalcData(c.cloud, c.legacy, await req.json())); }
+        try { return json(await priceCalcData(c.cloud, c.legacyUser, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case 'restock_mode_save': {
