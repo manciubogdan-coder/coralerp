@@ -182,3 +182,20 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
     priceList: priceList[0] ? { price: num(priceList[0].price), currency: String(priceList[0].cur ?? "RON"), list: String(priceList[0].list ?? "").trim(), since: String(priceList[0].ds).slice(0, 10) } : null,
   };
 }
+
+export type PriceData = Awaited<ReturnType<typeof priceCalcData>>;
+
+/** Default rates straight from the Senior-derived data (EUR buffer 1.5%, no extra tech loss). */
+export function defaultRates(d: PriceData, marginPct = 0) {
+  return {
+    labourPerPiece: d.rates.labourPerPiece.value,
+    utilitiesPerPiece: d.rates.utilitiesPerPiece.value,
+    supplyPerKg: d.rates.supplyPerKg.value,
+    distributionPerPiece: d.rates.distributionPerPiece.value,
+    clientFeePerPiece: d.rates.clientFeePerPiece.value,
+    eurRate: d.eur?.rate ?? 0,
+    eurBufferPct: 1.5,
+    techLossPct: 0,
+    marginPct,
+  };
+}
