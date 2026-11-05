@@ -81,3 +81,4 @@
 - [x] Ambalaje: stoc tuburi folie
 - [x] Comenzi & Necesar: tabele și export după modelele standardizate, cantitate modificată, depozite pe coloane și Lidl mono/mixte.
 - [x] Reproduce original template colors, borders, fonts, merged headers and sizing in Sales sheets and Excel exports; verified template rendering and sample exports.
+- [ ] Price calculator (Calculator Preț) like the Manus printout: exact screen with dropdowns (subgroup, client, product, route, labour line, margin, month/year), deterministic cost sheet, sale-vs-calculated comparison and monthly sale price history; labour/utilities/transport rates derived from Senior; Argus calls the same calculation in chat.
