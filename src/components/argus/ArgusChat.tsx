@@ -223,6 +223,7 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
       preferred_widget_type: hasTable ? "table" : "auto",
       schedule_type: "on_demand",
       is_public: false,
+      propose: { question: q, answer: answer.slice(0, 3000) },
     });
   };
 

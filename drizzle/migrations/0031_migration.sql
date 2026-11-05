@@ -1,0 +1,1 @@
+ALTER TABLE public.argus_report_templates ADD COLUMN IF NOT EXISTS params jsonb NOT NULL DEFAULT '[]'::jsonb;
