@@ -650,7 +650,7 @@ Deno.serve(async (req) => {
         return json(r.body, r.status);
       }
       case "chat":
-        return await handleChat(req, c, userId);
+        return await handleChat(req, c, userId, auth.user.email);
       default:
         return json({ error: "Acțiune necunoscută" }, 400);
     }
