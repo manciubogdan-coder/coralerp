@@ -1,13 +1,16 @@
 // Agent filters: user-editable parameters (period, product, client...) stored on a report template
 // and injected into the agent prompt at run time. Pure helpers shared by the server and tests.
 
-export type FilterType = "period" | "text" | "choice";
+export type FilterType = "period" | "text" | "choice" | "lookup";
+export type LookupSource = "produs" | "client" | "furnizor";
+const SOURCES: LookupSource[] = ["produs", "client", "furnizor"];
 export type PeriodPreset = "today" | "yesterday" | "last_7" | "last_30" | "this_month" | "last_month" | "custom";
 export interface AgentFilter {
   name: string;
   label: string;
   type: FilterType;
   options?: string[];
+  source?: LookupSource; // lookup: searchable list loaded live from Senior
   default: string; // period: preset or "YYYY-MM-DD..YYYY-MM-DD"; text/choice: value ("" = toate)
 }
 
@@ -27,7 +30,9 @@ export function validFilters(raw: unknown): AgentFilter[] {
     if (!f || typeof f !== "object") continue;
     const label = String((f as any).label ?? "").trim().slice(0, 60);
     const type = (f as any).type as FilterType;
-    if (!label || !["period", "text", "choice"].includes(type)) continue;
+    if (!label || !["period", "text", "choice", "lookup"].includes(type)) continue;
+    const source = type === "lookup" ? (SOURCES.includes((f as any).source) ? (f as any).source as LookupSource : null) : undefined;
+    if (source === null) continue;
     let name = String((f as any).name ?? "");
     if (!NAME.test(name)) name = slug(label);
     if (out.some((x) => x.name === name)) continue;
@@ -38,7 +43,7 @@ export function validFilters(raw: unknown): AgentFilter[] {
     let def = String((f as any).default ?? "").trim().slice(0, 200);
     if (type === "period" && !PRESETS.includes(def as PeriodPreset) && !rangeOf(def)) def = "last_30";
     if (type === "choice" && def && !options!.includes(def)) def = "";
-    out.push({ name, label, type, ...(options ? { options } : {}), default: def });
+    out.push({ name, label, type, ...(options ? { options } : {}), ...(source ? { source } : {}), default: def });
   }
   return out;
 }

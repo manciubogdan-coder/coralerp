@@ -18,6 +18,8 @@ import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 import { actionTools, handleActionDecision } from "./actions.ts";
 import { syncSeniorPackaging } from '../_shared/seniorPackaging.ts';
 import { priceTools } from "./priceTool.ts";
+import { filtersForTemplate, parameterizeSql, validLiveSpec, type LiveSpec } from "./liveReports.ts";
+import { filterOptions } from "./filterOptions.ts";
 import { agentBuilderTools } from "./agentBuilder.ts";
 import { priceCalcData, priceOptions } from "../_shared/priceCalcSenior.ts";
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
@@ -400,7 +402,8 @@ async function handleAgents(action: string, url: URL, req: Request, c: ReturnTyp
         const res = await generateText({
           model: gateway(), providerOptions: { openai: { store: false, include: ["reasoning.encrypted_content"] } },
           instructions: `Ești Argus. Utilizatorul salvează un raport ca agent reutilizabil. Propune filtrele pe care ar vrea să le schimbe la fiecare rulare (perioadă, produs, client/magazin, furnizor, linie etc.), doar cele relevante cererii, max 5.
-Răspunde DOAR cu JSON: {"mesaj": str (o frază scurtă în română care explică de ce le propui), "filtre": [{"label": str, "type": "period"|"text"|"choice", "options": [str] (doar la choice), "default": str}]}
+Răspunde DOAR cu JSON: {"mesaj": str (o frază scurtă în română care explică de ce le propui), "filtre": [{"label": str, "type": "period"|"lookup"|"text"|"choice", "source": "produs"|"client"|"furnizor" (doar la lookup), "options": [str] (doar la choice), "default": str}]}
+Pentru produs, client sau furnizor folosește OBLIGATORIU type "lookup" cu source potrivit (utilizatorul alege dintr-o listă Senior, nu scrie).
 La period, default este unul din: today, yesterday, last_7, last_30, this_month, last_month. La text/choice, default este valoarea folosită în cerere sau "" pentru toate.`,
           prompt: `Cererea:\n${q}\n\nRăspunsul lui Argus:\n${a}`,
         });
@@ -422,6 +425,11 @@ La period, default este unul din: today, yesterday, last_7, last_30, this_month,
       if (!card) return json({ error: "Agentul nu e pe tabloul tău." }, 404);
       const { data: t } = await c.cloud.from("argus_report_templates").select("*").eq("id", id).single();
       const body = await req.json().catch(() => ({}));
+      if (t?.live_spec) {
+        // Saved live report: code-only refresh, a few seconds, no AI credits.
+        const r: any = await runAgent(c, null, querySchema, t, "manual", body?.values && typeof body.values === "object" ? body.values : {});
+        return json({ ok: !!r?.ok });
+      }
       // Live Senior reads can take minutes: run in the background; the dashboard polls the pending report.
       const job = runAgent(c, gateway(), querySchema, t, "manual", body?.values && typeof body.values === "object" ? body.values : {}).catch((e) => console.error("agent_run", e));
       const wu = (globalThis as any).EdgeRuntime?.waitUntil;
@@ -467,6 +475,29 @@ La period, default este unul din: today, yesterday, last_7, last_30, this_month,
       if (error) throw error;
       if (!t) return json({ error: "Poți edita doar agenții creați de tine." }, 403);
       return json({ ok: true });
+    }
+    case "live_save": {
+      const b = await req.json();
+      const title = String(b.title ?? "").trim().slice(0, 150) || "Raport live";
+      let spec: LiveSpec | null = null;
+      if (b.kind === "sql") {
+        const sql = String(b.sql ?? "").trim();
+        if (!sql) return json({ error: "Lipsește interogarea." }, 400);
+        try { spec = { kind: "sql", template: await parameterizeSql(gateway(), sql, String(b.question ?? ""), bucharestDay()) }; }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      } else spec = validLiveSpec(b);
+      if (!spec) return json({ error: "Raportul nu poate fi salvat." }, 400);
+      const params = spec.kind === "sql" ? filtersForTemplate(spec.template) : [];
+      const { data: t, error } = await c.cloud.from("argus_report_templates").insert({
+        title, description: spec.kind === "sql" ? "Raport live din chat · se actualizează direct din Senior, fără credite AI" : "Fișă de preț live · recalculată din Senior, fără credite AI",
+        prompt_instructions: spec.kind === "sql" ? `[raport live] ${String(b.question ?? "").slice(0, 1000)}` : `[fișă preț live] ${spec.product}`,
+        preferred_widget_type: "table", schedule_type: "on_demand", is_public: false, created_by: userId, created_by_name: email,
+        params, live_spec: spec,
+      }).select("*").single();
+      if (error) throw error;
+      await addCard(c, userId, t.id, 2);
+      const run: any = await runAgent(c, null, querySchema, t, "manual", {});
+      return json({ ...t, firstRunOk: !!run?.ok });
     }
     case "agent_delete": {
       const { error } = await c.cloud.from("argus_report_templates").delete().eq("id", id).eq("created_by", userId);
@@ -590,6 +621,10 @@ Deno.serve(async (req) => {
     switch (action) {
       case "price_options": {
         try { return json(await priceOptions(c.cloud, await req.json())); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case "filter_options": {
+        try { return json(await filterOptions(c.cloud, String(url.searchParams.get("source") ?? ""))); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case "price_calc": {

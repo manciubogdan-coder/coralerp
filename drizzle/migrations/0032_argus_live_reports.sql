@@ -1,0 +1,1 @@
+ALTER TABLE public.argus_report_templates ADD COLUMN IF NOT EXISTS live_spec jsonb;

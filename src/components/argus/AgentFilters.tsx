@@ -1,26 +1,77 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { argusFetch } from "@/lib/argusApi";
 import { Plus, RefreshCw, Trash2, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export type AgentFilter = { name: string; label: string; type: "period" | "text" | "choice"; options?: string[]; default: string };
+export type AgentFilter = { name: string; label: string; type: "period" | "text" | "choice" | "lookup"; options?: string[]; source?: "produs" | "client" | "furnizor"; default: string };
 
 export const PRESET_LABEL: Record<string, string> = {
   today: "Azi", yesterday: "Ieri", last_7: "Ultimele 7 zile", last_30: "Ultimele 30 de zile",
   this_month: "Luna curentă", last_month: "Luna trecută", custom: "Interval ales",
 };
-const TYPE_LABEL = { period: "Perioadă", text: "Text liber", choice: "Listă de opțiuni" };
+const TYPE_LABEL = { period: "Perioadă", lookup: "Listă din Senior", text: "Text liber", choice: "Listă de opțiuni" };
 
 /** One filter value control: period preset (+ custom range), text or choice. */
 const READY_FILTERS: AgentFilter[] = [
   { name: "perioada", label: "Perioadă", type: "period", default: "last_30" },
-  { name: "produs", label: "Produs", type: "text", default: "" },
-  { name: "client", label: "Client", type: "choice", options: ["Lidl", "Kaufland", "Mega Image", "Carrefour", "Auchan", "Profi", "Penny", "Metro", "Selgros", "Horeca"], default: "" },
-  { name: "furnizor", label: "Furnizor", type: "text", default: "" },
+  { name: "produs", label: "Produs", type: "lookup", source: "produs", default: "" },
+  { name: "client", label: "Client", type: "lookup", source: "client", default: "" },
+  { name: "furnizor", label: "Furnizor", type: "lookup", source: "furnizor", default: "" },
   { name: "linie", label: "Linie de producție", type: "text", default: "" },
   { name: "grupare", label: "Grupare rezultat", type: "choice", options: ["Pe zi", "Pe săptămână", "Pe lună", "Pe produs", "Pe client"], default: "" },
 ];
+
+const lists = new Map<string, Promise<string[]>>();
+function loadList(source: string) {
+  if (!lists.has(source)) {
+    const p = argusFetch<{ names: string[] }>("filter_options", { source }).then((r) => r.names ?? []);
+    p.catch(() => lists.delete(source));
+    lists.set(source, p);
+  }
+  return lists.get(source)!;
+}
+
+/** Searchable list loaded live from Senior (products, clients, suppliers). */
+function LookupInput({ source, value, onChange }: { source: string; value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [names, setNames] = useState<string[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { if (open && !names) loadList(source).then(setNames).catch((e) => setErr(e.message)); }, [open, source, names]);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" className="h-8 w-56 justify-between text-xs font-normal">
+          <span className="truncate">{value || "Toate"}</span><ChevronsUpDown className="ml-1 h-3.5 w-3.5 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Caută…" />
+          <CommandList className="max-h-72 overflow-y-auto">
+            {!names && !err && <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Încarc lista din Senior…</div>}
+            {err && <div className="p-3 text-xs text-destructive">{err}</div>}
+            <CommandEmpty>Nimic găsit.</CommandEmpty>
+            {names && (
+              <CommandGroup>
+                <CommandItem value="__toate" onSelect={() => { onChange(""); setOpen(false); }}><Check className={`mr-2 h-4 w-4 ${!value ? "opacity-100" : "opacity-0"}`} />Toate</CommandItem>
+                {names.map((n) => (
+                  <CommandItem key={n} value={n} onSelect={() => { onChange(n); setOpen(false); }}>
+                    <Check className={`mr-2 h-4 w-4 ${value === n ? "opacity-100" : "opacity-0"}`} />{n}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function FilterInput({ f, value, onChange }: { f: AgentFilter; value: string; onChange: (v: string) => void }) {
   if (f.type === "period") {
@@ -41,6 +92,7 @@ function FilterInput({ f, value, onChange }: { f: AgentFilter; value: string; on
       </div>
     );
   }
+  if (f.type === "lookup" && f.source) return <LookupInput source={f.source} value={value} onChange={onChange} />;
   if (f.type === "choice") {
     return (
       <Select value={value || "__all"} onValueChange={(v) => onChange(v === "__all" ? "" : v)}>
@@ -91,12 +143,18 @@ export function AgentFiltersEditor({ filters, onChange, proposal, proposing, onR
         <div key={f.name} className="space-y-2 rounded border bg-card p-2">
           <div className="flex flex-wrap items-center gap-2">
             <Input className="h-8 w-40 text-xs" value={f.label} onChange={(e) => set(i, { label: e.target.value })} aria-label="Nume filtru" />
-            <Select value={f.type} onValueChange={(v: any) => set(i, { type: v, default: v === "period" ? "last_30" : "", options: v === "choice" ? f.options ?? [] : undefined })}>
+            <Select value={f.type} onValueChange={(v: any) => set(i, { type: v, default: v === "period" ? "last_30" : "", options: v === "choice" ? f.options ?? [] : undefined, source: v === "lookup" ? f.source ?? "produs" : undefined })}>
               <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>{Object.entries(TYPE_LABEL).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent>
             </Select>
             <Button size="icon" variant="ghost" className="ml-auto h-8 w-8" onClick={() => onChange(filters.filter((_, j) => j !== i))} aria-label="Taie filtrul"><Trash2 className="h-4 w-4" /></Button>
           </div>
+          {f.type === "lookup" && (
+            <Select value={f.source ?? "produs"} onValueChange={(v: any) => set(i, { source: v, default: "" })}>
+              <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="produs">Produse Senior</SelectItem><SelectItem value="client">Clienți Senior</SelectItem><SelectItem value="furnizor">Furnizori Senior</SelectItem></SelectContent>
+            </Select>
+          )}
           {f.type === "choice" && (
             <Input className="h-8 text-xs" placeholder="Opțiuni separate prin virgulă (ex: Lidl, Kaufland, Mega Image)" value={(f.options ?? []).join(", ")}
               onChange={(e) => set(i, { options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
