@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calculator, Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { Calculator, Check, ChevronsUpDown, Loader2, Zap } from "lucide-react";
+import { toast } from "@/hooks/use-custom-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,6 +124,23 @@ export default function PriceCalculator() {
     finally { setLoading(false); }
   };
 
+  const [saving, setSaving] = useState(false);
+  const saveLive = async () => {
+    if (!data || !product) return;
+    const clientName = clients.find((c) => c.id === client)?.name ?? "";
+    const margin = num(rates.marginPct ?? "0");
+    setSaving(true);
+    try {
+      const r = await argusFetch<any>("live_save", {}, {
+        kind: "price", articolId: product, partnerId: client, marginPct: margin, product: data.product.name, client: clientName,
+        title: `Fișă preț — ${data.product.name}${clientName ? ` · ${clientName}` : ""}${margin ? ` · marjă ${margin}%` : ""}`,
+      });
+      toast({ title: "Fișă live salvată", description: r.firstRunOk ? "O găsești în „Agenți & Rapoarte”. Actualizează oricând, fără credite AI." : "Salvată; prima recalculare a eșuat, încearcă Actualizează." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Nu s-a putut salva", description: e.message });
+    } finally { setSaving(false); }
+  };
+
   const sheet = useMemo(() => {
     if (!data) return null;
     const r = Object.fromEntries(Object.entries(rates).map(([k, v]) => [k, num(v)])) as unknown as SheetRates;
@@ -169,6 +187,14 @@ export default function PriceCalculator() {
             </div>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {data && product && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
+              <Button size="sm" variant="secondary" disabled={saving} onClick={saveLive}>
+                {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1 h-3.5 w-3.5" />}Salvează ca fișă live
+              </Button>
+              Apare în „Agenți & Rapoarte”; o recalculezi cu prețurile Senior la zi dintr-un clic, fără credite AI.
+            </div>
+          )}
         </CardContent>
       </Card>
 
