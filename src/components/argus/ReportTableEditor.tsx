@@ -52,7 +52,7 @@ export default function ReportTableEditor({ open, onOpenChange, tables, view, on
   };
   const save = async (reset = false) => {
     setSaving(true);
-    try { await onSave(reset ? null : { tables: drafts }); onOpenChange(false); } finally { setSaving(false); }
+    try { await onSave(reset ? null : { tables: drafts }); onOpenChange(false); } catch { /* Parent shows the save error; keep edits open. */ } finally { setSaving(false); }
   };
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="flex max-h-[90vh] max-w-6xl flex-col">
     <DialogHeader><DialogTitle>Editează tabelul</DialogTitle></DialogHeader>
