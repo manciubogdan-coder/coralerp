@@ -6,7 +6,8 @@ import { fillTemplate, validTemplate, type SqlTemplate } from "../_shared/templa
 import { seniorLive } from "../_shared/senior.ts";
 import { computeSheet } from "../_shared/priceSheet.ts";
 import { defaultRates, priceCalcData } from "../_shared/priceCalcSenior.ts";
-import { resolvePeriod, type AgentFilter } from "./agentFilters.ts";
+import { templateValues } from "./liveFilters.ts";
+export { filtersForTemplate } from "./liveFilters.ts";
 
 export type LiveSpec =
   | { kind: "sql"; template: SqlTemplate }
@@ -27,35 +28,6 @@ export function validLiveSpec(raw: any): LiveSpec | null {
     return { kind: "price", articolId, partnerId: posInt(raw.partnerId), marginPct: m, product: String(raw.product ?? "").slice(0, 150), client: String(raw.client ?? "").slice(0, 150) };
   }
   return null;
-}
-
-/** Card filters derived from SQL placeholders: de_la/pana_la → one period filter; other params → text filters. */
-export function filtersForTemplate(t: SqlTemplate): AgentFilter[] {
-  const out: AgentFilter[] = [];
-  const hasPeriod = t.params.some((p) => p.name === "de_la") && t.params.some((p) => p.name === "pana_la");
-  if (hasPeriod) {
-    const a = t.defaults.de_la, b = t.defaults.pana_la;
-    out.push({ name: "perioada", label: "Perioadă", type: "period", default: a && b ? `${a}..${b}` : "last_30" });
-  }
-  for (const p of t.params) {
-    if (hasPeriod && (p.name === "de_la" || p.name === "pana_la")) continue;
-    out.push({ name: p.name, label: p.label, type: "text", default: t.defaults[p.name] ?? "" });
-  }
-  return out.slice(0, 6);
-}
-
-/** Maps card filter values onto SQL placeholder values. */
-export function templateValues(t: SqlTemplate, values: Record<string, unknown>, today: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (typeof values.perioada === "string" && values.perioada) {
-    const [a, b] = resolvePeriod(values.perioada, today);
-    out.de_la = a; out.pana_la = b;
-  }
-  for (const p of t.params) {
-    const v = values[p.name];
-    if (typeof v === "string" && v.trim() && !(p.name in out)) out[p.name] = v.trim();
-  }
-  return out;
 }
 
 const cell = (v: unknown) => (v == null ? "" : typeof v === "object" ? JSON.stringify(v) : typeof v === "number" ? String(Math.round(v * 1000) / 1000) : String(v));
