@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Check, Loader2, MoreHorizontal, Move, Pencil, Plus, RefreshCw, Trash2, Maximize2, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, Loader2, MoreHorizontal, Move, Pencil, Plus, RefreshCw, Trash2, Maximize2, Zap, Download, Table2, Copy } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,9 @@ import { toast } from "@/hooks/use-toast";
 import { argusFetch } from "@/lib/argusApi";
 import ArgusWidgetRenderer from "./ArgusWidgetRenderer";
 import { AgentFilterBar, AgentFiltersEditor, type AgentFilter } from "./AgentFilters";
+import ReportTableEditor from "./ReportTableEditor";
+import { reportTables, type ReportView } from "@/lib/argus/reportTables";
+import { exportReport } from "@/lib/argus/exportReport";
 
 const SCHED: Record<string, string> = { on_demand: "La cerere", daily: "Zilnic", weekly: "Săptămânal", monthly: "Lunar" };
 const WIDGET: Record<string, string> = { auto: "Auto", bar_chart: "Bare", line_chart: "Linie", pie_chart: "Pie", kpi: "KPI", table: "Tabel", markdown: "Text" };
@@ -29,7 +32,7 @@ function ago(iso?: string) {
   return `Actualizat acum ${Math.round(h / 24)} zile`;
 }
 
-type CardRow = { id: string; template_id: string; position_order: number; column_span: number; argus_report_templates: any };
+type CardRow = { id: string; template_id: string; position_order: number; column_span: number; report_view?: ReportView | null; argus_report_templates: any };
 
 export default function ArgusAgentsDashboard() {
   const [cards, setCards] = useState<CardRow[]>([]);
@@ -42,6 +45,28 @@ export default function ArgusAgentsDashboard() {
   const [createOpen, setCreateOpen] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
+  const [tableEditing, setTableEditing] = useState<CardRow | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  const download = async (c: CardRow) => {
+    const content = reports[c.template_id]?.content_json;
+    if (!content) return;
+    setExporting(c.id);
+    try { await exportReport(content, c.report_view); }
+    catch (e) { toast({ title: "Export nereușit", description: (e as Error).message, variant: "destructive" }); }
+    finally { setExporting(null); }
+  };
+  const saveView = async (view: ReportView | null) => {
+    if (!tableEditing) return;
+    try {
+      await argusFetch("agent_card_update", { id: tableEditing.id }, { report_view: view });
+      setCards(cs => cs.map(c => c.id === tableEditing.id ? { ...c, report_view: view } : c));
+      toast({ title: "Tabel salvat" });
+    } catch (e) {
+      toast({ title: "Tabelul nu a fost salvat", description: (e as Error).message, variant: "destructive" });
+      throw e;
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -141,6 +166,9 @@ export default function ArgusAgentsDashboard() {
                           <DropdownMenuItem onClick={() => run(c.template_id)} disabled={busy}><RefreshCw className="mr-2 h-4 w-4" />Rulează acum</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setSpan(c)}><Maximize2 className="mr-2 h-4 w-4" />{c.column_span >= 3 ? "Strânge cardul" : "Lățește cardul"}</DropdownMenuItem>
                           {t.created_by === me && <DropdownMenuItem onClick={() => setEditing(t)}><Pencil className="mr-2 h-4 w-4" />Editează agentul</DropdownMenuItem>}
+                          <DropdownMenuItem onClick={() => setEditing({ ...t, id: undefined, title: `${t.title} — copie`, is_public: false })}><Copy className="mr-2 h-4 w-4" />Copiază și personalizează</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => download(c)} disabled={!r?.content_json || exporting === c.id}><Download className="mr-2 h-4 w-4" />Export Excel</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setTableEditing(c)} disabled={!r?.content_json || !reportTables(r.content_json).length || busy}><Table2 className="mr-2 h-4 w-4" />Editează tabelul</DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => remove(c)}>Șterge din Dashboard</DropdownMenuItem>
                           {t.created_by === me && <DropdownMenuItem className="text-destructive" onClick={() => destroy(c)}><Trash2 className="mr-2 h-4 w-4" />Șterge definitiv Agentul</DropdownMenuItem>}
@@ -170,7 +198,11 @@ export default function ArgusAgentsDashboard() {
                   {busy ? (
                     <div className="space-y-2"><Skeleton className="h-40" /><p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />{t.live_spec ? "Citesc cifrele la zi din Senior…" : "Argus analizează datele…"}</p></div>
                   ) : r?.status === "completed" && r.content_json ? (
-                    <ArgusWidgetRenderer content={r.content_json} />
+                    <><div className="mb-3 flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={() => download(c)} disabled={exporting === c.id}>{exporting === c.id ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}Excel</Button>
+                      {!!reportTables(r.content_json).length && <Button variant="outline" size="sm" onClick={() => setTableEditing(c)}><Table2 className="mr-1 h-4 w-4" />Editează tabelul</Button>}
+                      {t.created_by === me && <Button variant="outline" size="sm" onClick={() => setEditing(t)}><Pencil className="mr-1 h-4 w-4" />Editează agentul</Button>}
+                    </div><ArgusWidgetRenderer content={r.content_json} view={c.report_view} /></>
                   ) : r?.status === "failed" ? (
                     <p className="text-sm text-destructive">Ultima rulare a eșuat: {r.error}</p>
                   ) : (
@@ -191,13 +223,14 @@ export default function ArgusAgentsDashboard() {
         initial={editing}
         onCreated={async () => { setEditing(null); await load(); }}
       />
+      <ReportTableEditor open={!!tableEditing} onOpenChange={o => { if (!o) setTableEditing(null); }} tables={tableEditing && reports[tableEditing.template_id]?.content_json ? reportTables(reports[tableEditing.template_id].content_json) : []} view={tableEditing?.report_view} onSave={saveView} />
       <TemplateLibraryModal open={libOpen} onOpenChange={setLibOpen} onAdded={load} />
     </div>
   );
 }
 
 export function CreateReportModal({ open, onOpenChange, onCreated, initial }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: (id: string) => void; initial?: any | null }) {
-  const empty = { title: "", description: "", prompt_instructions: "", preferred_widget_type: "auto", schedule_type: "on_demand", is_public: false, params: [] as AgentFilter[] };
+  const empty = { title: "", description: "", prompt_instructions: "", preferred_widget_type: "auto", schedule_type: "on_demand", is_public: false, params: [] as AgentFilter[], live_spec: null as any };
   const [f, setF] = useState(empty);
   const [saving, setSaving] = useState(false);
   const [proposal, setProposal] = useState("");
@@ -221,6 +254,7 @@ export function CreateReportModal({ open, onOpenChange, onCreated, initial }: { 
       preferred_widget_type: initial.preferred_widget_type ?? "auto",
       schedule_type: initial.schedule_type ?? "on_demand", is_public: !!initial.is_public,
       params: Array.isArray(initial.params) ? initial.params : [],
+      live_spec: initial.live_spec ?? null,
     } : empty);
     if (initial?.propose) propose();
   }, [open, initial]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -240,11 +274,11 @@ export function CreateReportModal({ open, onOpenChange, onCreated, initial }: { 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] max-w-xl flex-col">
-        <DialogHeader><DialogTitle>{initial ? "Editează Agentul" : "Creează Agent Nou"}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{initial?.id ? "Editează Agentul" : "Creează Agent Nou"}</DialogTitle></DialogHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           <div className="space-y-1"><label className="text-sm font-medium">Titlu Raport</label><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="ex: Rebut pe linii în ultimele 7 zile" /></div>
           <div className="space-y-1"><label className="text-sm font-medium">Descriere</label><Input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></div>
-          <div className="space-y-1"><label className="text-sm font-medium">Instrucțiuni pentru Argus</label><Textarea rows={6} value={f.prompt_instructions} onChange={(e) => setF({ ...f, prompt_instructions: e.target.value })} placeholder="Ce vrei să calculeze Argus, pe ce perioadă, cum să grupeze…" /></div>
+          {f.live_spec ? <div className="space-y-2 rounded-md border p-3 text-sm"><p>Raport live: cifrele se actualizează direct din Senior, fără credite AI.</p><Button variant="outline" size="sm" onClick={() => { if (confirm("Transformi raportul într-un agent Argus? Rulările vor folosi credite AI și noile instrucțiuni, nu calculul live salvat.")) setF({ ...f, live_spec: null, prompt_instructions: f.prompt_instructions.replace(/^\[(raport live|fișă preț live)\]\s*/, "") }); }}>Modifică analiza cu Argus</Button></div> : <div className="space-y-1"><label className="text-sm font-medium">Instrucțiuni pentru Argus</label><Textarea rows={6} value={f.prompt_instructions} onChange={(e) => setF({ ...f, prompt_instructions: e.target.value })} placeholder="Ce vrei să calculeze Argus, pe ce perioadă, cum să grupeze…" /></div>}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1"><label className="text-sm font-medium">Format vizual</label>
               <Select value={f.preferred_widget_type} onValueChange={(v) => setF({ ...f, preferred_widget_type: v })}>
@@ -262,14 +296,14 @@ export function CreateReportModal({ open, onOpenChange, onCreated, initial }: { 
               </Select>
             </div>
           </div>
-          <AgentFiltersEditor filters={f.params} onChange={(params) => setF({ ...f, params })} proposal={proposal} proposing={proposing} onRepropose={source ? propose : undefined} />
+          {f.live_spec ? <p className="text-xs text-muted-foreground">Filtrele live rămân legate de calculul salvat; valorile se aleg pe raport. Pentru alte calcule, alege „Modifică analiza cu Argus”.</p> : <AgentFiltersEditor filters={f.params} onChange={(params) => setF({ ...f, params })} proposal={proposal} proposing={proposing} onRepropose={source ? propose : undefined} />}
           <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
             <span>Public — salvează în Librăria CoralERP pentru toți colegii</span>
             <Switch checked={f.is_public} onCheckedChange={(v) => setF({ ...f, is_public: v })} />
           </label>
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={saving || proposing || !f.title.trim() || !f.prompt_instructions.trim()}>{saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{initial ? "Salvează modificările" : "Creează și Execută Acum"}</Button>
+          <Button onClick={submit} disabled={saving || proposing || !f.title.trim() || !f.prompt_instructions.trim()}>{saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{initial?.id ? "Salvează modificările" : "Creează și Execută Acum"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
