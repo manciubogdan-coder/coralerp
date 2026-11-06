@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage, type FileUIPart } from "ai";
 import * as XLSX from "xlsx";
-import { Plus, Trash2, FileSpreadsheet, Loader2, MessageSquare, BookmarkPlus } from "lucide-react";
+import { Plus, Trash2, FileSpreadsheet, Loader2, MessageSquare, BookmarkPlus, Zap, Table2, CheckCircle2 } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { lastSeniorSql, markdownTables, stepLabel } from "@/lib/argus/chatExtras";
 import { CreateReportModal } from "./ArgusAgentsDashboard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -208,8 +210,34 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
   const lastFailed = lastIsAssistant && (last.metadata as any)?.failed === true;
   const emptyFinish = status === "ready" && !error && lastIsAssistant && !lastFailed && !lastHasText && !last.parts.some((p: any) => p.type === "tool-genereaza_raport" || p.type === "tool-propune_actiune");
 
-  const [agentDraft, setAgentDraft] = useState<any | null>(null);
   const textOf = (m: UIMessage) => m.parts.map((p: any) => (p.type === "text" ? p.text : "")).join("\n").trim();
+  const lastToolParts: any[] = lastIsAssistant ? last.parts.filter((p: any) => typeof p.type === "string" && p.type.startsWith("tool-")) : [];
+  const running = lastToolParts.find((p) => p.state !== "output-available" && p.state !== "output-error");
+  const currentStep = running ? stepLabel(running, true) : lastToolParts.length ? "Argus analizează ce a găsit…" : null;
+  const doneSteps = lastToolParts.filter((p) => p !== running).map((p) => stepLabel(p, false));
+  const tables = useMemo(() => messages.flatMap((m) => (m.role === "assistant" ? markdownTables(textOf(m)).map((t) => ({ ...t, msgId: m.id })) : [])), [messages]);
+  const [tablesOpen, setTablesOpen] = useState(false);
+  const [liveBusy, setLiveBusy] = useState<string | null>(null);
+  const questionBefore = (idx: number) => { for (let i = idx - 1; i >= 0; i--) if (messages[i].role === "user") return textOf(messages[i]); return ""; };
+  const saveLive = async (idx: number) => {
+    const sql = lastSeniorSql(messages[idx]);
+    if (!sql) return;
+    const q = questionBefore(idx);
+    setLiveBusy(messages[idx].id);
+    try {
+      const r = await argusFetch<any>("live_save", {}, { kind: "sql", sql, question: q, title: q.slice(0, 80) || "Raport live" });
+      toast({ title: "Raport live salvat", description: r.firstRunOk ? "Îl găsești în „Agenți & Rapoarte”. Apasă Actualizează oricând — fără credite AI." : "Salvat, dar prima rulare a eșuat; încearcă Actualizează din „Agenți & Rapoarte”." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Nu s-a putut salva", description: e.message });
+    } finally { setLiveBusy(null); }
+  };
+  const downloadTable = (t: { headers: string[]; rows: string[][]; title: string }) => {
+    const ws = XLSX.utils.aoa_to_sheet([t.headers, ...t.rows.map((r) => r.map((c) => { const n = Number(c.replace(/\s/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".")); return c.trim() !== "" && Number.isFinite(n) ? n : c; }))]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Tabel");
+    XLSX.writeFile(wb, `${t.title.replace(/[^\w\- ăâîșțĂÂÎȘȚ]/g, "").slice(0, 60) || "tabel-argus"}.xlsx`);
+  };
+  const [agentDraft, setAgentDraft] = useState<any | null>(null);
   const saveAsAgent = (idx: number) => {
     let q = "";
     for (let i = idx - 1; i >= 0; i--) if (messages[i].role === "user") { q = textOf(messages[i]); break; }
@@ -229,6 +257,30 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {tables.length > 0 && (
+        <div className="mx-auto flex w-full max-w-3xl justify-end px-3 pt-2">
+          <Sheet open={tablesOpen} onOpenChange={setTablesOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 text-xs"><Table2 className="mr-1 h-3.5 w-3.5" />Tabele din conversație ({tables.length})</Button>
+            </SheetTrigger>
+            <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+              <SheetHeader><SheetTitle>Tabele din conversație</SheetTitle></SheetHeader>
+              <div className="mt-4 space-y-2">
+                {tables.map((t, i) => (
+                  <div key={i} className="rounded-lg border bg-card p-3">
+                    <div className="text-sm font-medium">{t.title}</div>
+                    <div className="text-xs text-muted-foreground">{t.headers.length} coloane · {t.rows.length} rânduri</div>
+                    <div className="mt-2 flex gap-2">
+                      <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => { setTablesOpen(false); setTimeout(() => document.getElementById(`msg-${t.msgId}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 200); }}>Arată în chat</Button>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => downloadTable(t)}><FileSpreadsheet className="mr-1 h-3.5 w-3.5" />Excel</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      )}
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="mx-auto w-full max-w-3xl">
           {messages.length === 0 ? (
@@ -256,6 +308,7 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
           ) : (
             messages.map((m, idx) => (
               <React.Fragment key={m.id}>
+              <div id={`msg-${m.id}`} className="scroll-mt-4" />
               <Message from={m.role}>
                 <MessageContent
                   className={cn(m.role === "user" && "bg-primary text-primary-foreground")}
@@ -298,6 +351,12 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
                   <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => saveAsAgent(idx)}>
                     <BookmarkPlus className="mr-1 h-3.5 w-3.5" /> Salvează ca agent
                   </Button>
+                  {lastSeniorSql(m) && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs text-primary" disabled={liveBusy === m.id} onClick={() => saveLive(idx)}
+                      title="Salvează interogarea; o actualizezi oricând din 2 clicuri, direct din Senior, fără credite AI">
+                      {liveBusy === m.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1 h-3.5 w-3.5" />} Salvează ca raport live
+                    </Button>
+                  )}
                 </div>
               )}
               </React.Fragment>
@@ -307,15 +366,20 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
             <div className="rounded-lg border bg-card p-3">
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="font-medium">
-                  {lastTools === 0 ? "Argus citește întrebarea…" : `Argus caută în date · pasul ${lastTools} din max ${MAX_STEPS}`}
+                  {currentStep ?? "Argus citește întrebarea…"}
                 </span>
                 <span className="tabular-nums text-muted-foreground">{elapsed}s</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-muted">
                 <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${pct}%` }} />
               </div>
+              {doneSteps.length > 0 && (
+                <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                  {doneSteps.slice(-4).map((l, i) => <li key={i} className="flex items-center gap-1.5"><CheckCircle2 className="h-3 w-3 text-primary" />{l}</li>)}
+                </ul>
+              )}
               <div className="mt-2 text-xs text-muted-foreground">
-                De obicei durează 20–60 de secunde. Poți apăsa Stop oricând.
+                Pasul {lastTools} din max {MAX_STEPS}. Citirile din Senior pot dura 20–60 de secunde. Poți apăsa Stop oricând.
               </div>
             </div>
           )}
