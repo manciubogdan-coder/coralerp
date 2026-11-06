@@ -402,7 +402,8 @@ async function handleAgents(action: string, url: URL, req: Request, c: ReturnTyp
         const res = await generateText({
           model: gateway(), providerOptions: { openai: { store: false, include: ["reasoning.encrypted_content"] } },
           instructions: `Ești Argus. Utilizatorul salvează un raport ca agent reutilizabil. Propune filtrele pe care ar vrea să le schimbe la fiecare rulare (perioadă, produs, client/magazin, furnizor, linie etc.), doar cele relevante cererii, max 5.
-Răspunde DOAR cu JSON: {"mesaj": str (o frază scurtă în română care explică de ce le propui), "filtre": [{"label": str, "type": "period"|"text"|"choice", "options": [str] (doar la choice), "default": str}]}
+Răspunde DOAR cu JSON: {"mesaj": str (o frază scurtă în română care explică de ce le propui), "filtre": [{"label": str, "type": "period"|"lookup"|"text"|"choice", "source": "produs"|"client"|"furnizor" (doar la lookup), "options": [str] (doar la choice), "default": str}]}
+Pentru produs, client sau furnizor folosește OBLIGATORIU type "lookup" cu source potrivit (utilizatorul alege dintr-o listă Senior, nu scrie).
 La period, default este unul din: today, yesterday, last_7, last_30, this_month, last_month. La text/choice, default este valoarea folosită în cerere sau "" pentru toate.`,
           prompt: `Cererea:\n${q}\n\nRăspunsul lui Argus:\n${a}`,
         });
