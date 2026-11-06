@@ -1129,7 +1129,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                                     <PopoverTrigger asChild>
                                       <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums flex-col items-end" aria-label={`Comandă sugerată ${r.name} ${format(d, 'dd.MM')}`}>
                                         <span>{fmt(suggestion)}</span>
-                                        {(() => { const pal = r.unit?.toLowerCase() === 'kg' ? palletsFor(r.name, suggestion) : null; return pal ? <span className="text-[10px] text-muted-foreground font-normal">{Math.ceil(pal)} pal</span> : null; })()}
+                                        {(() => { const pal = r.unit?.toLowerCase() === 'kg' ? palletsFor(r.name, suggestion) : null; return pal ? <span className="text-[10px] text-muted-foreground font-normal">{pal.toFixed(1)} pal</span> : null; })()}
                                       </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto text-xs space-y-2">
@@ -1183,7 +1183,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                     </tr>
                     <tr>
                       <td className="sticky left-0 bg-background border-r px-2 py-1.5 font-medium" title="Paleți întregi: căpățâni 400 kg, radicchio 500 kg, frunze/aromate 220 kg">Paleți (întregi)</td>
-                      {totals.map(({ c, pal }) => <td key={c.key} className="px-3 py-1.5 text-right tabular-nums border-r text-primary font-semibold">{pal.wholePallets > 0 ? f(pal.wholePallets) : '—'}</td>)}
+                      {totals.map(({ c, pal }) => <td key={c.key} className="px-3 py-1.5 text-right tabular-nums border-r text-primary font-semibold">{pal.pallets > 0 ? pal.pallets.toFixed(1) : '—'}</td>)}
                     </tr>
                   </>;
                 })()}
