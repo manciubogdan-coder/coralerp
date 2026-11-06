@@ -111,6 +111,26 @@ export default function ArgusAgentsDashboard() {
     await argusFetch("agents_reorder", {}, { ids: cards.map((c) => c.id) }).catch((e) => toast({ title: "Eroare", description: e.message, variant: "destructive" }));
   };
 
+  // Answers to the agent's questions become permanent clarifications in its instructions, then it reruns.
+  const answer = async (c: CardRow, text: string) => {
+    const t = c.argus_report_templates;
+    const base = String(t.prompt_instructions ?? "");
+    const marker = "\n\nPrecizări de la utilizator:";
+    const add = `\n- ${text.trim()}`;
+    let next = base.includes(marker) ? base + add : base + marker + add;
+    if (next.length > 4000) next = next.slice(0, 4000);
+    try {
+      if (t.created_by === me) {
+        await argusFetch("agent_update", { id: t.id }, { prompt_instructions: next });
+        await load(); run(t.id);
+      } else {
+        const n = await argusFetch<any>("agent_create", {}, { title: `${t.title} — personalizat`, description: t.description ?? "", prompt_instructions: next, preferred_widget_type: t.preferred_widget_type, schedule_type: "on_demand", is_public: false, params: Array.isArray(t.params) ? t.params : [] });
+        toast({ title: "Am creat copia ta personalizată" });
+        await load(); run(n.id);
+      }
+    } catch (e) { toast({ title: "Răspunsul nu a fost salvat", description: (e as Error).message, variant: "destructive" }); }
+  };
+
   const remove = async (c: CardRow) => { await argusFetch("agent_card_remove", { id: c.id }, {}); load(); };
   const destroy = async (c: CardRow) => {
     if (!confirm(`Ștergi definitiv agentul „${c.argus_report_templates.title}"? Dispare de pe tablourile tuturor.`)) return;
@@ -202,7 +222,8 @@ export default function ArgusAgentsDashboard() {
                       <Button variant="outline" size="sm" onClick={() => download(c)} disabled={exporting === c.id}>{exporting === c.id ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}Excel</Button>
                       {!!reportTables(r.content_json).length && <Button variant="outline" size="sm" onClick={() => setTableEditing(c)}><Table2 className="mr-1 h-4 w-4" />Editează tabelul</Button>}
                       {t.created_by === me && <Button variant="outline" size="sm" onClick={() => setEditing(t)}><Pencil className="mr-1 h-4 w-4" />Editează agentul</Button>}
-                    </div><ArgusWidgetRenderer content={r.content_json} view={c.report_view} /></>
+                    </div><ArgusWidgetRenderer content={r.content_json} view={c.report_view} />
+                    {!t.live_spec && <AnswerBox mine={t.created_by === me} onSend={(text) => answer(c, text)} />}</>
                   ) : r?.status === "failed" ? (
                     <p className="text-sm text-destructive">Ultima rulare a eșuat: {r.error}</p>
                   ) : (
@@ -221,10 +242,25 @@ export default function ArgusAgentsDashboard() {
         open={!!editing}
         onOpenChange={(o) => { if (!o) setEditing(null); }}
         initial={editing}
-        onCreated={async () => { setEditing(null); await load(); }}
+        onCreated={async (id) => { setEditing(null); await load(); run(id); }}
       />
       <ReportTableEditor open={!!tableEditing} onOpenChange={o => { if (!o) setTableEditing(null); }} tables={tableEditing && reports[tableEditing.template_id]?.content_json ? reportTables(reports[tableEditing.template_id].content_json) : []} view={tableEditing?.report_view} onSave={saveView} />
       <TemplateLibraryModal open={libOpen} onOpenChange={setLibOpen} onAdded={load} />
+    </div>
+  );
+}
+
+function AnswerBox({ mine, onSend }: { mine: boolean; onSend: (t: string) => Promise<void> }) {
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  return (
+    <div className="mt-3 space-y-2 rounded-md border bg-muted/30 p-3">
+      <label className="text-sm font-medium">Răspunde agentului sau cere o schimbare</label>
+      <Textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="ex: Vreau cantități, valori și preț mediu; fiecare ingredient separat pe lună" />
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{mine ? "Se păstrează în agent și îl rulez din nou." : "Îți fac o copie personalizată și o rulez."}</span>
+        <Button size="sm" disabled={!text.trim() || sending} onClick={async () => { setSending(true); try { await onSend(text); setText(""); } finally { setSending(false); } }}>{sending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Trimite și rulează</Button>
+      </div>
     </div>
   );
 }
