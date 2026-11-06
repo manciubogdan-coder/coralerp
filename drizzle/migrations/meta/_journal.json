@@ -232,6 +232,13 @@
       "when": 1793942403806,
       "tag": "0032_argus_live_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793954982662,
+      "tag": "0033_argus_report_views",
+      "breakpoints": true
     }
   ]
 }

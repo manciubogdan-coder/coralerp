@@ -536,6 +536,7 @@ export type Database = {
           created_at: string
           id: string
           position_order: number
+          report_view: Json | null
           template_id: string
           user_id: string
         }
@@ -544,6 +545,7 @@ export type Database = {
           created_at?: string
           id?: string
           position_order?: number
+          report_view?: Json | null
           template_id: string
           user_id: string
         }
@@ -552,6 +554,7 @@ export type Database = {
           created_at?: string
           id?: string
           position_order?: number
+          report_view?: Json | null
           template_id?: string
           user_id?: string
         }

@@ -14,6 +14,7 @@ import {
 import { createLovableAiGatewayRunIdFetch, withLovableAiGatewayRunIdHeader } from "../_shared/run-id.ts";
 import { isDue, runAgent } from "./agents.ts";
 import { validFilters } from "./agentFilters.ts";
+import { validReportView } from "./reportView.ts";
 import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 import { actionTools, handleActionDecision } from "./actions.ts";
 import { syncSeniorPackaging } from '../_shared/seniorPackaging.ts';
@@ -367,7 +368,7 @@ async function handleAgents(action: string, url: URL, req: Request, c: ReturnTyp
   switch (action) {
     case "agents_list": {
       const { data: cards, error } = await c.cloud.from("argus_user_dashboard_cards")
-        .select("id,template_id,position_order,column_span,argus_report_templates(*)").eq("user_id", userId).order("position_order");
+        .select("id,template_id,position_order,column_span,report_view,argus_report_templates(*)").eq("user_id", userId).order("position_order");
       if (error) throw error;
       const { data: job } = await c.cloud.from("argus_job_state").select("paused_reason").eq("job", "agents").maybeSingle();
       return json({ cards, reports: await latestReports(c, (cards ?? []).map((x: any) => x.template_id)), paused: job?.paused_reason ?? null, me: userId });
@@ -389,6 +390,7 @@ async function handleAgents(action: string, url: URL, req: Request, c: ReturnTyp
         preferred_widget_type: w, schedule_type: s, is_public: !!b.is_public, created_by: userId, created_by_name: email,
         last_scheduled_at: s === "on_demand" ? null : new Date().toISOString(),
         params: validFilters(b.params),
+        live_spec: b.live_spec ? validLiveSpec(b.live_spec) : null,
       }).select("*").single();
       if (error) throw error;
       await addCard(c, userId, t.id, w.endsWith("chart") || w === "table" ? 2 : 1);
@@ -443,6 +445,10 @@ La period, default este unul din: today, yesterday, last_7, last_30, this_month,
       const patch: Record<string, unknown> = {};
       if ([1, 2, 3].includes(b.column_span)) patch.column_span = b.column_span;
       if (Number.isInteger(b.position_order)) patch.position_order = b.position_order;
+      if (Object.prototype.hasOwnProperty.call(b, "report_view")) {
+        try { patch.report_view = validReportView(b.report_view); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
       const { error } = await c.cloud.from("argus_user_dashboard_cards").update(patch).eq("id", id).eq("user_id", userId);
       if (error) throw error;
       return json({ ok: true });
@@ -470,6 +476,8 @@ La period, default este unul din: today, yesterday, last_7, last_30, this_month,
       }
       if (typeof b.is_public === "boolean") patch.is_public = b.is_public;
       if (Array.isArray(b.params)) patch.params = validFilters(b.params);
+      // Only an explicit user choice in the editor converts a live report into an AI agent.
+      if (Object.prototype.hasOwnProperty.call(b, "live_spec") && b.live_spec === null) patch.live_spec = null;
       if (!Object.keys(patch).length) return json({ error: "Nimic de modificat." }, 400);
       const { data: t, error } = await c.cloud.from("argus_report_templates").update(patch).eq("id", id).eq("created_by", userId).select("id").maybeSingle();
       if (error) throw error;

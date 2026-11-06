@@ -3,6 +3,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieCh
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MessageResponse } from "@/components/ai-elements/message";
+import { displayedTable, reportTables, type ReportView } from "@/lib/argus/reportTables";
 
 export type ArgusContent = {
   widget_type: string;
@@ -25,11 +26,14 @@ function series(c: ArgusContent) {
   return Object.keys(first).filter((k) => k !== x && typeof first[k] === "number").map((key) => ({ key, label: key }));
 }
 
-export default function ArgusWidgetRenderer({ content }: { content: ArgusContent }) {
+export default function ArgusWidgetRenderer({ content, view }: { content: ArgusContent; view?: ReportView | null }) {
   const x = content.chart_config?.xAxisKey ?? "name";
   const data = content.chart_data ?? [];
   const ser = series(content);
   let body: React.ReactNode = null;
+  const tables = reportTables(content).map(t => displayedTable(t, view?.tables?.[t.id]));
+  const editedTables = view && Object.keys(view.tables ?? {}).length > 0;
+  const tableBody = <div className="space-y-3">{tables.map(t => <div key={t.id} className="space-y-1">{tables.length > 1 && <h4 className="text-sm font-medium">{t.title}</h4>}<div className="max-h-72 overflow-auto rounded border"><Table><TableHeader className="sticky top-0 bg-muted"><TableRow>{t.headers.map((h, i) => <TableHead key={i}>{h}</TableHead>)}</TableRow></TableHeader><TableBody>{t.rows.map((r, i) => <TableRow key={i}>{t.headers.map((_, j) => <TableCell key={j} className="py-1.5">{String(r[j] ?? "")}</TableCell>)}</TableRow>)}</TableBody></Table></div></div>)}</div>;
 
   switch (content.widget_type) {
     case "bar_chart":
@@ -86,24 +90,12 @@ export default function ArgusWidgetRenderer({ content }: { content: ArgusContent
       break;
     }
     case "table":
-      body = (
-        <div className="max-h-72 overflow-auto rounded border">
-          <Table>
-            <TableHeader className="sticky top-0 bg-muted">
-              <TableRow>{(content.table_data?.headers ?? []).map((h, i) => <TableHead key={i}>{h}</TableHead>)}</TableRow>
-            </TableHeader>
-            <TableBody>
-              {(content.table_data?.rows ?? []).map((r, i) => (
-                <TableRow key={i}>{r.map((v, j) => <TableCell key={j} className="py-1.5">{String(v ?? "")}</TableCell>)}</TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      );
+      body = tableBody;
       break;
     default:
       body = <div className="prose prose-sm max-h-72 max-w-none overflow-y-auto dark:prose-invert"><MessageResponse>{content.markdown_text ?? content.summary ?? ""}</MessageResponse></div>;
   }
+  if (editedTables && tables.length && content.widget_type !== "table") body = <>{body}{tableBody}</>;
 
   return (
     <div className="space-y-3">

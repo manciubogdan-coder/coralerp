@@ -1,4 +1,6 @@
 # Roadmap
+- [x] Add Excel export, drag-and-drop table row/column editing and saved per-user report views; expose agent creation/editing/copying without changing Senior records. Explicit confirmation converts live calculations to AI agents. 42 tests pass; isolated desktop/mobile browser verifies dragging, editing, save and numeric Excel; Argus deployed, build OK.
+- [ ] Verify report edits/save/reopen and agent changes in the real operational account — blocked by unavailable external operational session; Cloud mint reports no auth users. Browser used isolated test data only.
 - [x] Verify existing Argus permanent memory (95 facts, last saved today) and share it with agent runs; fully paginate reads, retain verified service-only access and fail visibly on read errors. 31 Argus tests pass; argus deployed.
 - [ ] Verify memory recall through real signed-in Argus chat and agent UI — blocked by unavailable external operational session; live table and access verified, no new facts invented or existing memories deleted.
 - [x] Remove PT from daily suggested orders/buffer; use actual production transfers for the seven dated quantities, total and average; carry positive closing across historical/today boundaries and negative closing → zero opening. Fix last visible day's next-day demand in UI/Excel. 31 rule tests pass; build OK; stored stock unchanged.

@@ -1,0 +1,2 @@
+ALTER TABLE public.argus_user_dashboard_cards ADD COLUMN IF NOT EXISTS report_view jsonb;
+COMMENT ON COLUMN public.argus_user_dashboard_cards.report_view IS 'Per-user report presentation and manual table edits; never changes Senior data or agent calculations.';
