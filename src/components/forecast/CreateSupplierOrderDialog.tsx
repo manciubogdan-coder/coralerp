@@ -38,11 +38,12 @@ interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
   lines: OrderLineInput[];
   onCreated?: () => void;
+  defaultDeliveryDate?: Date;
 }
 
 const fmt = (n: number, max = 2) => n.toLocaleString("ro-RO", { maximumFractionDigits: max });
 
-const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, inventoryType, lines, onCreated }) => {
+const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, inventoryType, lines, onCreated, defaultDeliveryDate }) => {
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [supplierId, setSupplierId] = useState("");
   const [deliveryDate, setDeliveryDate] = useState<Date>(addDays(new Date(), 3));
@@ -74,6 +75,7 @@ const CreateSupplierOrderDialog: React.FC<Props> = ({ open, onOpenChange, invent
 
   useEffect(() => {
     if (!open) return;
+    if (defaultDeliveryDate) setDeliveryDate(defaultDeliveryDate);
     setQtys(Object.fromEntries(lines.map((l) => [l.key, String(Math.round(Math.max(l.qty, 0) * 100) / 100)])));
     setRows(lines.length ? lines : [{ key: `new-${Date.now()}`, name: "", unit: "kg", qty: 0, productId: null }]);
     (async () => {
