@@ -614,7 +614,7 @@ Deno.serve(async (req) => {
     const userId = auth.user.id;
     if (!token) return json({ error: "Autentificare necesară." }, 401);
     const c = makeClients(token);
-    if (action.startsWith("agents_") || action.startsWith("agent_")) return await handleAgents(action, url, req, c, userId, auth.user.email);
+    if (action.startsWith("agents_") || action.startsWith("agent_") || action === "live_save") return await handleAgents(action, url, req, c, userId, auth.user.email);
     if (action.startsWith("packaging_")) return await handlePackaging(action, url, req, c);
 
 
