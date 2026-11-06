@@ -18,7 +18,7 @@ import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
 import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isProductionDestination, materialQuantity, netPendingDeliveries, readPages, reconcileProjection, sevenDayBuffer, transferStockQuantity, weekdayAverages } from '@/lib/forecastReconciliation';
-import { PACK_TYPES, packGroupOf } from '@/lib/forecastGroups';
+import { PACK_TYPES, packGroupOf, palletsFor, summarizePallets } from '@/lib/forecastGroups';
 import ConsumptionSourcesDialog, { type ConsumptionSource } from './ConsumptionSourcesDialog';
 import StockGapDialog from './StockGapDialog';
 import { loadProductionUsage } from '@/lib/productionUsage';
@@ -646,6 +646,27 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     filtered.forEach((r) => { const i = stockGapIssues(gapFor(r), r.unit?.toLowerCase()); if (i.length) m.set(r.key, i); });
     return m;
   }, [filtered, gapFor]);
+  // Comanda sugerată a unei coloane (aceeași formulă ca în celulă), refolosită la total și la comanda pe zi.
+  const suggestionFor = useCallback((r: Row, c: { last: Date; idx: number[] }) => {
+    const pr = projection.get(r.key);
+    const closing = pr?.[c.idx[c.idx.length - 1]]?.closing ?? null;
+    if (closing == null) return null;
+    const nextConsumption = weekly
+      ? Array.from({ length: 7 }, (_, k) => dayDemand(r, format(addDays(c.last, k + 1), 'yyyy-MM-dd'))).reduce((a, b) => a + b, 0)
+      : dayDemand(r, format(addDays(c.last, 1), 'yyyy-MM-dd'));
+    return suggestedOrderFor(closing, [0, nextConsumption], 0, (r.buffer || 0) * (weekly ? 7 : 1));
+  }, [projection, weekly, dayDemand]);
+  const [dayOrderLines, setDayOrderLines] = useState<OrderLineInput[] | null>(null);
+  const [dayOrderDate, setDayOrderDate] = useState<Date | undefined>(undefined);
+  const openDayOrder = (c: { first: Date; last: Date; idx: number[] }) => {
+    const lines = filtered
+      .map((r) => ({ r, q: suggestionFor(r, c) || 0 }))
+      .filter(({ q }) => q > 0)
+      .map(({ r, q }) => ({ key: r.key, productId: r.productId, name: r.name, unit: r.unit, qty: q }));
+    if (!lines.length) { toast({ title: 'Nimic de comandat', description: 'Nu există cantități sugerate pentru această zi.' }); return; }
+    setDayOrderDate(addDays(c.last, 1));
+    setDayOrderLines(lines);
+  };
   const gapRow = gapKey ? filtered.find((r) => r.key === gapKey) : undefined;
   const gap = useMemo(() => gapFor(gapRow), [gapRow, gapFor]);
   const consumptionDetail = useMemo(() => {
@@ -1027,6 +1048,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                           {weekly
                             ? `Săpt. ${format(c.first, "d MMM", { locale: ro })} – ${format(c.last, "d MMM", { locale: ro })}`
                             : `${WEEKDAYS[isoDay(c.first)].slice(0, 3).toLowerCase()} ${format(c.first, "d MMM", { locale: ro })}`}
+                          <Button variant="ghost" size="sm" className="h-6 ml-1 px-1.5 text-[10px] text-primary" title={`Creează comanda furnizor din cantitățile sugerate (livrare ${format(addDays(c.last, 1), 'dd.MM')})`} onClick={() => openDayOrder(c)}>
+                            <Truck className="h-3.5 w-3.5 mr-0.5" />Comandă
+                          </Button>
                         </th>
                       ))}
                     </tr>
@@ -1103,7 +1127,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                                 {suggestion == null ? '—' : (
                                   <Popover>
                                     <PopoverTrigger asChild>
-                                      <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums" aria-label={`Comandă sugerată ${r.name} ${format(d, 'dd.MM')}`}>{fmt(suggestion)}</Button>
+                                      <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums flex-col items-end" aria-label={`Comandă sugerată ${r.name} ${format(d, 'dd.MM')}`}>
+                                        <span>{fmt(suggestion)}</span>
+                                        {(() => { const pal = r.unit?.toLowerCase() === 'kg' ? palletsFor(r.name, suggestion) : null; return pal ? <span className="text-[10px] text-muted-foreground font-normal">{Math.ceil(pal)} pal</span> : null; })()}
+                                      </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto text-xs space-y-2">
                                       <div className="font-semibold mb-1">Comandă sugerată — {r.name}</div>
@@ -1131,6 +1158,38 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
             }
             </div>
           )})}
+          <div className="border rounded-lg overflow-auto">
+            <div className="px-3 py-2 bg-muted/50 border-b text-sm font-semibold">
+              Total comandă sugerată {weekly ? 'pe săptămână' : 'pe zi'} (toate materialele afișate)
+            </div>
+            <table className="text-xs border-collapse">
+              <tbody>
+                {(() => {
+                  const totals = projCols.map((c) => {
+                    const rowsQ = filtered.map((r) => ({ name: r.name, unit: r.unit, qty: suggestionFor(r, c) || 0 }));
+                    const other = rowsQ.filter((x) => x.qty > 0 && x.unit?.toLowerCase() !== 'kg').length;
+                    const kgAll = rowsQ.filter((x) => x.unit?.toLowerCase() === 'kg').reduce((a, x) => a + x.qty, 0);
+                    return { c, kgAll, other, pal: summarizePallets(rowsQ) };
+                  });
+                  const f = (n: number) => n.toLocaleString('ro-RO', { maximumFractionDigits: 0 });
+                  return <>
+                    <tr className="border-b">
+                      <th className="sticky left-0 bg-background border-r px-2 py-1.5 text-left min-w-[140px]">Zi</th>
+                      {totals.map(({ c }) => <th key={c.key} className="px-3 py-1.5 text-right whitespace-nowrap border-r">{weekly ? `Săpt. ${format(c.first, 'd MMM', { locale: ro })}` : `${WEEKDAYS[isoDay(c.first)].slice(0, 3).toLowerCase()} ${format(c.first, 'd MMM', { locale: ro })}`}</th>)}
+                    </tr>
+                    <tr className="border-b">
+                      <td className="sticky left-0 bg-background border-r px-2 py-1.5 font-medium">Total kg</td>
+                      {totals.map(({ c, kgAll, other }) => <td key={c.key} className="px-3 py-1.5 text-right tabular-nums border-r" title={other ? `${other} materiale în alte unități nu sunt incluse` : undefined}>{kgAll > 0 ? f(kgAll) : '—'}</td>)}
+                    </tr>
+                    <tr>
+                      <td className="sticky left-0 bg-background border-r px-2 py-1.5 font-medium" title="Paleți întregi: căpățâni 400 kg, radicchio 500 kg, frunze/aromate 220 kg">Paleți (întregi)</td>
+                      {totals.map(({ c, pal }) => <td key={c.key} className="px-3 py-1.5 text-right tabular-nums border-r text-primary font-semibold">{pal.wholePallets > 0 ? f(pal.wholePallets) : '—'}</td>)}
+                    </tr>
+                  </>;
+                })()}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="border rounded-lg overflow-auto max-h-[70vh] text-xs relative">
@@ -1323,6 +1382,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           setSelected(new Set());
           fetchData();
         }}
+      />
+      <CreateSupplierOrderDialog
+        open={!!dayOrderLines}
+        onOpenChange={(v) => !v && setDayOrderLines(null)}
+        inventoryType={inventoryType}
+        lines={dayOrderLines || []}
+        defaultDeliveryDate={dayOrderDate}
+        onCreated={() => { setDayOrderLines(null); fetchData(); }}
       />
     </div>
   );
