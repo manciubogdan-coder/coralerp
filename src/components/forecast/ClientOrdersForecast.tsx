@@ -646,6 +646,27 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     filtered.forEach((r) => { const i = stockGapIssues(gapFor(r), r.unit?.toLowerCase()); if (i.length) m.set(r.key, i); });
     return m;
   }, [filtered, gapFor]);
+  // Comanda sugerată a unei coloane (aceeași formulă ca în celulă), refolosită la total și la comanda pe zi.
+  const suggestionFor = useCallback((r: Row, c: { last: Date; idx: number[] }) => {
+    const pr = projection.get(r.key);
+    const closing = pr?.[c.idx[c.idx.length - 1]]?.closing ?? null;
+    if (closing == null) return null;
+    const nextConsumption = weekly
+      ? Array.from({ length: 7 }, (_, k) => dayDemand(r, format(addDays(c.last, k + 1), 'yyyy-MM-dd'))).reduce((a, b) => a + b, 0)
+      : dayDemand(r, format(addDays(c.last, 1), 'yyyy-MM-dd'));
+    return suggestedOrderFor(closing, [0, nextConsumption], 0, (r.buffer || 0) * (weekly ? 7 : 1));
+  }, [projection, weekly, dayDemand]);
+  const [dayOrderLines, setDayOrderLines] = useState<OrderLineInput[] | null>(null);
+  const [dayOrderDate, setDayOrderDate] = useState<Date | undefined>(undefined);
+  const openDayOrder = (c: { first: Date; last: Date; idx: number[] }) => {
+    const lines = filtered
+      .map((r) => ({ r, q: suggestionFor(r, c) || 0 }))
+      .filter(({ q }) => q > 0)
+      .map(({ r, q }) => ({ key: r.key, productId: r.productId, name: r.name, unit: r.unit, qty: q }));
+    if (!lines.length) { toast({ title: 'Nimic de comandat', description: 'Nu există cantități sugerate pentru această zi.' }); return; }
+    setDayOrderDate(addDays(c.last, 1));
+    setDayOrderLines(lines);
+  };
   const gapRow = gapKey ? filtered.find((r) => r.key === gapKey) : undefined;
   const gap = useMemo(() => gapFor(gapRow), [gapRow, gapFor]);
   const consumptionDetail = useMemo(() => {
