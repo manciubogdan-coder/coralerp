@@ -14,6 +14,7 @@ import {
 import { createLovableAiGatewayRunIdFetch, withLovableAiGatewayRunIdHeader } from "../_shared/run-id.ts";
 import { isDue, runAgent } from "./agents.ts";
 import { validFilters } from "./agentFilters.ts";
+import { validReportView } from "./reportView.ts";
 import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 import { actionTools, handleActionDecision } from "./actions.ts";
 import { syncSeniorPackaging } from '../_shared/seniorPackaging.ts';
@@ -367,7 +368,7 @@ async function handleAgents(action: string, url: URL, req: Request, c: ReturnTyp
   switch (action) {
     case "agents_list": {
       const { data: cards, error } = await c.cloud.from("argus_user_dashboard_cards")
-        .select("id,template_id,position_order,column_span,argus_report_templates(*)").eq("user_id", userId).order("position_order");
+        .select("id,template_id,position_order,column_span,report_view,argus_report_templates(*)").eq("user_id", userId).order("position_order");
       if (error) throw error;
       const { data: job } = await c.cloud.from("argus_job_state").select("paused_reason").eq("job", "agents").maybeSingle();
       return json({ cards, reports: await latestReports(c, (cards ?? []).map((x: any) => x.template_id)), paused: job?.paused_reason ?? null, me: userId });
@@ -443,6 +444,10 @@ La period, default este unul din: today, yesterday, last_7, last_30, this_month,
       const patch: Record<string, unknown> = {};
       if ([1, 2, 3].includes(b.column_span)) patch.column_span = b.column_span;
       if (Number.isInteger(b.position_order)) patch.position_order = b.position_order;
+      if (Object.prototype.hasOwnProperty.call(b, "report_view")) {
+        try { patch.report_view = validReportView(b.report_view); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
       const { error } = await c.cloud.from("argus_user_dashboard_cards").update(patch).eq("id", id).eq("user_id", userId);
       if (error) throw error;
       return json({ ok: true });
