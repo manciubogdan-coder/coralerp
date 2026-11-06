@@ -4,6 +4,7 @@ import { addDays, bucharestDay, overviewWithTrend, runQuery, TABLES, type Client
 import { describeFilters, validFilters } from "./agentFilters.ts";
 import { priceTools } from "./priceTool.ts";
 import { loadMemory } from "./memoryStore.ts";
+import { runLive, validLiveSpec } from "./liveReports.ts";
 import { memoryTools } from "./memory.ts";
 import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
