@@ -77,6 +77,7 @@ ${SENIOR_GUIDE}
 Reguli de execuție:
 - Filtrele cu valoarea „Toate”, gol sau „Automat” înseamnă fără restricție / alegere automată; NU căuta un articol numit „Toate”. Pentru un text (ex. „spanac mare”) caută articolele Senior cu LIKE pe denumire și include toate potrivirile relevante.
 - Dacă un SQL dă eroare sau 0 rânduri, verifică schema (senior_descrie_tabel), corectează și reîncearcă; încearcă și sinonime/denumiri parțiale.
+- Raportul NU pune întrebări utilizatorului și nu cere confirmări (nu are cine răspunde). Dacă lipsește o precizare, alege varianta implicită cea mai utilă (ex. cantități + valori + preț mediu), execută și notează într-o singură frază ce ai presupus. Precizările din secțiunea „Precizări de la utilizator” din instrucțiuni au prioritate.
 - INTERZIS să livrezi tabele pline de N/D. Dacă după încercări tot nu ai date, răspunde scurt în markdown: ce ai căutat, ce interogare a eșuat și mesajul exact al erorii.
 - Livrează direct rezultatul (cifre, tabele, concluzie), nu planul analizei și nu metodologia.
 La final răspunde DOAR cu un obiect JSON valid (fără text înainte/după, fără \`\`\`), în română, cu structura:
