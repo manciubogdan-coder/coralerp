@@ -18,7 +18,7 @@ import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
 import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isProductionDestination, materialQuantity, netPendingDeliveries, readPages, reconcileProjection, sevenDayBuffer, transferStockQuantity, weekdayAverages } from '@/lib/forecastReconciliation';
-import { PACK_TYPES, packGroupOf } from '@/lib/forecastGroups';
+import { PACK_TYPES, packGroupOf, palletsFor, summarizePallets } from '@/lib/forecastGroups';
 import ConsumptionSourcesDialog, { type ConsumptionSource } from './ConsumptionSourcesDialog';
 import StockGapDialog from './StockGapDialog';
 import { loadProductionUsage } from '@/lib/productionUsage';
@@ -1048,6 +1048,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                           {weekly
                             ? `Săpt. ${format(c.first, "d MMM", { locale: ro })} – ${format(c.last, "d MMM", { locale: ro })}`
                             : `${WEEKDAYS[isoDay(c.first)].slice(0, 3).toLowerCase()} ${format(c.first, "d MMM", { locale: ro })}`}
+                          <Button variant="ghost" size="sm" className="h-6 ml-1 px-1.5 text-[10px] text-primary" title={`Creează comanda furnizor din cantitățile sugerate (livrare ${format(addDays(c.last, 1), 'dd.MM')})`} onClick={() => openDayOrder(c)}>
+                            <Truck className="h-3.5 w-3.5 mr-0.5" />Comandă
+                          </Button>
                         </th>
                       ))}
                     </tr>
@@ -1124,7 +1127,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                                 {suggestion == null ? '—' : (
                                   <Popover>
                                     <PopoverTrigger asChild>
-                                      <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums" aria-label={`Comandă sugerată ${r.name} ${format(d, 'dd.MM')}`}>{fmt(suggestion)}</Button>
+                                      <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums flex-col items-end" aria-label={`Comandă sugerată ${r.name} ${format(d, 'dd.MM')}`}>
+                                        <span>{fmt(suggestion)}</span>
+                                        {(() => { const pal = r.unit?.toLowerCase() === 'kg' ? palletsFor(r.name, suggestion) : null; return pal ? <span className="text-[10px] text-muted-foreground font-normal">{Math.ceil(pal)} pal</span> : null; })()}
+                                      </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto text-xs space-y-2">
                                       <div className="font-semibold mb-1">Comandă sugerată — {r.name}</div>
