@@ -8,11 +8,12 @@ type C = { cloud: any };
 
 const filterSchema = {
   type: "array", maxItems: 6,
-  description: "Filtre selectabile la rulare. type: period (default today|yesterday|last_7|last_30|this_month|last_month), choice (cu options, de ex. luna 1..12, an, client), text (produs/furnizor). Pune MEREU filtrele pe care utilizatorul vrea să le schimbe.",
+  description: "Filtre selectabile la rulare. type: period (default today|yesterday|last_7|last_30|this_month|last_month), choice (cu options, de ex. luna 1..12, an, client), lookup (listă Senior selectabilă; source produs|client|furnizor — folosește-l MEREU pentru produs, client, furnizor), text (altceva). Pune MEREU filtrele pe care utilizatorul vrea să le schimbe.",
   items: {
-    type: "object", additionalProperties: false, required: ["label", "type", "options", "default"],
+    type: "object", additionalProperties: false, required: ["label", "type", "source", "options", "default"],
     properties: {
-      label: { type: "string" }, type: { type: "string", enum: ["period", "text", "choice"] },
+      label: { type: "string" }, type: { type: "string", enum: ["period", "lookup", "text", "choice"] },
+      source: { type: ["string", "null"], enum: ["produs", "client", "furnizor", null] },
       options: { type: ["array", "null"], items: { type: "string" } }, default: { type: "string" },
     },
   },
