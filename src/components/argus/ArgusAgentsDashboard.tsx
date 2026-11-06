@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Check, Loader2, MoreHorizontal, Move, Pencil, Plus, RefreshCw, Trash2, Maximize2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, Loader2, MoreHorizontal, Move, Pencil, Plus, RefreshCw, Trash2, Maximize2, Zap } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -151,6 +151,7 @@ export default function ArgusAgentsDashboard() {
                   <div className="flex flex-wrap gap-1">
                     <Badge variant="secondary">{SCHED[t.schedule_type] ?? t.schedule_type}</Badge>
                     <Badge variant="outline">{WIDGET[r?.content_json?.widget_type ?? t.preferred_widget_type] ?? "Auto"}</Badge>
+                    {t.live_spec && <Badge className="gap-1"><Zap className="h-3 w-3" />Live · fără credite AI</Badge>}
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1">
@@ -160,8 +161,14 @@ export default function ArgusAgentsDashboard() {
                     onChange={(v) => setValues((s) => ({ ...s, [c.template_id]: v }))}
                     onRun={() => run(c.template_id)} busy={busy}
                   />
+                  {t.live_spec && !(Array.isArray(t.params) && t.params.length) && (
+                    <div className="mb-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <span>{r?.executed_at ? `Actualizat ${new Date(r.executed_at).toLocaleString("ro-RO")}` : ""}</span>
+                      <Button size="sm" className="h-8" onClick={() => run(c.template_id)} disabled={busy}><RefreshCw className="mr-1 h-3.5 w-3.5" />Actualizează</Button>
+                    </div>
+                  )}
                   {busy ? (
-                    <div className="space-y-2"><Skeleton className="h-40" /><p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Argus analizează datele…</p></div>
+                    <div className="space-y-2"><Skeleton className="h-40" /><p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />{t.live_spec ? "Citesc cifrele la zi din Senior…" : "Argus analizează datele…"}</p></div>
                   ) : r?.status === "completed" && r.content_json ? (
                     <ArgusWidgetRenderer content={r.content_json} />
                   ) : r?.status === "failed" ? (
