@@ -1158,6 +1158,38 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
             }
             </div>
           )})}
+          <div className="border rounded-lg overflow-auto">
+            <div className="px-3 py-2 bg-muted/50 border-b text-sm font-semibold">
+              Total comandă sugerată {weekly ? 'pe săptămână' : 'pe zi'} (toate materialele afișate)
+            </div>
+            <table className="text-xs border-collapse">
+              <tbody>
+                {(() => {
+                  const totals = projCols.map((c) => {
+                    const rowsQ = filtered.map((r) => ({ name: r.name, unit: r.unit, qty: suggestionFor(r, c) || 0 }));
+                    const other = rowsQ.filter((x) => x.qty > 0 && x.unit?.toLowerCase() !== 'kg').length;
+                    const kgAll = rowsQ.filter((x) => x.unit?.toLowerCase() === 'kg').reduce((a, x) => a + x.qty, 0);
+                    return { c, kgAll, other, pal: summarizePallets(rowsQ) };
+                  });
+                  const f = (n: number) => n.toLocaleString('ro-RO', { maximumFractionDigits: 0 });
+                  return <>
+                    <tr className="border-b">
+                      <th className="sticky left-0 bg-background border-r px-2 py-1.5 text-left min-w-[140px]">Zi</th>
+                      {totals.map(({ c }) => <th key={c.key} className="px-3 py-1.5 text-right whitespace-nowrap border-r">{weekly ? `Săpt. ${format(c.first, 'd MMM', { locale: ro })}` : `${WEEKDAYS[isoDay(c.first)].slice(0, 3).toLowerCase()} ${format(c.first, 'd MMM', { locale: ro })}`}</th>)}
+                    </tr>
+                    <tr className="border-b">
+                      <td className="sticky left-0 bg-background border-r px-2 py-1.5 font-medium">Total kg</td>
+                      {totals.map(({ c, kgAll, other }) => <td key={c.key} className="px-3 py-1.5 text-right tabular-nums border-r" title={other ? `${other} materiale în alte unități nu sunt incluse` : undefined}>{kgAll > 0 ? f(kgAll) : '—'}</td>)}
+                    </tr>
+                    <tr>
+                      <td className="sticky left-0 bg-background border-r px-2 py-1.5 font-medium" title="Paleți întregi: căpățâni 400 kg, radicchio 500 kg, frunze/aromate 220 kg">Paleți (întregi)</td>
+                      {totals.map(({ c, pal }) => <td key={c.key} className="px-3 py-1.5 text-right tabular-nums border-r text-primary font-semibold">{pal.wholePallets > 0 ? f(pal.wholePallets) : '—'}</td>)}
+                    </tr>
+                  </>;
+                })()}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="border rounded-lg overflow-auto max-h-[70vh] text-xs relative">
@@ -1350,6 +1382,14 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           setSelected(new Set());
           fetchData();
         }}
+      />
+      <CreateSupplierOrderDialog
+        open={!!dayOrderLines}
+        onOpenChange={(v) => !v && setDayOrderLines(null)}
+        inventoryType={inventoryType}
+        lines={dayOrderLines || []}
+        defaultDeliveryDate={dayOrderDate}
+        onCreated={() => { setDayOrderLines(null); fetchData(); }}
       />
     </div>
   );
