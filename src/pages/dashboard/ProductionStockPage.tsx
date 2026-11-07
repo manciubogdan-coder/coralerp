@@ -29,6 +29,7 @@ import StockManagement from "@/components/productie/StockManagement";
 import ConsumptionAnalytics from "@/components/productie/ConsumptionAnalytics";
 import MarfaRestocataView from "@/components/productie/MarfaRestocataView";
 import Reports from "@/components/productie/Reports";
+import LineSpeedReport from "@/components/productie/LineSpeedReport";
 import SeniorErpImport from "@/components/productie/SeniorErpImport";
 import RestockAllocationSettings from '@/components/productie/RestockAllocationSettings';
 
@@ -142,10 +143,14 @@ const ProductionStockPage = () => {
             <Tabs defaultValue="prod" className="w-full">
               <TabsList>
                 <TabsTrigger value="prod">Rapoarte Producție</TabsTrigger>
+                <TabsTrigger value="speed">Viteză vs normă</TabsTrigger>
                 <TabsTrigger value="shifts">Schimburi</TabsTrigger>
               </TabsList>
               <TabsContent value="prod" className="mt-4">
                 <Reports />
+              </TabsContent>
+              <TabsContent value="speed" className="mt-4">
+                <LineSpeedReport />
               </TabsContent>
               <TabsContent value="shifts" className="mt-4">
                 <ShiftManagement />
