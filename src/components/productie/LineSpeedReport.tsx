@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import * as XLSX from "xlsx";
-import { Download, Gauge, Loader2, AlertTriangle, Timer, Package, TrendingDown, Lightbulb } from "lucide-react";
+import { Download, Gauge, Loader2, Timer, Package, Lightbulb } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,6 @@ const StatCells = ({ s }: { s: SpeedStat }) => (
     <TableCell className="text-right">{n0(s.buc)}</TableCell>
     <TableCell className="text-right font-semibold">{n0(s.bucPeOra)}</TableCell>
     <TableCell className="text-right"><Pct p={s.procentNorma} /></TableCell>
-    <TableCell className="text-right text-muted-foreground">{n0(s.bucPeOraOm)}</TableCell>
   </>
 );
 
@@ -79,8 +78,8 @@ const LineSpeedReport = () => {
     const wb = XLSX.utils.book_new();
     const statCols = (s: SpeedStat) => ({
       "Ore lucrate": r1(s.ore), "Bucăți": Math.round(s.buc), "Buc/oră real": Math.round(s.bucPeOra), "Normă buc/oră": s.norma,
-      "% din normă": s.procentNorma == null ? null : r1(s.procentNorma), "Buc/oră/om": Math.round(s.bucPeOraOm),
-      "Bucăți nerealizate": Math.round(s.bucNerealizate), "Ore pierdute": r1(s.orePierdute), "Sesiuni": s.sesiuni,
+      "% din normă": s.procentNorma == null ? null : r1(s.procentNorma),
+      "Sesiuni": s.sesiuni,
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(report.lines.map(l => ({
       Linie: l.nume, ...statCols(l), "Zile lucrate": l.zile, "Normă realistă (mediana zilelor)": Math.round(l.normaRealista),
@@ -126,12 +125,10 @@ const LineSpeedReport = () => {
 
       {error && <Card><CardContent className="p-4 text-sm text-destructive">Nu am putut citi sesiunile: {(error as Error).message}</CardContent></Card>}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Kpi icon={<Timer className="h-4 w-4" />} label="Ore lucrate (toate liniile)" value={`${n1(t.ore)}h`} hint={`${t.sesiuni} sesiuni`} />
         <Kpi icon={<Package className="h-4 w-4" />} label="Bucăți produse" value={n0(t.buc)} />
         <Kpi icon={<Gauge className="h-4 w-4" />} label="Realizare normă (medie ponderată)" value={t.procentNorma == null ? "—" : `${Math.round(t.procentNorma)}%`} hint={`${n0(t.bucPeOra)} vs ${n0(t.norma)} buc/oră`} />
-        <Kpi icon={<TrendingDown className="h-4 w-4" />} label="Bucăți nerealizate față de normă" value={n0(Math.max(0, t.bucNerealizate))} />
-        <Kpi icon={<AlertTriangle className="h-4 w-4" />} label="Ore pierdute față de normă" value={`${n1(Math.max(0, t.orePierdute))}h`} />
       </div>
 
       {!report.lines.length ? (
@@ -190,9 +187,6 @@ const LineSpeedReport = () => {
                       <TableHead className="text-right">Bucăți</TableHead>
                       <TableHead className="text-right">Buc/oră real</TableHead>
                       <TableHead className="text-right">% normă</TableHead>
-                      <TableHead className="text-right">Buc/oră/om</TableHead>
-                      <TableHead className="text-right">Buc. nerealizate</TableHead>
-                      <TableHead className="text-right">Ore pierdute</TableHead>
                       <TableHead className="text-right">Normă realistă</TableHead>
                       <TableHead>Cea mai bună / slabă zi</TableHead>
                     </TableRow>
@@ -203,8 +197,6 @@ const LineSpeedReport = () => {
                         <TableCell className="font-medium">{l.nume}<div className="text-xs text-muted-foreground">{l.zile} zile · {l.sesiuni} sesiuni</div></TableCell>
                         <TableCell className="text-right">{l.norma ? n0(l.norma) : "—"}</TableCell>
                         <StatCells s={l} />
-                        <TableCell className={`text-right ${l.bucNerealizate > 0 ? "text-destructive" : "text-muted-foreground"}`}>{l.norma ? n0(l.bucNerealizate) : "—"}</TableCell>
-                        <TableCell className={`text-right ${l.orePierdute > 0 ? "text-destructive" : "text-muted-foreground"}`}>{l.norma ? `${n1(l.orePierdute)}h` : "—"}</TableCell>
                         <TableCell className="text-right">{n0(l.normaRealista)}</TableCell>
                         <TableCell className="text-xs">
                           {l.ceaMaiBunaZi && <div>▲ {dayLabel(l.ceaMaiBunaZi.zi)}: {n0(l.ceaMaiBunaZi.bucPeOra)}</div>}
@@ -214,7 +206,7 @@ const LineSpeedReport = () => {
                     ))}
                   </TableBody>
                 </Table>
-                <p className="mt-3 text-xs text-muted-foreground">Negativ la „bucăți nerealizate” / „ore pierdute” înseamnă că linia a mers peste normă. Normă realistă = mediana vitezei zilnice (zile cu minim 30 min lucrate).</p>
+                <p className="mt-3 text-xs text-muted-foreground">Normă realistă = mediana vitezei zilnice (zile cu minim 30 min lucrate).</p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -280,7 +272,7 @@ const LineSpeedReport = () => {
           <TabsContent value="operators" className="space-y-4">
             <LinePicker lines={report.lines} value={selected?.id} onChange={setLineId} />
             {selected && <Breakdown title={`${selected.nume} — viteza pe operator principal`} label="Operator" rows={selected.perOperator.map(p => ({ key: p.operator, s: p }))}
-              note="Buc/oră/om ține cont de câți oameni au fost trecuți pe fiecare sesiune." />}
+              note="Viteza fiecărui operator principal, pe orele lucrate de el pe această linie." />}
           </TabsContent>
 
           <TabsContent value="suspects">
@@ -343,7 +335,6 @@ const Breakdown = ({ title, label, rows, note }: { title: string; label: string;
             <TableHead className="text-right">Bucăți</TableHead>
             <TableHead className="text-right">Buc/oră real</TableHead>
             <TableHead className="text-right">% normă</TableHead>
-            <TableHead className="text-right">Buc/oră/om</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
