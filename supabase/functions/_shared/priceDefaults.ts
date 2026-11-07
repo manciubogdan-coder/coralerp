@@ -18,8 +18,10 @@ export function suggestedLabour(name: string, components: SheetComponent[]) {
   if (/spanac.*mare/.test(n)) return "Spanac Mare";
   if (/gastro|vrac/.test(n)) return "Vracuri / Gastro";
   if (/busuioc|marar|patrunjel|menta|cimbru|rozmarin|aromat/.test(n)) return "Aromate";
-  if (/flow\s*pack/.test(n)) return "Flowpack";
-  if (/giostra/.test(n)) return "Giostra";
+  // Packaging in the Senior recipe identifies the machine: flow-pack film → Flowpack, Giostra film/bags → Giostra.
+  const pack = components.filter((c) => c.kind === "ambalaj").map((c) => c.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()).join(" | ");
+  if (/flow\s*-?\s*pack/.test(n) || /flow\s*-?\s*pack/.test(pack)) return "Flowpack";
+  if (/giostra/.test(n) || /giostra/.test(pack)) return "Giostra";
   if (components.filter((c) => c.kind === "mp" && c.qty > 0).length > 1) return "Multihead — Mixte SPĂLATE";
   if (/baby|rucola|spanac/.test(n)) return "Multihead — Monoprodus";
   return null;

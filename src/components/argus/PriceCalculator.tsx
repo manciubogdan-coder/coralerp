@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calculator, Check, ChevronsUpDown, Loader2, Zap } from "lucide-react";
+import { Calculator, Check, ChevronsUpDown, Download, Loader2, Zap } from "lucide-react";
+import * as XLSX from "xlsx";
 import { toast } from "@/hooks/use-custom-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -135,7 +136,7 @@ export default function PriceCalculator() {
       const base = d.defaults ?? {};
       // The store's cursă is proposed on every run unless the user picked a cursă by hand.
       if (!routeManual) { setRoute(base.route ?? "România"); clearDistribution(); }
-      if (!line || data?.product.id !== d.product.id) setLine(base.labourLine ?? "");
+      if (!line || data?.product.id !== d.product.id) chooseLine(base.labourLine ?? "");
       if (data?.product.id !== d.product.id) {
         setPrices({}); setLosses({}); setQuantities({}); setPalletKg({});
         setAdjustedRates((p) => (p.marginPct != null ? { marginPct: p.marginPct } : {}));
@@ -227,6 +228,50 @@ export default function PriceCalculator() {
   };
   const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 
+  const exportExcel = () => {
+    if (!data || !sheet) return;
+    const r4 = (v: number) => Math.round(v * 10000) / 10000;
+    const n = sheet.s.unitsPerCase;
+    const clientName = clients.find((c) => c.id === client)?.name ?? "Toți clienții";
+    const rows: (string | number)[][] = [
+      ["Fișă preț", data.product.name],
+      ["Client", clientName],
+      ["Magazin", storeName ?? ""],
+      ["Perioadă", `${String(month).padStart(2, "0")}/${year}`],
+      ["Bucăți / bax", n],
+      ["Linie de producție", line || "nealeasă"],
+      ["Cursă distribuție", route],
+      ["Marjă brută %", num(display.marginPct || "0")],
+      [],
+      ["Componentă", "Tip", "UM", "Rețetă", "PT %", "Preț (lei/UM)", "Valoare (lei/bax)", "Valoare (lei/buc)", "Sursă"],
+    ];
+    for (const c of sheet.comps) {
+      const l = sheet.s.lines.find((x) => x.label === c.name);
+      rows.push([c.name, c.kind === "mp" ? "Materie primă" : "Ambalaj", c.unit, r4(c.qty), c.lossPct, r4(c.price ?? 0), r4(l?.value ?? 0), r4((l?.value ?? 0) / n), c.priceSource]);
+    }
+    for (const l of sheet.s.lines.filter((x) => !sheet.comps.some((c) => c.name === x.label))) rows.push([l.label, "", "", "", "", "", r4(l.value), r4(l.value / n), l.detail]);
+    rows.push([], ["Rezultat", "", "", "", "", "", "lei/bax", "lei/buc"]);
+    const res: [string, number, number][] = [
+      ["Cost producție", sheet.s.productionCost, sheet.s.perPiece.productionCost],
+      ["Preț poartă fabrică", sheet.s.factoryGate, sheet.s.perPiece.factoryGate],
+      ["Preț final livrare (+ logistic)", sheet.s.delivered, sheet.s.perPiece.delivered],
+      ["Preț livrare client (+ taxe)", sheet.s.clientPrice, sheet.s.perPiece.clientPrice],
+      ["Preț client EUR", sheet.s.clientPriceEur, sheet.s.perPiece.clientPriceEur],
+    ];
+    for (const [l, b, p] of res) rows.push([l, "", "", "", "", "", r4(b), r4(p)]);
+    if (!sheet.s.complete) rows.push([], ["Fișă incompletă", sheet.s.missingInputs.join("; ")]);
+    if (data.warnings?.length) { rows.push([], ["Avertismente"]); for (const w of data.warnings) rows.push([w]); }
+    if (data.salesHistory.length) {
+      rows.push([], ["Luna", "Bucăți vândute", "Valoare (lei)", "Preț mediu (lei/buc)", "vs calculat"]);
+      for (const h of data.salesHistory) rows.push([h.month, h.qty, h.value, h.price ?? "", h.price == null ? "" : r4(h.price - sheet.s.perPiece.clientPrice)]);
+    }
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [{ wch: 36 }, { wch: 14 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 60 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Fișă preț");
+    XLSX.writeFile(wb, `Fisa pret - ${data.product.name.replace(/[\\/:*?"<>|]/g, "")}.xlsx`);
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -290,6 +335,9 @@ export default function PriceCalculator() {
             <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
               <Button size="sm" variant="secondary" disabled={saving || !sheet} onClick={saveLive}>
                 {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1 h-3.5 w-3.5" />}Salvează ca fișă live
+              </Button>
+              <Button size="sm" variant="outline" disabled={!sheet} onClick={exportExcel}>
+                <Download className="mr-1 h-3.5 w-3.5" />Export Excel
               </Button>
               Apare în „Agenți & Rapoarte”; o recalculezi cu prețurile Senior la zi dintr-un clic, fără credite AI.
             </div>
