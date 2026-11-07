@@ -223,6 +223,22 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
   });
   const overridesDirty = !!result && JSON.stringify(routeOverrides) !== ranOverrides;
 
+  const [auditing, setAuditing] = useState(false);
+  const auditRecipes = async () => {
+    setAuditing(true);
+    try {
+      const r = await argusFetch<{ checked: number; issues: any[] }>("recipe_case_audit", {}, {});
+      const rows: (string | number)[][] = [["Cod produs", "Articol ID Senior", "Produs", "Bucăți în rețetă (Senior)", "Bucăți în bax real", "Variante bax (ultimele 12 luni)", "Linii document", "Ultimul document", "Problema"]];
+      for (const i of r.issues) rows.push([i.code, i.id, i.name, i.recipeUnits, i.caseUnits, i.caseVariants, i.lines, i.lastDocument, i.problem]);
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{ wch: 14 }, { wch: 10 }, { wch: 45 }, { wch: 12 }, { wch: 12 }, { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 55 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Rețete greșite");
+      XLSX.writeFile(wb, `Retete gresite bax ${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast({ title: `${r.issues.length} rețete de corectat`, description: `Din ${r.checked} produse cu rețetă activă și bax în documente.` });
+    } catch (e) { toast({ title: "Verificarea nu a reușit", description: (e as Error).message, variant: "destructive" }); }
+    finally { setAuditing(false); }
+  };
   const run = async () => {
     if (!selected.length) return;
     setLoading(true); setError(null);
@@ -676,7 +692,10 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
             </div>
             <NumField label="Marjă brută %" value={marginShown} onChange={(v) => setGlobal("marginPct", v)} hint={`Implicit ${priceRules().marginPct}% (Reguli de calcul) · din cost producție + distribuție`} />
             <NumField label="Profitabilitate %" value={globalRates.profitPct ?? ""} onChange={(v) => setGlobal("profitPct", v)} hint={`Gol = din Reguli de calcul (implicit ${priceRules().profitPct ?? 5}%, sau regula clientului/produsului) · peste prețul minim de vânzare`} />
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
+              <Button variant="outline" onClick={auditRecipes} disabled={auditing} title="Rețete Senior la care prețul pe bax iese egal cu prețul pe bucată, deși baxul are mai multe bucăți">
+                {auditing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Rețete greșite bax
+              </Button>
               <Button className="w-full" onClick={run} disabled={!selected.length || loading}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}Calculează {selected.length > 1 ? `${selected.length} produse` : ""}
               </Button>

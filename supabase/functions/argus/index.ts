@@ -25,6 +25,7 @@ import { agentBuilderTools } from "./agentBuilder.ts";
 import { priceCalcData, priceListData, priceOptions } from "../_shared/priceCalcSenior.ts";
 import { DEFAULT_PRICE_RULES, loadPriceRules, savePriceRules } from "../_shared/priceRules.ts";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
+import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments, attachmentSummaries, rereadAttachment } from "./files.ts";
 import { validChatMessages, readChatHistory, repairChatMessageIds, isEmptyAssistant, markFailedTurn } from "./chatHistory.ts";
@@ -635,6 +636,10 @@ Deno.serve(async (req) => {
       }
       case "price_options": {
         try { return json(await priceOptions(c.cloud, await req.json())); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case "recipe_case_audit": {
+        try { return json(await recipeCaseAudit(c.cloud)); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case "filter_options": {
