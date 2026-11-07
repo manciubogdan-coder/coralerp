@@ -36,6 +36,8 @@ export interface SheetRates {
   eurBufferPct: number;
   techLossPct: number;
   marginPct: number;
+  /** Target profitability % of the proposed price, on top of the break-even (minimum) price. */
+  profitPct?: number;
   supplyPerPallet?: number;
   distributionPerPallet?: number;
   piecesPerPallet?: number;
@@ -61,13 +63,18 @@ export interface PriceSheet {
   delivered: number;
   clientFees: number;
   clientPrice: number;
+  /** Break-even selling price: costs + gross margin (treated as a cost) + distribution + network fees, no profit. */
+  minPrice: number;
+  /** Target profit in the proposed price and its % of the proposed price. */
+  profit: number;
+  profitPct: number;
   eurEffective: number;
   clientPriceEur: number;
   /** Factory gate − production cost: the gross margin added on top of cost. */
   grossMargin: number;
   feePct: number;
   clientFeePerPiece: number;
-  perPiece: { productionCost: number; factoryGate: number; delivered: number; clientPrice: number; clientPriceEur: number; grossMargin: number; logistics: number; fees: number };
+  perPiece: { minPrice: number; profit: number; productionCost: number; factoryGate: number; delivered: number; clientPrice: number; clientPriceEur: number; grossMargin: number; logistics: number; fees: number };
   missingPrices: string[];
   missingInputs: string[];
   complete: boolean;
@@ -167,8 +174,13 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
   if (R.distributionPerPallet != null && !(R.piecesPerPallet && R.piecesPerPallet > 0)) missingInputs.push("Bucăți produs finit/palet");
   const logistics = R.distributionPerPallet != null ? (R.piecesPerPallet && R.piecesPerPallet > 0 ? n / R.piecesPerPallet * R.distributionPerPallet : 0) : n * R.distributionPerPiece;
   const delivered = factoryGate + logistics;
-  const clientPrice = withMargin(delivered + n * R.clientFeePerPiece, R.feePct ?? 0);
-  const clientFees = clientPrice - delivered;
+  // Network fees and target profit are both % of the final price: price = (delivered + fixed fees) ÷ (1 − fee% − profit%).
+  const feeP = Math.min(Math.max(R.feePct ?? 0, 0), 89), profitP = Math.min(Math.max(R.profitPct ?? 0, 0), 89);
+  const base = delivered + n * R.clientFeePerPiece;
+  const minPrice = withMargin(base, feeP);
+  const clientPrice = withMargin(base, Math.min(feeP + profitP, 95));
+  const profit = clientPrice * profitP / 100;
+  const clientFees = clientPrice - delivered - profit;
   const eurEffective = R.eurRate * (1 + (R.eurBufferPct || 0) / 100);
   const clientPriceEur = eurEffective > 0 ? clientPrice / eurEffective : 0;
   return {
@@ -176,9 +188,10 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
     rawMaterial: r4(rawMaterial), supplyTransport: r4(supplyTransport), packaging: r4(packaging), labour: r4(labour),
     utilities: r4(utilities), techLoss: r4(techLoss), productionCost: r4(productionCost), factoryGate: r4(factoryGate),
     logistics: r4(logistics), delivered: r4(delivered), clientFees: r4(clientFees), clientPrice: r4(clientPrice),
-    eurEffective: r4(eurEffective), clientPriceEur: r4(clientPriceEur),
+    eurEffective: r4(eurEffective), clientPriceEur: r4(clientPriceEur), minPrice: r4(minPrice), profit: r4(profit), profitPct: profitP,
     grossMargin: r4(factoryGate - productionCost), feePct: R.feePct ?? 0, clientFeePerPiece: R.clientFeePerPiece || 0,
     perPiece: {
+      minPrice: r4(minPrice / n), profit: r4(profit / n),
       productionCost: r4(productionCost / n), factoryGate: r4(factoryGate / n), delivered: r4(delivered / n),
       clientPrice: r4(clientPrice / n), clientPriceEur: r4(clientPriceEur / n),
       grossMargin: r4((factoryGate - productionCost) / n), logistics: r4(logistics / n), fees: r4(clientFees / n),

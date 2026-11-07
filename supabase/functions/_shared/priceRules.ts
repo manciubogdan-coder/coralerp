@@ -8,7 +8,11 @@ export type TradedGoodRule = { label: string; keywords: string[]; piecesPerPalle
 export type CityRouteRule = { city: string; route: string };
 /** Network fee % of the client's final price; keywords are alternatives, "a + b" needs both in the store or central partner name. */
 export type ClientFeeRule = { client: string; keywords: string[]; pct: number; note: string };
+/** Target profitability % for one client (store/central name) or one product (product name); keywords as for client fees. */
+export type ProfitRule = { kind: "client" | "product"; label: string; keywords: string[]; pct: number };
 export type PriceRules = {
+  profitPct: number;
+  profitRules: ProfitRule[];
   labourOverheadPct: number;
   lines: LabourLineRule[];
   palletGroups: PalletGroupRule[];
@@ -70,6 +74,8 @@ export const DEFAULT_PRICE_RULES: PriceRules = {
     { client: "Metro România", keywords: ["metro + romania"], pct: 0.8, note: "" },
   ],
   marginPct: 15,
+  profitPct: 5,
+  profitRules: [],
   eurBufferPct: 1.5,
   techLossPct: 0,
   latestCostDays: 30,
@@ -98,6 +104,18 @@ export function clientFeeFor(...names: Array<string | null | undefined>): Client
   })) ?? null;
 }
 
+const matches = (hay: string, keywords: string[]) => keywords.some((k) => {
+  const parts = k.split("+").map((p) => p.trim()).filter(Boolean);
+  return parts.length > 0 && parts.every((p) => hay.includes(p));
+});
+/** Target profitability: a product rule wins over a client rule, otherwise the default %. */
+export function profitFor(product: string | null | undefined, ...clients: Array<string | null | undefined>): { pct: number; rule: string | null } {
+  const p = plainName(product ?? "").replace(/\s+/g, " "), c = plainName(clients.filter(Boolean).join(" | ")).replace(/\s+/g, " ");
+  const rules = active.profitRules ?? [];
+  const r = (p && rules.find((x) => x.kind === "product" && matches(p, x.keywords))) || (c && rules.find((x) => x.kind === "client" && matches(c, x.keywords))) || null;
+  return r ? { pct: r.pct, rule: `${r.kind === "product" ? "produs" : "client"}: ${r.label}` } : { pct: active.profitPct ?? 5, rule: null };
+}
+
 /** Per piece: people × lei/person-hour ÷ pieces/hour; factory overhead = direct × overhead %. */
 export function lineRates(l: LabourLineRule, globalOverheadPct = active.labourOverheadPct) {
   if (!l.speed || !l.people || !l.hourCost) return { direct: null, overhead: null, total: null };
@@ -119,7 +137,7 @@ export function validPriceRules(raw: unknown): { rules: PriceRules } | { error: 
   const pick = (k: keyof PriceRules) => (r[k] === undefined ? D[k] : r[k]);
   const out = { ...D } as PriceRules;
   const scalars: Array<[keyof PriceRules, number, number, string]> = [
-    ["labourOverheadPct", 0, 500, "Regie fabrică %"], ["truckPallets", 1, 100, "Paleți pe camion plin"], ["marginPct", 0, 89, "Marjă brută implicită %"],
+    ["labourOverheadPct", 0, 500, "Regie fabrică %"], ["truckPallets", 1, 100, "Paleți pe camion plin"], ["marginPct", 0, 89, "Marjă brută implicită %"], ["profitPct", 0, 89, "Profitabilitate implicită %"],
     ["eurBufferPct", 0, 50, "Siguranță curs EUR %"], ["techLossPct", 0, 89, "Pierdere suplimentară %"], ["latestCostDays", 7, 365, "Zile pentru ultimele prețuri"], ["loadDays", 14, 365, "Zile pentru încărcare medie"],
   ];
   for (const [k, min, max, label] of scalars) {
@@ -195,6 +213,16 @@ export function validPriceRules(raw: unknown): { rules: PriceRules } | { error: 
     if (!client || !keywords.length) return { error: "Fiecare client din tabelul de taxe are nume și cel puțin un cuvânt de recunoaștere." };
     if (!numIn(f.pct, 0, 89)) return { error: `${client}: taxe rețea % între 0 și 89.` };
     out.clientFees.push({ client, keywords, pct: f.pct, note: text(f.note, 200) });
+  }
+  const prof = pick("profitRules");
+  if (!Array.isArray(prof) || prof.length > 200) return { error: "Lista de profitabilitate este invalidă." };
+  out.profitRules = [];
+  for (const f of prof) {
+    const label = text(f?.label, 80), keywords = words(f?.keywords).map((k) => k.replace(/\s*\+\s*/g, " + ").replace(/\s+/g, " ").trim());
+    if (f?.kind !== "client" && f?.kind !== "product") return { error: `${label || "Regulă"}: alege client sau produs.` };
+    if (!label || !keywords.length) return { error: "Fiecare regulă de profitabilitate are nume și cel puțin un cuvânt de recunoaștere." };
+    if (!numIn(f.pct, 0, 89)) return { error: `${label}: profitabilitate % între 0 și 89.` };
+    out.profitRules.push({ kind: f.kind, label, keywords, pct: f.pct });
   }
   return { rules: out };
 }

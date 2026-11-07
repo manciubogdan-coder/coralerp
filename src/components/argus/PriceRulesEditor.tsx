@@ -11,7 +11,7 @@ import { DEFAULT_PRICE_RULES, lineRates, setPriceRules, validPriceRules, type Pr
 
 type Line = { name: string; people: string; speed: string; hourCost: string; overheadPct: string; note: string; builtIn?: boolean };
 type Draft = {
-  labourOverheadPct: string; truckPallets: string; marginPct: string; eurBufferPct: string; techLossPct: string; latestCostDays: string; loadDays: string;
+  labourOverheadPct: string; truckPallets: string; marginPct: string; profitPct: string; eurBufferPct: string; techLossPct: string; latestCostDays: string; loadDays: string;
   lines: Line[];
   palletGroups: Array<{ label: string; keywords: string; kgPerPallet: string }>;
   tradedGoods: Array<{ label: string; keywords: string; piecesPerPallet: string; note: string }>;
@@ -19,6 +19,7 @@ type Draft = {
   cityRoutes: Array<{ city: string; route: string }>;
   countyRoutes: Array<{ county: string; route: string }>;
   clientFees: Array<{ client: string; keywords: string; pct: string; note: string }>;
+  profitRules: Array<{ kind: "client" | "product"; label: string; keywords: string; pct: string }>;
 };
 type Response = RulesMeta & { defaults: PriceRules };
 
@@ -30,7 +31,7 @@ const fmt = (v: number | null, d = 3) => (v == null || !Number.isFinite(v) ? "�
 
 function toDraft(r: PriceRules): Draft {
   return {
-    labourOverheadPct: s(r.labourOverheadPct), truckPallets: s(r.truckPallets), marginPct: s(r.marginPct), eurBufferPct: s(r.eurBufferPct),
+    labourOverheadPct: s(r.labourOverheadPct), truckPallets: s(r.truckPallets), marginPct: s(r.marginPct), profitPct: s(r.profitPct ?? 5), eurBufferPct: s(r.eurBufferPct),
     techLossPct: s(r.techLossPct), latestCostDays: s(r.latestCostDays), loadDays: s(r.loadDays),
     lines: r.lines.map((l) => ({ name: l.name, people: s(l.people), speed: s(l.speed), hourCost: s(l.hourCost), overheadPct: s(l.overheadPct), note: l.note ?? "", builtIn: l.builtIn })),
     palletGroups: r.palletGroups.map((g) => ({ label: g.label, keywords: Array.isArray(g.keywords) ? g.keywords.join(", ") : String(g.keywords ?? ""), kgPerPallet: s(g.kgPerPallet) })),
@@ -39,12 +40,13 @@ function toDraft(r: PriceRules): Draft {
     cityRoutes: r.cityRoutes.map((c) => ({ ...c })),
     countyRoutes: Object.entries(r.countyRoutes).map(([county, route]) => ({ county, route })),
     clientFees: (r.clientFees ?? []).map((f) => ({ client: f.client, keywords: Array.isArray(f.keywords) ? f.keywords.join(", ") : String(f.keywords ?? ""), pct: s(f.pct), note: f.note ?? "" })),
+    profitRules: (r.profitRules ?? []).map((f) => ({ kind: f.kind, label: f.label, keywords: Array.isArray(f.keywords) ? f.keywords.join(", ") : String(f.keywords ?? ""), pct: s(f.pct) })),
   };
 }
 /** Hour costs are shown rounded; an unchanged rounded value keeps the exact saved value. */
 function fromDraft(d: Draft, base: PriceRules) {
   return {
-    labourOverheadPct: n(d.labourOverheadPct), truckPallets: n(d.truckPallets), marginPct: n(d.marginPct), eurBufferPct: n(d.eurBufferPct),
+    labourOverheadPct: n(d.labourOverheadPct), truckPallets: n(d.truckPallets), marginPct: n(d.marginPct), profitPct: n(d.profitPct), eurBufferPct: n(d.eurBufferPct),
     techLossPct: n(d.techLossPct), latestCostDays: n(d.latestCostDays), loadDays: n(d.loadDays),
     lines: d.lines.map((l) => {
       const b = base.lines.find((x) => x.name === l.name), h = n(l.hourCost), o = n(l.overheadPct);
@@ -57,6 +59,7 @@ function fromDraft(d: Draft, base: PriceRules) {
     routePairs: d.routePairs.map((p) => [p.a, p.b]),
     cityRoutes: d.cityRoutes,
     clientFees: (d.clientFees ?? []).map((f) => ({ client: f.client, keywords: f.keywords, pct: n(f.pct), note: f.note })),
+    profitRules: (d.profitRules ?? []).map((f) => ({ kind: f.kind, label: f.label, keywords: f.keywords, pct: n(f.pct) })),
     countyRoutes: Object.fromEntries(d.countyRoutes.filter((c) => t(c.county).trim() || t(c.route).trim()).map((c) => [c.county, c.route])),
   };
 }
@@ -101,10 +104,10 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
   const complete = (d: Draft): Draft => (meta ? { ...toDraft(meta.rules), ...Object.fromEntries(Object.entries(d).filter(([, v]) => v != null)) } as Draft : d);
   const set = (f: (d: Draft) => Draft) => setDraft((d) => (d ? f(complete(d)) : d));
   const setTop = (k: keyof Draft) => (v: string) => set((d) => ({ ...d, [k]: v }));
-  function editRow<K extends "lines" | "palletGroups" | "tradedGoods" | "routePairs" | "cityRoutes" | "countyRoutes" | "clientFees">(k: K, i: number, patch: Partial<Draft[K][number]>) {
+  function editRow<K extends "lines" | "palletGroups" | "tradedGoods" | "routePairs" | "cityRoutes" | "countyRoutes" | "clientFees" | "profitRules">(k: K, i: number, patch: Partial<Draft[K][number]>) {
     set((d) => ({ ...d, [k]: (d[k] as Array<Draft[K][number]>).map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
   }
-  function removeRow(k: "lines" | "palletGroups" | "tradedGoods" | "routePairs" | "cityRoutes" | "countyRoutes" | "clientFees", i: number) {
+  function removeRow(k: "lines" | "palletGroups" | "tradedGoods" | "routePairs" | "cityRoutes" | "countyRoutes" | "clientFees" | "profitRules", i: number) {
     set((d) => ({ ...d, [k]: (d[k] as unknown[]).filter((_, j) => j !== i) }));
   }
   const overhead = n(draft.labourOverheadPct);
@@ -145,7 +148,9 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
           <li><b>Cost producție</b> = suma de mai sus + pierdere suplimentară {draft.techLossPct || "0"}%.</li>
           <li><b>Preț poartă fabrică</b> = cost ÷ (1 − marjă brută); marja implicită {draft.marginPct || "?"}%.</li>
           <li><b>Distribuție</b>: bucăți ÷ bucăți/palet × tarif cursă (cost curse ÷ paleți livrați punctelor cursei; perechile de curse se calculează împreună).</li>
-          <li><b>Preț client</b> = livrat ÷ (1 − taxe rețea % din tabelul de mai jos; 0% dacă clientul lipsește); în EUR la cursul BNR + {draft.eurBufferPct || "0"}% siguranță.</li>
+          <li><b>Preț minim de vânzare (break-even)</b> = (poartă fabrică + distribuție) ÷ (1 − taxe rețea %, 0% dacă clientul lipsește din tabel). Marja brută e tratată ca o cheltuială.</li>
+          <li><b>Preț propus</b> = (poartă fabrică + distribuție) ÷ (1 − taxe rețea % − profitabilitate %); profitabilitatea implicită {draft.profitPct || "?"}%, sau cea a produsului / clientului de mai jos. În EUR la cursul BNR + {draft.eurBufferPct || "0"}% siguranță.</li>
+          <li><b>Profitabilitate reală</b> = (preț vânzare actual − taxe − cost − marjă brută − distribuție) ÷ preț vânzare actual; negativă = sub prețul minim.</li>
         </ol>
       </Section>
 
@@ -245,9 +250,27 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
         <AddButton onClick={() => set((d) => ({ ...d, clientFees: [...d.clientFees, { client: "Client nou", keywords: "", pct: "", note: "" }] }))}>Adaugă client</AddButton>
       </Section>
 
-      <Section title="Marjă, pierdere și curs">
+      <Section title="Profitabilitate pe client și pe produs" hint="Profitabilitatea se adaugă peste prețul minim de vânzare. Regula de produs câștigă în fața celei de client; fără regulă se folosește valoarea implicită de jos. Cuvintele se caută în numele produsului sau al magazinului / partenerului central.">
+        <div className="hidden gap-2 text-xs text-muted-foreground sm:grid sm:grid-cols-[120px_220px_1fr_100px_40px]"><span>Pentru</span><span>Nume</span><span>Cuvinte de recunoaștere (virgulă = oricare)</span><span>Profitabilitate %</span><span /></div>
+        {draft.profitRules.map((f, i) => <div key={i} className="grid items-end gap-2 sm:grid-cols-[120px_220px_1fr_100px_40px]">
+          <select aria-label={`Tip ${f.label}`} className="h-8 rounded-md border border-input bg-background px-2 text-xs" value={f.kind} onChange={(e) => editRow("profitRules", i, { kind: e.target.value as "client" | "product" })}>
+            <option value="client">Client</option><option value="product">Produs</option>
+          </select>
+          <Input aria-label="Nume regulă profitabilitate" className={cell} value={f.label} onChange={(e) => editRow("profitRules", i, { label: e.target.value })} />
+          <Input aria-label={`Cuvinte ${f.label}`} className={cell} value={f.keywords} placeholder={f.kind === "product" ? "ex. rucola 125" : "ex. lidl"} onChange={(e) => editRow("profitRules", i, { keywords: e.target.value })} />
+          <Input aria-label={`Profitabilitate % ${f.label}`} className={cell} inputMode="decimal" value={f.pct} onChange={(e) => editRow("profitRules", i, { pct: e.target.value })} />
+          <Remove label={`Șterge ${f.label}`} onClick={() => removeRow("profitRules", i)} />
+        </div>)}
+        <div className="flex gap-2">
+          <AddButton onClick={() => set((d) => ({ ...d, profitRules: [...d.profitRules, { kind: "client", label: "Client nou", keywords: "", pct: "" }] }))}>Adaugă client</AddButton>
+          <AddButton onClick={() => set((d) => ({ ...d, profitRules: [...d.profitRules, { kind: "product", label: "Produs nou", keywords: "", pct: "" }] }))}>Adaugă produs</AddButton>
+        </div>
+      </Section>
+
+      <Section title="Marjă, profitabilitate, pierdere și curs">
         <div className="grid gap-3 sm:grid-cols-3">
           <Num label="Marjă brută implicită %" value={draft.marginPct} onChange={setTop("marginPct")} hint="Din prețul de vânzare: cost ÷ (1 − marjă)" />
+          <Num label="Profitabilitate implicită %" value={draft.profitPct} onChange={setTop("profitPct")} hint="Peste prețul minim de vânzare (implicit 5%)" />
           <Num label="Pierdere suplimentară %" value={draft.techLossPct} onChange={setTop("techLossPct")} hint="Peste PT-ul din rețete" />
           <Num label="Siguranță curs EUR %" value={draft.eurBufferPct} onChange={setTop("eurBufferPct")} hint="Adăugat la cursul BNR" />
         </div>

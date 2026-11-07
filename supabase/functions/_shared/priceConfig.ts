@@ -66,7 +66,7 @@ export type PriceConfig = {
   rates?: Partial<SheetRates>;
   components?: Record<string, { price?: number; qty?: number; lossPct?: number; kgPerPallet?: number; piecesPerPallet?: number }>;
 };
-export const RATE_KEYS = ["labourPerPiece", "utilitiesPerPiece", "supplyPerKg", "distributionPerPiece", "clientFeePerPiece", "eurRate", "eurBufferPct", "techLossPct", "marginPct"] as const;
+export const RATE_KEYS = ["labourPerPiece", "utilitiesPerPiece", "supplyPerKg", "distributionPerPiece", "clientFeePerPiece", "eurRate", "eurBufferPct", "techLossPct", "marginPct", "profitPct"] as const;
 export const CONFIG_NUMBERS = ["unitsPerCase", "piecesPerPallet", "supplyPerPallet", "distributionPerPallet", "supplyTotal", "supplyPallets", "distributionTotal", "distributionPallets", "distributionTrips", "distributionPalletsPerTrip", "feePct", "supplyKg", "labourPeople", "labourSpeed", "labourHourCost", "labourOverheadPct"] as const;
 
 export function validPriceConfig(raw: unknown): PriceConfig | null {
@@ -105,7 +105,7 @@ export function validPriceConfig(raw: unknown): PriceConfig | null {
     if (typeof r.rates !== "object" || Array.isArray(r.rates)) return null;
     out.rates = {};
     for (const k of RATE_KEYS) if (r.rates[k] != null) {
-      if (!numeric(r.rates[k]) || (["marginPct", "techLossPct"].includes(k) && r.rates[k] >= 100)) return null;
+      if (!numeric(r.rates[k]) || (["marginPct", "techLossPct", "profitPct"].includes(k) && r.rates[k] >= 100)) return null;
       out.rates[k] = r.rates[k];
     }
   }

@@ -33,19 +33,30 @@ it("without deliveries in the window the client average is the plain average, la
   expect(avg?.weighted).toBe(false);
 });
 
-it("gross margin and real profit are separate: at the proposed price profit equals the margin, at the real price it differs", () => {
-  const s = computeSheet({ unitsPerCase: 10, components: [{ id: 1, name: "Spanac", qty: 1, unit: "KG", kind: "mp", price: 8.5, priceSource: "NIR", lossPct: 0, kgPerPallet: 220 }], rates: {
-    labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: 5, eurBufferPct: 0, techLossPct: 0,
-    marginPct: 15, supplyPerPallet: 0, distributionPerPallet: 300, piecesPerPallet: 1000, feePct: 10, supplyBasis: "pallet",
-  } });
-  // Cost 8.5 lei/bax → gate 10 lei/bax → margin 1.5 lei/bax = 0.15 lei/buc.
-  expect(s.grossMargin).toBeCloseTo(1.5, 4);
+const sheet = (profitPct?: number) => computeSheet({ unitsPerCase: 10, components: [{ id: 1, name: "Spanac", qty: 1, unit: "KG", kind: "mp", price: 8.5, priceSource: "NIR", lossPct: 0, kgPerPallet: 220 }], rates: {
+  labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: 5, eurBufferPct: 0, techLossPct: 0,
+  marginPct: 15, profitPct, supplyPerPallet: 0, distributionPerPallet: 300, piecesPerPallet: 1000, feePct: 10, supplyBasis: "pallet",
+} });
+it("minimum selling price is break-even: costs + gross margin + distribution + network fees, no profit", () => {
+  const s = sheet(5);
+  // Cost 8.5 → gate 10 (margin 1.5) → + distribution 3 = 13 lei/bax ÷ (1 − 10%) = 14.4444 lei/bax.
   expect(s.perPiece.grossMargin).toBeCloseTo(0.15, 4);
-  expect(profitAt(s, s.perPiece.clientPrice).profit).toBeCloseTo(0.15, 3);
-  // Selling at 1.50 lei/buc: 1.50 − 10% fees − (8.5 + 3) / 10 = 0.20 lei/buc.
-  const real = profitAt(s, 1.5);
-  expect(real.profit).toBeCloseTo(0.2, 6);
-  expect(real.pct).toBeCloseTo(13.3333, 3);
+  expect(s.perPiece.minPrice).toBeCloseTo(1.44444, 4);
+  expect(profitAt(s, s.perPiece.minPrice).profit).toBeCloseTo(0, 3);
+});
+it("proposed price = minimum price + 5% target profitability on the final price", () => {
+  const s = sheet(5);
+  // 13 ÷ (1 − 10% − 5%) = 15.2941 lei/bax; profit 5% of it.
+  expect(s.perPiece.clientPrice).toBeCloseTo(1.52941, 4);
+  expect(s.profitPct).toBe(5);
+  expect(profitAt(s, s.perPiece.clientPrice).pct).toBeCloseTo(5, 2);
+});
+it("real profitability counts the gross margin as a cost and goes negative below the minimum price", () => {
+  const s = sheet(5);
+  // 1.50 − 10% fees − (10 + 3) / 10 = 0.05 lei/buc = 3.33%.
+  expect(profitAt(s, 1.5).profit).toBeCloseTo(0.05, 6);
+  expect(profitAt(s, 1.5).pct).toBeCloseTo(3.3333, 3);
+  expect(profitAt(s, 1.4).profit).toBeLessThan(0);
 });
 
 const rs = (route: string, trips: number, total: number, pallets: number) => ({ route, trips, total, qty: trips, pmin: 0, pmax: 0, pallets, missingLines: 0, perPallet: null, perTrip: trips ? total / trips : null, palletsPerTrip: null, unitPrice: null, country: "RO", points: [] });

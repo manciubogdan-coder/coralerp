@@ -459,5 +459,6 @@ export function defaultRates(d: { eur: { rate: number } | null }, marginPct = pr
     eurBufferPct: priceRules().eurBufferPct,
     techLossPct: priceRules().techLossPct,
     marginPct,
+    profitPct: priceRules().profitPct,
   };
 }

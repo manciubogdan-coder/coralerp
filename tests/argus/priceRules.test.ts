@@ -72,3 +72,14 @@ describe("client network fees (Taxe_2026.xlsx)", () => {
     expect(clientFeeFor("LIDL DISCOUNT SRL - ROMAN", "LIDL DISCOUNT SRL")).toBeNull();
   });
 });
+
+import { profitFor as pf, setPriceRules as spr, DEFAULT_PRICE_RULES as D0 } from "../../supabase/functions/_shared/priceRules";
+test("target profitability defaults to 5%; a product rule wins over a client rule", () => {
+  spr(D0);
+  expect(pf("Rucola 125g", "LIDL ROMANIA").pct).toBe(5);
+  spr({ ...D0, profitRules: [{ kind: "client", label: "Lidl", keywords: ["lidl"], pct: 3 }, { kind: "product", label: "Rucola", keywords: ["rucola"], pct: 8 }] });
+  expect(pf("Spanac 500g", "LIDL ROMANIA").pct).toBe(3);
+  expect(pf("Rucola 125g", "LIDL ROMANIA").pct).toBe(8);
+  expect(pf("Spanac 500g", "MEGA IMAGE").pct).toBe(5);
+  spr(D0);
+});
