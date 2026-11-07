@@ -30,7 +30,7 @@ describe("uploaded price calculation rules", () => {
     expect(data.components[0].price).toBe(20);
   });
   it("washed mixtures cannot silently use an invented labour cost", () => {
-    expect(configuredSheet(data, defaults, { labourLine: "Multihead — Mixte SPĂLATE" }).sheet.missingInputs).toContain("Tarif numeric pentru mixte spălate");
+    expect(configuredSheet(data, defaults, { labourLine: "Multihead — Mixte SPĂLATE" }).sheet.missingInputs).toContain("Viteză linie mixte spălate (buc/oră, conform mix)");
   });
   it("missing logistics prevents a complete price", () => {
     expect(configuredSheet(data, defaults).sheet.complete).toBe(false);

@@ -32,6 +32,8 @@ export interface SheetRates {
   distributionPerPallet?: number;
   piecesPerPallet?: number;
   feePct?: number;
+  supplyBasis?: "pallet" | "kg";
+  labourDetail?: string;
 }
 
 export interface SheetLine { label: string; detail: string; value: number; group: "mp" | "transport" | "ambalaj" | "manopera" | "utilitati" | "pierdere"; missing?: boolean }
@@ -98,9 +100,9 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
     if (c.kind === "mp") {
       const eff = effectiveQty(c.qty, c.lossPct);
       if (/^kg$/i.test(c.unit)) kgEffective += eff;
-      if (R.supplyPerPallet != null && /^kg$/i.test(c.unit)) {
+      if (/^kg$/i.test(c.unit)) {
         if ((c.kgPerPallet ?? 0) > 0) supplyPallets += eff / (c.kgPerPallet ?? 1);
-        else missingInputs.push(`kg/palet: ${c.name}`);
+        else if ((R.supplyBasis ?? (R.supplyPerPallet != null ? "pallet" : "kg")) === "pallet") missingInputs.push(`kg/palet: ${c.name}`);
       }
       const v = eff * price;
       rawMaterial += v;
@@ -113,15 +115,20 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
         detail: `${r4(c.qty)} ${c.unit} × ${r4(price)} RON × (1 + ${c.lossPct || 0}% PT ambalaj) (${c.priceSource})` });
     }
   }
-  const supplyTransport = R.supplyPerPallet != null ? supplyPallets * R.supplyPerPallet : kgEffective * R.supplyPerKg;
-  lines.push({ group: "transport", label: "Transport aprovizionare", value: r4(supplyTransport), detail: R.supplyPerPallet != null ? `${r4(supplyPallets)} paleți MP × ${r4(R.supplyPerPallet)} RON/palet` : `${r4(kgEffective)} kg × ${r4(R.supplyPerKg)} RON/kg` });
+  const basis = R.supplyBasis ?? (R.supplyPerPallet != null ? "pallet" : "kg");
+  const byPallet = R.supplyPerPallet != null ? supplyPallets * R.supplyPerPallet : null;
+  const byKg = R.supplyPerKg > 0 ? kgEffective * R.supplyPerKg : null;
+  const supplyTransport = (basis === "pallet" ? byPallet : byKg) ?? 0;
+  const palletText = byPallet != null ? `pe palet: ${r4(supplyPallets)} paleți MP × ${r4(R.supplyPerPallet ?? 0)} = ${r4(byPallet)} RON` : "pe palet: tarif lipsă";
+  const kgText = byKg != null ? `pe kg: ${r4(kgEffective)} kg × ${r4(R.supplyPerKg)} = ${r4(byKg)} RON` : "pe kg: tarif lipsă";
+  lines.push({ group: "transport", label: "Transport aprovizionare", value: r4(supplyTransport), detail: `${palletText} · ${kgText} · în total: ${basis === "pallet" ? "pe palet" : "pe kg"}` });
   const labour = n * R.labourPerPiece;
-  lines.push({ group: "manopera", label: "Manoperă", value: r4(labour), detail: `${r4(R.labourPerPiece)} RON/buc × ${n} buc` });
+  lines.push({ group: "manopera", label: "Manoperă directă", value: r4(labour), detail: `${r4(R.labourPerPiece)} RON/buc × ${n} buc${R.labourDetail ? ` (${R.labourDetail})` : ""}` });
   const utilities = n * R.utilitiesPerPiece;
-  lines.push({ group: "utilitati", label: "Cheltuieli utilități și hală", value: r4(utilities), detail: `${r4(R.utilitiesPerPiece)} RON/buc × ${n} buc` });
+  lines.push({ group: "utilitati", label: "Regie fabrică (manoperă)", value: r4(utilities), detail: `${r4(R.utilitiesPerPiece)} RON/buc × ${n} buc · total manoperă ${r4(R.labourPerPiece + R.utilitiesPerPiece)} RON/buc` });
   const subtotal = rawMaterial + supplyTransport + packaging + labour + utilities;
   const techLoss = subtotal * Math.max(R.techLossPct || 0, 0) / 100;
-  lines.push({ group: "pierdere", label: "Pierdere tehnologică", value: r4(techLoss), detail: `${R.techLossPct || 0}% din costurile de mai sus` });
+  lines.push({ group: "pierdere", label: "Pierdere suplimentară scenariu", value: r4(techLoss), detail: `${R.techLossPct || 0}% din costurile de mai sus (PT pe materii prime/ambalaje este deja inclusă pe rânduri)` });
   const productionCost = subtotal + techLoss;
   const factoryGate = withMargin(productionCost, R.marginPct);
   if (R.distributionPerPallet != null && !(R.piecesPerPallet && R.piecesPerPallet > 0)) missingInputs.push("Bucăți produs finit/palet");

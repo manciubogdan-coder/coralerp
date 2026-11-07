@@ -1,6 +1,6 @@
 // Live Senior reads for the price calculator. Every rate is derived from Senior data and returned with its source.
 import { priceDates, suggestedLabour } from "./priceDefaults.ts";
-import { LABOUR_LINES, type PriceConfig } from "./priceConfig.ts";
+import { type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
 import { transportRoute, historicalFeePct, configuredRawPalletKg } from "./priceSourceRules.ts";
 import { seniorLive } from "./senior.ts";
@@ -145,7 +145,9 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
     }
     return all;
   };
-  const [loss, packagingLoss, labelLoss, closedJournal, receivedPallets, clientAdjustments] = await Promise.all([
+  // Raw-material kg received on NIR in the closed month (KG lines that are not packaging), denominator for supply lei/kg.
+  const notPackaging = ["FOLIE", "FILM", "PUNG", "BANDA", "SFOARA", "ETICHET", "CASEROL", "CUTI", "CAPAC", "PALET", "LADIT", "SAC", "TAVITA", "BOL"].map((w) => `(' '+UPPER(d.Denumire)) NOT LIKE '% ${w}%'`).join(" AND ");
+  const [loss, packagingLoss, labelLoss, closedJournal, receivedPallets, clientAdjustments, receivedKg] = await Promise.all([
     readLoss("products"), readLoss("ambalaje_products"), readLoss("etichete_products"),
     SQL(sb, `SELECT p.Cont cont, SUM(CASE WHEN dc.IsDebit=1 THEN CAST(dc.Valoare_Rol AS float) ELSE -CAST(dc.Valoare_Rol AS float) END) v
       FROM dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId
@@ -157,6 +159,7 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
       FROM ${docs} WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${P.startDay}' AND h.Data<'${P.endDay}'
       AND EXISTS(SELECT 1 FROM dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) WHERE pp.H_ID=h.H_ID AND pp.TipPartener=1
         AND NULLIF(REPLACE(UPPER(pp.Partener_Cod_Fiscal),'RO',''),'') IN (SELECT DISTINCT REPLACE(UPPER(p.Partener_Cod_Fiscal),'RO','') FROM dbo.C_H_Note_Contabile_Parteneri p WITH (NOLOCK) WHERE p.Partener_ID=${pid} AND NULLIF(p.Partener_Cod_Fiscal,'') IS NOT NULL))`) : Promise.resolve([]),
+    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) kg FROM ${docs} JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UM_ID WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${closedStart}' AND h.Data<'${P.endDay}' AND um.Cod='KG' AND ${notPackaging}`),
   ]);
   const components: SheetComponent[] = rows.map((r): SheetComponent => {
     const name = String(r.name).trim(), unit = String(r.um ?? "").trim() || "BUC";
@@ -191,9 +194,8 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
   try { logisticsRead = await priceLogistics(sb, aid, closedStart, P.endDay, P.to); }
   catch (e) { warnings.push(`Citire logistică: ${(e as Error).message}`); }
   const suggested = suggestedLabour(String(art[0].name), components);
-  const line = LABOUR_LINES.find((l) => l.name === suggested);
-  const cfg: PriceConfig = { unitsPerCase, ...(suggested ? { labourLine: suggested } : {}), route: "România", rawPriceMode: body.rawPriceMode === "week" ? "week" : "annual", rates: { marginPct: 0, eurRate: eur[0] ? num(eur[0].rate) : 0, eurBufferPct: 1.5, techLossPct: 0 }, components: {} };
-  if (line?.direct != null) cfg.rates = { ...cfg.rates, labourPerPiece: line.direct, utilitiesPerPiece: line.overhead };
+  const cfg: PriceConfig = { unitsPerCase, ...(suggested ? { labourLine: suggested } : {}), route: "România", supplyBasis: "pallet", rawPriceMode: body.rawPriceMode === "week" ? "week" : "annual", rates: { marginPct: 0, eurRate: eur[0] ? num(eur[0].rate) : 0, eurBufferPct: 1.5, techLossPct: 0 }, components: {} };
+  // Labour comes from the CSV line (or its people/speed formula) in configuredSheet, so line edits recompute it.
   if (!pid) cfg.feePct = 0;
   const feePct = historicalFeePct(num(clientAdjustments[0]?.discounts), num(clientAdjustments[0]?.sales));
   if (pid && feePct != null && num(clientAdjustments[0]?.discounts) > 0) {
@@ -204,6 +206,8 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
   if (supplyTotal != null) cfg.supplyTotal = supplyTotal;
   const supplyPallets = num(receivedPallets[0]?.pallets) > 0 ? num(receivedPallets[0].pallets) : null;
   if (supplyPallets != null && supplyPallets > 0) { cfg.supplyPallets = supplyPallets; cfg.supplyPerPallet = supplyTotal != null ? supplyTotal / supplyPallets : undefined; }
+  const supplyKg = num(receivedKg[0]?.kg) > 0 ? num(receivedKg[0].kg) : null;
+  if (supplyKg != null) { cfg.supplyKg = supplyKg; if (supplyTotal != null) cfg.rates = { ...cfg.rates, supplyPerKg: supplyTotal / supplyKg }; }
   warnings.push("Aprovizionare: paleți înscriși pe NIR-uri separate, total lunar; nu legătură individuală verificată cu fiecare încărcare. Capacitățile MP sunt reperele configurate Coral, nu conversii Senior.");
   const pieceConversions = logisticsRead?.conversion ?? [];
   if (pieceConversions.length === 1 && num(pieceConversions[0].coef) > 0) cfg.piecesPerPallet = num(pieceConversions[0].coef);
@@ -231,7 +235,7 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
     product: { id: art[0].id, name: String(art[0].name).trim(), code: art[0].code, unitsPerCase },
     period: pricesPeriod,
     accountingPeriod: P, defaults: cfg, warnings, suggestedLabourSource: suggested ? "Propunere după produs/compoziție; tarif din CSV octombrie 2026" : "Linie neidentificată",
-    logistics: { closedStart, closedEnd: P.endDay, supplyTotal, supplyPallets, distribution, piecesPerPallet: cfg.piecesPerPallet ?? null, note: "Distribuție: cheltuieli pe destinații din jurnal / paleți facturați după formula Senior Cantitate/Coef, net de retururi. Verificați avertismentele de acoperire înainte de utilizarea comercială." },
+    logistics: { closedStart, closedEnd: P.endDay, supplyTotal, supplyPallets, supplyKg, distribution, piecesPerPallet: cfg.piecesPerPallet ?? null, note: "Distribuție: cheltuieli pe destinații din jurnal / paleți facturați după formula Senior Cantitate/Coef, net de retururi. Verificați avertismentele de acoperire înainte de utilizarea comercială." },
     components,
     rates: {
       labourPerPiece: { value: rate(lab.total, pieces), total: lab.total, volume: pieces, unit: "buc vândute", accounts: lab.accounts },

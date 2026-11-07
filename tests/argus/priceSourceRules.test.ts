@@ -32,7 +32,6 @@ describe('audited Senior calculator sources', () => {
   test('changing calculated total does not keep the old derived per-pallet tariff', () => {
     const data = {product:{unitsPerCase:4},components:[],defaults:{supplyPerPallet:300,supplyTotal:3000,supplyPallets:10}};
     const cfg = prefilledConfig(data,{supplyTotal:2000});
-    expect(cfg.supplyPerPallet).toBeUndefined();
-    expect((cfg.supplyTotal ?? 0)/(cfg.supplyPallets ?? 1)).toBe(200);
+    expect(cfg.supplyPerPallet).toBe(200);
   });
 });

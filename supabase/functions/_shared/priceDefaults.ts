@@ -1,4 +1,4 @@
-import { LABOUR_LINES, type PriceConfig } from "./priceConfig.ts";
+import { labourDefaults, type PriceConfig } from "./priceConfig.ts";
 import type { SheetComponent } from "./priceSheet.ts";
 
 /** Price dates are independent of the closed accounting month used for transport. */
@@ -25,15 +25,20 @@ export function suggestedLabour(name: string, components: SheetComponent[]) {
   return null;
 }
 
+const LABOUR_KEYS = ["labourPeople", "labourSpeed", "labourHourCost", "labourOverheadPct"] as const;
+
 export function prefilledConfig(d: { product: { unitsPerCase: number }; components: SheetComponent[]; defaults?: PriceConfig; logistics?: { distribution?: Record<string, PriceConfig | null> } }, user: PriceConfig = {}): PriceConfig {
   const base = d.defaults ?? {};
   const merged: PriceConfig = { ...base, ...user, rates: { ...base.rates, ...user.rates }, components: { ...base.components } };
+  const line = user.labourLine ?? base.labourLine;
   if (user.labourLine && user.labourLine !== base.labourLine) {
-    const line = LABOUR_LINES.find((l) => l.name === user.labourLine);
-    delete merged.rates?.labourPerPiece; delete merged.rates?.utilitiesPerPiece;
-    if (line?.direct != null) merged.rates = { ...merged.rates, labourPerPiece: line.direct, utilitiesPerPiece: line.overhead };
-    merged.rates = { ...merged.rates, ...user.rates };
+    // A different line replaces the proposed tariff; only values typed by the user survive.
+    if (user.rates?.labourPerPiece == null) delete merged.rates!.labourPerPiece;
+    if (user.rates?.utilitiesPerPiece == null) delete merged.rates!.utilitiesPerPiece;
+    for (const k of LABOUR_KEYS) if (user[k] == null) delete merged[k];
   }
+  const lineInputs = labourDefaults(line) as Partial<Record<(typeof LABOUR_KEYS)[number], number>>;
+  for (const k of LABOUR_KEYS) if (merged[k] == null && lineInputs[k] != null) merged[k] = lineInputs[k];
   if (user.route && user.route !== base.route) {
     for (const k of ["distributionTotal", "distributionPallets", "distributionPerPallet"] as const) if (user[k] == null) delete merged[k];
     for (const k of ["distributionTotal", "distributionPallets", "distributionPerPallet"] as const) {
@@ -41,8 +46,10 @@ export function prefilledConfig(d: { product: { unitsPerCase: number }; componen
       if (value != null) merged[k] = value;
     }
   }
-  if ((user.supplyTotal != null || user.supplyPallets != null) && user.supplyPerPallet == null) delete merged.supplyPerPallet;
-  if ((user.distributionTotal != null || user.distributionPallets != null) && user.distributionPerPallet == null) delete merged.distributionPerPallet;
+  // Derived tariffs follow their total and volume unless the user typed the tariff itself.
+  if (user.supplyPerPallet == null && merged.supplyTotal != null && (merged.supplyPallets ?? 0) > 0) merged.supplyPerPallet = merged.supplyTotal / merged.supplyPallets!;
+  if (user.rates?.supplyPerKg == null && merged.supplyTotal != null && (merged.supplyKg ?? 0) > 0) merged.rates = { ...merged.rates, supplyPerKg: merged.supplyTotal / merged.supplyKg! };
+  if (user.distributionPerPallet == null && merged.distributionTotal != null && (merged.distributionPallets ?? 0) > 0) merged.distributionPerPallet = merged.distributionTotal / merged.distributionPallets!;
   for (const [id, values] of Object.entries(user.components ?? {})) merged.components = { ...merged.components, [id]: { ...merged.components?.[id], ...values } };
   return merged;
 }
