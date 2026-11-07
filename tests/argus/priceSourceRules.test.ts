@@ -81,3 +81,15 @@ describe("orderedPallets", () => {
     expect(r.skipped.map((x) => x.name)).toEqual(["Morcov"]);
   });
 });
+
+describe("orderedPallets trucks", () => {
+  test("one supplier delivery day is one truck, split above 33 pallets", () => {
+    const r = orderedPallets([
+      { name: "Baby Spanac", unit: "kg", qty: 2200, supplier: "A", day: "2026-11-02" },
+      { name: "Rucola", unit: "kg", qty: 2200, supplier: "A", day: "2026-11-02" },
+      { name: "Iceberg", unit: "kg", qty: 16000, supplier: "B", day: "2026-11-02" },
+    ]);
+    expect(r.pallets).toBe(60);
+    expect(r.trucks).toBe(3);
+  });
+});

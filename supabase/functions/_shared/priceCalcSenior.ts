@@ -26,7 +26,7 @@ const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00Z`)
 async function readOrderedPallets(legacy: any, start: string, end: string) {
   const orders: any[] = [];
   for (let off = 0; ; off += 1000) {
-    const { data, error } = await legacy.from("product_orders").select("product_id,quantity_ordered,expected_delivery_date,status")
+    const { data, error } = await legacy.from("product_orders").select("product_id,supplier_id,quantity_ordered,expected_delivery_date,status")
       .gte("expected_delivery_date", start).lt("expected_delivery_date", end).neq("status", "cancelled").order("id").range(off, off + 999);
     if (error) throw new Error(`Nu pot citi comenzile către furnizori: ${error.message}`);
     orders.push(...(data ?? []));
@@ -39,7 +39,16 @@ async function readOrderedPallets(legacy: any, start: string, end: string) {
     if (error) throw new Error(`Nu pot citi produsele comandate: ${error.message}`);
     for (const p of data ?? []) prod.set(p.id, p);
   }
-  return orderedPallets(orders.map((o) => ({ name: prod.get(o.product_id)?.name ?? "Produs necunoscut", unit: prod.get(o.product_id)?.default_unit, qty: Number(o.quantity_ordered) || 0 })));
+  const sup = new Map<string, string>();
+  const sids = [...new Set(orders.map((o) => o.supplier_id).filter(Boolean))];
+  for (let i = 0; i < sids.length; i += 50) {
+    const { data } = await legacy.from("suppliers").select("id,name").in("id", sids.slice(i, i + 50));
+    for (const s of data ?? []) sup.set(s.id, s.name);
+  }
+  return orderedPallets(orders.map((o) => ({
+    name: prod.get(o.product_id)?.name ?? "Produs necunoscut", unit: prod.get(o.product_id)?.default_unit, qty: Number(o.quantity_ordered) || 0,
+    supplier: o.supplier_id ? sup.get(o.supplier_id) ?? o.supplier_id : null, day: o.expected_delivery_date,
+  })));
 }
 
 /** Senior "Partener_Central" text of a partner (stores carry the central name, e.g. "MEGA IMAGE SRL"). */
@@ -248,15 +257,18 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const pallets90 = ordered.pallets, kg90 = ordered.kg;
   if (ordered.skipped.length) warnings.push(`Aprovizionare: ${ordered.skipped.length} produse comandate fără normă kg/palet (ex. ${ordered.skipped.slice(0, 4).map((r) => r.name).join(", ")}) nu intră în paleți; spune-mi gama lor ca să le adaug.`);
   const costPerTruck = trucks30 > 0 && total30 > 0 ? total30 / trucks30 : null;
-  const palletsPerTruck = loadTrucks > 0 && pallets90 > 0 ? pallets90 / loadTrucks : null;
-  const kgPerTruck = loadTrucks > 0 && kg90 > 0 ? kg90 / loadTrucks : null;
+  // Load per truck from the orders themselves: each supplier's delivery day = one truck (split at 33 pallets), so pallets and trucks share one source.
+  const orderTrucks = ordered.trucks;
+  const palletsPerTruck = orderTrucks > 0 && pallets90 > 0 ? pallets90 / orderTrucks : null;
+  const kgPerTruck = orderTrucks > 0 && kg90 > 0 ? kg90 / orderTrucks : null;
+  if (palletsPerTruck != null && palletsPerTruck < 5) warnings.push(`Aprovizionare: doar ${palletsPerTruck.toFixed(1)} paleți/camion din comenzi — verifică dacă toate comenzile au furnizor, dată de livrare și cantitate în kg.`);
   /** Raw materials outside the configured categories: average kg per received pallet (NIR kg ÷ NIR pallets). */
   const avgKgPerPallet = kg90 > 0 && pallets90 > 0 ? kg90 / pallets90 : null;
   if (costPerTruck != null) shared.supplyTotal = costPerTruck;
   if (palletsPerTruck != null) { shared.supplyPallets = palletsPerTruck; if (costPerTruck != null) shared.supplyPerPallet = costPerTruck / palletsPerTruck; }
   if (kgPerTruck != null) { shared.supplyKg = kgPerTruck; if (costPerTruck != null) shared.rates = { ...shared.rates, supplyPerKg: costPerTruck / kgPerTruck }; }
   if (costPerTruck == null) warnings.push(`Aprovizionare: nicio factură de transport aprovizionare (624.01) datată ${win.start} – ${win.end}; completează tariful manual.`);
-  info.push(`Aprovizionare: cost mediu pe camion din facturile ${win.start} – ${win.end} ÷ încărcarea medie pe camion (paleți = kg comandate în Achiziții ÷ kg/palet pe gamă: frunze/aromate 220, căpățâni 400, radicchio 500; ÷ camioane) din ${load.start} – ${load.end}; facturile nu sunt legate individual de NIR-uri. Capacitățile MP sunt reperele configurate Coral.`);
+  info.push(`Aprovizionare: cost mediu pe camion din facturile ${win.start} – ${win.end} ÷ încărcarea medie pe camion (paleți = kg comandate în Achiziții ÷ kg/palet pe gamă: frunze/aromate 220, căpățâni 400, radicchio 500; camioane = zile de livrare per furnizor din aceleași comenzi, peste 33 paleți se numără mai multe camioane) din ${load.start} – ${load.end}; facturile nu sunt legate individual de NIR-uri. Capacitățile MP sunt reperele configurate Coral.`);
 
   const read = logisticsRead as Awaited<ReturnType<typeof priceLogistics>> | null;
   const distribution: Record<string, PriceConfig> = {};
@@ -384,7 +396,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     stores,
     logistics: {
       closedStart: win.start, closedEnd: win.end, window: win, loadWindow: load,
-      supply: { total: total30, trucks: trucks30, costPerTruck, loadTrucks, pallets: pallets90, kg: kg90, palletsPerTruck, kgPerTruck, orderedRows: ordered.rows }, lastTrucks: lastTrucks.map((r: any) => ({ day: String(r.day), price: num(r.price), line: String(r.line), qty: num(r.qty), value: num(r.value), supplier: String(r.supplier ?? ""), truck: num(r.truck) === 1 })),
+      supply: { total: total30, trucks: trucks30, costPerTruck, loadTrucks: orderTrucks, invoiceTrucks90: loadTrucks, pallets: pallets90, kg: kg90, palletsPerTruck, kgPerTruck, orderedRows: ordered.rows, orderedLoads: ordered.loads }, lastTrucks: lastTrucks.map((r: any) => ({ day: String(r.day), price: num(r.price), line: String(r.line), qty: num(r.qty), value: num(r.value), supplier: String(r.supplier ?? ""), truck: num(r.truck) === 1 })),
       distribution, routes: routeData.routes, clientAverage: avg, unassigned, piecesPerPallet: routeData.piecesPerPallet,
       store: point ? { id: point.pid, name: point.name, route: point.route } : null, suggestedRoute,
       note: `Ultimele prețuri: cost mediu pe camion/cursă din facturile datate ${win.start} – ${win.end} (exclusiv); încărcarea (paleți pe camion/cursă) din ${load.start} – ${load.end}, ca să nu depindă de zilele în care se introduc NIR-urile sau facturile. Distribuție: curse „TRANSPORT DIST <cursă>”; paleți = Cantitate/Coef Senior facturați către punctele de livrare ale cursei. Punctele sunt atribuite cursei după oraș/județ; facturile transportatorilor nu indică livrarea exactă.`,

@@ -25,7 +25,7 @@ type Store = Opt & { route: string | null };
 type RouteStat = { route: string; country: string; trips: number; total: number; pallets: number; estimatedPallets?: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; points: Array<{ name: string; pallets: number }>; pool?: { routes: string[]; total: number; pallets: number; trips: number } };
 type CountyGap = { county: string; judet: string; pallets: number; points: number; names: string[] };
 type Logistics = {
-  supply: { total: number; trucks: number; costPerTruck: number | null; loadTrucks: number; pallets: number; kg: number; palletsPerTruck: number | null; kgPerTruck: number | null; orderedRows?: Array<{ name: string; unit: string; kg: number; kgPerPallet: number | null; pallets: number }> };
+  supply: { total: number; trucks: number; costPerTruck: number | null; loadTrucks: number; pallets: number; kg: number; palletsPerTruck: number | null; kgPerTruck: number | null; orderedRows?: Array<{ name: string; unit: string; kg: number; kgPerPallet: number | null; pallets: number }>; orderedLoads?: Array<{ supplier: string; day: string; pallets: number; trucks: number }>; invoiceTrucks90?: number };
   loadWindow: { start: string; end: string }; lastTrucks: Array<{ day: string; price: number; line: string; qty?: number; value?: number; supplier?: string; truck?: boolean }>;
   closedStart: string; closedEnd: string; note: string; distribution?: Record<string, PriceConfig | null>; routes?: RouteStat[];
   clientAverage: { perPallet: number; pallets: number; weighted: boolean; stores: number } | null;
@@ -832,7 +832,7 @@ export default function PriceCalculator() {
             <summary className="cursor-pointer text-sm font-medium text-foreground">Surse și metodă de calcul</summary>
             <div className="mt-2 space-y-1">
               <p>Materii prime: {mode === "annual" ? "media anuală ponderată" : "media ponderată ultimele 7 zile"}, până la {result.period.endDay} exclusiv. Ambalaje: ultima intrare NIR.</p>
-              <p>Aprovizionare: {n2(logistics.supply.total)} lei ÷ {logistics.supply.trucks} camioane = <b>{n2(logistics.supply.costPerTruck)} lei/camion</b>, încărcare {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion ({n2(logistics.supply.pallets, 0)} paleți din comenzi ÷ {logistics.supply.loadTrucks} camioane, {logistics.loadWindow.start} – {logistics.loadWindow.end}).</p>
+              <p>Aprovizionare: {n2(logistics.supply.total)} lei ÷ {logistics.supply.trucks} camioane = <b>{n2(logistics.supply.costPerTruck)} lei/camion</b>, încărcare {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion ({n2(logistics.supply.pallets, 0)} paleți din comenzi ÷ {logistics.supply.loadTrucks} camioane din comenzi, {logistics.loadWindow.start} – {logistics.loadWindow.end}).</p>
               {!!logistics.supply.orderedRows?.length && (
                 <details className="rounded border bg-background p-2">
                   <summary className="cursor-pointer font-medium">Vezi paleții calculați din comenzile către furnizori ({n2(logistics.supply.pallets, 1)} paleți, {logistics.loadWindow.start} – {logistics.loadWindow.end})</summary>
@@ -843,12 +843,21 @@ export default function PriceCalculator() {
                       <tr key={i} className={`border-b last:border-0 ${r.kgPerPallet ? "" : "text-crm-warning"}`}><td>{r.name}</td><td className="text-right tabular-nums">{n2(r.kg, 0)} {r.unit}</td><td className="text-right tabular-nums">{r.kgPerPallet ?? "fără normă"}</td><td className="text-right tabular-nums">{r.kgPerPallet ? n2(r.pallets, 1) : "—"}</td></tr>
                     ))}</tbody>
                   </table>
+                  {!!logistics.supply.orderedLoads?.length && (<>
+                    <p className="mt-2 text-[11px] font-medium">Camioane din comenzi: {logistics.supply.loadTrucks} (o zi de livrare a unui furnizor = un camion; peste 33 paleți = mai multe camioane){logistics.supply.invoiceTrucks90 != null ? ` · pentru comparație, rânduri „camion” pe facturile 624.01 în aceeași perioadă: ${logistics.supply.invoiceTrucks90}` : ""}</p>
+                    <table className="mt-1 w-full text-[11px]">
+                      <thead className="border-b text-left text-muted-foreground"><tr><th>Data livrare</th><th>Furnizor</th><th className="text-right">Paleți</th><th className="text-right">Camioane</th></tr></thead>
+                      <tbody>{logistics.supply.orderedLoads.map((l, i) => (
+                        <tr key={i} className="border-b last:border-0"><td>{l.day}</td><td>{l.supplier}</td><td className="text-right tabular-nums">{n2(l.pallets, 1)}</td><td className="text-right tabular-nums">{l.trucks}</td></tr>
+                      ))}</tbody>
+                    </table>
+                  </>)}
                 </details>
               )}
               {logistics.lastTrucks.length > 0 && (
                 <details className="rounded border bg-background p-2">
                   <summary className="cursor-pointer font-medium">Vezi toate facturile de transport aprovizionare folosite ({logistics.lastTrucks.length} rânduri, {logistics.closedStart} – {logistics.closedEnd})</summary>
-                  <p className="mt-1 text-[11px] text-muted-foreground">Pas 1: suma coloanei „Valoare” = {n2(logistics.supply.total)} lei. Pas 2: rândurile marcate „camion” = {logistics.supply.trucks} → {n2(logistics.supply.costPerTruck)} lei/camion. Pas 3: încărcare {n2(logistics.supply.pallets, 0)} paleți NIR ÷ {logistics.supply.loadTrucks} camioane în 90 de zile = {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion. Pas 4: {n2(logistics.supply.costPerTruck)} ÷ {n2(logistics.supply.palletsPerTruck, 1)} = lei/palet. Dacă vezi o factură care nu ține de aprovizionare sau lipsește cursa din luna asta, scrie tariful corect în „Parametri globali listă”.</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">Pas 1: suma coloanei „Valoare” = {n2(logistics.supply.total)} lei. Pas 2: rândurile marcate „camion” = {logistics.supply.trucks} → {n2(logistics.supply.costPerTruck)} lei/camion. Pas 3: încărcare {n2(logistics.supply.pallets, 0)} paleți din comenzi ÷ {logistics.supply.loadTrucks} camioane din comenzi (zile de livrare per furnizor) în 90 de zile = {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion. Pas 4: {n2(logistics.supply.costPerTruck)} ÷ {n2(logistics.supply.palletsPerTruck, 1)} = lei/palet. Dacă vezi o factură care nu ține de aprovizionare sau lipsește cursa din luna asta, scrie tariful corect în „Parametri globali listă”.</p>
                   <table className="mt-1 w-full text-[11px]">
                     <thead className="border-b text-left text-muted-foreground"><tr><th>Data</th><th>Transportator</th><th>Rând factură</th><th className="text-right">Cant.</th><th className="text-right">Preț</th><th className="text-right">Valoare</th><th>Camion</th></tr></thead>
                     <tbody>{logistics.lastTrucks.map((t, i) => (

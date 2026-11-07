@@ -45,8 +45,12 @@ export function historicalFeePct(discounts: number, sales: number): number | nul
 }
 export type OrderedPalletRow = { name: string; unit: string; kg: number; kgPerPallet: number | null; pallets: number };
 /** Supply pallets from supplier orders (Coral Achiziții): ordered kg ÷ configured kg/palet per product range. Products without a norm or not in kg are listed, never guessed. */
-export function orderedPallets(orders: Array<{ name: string; unit?: string | null; qty: number }>) {
+/** Standard truck capacity used only to split one supplier's delivery day into trucks. */
+export const TRUCK_PALLETS = 33;
+export type OrderedLoad = { supplier: string; day: string; pallets: number; trucks: number };
+export function orderedPallets(orders: Array<{ name: string; unit?: string | null; qty: number; supplier?: string | null; day?: string | null }>) {
   const by = new Map<string, OrderedPalletRow>();
+  const loadsBy = new Map<string, OrderedLoad>();
   for (const o of orders) {
     const unit = String(o.unit ?? "kg").trim().toLowerCase() || "kg";
     const key = `${o.name}|${unit}`;
@@ -55,10 +59,22 @@ export function orderedPallets(orders: Array<{ name: string; unit?: string | nul
     row.kg += Number(o.qty) || 0;
     row.pallets = norm ? row.kg / norm : 0;
     by.set(key, row);
+    if (norm && o.day) {
+      const supplier = String(o.supplier ?? "fără furnizor"), day = String(o.day).slice(0, 10);
+      const lk = `${supplier}|${day}`;
+      const load = loadsBy.get(lk) ?? { supplier, day, pallets: 0, trucks: 0 };
+      load.pallets += (Number(o.qty) || 0) / norm;
+      load.trucks = Math.max(1, Math.ceil(load.pallets / TRUCK_PALLETS - 1e-9));
+      loadsBy.set(lk, load);
+    }
   }
   const rows = [...by.values()].sort((a, b) => b.pallets - a.pallets || b.kg - a.kg);
   const counted = rows.filter((r) => r.kgPerPallet);
-  return { rows, pallets: counted.reduce((s, r) => s + r.pallets, 0), kg: counted.reduce((s, r) => s + r.kg, 0), skipped: rows.filter((r) => !r.kgPerPallet) };
+  const loads = [...loadsBy.values()].sort((a, b) => b.day.localeCompare(a.day) || a.supplier.localeCompare(b.supplier));
+  return {
+    rows, loads, pallets: counted.reduce((s, r) => s + r.pallets, 0), kg: counted.reduce((s, r) => s + r.kg, 0),
+    trucks: loads.reduce((s, l) => s + l.trucks, 0), skipped: rows.filter((r) => !r.kgPerPallet),
+  };
 }
 export function configuredRawPalletKg(name: string): number | undefined {
   if (/radic|radich/i.test(name)) return 500;
