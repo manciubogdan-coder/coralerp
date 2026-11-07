@@ -1,5 +1,5 @@
 import { expect, it } from "bun:test";
-import { clientAverageRoute, DEFAULT_MARGIN_PCT, latestCostWindow, profitAt } from "../../supabase/functions/_shared/priceList";
+import { clientAverageRoute, DEFAULT_MARGIN_PCT, latestCostWindow, latestRoutes, profitAt } from "../../supabase/functions/_shared/priceList";
 import { computeSheet } from "../../supabase/functions/_shared/priceSheet";
 
 it("new price lists start at 15% gross margin", () => {
@@ -48,16 +48,15 @@ it("gross margin and real profit are separate: at the proposed price profit equa
   expect(real.pct).toBeCloseTo(13.3333, 3);
 });
 
-import { latestRoutes } from "../../supabase/functions/_shared/priceList.ts";
 const rs = (route: string, trips: number, total: number, pallets: number) => ({ route, trips, total, qty: trips, pmin: 0, pmax: 0, pallets, missingLines: 0, perPallet: null, perTrip: trips ? total / trips : null, palletsPerTrip: null, unitPrice: null, country: "RO", points: [] });
-test("cursă tariff = latest 30-day cost per trip ÷ 90-day pallets per trip", () => {
+it("cursă tariff = latest 30-day cost per trip ÷ 90-day pallets per trip", () => {
   const [r] = latestRoutes([rs("BUCURESTI", 10, 20000, 30)], [rs("BUCURESTI", 30, 45000, 210)]);
   expect(r.perTrip).toBe(2000);
   expect(r.palletsPerTrip).toBe(7);
   expect(r.perPallet).toBeCloseTo(2000 / 7, 6);
   expect(r.recent).toBe(true);
 });
-test("a cursă without trips in the last 30 days keeps its 90-day trip cost and is flagged", () => {
+it("a cursă without trips in the last 30 days keeps its 90-day trip cost and is flagged", () => {
   const [r] = latestRoutes([], [rs("CRAIOVA", 20, 18000, 40)]);
   expect(r.perTrip).toBe(900);
   expect(r.perPallet).toBe(450);
