@@ -6,7 +6,10 @@ export async function loadProductionUsage(from: string, to: string) {
     .select('id, comanda_id, ora_sfarsit, status, cantitate_produsa')
     .in('status', ['finalizata', 'partial']).gte('ora_sfarsit', dayBounds(from).start)
     .lte('ora_sfarsit', dayBounds(to).end).order('id'));
-  const ids = [...new Set(sessions.map(s => s.comanda_id))];
+  // Standalone/group sessions may have no order. Never serialize null into UUID filters.
+  const ids = [...new Set(sessions.map(s => s.comanda_id).filter(
+    (id): id is string => typeof id === 'string' && id.trim() !== '' && id !== 'null'
+  ))];
   const orders: any[] = [], customs: any[] = [];
   for (let i = 0; i < ids.length; i += 50) {
     const batch = ids.slice(i, i + 50);

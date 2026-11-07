@@ -153,7 +153,7 @@ const WeekdayConsumption: React.FC<Props> = ({ inventoryType, searchTerm = "" })
         if (batchData) allItems = [...allItems, ...batchData];
       }
 
-      const invIds = [...new Set(allItems.map((t) => t.inventory_item_id))];
+      const invIds = [...new Set(allItems.map((t) => t.inventory_item_id).filter(Boolean))];
       const invToProduct = new Map<string, string>();
       for (let i = 0; i < invIds.length; i += batchSize) {
         const { data: invData } = await supabase

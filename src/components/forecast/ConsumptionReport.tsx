@@ -146,7 +146,7 @@ const ConsumptionReport: React.FC<ConsumptionReportProps> = ({ inventoryType }) 
       }
 
       // Get inventory items to map to products - also in batches
-      const inventoryItemIds = [...new Set(allTransferItems.map(t => t.inventory_item_id))];
+      const inventoryItemIds = [...new Set(allTransferItems.map(t => t.inventory_item_id).filter(Boolean))];
       
       // Map inventory_item_id -> product_id
       let inventoryToProductMap = new Map<string, string>();

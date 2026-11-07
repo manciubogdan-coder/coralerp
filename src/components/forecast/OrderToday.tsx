@@ -163,7 +163,7 @@ const OrderToday: React.FC<OrderTodayProps> = ({ inventoryType, searchTerm = "" 
       }
 
       // Map inventory_item_id -> product_id in batches (same URL-length issue)
-      const inventoryItemIds = [...new Set(allTransferItems.map(t => t.inventory_item_id))];
+      const inventoryItemIds = [...new Set(allTransferItems.map(t => t.inventory_item_id).filter(Boolean))];
       const inventoryProductMap = new Map<string, string>();
       for (const batch of chunk(inventoryItemIds, batchSize)) {
         const { data: invData, error: invError } = await supabase
