@@ -3,14 +3,16 @@ import { priceDates, suggestedLabour } from "./priceDefaults.ts";
 import { readPriceSafety } from './receiptPriceSafety.ts';
 import { MIXED_WASHED, type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
-import { loadPriceRules, priceRules } from "./priceRules.ts";
-import { transportRoute, historicalFeePct, configuredRawPalletKg, rawPalletGroup, orderedPallets, tradedGood, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
+import { clientFeeFor, loadPriceRules, priceRules } from "./priceRules.ts";
+import { transportRoute, configuredRawPalletKg, rawPalletGroup, orderedPallets, tradedGood, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
 import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, latestCostWindow, latestRoutes } from "./priceList.ts";
 import { seniorLive } from "./senior.ts";
 import { cf, lit, partnerInfoSql, partnerScope, type PartnerInfo } from "./priceScope.ts";
 import { realLineSpeeds, SPEED_DAYS, type RealSpeed } from "./priceLineSpeed.ts";
 export { matchLoss } from "./priceSheet.ts";
 import { componentKind, isServiceComponent, matchLoss, ratePeriod, type SheetComponent } from "./priceSheet.ts";
+/** Network fees of the list: table rule of the store / central partner (0% when not listed). */
+type Fees = { pct: number; rule: string | null; note: string; scope: "store" | "central" | "average"; stores: Array<{ pid: number; name: string; pallets: number; pct: number; rule: string | null }> } | null;
 
 type Rpc = { rpc: (fn: string, args?: Record<string, unknown>) => any };
 const SQL = (sb: Rpc, sql: string) => seniorLive(sb, "sql", { sql }, 55000).then((r: any) => (Array.isArray(r) ? r : []));
@@ -154,7 +156,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   /** Sources and methods: shown to the user, not problems to fix. */
   const info: string[] = [];
   let logisticsRead: Awaited<ReturnType<typeof priceLogistics>> | null = null;
-  const [art, recipe, history, recent, eur, priceList, clientAdjustments, clientServices, supply, lastTrucks, receivedPallets, receivedKg, storeRows, loss, packagingLoss, labelLoss] = await Promise.all([
+  const [art, recipe, history, recent, eur, priceList, supply, lastTrucks, receivedPallets, receivedKg, storeRows, loss, packagingLoss, labelLoss] = await Promise.all([
     SQL(sb, `SELECT a.Articol_ID id, a.Denumire name, a.Cod code FROM dbo.D_Articole a WITH (NOLOCK) WHERE a.Articol_ID IN (${A})`),
     SQL(sb, `SELECT v.ArticolId pa, v.PKArticoleCompuseHVersiuni vid, CAST(v.Cantitate AS float) vq, v.IsImplicit impl, v.DataStart ds, d.ArticolId id, a.Denumire name, CAST(d.Cantitate AS float) q, um.Cod um
       FROM dbo.DArticoleCompuseHVersiuni v WITH (NOLOCK) JOIN dbo.DArticoleCompuseD d WITH (NOLOCK) ON d.FKArticoleCompuseHVersiuni=v.PKArticoleCompuseHVersiuni
@@ -176,18 +178,6 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
       FROM dbo.D_Liste_Preturi_D ld WITH (NOLOCK) JOIN dbo.D_Liste_Preturi_H lh WITH (NOLOCK) ON lh.D_Liste_Preturi_H_ID=ld.D_Liste_Preturi_H_ID
       JOIN dbo.D_Parteneri_Liste_Preturi pl WITH (NOLOCK) ON pl.D_Liste_Preturi_H_ID=lh.D_Liste_Preturi_H_ID LEFT JOIN dbo.D_Valuta v WITH (NOLOCK) ON v.Valuta_ID=ld.Valuta_ID
       WHERE pl.Partener_ID IN (${[...new Set([storeId, pid].filter(Boolean))].join(",")}) AND ld.Articol_ID IN (${A}) AND ld.Pret>0 AND lh.Data_Start<'${histEnd}' AND (lh.Data_End IS NULL OR lh.Data_End>='${histEnd}')) x WHERE rn=1`) : Promise.resolve([]),
-    pid ? SQL(sb, `SELECT SUM(CASE WHEN d.Denumire LIKE '%DISCOUNT%' OR d.Denumire LIKE '%Reducere de pret%' THEN -CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) discounts,
-      SUM(CASE WHEN d.Denumire NOT LIKE '%DISCOUNT%' AND d.Denumire NOT LIKE '%Reducere de pret%' THEN CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) sales
-      FROM ${docs} WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${P.startDay}' AND h.Data<'${P.endDay}'
-      AND EXISTS(SELECT 1 FROM dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) WHERE pp.H_ID=h.H_ID AND pp.TipPartener=1
-        AND NULLIF(REPLACE(UPPER(pp.Partener_Cod_Fiscal),'RO',''),'') IN (SELECT DISTINCT REPLACE(UPPER(p.Partener_Cod_Fiscal),'RO','') FROM dbo.C_H_Note_Contabile_Parteneri p WITH (NOLOCK) WHERE p.Partener_ID=${pid} AND NULLIF(p.Partener_Cod_Fiscal,'') IS NOT NULL))`) : Promise.resolve([]),
-    // Fees the client invoices to us (logistics, destruction, audit, advertising): supplier invoices of the same CUI booked on 628 / 6232.
-    pid && partner?.cf ? SQL(sb, `SELECT TOP 30 LTRIM(RTRIM(dc.SubiectDenumire)) subject, p.Cont cont, SUM(CAST(dc.Valoare_Rol AS float)) total
-      FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID
-      JOIN dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) ON dc.H_ID=h.H_ID JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId
-      WHERE t.Cod='FF' AND ${notCancelled} AND h.Data>='${P.startDay}' AND h.Data<'${P.endDay}' AND dc.IsDebit=1 AND (p.Cont LIKE '628%' OR p.Cont LIKE '6232%')
-      AND EXISTS(SELECT 1 FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.H_ID=h.H_ID AND x.TipPartener=2 AND ${cf("x")}=${lit(partner.cf)})
-      GROUP BY LTRIM(RTRIM(dc.SubiectDenumire)), p.Cont ORDER BY SUM(CAST(dc.Valoare_Rol AS float)) DESC`) : Promise.resolve([]),
     // Supply transport: latest carrier invoices (invoice date in the window) posted on 624.01, distribution lines excluded.
     SQL(sb, `SELECT SUM(CASE WHEN h.Data>='${win.start}' THEN CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) total,
         SUM(CASE WHEN h.Data>='${win.start}' AND d.Cantitate>0 AND d.Denumire LIKE 'TRANSPORT%' THEN 1 ELSE 0 END) trucks,
@@ -245,17 +235,6 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   // ---- Shared defaults: latest supply transport, distribution per cursă, client average, fees, EUR, margin.
   const rawMaterialLabel = rawMode === "week" ? `medie NIR ${weekStart} – ${pricesPeriod.endDay} (exclusiv)` : `medie NIR ${pricesPeriod.startDay} – ${pricesPeriod.endDay} (exclusiv)`;
   const shared: PriceConfig = { route: "România", supplyBasis: "pallet", rawPriceMode: rawMode, rates: { marginPct: rules.marginPct, eurRate: eur[0] ? num(eur[0].rate) : 0, eurBufferPct: rules.eurBufferPct, techLossPct: rules.techLossPct } };
-  if (!pid) shared.feePct = 0;
-  // Client fees = discounts on our invoices + services the client invoices to us (628/6232), over 12 months, ÷ net sales to the same CUI.
-  const discounts = Math.max(num(clientAdjustments[0]?.discounts), 0), sales = num(clientAdjustments[0]?.sales);
-  const services = clientServices.map((r: any) => ({ subject: String(r.subject ?? "").trim() || String(r.cont), account: String(r.cont), total: num(r.total) })).filter((r: { total: number }) => r.total > 0);
-  const servicesTotal = services.reduce((t: number, r: { total: number }) => t + r.total, 0);
-  const feePct = historicalFeePct(discounts + servicesTotal, sales);
-  const fees = pid ? { pct: feePct, discounts, services, servicesTotal, sales, from: P.startDay, to: P.endDay } : null;
-  if (pid && feePct != null) {
-    shared.feePct = feePct;
-    info.push(`Taxe client ${feePct.toFixed(2)}%: reduceri pe facturile noastre ${discounts.toFixed(2)} lei + servicii facturate de client ${servicesTotal.toFixed(2)} lei${services.length ? ` (${services.slice(0, 4).map((r: { subject: string; total: number }) => `${r.subject} ${r.total.toFixed(0)}`).join(", ")})` : ""} ÷ vânzări ${sales.toFixed(2)} lei, ${P.startDay} – ${P.endDay} (exclusiv), pe codul fiscal. Istoric, nu tarif contractual.`);
-  } else if (pid) warnings.push("Taxe client: nicio vânzare către acest cod fiscal în ultimele 12 luni; completează procentul manual.");
   // Latest prices: average cost per truck of the last 30 days (services included) ÷ average load per truck of the last 90 days.
   const total30 = num(supply[0]?.total), trucks30 = num(supply[0]?.trucks), loadTrucks = num(supply[0]?.loadTrucks);
   void receivedKg;
@@ -304,7 +283,8 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const pointBy = new Map(routeData.points.map((p) => [p.pid, p]));
   const stores = storeRows.map((r: any) => {
     const id = Number(r.id), p = pointBy.get(id), pr = pointRoute({ pid: id, ...r }, overrides);
-    return { pid: id, name: String(r.name ?? "").trim(), judet: String(r.judet ?? "").trim(), route: p?.route ?? pr.route, manual: p?.manual ?? pr.manual, proposed: deliveryRoute(r), pallets: p?.pallets ?? 0 };
+    const name = String(r.name ?? "").trim(), fee = clientFeeFor(name, partner?.central ?? null);
+    return { pid: id, name, judet: String(r.judet ?? "").trim(), route: p?.route ?? pr.route, manual: p?.manual ?? pr.manual, proposed: deliveryRoute(r), pallets: p?.pallets ?? 0, feePct: fee?.pct ?? 0, feeRule: fee?.client ?? null };
   });
   const perPallet = Object.fromEntries(Object.entries(distribution).map(([k, v]) => [k, v.distributionPerPallet ?? null]));
   const avg = pid && !storeId ? clientAverageRoute(stores, perPallet) : null;
@@ -322,6 +302,35 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   shared.route = suggestedRoute ?? "România";
   if (point && !(point.route && distribution[point.route])) warnings.push(`Nu am putut propune cursa pentru ${point.name}; alege cursa manual (implicit media curselor interne).`);
   Object.assign(shared, distribution[shared.route] ?? {});
+
+  // Network fees (Reguli de calcul · Taxe client, from Taxe_2026.xlsx): % of the final price per store / central partner; clients not in the table pay 0.
+  const centralName = partner?.central ?? null;
+  const storeFees = stores.map((st) => {
+    const r = clientFeeFor(st.name, centralName);
+    return { pid: st.pid, name: st.name, pallets: st.pallets, pct: r?.pct ?? 0, rule: r?.client ?? null };
+  });
+  let fees: Fees = null;
+  if (pid) {
+    if (storeId) {
+      const name = point?.name ?? stores.find((x) => x.pid === storeId)?.name ?? null;
+      const r = clientFeeFor(name, centralName);
+      fees = { pct: r?.pct ?? 0, rule: r?.client ?? null, note: r?.note ?? "", scope: "store", stores: [] };
+    } else {
+      const pcts = new Set(storeFees.map((x) => x.pct));
+      const r0 = clientFeeFor(centralName);
+      if (storeFees.length && pcts.size > 1) {
+        // Different contracts in one central partner: average weighted with pallets delivered (simple average without deliveries).
+        const pal = storeFees.reduce((t, x) => t + x.pallets, 0);
+        const pct = pal > 0 ? storeFees.reduce((t, x) => t + x.pct * x.pallets, 0) / pal : storeFees.reduce((t, x) => t + x.pct, 0) / storeFees.length;
+        fees = { pct, rule: "medie magazine", note: pal > 0 ? `ponderată cu ${pal.toFixed(1)} paleți livrați în ultimele ${rules.loadDays} de zile` : "medie simplă (fără livrări recente)", scope: "average", stores: storeFees };
+      } else {
+        const r = storeFees.length ? clientFeeFor(storeFees[0].name, centralName) : r0;
+        fees = { pct: r?.pct ?? 0, rule: r?.client ?? null, note: r?.note ?? "", scope: "central", stores: storeFees };
+      }
+    }
+  }
+  shared.feePct = fees?.pct ?? 0;
+  if (fees) info.push(fees.rule ? `Taxe rețea ${fees.pct.toFixed(2)}% din prețul final: ${fees.rule}${fees.note ? ` (${fees.note})` : ""} — din Reguli de calcul.` : "Taxe rețea 0%: clientul nu apare în tabelul de taxe din Reguli de calcul.");
 
   // ---- Per product.
   const artBy = new Map(art.map((a: any) => [Number(a.id), a]));

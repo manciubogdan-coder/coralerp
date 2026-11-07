@@ -51,3 +51,24 @@ describe("editable price rules", () => {
     expect("error" in validPriceRules({ ...DEFAULT_PRICE_RULES, marginPct: 95 })).toBe(true);
   });
 });
+
+describe("client network fees (Taxe_2026.xlsx)", () => {
+  const { clientFeeFor } = require("../../supabase/functions/_shared/priceRules");
+  test.each([
+    ["SELGROS CASH & CARRY SRL - BUCURESTI 13799", "SELGROS CASH & CARRY SRL", 8.3],
+    ["SELGROS CASH & CARRY SRL - BUCURESTI 13203", "SELGROS CASH & CARRY SRL", 21.9],
+    ["SELGROS CASH & CARRY SRL - BUCURESTI 1410059", "SELGROS CASH & CARRY SRL", 21.9],
+    ["PROFI ROM FOOD SRL/PLATFORMA FRESH CLUJ", "PROFI ROM FOOD SRL", 18.5],
+    ["MEGA IMAGE SRL", "MEGA IMAGE SRL", 20],
+    ["AUCHAN ROMÂNIA SA - AUCHAN WAREHOUSE CAMPUS 2836", "AUCHAN ROMÂNIA SA", 0],
+    ["VALENCIA TRADING OFFICE", "VALENCIA TRADING OFFICE", 3],
+    ["ICS METRO CASH & CARRY MOLDOVA SRL", "ICS METRO CASH & CARRY MOLDOVA SRL", 3],
+    ["METRO CASH & CARRY MILITARI", "METRO CASH & CARRY ROMANIA SRL", 0.8],
+  ])("%s → %d%%", (name, central, pct) => {
+    expect(clientFeeFor(name, central)?.pct).toBe(pct);
+  });
+  test("clients missing from the table pay 0", () => {
+    expect(clientFeeFor("TENIS PROFI SRL", "TENIS PROFI SRL")).toBeNull();
+    expect(clientFeeFor("LIDL DISCOUNT SRL - ROMAN", "LIDL DISCOUNT SRL")).toBeNull();
+  });
+});

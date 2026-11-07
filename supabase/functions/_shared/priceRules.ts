@@ -6,6 +6,8 @@ export type LabourLineRule = { name: string; people: number; speed: number | nul
 export type PalletGroupRule = { label: string; keywords: string[]; kgPerPallet: number };
 export type TradedGoodRule = { label: string; keywords: string[]; piecesPerPallet: number; note: string };
 export type CityRouteRule = { city: string; route: string };
+/** Network fee % of the client's final price; keywords are alternatives, "a + b" needs both in the store or central partner name. */
+export type ClientFeeRule = { client: string; keywords: string[]; pct: number; note: string };
 export type PriceRules = {
   labourOverheadPct: number;
   lines: LabourLineRule[];
@@ -15,6 +17,7 @@ export type PriceRules = {
   routePairs: Array<[string, string]>;
   cityRoutes: CityRouteRule[];
   countyRoutes: Record<string, string>;
+  clientFees: ClientFeeRule[];
   marginPct: number;
   eurBufferPct: number;
   techLossPct: number;
@@ -55,6 +58,17 @@ export const DEFAULT_PRICE_RULES: PriceRules = {
     BUCURESTI: "BUCURESTI", ILFOV: "BUCURESTI", GIURGIU: "BUCURESTI", PRAHOVA: "PLOIESTI", NEAMT: "ROMAN", MURES: "TURDA-IERNUT",
     CLUJ: "TURDA", TIMIS: "TIMISOARA", DOLJ: "CRAIOVA", VRANCEA: "FOCSANI",
   },
+  // Taxe_2026.xlsx (Bogdan, 7 nov 2026): total taxe per client; clients not listed pay 0.
+  clientFees: [
+    { client: "Selgros contract 13799", keywords: ["selgros + 13799", "selgros + 1412577"], pct: 8.3, note: "Taxă logistică 8,3%; discount 0; risturnă 0; penalități retur" },
+    { client: "Selgros contract 13203", keywords: ["selgros + 13203", "selgros + 1410059"], pct: 21.9, note: "Taxă logistică 7,8% + discount 14,1%; risturnă 0; penalități retur" },
+    { client: "Profi Rom Food (11A5)", keywords: ["profi rom food"], pct: 18.5, note: "Discount 18,5%, risturnă inclusă; penalități SL / nelivrare" },
+    { client: "Mega Image", keywords: ["mega image"], pct: 20, note: "Discount 20%, risturnă inclusă; penalități SL / nelivrare" },
+    { client: "Auchan România (MP / filieră și Brand Coral)", keywords: ["auchan"], pct: 0, note: "Fără taxe; penalități produse neconforme" },
+    { client: "Valencia", keywords: ["valencia"], pct: 3, note: "" },
+    { client: "ICS Metro Moldova", keywords: ["ics metro"], pct: 3, note: "" },
+    { client: "Metro România", keywords: ["metro + romania"], pct: 0.8, note: "" },
+  ],
   marginPct: 15,
   eurBufferPct: 1.5,
   techLossPct: 0,
@@ -74,6 +88,15 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const containsKeyword = (name: string, kw: string) => plainName(name).includes(plainName(kw));
 /** Traded goods: every keyword as a whole word ("bio" does not match "biogree"). */
 export const hasWord = (name: string, kw: string) => new RegExp(`(^|[^a-z0-9])${esc(plainName(kw))}([^a-z0-9]|$)`).test(plainName(name));
+
+/** Fee rule of a store / central partner: first rule with a matching keyword; null = client not in the table (0%). */
+export function clientFeeFor(...names: Array<string | null | undefined>): ClientFeeRule | null {
+  const hay = plainName(names.filter(Boolean).join(" | ")).replace(/\s+/g, " ");
+  return active.clientFees.find((r) => r.keywords.some((k) => {
+    const parts = k.split("+").map((p) => p.trim()).filter(Boolean);
+    return parts.length > 0 && parts.every((p) => hay.includes(p));
+  })) ?? null;
+}
 
 /** Per piece: people × lei/person-hour ÷ pieces/hour; factory overhead = direct × overhead %. */
 export function lineRates(l: LabourLineRule, globalOverheadPct = active.labourOverheadPct) {
@@ -163,6 +186,15 @@ export function validPriceRules(raw: unknown): { rules: PriceRules } | { error: 
     const county = upper(k), route = upper(v);
     if (!/^[A-Z0-9][A-Z0-9 .\-]{1,40}$/.test(county) || !ROUTE_RE.test(route)) return { error: "Fiecare județ are o cursă." };
     out.countyRoutes[county] = route;
+  }
+  const fees = pick("clientFees");
+  if (!Array.isArray(fees) || fees.length > 80) return { error: "Lista de taxe client este invalidă." };
+  out.clientFees = [];
+  for (const f of fees) {
+    const client = text(f?.client, 80), keywords = words(f?.keywords).map((k) => k.replace(/\s*\+\s*/g, " + ").replace(/\s+/g, " ").trim());
+    if (!client || !keywords.length) return { error: "Fiecare client din tabelul de taxe are nume și cel puțin un cuvânt de recunoaștere." };
+    if (!numIn(f.pct, 0, 89)) return { error: `${client}: taxe rețea % între 0 și 89.` };
+    out.clientFees.push({ client, keywords, pct: f.pct, note: text(f.note, 200) });
   }
   return { rules: out };
 }

@@ -35,7 +35,7 @@ type Logistics = {
   store?: { id: number; name: string; route: string | null } | null; suggestedRoute?: string | null;
 };
 type StoreSale = { pid: number; qty: number; value: number; price: number | null };
-type StoreRow = { pid: number; name: string; judet?: string; route: string | null; proposed?: string | null; manual?: boolean; pallets: number };
+type StoreRow = { pid: number; name: string; judet?: string; route: string | null; proposed?: string | null; manual?: boolean; pallets: number; feePct?: number; feeRule?: string | null };
 type RealSpeed = { speed: number; pieces: number; hours: number; sessions: number; products: string[]; from: string; to: string };
 type Item = {
   product: { id: number; name: string; unitsPerCase: number };
@@ -44,7 +44,7 @@ type Item = {
   storeSales: StoreSale[]; recentSale: { qty: number; value: number; price: number; from: string; to: string } | null;
   priceList: { price: number; currency: string; list: string; since: string } | null;
 };
-type Fees = { pct: number | null; discounts: number; services: Array<{ subject: string; account: string; total: number }>; servicesTotal: number; sales: number; from: string; to: string } | null;
+type Fees = { pct: number; rule: string | null; note: string; scope: "store" | "central" | "average"; stores: Array<{ pid: number; name: string; pallets: number; pct: number; rule: string | null }> } | null;
 type ListResult = {
   period: { startDay: string; endDay: string }; warnings: string[]; info?: string[]; fees?: Fees; eur: { rate: number; day: string } | null;
   stores: StoreRow[]; logistics: Logistics; rules?: RulesMeta;
@@ -274,6 +274,12 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
     }
     return cfg;
   };
+  /** One store of a central partner: its own cursă and its own network fee (table rule), unless a fee % was typed on screen. */
+  const storeConfig = (it: Item, r: string, st: StoreRow): PriceConfig => {
+    const cfg = buildConfig(it, r);
+    const typed = (ov(it.product.id).rates.feePct ?? globalRates.feePct ?? "") !== "";
+    return typed || st.feePct == null ? cfg : { ...cfg, feePct: st.feePct };
+  };
   const compute = (it: Item, cfg: PriceConfig): Computed | null => {
     if (!result || !logistics || !validPriceConfig(cfg)) return null;
     const comps = it.components.map((c) => ({ ...c, ...(c.kind === "mp" || c.kind === "marfa" ? { price: mode === "week" ? c.weekPrice ?? null : c.annualPrice ?? null } : {}) }));
@@ -330,7 +336,7 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
     if (!multiStore) return [];
     return storesNow.map((st) => {
       const r = st.route && logistics?.distribution?.[st.route] ? st.route : null;
-      const c = r ? compute(it, buildConfig(it, r)) : null;
+      const c = r ? compute(it, storeConfig(it, r, st)) : null;
       const sale = it.storeSales.find((x) => x.pid === st.pid) ?? null;
       const pr = c && c.s.complete && sale?.price != null ? profitAt(c.s, sale.price) : null;
       return { ...st, route: r, sheet: c?.s ?? null, perPallet: c?.effective.distributionPerPallet ?? null, sale, profit: pr };
@@ -345,7 +351,7 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
       for (const it of items) {
         const sale = it.storeSales.find((x) => x.pid === st.pid);
         if (!sale || sale.price == null) continue;
-        const c = r ? compute(it, buildConfig(it, r)) : null;
+        const c = r ? compute(it, storeConfig(it, r, st)) : null;
         if (!c || !c.s.complete) { incomplete++; continue; }
         const p = profitAt(c.s, sale.price);
         sales += sale.value; profit += p.profit * sale.qty; qty += sale.qty;
@@ -583,11 +589,11 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
             <summary className="cursor-pointer text-sm font-medium">Rentabilitate pe magazine · {it.product.name}</summary>
             <div className="mt-2 overflow-x-auto">
               <table className="w-full min-w-[860px] text-xs">
-                <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Magazin</th><th>Cursă</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Distribuție lei/buc</th><th className="text-right">Preț propus</th><th className="text-right">Preț actual</th><th className="text-right">Buc 90 zile</th><th className="text-right">Profit lei/buc</th><th className="text-right">Profit %</th></tr></thead>
+                <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Magazin</th><th>Cursă</th><th className="text-right">Taxe rețea</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Distribuție lei/buc</th><th className="text-right">Preț propus</th><th className="text-right">Preț actual</th><th className="text-right">Buc 90 zile</th><th className="text-right">Profit lei/buc</th><th className="text-right">Profit %</th></tr></thead>
                 <tbody>
                   {rows.map((st) => (
                     <tr key={st.pid} className="border-b last:border-0">
-                      <td className="py-1">{st.name}</td><td>{st.route ?? <span className="text-destructive">fără cursă</span>}</td>
+                      <td className="py-1">{st.name}</td><td>{st.route ?? <span className="text-destructive">fără cursă</span>}</td><td className="text-right tabular-nums" title={st.feeRule ?? "nu apare în tabelul de taxe"}>{n2(st.sheet?.feePct ?? st.feePct ?? 0, 1)}%</td>
                       <td className="text-right tabular-nums">{n2(st.perPallet)}</td><td className="text-right tabular-nums">{st.sheet ? n2(st.sheet.perPiece.logistics, 4) : "—"}</td>
                       <td className="text-right tabular-nums">{st.sheet?.complete ? n2(st.sheet.perPiece.clientPrice, 4) : "—"}</td>
                       <td className="text-right tabular-nums">{st.sale?.price != null ? n2(st.sale.price, 4) : <span className="text-muted-foreground">fără vânzări</span>}</td>
@@ -756,7 +762,7 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
               </CardHeader>
               <CardContent className="overflow-x-auto">
                 <table className="w-full min-w-[820px] text-sm">
-                  <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-2">Magazin</th><th>Cursă</th><th className="text-right">Paleți livrați (90 zile)</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Vânzări 90 zile</th><th className="text-right">Profit real 90 zile</th><th className="text-right">Profit %</th></tr></thead>
+                  <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-2">Magazin</th><th>Cursă</th><th className="text-right">Taxe rețea</th><th className="text-right">Paleți livrați (90 zile)</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Vânzări 90 zile</th><th className="text-right">Profit real 90 zile</th><th className="text-right">Profit %</th></tr></thead>
                   <tbody>
                     {storeTotals.map((st) => (
                       <tr key={st.pid} className="border-b last:border-0">
@@ -767,6 +773,7 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
                             {routeNames.map((r) => <option key={r} value={r}>{r}</option>)}
                           </select>
                         </td>
+                        <td className="text-right tabular-nums" title={st.feeRule ?? "nu apare în tabelul de taxe"}>{n2(st.feePct ?? 0, 1)}%</td>
                         <td className="text-right tabular-nums">{n2(st.pallets, 1)}</td>
                         <td className="text-right tabular-nums">{st.route ? n2(perPalletMap[st.route]) : "—"}</td>
                         <td className="text-right tabular-nums">{n2(st.sales)}</td>
@@ -787,8 +794,10 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
                 <p className="mt-2 text-[11px] text-muted-foreground">Se aplică tuturor produselor. Bucățile, paletul și manopera se schimbă din fișa fiecărui produs.</p>
                 {result.fees && (
                   <p className="mt-2 text-xs">
-                    <b>Taxe client {n2(result.fees.pct, 2)}%</b> din vânzări ({result.fees.from} – {result.fees.to}, pe codul fiscal): reduceri pe facturile noastre {n2(result.fees.discounts)} lei
-                    {" "}+ servicii facturate de client {n2(result.fees.servicesTotal)} lei{result.fees.services.length ? ` (${result.fees.services.map((x) => `${x.subject} ${n2(x.total, 0)}`).join(", ")})` : ""} ÷ vânzări {n2(result.fees.sales)} lei. Istoric, nu tarif contractual — modifică procentul dacă ai contractul.
+                    <b>Taxe rețea {n2(result.fees.pct, 2)}%</b> din prețul final ·{" "}
+                    {result.fees.rule ? <>{result.fees.rule}{result.fees.note ? ` — ${result.fees.note}` : ""}</> : "clientul nu apare în tabelul de taxe, deci 0%"}.
+                    {result.fees.scope === "average" && <> Magazine: {result.fees.stores.map((x) => `${x.name} ${n2(x.pct, 1)}%`).join("; ")}. În rentabilitatea pe magazine fiecare are taxa lui.</>}
+                    {" "}Din tabul „Reguli de calcul”; poți schimba procentul aici doar pentru acest calcul.
                   </p>
                 )}
                 <div className="mt-3"><PriceParameters scope="list" values={globalDisplay} basis={basis} setBasis={setBasis} setValue={setGlobal} mode={mode} setMode={setMode} route={route} routes={routeOptions} setRoute={(v) => pickRoute(v)} line="" setLine={() => undefined} /></div>

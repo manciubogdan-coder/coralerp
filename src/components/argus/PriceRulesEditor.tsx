@@ -18,6 +18,7 @@ type Draft = {
   routePairs: Array<{ a: string; b: string }>;
   cityRoutes: Array<{ city: string; route: string }>;
   countyRoutes: Array<{ county: string; route: string }>;
+  clientFees: Array<{ client: string; keywords: string; pct: string; note: string }>;
 };
 type Response = RulesMeta & { defaults: PriceRules };
 
@@ -37,6 +38,7 @@ function toDraft(r: PriceRules): Draft {
     routePairs: r.routePairs.map(([a, b]) => ({ a, b })),
     cityRoutes: r.cityRoutes.map((c) => ({ ...c })),
     countyRoutes: Object.entries(r.countyRoutes).map(([county, route]) => ({ county, route })),
+    clientFees: (r.clientFees ?? []).map((f) => ({ client: f.client, keywords: Array.isArray(f.keywords) ? f.keywords.join(", ") : String(f.keywords ?? ""), pct: s(f.pct), note: f.note ?? "" })),
   };
 }
 /** Hour costs are shown rounded; an unchanged rounded value keeps the exact saved value. */
@@ -54,6 +56,7 @@ function fromDraft(d: Draft, base: PriceRules) {
     tradedGoods: d.tradedGoods.map((g) => ({ label: g.label, keywords: g.keywords, piecesPerPallet: n(g.piecesPerPallet), note: g.note })),
     routePairs: d.routePairs.map((p) => [p.a, p.b]),
     cityRoutes: d.cityRoutes,
+    clientFees: (d.clientFees ?? []).map((f) => ({ client: f.client, keywords: f.keywords, pct: n(f.pct), note: f.note })),
     countyRoutes: Object.fromEntries(d.countyRoutes.filter((c) => t(c.county).trim() || t(c.route).trim()).map((c) => [c.county, c.route])),
   };
 }
@@ -91,10 +94,10 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
 
   const set = (f: (d: Draft) => Draft) => setDraft((d) => (d ? f(d) : d));
   const setTop = (k: keyof Draft) => (v: string) => set((d) => ({ ...d, [k]: v }));
-  function editRow<K extends "lines" | "palletGroups" | "tradedGoods" | "routePairs" | "cityRoutes" | "countyRoutes">(k: K, i: number, patch: Partial<Draft[K][number]>) {
+  function editRow<K extends "lines" | "palletGroups" | "tradedGoods" | "routePairs" | "cityRoutes" | "countyRoutes" | "clientFees">(k: K, i: number, patch: Partial<Draft[K][number]>) {
     set((d) => ({ ...d, [k]: (d[k] as Array<Draft[K][number]>).map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
   }
-  function removeRow(k: "lines" | "palletGroups" | "tradedGoods" | "routePairs" | "cityRoutes" | "countyRoutes", i: number) {
+  function removeRow(k: "lines" | "palletGroups" | "tradedGoods" | "routePairs" | "cityRoutes" | "countyRoutes" | "clientFees", i: number) {
     set((d) => ({ ...d, [k]: (d[k] as unknown[]).filter((_, j) => j !== i) }));
   }
   const overhead = n(draft.labourOverheadPct);
@@ -135,7 +138,7 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
           <li><b>Cost producție</b> = suma de mai sus + pierdere suplimentară {draft.techLossPct || "0"}%.</li>
           <li><b>Preț poartă fabrică</b> = cost ÷ (1 − marjă brută); marja implicită {draft.marginPct || "?"}%.</li>
           <li><b>Distribuție</b>: bucăți ÷ bucăți/palet × tarif cursă (cost curse ÷ paleți livrați punctelor cursei; perechile de curse se calculează împreună).</li>
-          <li><b>Preț client</b> = livrat ÷ (1 − taxe client %); în EUR la cursul BNR + {draft.eurBufferPct || "0"}% siguranță.</li>
+          <li><b>Preț client</b> = livrat ÷ (1 − taxe rețea % din tabelul de mai jos; 0% dacă clientul lipsește); în EUR la cursul BNR + {draft.eurBufferPct || "0"}% siguranță.</li>
         </ol>
       </Section>
 
@@ -221,6 +224,18 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
             <AddButton onClick={() => set((d) => ({ ...d, countyRoutes: [...d.countyRoutes, { county: "", route: "" }] }))}>Adaugă județ</AddButton>
           </div>
         </div>
+      </Section>
+
+      <Section title="Taxe client — taxe rețea %" hint="Procent din prețul final al clientului (logistică + discount/remiză), după tabelul Taxe 2026. Clientul se recunoaște după numele magazinului sau al partenerului central; „selgros + 13203” cere ambele cuvinte. Primul rând potrivit câștigă. Clienții care nu apar aici au 0%.">
+        <div className="hidden gap-2 text-xs text-muted-foreground sm:grid sm:grid-cols-[220px_1fr_100px_1fr_40px]"><span>Client</span><span>Cuvinte de recunoaștere (virgulă = oricare)</span><span>Taxe rețea %</span><span>Detaliu (logistică, discount, risturnă, penalități)</span><span /></div>
+        {draft.clientFees.map((f, i) => <div key={i} className="grid items-end gap-2 sm:grid-cols-[220px_1fr_100px_1fr_40px]">
+          <Input aria-label="Client" className={cell} value={f.client} onChange={(e) => editRow("clientFees", i, { client: e.target.value })} />
+          <Input aria-label={`Cuvinte ${f.client}`} className={cell} value={f.keywords} placeholder="ex. mega image" onChange={(e) => editRow("clientFees", i, { keywords: e.target.value })} />
+          <Input aria-label={`Taxe rețea % ${f.client}`} className={cell} inputMode="decimal" value={f.pct} onChange={(e) => editRow("clientFees", i, { pct: e.target.value })} />
+          <Input aria-label={`Detaliu ${f.client}`} className={cell} value={f.note} onChange={(e) => editRow("clientFees", i, { note: e.target.value })} />
+          <Remove label={`Șterge ${f.client}`} onClick={() => removeRow("clientFees", i)} />
+        </div>)}
+        <AddButton onClick={() => set((d) => ({ ...d, clientFees: [...d.clientFees, { client: "Client nou", keywords: "", pct: "", note: "" }] }))}>Adaugă client</AddButton>
       </Section>
 
       <Section title="Marjă, pierdere și curs">
