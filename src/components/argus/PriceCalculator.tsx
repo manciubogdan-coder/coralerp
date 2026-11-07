@@ -433,18 +433,18 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
       ["Listă de prețuri", clientName || "Toți clienții"], ["Magazin", store != null ? storeName ?? "" : "Toate magazinele (medie)"],
       ["Perioadă", `${String(month).padStart(2, "0")}/${year}`], ["Marjă brută %", num(marginShown || "0")], ["Cursă distribuție", routeLabel(route)],
       ["Transport", `ultimele prețuri: cost pe camion/cursă din facturile ${result.logistics.closedStart} – ${result.logistics.closedEnd}; încărcare din ${result.logistics.loadWindow.start} – ${result.logistics.loadWindow.end}`], [],
-      ["Produs", "Buc/bax", "Cost producție (lei/buc)", "Distribuție (lei/buc)", "Marjă brută (lei/buc)", "Marjă brută % din prețul de vânzare", "Preț minim vânzare fără taxe (lei/buc)", "Profitabilitate țintă % din prețul de vânzare fără taxe", "Taxe rețea (lei/buc)", "Preț propus cu taxe (lei/buc)", "Preț propus cu taxe (lei/bax)", "Preț propus (EUR/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profitabilitate reală % din prețul de vânzare fără taxe", "Stare"],
+      ["Produs", "Buc/bax", "Cost producție (lei/buc)", "Distribuție (lei/buc)", "Marjă brută (lei/buc)", "Marjă brută % din prețul de vânzare", "Preț minim vânzare fără taxe (lei/buc)", "Profitabilitate țintă % din prețul de vânzare fără taxe", "Preț propus fără taxe (lei/buc)", "Taxe rețea (lei/buc)", "Preț propus cu taxe (lei/buc)", "Preț propus cu taxe (lei/bax)", "Preț propus (EUR/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profitabilitate reală % din prețul de vânzare fără taxe", "Stare"],
     ];
     for (const r of listRows) {
       const s = r.s;
       head.push([r.it.product.name, s?.unitsPerCase ?? "", s ? r4(s.perPiece.productionCost) : "", s ? r4(s.perPiece.logistics) : "", s ? r4(s.perPiece.grossMargin) : "", num(marginShown || "0"),
-        s ? r4(s.perPiece.minPrice) : "", s ? s.profitPct : "", s ? r4(s.perPiece.fees) : "", s ? r4(s.perPiece.clientPrice) : "", s ? r4(s.clientPrice) : "", s ? r4(s.perPiece.clientPriceEur) : "", r.sale ? r4(r.sale.price) : "", r.sale ? Math.round(r.sale.qty) : "",
+        s ? r4(s.perPiece.minPrice) : "", s ? s.profitPct : "", s ? r4(s.perPiece.delivered) : "", s ? r4(s.perPiece.fees) : "", s ? r4(s.perPiece.clientPrice) : "", s ? r4(s.clientPrice) : "", s ? r4(s.perPiece.clientPriceEur) : "", r.sale ? r4(r.sale.price) : "", r.sale ? Math.round(r.sale.qty) : "",
         r.profit ? r4(r.profit.profit) : "", r.profit?.pct != null ? Math.round(r.profit.pct * 10) / 10 : "", s?.complete ? "calculat" : `incomplet: ${[...(s?.missingInputs ?? []), ...(s?.missingPrices ?? [])].join("; ")}`]);
     }
-    for (const f of failed) head.push([f.product.name, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", f.error]);
-    if (totals) head.push([], ["Total ultimele 90 de zile", "", "", "", "", "", "", "", "", "", "", "", r4(totals.sales), "", r4(totals.profit), totals.pct != null ? Math.round(totals.pct * 10) / 10 : ""]);
+    for (const f of failed) head.push([f.product.name, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", f.error]);
+    if (totals) head.push([], ["Total ultimele 90 de zile", "", "", "", "", "", "", "", "", "", "", "", "", r4(totals.sales), "", r4(totals.profit), totals.pct != null ? Math.round(totals.pct * 10) / 10 : ""]);
     const ws = XLSX.utils.aoa_to_sheet(head);
-    ws["!cols"] = [{ wch: 40 }, ...Array(16).fill({ wch: 14 })];
+    ws["!cols"] = [{ wch: 40 }, ...Array(17).fill({ wch: 14 })];
     XLSX.utils.book_append_sheet(wb, ws, "Listă prețuri");
     if (multiStore) {
       const rows: (string | number)[][] = [["Magazin", "Cursă", "Paleți livrați 90 zile", "Vânzări 90 zile (lei)", "Profit real 90 zile (lei)", "Profit real % din prețul de vânzare fără taxe"]];
@@ -485,7 +485,7 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
       ...(s.techLoss ? [["Pierdere scenariu", s.techLoss, ""] as [string, number, string]] : []),
       ["Cost producție", s.productionCost, "font-semibold"], [`Distribuție · ${routeLabel(route)}`, s.logistics, ""],
       [`Marjă brută ${marginShown}% din prețul de vânzare`, s.grossMargin, "text-primary"], ["Preț minim vânzare (break-even, fără taxe)", s.minPrice, "font-semibold"],
-      [`Profitabilitate țintă ${n2(s.profitPct, 1)}% din prețul de vânzare fără taxe`, s.profit, "text-primary"], [`Taxe rețea ${n2(s.feePct, 2)}% din prețul propus`, s.clientFees, ""],
+      [`Profitabilitate țintă ${n2(s.profitPct, 1)}% din prețul de vânzare fără taxe`, s.profit, "text-primary"], ["Preț propus fără taxe (minim + profit)", s.delivered, "font-semibold"], [`Taxe rețea ${n2(s.feePct, 2)}% din prețul propus`, s.clientFees, ""],
       ["Preț propus client (cu taxe incluse)", s.clientPrice, "font-bold"],
     ];
     return (
@@ -721,10 +721,10 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
                 <thead className="border-b text-left text-xs text-muted-foreground">
                   <tr>
                     <th className="py-2">Produs</th><th className="text-right">Cost producție</th><th className="text-right">Distribuție</th><th className="text-right">Marjă brută</th>
-                    <th className="border-l pl-2 text-right">Preț minim vânzare</th><th className="text-right">Profitabilitate țintă</th><th className="text-right">Taxe rețea</th><th className="text-right">Preț propus</th><th className="text-right">Preț propus bax</th>
+                    <th className="border-l pl-2 text-right">Preț minim vânzare</th><th className="text-right">Profitabilitate țintă</th><th className="text-right">Preț fără taxe</th><th className="text-right">Taxe rețea</th><th className="text-right">Preț propus</th><th className="text-right">Preț propus bax</th>
                     <th className="border-l pl-2 text-right">Preț vânzare actual</th><th className="text-right">Profit real</th><th className="text-right">Profitabilitate reală</th>
                   </tr>
-                  <tr className="text-[10px]"><th /><th className="text-right">lei/buc</th><th className="text-right">lei/buc</th><th className="text-right">lei/buc · % din prod.+distr.</th><th className="border-l pl-2 text-right">break-even fără taxe, lei/buc</th><th className="text-right">lei/buc · % din preț minim</th><th className="text-right">lei/buc · %</th><th className="text-right">cu taxe, lei/buc</th><th className="text-right">cu taxe, lei/bax</th><th className="border-l pl-2 text-right">lei/buc · 90 zile</th><th className="text-right">lei/buc</th><th className="text-right">% din preț minim</th></tr>
+                  <tr className="text-[10px]"><th /><th className="text-right">lei/buc</th><th className="text-right">lei/buc</th><th className="text-right">lei/buc · % din preț vânzare</th><th className="border-l pl-2 text-right">break-even fără taxe, lei/buc</th><th className="text-right">lei/buc · % din preț vânzare</th><th className="text-right">minim + profit, lei/buc</th><th className="text-right">lei/buc · %</th><th className="text-right">cu taxe, lei/buc</th><th className="text-right">cu taxe, lei/bax</th><th className="border-l pl-2 text-right">lei/buc · 90 zile</th><th className="text-right">lei/buc</th><th className="text-right">% din preț fără taxe</th></tr>
                 </thead>
                 <tbody>
                   {listRows.map(({ it, c, s, sale, profit }) => {
@@ -741,6 +741,7 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
                           <td className="text-right tabular-nums">{s?.complete ? <>{n2(s.perPiece.grossMargin, 4)} <span className="text-muted-foreground">· {marginShown}%</span></> : "—"}</td>
                           <td className="border-l pl-2 text-right tabular-nums">{s?.complete ? n2(s.perPiece.minPrice, 4) : "—"}</td>
                           <td className="text-right tabular-nums">{s?.complete ? <>{n2(s.perPiece.profit, 4)} <span className="text-muted-foreground">· {n2(s.profitPct, 1)}%</span></> : "—"}</td>
+                          <td className="text-right font-semibold tabular-nums">{s?.complete ? n2(s.perPiece.delivered, 4) : "—"}</td>
                           <td className="text-right tabular-nums">{s ? <>{n2(s.perPiece.fees, 4)} <span className="text-muted-foreground">· {n2(s.feePct, 1)}%</span></> : "—"}</td>
                           <td className="text-right font-semibold tabular-nums">{s?.complete ? n2(s.perPiece.clientPrice, 4) : <span className="text-destructive">incomplet</span>}</td>
                           <td className="text-right tabular-nums">{s?.complete ? n2(s.clientPrice) : "—"}</td>
@@ -748,12 +749,12 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
                           <td className={`text-right font-semibold tabular-nums ${profitClass(profit?.profit)}`}>{profit ? n2(profit.profit, 4) : "—"}</td>
                           <td className={`text-right font-semibold tabular-nums ${profitClass(profit?.profit)}`}>{profit?.pct != null ? `${n2(profit.pct, 1)}%` : "—"}</td>
                         </tr>
-                        {isOpen && <tr className="border-b"><td colSpan={12} className="p-0">{renderSheet(it, c)}</td></tr>}
+                        {isOpen && <tr className="border-b"><td colSpan={13} className="p-0">{renderSheet(it, c)}</td></tr>}
                       </Fragment>
                     );
                   })}
                   {failed.map((f) => (
-                    <tr key={f.product.id} className="border-b last:border-0"><td className="py-1.5">{f.product.name}</td><td colSpan={9} className="text-destructive">{f.error}</td></tr>
+                    <tr key={f.product.id} className="border-b last:border-0"><td className="py-1.5">{f.product.name}</td><td colSpan={12} className="text-destructive">{f.error}</td></tr>
                   ))}
                 </tbody>
               </table>
