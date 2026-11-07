@@ -8,11 +8,12 @@ import { defaultRates, priceCalcData } from "../_shared/priceCalcSenior.ts";
 import { templateValues } from "./liveFilters.ts";
 import { configuredSheet, validPriceConfig, type PriceConfig } from "../_shared/priceConfig.ts";
 import { prefilledConfig } from "../_shared/priceDefaults.ts";
+import { validRouteOverrides } from "../_shared/priceSourceRules.ts";
 export { filtersForTemplate } from "./liveFilters.ts";
 
 export type LiveSpec =
   | { kind: "sql"; template: SqlTemplate }
-  | { kind: "price"; articolId: number; partnerId: number | null; storeId?: number | null; scope?: "central"; marginPct: number; product: string; client: string; config?: PriceConfig; year?: number; month?: number };
+  | { kind: "price"; articolId: number; partnerId: number | null; storeId?: number | null; scope?: "central"; routeOverrides?: Record<string, string>; marginPct: number; product: string; client: string; config?: PriceConfig; year?: number; month?: number };
 
 const posInt = (v: unknown) => (Number.isInteger(Number(v)) && Number(v) > 0 ? Number(v) : null);
 
@@ -30,7 +31,7 @@ export function validLiveSpec(raw: any): LiveSpec | null {
     if (config === null) return null;
     if (raw.year != null && (!Number.isInteger(raw.year) || raw.year < 2016 || raw.year > 2099)) return null;
     if (raw.month != null && (!Number.isInteger(raw.month) || raw.month < 1 || raw.month > 12)) return null;
-    return { kind: "price", articolId, partnerId: posInt(raw.partnerId), ...(raw.scope === "central" ? { scope: "central" as const, storeId: posInt(raw.storeId) } : {}), marginPct: m, product: String(raw.product ?? "").slice(0, 150), client: String(raw.client ?? "").slice(0, 150), ...(config ? { config } : {}), ...(raw.year ? { year: raw.year } : {}), ...(raw.month ? { month: raw.month } : {}) };
+    return { kind: "price", articolId, partnerId: posInt(raw.partnerId), ...(raw.scope === "central" ? { scope: "central" as const, storeId: posInt(raw.storeId) } : {}), ...(raw.routeOverrides ? { routeOverrides: validRouteOverrides(raw.routeOverrides) } : {}), marginPct: m, product: String(raw.product ?? "").slice(0, 150), client: String(raw.client ?? "").slice(0, 150), ...(config ? { config } : {}), ...(raw.year ? { year: raw.year } : {}), ...(raw.month ? { month: raw.month } : {}) };
   }
   return null;
 }
@@ -57,7 +58,7 @@ export async function runLive(c: { cloud: any; legacy: any; legacyUser?: any }, 
     if (!parsed) throw new Error("Parametri ai fișei invalizi.");
     config = parsed;
   }
-  const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: spec.articolId, partnerId: spec.partnerId, storeId: spec.scope === "central" ? spec.storeId ?? null : spec.partnerId, year: config.year ?? spec.year ?? y, month: config.month ?? spec.month ?? m, rawPriceMode: config.rawPriceMode });
+  const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: spec.articolId, partnerId: spec.partnerId, storeId: spec.scope === "central" ? spec.storeId ?? null : spec.partnerId, year: config.year ?? spec.year ?? y, month: config.month ?? spec.month ?? m, rawPriceMode: config.rawPriceMode, routeOverrides: spec.routeOverrides });
   // Saved margin stays the sheet's margin unless the config carries an explicit one.
   const { sheet: s } = configuredSheet(d, defaultRates(d, spec.marginPct), prefilledConfig(d, { ...config, rates: { marginPct: spec.marginPct, ...config.rates } }));
   const r2 = (n: number | null | undefined) => (n == null ? "—" : (Math.round(n * 100) / 100).toFixed(2));

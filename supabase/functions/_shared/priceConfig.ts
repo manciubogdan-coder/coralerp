@@ -143,11 +143,11 @@ export function configuredSheet(d: { product: { unitsPerCase: number }; componen
   if (line && !lab && cfg.rates?.labourPerPiece == null) sheet.missingInputs.push(line.name === MIXED_WASHED ? "Viteză linie mixte spălate (buc/oră, conform mix)" : "Oameni, viteză și cost orar manoperă");
   if (cfg.rates?.labourPerPiece != null && cfg.rates?.utilitiesPerPiece == null && !lab) sheet.missingInputs.push("Regie fabrică manuală");
   const basis = cfg.supplyBasis ?? (cfg.supplyPerPallet != null ? "pallet" : "kg");
-  if (basis === "pallet" && cfg.supplyPerPallet == null) sheet.missingInputs.push("Cost aprovizionare/palet (total luna închisă ÷ paleți NIR)");
-  if (basis === "kg" && !(cfg.rates?.supplyPerKg != null && cfg.rates.supplyPerKg > 0)) sheet.missingInputs.push("Cost aprovizionare/kg (total luna închisă ÷ kg NIR)");
+  if (basis === "pallet" && cfg.supplyPerPallet == null) sheet.missingInputs.push("Cost aprovizionare/palet (cost pe camion ÷ paleți pe camion)");
+  if (basis === "kg" && !(cfg.rates?.supplyPerKg != null && cfg.rates.supplyPerKg > 0)) sheet.missingInputs.push("Cost aprovizionare/kg (cost pe camion ÷ kg pe camion)");
   if (cfg.distributionPerPallet == null && !(cfg.distributionTotal != null && (cfg.distributionPallets ?? 0) > 0)) sheet.missingInputs.push(`Cost distribuție/palet · cursa ${cfg.route ?? "nealeasă"} (completează paleți pe cursă sau tariful)`);
   for (const c of components) if (c.lossSource?.startsWith("PT nesetat") && cfg.components?.[String(c.id)]?.lossPct == null) sheet.missingInputs.push(`PT ${c.name}`);
-  if (cfg.feePct == null && cfg.rates?.clientFeePerPiece == null) sheet.missingInputs.push("Taxe rețea (confirmați 0 dacă nu există)");
+  if (cfg.feePct == null && cfg.rates?.clientFeePerPiece == null) sheet.missingInputs.push("Taxe client % (nu există vânzări din care să le calculez)");
   sheet.complete = !sheet.missingInputs.length && !sheet.missingPrices.length;
   return { sheet, components, rates };
 }

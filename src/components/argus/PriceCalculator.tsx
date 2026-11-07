@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Calculator, Check, ChevronsUpDown, Download, Loader2, X, Zap } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Calculator, Check, ChevronDown, ChevronRight, ChevronsUpDown, Download, Loader2, RefreshCw, RotateCcw, X, Zap } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "@/hooks/use-custom-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { argusFetch } from "@/lib/argusApi";
 import { type SheetComponent } from "../../../supabase/functions/_shared/priceSheet";
 import { configuredSheet, lineLabour, RATE_KEYS, CONFIG_NUMBERS, validPriceConfig, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
-import { CLIENT_AVERAGE_ROUTE, DEFAULT_MARGIN_PCT, profitAt } from "../../../supabase/functions/_shared/priceList";
+import { CLIENT_AVERAGE_ROUTE, DEFAULT_MARGIN_PCT, clientAverageRoute, profitAt } from "../../../supabase/functions/_shared/priceList";
+import { countyKey } from "../../../supabase/functions/_shared/priceSourceRules";
 import { PriceParameters, NumericParameter } from "./PriceParameters";
 import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
 import { ReceiptPriceAlert } from '../inventory/ReceiptPriceAlert';
@@ -21,28 +22,34 @@ type Opt = { id: number; name: string };
 type Client = Opt & { stores: number };
 type Product = Opt & { qty: number };
 type Store = Opt & { route: string | null };
-type RouteStat = { route: string; country: string; trips: number; total: number; pallets: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; points: Array<{ name: string; pallets: number }> };
+type RouteStat = { route: string; country: string; trips: number; total: number; pallets: number; estimatedPallets?: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; points: Array<{ name: string; pallets: number }> };
+type CountyGap = { county: string; judet: string; pallets: number; points: number; names: string[] };
 type Logistics = {
   supply: { total: number; trucks: number; costPerTruck: number | null; loadTrucks: number; pallets: number; kg: number; palletsPerTruck: number | null; kgPerTruck: number | null };
   loadWindow: { start: string; end: string }; lastTrucks: Array<{ day: string; price: number; line: string }>;
   closedStart: string; closedEnd: string; note: string; distribution?: Record<string, PriceConfig | null>; routes?: RouteStat[];
   clientAverage: { perPallet: number; pallets: number; weighted: boolean; stores: number } | null;
+  unassigned?: CountyGap[];
   store?: { id: number; name: string; route: string | null } | null; suggestedRoute?: string | null;
 };
 type StoreSale = { pid: number; qty: number; value: number; price: number | null };
+type StoreRow = { pid: number; name: string; judet?: string; route: string | null; proposed?: string | null; manual?: boolean; pallets: number };
+type RealSpeed = { speed: number; pieces: number; hours: number; sessions: number; products: string[]; from: string; to: string };
 type Item = {
   product: { id: number; name: string; unitsPerCase: number };
-  defaults: PriceConfig; warnings: string[]; components: SheetComponent[];
+  defaults: PriceConfig; warnings: string[]; components: SheetComponent[]; suggestedLabourSource?: string; realSpeed?: RealSpeed | null;
   salesHistory: Array<{ month: string; qty: number; value: number; price: number | null }>;
   storeSales: StoreSale[]; recentSale: { qty: number; value: number; price: number; from: string; to: string } | null;
   priceList: { price: number; currency: string; list: string; since: string } | null;
 };
+type Fees = { pct: number | null; discounts: number; services: Array<{ subject: string; account: string; total: number }>; servicesTotal: number; sales: number; from: string; to: string } | null;
 type ListResult = {
-  period: { startDay: string; endDay: string }; warnings: string[]; eur: { rate: number; day: string } | null;
-  stores: Array<{ pid: number; name: string; route: string | null; pallets: number }>; logistics: Logistics;
+  period: { startDay: string; endDay: string }; warnings: string[]; info?: string[]; fees?: Fees; eur: { rate: number; day: string } | null;
+  stores: StoreRow[]; logistics: Logistics;
   items: Array<Item | { product: { id: number; name: string }; error: string }>;
 };
 type Over = { rates: Record<string, string>; prices: Record<number, string>; losses: Record<number, string>; quantities: Record<number, string>; palletKg: Record<number, string>; line?: string };
+type Computed = { s: ReturnType<typeof configuredSheet>["sheet"]; comps: SheetComponent[]; rates: ReturnType<typeof configuredSheet>["rates"]; effective: PriceConfig; cfg: PriceConfig };
 
 const MONTHS = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"];
 const n2 = (v: number | null | undefined, d = 2) => (v == null || !Number.isFinite(v) ? "—" : v.toLocaleString("ro-RO", { minimumFractionDigits: d, maximumFractionDigits: d }));
@@ -55,6 +62,9 @@ const DIST_KEYS = ["distributionTotal", "distributionPallets", "distributionPerP
 const EMPTY: Over = { rates: {}, prices: {}, losses: {}, quantities: {}, palletKg: {} };
 const isItem = (x: ListResult["items"][number]): x is Item => !("error" in x);
 const ZERO = (eur: number) => ({ labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: eur, eurBufferPct: 1.5, techLossPct: 0, marginPct: 0 });
+const OVERRIDES_KEY = "argus-price-route-overrides";
+const loadOverrides = (): Record<string, string> => { try { const v = JSON.parse(localStorage.getItem(OVERRIDES_KEY) || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } };
+const sheetName = (i: number, name: string) => `${i + 1}. ${name}`.replace(/[\\/:*?"<>|[\]]/g, " ").slice(0, 31);
 
 /** A changed total or volume recalculates its tariff unless the tariff itself is typed afterwards. */
 function applyEdit(p: Record<string, string>, k: string, v: string) {
@@ -154,6 +164,7 @@ function NumField({ label, value, onChange, hint }: { label: string; value: stri
 }
 
 const profitClass = (v: number | null | undefined) => (v == null ? "" : v >= 0 ? "text-primary" : "text-destructive");
+const selectClass = "h-8 rounded-md border border-input bg-background px-2 text-xs";
 
 export default function PriceCalculator() {
   const now = new Date();
@@ -170,18 +181,20 @@ export default function PriceCalculator() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ListResult | null>(null);
-  const [active, setActive] = useState<number | null>(null);
+  const [open, setOpen] = useState<Set<number>>(new Set());
   const [globalRates, setGlobalRates] = useState<Record<string, string>>({});
   const [over, setOver] = useState<Record<number, Over>>({});
   const [mode, setMode] = useState<"annual" | "week">("annual");
   const [route, setRoute] = useState("România");
   const [routeManual, setRouteManual] = useState(false);
   const [basis, setBasis] = useState<"pallet" | "kg">("pallet");
+  const [routeOverrides, setRouteOverrides] = useState<Record<string, string>>(loadOverrides);
+  const [ranOverrides, setRanOverrides] = useState("{}");
 
   useEffect(() => {
     let off = false;
     setLoadingOpts(true);
-    argusFetch<{ clients: Client[]; products: Product[]; stores?: Store[] }>("price_options", {}, { partnerId: client, allProducts: !onlySold })
+    argusFetch<{ clients: Client[]; products: Product[]; stores?: Store[] }>("price_options", {}, { partnerId: client, allProducts: !onlySold, routeOverrides })
       .then((r) => {
         if (off) return;
         setClients(r.clients); setProducts(r.products); setStores(r.stores ?? []);
@@ -189,27 +202,51 @@ export default function PriceCalculator() {
       .catch((e) => !off && setError(e.message))
       .finally(() => !off && setLoadingOpts(false));
     return () => { off = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, onlySold]);
 
   const items = useMemo(() => (result?.items ?? []).filter(isItem), [result]);
   const failed = useMemo(() => (result?.items ?? []).filter((x) => !isItem(x)) as Array<{ product: { id: number; name: string }; error: string }>, [result]);
-  const activeItem = items.find((i) => i.product.id === active) ?? items[0] ?? null;
   const ov = (id: number) => over[id] ?? EMPTY;
   const setOv = (id: number, f: (o: Over) => Over) => setOver((p) => ({ ...p, [id]: f(p[id] ?? EMPTY) }));
+  const toggle = (id: number) => setOpen((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  const setOverride = (k: string, v: string) => setRouteOverrides((p) => {
+    const n = { ...p };
+    if (v) n[k] = v; else delete n[k];
+    localStorage.setItem(OVERRIDES_KEY, JSON.stringify(n));
+    return n;
+  });
+  const overridesDirty = !!result && JSON.stringify(routeOverrides) !== ranOverrides;
 
   const run = async () => {
     if (!selected.length) return;
     setLoading(true); setError(null);
     try {
-      const r = await argusFetch<ListResult>("price_list", {}, { articolIds: selected, partnerId: client, storeId: store, year, month, rawPriceMode: mode });
+      const r = await argusFetch<ListResult>("price_list", {}, { articolIds: selected, partnerId: client, storeId: store, year, month, rawPriceMode: mode, routeOverrides });
       setResult(r);
-      const first = r.items.find(isItem);
-      if (!r.items.some((i) => i.product.id === active)) setActive(first?.product.id ?? null);
+      setRanOverrides(JSON.stringify(routeOverrides));
       // The client's cursă (or the pallet-weighted client average) is proposed unless the user picked a cursă by hand.
+      const first = r.items.find(isItem);
       if (!routeManual) { setRoute(first?.defaults.route ?? "România"); setGlobalRates((p) => { const n = { ...p }; for (const k of DIST_KEYS) delete n[k]; return n; }); }
+      if (r.items.length === 1 && first) setOpen(new Set([first.product.id]));
     } catch (e) { setError((e as Error).message); setResult(null); }
     finally { setLoading(false); }
   };
+
+  // Store cursă: the user's store choice, then the county choice, then the address proposal — applied instantly to the client average.
+  const routeOf = (st: StoreRow) => routeOverrides[`p:${st.pid}`] ?? routeOverrides[`j:${countyKey(st.judet)}`] ?? st.proposed ?? st.route;
+  const perPalletMap = useMemo(() => Object.fromEntries(Object.entries(result?.logistics.distribution ?? {}).filter(([k]) => k !== CLIENT_AVERAGE_ROUTE).map(([k, v]) => [k, v?.distributionPerPallet ?? null])), [result]);
+  const storesNow = useMemo(() => (result?.stores ?? []).map((st) => ({ ...st, route: routeOf(st) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [result, routeOverrides]);
+  const logistics = useMemo<Logistics | null>(() => {
+    if (!result) return null;
+    const avg = client != null && store == null && storesNow.length ? clientAverageRoute(storesNow, perPalletMap) : null;
+    if (!avg) return result.logistics;
+    const dist = avg.weighted ? { distributionTotal: avg.allocated!, distributionPallets: avg.pallets, distributionPerPallet: avg.perPallet } : { distributionPerPallet: avg.perPallet };
+    return { ...result.logistics, distribution: { ...result.logistics.distribution, [CLIENT_AVERAGE_ROUTE]: dist }, clientAverage: avg };
+  }, [result, storesNow, perPalletMap, client, store]);
 
   const buildConfig = (it: Item, routeOverride?: string): PriceConfig => {
     const o = ov(it.product.id);
@@ -229,120 +266,143 @@ export default function PriceCalculator() {
     }
     return cfg;
   };
-  const compute = (it: Item, cfg: PriceConfig) => {
-    if (!result || !validPriceConfig(cfg)) return null;
+  const compute = (it: Item, cfg: PriceConfig): Computed | null => {
+    if (!result || !logistics || !validPriceConfig(cfg)) return null;
     const comps = it.components.map((c) => ({ ...c, ...(c.kind === "mp" ? { price: mode === "week" ? c.weekPrice ?? null : c.annualPrice ?? null } : {}) }));
-    const effective = prefilledConfig({ ...it, logistics: result.logistics }, cfg);
+    // The proposed cursă follows the store routes chosen on screen (client average recomputed locally).
+    const base = it.defaults.route ? { ...it.defaults } : it.defaults;
+    if (it.defaults.route && logistics.distribution?.[it.defaults.route]) { for (const k of DIST_KEYS) delete (base as Record<string, unknown>)[k]; Object.assign(base, logistics.distribution[it.defaults.route]); }
+    const effective = prefilledConfig({ ...it, defaults: base, logistics }, cfg);
     const r = configuredSheet({ ...it, components: comps }, ZERO(result.eur?.rate ?? 0), effective);
     return { s: r.sheet, comps: r.components, rates: r.rates, effective, cfg };
   };
   const sheets = useMemo(() => new Map(items.map((it) => [it.product.id, compute(it, buildConfig(it))])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, result, globalRates, over, mode, route, basis, year, month]);
-  const sheet = activeItem ? sheets.get(activeItem.product.id) ?? null : null;
-  const activeOv = activeItem ? ov(activeItem.product.id) : EMPTY;
-  const line = activeItem ? activeOv.line ?? activeItem.defaults.labourLine ?? "" : "";
+    [items, result, logistics, globalRates, over, mode, route, basis, year, month]);
 
-  // Per store: the same product with each store's own cursă, against what that store actually pays.
-  const storeRows = useMemo(() => {
-    if (!activeItem || !result || result.stores.length < 2 || store != null) return [];
-    return result.stores.map((st) => {
-      const r = st.route && result.logistics.distribution?.[st.route] ? st.route : null;
-      const c = r ? compute(activeItem, buildConfig(activeItem, r)) : null;
-      const sale = activeItem.storeSales.find((x) => x.pid === st.pid) ?? null;
-      const pr = c && c.s.complete && sale?.price != null ? profitAt(c.s, sale.price) : null;
-      return { ...st, route: r, sheet: c?.s ?? null, perPallet: c?.effective.distributionPerPallet ?? null, sale, profit: pr };
-    }).sort((a, b) => (b.sale?.qty ?? 0) - (a.sale?.qty ?? 0));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeItem, result, store, globalRates, over, mode, basis, year, month]);
-
-  // Fields show the value actually used: calculated from Senior/CSV unless the user typed one.
-  const adjusted = useMemo(() => ({ ...Object.fromEntries(Object.entries(globalRates).filter(([k]) => !PRODUCT_KEYS.has(k))), ...activeOv.rates }), [globalRates, activeOv]);
-  const display = useMemo(() => {
+  /** Values shown in the fields: calculated from Senior/CSV unless the user typed one. */
+  const displayFor = (it: Item | null, c: Computed | null, rates: Record<string, string>) => {
     const out: Record<string, string> = {};
     const fmt = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? String(Math.round(v * 10000) / 10000) : "");
-    for (const k of CONFIG_NUMBERS) out[k] = adjusted[k] ?? fmt(sheet?.effective[k]);
+    for (const k of CONFIG_NUMBERS) out[k] = rates[k] ?? fmt(c?.effective[k]);
     for (const k of RATE_KEYS) {
-      const used = k === "labourPerPiece" || k === "utilitiesPerPiece" ? (sheet?.effective.rates?.[k] ?? (sheet && lineLabour(sheet.effective) ? sheet.rates[k] : undefined)) : sheet?.effective.rates?.[k];
-      out[k] = adjusted[k] ?? fmt(used);
+      const used = k === "labourPerPiece" || k === "utilitiesPerPiece" ? (c?.effective.rates?.[k] ?? (c && lineLabour(c.effective) ? c.rates[k] : undefined)) : c?.effective.rates?.[k];
+      out[k] = rates[k] ?? fmt(used);
     }
+    void it;
     return out;
-  }, [adjusted, sheet]);
-  const marginShown = globalRates.marginPct ?? display.marginPct ?? String(DEFAULT_MARGIN_PCT);
+  };
+  const globalOnly = useMemo(() => Object.fromEntries(Object.entries(globalRates).filter(([k]) => !PRODUCT_KEYS.has(k))), [globalRates]);
+  const globalDisplay = useMemo(() => displayFor(items[0] ?? null, items[0] ? sheets.get(items[0].product.id) ?? null : null, globalOnly),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, sheets, globalOnly]);
+  const marginShown = globalRates.marginPct ?? globalDisplay.marginPct ?? String(DEFAULT_MARGIN_PCT);
 
-  const setR = (k: string) => (v: string) => {
-    if (PRODUCT_KEYS.has(k) && activeItem) setOv(activeItem.product.id, (o) => ({ ...o, rates: applyEdit(o.rates, k, v) }));
-    else setGlobalRates((p) => applyEdit(p, k, v));
-  };
-  const chooseLine = (v: string) => {
-    if (!activeItem) return;
-    setOv(activeItem.product.id, (o) => { const r = { ...o.rates }; for (const k of LABOUR_FIELDS) delete r[k]; return { ...o, rates: r, line: v }; });
-  };
+  const setGlobal = (k: string, v: string) => setGlobalRates((p) => applyEdit(p, k, v));
+  const setProduct = (id: number, k: string, v: string) => setOv(id, (o) => ({ ...o, rates: applyEdit(o.rates, k, v) }));
+  const chooseLine = (id: number, v: string) => setOv(id, (o) => { const r = { ...o.rates }; for (const k of LABOUR_FIELDS) delete r[k]; return { ...o, rates: r, line: v }; });
   const clearDistribution = () => setGlobalRates((p) => { const n = { ...p }; for (const k of DIST_KEYS) delete n[k]; return n; });
   const pickRoute = (v: string, manual = true) => { setRoute(v); setRouteManual(manual); clearDistribution(); };
   const chooseClient = (v: number | null) => { setClient(v); setStore(null); setRouteManual(false); setResult(null); };
   const chooseStore = (v: number | null) => { setStore(v); setRouteManual(false); setResult(null); };
+  const routeNames = useMemo(() => (logistics?.routes ?? []).map((r) => r.route), [logistics]);
   const routeOptions = useMemo(() => [
-    ...(result?.logistics.clientAverage ? [{ value: CLIENT_AVERAGE_ROUTE, label: `Medie client (toate magazinele) · ${n2(result.logistics.clientAverage.perPallet)} lei/palet` }] : []),
-    ...(result?.logistics.routes ?? []).map((r) => ({ value: r.route, label: `${r.route} · ${r.perPallet != null ? `${n2(r.perPallet)} lei/palet` : r.perTrip != null ? `${n2(r.perTrip)} lei/cursă, paleți necunoscuți` : "fără curse"}` })),
+    ...(logistics?.clientAverage ? [{ value: CLIENT_AVERAGE_ROUTE, label: `Medie client (toate magazinele) · ${n2(logistics.clientAverage.perPallet)} lei/palet` }] : []),
+    ...(logistics?.routes ?? []).map((r) => ({ value: r.route, label: `${r.route} · ${r.perPallet != null ? `${n2(r.perPallet)} lei/palet` : r.perTrip != null ? `${n2(r.perTrip)} lei/cursă, fără paleți atribuiți` : "fără curse"}` })),
     { value: "România", label: "Media curselor interne" },
-  ], [result]);
+  ], [logistics]);
   const clientName = clients.find((c) => c.id === client)?.name ?? "";
   const storeName = stores.find((x) => x.id === store)?.name ?? result?.logistics.store?.name;
   const routeLabel = (r: string) => (r === CLIENT_AVERAGE_ROUTE ? "medie client (toate magazinele, ponderat cu paleții)" : r);
   const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
+  const multiStore = !!result && client != null && store == null && result.stores.length > 1;
 
-  // One row per product of the list.
+  // Per store, one product: the store's own cursă against what the store actually pays.
+  const storeRowsFor = (it: Item) => {
+    if (!multiStore) return [];
+    return storesNow.map((st) => {
+      const r = st.route && logistics?.distribution?.[st.route] ? st.route : null;
+      const c = r ? compute(it, buildConfig(it, r)) : null;
+      const sale = it.storeSales.find((x) => x.pid === st.pid) ?? null;
+      const pr = c && c.s.complete && sale?.price != null ? profitAt(c.s, sale.price) : null;
+      return { ...st, route: r, sheet: c?.s ?? null, perPallet: c?.effective.distributionPerPallet ?? null, sale, profit: pr };
+    }).sort((a, b) => (b.sale?.qty ?? 0) - (a.sale?.qty ?? 0));
+  };
+  // Every store across the whole list: which store brings profit and which does not.
+  const storeTotals = useMemo(() => {
+    if (!multiStore) return [];
+    return storesNow.map((st) => {
+      const r = st.route && logistics?.distribution?.[st.route] ? st.route : null;
+      let sales = 0, profit = 0, qty = 0, incomplete = 0;
+      for (const it of items) {
+        const sale = it.storeSales.find((x) => x.pid === st.pid);
+        if (!sale || sale.price == null) continue;
+        const c = r ? compute(it, buildConfig(it, r)) : null;
+        if (!c || !c.s.complete) { incomplete++; continue; }
+        const p = profitAt(c.s, sale.price);
+        sales += sale.value; profit += p.profit * sale.qty; qty += sale.qty;
+      }
+      return { ...st, route: r, sales, profit, qty, incomplete, pct: sales > 0 ? (profit / sales) * 100 : null };
+    }).sort((a, b) => b.sales - a.sales);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multiStore, storesNow, logistics, items, sheets]);
+
   const listRows = useMemo(() => items.map((it) => {
-    const c = sheets.get(it.product.id);
+    const c = sheets.get(it.product.id) ?? null;
     const s = c?.s ?? null;
     const sale = it.recentSale;
     const pr = s && s.complete && sale ? profitAt(s, sale.price) : null;
-    return { it, s, sale, profit: pr };
+    return { it, c, s, sale, profit: pr };
   }), [items, sheets]);
   const totals = useMemo(() => {
     const rows = listRows.filter((r) => r.profit && r.sale);
     const sales = rows.reduce((t, r) => t + r.sale!.value, 0), profit = rows.reduce((t, r) => t + r.profit!.profit * r.sale!.qty, 0);
     return rows.length ? { sales, profit, pct: sales > 0 ? (profit / sales) * 100 : null, n: rows.length } : null;
   }, [listRows]);
+  const incompleteCount = listRows.filter((r) => !r.s?.complete).length;
 
-  const [saving, setSaving] = useState(false);
-  const saveLive = async () => {
-    if (!activeItem || !sheet) return;
+  const [saving, setSaving] = useState<number | null>(null);
+  const saveLive = async (it: Item) => {
     const margin = num(marginShown || "0");
     const where = storeName && store != null ? storeName : clientName;
-    setSaving(true);
+    setSaving(it.product.id);
     try {
       const r = await argusFetch<any>("live_save", {}, {
-        kind: "price", articolId: activeItem.product.id, partnerId: client, storeId: store, scope: "central", marginPct: margin, config: buildConfig(activeItem), year, month, product: activeItem.product.name, client: where,
-        title: `Fișă preț — ${activeItem.product.name}${where ? ` · ${where}` : ""}${margin ? ` · marjă ${margin}%` : ""}`,
+        kind: "price", articolId: it.product.id, partnerId: client, storeId: store, scope: "central", routeOverrides, marginPct: margin, config: buildConfig(it), year, month, product: it.product.name, client: where,
+        title: `Fișă preț — ${it.product.name}${where ? ` · ${where}` : ""}${margin ? ` · marjă ${margin}%` : ""}`,
       });
       toast({ title: "Fișă live salvată", description: r.firstRunOk ? "O găsești în „Agenți & Rapoarte”. Actualizează oricând, fără credite AI." : "Salvată; prima recalculare a eșuat, încearcă Actualizează." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Nu s-a putut salva", description: e.message });
-    } finally { setSaving(false); }
+    } finally { setSaving(null); }
   };
 
-  const sheetRows = (it: Item, c: NonNullable<ReturnType<typeof compute>>) => {
+  const sheetRows = (it: Item, c: Computed) => {
     const n = c.s.unitsPerCase;
     const rows: (string | number)[][] = [
       ["Fișă preț", it.product.name], ["Client", clientName || "Toți clienții"], ["Magazin", store != null ? storeName ?? "" : "Toate magazinele"],
-      ["Perioadă", `${String(month).padStart(2, "0")}/${year}`], ["Bucăți / bax", n], ["Linie de producție", c.effective.labourLine ?? "nealeasă"],
-      ["Cursă distribuție", routeLabel(route)], ["Marjă brută %", num(marginShown || "0")], [],
+      ["Perioadă", `${String(month).padStart(2, "0")}/${year}`], ["Bucăți / bax", n], ["Bucăți / palet", c.effective.piecesPerPallet ?? ""], ["Linie de producție", c.effective.labourLine ?? "nealeasă"],
+      ["Sursă manoperă", it.suggestedLabourSource ?? ""], ["Cursă distribuție", routeLabel(route)], ["Marjă brută %", num(marginShown || "0")], ["Taxe client %", r4(c.s.feePct)], [],
       ["Componentă", "Tip", "UM", "Rețetă", "PT %", "Preț (lei/UM)", "Valoare (lei/bax)", "Valoare (lei/buc)", "Sursă"],
     ];
     for (const comp of c.comps) {
       const l = c.s.lines.find((x) => x.label === comp.name);
-      rows.push([comp.name, comp.kind === "mp" ? "Materie primă" : "Ambalaj", comp.unit, r4(comp.qty), comp.lossPct, r4(comp.price ?? 0), r4(l?.value ?? 0), r4((l?.value ?? 0) / n), comp.priceSource]);
+      rows.push([comp.name, comp.kind === "mp" ? "Materie primă" : "Ambalaj", comp.unit, r4(comp.qty), comp.lossPct, r4(comp.price ?? 0), r4(l?.value ?? 0), r4((l?.value ?? 0) / n), [comp.priceSource, comp.lossSource, comp.palletSource].filter(Boolean).join(" · ")]);
     }
     for (const l of c.s.lines.filter((x) => !c.comps.some((k) => k.name === x.label))) rows.push([l.label, "", "", "", "", "", r4(l.value), r4(l.value / n), l.detail]);
     rows.push([], ["Rezultat", "", "", "", "", "", "lei/bax", "lei/buc"]);
     for (const [l, b, p] of [
+      ["Materii prime", c.s.rawMaterial, c.s.rawMaterial / n], ["Transport aprovizionare", c.s.supplyTransport, c.s.supplyTransport / n], ["Ambalaje", c.s.packaging, c.s.packaging / n],
+      ["Manoperă + regie", c.s.labour + c.s.utilities, (c.s.labour + c.s.utilities) / n],
       ["Cost producție", c.s.productionCost, c.s.perPiece.productionCost], ["Marjă brută", c.s.grossMargin, c.s.perPiece.grossMargin],
       ["Preț poartă fabrică", c.s.factoryGate, c.s.perPiece.factoryGate], ["Transport distribuție", c.s.logistics, c.s.perPiece.logistics],
       ["Taxe client", c.s.clientFees, c.s.perPiece.fees], ["Preț propus client", c.s.clientPrice, c.s.perPiece.clientPrice], ["Preț propus EUR", c.s.clientPriceEur, c.s.perPiece.clientPriceEur],
     ] as [string, number, number][]) rows.push([l, "", "", "", "", "", r4(b), r4(p)]);
-    if (!c.s.complete) rows.push([], ["Fișă incompletă", c.s.missingInputs.join("; ")]);
+    if (it.recentSale && c.s.complete) {
+      const p = profitAt(c.s, it.recentSale.price);
+      rows.push([], ["Preț vânzare actual (90 zile, lei/buc)", r4(it.recentSale.price)], ["Bucăți vândute 90 zile", Math.round(it.recentSale.qty)], ["Profit real (lei/buc)", r4(p.profit)], ["Profit real %", p.pct != null ? Math.round(p.pct * 10) / 10 : ""]);
+    }
+    if (!c.s.complete) rows.push([], ["Fișă incompletă", [...c.s.missingInputs, ...c.s.missingPrices].join("; ")]);
     if (it.warnings.length) { rows.push([], ["Avertismente"]); for (const w of it.warnings) rows.push([w]); }
     return rows;
   };
@@ -366,27 +426,178 @@ export default function PriceCalculator() {
     const ws = XLSX.utils.aoa_to_sheet(head);
     ws["!cols"] = [{ wch: 40 }, ...Array(14).fill({ wch: 14 })];
     XLSX.utils.book_append_sheet(wb, ws, "Listă prețuri");
-    if (result.stores.length > 1 && store == null) {
-      const rows: (string | number)[][] = [["Produs", "Magazin", "Cursă", "Distribuție (lei/palet)", "Distribuție (lei/buc)", "Preț propus (lei/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profit real %"]];
-      for (const it of items) for (const st of result.stores) {
-        const r = st.route && result.logistics.distribution?.[st.route] ? st.route : null;
-        const c = r ? compute(it, buildConfig(it, r)) : null;
-        const sale = it.storeSales.find((x) => x.pid === st.pid);
-        const pr = c && c.s.complete && sale?.price != null ? profitAt(c.s, sale.price) : null;
-        if (!sale && !c) continue;
-        rows.push([it.product.name, st.name, r ?? "fără cursă", c?.effective.distributionPerPallet != null ? r4(c.effective.distributionPerPallet) : "", c ? r4(c.s.perPiece.logistics) : "", c?.s.complete ? r4(c.s.perPiece.clientPrice) : "",
-          sale?.price != null ? r4(sale.price) : "", sale ? Math.round(sale.qty) : "", pr ? r4(pr.profit) : "", pr?.pct != null ? Math.round(pr.pct * 10) / 10 : ""]);
+    if (multiStore) {
+      const rows: (string | number)[][] = [["Magazin", "Cursă", "Paleți livrați 90 zile", "Vânzări 90 zile (lei)", "Profit real 90 zile (lei)", "Profit real %"]];
+      for (const st of storeTotals) rows.push([st.name, st.route ?? "fără cursă", r4(st.pallets), r4(st.sales), r4(st.profit), st.pct != null ? Math.round(st.pct * 10) / 10 : ""]);
+      rows.push([], ["Produs", "Magazin", "Cursă", "Distribuție (lei/palet)", "Distribuție (lei/buc)", "Preț propus (lei/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profit real %"]);
+      for (const it of items) for (const st of storeRowsFor(it)) {
+        if (!st.sale && !st.sheet) continue;
+        rows.push([it.product.name, st.name, st.route ?? "fără cursă", st.perPallet != null ? r4(st.perPallet) : "", st.sheet ? r4(st.sheet.perPiece.logistics) : "", st.sheet?.complete ? r4(st.sheet.perPiece.clientPrice) : "",
+          st.sale?.price != null ? r4(st.sale.price) : "", st.sale ? Math.round(st.sale.qty) : "", st.profit ? r4(st.profit.profit) : "", st.profit?.pct != null ? Math.round(st.profit.pct * 10) / 10 : ""]);
       }
       const ws2 = XLSX.utils.aoa_to_sheet(rows);
       ws2["!cols"] = [{ wch: 36 }, { wch: 40 }, ...Array(8).fill({ wch: 14 })];
       XLSX.utils.book_append_sheet(wb, ws2, "Rentabilitate magazine");
     }
-    if (activeItem && sheet) {
-      const ws3 = XLSX.utils.aoa_to_sheet(sheetRows(activeItem, sheet));
-      ws3["!cols"] = [{ wch: 36 }, { wch: 14 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 60 }];
-      XLSX.utils.book_append_sheet(wb, ws3, "Fișă produs");
-    }
+    // One price sheet per product.
+    listRows.forEach((r, i) => {
+      if (!r.c) return;
+      const ws3 = XLSX.utils.aoa_to_sheet(sheetRows(r.it, r.c));
+      ws3["!cols"] = [{ wch: 36 }, { wch: 14 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 70 }];
+      XLSX.utils.book_append_sheet(wb, ws3, sheetName(i, r.it.product.name));
+    });
     XLSX.writeFile(wb, `Lista preturi - ${(clientName || "toti clientii").replace(/[\\/:*?"<>|]/g, "")}.xlsx`);
+  };
+
+  /** Full price breakdown of one product, opened under its row; every value can be changed for this product. */
+  const renderSheet = (it: Item, c: Computed | null) => {
+    const id = it.product.id, o = ov(id);
+    if (!c) return <p className="p-3 text-sm text-destructive">Parametri invalizi: valori pozitive, pierderi și marjă sub 100%, bucăți/palet și bucăți/bax peste zero.</p>;
+    const s = c.s, n = s.unitsPerCase;
+    const line = o.line ?? it.defaults.labourLine ?? "";
+    const productRates = Object.fromEntries(Object.entries(o.rates).filter(([k]) => PRODUCT_KEYS.has(k)));
+    const values = displayFor(it, c, productRates);
+    const edited = Object.keys(o.rates).length + Object.keys(o.prices).length + Object.keys(o.losses).length + Object.keys(o.quantities).length + Object.keys(o.palletKg).length + (o.line != null ? 1 : 0);
+    const rows = storeRowsFor(it);
+    const p = it.recentSale && s.complete ? profitAt(s, it.recentSale.price) : null;
+    const parts: Array<[string, number, string]> = [
+      ["Materii prime", s.rawMaterial, ""], ["Transport aprovizionare", s.supplyTransport, ""], ["Ambalaje", s.packaging, ""], ["Manoperă + regie", s.labour + s.utilities, ""],
+      ...(s.techLoss ? [["Pierdere scenariu", s.techLoss, ""] as [string, number, string]] : []),
+      ["Cost producție", s.productionCost, "font-semibold"], [`Marjă brută (${marginShown}%)`, s.grossMargin, "text-primary"], ["Preț poartă fabrică", s.factoryGate, ""],
+      [`Distribuție · ${routeLabel(route)}`, s.logistics, ""], [`Taxe client (${n2(s.feePct, 2)}%)`, s.clientFees, ""], ["Preț propus client", s.clientPrice, "font-bold"],
+    ];
+    return (
+      <div className="space-y-4 border-l-2 border-primary bg-muted/20 p-3">
+        {it.components.filter((x) => x.priceSafety?.suspect).map((x) => x.priceSafety ? <ReceiptPriceAlert key={x.id} safety={x.priceSafety} name={x.name} /> : null)}
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={s.complete ? "secondary" : "destructive"}>{s.complete ? "Fișă completă" : "Fișă incompletă"}</Badge>
+          <span className="text-xs text-muted-foreground">bax {n} buc · {c.effective.piecesPerPallet ? `${n2(c.effective.piecesPerPallet, 0)} buc/palet` : "buc/palet lipsă"} · {line || "linie nealeasă"}</span>
+          <div className="ml-auto flex gap-2">
+            {edited > 0 && <Button size="sm" variant="ghost" onClick={() => setOver((x) => { const nx = { ...x }; delete nx[id]; return nx; })}><RotateCcw className="mr-1 h-3.5 w-3.5" />Anulează modificările ({edited})</Button>}
+            <Button size="sm" variant="secondary" disabled={saving === id} onClick={() => saveLive(it)}>
+              {saving === id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1 h-3.5 w-3.5" />}Salvează fișa ca live
+            </Button>
+          </div>
+        </div>
+        {!s.complete && <p className="text-sm text-destructive">De completat: {[...s.missingInputs, ...s.missingPrices.map((x) => `preț ${x}`)].join("; ")}</p>}
+        {it.warnings.map((w) => <p key={w} className="text-sm text-destructive">{w}</p>)}
+
+        <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {parts.map(([l, bax, cls]) => (
+            <div key={l} className="rounded-md border bg-background p-2">
+              <div className="text-[11px] text-muted-foreground">{l}</div>
+              <div className={`tabular-nums ${cls}`}>{n2(bax / n, 4)} <span className="text-[11px] text-muted-foreground">lei/buc</span></div>
+              <div className="text-[11px] tabular-nums text-muted-foreground">{n2(bax)} lei/bax · {s.clientPrice > 0 ? n2((bax / s.clientPrice) * 100, 1) : "—"}%</div>
+            </div>
+          ))}
+          <div className="rounded-md border bg-background p-2">
+            <div className="text-[11px] text-muted-foreground">Preț propus EUR</div>
+            <div className="tabular-nums">{n2(s.perPiece.clientPriceEur, 4)} <span className="text-[11px] text-muted-foreground">€/buc</span></div>
+            <div className="text-[11px] tabular-nums text-muted-foreground">curs {n2(s.eurEffective, 4)} cu siguranță</div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[820px] text-sm">
+            <thead className="border-b text-left text-xs text-muted-foreground">
+              <tr><th className="py-2">Componentă (rețetă Senior pe bax)</th><th className="text-right">Cantitate</th><th className="text-right">PT %</th><th className="text-right">Cu pierdere</th><th className="text-right">Preț (lei/UM)</th><th className="text-right">kg / palet MP</th><th className="text-right">lei/bax</th><th className="text-right">lei/buc</th></tr>
+            </thead>
+            <tbody>
+              {c.comps.map((x) => {
+                const l = s.lines.find((y) => y.label === x.name);
+                const eff = x.kind === "mp" ? x.qty / (1 - Math.min(x.lossPct, 95) / 100) : x.qty * (1 + x.lossPct / 100);
+                return (
+                  <tr key={x.id} className="border-b last:border-0">
+                    <td className="py-1.5">
+                      <div className={`font-medium ${x.priceSafety?.suspect ? 'text-crm-warning' : ''}`}>{x.name}{x.priceSafety?.suspect ? ' · NIR suspect' : ''}</div>
+                      <div className="text-[11px] text-muted-foreground">{x.kind === "mp" ? "Materie primă" : "Ambalaj"} · {[x.priceSource, x.lossSource, x.palletSource].filter(Boolean).join(" · ")}</div>
+                    </td>
+                    <td className="text-right"><Input aria-label={`Cantitate ${x.name} (${x.unit})`} className="ml-auto h-8 w-24 text-right" value={o.quantities[x.id] ?? String(it.components.find((k) => k.id === x.id)?.qty ?? x.qty)} onChange={(e) => setOv(id, (q) => ({ ...q, quantities: { ...q.quantities, [x.id]: e.target.value } }))} /><div className="text-[10px] text-muted-foreground">{x.unit}</div></td>
+                    <td className="text-right"><Input aria-label={`PT ${x.name}`} className="ml-auto h-8 w-16 text-right" value={o.losses[x.id] ?? String(it.components.find((k) => k.id === x.id)?.lossPct ?? x.lossPct)} onChange={(e) => setOv(id, (q) => ({ ...q, losses: { ...q.losses, [x.id]: e.target.value } }))} /></td>
+                    <td className="text-right tabular-nums">{n2(eff, 4)}</td>
+                    <td className="text-right"><Input aria-label={`Preț ${x.name}`} className="ml-auto h-8 w-24 text-right" value={o.prices[x.id] ?? (x.price == null ? "" : String(Math.round(x.price * 10000) / 10000))} onChange={(e) => setOv(id, (q) => ({ ...q, prices: { ...q.prices, [x.id]: e.target.value } }))} /></td>
+                    <td>{x.kind === "mp" ? <Input aria-label={`kg/palet ${x.name}`} className="ml-auto h-8 w-20 text-right" value={o.palletKg[x.id] ?? (x.kgPerPallet == null ? "" : String(x.kgPerPallet))} onChange={(e) => setOv(id, (q) => ({ ...q, palletKg: { ...q.palletKg, [x.id]: e.target.value } }))} /> : <span className="block text-right">—</span>}</td>
+                    <td className="text-right font-medium tabular-nums">{n2(l?.value ?? 0, 4)}</td>
+                    <td className="text-right tabular-nums text-muted-foreground">{n2((l?.value ?? 0) / n, 4)}</td>
+                  </tr>
+                );
+              })}
+              {s.lines.filter((l) => !c.comps.some((x) => x.name === l.label)).map((l) => (
+                <tr key={l.label} className="border-b last:border-0">
+                  <td className="py-1.5" colSpan={6}><div className="font-medium">{l.label}</div><div className="text-[11px] text-muted-foreground">{l.detail}</div></td>
+                  <td className="text-right font-medium tabular-nums">{n2(l.value, 4)}</td>
+                  <td className="text-right tabular-nums text-muted-foreground">{n2(l.value / n, 4)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <details className="rounded-md border bg-background p-3">
+          <summary className="cursor-pointer text-sm font-medium">Parametri produs · bucăți, palet, linie și manoperă</summary>
+          {it.suggestedLabourSource && <p className="mt-2 text-[11px] text-muted-foreground">Manoperă: {it.suggestedLabourSource}</p>}
+          <div className="mt-3"><PriceParameters scope="product" values={values} basis={basis} setBasis={setBasis} setValue={(k, v) => setProduct(id, k, v)} mode={mode} setMode={setMode} route={route} routes={routeOptions} setRoute={(v) => pickRoute(v)} line={line} setLine={(v) => chooseLine(id, v)} /></div>
+        </details>
+
+        <div className="rounded-md border bg-background p-3 text-sm">
+          {p && it.recentSale ? (
+            <div className="grid gap-2 sm:grid-cols-4">
+              <div><div className="text-xs text-muted-foreground">Preț vânzare actual (90 zile)</div><div className="font-semibold tabular-nums">{n2(it.recentSale.price, 4)} lei/buc</div><div className="text-xs text-muted-foreground">{n2(it.recentSale.qty, 0)} buc vândute</div></div>
+              <div><div className="text-xs text-muted-foreground">Cost total (producție + distribuție + taxe)</div><div className="font-semibold tabular-nums">{n2(p.cost + p.fees, 4)} lei/buc</div></div>
+              <div><div className="text-xs text-muted-foreground">Profit real</div><div className={`font-semibold tabular-nums ${profitClass(p.profit)}`}>{n2(p.profit, 4)} lei/buc · {n2(p.pct, 1)}%</div><div className="text-xs text-muted-foreground">{n2(p.profit * it.recentSale.qty)} lei în 90 de zile</div></div>
+              <div><div className="text-xs text-muted-foreground">Preț actual − preț propus</div><div className={`font-semibold tabular-nums ${profitClass(it.recentSale.price - s.perPiece.clientPrice)}`}>{n2(it.recentSale.price - s.perPiece.clientPrice, 4)} lei/buc</div><div className="text-xs text-muted-foreground">pozitiv = vinzi peste prețul propus</div></div>
+            </div>
+          ) : <p className="text-muted-foreground">{!s.complete ? "Profitul real apare după completarea fișei." : `Nu există vânzări ${client ? "către acest client" : "pentru acest produs"} în ultimele 90 de zile.`}</p>}
+          {it.priceList && <Badge variant="secondary" className="mt-2">Listă de preț Senior: {n2(it.priceList.price, 4)} {it.priceList.currency} · {it.priceList.list} (din {it.priceList.since})</Badge>}
+        </div>
+
+        {rows.length > 0 && (
+          <details className="rounded-md border bg-background p-3">
+            <summary className="cursor-pointer text-sm font-medium">Rentabilitate pe magazine · {it.product.name}</summary>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full min-w-[860px] text-xs">
+                <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Magazin</th><th>Cursă</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Distribuție lei/buc</th><th className="text-right">Preț propus</th><th className="text-right">Preț actual</th><th className="text-right">Buc 90 zile</th><th className="text-right">Profit lei/buc</th><th className="text-right">Profit %</th></tr></thead>
+                <tbody>
+                  {rows.map((st) => (
+                    <tr key={st.pid} className="border-b last:border-0">
+                      <td className="py-1">{st.name}</td><td>{st.route ?? <span className="text-destructive">fără cursă</span>}</td>
+                      <td className="text-right tabular-nums">{n2(st.perPallet)}</td><td className="text-right tabular-nums">{st.sheet ? n2(st.sheet.perPiece.logistics, 4) : "—"}</td>
+                      <td className="text-right tabular-nums">{st.sheet?.complete ? n2(st.sheet.perPiece.clientPrice, 4) : "—"}</td>
+                      <td className="text-right tabular-nums">{st.sale?.price != null ? n2(st.sale.price, 4) : <span className="text-muted-foreground">fără vânzări</span>}</td>
+                      <td className="text-right tabular-nums">{st.sale ? n2(st.sale.qty, 0) : "—"}</td>
+                      <td className={`text-right font-semibold tabular-nums ${profitClass(st.profit?.profit)}`}>{st.profit ? n2(st.profit.profit, 4) : "—"}</td>
+                      <td className={`text-right tabular-nums ${profitClass(st.profit?.profit)}`}>{st.profit?.pct != null ? `${n2(st.profit.pct, 1)}%` : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        )}
+
+        {it.salesHistory.length > 0 && (
+          <details className="rounded-md border bg-background p-3">
+            <summary className="cursor-pointer text-sm font-medium">Istoric vânzări lunar și profit la prețul de atunci</summary>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full min-w-[520px] text-xs">
+                <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Luna</th><th className="text-right">Bucăți</th><th className="text-right">Valoare (lei)</th><th className="text-right">Preț mediu (lei/buc)</th><th className="text-right">Profit real (lei/buc)</th></tr></thead>
+                <tbody>
+                  {it.salesHistory.map((h) => {
+                    const hp = h.price != null && s.complete ? profitAt(s, h.price) : null;
+                    return (
+                      <tr key={h.month} className="border-b last:border-0">
+                        <td className="py-1">{h.month}</td><td className="text-right tabular-nums">{n2(h.qty, 0)}</td><td className="text-right tabular-nums">{n2(h.value)}</td>
+                        <td className="text-right tabular-nums">{n2(h.price, 4)}</td><td className={`text-right tabular-nums ${profitClass(hp?.profit)}`}>{hp ? n2(hp.profit, 4) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -395,7 +606,7 @@ export default function PriceCalculator() {
         <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><Calculator className="h-5 w-5" /> Calculator preț · listă de prețuri client</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Picker label="Client (partener central)" options={clients.map((c) => ({ id: c.id, name: c.stores > 1 ? `${c.name} · ${c.stores} magazine` : c.name }))} value={client} onChange={chooseClient} placeholder="Toți clienții" allowAll="Toți clienții (fără taxe client)" />
+            <Picker label="Client (partener central, după cod fiscal)" options={clients.map((c) => ({ id: c.id, name: c.stores > 1 ? `${c.name} · ${c.stores} magazine` : c.name }))} value={client} onChange={chooseClient} placeholder="Toți clienții" allowAll="Toți clienții (fără taxe client)" />
             {client != null && stores.length > 1 && (
               <Picker label="Magazin / punct de livrare" options={stores.map((x) => ({ id: x.id, name: `${x.name}${x.route ? ` · cursa ${x.route}` : " · cursă de ales"}` }))} value={store} onChange={chooseStore} placeholder="Toate magazinele" allowAll="Toate magazinele (medie client)" />
             )}
@@ -421,7 +632,7 @@ export default function PriceCalculator() {
                 </select>
               </div>
             </div>
-            <NumField label="Marjă brută %" value={marginShown} onChange={setR("marginPct")} hint={`Implicit ${DEFAULT_MARGIN_PCT}% · din prețul de vânzare: cost ÷ (1 − marjă)`} />
+            <NumField label="Marjă brută %" value={marginShown} onChange={(v) => setGlobal("marginPct", v)} hint={`Implicit ${DEFAULT_MARGIN_PCT}% · din prețul de vânzare: cost ÷ (1 − marjă)`} />
             <div className="flex items-end">
               <Button className="w-full" onClick={run} disabled={!selected.length || loading}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}Calculează {selected.length > 1 ? `${selected.length} produse` : ""}
@@ -437,30 +648,30 @@ export default function PriceCalculator() {
             </div>
           )}
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {loading && <p className="text-sm text-muted-foreground">Citesc rețetele, prețurile NIR și ultimele facturi de transport din Senior pentru {selected.length} produse…</p>}
+          {loading && <p className="text-sm text-muted-foreground">Citesc rețetele, prețurile NIR, ultimele facturi de transport, taxele clientului și viteza reală din Producție pentru {selected.length} produse…</p>}
         </CardContent>
       </Card>
 
-      {result && (
+      {result && logistics && (
         <>
-          <div className="border-y py-3 text-xs text-muted-foreground space-y-1">
-            <p>Materii prime: {mode === "annual" ? "media anuală ponderată" : "media ponderată ultimele 7 zile"}, până la {result.period.endDay} exclusiv. Ambalaje: ultima intrare NIR.</p>
-            <p>
-              Transport — ultimele prețuri, facturi {result.logistics.closedStart} – {result.logistics.closedEnd} exclusiv. Aprovizionare: {n2(result.logistics.supply.total)} lei ÷ {result.logistics.supply.trucks} camioane = <b>{n2(result.logistics.supply.costPerTruck)} lei/camion</b>, încărcare {n2(result.logistics.supply.palletsPerTruck, 1)} paleți/camion ({n2(result.logistics.supply.pallets, 0)} paleți NIR ÷ {result.logistics.supply.loadTrucks} camioane, {result.logistics.loadWindow.start} – {result.logistics.loadWindow.end})
-              {result.logistics.lastTrucks.length ? ` · ultimele facturi: ${result.logistics.lastTrucks.map((t) => `${t.day.slice(5)} ${n2(t.price, 0)} lei`).join(", ")}` : ""}.
-              {" "}Distribuție: cursa {routeLabel(route)}{storeName && store != null ? ` (${storeName})` : ""}. Manoperă: tabel octombrie 2026 (directă + regie fabrică 41%).
-            </p>
-            <p>{result.logistics.note}</p>
-            {result.warnings.map((w) => <p key={w} className="text-destructive">{w}</p>)}
-          </div>
+          {(result.warnings.length > 0 || overridesDirty) && (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+              <p className="mb-1 flex items-center gap-2 font-medium text-destructive"><AlertTriangle className="h-4 w-4" />De verificat</p>
+              {result.warnings.map((w) => <p key={w} className="text-destructive">{w}</p>)}
+              {overridesDirty && <div className="mt-2 flex flex-wrap items-center gap-2"><span>Ai schimbat cursele punctelor de livrare; media clientului e deja actualizată, tarifele pe cursă se refac la recalculare.</span><Button size="sm" onClick={run} disabled={loading}><RefreshCw className="mr-1 h-3.5 w-3.5" />Recalculează tarifele curselor</Button></div>}
+            </div>
+          )}
 
           <Card>
             <CardHeader className="pb-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">Listă de prețuri · {clientName || "toți clienții"}{store != null && storeName ? ` · ${storeName}` : client != null && result.stores.length > 1 ? " · toate magazinele (medie)" : ""}</CardTitle>
-                <Button size="sm" variant="outline" disabled={!items.length} onClick={exportExcel}><Download className="mr-1 h-3.5 w-3.5" />Export Excel</Button>
+                <CardTitle className="text-base">Listă de prețuri · {clientName || "toți clienții"}{store != null && storeName ? ` · ${storeName}` : multiStore ? " · toate magazinele (medie)" : ""}</CardTitle>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setOpen(open.size ? new Set() : new Set(items.map((i) => i.product.id)))}>{open.size ? "Închide toate fișele" : "Deschide toate fișele"}</Button>
+                  <Button size="sm" variant="outline" disabled={!items.length} onClick={exportExcel}><Download className="mr-1 h-3.5 w-3.5" />Export Excel</Button>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">Marja brută este adaosul tău peste cost la prețul propus. Profitul real este ce rămâne la prețul cu care vinzi acum (media ultimelor 90 de zile), după cost producție, distribuție și taxe client. Clic pe un produs pentru fișa detaliată.</p>
+              <p className="text-xs text-muted-foreground">Clic pe un produs ca să-i vezi structura prețului și să modifici orice valoare doar pentru el. Marja brută e adaosul peste cost la prețul propus; profitul real e ce rămâne la prețul cu care vinzi acum (media ultimelor 90 de zile). {incompleteCount ? <span className="text-destructive">{incompleteCount} fișe incomplete.</span> : "Toate fișele sunt complete."}</p>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <table className="w-full min-w-[1100px] text-sm">
@@ -473,23 +684,29 @@ export default function PriceCalculator() {
                   <tr className="text-[10px]"><th /><th className="text-right">lei/buc</th><th className="text-right">lei/buc</th><th className="text-right">lei/buc</th><th className="border-l pl-2 text-right">lei/buc · %</th><th className="text-right">lei/buc</th><th className="text-right">lei/bax</th><th className="border-l pl-2 text-right">lei/buc · 90 zile</th><th className="text-right">lei/buc</th><th /></tr>
                 </thead>
                 <tbody>
-                  {listRows.map(({ it, s, sale, profit }) => (
-                    <tr key={it.product.id} onClick={() => setActive(it.product.id)} className={`cursor-pointer border-b last:border-0 hover:bg-muted/50 ${activeItem?.product.id === it.product.id ? "bg-muted font-medium" : ""}`}>
-                      <td className="py-1.5">
-                        <div>{it.product.name}</div>
-                        <div className="text-[11px] text-muted-foreground">{s?.unitsPerCase ?? it.product.unitsPerCase} buc/bax{s && !s.complete ? " · fișă incompletă" : ""}{it.warnings.length ? " · NIR suspect" : ""}</div>
-                      </td>
-                      <td className="text-right tabular-nums">{s ? n2(s.perPiece.productionCost, 4) : "—"}</td>
-                      <td className="text-right tabular-nums">{s ? n2(s.perPiece.logistics, 4) : "—"}</td>
-                      <td className="text-right tabular-nums">{s ? n2(s.perPiece.fees, 4) : "—"}</td>
-                      <td className="border-l pl-2 text-right tabular-nums">{s?.complete ? <>{n2(s.perPiece.grossMargin, 4)} <span className="text-muted-foreground">· {marginShown}%</span></> : "—"}</td>
-                      <td className="text-right font-semibold tabular-nums">{s?.complete ? n2(s.perPiece.clientPrice, 4) : <span className="text-destructive">incomplet</span>}</td>
-                      <td className="text-right tabular-nums">{s?.complete ? n2(s.clientPrice) : "—"}</td>
-                      <td className="border-l pl-2 text-right tabular-nums">{sale ? <>{n2(sale.price, 4)} <span className="text-[11px] text-muted-foreground">({n2(sale.qty, 0)} buc)</span></> : <span className="text-muted-foreground">fără vânzări</span>}</td>
-                      <td className={`text-right font-semibold tabular-nums ${profitClass(profit?.profit)}`}>{profit ? n2(profit.profit, 4) : "—"}</td>
-                      <td className={`text-right tabular-nums ${profitClass(profit?.profit)}`}>{profit?.pct != null ? `${n2(profit.pct, 1)}%` : "—"}</td>
-                    </tr>
-                  ))}
+                  {listRows.map(({ it, c, s, sale, profit }) => {
+                    const isOpen = open.has(it.product.id);
+                    return (
+                      <Fragment key={it.product.id}>
+                        <tr onClick={() => toggle(it.product.id)} aria-expanded={isOpen} className={`cursor-pointer border-b hover:bg-muted/50 ${isOpen ? "bg-muted font-medium" : ""}`}>
+                          <td className="py-1.5">
+                            <div className="flex items-center gap-1">{isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}{it.product.name}</div>
+                            <div className="pl-5 text-[11px] text-muted-foreground">{s?.unitsPerCase ?? it.product.unitsPerCase} buc/bax{s && !s.complete ? <span className="text-destructive"> · incomplet: {[...s.missingInputs, ...s.missingPrices].slice(0, 2).join("; ")}</span> : ""}{it.warnings.length ? " · de verificat" : ""}{Object.keys(ov(it.product.id).rates).length + Object.keys(ov(it.product.id).prices).length + Object.keys(ov(it.product.id).quantities).length + Object.keys(ov(it.product.id).losses).length > 0 ? " · modificat" : ""}</div>
+                          </td>
+                          <td className="text-right tabular-nums">{s ? n2(s.perPiece.productionCost, 4) : "—"}</td>
+                          <td className="text-right tabular-nums">{s ? n2(s.perPiece.logistics, 4) : "—"}</td>
+                          <td className="text-right tabular-nums">{s ? n2(s.perPiece.fees, 4) : "—"}</td>
+                          <td className="border-l pl-2 text-right tabular-nums">{s?.complete ? <>{n2(s.perPiece.grossMargin, 4)} <span className="text-muted-foreground">· {marginShown}%</span></> : "—"}</td>
+                          <td className="text-right font-semibold tabular-nums">{s?.complete ? n2(s.perPiece.clientPrice, 4) : <span className="text-destructive">incomplet</span>}</td>
+                          <td className="text-right tabular-nums">{s?.complete ? n2(s.clientPrice) : "—"}</td>
+                          <td className="border-l pl-2 text-right tabular-nums">{sale ? <>{n2(sale.price, 4)} <span className="text-[11px] text-muted-foreground">({n2(sale.qty, 0)} buc)</span></> : <span className="text-muted-foreground">fără vânzări</span>}</td>
+                          <td className={`text-right font-semibold tabular-nums ${profitClass(profit?.profit)}`}>{profit ? n2(profit.profit, 4) : "—"}</td>
+                          <td className={`text-right tabular-nums ${profitClass(profit?.profit)}`}>{profit?.pct != null ? `${n2(profit.pct, 1)}%` : "—"}</td>
+                        </tr>
+                        {isOpen && <tr className="border-b"><td colSpan={10} className="p-0">{renderSheet(it, c)}</td></tr>}
+                      </Fragment>
+                    );
+                  })}
                   {failed.map((f) => (
                     <tr key={f.product.id} className="border-b last:border-0"><td className="py-1.5">{f.product.name}</td><td colSpan={9} className="text-destructive">{f.error}</td></tr>
                   ))}
@@ -503,37 +720,30 @@ export default function PriceCalculator() {
             </CardContent>
           </Card>
 
-          {storeRows.length > 0 && activeItem && (
+          {storeTotals.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Rentabilitate pe magazine · {activeItem.product.name}</CardTitle>
-                <p className="text-xs text-muted-foreground">Același produs cu costul de distribuție al cursei fiecărui magazin, față de prețul real plătit de magazin în ultimele 90 de zile. Media clientului ponderează magazinele cu paleții livrați.</p>
+                <CardTitle className="text-base">Rentabilitate pe magazine · toate produsele din listă</CardTitle>
+                <p className="text-xs text-muted-foreground">Fiecare magazin cu costul de distribuție al cursei lui, la prețurile reale plătite în ultimele 90 de zile. Dacă un magazin are cursa greșită, alege-o aici: media clientului și profitul se refac imediat.</p>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-sm">
-                  <thead className="border-b text-left text-xs text-muted-foreground">
-                    <tr><th className="py-2">Magazin</th><th>Cursă</th><th className="text-right">Paleți livrați (90 zile)</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Distribuție lei/buc</th><th className="text-right">Preț propus lei/buc</th><th className="text-right">Preț vânzare actual</th><th className="text-right">Bucăți 90 zile</th><th className="text-right">Profit real lei/buc</th><th className="text-right">Profit %</th></tr>
-                  </thead>
+                <table className="w-full min-w-[820px] text-sm">
+                  <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-2">Magazin</th><th>Cursă</th><th className="text-right">Paleți livrați (90 zile)</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Vânzări 90 zile</th><th className="text-right">Profit real 90 zile</th><th className="text-right">Profit %</th></tr></thead>
                   <tbody>
-                    {sheet && (
-                      <tr className="border-b bg-muted/40 font-medium">
-                        <td className="py-1.5">Medie client</td><td>{routeLabel(route)}</td><td className="text-right tabular-nums">{n2(result.logistics.clientAverage?.pallets, 1)}</td>
-                        <td className="text-right tabular-nums">{n2(sheet.effective.distributionPerPallet)}</td><td className="text-right tabular-nums">{n2(sheet.s.perPiece.logistics, 4)}</td>
-                        <td className="text-right tabular-nums">{sheet.s.complete ? n2(sheet.s.perPiece.clientPrice, 4) : "—"}</td>
-                        <td className="text-right tabular-nums">{n2(activeItem.recentSale?.price, 4)}</td><td className="text-right tabular-nums">{n2(activeItem.recentSale?.qty, 0)}</td>
-                        {(() => { const p = sheet.s.complete && activeItem.recentSale ? profitAt(sheet.s, activeItem.recentSale.price) : null; return <><td className={`text-right tabular-nums ${profitClass(p?.profit)}`}>{p ? n2(p.profit, 4) : "—"}</td><td className={`text-right tabular-nums ${profitClass(p?.profit)}`}>{p?.pct != null ? `${n2(p.pct, 1)}%` : "—"}</td></>; })()}
-                      </tr>
-                    )}
-                    {storeRows.map((st) => (
+                    {storeTotals.map((st) => (
                       <tr key={st.pid} className="border-b last:border-0">
-                        <td className="py-1.5">{st.name}</td><td>{st.route ?? <span className="text-destructive">fără cursă</span>}</td>
-                        <td className="text-right tabular-nums">{n2(st.pallets, 1)}</td><td className="text-right tabular-nums">{n2(st.perPallet)}</td>
-                        <td className="text-right tabular-nums">{st.sheet ? n2(st.sheet.perPiece.logistics, 4) : "—"}</td>
-                        <td className="text-right tabular-nums">{st.sheet?.complete ? n2(st.sheet.perPiece.clientPrice, 4) : "—"}</td>
-                        <td className="text-right tabular-nums">{st.sale?.price != null ? n2(st.sale.price, 4) : <span className="text-muted-foreground">fără vânzări</span>}</td>
-                        <td className="text-right tabular-nums">{st.sale ? n2(st.sale.qty, 0) : "—"}</td>
-                        <td className={`text-right font-semibold tabular-nums ${profitClass(st.profit?.profit)}`}>{st.profit ? n2(st.profit.profit, 4) : "—"}</td>
-                        <td className={`text-right tabular-nums ${profitClass(st.profit?.profit)}`}>{st.profit?.pct != null ? `${n2(st.profit.pct, 1)}%` : "—"}</td>
+                        <td className="py-1.5">{st.name}<div className="text-[11px] text-muted-foreground">{st.judet}{st.incomplete ? ` · ${st.incomplete} produse incomplete` : ""}</div></td>
+                        <td>
+                          <select aria-label={`Cursa ${st.name}`} className={selectClass} value={routeOverrides[`p:${st.pid}`] ?? ""} onChange={(e) => setOverride(`p:${st.pid}`, e.target.value)}>
+                            <option value="">{(() => { const r = routeOverrides[`j:${countyKey(st.judet)}`] ?? st.proposed; return r ? `propusă: ${r}` : "fără cursă — alege"; })()}</option>
+                            {routeNames.map((r) => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                        </td>
+                        <td className="text-right tabular-nums">{n2(st.pallets, 1)}</td>
+                        <td className="text-right tabular-nums">{st.route ? n2(perPalletMap[st.route]) : "—"}</td>
+                        <td className="text-right tabular-nums">{n2(st.sales)}</td>
+                        <td className={`text-right font-semibold tabular-nums ${profitClass(st.profit)}`}>{st.sales ? n2(st.profit) : "—"}</td>
+                        <td className={`text-right tabular-nums ${profitClass(st.profit)}`}>{st.pct != null ? `${n2(st.pct, 1)}%` : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -542,144 +752,74 @@ export default function PriceCalculator() {
             </Card>
           )}
 
-          {activeItem && sheet && (
-            <>
-              {activeItem.components.filter(c => c.priceSafety?.suspect).map(c => c.priceSafety ? <ReceiptPriceAlert key={c.id} safety={c.priceSafety} name={c.name} /> : null)}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Fișă preț · {activeItem.product.name} · bax {sheet.s.unitsPerCase} buc</CardTitle>
-                  {activeItem.warnings.map((w) => <p key={w} className="text-sm text-destructive">{w}</p>)}
-                  {!sheet.s.complete && <p className="text-sm text-destructive">Fișă incompletă — totaluri parțiale, nu preț final validat. De completat: {sheet.s.missingInputs.join("; ")}</p>}
-                  {sheet.s.missingPrices.length > 0 && <p className="text-sm text-destructive">Fără preț în Senior: {sheet.s.missingPrices.join(", ")} — completează prețul ca fișa să fie corectă.</p>}
-                  <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">
-                    <Button size="sm" variant="secondary" disabled={saving} onClick={saveLive}>
-                      {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1 h-3.5 w-3.5" />}Salvează fișa ca live
-                    </Button>
-                    Apare în „Agenți & Rapoarte”; o recalculezi cu prețurile Senior la zi dintr-un clic, fără credite AI.
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4 overflow-x-auto">
-                  <details open className="rounded-md border p-3">
-                    <summary className="cursor-pointer text-sm font-medium">Parametri de calcul</summary>
-                    <p className="mt-2 text-[11px] text-muted-foreground">Transportul, marja, taxele și cursul se aplică tuturor produselor din listă. Bucăți/bax, bucăți/palet și manopera se schimbă doar pentru produsul selectat.</p>
-                    <div className="mt-3"><PriceParameters values={display} basis={basis} setBasis={setBasis} setValue={(k, v) => setR(k)(v)} mode={mode} setMode={setMode} route={route} routes={routeOptions} setRoute={(v) => pickRoute(v)} line={line} setLine={chooseLine} /></div>
-                    {!!result.logistics.routes?.length && (
-                      <div className="mt-4 overflow-x-auto">
-                        <p className="mb-1 text-xs font-medium">Curse distribuție din Senior · cost pe cursă din facturile {result.logistics.closedStart} – {result.logistics.closedEnd}, paleți pe cursă din {result.logistics.loadWindow.start} – {result.logistics.loadWindow.end} · clic pe un rând ca să alegi cursa</p>
-                        <table className="w-full min-w-[720px] text-xs">
-                          <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Cursă</th><th className="text-right">Curse 30 zile</th><th className="text-right">Cost 30 zile (lei)</th><th className="text-right">Lei/cursă</th><th className="text-right">Paleți livrați 90 zile</th><th className="text-right">Paleți/cursă</th><th className="text-right">Lei/palet</th><th className="pl-3">Puncte de livrare incluse</th></tr></thead>
-                          <tbody>
-                            {result.logistics.routes.map((r) => (
-                              <tr key={r.route} onClick={() => pickRoute(r.route)} className={`cursor-pointer border-b last:border-0 hover:bg-muted/50 ${r.route === route ? "bg-muted font-medium" : ""}`}>
-                                <td className="py-1">{r.route}</td>
-                                <td className="text-right tabular-nums">{r.trips}</td>
-                                <td className="text-right tabular-nums">{n2(r.total)}</td>
-                                <td className="text-right tabular-nums">{r.unitPrice != null ? `${n2(r.unitPrice)} lei/unitate` : `${n2(r.perTrip)} (${n2(r.pmin, 0)}–${n2(r.pmax, 0)})`}</td>
-                                <td className="text-right tabular-nums">{n2(r.pallets, 1)}</td>
-                                <td className="text-right tabular-nums">{n2(r.palletsPerTrip, 1)}</td>
-                                <td className="text-right tabular-nums">{n2(r.perPallet)}</td>
-                                <td className="pl-3 text-muted-foreground">{r.points.length ? r.points.slice(0, 4).map((x) => `${x.name} (${n2(x.pallets, 1)})`).join(", ") + (r.points.length > 4 ? ` +${r.points.length - 4}` : "") : "niciun punct atribuit — completează paleți pe cursă"}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </details>
-                  {!validPriceConfig(sheet.cfg) && <p className="text-sm text-destructive">Parametri invalizi: valori pozitive, pierderi și marjă sub 100%, bucăți/palet și bucăți/bax peste zero.</p>}
-                  <table className="w-full min-w-[760px] text-sm">
-                    <thead className="border-b text-left text-xs text-muted-foreground">
-                      <tr><th className="py-2">Componentă</th><th className="text-right">Rețetă</th><th className="text-right">PT %</th><th className="text-right">Cantitate cu pierdere</th><th className="text-right">Preț (lei/UM)</th><th className="text-right">kg / palet MP</th><th className="text-right">Valoare (lei/bax)</th></tr>
-                    </thead>
-                    <tbody>
-                      {sheet.comps.map((c) => {
-                        const l = sheet.s.lines.find((x) => x.label === c.name);
-                        const eff = c.kind === "mp" ? c.qty / (1 - Math.min(c.lossPct, 95) / 100) : c.qty * (1 + c.lossPct / 100);
-                        const id = activeItem.product.id;
-                        return (
-                          <tr key={c.id} className="border-b last:border-0">
-                            <td className="py-1.5">
-                              <div className={`font-medium ${c.priceSafety?.suspect ? 'text-crm-warning' : ''}`}>{c.name}{c.priceSafety?.suspect ? ' · NIR suspect' : ''}</div>
-                              <div className="text-[11px] text-muted-foreground">{c.kind === "mp" ? "Materie primă" : "Ambalaj"} · {c.priceSource}{c.lossSource ? ` · ${c.lossSource}` : ""}</div>
-                            </td>
-                            <td className="text-right"><NumericParameter label={`Cantitate ${c.name} (${c.unit})`} value={activeOv.quantities[c.id] ?? String(c.qty)} onChange={(v) => setOv(id, (o) => ({ ...o, quantities: { ...o.quantities, [c.id]: v } }))} /></td>
-                            <td className="text-right"><Input aria-label={`PT ${c.name}`} className="ml-auto h-8 w-16 text-right" value={activeOv.losses[c.id] ?? String(c.lossPct)} onChange={(e) => setOv(id, (o) => ({ ...o, losses: { ...o.losses, [c.id]: e.target.value } }))} /></td>
-                            <td className="text-right tabular-nums">{n2(eff, 4)}</td>
-                            <td className="text-right"><Input aria-label={`Preț ${c.name}`} className="ml-auto h-8 w-24 text-right" value={activeOv.prices[c.id] ?? (c.price == null ? "" : String(Math.round(c.price * 10000) / 10000))} onChange={(e) => setOv(id, (o) => ({ ...o, prices: { ...o.prices, [c.id]: e.target.value } }))} /></td>
-                            <td>{c.kind === "mp" ? <Input aria-label={`kg/palet ${c.name}`} className="ml-auto h-8 w-24 text-right" value={activeOv.palletKg[c.id] ?? (c.kgPerPallet == null ? "" : String(c.kgPerPallet))} onChange={(e) => setOv(id, (o) => ({ ...o, palletKg: { ...o.palletKg, [c.id]: e.target.value } }))} /> : "—"}</td>
-                            <td className="text-right font-medium tabular-nums">{n2(l?.value ?? 0, 4)}</td>
+          <Card>
+            <CardContent className="pt-4">
+              <details>
+                <summary className="cursor-pointer text-sm font-medium">Parametri comuni listei · transport, marjă, taxe client, curs</summary>
+                <p className="mt-2 text-[11px] text-muted-foreground">Se aplică tuturor produselor. Bucățile, paletul și manopera se schimbă din fișa fiecărui produs.</p>
+                {result.fees && (
+                  <p className="mt-2 text-xs">
+                    <b>Taxe client {n2(result.fees.pct, 2)}%</b> din vânzări ({result.fees.from} – {result.fees.to}, pe codul fiscal): reduceri pe facturile noastre {n2(result.fees.discounts)} lei
+                    {" "}+ servicii facturate de client {n2(result.fees.servicesTotal)} lei{result.fees.services.length ? ` (${result.fees.services.map((x) => `${x.subject} ${n2(x.total, 0)}`).join(", ")})` : ""} ÷ vânzări {n2(result.fees.sales)} lei. Istoric, nu tarif contractual — modifică procentul dacă ai contractul.
+                  </p>
+                )}
+                <div className="mt-3"><PriceParameters scope="list" values={globalDisplay} basis={basis} setBasis={setBasis} setValue={setGlobal} mode={mode} setMode={setMode} route={route} routes={routeOptions} setRoute={(v) => pickRoute(v)} line="" setLine={() => undefined} /></div>
+                {!!logistics.routes?.length && (
+                  <div className="mt-4 overflow-x-auto">
+                    <p className="mb-1 text-xs font-medium">Curse distribuție din Senior · cost din facturile {logistics.closedStart} – {logistics.closedEnd}, paleți din {logistics.loadWindow.start} – {logistics.loadWindow.end} · clic pe un rând ca să alegi cursa</p>
+                    <table className="w-full min-w-[720px] text-xs">
+                      <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Cursă</th><th className="text-right">Curse 30 zile</th><th className="text-right">Cost 30 zile (lei)</th><th className="text-right">Lei/cursă</th><th className="text-right">Paleți livrați 90 zile</th><th className="text-right">Paleți/cursă</th><th className="text-right">Lei/palet</th><th className="pl-3">Puncte de livrare incluse</th></tr></thead>
+                      <tbody>
+                        {logistics.routes.map((r) => (
+                          <tr key={r.route} onClick={() => pickRoute(r.route)} className={`cursor-pointer border-b last:border-0 hover:bg-muted/50 ${r.route === route ? "bg-muted font-medium" : ""}`}>
+                            <td className="py-1">{r.route}</td>
+                            <td className="text-right tabular-nums">{r.trips}</td>
+                            <td className="text-right tabular-nums">{n2(r.total)}</td>
+                            <td className="text-right tabular-nums">{r.unitPrice != null ? `${n2(r.unitPrice)} lei/unitate` : `${n2(r.perTrip)} (${n2(r.pmin, 0)}–${n2(r.pmax, 0)})`}</td>
+                            <td className="text-right tabular-nums">{n2(r.pallets, 1)}{r.estimatedPallets ? <span className="text-muted-foreground"> (din care {n2(r.estimatedPallets, 1)} estimați)</span> : null}</td>
+                            <td className="text-right tabular-nums">{n2(r.palletsPerTrip, 1)}</td>
+                            <td className="text-right tabular-nums">{n2(r.perPallet)}</td>
+                            <td className="pl-3 text-muted-foreground">{r.points.length ? r.points.slice(0, 4).map((x) => `${x.name} (${n2(x.pallets, 1)})`).join(", ") + (r.points.length > 4 ? ` +${r.points.length - 4}` : "") : <span className="text-destructive">niciun punct atribuit — alege cursa pe județ mai jos</span>}</td>
                           </tr>
-                        );
-                      })}
-                      {sheet.s.lines.filter((l) => !sheet.comps.some((c) => c.name === l.label)).map((l) => (
-                        <tr key={l.label} className="border-b last:border-0">
-                          <td className="py-1.5" colSpan={6}><div className="font-medium">{l.label}</div><div className="text-[11px] text-muted-foreground">{l.detail}</div></td>
-                          <td className="text-right font-medium tabular-nums">{n2(l.value, 4)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {([
-                      ["Cost producție", sheet.s.productionCost, sheet.s.perPiece.productionCost, ""],
-                      [`Marjă brută (${marginShown}%)`, sheet.s.grossMargin, sheet.s.perPiece.grossMargin, "text-primary"],
-                      ["Preț poartă fabrică", sheet.s.factoryGate, sheet.s.perPiece.factoryGate, ""],
-                      [`Transport distribuție · ${routeLabel(route)}`, sheet.s.logistics, sheet.s.perPiece.logistics, ""],
-                      [`Taxe client (${n2(sheet.s.feePct, 2)}%)`, sheet.s.clientFees, sheet.s.perPiece.fees, ""],
-                      ["Preț propus client", sheet.s.clientPrice, sheet.s.perPiece.clientPrice, "font-bold"],
-                    ] as [string, number, number, string][]).map(([l, bax, buc, cls]) => (
-                      <div key={l} className="rounded-lg border p-3">
-                        <div className="text-xs text-muted-foreground">{l}</div>
-                        <div className={`text-lg font-semibold tabular-nums ${cls}`}>{sheet.s.complete ? `${n2(bax)} lei/bax` : "Calcul incomplet"}</div>
-                        <div className="text-sm tabular-nums text-muted-foreground">{sheet.s.complete ? `${n2(buc, 4)} lei/buc` : "Costuri lipsă — nu sunt zero"}</div>
-                      </div>
-                    ))}
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="rounded-lg border bg-muted/40 p-3 text-sm">
-                    {sheet.s.complete ? <>În EUR (curs {n2(sheet.s.eurEffective, 4)} cu marjă de siguranță): <b>{n2(sheet.s.clientPriceEur)} €/bax</b> · <b>{n2(sheet.s.perPiece.clientPriceEur, 4)} €/buc</b></> : "Prețul final EUR nu este disponibil până la calcularea tuturor costurilor."}
+                )}
+                {!!logistics.unassigned?.length && (
+                  <div className="mt-4 overflow-x-auto">
+                    <p className="mb-1 text-xs font-medium">Puncte de livrare fără cursă · Senior nu leagă livrările de curse, așa că le propun după oraș/județ. Alege cursa pe județ (se ține minte pe acest calculator) și apasă „Recalculează tarifele curselor”.</p>
+                    <table className="w-full min-w-[720px] text-xs">
+                      <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Județ</th><th className="text-right">Paleți 90 zile</th><th className="text-right">Puncte</th><th className="pl-3">Exemple</th><th>Cursă</th></tr></thead>
+                      <tbody>
+                        {logistics.unassigned.map((g) => (
+                          <tr key={g.county} className="border-b last:border-0">
+                            <td className="py-1">{g.judet}</td><td className="text-right tabular-nums">{n2(g.pallets, 1)}</td><td className="text-right tabular-nums">{g.points}</td>
+                            <td className="pl-3 text-muted-foreground">{g.names.join(", ")}</td>
+                            <td><select aria-label={`Cursa județ ${g.judet}`} className={selectClass} value={routeOverrides[`j:${g.county}`] ?? ""} onChange={(e) => setOverride(`j:${g.county}`, e.target.value)}><option value="">alege cursa</option>{routeNames.map((r) => <option key={r} value={r}>{r}</option>)}</select></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                </CardContent>
-              </Card>
+                )}
+                {Object.keys(routeOverrides).length > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">Cursele alese de tine: {Object.entries(routeOverrides).map(([k, v]) => `${k.startsWith("j:") ? `județ ${k.slice(2)}` : result.stores.find((x) => `p:${x.pid}` === k)?.name ?? k} → ${v}`).join("; ")}.
+                    {" "}<button className="underline" onClick={() => Object.keys(routeOverrides).forEach((k) => setOverride(k, ""))}>Șterge toate</button></p>
+                )}
+              </details>
+            </CardContent>
+          </Card>
 
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-base">Profit real la prețul de vânzare · {activeItem.product.name}</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  {activeItem.recentSale && sheet.s.complete ? (() => {
-                    const p = profitAt(sheet.s, activeItem.recentSale.price);
-                    return (
-                      <div className="grid gap-2 sm:grid-cols-4">
-                        <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Preț vânzare actual (90 zile)</div><div className="text-lg font-semibold tabular-nums">{n2(activeItem.recentSale.price, 4)} lei/buc</div><div className="text-xs text-muted-foreground">{n2(activeItem.recentSale.qty, 0)} buc vândute</div></div>
-                        <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Cost total (producție + distribuție + taxe)</div><div className="text-lg font-semibold tabular-nums">{n2(p.cost + p.fees, 4)} lei/buc</div></div>
-                        <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Profit real</div><div className={`text-lg font-semibold tabular-nums ${profitClass(p.profit)}`}>{n2(p.profit, 4)} lei/buc · {n2(p.pct, 1)}%</div><div className="text-xs text-muted-foreground">{n2(p.profit * activeItem.recentSale.qty)} lei în 90 de zile</div></div>
-                        <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Preț propus vs actual</div><div className={`text-lg font-semibold tabular-nums ${profitClass(activeItem.recentSale.price - sheet.s.perPiece.clientPrice)}`}>{n2(activeItem.recentSale.price - sheet.s.perPiece.clientPrice, 4)} lei/buc</div><div className="text-xs text-muted-foreground">pozitiv = vinzi peste prețul propus</div></div>
-                      </div>
-                    );
-                  })() : <p className="text-sm text-muted-foreground">{!sheet.s.complete ? "Profitul este indisponibil până la calcularea costului complet." : `Nu există vânzări ${client ? "către acest client" : "pentru acest produs"} în ultimele 90 de zile.`}</p>}
-                  {activeItem.priceList && <Badge variant="secondary">Listă de preț Senior: {n2(activeItem.priceList.price, 4)} {activeItem.priceList.currency} · {activeItem.priceList.list} (din {activeItem.priceList.since})</Badge>}
-                  {activeItem.salesHistory.length > 0 && (
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[520px] text-sm">
-                        <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-1.5">Luna</th><th className="text-right">Bucăți vândute</th><th className="text-right">Valoare (lei)</th><th className="text-right">Preț mediu (lei/buc)</th><th className="text-right">Profit real (lei/buc)</th></tr></thead>
-                        <tbody>
-                          {activeItem.salesHistory.map((h) => {
-                            const p = h.price != null && sheet.s.complete ? profitAt(sheet.s, h.price) : null;
-                            return (
-                              <tr key={h.month} className="border-b last:border-0">
-                                <td className="py-1">{h.month}</td><td className="text-right tabular-nums">{n2(h.qty, 0)}</td><td className="text-right tabular-nums">{n2(h.value)}</td>
-                                <td className="text-right tabular-nums">{n2(h.price, 4)}</td>
-                                <td className={`text-right tabular-nums ${profitClass(p?.profit)}`}>{p ? n2(p.profit, 4) : "—"}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </>
-          )}
+          <details className="rounded-md border p-3 text-xs text-muted-foreground">
+            <summary className="cursor-pointer text-sm font-medium text-foreground">Surse și metodă de calcul</summary>
+            <div className="mt-2 space-y-1">
+              <p>Materii prime: {mode === "annual" ? "media anuală ponderată" : "media ponderată ultimele 7 zile"}, până la {result.period.endDay} exclusiv. Ambalaje: ultima intrare NIR.</p>
+              <p>Aprovizionare: {n2(logistics.supply.total)} lei ÷ {logistics.supply.trucks} camioane = <b>{n2(logistics.supply.costPerTruck)} lei/camion</b>, încărcare {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion ({n2(logistics.supply.pallets, 0)} paleți NIR ÷ {logistics.supply.loadTrucks} camioane, {logistics.loadWindow.start} – {logistics.loadWindow.end}){logistics.lastTrucks.length ? ` · ultimele facturi: ${logistics.lastTrucks.map((t) => `${t.day.slice(5)} ${n2(t.price, 0)} lei`).join(", ")}` : ""}.</p>
+              <p>{logistics.note}</p>
+              {(result.info ?? []).map((w) => <p key={w}>{w}</p>)}
+            </div>
+          </details>
         </>
       )}
     </div>

@@ -12,7 +12,7 @@ export const LOAD_DAYS = 90;
 type Route = { route: string; trips: number; total: number; qty: number; pmin: number; pmax: number; pallets: number; missingLines: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; country: string; points: Array<{ name: string; pallets: number }> };
 /** Latest cursă tariff: average trip cost of the last 30 days ÷ average pallets per trip of the last 90 days.
  * A cursă without trips in the last 30 days keeps its 90-day trip cost and is flagged. */
-export function latestRoutes(latest: Route[], load: Route[]) {
+export function latestRoutes<R extends Route>(latest: R[], load: R[]) {
   const by = new Map(latest.map((r) => [r.route, r]));
   return load.map((l) => {
     const r = by.get(l.route);

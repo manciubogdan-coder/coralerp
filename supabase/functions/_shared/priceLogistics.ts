@@ -21,7 +21,8 @@ export async function priceLogistics(sb: any, aids: number[], w: Window, load: W
     ids.length ? run(`SELECT Articol_ID id,coef FROM (${relation}) r WHERE Articol_ID IN (${ids.join(",")})`) : Promise.resolve([]),
     // Pallets invoiced per delivery point over the load window (each store is its own Senior partner).
     run(`SELECT pp.Partener_ID pid,MAX(pp.Partener_Denumire) name,MAX(pp.Document_Judet) judet,MAX(pp.Document_Tara) country,
-      SUM(CAST(d.Cantitate AS float)/r.coef) pallets,SUM(CASE WHEN r.coef IS NULL AND d.Cantitate<>0 THEN 1 ELSE 0 END) missing
+      SUM(CAST(d.Cantitate AS float)/r.coef) pallets,SUM(CASE WHEN r.coef IS NULL AND d.Cantitate<>0 THEN 1 ELSE 0 END) missing,
+      SUM(CASE WHEN r.coef IS NULL THEN CAST(d.Cantitate AS float) ELSE 0 END) missingQty,SUM(CASE WHEN r.coef IS NOT NULL THEN CAST(d.Cantitate AS float) ELSE 0 END) knownQty
       FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID
       JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID AND pp.TipPartener=1
       LEFT JOIN (${relation}) r ON r.Articol_ID=d.Articol_ID

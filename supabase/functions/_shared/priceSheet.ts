@@ -18,6 +18,8 @@ export interface SheetComponent {
   lastPrice?: number | null;
   priceSafety?: PriceSafety;
   lossSource?: string;
+  /** Where kg per pallet comes from (configured Coral category or receptions average). */
+  palletSource?: string;
 }
 
 export interface SheetRates {
@@ -171,7 +173,8 @@ export function ratePeriod(year: number, month: number) {
   return { from: ym(start), to: ym(last), startDay: start.toISOString().slice(0, 10), endDay: end.toISOString().slice(0, 10) };
 }
 
-const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bvrac\b/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+/** Names compared without accents, apostrophes, "vrac" and doubled letters: "BULL'S BLOOD VRAC" = "Bulls Blod", "LATUGA ROSA" = "Latuga Rossa". */
+const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/['’`]/g, "").replace(/\bvrac\b/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/([a-z])\1+/g, "$1").replace(/\s+/g, " ").trim();
 
 /** Technological loss from Coral ERP raw-material settings: exact name, else the longest app name contained in the Senior name. */
 export function matchLoss(seniorName: string, products: Array<{ name: string; pt_percent: number | null }>) {

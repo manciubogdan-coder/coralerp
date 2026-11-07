@@ -45,27 +45,55 @@ export function historicalFeePct(discounts: number, sales: number): number | nul
 }
 export function configuredRawPalletKg(name: string): number | undefined {
   if (/radic|radich/i.test(name)) return 500;
-  if (/iceberg|pan di|indivi|scarola/i.test(name)) return 400;
-  if (/spanac|rucola|valerian|latuga|salat|baby|mizuna|tsatsoi|blood|busuioc|marar|patrunjel|menta|cimbru|coriandru|rozmarin|oregano|tarhon|chivas/i.test(name)) return 220;
+  if (/iceberg|pan di|indivi|scarola|varz/i.test(name)) return 400;
+  if (/spanac|rucola|valerian|latuga|salat|baby|mizuna|tsatsoi|blood|chard|busuioc|marar|patrunjel|menta|cimbru|coriandru|rozmarin|oregano|tarhon|chivas/i.test(name)) return 220;
   return undefined;
 }
 
-export type RoutePoint = { pid: number; name: string; pallets: number; missing: number; route: string | null };
+export type RoutePoint = {
+  pid: number; name: string; judet: string; pallets: number; missing: number; route: string | null;
+  /** Route chosen by the user (store or county), not proposed from the address. */
+  manual: boolean;
+  /** Pallets of lines without a Senior pieces/pallet coefficient, estimated from the average pieces per pallet of all deliveries. */
+  estimatedPallets: number; knownQty: number; missingQty: number;
+};
 export type RouteStat = {
   route: string; country: string; trips: number; total: number; qty: number; pmin: number; pmax: number;
-  pallets: number; missingLines: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null;
+  pallets: number; missingLines: number; estimatedPallets: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null;
   /** Carrier billed per unit (e.g. HORECA 4.72 lei × units), not per trip. */
   unitPrice: number | null; points: Array<{ name: string; pallets: number }>;
 };
+export type RouteOverrides = Record<string, string>;
+export const countyKey = (judet: unknown) => plain(judet);
+/** User route choices: "p:<partner id>" for one store or "j:<COUNTY>" for every point of a county without its own choice. */
+export function validRouteOverrides(raw: unknown): RouteOverrides {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: RouteOverrides = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>).slice(0, 300)) {
+    if (/^(p:\d{1,9}|j:[A-Z0-9 .\-]{1,40})$/.test(k) && typeof v === 'string' && /^[A-Z0-9][A-Z0-9 .\-]{0,59}$/.test(v)) out[k] = v;
+  }
+  return out;
+}
+/** Route of a delivery point: the user's store choice, then the user's county choice, then the address proposal. */
+export function pointRoute(p: { pid?: unknown; name?: unknown; judet?: unknown; country?: unknown }, overrides: RouteOverrides = {}) {
+  const manual = overrides[`p:${Number(p.pid)}`] ?? overrides[`j:${countyKey(p.judet)}`];
+  return manual ? { route: manual, manual: true } : { route: deliveryRoute(p), manual: false };
+}
 /** Route tariffs: carrier trips of the cursă ÷ pallets invoiced to the delivery points mapped to it. */
-export function buildRoutes(pointRows: any[], tripRows: any[]) {
+export function buildRoutes(pointRows: any[], tripRows: any[], overrides: RouteOverrides = {}) {
   const n = (v: unknown) => Number(v) || 0;
-  const points: RoutePoint[] = pointRows.map((r) => ({ pid: n(r.pid), name: String(r.name ?? '').trim(), pallets: n(r.pallets), missing: n(r.missing), route: deliveryRoute(r) }));
+  // Lines without a Senior pallet coefficient mix KG and BUC of different products: they are counted and reported, never converted into estimated pallets.
+  const points: RoutePoint[] = pointRows.map((r) => {
+    const est = 0;
+    const pr = pointRoute(r, overrides);
+    return { pid: n(r.pid), name: String(r.name ?? '').trim(), judet: String(r.judet ?? '').trim(), pallets: n(r.pallets) + est, missing: n(r.missing), route: pr.route, manual: pr.manual,
+      estimatedPallets: est, knownQty: n(r.knownQty), missingQty: n(r.missingQty) };
+  });
   const routes = new Map<string, RouteStat>();
   for (const t of tripRows) {
     const key = routeKey(String(t.line ?? ''));
     if (!key) continue;
-    const r = routes.get(key) ?? { route: key, country: routeCountry(key), trips: 0, total: 0, qty: 0, pmin: Infinity, pmax: 0, pallets: 0, missingLines: 0, perPallet: null, perTrip: null, palletsPerTrip: null, unitPrice: null, points: [] };
+    const r = routes.get(key) ?? { route: key, country: routeCountry(key), trips: 0, total: 0, qty: 0, pmin: Infinity, pmax: 0, pallets: 0, missingLines: 0, estimatedPallets: 0, perPallet: null, perTrip: null, palletsPerTrip: null, unitPrice: null, points: [] };
     r.trips += n(t.trips); r.total += n(t.total); r.qty += n(t.qty); r.pmin = Math.min(r.pmin, n(t.pmin)); r.pmax = Math.max(r.pmax, n(t.pmax));
     routes.set(key, r);
   }
@@ -73,7 +101,7 @@ export function buildRoutes(pointRows: any[], tripRows: any[]) {
   for (const p of points) {
     const r = p.route ? routes.get(p.route) : undefined;
     if (!r) { if (p.pallets > 0) unassigned.push(p); continue; }
-    r.pallets += p.pallets; r.missingLines += p.missing;
+    r.pallets += p.pallets; r.missingLines += p.missing; r.estimatedPallets += p.estimatedPallets;
     if (p.pallets > 0) r.points.push({ name: p.name, pallets: p.pallets });
   }
   for (const r of routes.values()) {
@@ -85,5 +113,17 @@ export function buildRoutes(pointRows: any[], tripRows: any[]) {
     r.unitPrice = r.qty > r.trips * 1.5 && r.qty > 0 ? r.total / r.qty : null;
   }
   const list = [...routes.values()].sort((a, b) => b.total - a.total);
-  return { routes: list, points, unassigned: unassigned.sort((a, b) => b.pallets - a.pallets) };
+  return { routes: list, points, unassigned: unassigned.sort((a, b) => b.pallets - a.pallets), piecesPerPallet: null };
+}
+
+/** Delivery points without a cursă, grouped by county so the user can assign a whole county at once. */
+export function unassignedByCounty(points: RoutePoint[]) {
+  const by = new Map<string, { county: string; judet: string; pallets: number; points: number; names: string[] }>();
+  for (const p of points) {
+    const k = countyKey(p.judet) || 'FARA JUDET';
+    const g = by.get(k) ?? { county: k, judet: p.judet || 'fără județ', pallets: 0, points: 0, names: [] };
+    g.pallets += p.pallets; g.points += 1; if (g.names.length < 4) g.names.push(p.name);
+    by.set(k, g);
+  }
+  return [...by.values()].sort((a, b) => b.pallets - a.pallets);
 }

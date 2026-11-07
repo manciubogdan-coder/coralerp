@@ -1,11 +1,12 @@
 // Live Senior reads for the price calculator and client price lists. Every rate is derived from Senior data and returned with its source.
 import { priceDates, suggestedLabour } from "./priceDefaults.ts";
 import { readPriceSafety } from './receiptPriceSafety.ts';
-import { type PriceConfig } from "./priceConfig.ts";
+import { MIXED_WASHED, type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
-import { transportRoute, historicalFeePct, configuredRawPalletKg, buildRoutes, deliveryRoute, LEGACY_ROUTES } from "./priceSourceRules.ts";
+import { transportRoute, historicalFeePct, configuredRawPalletKg, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
 import { CLIENT_AVERAGE_ROUTE, DEFAULT_MARGIN_PCT, LOAD_DAYS, clientAverageRoute, latestCostWindow, latestRoutes } from "./priceList.ts";
 import { seniorLive } from "./senior.ts";
+import { realLineSpeeds, SPEED_DAYS, type RealSpeed } from "./priceLineSpeed.ts";
 export { matchLoss } from "./priceSheet.ts";
 import { componentKind, isServiceComponent, matchLoss, ratePeriod, type SheetComponent } from "./priceSheet.ts";
 
@@ -13,6 +14,7 @@ type Rpc = { rpc: (fn: string, args?: Record<string, unknown>) => any };
 const SQL = (sb: Rpc, sql: string) => seniorLive(sb, "sql", { sql }, 55000).then((r: any) => (Array.isArray(r) ? r : []));
 const int = (v: unknown) => { const n = Number(v); return Number.isInteger(n) && n > 0 && n < 2 ** 31 ? n : null; };
 const num = (v: unknown) => Number(v) || 0;
+const n0 = (v: number | null | undefined) => (v == null ? "?" : Math.round(v).toLocaleString("ro-RO"));
 const SALES = "('FC','FCE','FCEC')";
 const docs = `dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID`;
 const notCancelled = "ISNULL(h.Anulat,0)=0";
@@ -22,8 +24,12 @@ const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00Z`)
 
 /** Senior "Partener_Central" text of a partner (stores carry the central name, e.g. "MEGA IMAGE SRL"). */
 const centralOf = (pid: number) => `(SELECT TOP 1 x.Partener_Central FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.Partener_ID=${pid} AND NULLIF(x.Partener_Central,'') IS NOT NULL ORDER BY x.H_ID DESC)`;
-/** Sales scope: one store, or every store of the central partner. */
-const partnerScope = (pid: number | null, storeId: number | null) => storeId ? `pp.Partener_ID=${storeId}` : pid ? `(pp.Partener_ID=${pid} OR pp.Partener_Central=${centralOf(pid)})` : null;
+/** Normalized fiscal code (CUI) of a document partner row. */
+const cf = (a: string) => `NULLIF(REPLACE(UPPER(LTRIM(RTRIM(${a}.Partener_Cod_Fiscal))),'RO',''),'')`;
+const cfOf = (pid: number) => `(SELECT TOP 1 ${cf("x")} FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.Partener_ID=${pid} AND ${cf("x")} IS NOT NULL ORDER BY x.H_ID DESC)`;
+/** Sales scope: one store, or every store of the central partner. Stores are grouped by fiscal code (CUI): Senior's
+ * Partener_Central text differs between stores of the same company (e.g. "LIDL DISCOUNT SRL - ROMAN"). */
+const partnerScope = (pid: number | null, storeId: number | null) => storeId ? `pp.Partener_ID=${storeId}` : pid ? `(pp.Partener_ID=${pid} OR ${cf("pp")}=${cfOf(pid)} OR (${cfOf(pid)} IS NULL AND pp.Partener_Central=${centralOf(pid)}))` : null;
 const CLIENT_NAME = "LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(pp.Partener_Central)),''), pp.Partener_Denumire)))";
 
 export async function priceOptions(sb: Rpc, body: { partnerId?: unknown; allProducts?: unknown }) {
@@ -32,9 +38,9 @@ export async function priceOptions(sb: Rpc, body: { partnerId?: unknown; allProd
   const scope = partnerScope(pid, null);
   // Central partners: every store of a retail chain is grouped under its Senior Partener_Central.
   const clientsQ = SQL(sb, `SELECT TOP 600 COALESCE(MIN(CASE WHEN LTRIM(RTRIM(pp.Partener_Denumire))=LTRIM(RTRIM(pp.Partener_Central)) THEN pp.Partener_ID END), MIN(pp.Partener_ID)) id,
-      ${CLIENT_NAME} name, COUNT(DISTINCT pp.Partener_ID) stores
+      MIN(${CLIENT_NAME}) name, COUNT(DISTINCT pp.Partener_ID) stores
       FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID ${PP1}
-      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${since}' GROUP BY ${CLIENT_NAME} ORDER BY SUM(CAST(h.Valoare_Rol AS float)) DESC`);
+      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${since}' GROUP BY COALESCE(${cf("pp")}, ${CLIENT_NAME}) ORDER BY SUM(CAST(h.Valoare_Rol AS float)) DESC`);
   const filtered = scope && body.allProducts !== true;
   const productsQ = SQL(sb, `SELECT TOP 800 d.Articol_ID id, MAX(d.Denumire) name, SUM(CAST(d.Cantitate AS float)) qty FROM ${docs}
       ${filtered ? PP1 : ""}
@@ -48,7 +54,7 @@ export async function priceOptions(sb: Rpc, body: { partnerId?: unknown; allProd
       GROUP BY pp.Partener_ID ORDER BY MAX(pp.Partener_Denumire)`) : Promise.resolve([]);
   const [clients, products, stores] = await Promise.all([clientsQ, productsQ, storesQ]);
   return {
-    stores: stores.map((r: any) => ({ id: r.id, name: String(r.name).trim(), route: deliveryRoute(r) })),
+    stores: stores.map((r: any) => ({ id: r.id, name: String(r.name).trim(), route: pointRoute({ pid: r.id, ...r }, validRouteOverrides((body as any).routeOverrides)).route })),
     clients: clients.map((r: any) => ({ id: r.id, name: String(r.name).trim(), stores: num(r.stores) })),
     products: products.map((r: any) => ({ id: r.id, name: String(r.name).trim(), qty: num(r.qty) })),
   };
@@ -69,7 +75,7 @@ export async function findPartners(sb: Rpc, name: string) {
   return SQL(sb, `SELECT TOP 10 p.Partener_ID id, p.Denumire name FROM dbo.D_Parteneri p WITH (NOLOCK) WHERE p.IsClient=1 AND ${like} ORDER BY p.Denumire`);
 }
 
-type Body = { articolId?: unknown; articolIds?: unknown; partnerId?: unknown; storeId?: unknown; year?: unknown; month?: unknown; rawPriceMode?: unknown };
+type Body = { articolId?: unknown; articolIds?: unknown; partnerId?: unknown; storeId?: unknown; year?: unknown; month?: unknown; rawPriceMode?: unknown; routeOverrides?: unknown };
 type Loss = Array<{ name: string; pt_percent: number | null }>;
 
 /** Price list for several finished products of one client (central partner or one store), sharing every common Senior read. */
@@ -82,6 +88,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const year = Number(body.year), month = Number(body.month);
   if (!(year > 2015 && year < 2100 && month >= 1 && month <= 12)) throw new Error("Lună invalidă.");
   const rawMode = body.rawPriceMode === "week" ? "week" : "annual";
+  const overrides = validRouteOverrides(body.routeOverrides);
   const P = ratePeriod(year, month);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Bucharest" });
   const pricesPeriod = priceDates(year, month, today);
@@ -110,8 +117,10 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const supplyLine = "(d.Denumire LIKE 'TRANSPORT%' OR d.Denumire LIKE 'SERVICII TRANSPORT%') AND d.Denumire NOT LIKE 'TRANSPORT DIST%'";
 
   const warnings: string[] = [];
+  /** Sources and methods: shown to the user, not problems to fix. */
+  const info: string[] = [];
   let logisticsRead: Awaited<ReturnType<typeof priceLogistics>> | null = null;
-  const [art, recipe, history, recent, eur, priceList, clientAdjustments, supply, lastTrucks, receivedPallets, receivedKg, storeRows, loss, packagingLoss, labelLoss] = await Promise.all([
+  const [art, recipe, history, recent, eur, priceList, clientAdjustments, clientServices, supply, lastTrucks, receivedPallets, receivedKg, storeRows, loss, packagingLoss, labelLoss] = await Promise.all([
     SQL(sb, `SELECT a.Articol_ID id, a.Denumire name, a.Cod code FROM dbo.D_Articole a WITH (NOLOCK) WHERE a.Articol_ID IN (${A})`),
     SQL(sb, `SELECT v.ArticolId pa, v.PKArticoleCompuseHVersiuni vid, CAST(v.Cantitate AS float) vq, v.IsImplicit impl, v.DataStart ds, d.ArticolId id, a.Denumire name, CAST(d.Cantitate AS float) q, um.Cod um
       FROM dbo.DArticoleCompuseHVersiuni v WITH (NOLOCK) JOIN dbo.DArticoleCompuseD d WITH (NOLOCK) ON d.FKArticoleCompuseHVersiuni=v.PKArticoleCompuseHVersiuni
@@ -138,6 +147,13 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
       FROM ${docs} WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${P.startDay}' AND h.Data<'${P.endDay}'
       AND EXISTS(SELECT 1 FROM dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) WHERE pp.H_ID=h.H_ID AND pp.TipPartener=1
         AND NULLIF(REPLACE(UPPER(pp.Partener_Cod_Fiscal),'RO',''),'') IN (SELECT DISTINCT REPLACE(UPPER(p.Partener_Cod_Fiscal),'RO','') FROM dbo.C_H_Note_Contabile_Parteneri p WITH (NOLOCK) WHERE p.Partener_ID=${pid} AND NULLIF(p.Partener_Cod_Fiscal,'') IS NOT NULL))`) : Promise.resolve([]),
+    // Fees the client invoices to us (logistics, destruction, audit, advertising): supplier invoices of the same CUI booked on 628 / 6232.
+    pid ? SQL(sb, `SELECT TOP 30 LTRIM(RTRIM(dc.SubiectDenumire)) subject, p.Cont cont, SUM(CAST(dc.Valoare_Rol AS float)) total
+      FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID
+      JOIN dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) ON dc.H_ID=h.H_ID JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId
+      WHERE t.Cod='FF' AND ${notCancelled} AND h.Data>='${P.startDay}' AND h.Data<'${P.endDay}' AND dc.IsDebit=1 AND (p.Cont LIKE '628%' OR p.Cont LIKE '6232%')
+      AND EXISTS(SELECT 1 FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.H_ID=h.H_ID AND x.TipPartener=2 AND ${cf("x")}=${cfOf(pid)})
+      GROUP BY LTRIM(RTRIM(dc.SubiectDenumire)), p.Cont ORDER BY SUM(CAST(dc.Valoare_Rol AS float)) DESC`) : Promise.resolve([]),
     // Supply transport: latest carrier invoices (invoice date in the window) posted on 624.01, distribution lines excluded.
     SQL(sb, `SELECT SUM(CASE WHEN h.Data>='${win.start}' THEN CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) total,
         SUM(CASE WHEN h.Data>='${win.start}' AND d.Cantitate>0 AND d.Denumire LIKE 'TRANSPORT%' THEN 1 ELSE 0 END) trucks,
@@ -193,33 +209,41 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const rawMaterialLabel = rawMode === "week" ? `medie NIR ${weekStart} – ${pricesPeriod.endDay} (exclusiv)` : `medie NIR ${pricesPeriod.startDay} – ${pricesPeriod.endDay} (exclusiv)`;
   const shared: PriceConfig = { route: "România", supplyBasis: "pallet", rawPriceMode: rawMode, rates: { marginPct: DEFAULT_MARGIN_PCT, eurRate: eur[0] ? num(eur[0].rate) : 0, eurBufferPct: 1.5, techLossPct: 0 } };
   if (!pid) shared.feePct = 0;
-  const feePct = historicalFeePct(num(clientAdjustments[0]?.discounts), num(clientAdjustments[0]?.sales));
-  if (pid && feePct != null && num(clientAdjustments[0]?.discounts) > 0) {
+  // Client fees = discounts on our invoices + services the client invoices to us (628/6232), over 12 months, ÷ net sales to the same CUI.
+  const discounts = Math.max(num(clientAdjustments[0]?.discounts), 0), sales = num(clientAdjustments[0]?.sales);
+  const services = clientServices.map((r: any) => ({ subject: String(r.subject ?? "").trim() || String(r.cont), account: String(r.cont), total: num(r.total) })).filter((r: { total: number }) => r.total > 0);
+  const servicesTotal = services.reduce((t: number, r: { total: number }) => t + r.total, 0);
+  const feePct = historicalFeePct(discounts + servicesTotal, sales);
+  const fees = pid ? { pct: feePct, discounts, services, servicesTotal, sales, from: P.startDay, to: P.endDay } : null;
+  if (pid && feePct != null) {
     shared.feePct = feePct;
-    warnings.push(`Taxe/reduceri: ${feePct.toFixed(2)}% istoric din facturi client negative, agregate pe cod fiscal (12 luni); nu tarif contractual. Reduceri ${num(clientAdjustments[0]?.discounts).toFixed(2)} lei / vânzări ${num(clientAdjustments[0]?.sales).toFixed(2)} lei.`);
-  }
+    info.push(`Taxe client ${feePct.toFixed(2)}%: reduceri pe facturile noastre ${discounts.toFixed(2)} lei + servicii facturate de client ${servicesTotal.toFixed(2)} lei${services.length ? ` (${services.slice(0, 4).map((r: { subject: string; total: number }) => `${r.subject} ${r.total.toFixed(0)}`).join(", ")})` : ""} ÷ vânzări ${sales.toFixed(2)} lei, ${P.startDay} – ${P.endDay} (exclusiv), pe codul fiscal. Istoric, nu tarif contractual.`);
+  } else if (pid) warnings.push("Taxe client: nicio vânzare către acest cod fiscal în ultimele 12 luni; completează procentul manual.");
   // Latest prices: average cost per truck of the last 30 days (services included) ÷ average load per truck of the last 90 days.
   const total30 = num(supply[0]?.total), trucks30 = num(supply[0]?.trucks), loadTrucks = num(supply[0]?.loadTrucks);
   const pallets90 = num(receivedPallets[0]?.pallets), kg90 = num(receivedKg[0]?.kg);
   const costPerTruck = trucks30 > 0 && total30 > 0 ? total30 / trucks30 : null;
   const palletsPerTruck = loadTrucks > 0 && pallets90 > 0 ? pallets90 / loadTrucks : null;
   const kgPerTruck = loadTrucks > 0 && kg90 > 0 ? kg90 / loadTrucks : null;
+  /** Raw materials outside the configured categories: average kg per received pallet (NIR kg ÷ NIR pallets). */
+  const avgKgPerPallet = kg90 > 0 && pallets90 > 0 ? kg90 / pallets90 : null;
   if (costPerTruck != null) shared.supplyTotal = costPerTruck;
   if (palletsPerTruck != null) { shared.supplyPallets = palletsPerTruck; if (costPerTruck != null) shared.supplyPerPallet = costPerTruck / palletsPerTruck; }
   if (kgPerTruck != null) { shared.supplyKg = kgPerTruck; if (costPerTruck != null) shared.rates = { ...shared.rates, supplyPerKg: costPerTruck / kgPerTruck }; }
   if (costPerTruck == null) warnings.push(`Aprovizionare: nicio factură de transport aprovizionare (624.01) datată ${win.start} – ${win.end}; completează tariful manual.`);
-  warnings.push(`Aprovizionare: cost mediu pe camion din facturile ${win.start} – ${win.end} ÷ încărcarea medie pe camion (paleți și kg NIR ÷ camioane) din ${load.start} – ${load.end}; facturile nu sunt legate individual de NIR-uri. Capacitățile MP sunt reperele configurate Coral.`);
+  info.push(`Aprovizionare: cost mediu pe camion din facturile ${win.start} – ${win.end} ÷ încărcarea medie pe camion (paleți și kg NIR ÷ camioane) din ${load.start} – ${load.end}; facturile nu sunt legate individual de NIR-uri. Capacitățile MP sunt reperele configurate Coral.`);
 
   const read = logisticsRead as Awaited<ReturnType<typeof priceLogistics>> | null;
   const distribution: Record<string, PriceConfig> = {};
-  const loadData = buildRoutes(read?.points ?? [], read?.loadTrips ?? []);
-  const routeData = { ...loadData, routes: latestRoutes(buildRoutes(read?.points ?? [], read?.trips ?? []).routes, loadData.routes) };
+  const loadData = buildRoutes(read?.points ?? [], read?.loadTrips ?? [], overrides);
+  const routeData = { ...loadData, routes: latestRoutes(buildRoutes(read?.points ?? [], read?.trips ?? [], overrides).routes, loadData.routes) };
   for (const r of routeData.routes) {
     // Latest trip cost × trips in the last 30 days, loaded with the 90-day pallets per trip.
     distribution[r.route] = { distributionTotal: r.total, distributionTrips: r.trips, ...(r.palletsPerTrip ? { distributionPallets: r.trips * r.palletsPerTrip, distributionPerPallet: r.perPallet ?? undefined, distributionPalletsPerTrip: r.palletsPerTrip } : {}) };
-    if (!r.recent) warnings.push(`Cursa ${r.route}: nicio cursă facturată în ultimele 30 de zile; costul pe cursă este media ${load.start} – ${load.end}.`);
-    if (r.missingLines) warnings.push(`Cursa ${r.route}: ${r.missingLines} linii de produse fără coeficient bucăți/palet în Senior; paleții cursei sunt subevaluați, deci tariful pe palet e supraevaluat.`);
-    if (r.unitPrice != null) warnings.push(`Cursa ${r.route}: transportatorul facturează ${r.unitPrice.toFixed(2)} lei × ${Math.round(r.qty)} unități, nu pe cursă.`);
+    if (!r.recent) info.push(`Cursa ${r.route}: nicio cursă facturată în ultimele 30 de zile; costul pe cursă este media ${load.start} – ${load.end}.`);
+    if (r.missingLines > 0) info.push(`Cursa ${r.route}: ${r.missingLines} linii de factură fără bucăți/palet în Senior (produse HORECA/vrac) nu sunt numărate în cei ${r.pallets.toFixed(1)} paleți; tariful pe palet poate fi ușor supraevaluat.`);
+    if (r.unitPrice != null) info.push(`Cursa ${r.route}: transportatorul facturează ${r.unitPrice.toFixed(2)} lei × ${Math.round(r.qty)} unități (facturare lunară, nu pe cursă); tariful pe palet = costul ÷ paleții punctelor atribuite cursei.`);
+    if (r.pallets <= 0) warnings.push(`Cursa ${r.route}: ${r.total.toFixed(0)} lei facturați, dar niciun punct de livrare atribuit — alege cursa pentru punctele ei în „Puncte de livrare fără cursă”.`);
   }
   // Country averages kept for previously saved sheets: only cursă with known pallets.
   for (const country of LEGACY_ROUTES) {
@@ -227,27 +251,29 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     const total = rs.reduce((s, r) => s + r.total, 0), pallets = rs.reduce((s, r) => s + r.trips * (r.palletsPerTrip ?? 0), 0), trips = rs.reduce((s, r) => s + r.trips, 0);
     if (pallets > 0) distribution[country] = { distributionTotal: total, distributionPallets: pallets, distributionPerPallet: total / pallets, distributionTrips: trips, distributionPalletsPerTrip: pallets / trips };
   }
-  const unassignedPallets = routeData.unassigned.reduce((s, p) => s + p.pallets, 0);
-  if (unassignedPallets > 0) warnings.push(`${unassignedPallets.toFixed(1)} paleți livrați către puncte fără cursă identificată (ex. ${routeData.unassigned.slice(0, 3).map((p) => p.name).join(", ")}) nu intră în niciun tarif pe cursă.`);
-  const unknownCosts = read?.costs.filter((r: any) => !transportRoute(String(r.subject))) ?? [];
-  if (unknownCosts.length) warnings.push(`Transport distribuție nealocat pe cursă (facturi din fereastră): ${unknownCosts.reduce((s: number, r: any) => s + num(r.total), 0).toFixed(2)} lei; exclus din tarife până la clarificare.`);
+  const unassigned = unassignedByCounty(routeData.unassigned);
+  const unassignedPallets = unassigned.reduce((s, p) => s + p.pallets, 0);
+  if (unassignedPallets > 0) warnings.push(`${unassignedPallets.toFixed(1)} paleți (${LOAD_DAYS} zile) livrați în ${unassigned.length} județe fără cursă identificată (${unassigned.slice(0, 5).map((g) => `${g.judet} ${g.pallets.toFixed(1)}`).join(", ")}). Senior nu leagă livrările de curse; alege cursa pe județ în „Puncte de livrare fără cursă”, altfel tarifele curselor lor sunt supraevaluate.`);
+  const unknownCosts = read?.costs.filter((r: any) => !transportRoute(String(r.subject)) && num(r.total) !== 0) ?? [];
+  if (unknownCosts.length) info.push(`Alte costuri de transport din fereastră, neincluse în tarifele pe cursă: ${unknownCosts.map((r: any) => `${String(r.subject).trim()} (${r.cont}) ${num(r.total).toFixed(2)} lei`).join("; ")}.`);
 
   // Stores of the central partner with their cursă and pallets delivered in the window.
   const pointBy = new Map(routeData.points.map((p) => [p.pid, p]));
   const stores = storeRows.map((r: any) => {
-    const id = Number(r.id), p = pointBy.get(id);
-    return { pid: id, name: String(r.name ?? "").trim(), route: p?.route ?? deliveryRoute(r), pallets: p?.pallets ?? 0 };
+    const id = Number(r.id), p = pointBy.get(id), pr = pointRoute({ pid: id, ...r }, overrides);
+    return { pid: id, name: String(r.name ?? "").trim(), judet: String(r.judet ?? "").trim(), route: p?.route ?? pr.route, manual: p?.manual ?? pr.manual, proposed: deliveryRoute(r), pallets: p?.pallets ?? 0 };
   });
   const perPallet = Object.fromEntries(Object.entries(distribution).map(([k, v]) => [k, v.distributionPerPallet ?? null]));
   const avg = pid && !storeId ? clientAverageRoute(stores, perPallet) : null;
   if (avg) {
     distribution[CLIENT_AVERAGE_ROUTE] = avg.weighted ? { distributionTotal: avg.allocated!, distributionPallets: avg.pallets, distributionPerPallet: avg.perPallet } : { distributionPerPallet: avg.perPallet };
-    warnings.push(`Distribuție medie client: ${avg.weighted ? `ponderată cu ${avg.pallets.toFixed(1)} paleți livrați în ultimele ${LOAD_DAYS} de zile` : `medie simplă (fără livrări în ultimele ${LOAD_DAYS} de zile)`} pe ${avg.stores} magazine${avg.missing.length ? `; fără cursă/tarif: ${avg.missing.slice(0, 4).join(", ")}${avg.missing.length > 4 ? ` +${avg.missing.length - 4}` : ""}` : ""}.`);
+    info.push(`Distribuție medie client: ${avg.weighted ? `ponderată cu ${avg.pallets.toFixed(1)} paleți livrați în ultimele ${LOAD_DAYS} de zile` : `medie simplă (fără livrări în ultimele ${LOAD_DAYS} de zile)`} pe ${avg.stores} magazine.`);
+    if (avg.missing.length) warnings.push(`Magazine fără cursă/tarif, excluse din media clientului: ${avg.missing.slice(0, 6).join(", ")}${avg.missing.length > 6 ? ` +${avg.missing.length - 6}` : ""}; alege cursa în tabelul de rentabilitate pe magazine.`);
   }
-  let point = storeId ? routeData.points.find((p) => p.pid === storeId) ?? null : null;
+  let point: { pid: number; name: string; route: string | null } | null = storeId ? routeData.points.find((p) => p.pid === storeId) ?? null : null;
   if (!point && storeId) {
     const r = await SQL(sb, `SELECT TOP 1 Partener_Denumire name, Document_Judet judet, Document_Tara country FROM dbo.C_H_Note_Contabile_Parteneri WITH (NOLOCK) WHERE Partener_ID=${storeId} AND TipPartener=1 ORDER BY H_ID DESC`);
-    if (r[0]) point = { pid: storeId, name: String(r[0].name ?? "").trim(), pallets: 0, missing: 0, route: deliveryRoute(r[0]) };
+    if (r[0]) point = { pid: storeId, name: String(r[0].name ?? "").trim(), route: pointRoute({ pid: storeId, ...r[0] }, overrides).route };
   }
   const suggestedRoute = point?.route && distribution[point.route] ? point.route : avg ? CLIENT_AVERAGE_ROUTE : null;
   shared.route = suggestedRoute ?? "România";
@@ -256,6 +282,18 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
 
   // ---- Per product.
   const artBy = new Map(art.map((a: any) => [Number(a.id), a]));
+  // Washed mixes have no numeric speed in the labour CSV: use the real speed recorded in Producție.
+  const mixed = aids.filter((aid) => {
+    const a = artBy.get(aid), rows = picked.get(aid);
+    if (!a || !rows) return false;
+    const lite = rows.filter((r) => !isServiceComponent(String(r.name))).map((r) => ({ id: Number(r.id), name: String(r.name), qty: num(r.q), unit: String(r.um ?? "BUC"), kind: componentKind(String(r.name), String(r.um ?? "BUC")), price: null, priceSource: "", lossPct: 0 }));
+    return suggestedLabour(String(a.name), lite) === MIXED_WASHED;
+  });
+  let speeds = new Map<number, RealSpeed>();
+  if (mixed.length) {
+    try { speeds = await realLineSpeeds(legacy, mixed.map((id) => ({ id, name: String(artBy.get(id)?.name ?? "") })), pricesPeriod.endDay); }
+    catch (e) { warnings.push(`Viteza reală din Producție nu a putut fi citită: ${(e as Error).message}`); }
+  }
   const convBy = new Map<number, number>();
   for (const r of read?.conversion ?? []) if (num(r.coef) > 0) convBy.set(Number(r.id), num(r.coef));
   const items = aids.map((aid) => {
@@ -280,14 +318,20 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
         ...(kind === 'ambalaj' && safety.has(Number(r.id)) ? { priceSafety: safety.get(Number(r.id)) } : {}),
         priceSource: kind === "ambalaj" ? `ultima intrare NIR ${String(p?.lastd ?? "").slice(0, 10)}` : rawMaterialLabel,
         lossPct: m ? m.pt : 0,
-        lossSource: m ? `PT Coral ERP: ${m.name}` : "PT nesetat — de completat",
-        ...(kind === "mp" ? { kgPerPallet: configuredRawPalletKg(cname) } : {}),
+        // Packaging without its own Coral ERP setting: 0%, like every packaging configured there (editable).
+        lossSource: m ? `PT Coral ERP: ${m.name}` : kind === "ambalaj" ? "PT ambalaj 0% — neconfigurat în Coral ERP (editabil)" : "PT nesetat — de completat",
+        ...(kind === "mp" ? (configuredRawPalletKg(cname) != null
+          ? { kgPerPallet: configuredRawPalletKg(cname), palletSource: "kg/palet Coral (căpățâni 400, radicchio 500, frunze/aromate 220)" }
+          : avgKgPerPallet != null ? { kgPerPallet: Math.round(avgKgPerPallet), palletSource: `kg/palet mediu din recepții: ${Math.round(kg90)} kg ÷ ${Math.round(pallets90)} paleți NIR, ${load.start} – ${load.end}` } : {}) : {}),
       };
     });
     for (const c of components) if (c.priceSafety?.suspect) itemWarnings.push(`${c.name}: unitate NIR suspectă (rolă vs. bucată); ultima intrare depășește 3× media ponderată precedentelor 6 luni. Prețul Senior nu a fost modificat.`);
     const suggested = suggestedLabour(name, components);
     const cfg: PriceConfig = { ...shared, rates: { ...shared.rates }, unitsPerCase, ...(suggested ? { labourLine: suggested } : {}), components: {} };
     if (convBy.has(aid)) cfg.piecesPerPallet = convBy.get(aid);
+    const speed = speeds.get(aid) ?? null;
+    if (suggested === MIXED_WASHED && speed) cfg.labourSpeed = Math.round(speed.speed);
+    if (suggested === MIXED_WASHED && !speed) itemWarnings.push(`Mix spălat: nu am găsit sesiuni de producție în ultimele ${SPEED_DAYS} de zile pentru acest produs; completează viteza liniei (buc/oră).`);
     for (const c of components) if (c.kind === "mp") cfg.components = { ...cfg.components, [c.id]: { kgPerPallet: c.kgPerPallet } };
     const hist = history.filter((r: any) => Number(r.aid) === aid);
     const storeSales = recent.filter((r: any) => Number(r.aid) === aid).map((r: any) => ({ pid: Number(r.pid), qty: num(r.q), value: num(r.v), price: num(r.q) > 0 ? num(r.v) / num(r.q) : null }));
@@ -296,7 +340,10 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     return {
       product: { id: aid, name, code: a.code, unitsPerCase },
       components, defaults: cfg, warnings: itemWarnings,
-      suggestedLabourSource: suggested ? "Propunere după produs/compoziție; tarif din CSV octombrie 2026" : "Linie neidentificată",
+      suggestedLabourSource: suggested ? (speed && suggested === MIXED_WASHED
+        ? `Mix spălat: viteză reală ${Math.round(speed.speed)} buc/oră din Producție (${speed.sessions} sesiuni, ${speed.hours.toFixed(1)} ore lucrate, ${speed.from} – ${speed.to}; ${speed.products.join(", ")}); oameni și cost orar din CSV octombrie 2026`
+        : "Propunere după produs/compoziție; tarif din CSV octombrie 2026") : "Linie neidentificată",
+      realSpeed: speed,
       salesHistory: hist.map((r: any) => ({ month: String(r.m), qty: num(r.q), value: num(r.v), price: num(r.q) > 0 ? Math.round((num(r.v) / num(r.q)) * 10000) / 10000 : null })),
       storeSales,
       recentSale: rq > 0 ? { qty: rq, value: rv, price: rv / rq, from: recentStart, to: pricesPeriod.endDay } : null,
@@ -307,13 +354,13 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   return {
     period: pricesPeriod,
     accountingPeriod: P,
-    warnings,
+    warnings, info, fees, routeOverrides: overrides,
     eur: eur[0] ? { rate: num(eur[0].rate), day: String(eur[0].day).slice(0, 10) } : null,
     stores,
     logistics: {
       closedStart: win.start, closedEnd: win.end, window: win, loadWindow: load,
       supply: { total: total30, trucks: trucks30, costPerTruck, loadTrucks, pallets: pallets90, kg: kg90, palletsPerTruck, kgPerTruck }, lastTrucks: lastTrucks.map((r: any) => ({ day: String(r.day), price: num(r.price), line: String(r.line) })),
-      distribution, routes: routeData.routes, clientAverage: avg,
+      distribution, routes: routeData.routes, clientAverage: avg, unassigned, piecesPerPallet: routeData.piecesPerPallet,
       store: point ? { id: point.pid, name: point.name, route: point.route } : null, suggestedRoute,
       note: `Ultimele prețuri: cost mediu pe camion/cursă din facturile datate ${win.start} – ${win.end} (exclusiv); încărcarea (paleți pe camion/cursă) din ${load.start} – ${load.end}, ca să nu depindă de zilele în care se introduc NIR-urile sau facturile. Distribuție: curse „TRANSPORT DIST <cursă>”; paleți = Cantitate/Coef Senior facturați către punctele de livrare ale cursei. Punctele sunt atribuite cursei după oraș/județ; facturile transportatorilor nu indică livrarea exactă.`,
     },
@@ -329,7 +376,7 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: Body) {
   const it = r.items[0];
   if (!it || "error" in it) throw new Error(it && "error" in it ? String(it.error) : "Produs invalid.");
   const { items: _items, ...shared } = r;
-  return { ...shared, ...it, warnings: [...shared.warnings, ...it.warnings] };
+  return { ...shared, ...it, warnings: [...shared.warnings, ...shared.info, ...it.warnings] };
 }
 
 export type PriceData = Awaited<ReturnType<typeof priceCalcData>>;
