@@ -89,10 +89,11 @@ async function fetchAvizeSince(sinceDate) {
         l.Denumire                    AS denumire_produs,
         l.Cantitate                   AS cantitate,
         l.Cantitate_Disponibila       AS cantitate_acceptata,
-        l.UM_Id                       AS um,
+        COALESCE(um.Cod, CAST(l.UM_Id AS varchar(20))) AS um,
         l.Descriere                   AS observatie,
         bx.ContinutBAX                AS baxare
       FROM [dbo].[C_D_Note_Contabile] l
+      LEFT JOIN [dbo].[D_Articole_UM] um ON um.UM_ID = l.UM_Id
       OUTER APPLY (SELECT TOP 1 b.ContinutBAX FROM [extensions].[CT_CantitateBAX] b
         WHERE b.CodArticol=l.D_ID ORDER BY b.LastModifiedOn DESC,b.Id DESC) bx
       WHERE l.H_Id IN (${placeholders})

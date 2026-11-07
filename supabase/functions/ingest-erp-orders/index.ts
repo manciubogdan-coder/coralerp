@@ -13,6 +13,7 @@ import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts'
 import { plannedQuantity } from '../_shared/erpQuantity.ts';
 import { cancellationPatch, isErpCancellationApplied } from './cancellation.ts';
 import { findCarton, expandCarton, type MixedCarton } from '../_shared/mixedCartons.ts';
+import { cartonNameUnit } from './cartonUnit.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -842,10 +843,4 @@ Deno.serve(async (req) => {
   });
 });
 
-function cartonNameUnit(um?: string): 'bax' | 'buc' {
-  const unit = String(um ?? '').trim().toLowerCase();
-  // Configured mixed commercial SKUs are cartons by default even when Senior labels them "buc".
-  if (!unit || /^(buc|bax|col|cut|cart|box)/.test(unit)) return 'bax';
-  throw new Error(`Unitatea ${um} nu este compatibilă cu un bax mixt.`);
-}
 
