@@ -25,7 +25,7 @@ type Store = Opt & { route: string | null };
 type RouteStat = { route: string; country: string; trips: number; total: number; pallets: number; estimatedPallets?: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; points: Array<{ name: string; pallets: number }>; pool?: { routes: string[]; total: number; pallets: number; trips: number } };
 type CountyGap = { county: string; judet: string; pallets: number; points: number; names: string[] };
 type Logistics = {
-  supply: { total: number; trucks: number; costPerTruck: number | null; loadTrucks: number; pallets: number; kg: number; palletsPerTruck: number | null; kgPerTruck: number | null; orderedRows?: Array<{ name: string; unit: string; kg: number; kgPerPallet: number | null; pallets: number }>; orderedLoads?: Array<{ supplier: string; day: string; pallets: number; trucks: number }>; invoiceTrucks90?: number };
+  supply: { total: number; trucks: number; costPerTruck: number | null; loadTrucks: number; pallets: number; kg: number; palletsPerTruck: number | null; kgPerTruck: number | null; orderedRows?: Array<{ name: string; unit: string; kg: number; kgPerPallet: number | null; piecesPerPallet?: number | null; pallets: number }>; orderedLoads?: Array<{ supplier: string; day: string; pallets: number; trucks: number }>; invoiceTrucks90?: number };
   loadWindow: { start: string; end: string }; lastTrucks: Array<{ day: string; price: number; line: string; qty?: number; value?: number; supplier?: string; truck?: boolean }>;
   closedStart: string; closedEnd: string; note: string; distribution?: Record<string, PriceConfig | null>; routes?: RouteStat[];
   clientAverage: { perPallet: number; pallets: number; weighted: boolean; stores: number } | null;
@@ -55,6 +55,7 @@ const MONTHS = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "I
 const n2 = (v: number | null | undefined, d = 2) => (v == null || !Number.isFinite(v) ? "—" : v.toLocaleString("ro-RO", { minimumFractionDigits: d, maximumFractionDigits: d }));
 const num = (s: string) => Number(String(s).replace(",", "."));
 const r4 = (v: number) => Math.round(v * 10000) / 10000;
+const KIND_LABEL: Record<SheetComponent["kind"], string> = { mp: "Materie primă", marfa: "Marfă revândută ca atare", ambalaj: "Ambalaj" };
 const LABOUR_FIELDS = ["labourPerPiece", "utilitiesPerPiece", "labourPeople", "labourSpeed", "labourHourCost", "labourOverheadPct"];
 /** Edits that belong to one product; transport, margin, fees and EUR apply to the whole list. */
 const PRODUCT_KEYS = new Set(["unitsPerCase", "piecesPerPallet", ...LABOUR_FIELDS]);
@@ -257,18 +258,19 @@ export default function PriceCalculator() {
     for (const k of RATE_KEYS) if (vals[k] != null && vals[k] !== "") cfg.rates = { ...cfg.rates, [k]: num(vals[k]) };
     for (const k of CONFIG_NUMBERS) if (vals[k] != null && vals[k] !== "") Object.assign(cfg, { [k]: num(vals[k]) });
     for (const c of it.components) {
-      const x: { price?: number; qty?: number; lossPct?: number; kgPerPallet?: number } = {};
+      const x: { price?: number; qty?: number; lossPct?: number; kgPerPallet?: number; piecesPerPallet?: number } = {};
       if (o.prices[c.id] != null && o.prices[c.id] !== "") x.price = num(o.prices[c.id]);
       if (o.losses[c.id] != null && o.losses[c.id] !== "") x.lossPct = num(o.losses[c.id]);
       if (o.quantities[c.id] != null && o.quantities[c.id] !== "") x.qty = num(o.quantities[c.id]);
-      if (o.palletKg[c.id] != null && o.palletKg[c.id] !== "") x.kgPerPallet = num(o.palletKg[c.id]);
+      // Traded goods: the pallet field holds pieces per pallet.
+      if (o.palletKg[c.id] != null && o.palletKg[c.id] !== "") x[c.kind === "marfa" ? "piecesPerPallet" : "kgPerPallet"] = num(o.palletKg[c.id]);
       cfg.components = { ...cfg.components, [c.id]: x };
     }
     return cfg;
   };
   const compute = (it: Item, cfg: PriceConfig): Computed | null => {
     if (!result || !logistics || !validPriceConfig(cfg)) return null;
-    const comps = it.components.map((c) => ({ ...c, ...(c.kind === "mp" ? { price: mode === "week" ? c.weekPrice ?? null : c.annualPrice ?? null } : {}) }));
+    const comps = it.components.map((c) => ({ ...c, ...(c.kind === "mp" || c.kind === "marfa" ? { price: mode === "week" ? c.weekPrice ?? null : c.annualPrice ?? null } : {}) }));
     // The proposed cursă follows the store routes chosen on screen (client average recomputed locally).
     const base = it.defaults.route ? { ...it.defaults } : it.defaults;
     if (it.defaults.route && logistics.distribution?.[it.defaults.route]) { for (const k of DIST_KEYS) delete (base as Record<string, unknown>)[k]; Object.assign(base, logistics.distribution[it.defaults.route]); }
@@ -387,7 +389,7 @@ export default function PriceCalculator() {
     ];
     for (const comp of c.comps) {
       const l = c.s.lines.find((x) => x.label === comp.name);
-      rows.push([comp.name, comp.kind === "mp" ? "Materie primă" : "Ambalaj", comp.unit, r4(comp.qty), comp.lossPct, r4(comp.price ?? 0), r4(l?.value ?? 0), r4((l?.value ?? 0) / n), [comp.priceSource, comp.lossSource, comp.palletSource].filter(Boolean).join(" · ")]);
+      rows.push([comp.name, KIND_LABEL[comp.kind], comp.unit, r4(comp.qty), comp.lossPct, r4(comp.price ?? 0), r4(l?.value ?? 0), r4((l?.value ?? 0) / n), [comp.priceSource, comp.lossSource, comp.palletSource].filter(Boolean).join(" · ")]);
     }
     for (const l of c.s.lines.filter((x) => !c.comps.some((k) => k.name === x.label))) rows.push([l.label, "", "", "", "", "", r4(l.value), r4(l.value / n), l.detail]);
     rows.push([], ["Rezultat", "", "", "", "", "", "lei/bax", "lei/buc"]);
@@ -500,25 +502,27 @@ export default function PriceCalculator() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-sm">
             <thead className="border-b text-left text-xs text-muted-foreground">
-              <tr><th className="py-2">Componentă (rețetă Senior pe bax)</th><th className="text-right">Cantitate</th><th className="text-right">PT %</th><th className="text-right">Cu pierdere</th><th className="text-right">Preț (lei/UM)</th><th className="text-right">kg / palet MP</th><th className="text-right">lei/bax</th><th className="text-right">lei/buc</th></tr>
+              <tr><th className="py-2">Componentă (rețetă Senior pe bax)</th><th className="text-right">Cantitate</th><th className="text-right">PT %</th><th className="text-right">Cu pierdere</th><th className="text-right">Preț (lei/UM)</th><th className="text-right">kg (buc) / palet</th><th className="text-right">lei/bax</th><th className="text-right">lei/buc</th></tr>
             </thead>
             <tbody>
               {c.comps.map((x) => {
                 const l = s.lines.find((y) => y.label === x.name);
-                const eff = x.kind === "mp" ? x.qty / (1 - Math.min(x.lossPct, 95) / 100) : x.qty * (1 + x.lossPct / 100);
+                const weighed = x.kind === "mp" || x.kind === "marfa";
+                const eff = weighed ? x.qty / (1 - Math.min(x.lossPct, 95) / 100) : x.qty * (1 + x.lossPct / 100);
                 return (
                   <tr key={x.id} className="border-b last:border-0">
                     <td className="py-1.5">
                       <div className={`font-medium ${x.priceSafety?.suspect ? 'text-crm-warning' : ''}`}>{x.name}{x.priceSafety?.suspect ? ' · NIR suspect' : ''}</div>
-                      <div className="text-[11px] text-muted-foreground">{x.kind === "mp" ? "Materie primă" : "Ambalaj"} · {[x.priceSource, x.lossSource, x.palletSource].filter(Boolean).join(" · ")}</div>
-                      {x.kind === "mp" && <div className="text-[11px] tabular-nums">Medie anuală <b>{x.annualPrice != null ? n2(x.annualPrice, 4) : "—"}</b> · ultimă săptămână <b>{x.weekPrice != null ? n2(x.weekPrice, 4) : "—"}</b> · ultima intrare <b>{x.lastPrice != null ? n2(x.lastPrice, 4) : "—"}</b> lei/{x.unit}</div>}
+                      <div className="text-[11px] text-muted-foreground">{KIND_LABEL[x.kind]} · {[x.priceSource, x.lossSource, x.palletSource].filter(Boolean).join(" · ")}</div>
+                      {weighed && <div className="text-[11px] tabular-nums">Medie anuală <b>{x.annualPrice != null ? n2(x.annualPrice, 4) : "—"}</b> · ultimă săptămână <b>{x.weekPrice != null ? n2(x.weekPrice, 4) : "—"}</b> · ultima intrare <b>{x.lastPrice != null ? n2(x.lastPrice, 4) : "—"}</b> lei/{x.unit}</div>}
                       <details className="text-[11px]">
                         <summary className="cursor-pointer text-primary">Cum s-a calculat</summary>
                         <div className="mt-1 space-y-0.5 rounded bg-muted/40 p-2">
                           <div>1. Cantitate din rețeta Senior: {n2(x.qty, 4)} {x.unit} pe bax.</div>
-                          <div>2. Cu pierdere ({n2(x.lossPct, 2)}%): {x.kind === "mp" ? `${n2(x.qty, 4)} ÷ (1 − ${n2(x.lossPct, 2)}%)` : `${n2(x.qty, 4)} × (1 + ${n2(x.lossPct, 2)}%)`} = <b>{n2(eff, 4)} {x.unit}</b>.</div>
-                          <div>3. Preț folosit: {x.price != null ? n2(x.price, 4) : "lipsă"} lei/{x.unit} ({x.kind === "mp" ? (mode === "week" ? "media ultimei săptămâni" : "media anuală ponderată NIR") : "ultima intrare NIR"}) → {n2(eff, 4)} × {x.price != null ? n2(x.price, 4) : "?"} = <b>{x.price != null ? n2(eff * x.price, 4) : "—"} lei/bax</b>.</div>
+                          <div>2. Cu pierdere ({n2(x.lossPct, 2)}%): {weighed ? `${n2(x.qty, 4)} ÷ (1 − ${n2(x.lossPct, 2)}%)` : `${n2(x.qty, 4)} × (1 + ${n2(x.lossPct, 2)}%)`} = <b>{n2(eff, 4)} {x.unit}</b>.</div>
+                          <div>3. Preț folosit: {x.price != null ? n2(x.price, 4) : "lipsă"} lei/{x.unit} ({weighed ? (mode === "week" ? "media ultimei săptămâni" : "media anuală ponderată NIR") : "ultima intrare NIR"}) → {n2(eff, 4)} × {x.price != null ? n2(x.price, 4) : "?"} = <b>{x.price != null ? n2(eff * x.price, 4) : "—"} lei/bax</b>.</div>
                           {x.kind === "mp" && x.kgPerPallet ? <div>4. Paleți materie primă: {n2(eff, 4)} kg ÷ {n2(x.kgPerPallet, 0)} kg/palet = {n2(eff / x.kgPerPallet, 5)} paleți/bax (folosit la transportul de aprovizionare).</div> : null}
+                          {x.kind === "marfa" && x.piecesPerPallet ? <div>4. Paleți aprovizionare: {n2(eff, 4)} buc ÷ {n2(x.piecesPerPallet, 0)} buc/palet = {n2(eff / x.piecesPerPallet, 5)} paleți/bax (folosit la transportul de aprovizionare). Marfă revândută ca atare: fără manoperă directă, doar regie.</div> : null}
                           {l?.detail && <div>Detaliu calcul: {l.detail}</div>}
                           <div>Total rând: <b>{n2(l?.value ?? 0, 4)} lei/bax</b> ÷ {n} buc = {n2((l?.value ?? 0) / n, 4)} lei/buc. Toate câmpurile din dreapta se pot modifica.</div>
                         </div>
@@ -528,7 +532,7 @@ export default function PriceCalculator() {
                     <td className="text-right"><Input aria-label={`PT ${x.name}`} className="ml-auto h-8 w-16 text-right" value={o.losses[x.id] ?? String(it.components.find((k) => k.id === x.id)?.lossPct ?? x.lossPct)} onChange={(e) => setOv(id, (q) => ({ ...q, losses: { ...q.losses, [x.id]: e.target.value } }))} /></td>
                     <td className="text-right tabular-nums">{n2(eff, 4)}</td>
                     <td className="text-right"><Input aria-label={`Preț ${x.name}`} className="ml-auto h-8 w-24 text-right" value={o.prices[x.id] ?? (x.price == null ? "" : String(Math.round(x.price * 10000) / 10000))} onChange={(e) => setOv(id, (q) => ({ ...q, prices: { ...q.prices, [x.id]: e.target.value } }))} /></td>
-                    <td>{x.kind === "mp" ? <Input aria-label={`kg/palet ${x.name}`} className="ml-auto h-8 w-20 text-right" value={o.palletKg[x.id] ?? (x.kgPerPallet == null ? "" : String(x.kgPerPallet))} onChange={(e) => setOv(id, (q) => ({ ...q, palletKg: { ...q.palletKg, [x.id]: e.target.value } }))} /> : <span className="block text-right">—</span>}</td>
+                    <td>{weighed ? (() => { const base = x.kind === "marfa" ? it.components.find((k) => k.id === x.id)?.piecesPerPallet ?? x.piecesPerPallet : x.kgPerPallet; return <><Input aria-label={`${x.kind === "marfa" ? "buc" : "kg"}/palet ${x.name}`} className="ml-auto h-8 w-20 text-right" value={o.palletKg[x.id] ?? (base == null ? "" : String(base))} onChange={(e) => setOv(id, (q) => ({ ...q, palletKg: { ...q.palletKg, [x.id]: e.target.value } }))} /><div className="text-right text-[10px] text-muted-foreground">{x.kind === "marfa" ? "buc/palet" : "kg/palet"}</div></>; })() : <span className="block text-right">—</span>}</td>
                     <td className="text-right font-medium tabular-nums">{n2(l?.value ?? 0, 4)}</td>
                     <td className="text-right tabular-nums text-muted-foreground">{n2((l?.value ?? 0) / n, 4)}</td>
                   </tr>
@@ -840,7 +844,7 @@ export default function PriceCalculator() {
                   <table className="mt-1 w-full text-[11px]">
                     <thead className="border-b text-left text-muted-foreground"><tr><th>Produs</th><th className="text-right">Cantitate comandată</th><th className="text-right">Kg/palet</th><th className="text-right">Paleți</th></tr></thead>
                     <tbody>{logistics.supply.orderedRows.map((r, i) => (
-                      <tr key={i} className={`border-b last:border-0 ${r.kgPerPallet ? "" : "text-crm-warning"}`}><td>{r.name}</td><td className="text-right tabular-nums">{n2(r.kg, 0)} {r.unit}</td><td className="text-right tabular-nums">{r.kgPerPallet ?? "fără normă"}</td><td className="text-right tabular-nums">{r.kgPerPallet ? n2(r.pallets, 1) : "—"}</td></tr>
+                      <tr key={i} className={`border-b last:border-0 ${r.kgPerPallet || r.piecesPerPallet ? "" : "text-crm-warning"}`}><td>{r.name}</td><td className="text-right tabular-nums">{n2(r.kg, 0)} {r.unit}</td><td className="text-right tabular-nums">{r.kgPerPallet ?? (r.piecesPerPallet ? `${r.piecesPerPallet} buc` : "fără normă")}</td><td className="text-right tabular-nums">{r.kgPerPallet || r.piecesPerPallet ? n2(r.pallets, 1) : "—"}</td></tr>
                     ))}</tbody>
                   </table>
                   {!!logistics.supply.orderedLoads?.length && (<>

@@ -43,7 +43,16 @@ export function deliveryRoute(p: { name?: unknown; judet?: unknown; country?: un
 export function historicalFeePct(discounts: number, sales: number): number | null {
   return sales > 0 && discounts >= 0 && discounts < sales ? discounts / sales * 100 : null;
 }
-export type OrderedPalletRow = { name: string; unit: string; kg: number; kgPerPallet: number | null; pallets: number };
+/** Semi-finished goods bought ready-packed and resold as they are: priced like a raw material, no direct labour, only factory overhead.
+ * Pallets come from pieces (buc/palet), not kg. */
+export const TRADED_GOODS: ReadonlyArray<{ re: RegExp; piecesPerPallet: number; note: string }> = [
+  { re: /spanac.*\bbio\b|\bbio\b.*spanac/i, piecesPerPallet: 1000, note: "Bio Baby Spanac: semifabricat din Italia, revândut ca atare, 1000 buc/palet" },
+];
+export function tradedGood(name: string) {
+  const n = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return TRADED_GOODS.find((g) => g.re.test(n)) ?? null;
+}
+export type OrderedPalletRow = { name: string; unit: string; kg: number; kgPerPallet: number | null; piecesPerPallet?: number | null; pallets: number };
 /** Supply pallets from supplier orders (Coral Achiziții): ordered kg ÷ configured kg/palet per product range. Products without a norm or not in kg are listed, never guessed. */
 /** Full supply truck capacity (non-EURO pallets); one delivery day's pallets from all suppliers share trucks of this size. */
 export const TRUCK_PALLETS = 26;
@@ -54,8 +63,11 @@ export function orderedPallets(orders: Array<{ name: string; unit?: string | nul
   for (const o of orders) {
     const unit = String(o.unit ?? "kg").trim().toLowerCase() || "kg";
     const key = `${o.name}|${unit}`;
-    const norm = unit === "kg" ? configuredRawPalletKg(o.name) ?? null : null;
-    const row = by.get(key) ?? { name: o.name, unit, kg: 0, kgPerPallet: norm, pallets: 0 };
+    const kgNorm = unit === "kg" ? configuredRawPalletKg(o.name) ?? null : null;
+    // Traded goods ordered in pieces (e.g. Spanac bio, Buc): pieces ÷ pieces per pallet.
+    const pieceNorm = unit !== "kg" && /^(buc|bucati|bucăți|pcs)$/.test(unit) ? tradedGood(o.name)?.piecesPerPallet ?? null : null;
+    const norm = kgNorm ?? pieceNorm;
+    const row = by.get(key) ?? { name: o.name, unit, kg: 0, kgPerPallet: kgNorm, piecesPerPallet: pieceNorm, pallets: 0 };
     row.kg += Number(o.qty) || 0;
     row.pallets = norm ? row.kg / norm : 0;
     by.set(key, row);
@@ -70,11 +82,11 @@ export function orderedPallets(orders: Array<{ name: string; unit?: string | nul
     }
   }
   const rows = [...by.values()].sort((a, b) => b.pallets - a.pallets || b.kg - a.kg);
-  const counted = rows.filter((r) => r.kgPerPallet);
+  const counted = rows.filter((r) => r.kgPerPallet || r.piecesPerPallet);
   const loads = [...loadsBy.values()].sort((a, b) => b.day.localeCompare(a.day) || a.supplier.localeCompare(b.supplier));
   return {
-    rows, loads, pallets: counted.reduce((s, r) => s + r.pallets, 0), kg: counted.reduce((s, r) => s + r.kg, 0),
-    trucks: loads.reduce((s, l) => s + l.trucks, 0), skipped: rows.filter((r) => !r.kgPerPallet),
+    rows, loads, pallets: counted.reduce((s, r) => s + r.pallets, 0), kgPallets: counted.filter((r) => r.kgPerPallet).reduce((s, r) => s + r.pallets, 0), kg: counted.filter((r) => r.kgPerPallet).reduce((s, r) => s + r.kg, 0),
+    trucks: loads.reduce((s, l) => s + l.trucks, 0), skipped: rows.filter((r) => !r.kgPerPallet && !r.piecesPerPallet),
   };
 }
 export function configuredRawPalletKg(name: string): number | undefined {

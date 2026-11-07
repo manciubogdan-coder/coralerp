@@ -3,7 +3,7 @@ import { priceDates, suggestedLabour } from "./priceDefaults.ts";
 import { readPriceSafety } from './receiptPriceSafety.ts';
 import { MIXED_WASHED, type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
-import { transportRoute, historicalFeePct, configuredRawPalletKg, orderedPallets, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
+import { transportRoute, historicalFeePct, configuredRawPalletKg, orderedPallets, tradedGood, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
 import { CLIENT_AVERAGE_ROUTE, DEFAULT_MARGIN_PCT, LOAD_DAYS, clientAverageRoute, latestCostWindow, latestRoutes } from "./priceList.ts";
 import { seniorLive } from "./senior.ts";
 import { cf, lit, partnerInfoSql, partnerScope, type PartnerInfo } from "./priceScope.ts";
@@ -265,7 +265,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const kgPerTruck = orderTrucks > 0 && kg90 > 0 ? kg90 / orderTrucks : null;
   if (palletsPerTruck != null && palletsPerTruck < 5) warnings.push(`Aprovizionare: doar ${palletsPerTruck.toFixed(1)} paleți/camion din comenzi — verifică dacă toate comenzile au furnizor, dată de livrare și cantitate în kg.`);
   /** Raw materials outside the configured categories: average kg per received pallet (NIR kg ÷ NIR pallets). */
-  const avgKgPerPallet = kg90 > 0 && pallets90 > 0 ? kg90 / pallets90 : null;
+  const avgKgPerPallet = kg90 > 0 && ordered.kgPallets > 0 ? kg90 / ordered.kgPallets : null;
   if (costPerTruck != null) shared.supplyTotal = costPerTruck;
   if (palletsPerTruck != null) { shared.supplyPallets = palletsPerTruck; if (costPerTruck != null) shared.supplyPerPallet = costPerTruck / palletsPerTruck; }
   if (kgPerTruck != null) { shared.supplyKg = kgPerTruck; if (costPerTruck != null) shared.rates = { ...shared.rates, supplyPerKg: costPerTruck / kgPerTruck }; }
@@ -348,9 +348,19 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
       const p = prices.get(Number(r.id));
       const annual = p && num(p.q12) > 0 ? num(p.v12) / num(p.q12) : null;
       const kind = componentKind(cname, unit);
-      const m = matchLoss(cname, kind === "mp" ? loss : [...packagingLoss, ...labelLoss]);
       const week = p && num(p.qw) > 0 ? num(p.vw) / num(p.qw) : null;
       const last = p?.lastp != null ? num(p.lastp) : null;
+      if (kind === "marfa") {
+        // Semi-finished good bought ready-packed and resold as is: NIR price like a raw material, no technological loss, pallets in pieces.
+        const g = tradedGood(cname);
+        return {
+          id: Number(r.id), name: cname, qty: num(r.q), unit, kind,
+          price: rawMode === "week" ? week : annual, annualPrice: annual, weekPrice: week, lastPrice: last,
+          priceSource: rawMaterialLabel, lossPct: 0, lossSource: "marfă revândută ca atare — fără PT (editabil)",
+          ...(g ? { piecesPerPallet: g.piecesPerPallet, palletSource: g.note } : {}),
+        };
+      }
+      const m = matchLoss(cname, kind === "mp" ? loss : [...packagingLoss, ...labelLoss]);
       return {
         id: Number(r.id), name: cname, qty: num(r.q), unit, kind,
         price: kind === "ambalaj" ? last : rawMode === "week" ? week : annual, annualPrice: annual, weekPrice: week, lastPrice: last,
@@ -361,12 +371,15 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
         lossSource: m ? `PT Coral ERP: ${m.name}` : kind === "ambalaj" ? "PT ambalaj 0% — neconfigurat în Coral ERP (editabil)" : "PT nesetat — de completat",
         ...(kind === "mp" ? (configuredRawPalletKg(cname) != null
           ? { kgPerPallet: configuredRawPalletKg(cname), palletSource: "kg/palet Coral (căpățâni 400, radicchio 500, frunze/aromate 220)" }
-          : avgKgPerPallet != null ? { kgPerPallet: Math.round(avgKgPerPallet), palletSource: `kg/palet mediu din comenzi: ${Math.round(kg90)} kg ÷ ${Math.round(pallets90)} paleți, ${load.start} – ${load.end}` } : {}) : {}),
+          : avgKgPerPallet != null ? { kgPerPallet: Math.round(avgKgPerPallet), palletSource: `kg/palet mediu din comenzi: ${Math.round(kg90)} kg ÷ ${Math.round(ordered.kgPallets)} paleți, ${load.start} – ${load.end}` } : {}) : {}),
       };
     });
     for (const c of components) if (c.priceSafety?.suspect) itemWarnings.push(`${c.name}: unitate NIR suspectă (rolă vs. bucată); ultima intrare depășește 3× media ponderată precedentelor 6 luni. Prețul Senior nu a fost modificat.`);
     const suggested = suggestedLabour(name, components);
-    const cfg: PriceConfig = { ...shared, rates: { ...shared.rates }, unitsPerCase, ...(suggested ? { labourLine: suggested } : {}), components: {} };
+    const traded = components.some((c) => c.kind === "marfa") && !components.some((c) => c.kind === "mp");
+    const cfg: PriceConfig = { ...shared, rates: { ...shared.rates }, unitsPerCase, ...(suggested ? { labourLine: suggested } : {}), ...(traded ? { tradedGood: true } : {}), components: {} };
+    for (const c of components) if (c.kind === "marfa" && c.piecesPerPallet) cfg.components = { ...cfg.components, [c.id]: { piecesPerPallet: c.piecesPerPallet } };
+    if (components.some((c) => c.kind === "marfa" && !c.piecesPerPallet)) itemWarnings.push(`Marfă revândută fără buc/palet configurat: ${components.filter((c) => c.kind === "marfa" && !c.piecesPerPallet).map((c) => c.name).join(", ")}; completează buc/palet.`);
     if (convBy.has(aid)) cfg.piecesPerPallet = convBy.get(aid);
     const speed = speeds.get(aid) ?? null;
     if (suggested === MIXED_WASHED && speed) cfg.labourSpeed = Math.round(speed.speed);
@@ -379,7 +392,8 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     return {
       product: { id: aid, name, code: a.code, unitsPerCase },
       components, defaults: cfg, warnings: itemWarnings,
-      suggestedLabourSource: suggested ? (speed && suggested === MIXED_WASHED
+      suggestedLabourSource: traded ? `Marfă revândută ca atare (semifabricat cumpărat gata ambalat): fără manoperă directă, doar regia fabricii${suggested ? ` din CSV octombrie 2026, linia ${suggested}` : ""} (editabil)`
+        : suggested ? (speed && suggested === MIXED_WASHED
         ? `Mix spălat: viteză reală ${Math.round(speed.speed)} buc/oră din Producție (${speed.sessions} sesiuni, ${speed.hours.toFixed(1)} ore lucrate, ${speed.from} – ${speed.to}; ${speed.products.join(", ")}); oameni și cost orar din CSV octombrie 2026`
         : "Propunere după produs/compoziție; tarif din CSV octombrie 2026") : "Linie neidentificată",
       realSpeed: speed,

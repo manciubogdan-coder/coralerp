@@ -65,8 +65,10 @@ export type PriceConfig = {
   labourSpeed?: number;
   labourHourCost?: number;
   labourOverheadPct?: number;
+  /** Semi-finished good resold as it is: no direct labour, only factory overhead. */
+  tradedGood?: boolean;
   rates?: Partial<SheetRates>;
-  components?: Record<string, { price?: number; qty?: number; lossPct?: number; kgPerPallet?: number }>;
+  components?: Record<string, { price?: number; qty?: number; lossPct?: number; kgPerPallet?: number; piecesPerPallet?: number }>;
 };
 export const RATE_KEYS = ["labourPerPiece", "utilitiesPerPiece", "supplyPerKg", "distributionPerPiece", "clientFeePerPiece", "eurRate", "eurBufferPct", "techLossPct", "marginPct"] as const;
 export const CONFIG_NUMBERS = ["unitsPerCase", "piecesPerPallet", "supplyPerPallet", "distributionPerPallet", "supplyTotal", "supplyPallets", "distributionTotal", "distributionPallets", "distributionTrips", "distributionPalletsPerTrip", "feePct", "supplyKg", "labourPeople", "labourSpeed", "labourHourCost", "labourOverheadPct"] as const;
@@ -84,6 +86,10 @@ export function validPriceConfig(raw: unknown): PriceConfig | null {
   if (r.supplyBasis != null) {
     if (!["pallet", "kg"].includes(r.supplyBasis)) return null;
     out.supplyBasis = r.supplyBasis;
+  }
+  if (r.tradedGood != null) {
+    if (typeof r.tradedGood !== "boolean") return null;
+    out.tradedGood = r.tradedGood;
   }
   if (r.route != null) {
     // Country averages (legacy) or a Senior cursă key such as "BUCURESTI" / "TURDA-IERNUT".
@@ -112,8 +118,8 @@ export function validPriceConfig(raw: unknown): PriceConfig | null {
     for (const [id, row] of Object.entries(r.components) as Array<[string, any]>) {
       if (!/^\d+$/.test(id) || !row || typeof row !== "object") return null;
       const c: NonNullable<PriceConfig["components"]>[string] = {};
-      for (const k of ["price", "qty", "lossPct", "kgPerPallet"] as const) if (row[k] != null) {
-        if (!numeric(row[k]) || (k === "lossPct" && row[k] >= 100) || (k === "kgPerPallet" && row[k] === 0)) return null;
+      for (const k of ["price", "qty", "lossPct", "kgPerPallet", "piecesPerPallet"] as const) if (row[k] != null) {
+        if (!numeric(row[k]) || (k === "lossPct" && row[k] >= 100) || ((k === "kgPerPallet" || k === "piecesPerPallet") && row[k] === 0)) return null;
         c[k] = row[k];
       }
       out.components[id] = c;
@@ -125,8 +131,10 @@ export function validPriceConfig(raw: unknown): PriceConfig | null {
 export function configuredSheet(d: { product: { unitsPerCase: number }; components: SheetComponent[] }, defaults: SheetRates, config?: PriceConfig) {
   const cfg = config ?? {};
   const lab = lineLabour(cfg);
-  const rates = { ...defaults, ...(lab ? { labourPerPiece: lab.direct, utilitiesPerPiece: lab.overhead } : {}), ...cfg.rates };
-  const labourDetail = cfg.rates?.labourPerPiece != null ? "tarif manual" : lab?.detail;
+  // Traded goods keep only the line's factory overhead; direct labour is 0 unless typed.
+  const traded = cfg.tradedGood === true;
+  const rates = { ...defaults, ...(lab ? { labourPerPiece: traded ? 0 : lab.direct, utilitiesPerPiece: lab.overhead } : {}), ...cfg.rates };
+  const labourDetail = cfg.rates?.labourPerPiece != null ? "tarif manual" : traded ? `marfă revândută ca atare: fără manoperă directă, doar regie${lab ? ` (${lab.detail})` : ""}` : lab?.detail;
   const components = d.components.map((c) => {
     const o = cfg.components?.[String(c.id)];
     return { ...c, ...o, priceSource: o?.price != null ? "preț manual / scenariu" : c.priceSource, ...(o?.lossPct != null ? { lossSource: "PT manual / scenariu" } : {}) };

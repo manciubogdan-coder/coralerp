@@ -1,7 +1,9 @@
 // Deterministic price sheet (per case and per piece). Pure: shared by the calculator screen and Argus.
 import type { PriceSafety } from './priceSafetyRules.ts';
+import { tradedGood } from './priceSourceRules.ts';
 
-export type ComponentKind = "mp" | "ambalaj";
+/** mp = weighed raw material; marfa = semi-finished good bought and resold as it is (in pieces); ambalaj = packaging/labels. */
+export type ComponentKind = "mp" | "marfa" | "ambalaj";
 
 export interface SheetComponent {
   id: number;
@@ -13,6 +15,8 @@ export interface SheetComponent {
   priceSource: string;
   lossPct: number;
   kgPerPallet?: number;
+  /** Traded goods: pieces per supply pallet. */
+  piecesPerPallet?: number;
   annualPrice?: number | null;
   weekPrice?: number | null;
   lastPrice?: number | null;
@@ -77,7 +81,15 @@ export const isServiceComponent = (name: string) => SERVICE_RE.test(name);
 
 /** Raw material = weighed (KG) and not a packaging material. */
 export function componentKind(name: string, unit: string): ComponentKind {
-  return /^kg$/i.test(unit.trim()) && !PACKAGING_RE.test(name) ? "mp" : "ambalaj";
+  if (PACKAGING_RE.test(name)) return "ambalaj";
+  if (/^kg$/i.test(unit.trim())) return "mp";
+  return tradedGood(name) ? "marfa" : "ambalaj";
+}
+/** Net grams per piece from a name such as "BABY SPANAC BIO 100 GR". */
+export function gramsPerPiece(name: string): number | null {
+  const m = name.match(/(\d+(?:[.,]\d+)?)\s*(G|GR|GRAME)\b/i);
+  const g = m ? Number(m[1].replace(",", ".")) : NaN;
+  return g > 0 ? g : null;
 }
 
 /** Recipe quantity → quantity actually consumed after technological loss. 0.6 kg at 19% → 0.7407 kg. */
@@ -102,15 +114,29 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
   const missingInputs: string[] = [];
   let supplyPallets = 0;
   let rawMaterial = 0, packaging = 0, kgEffective = 0;
+  const basis = R.supplyBasis ?? (R.supplyPerPallet != null ? "pallet" : "kg");
   for (const c of input.components) {
     const price = c.price ?? 0;
     if (c.price == null) missingPrices.push(c.name);
-    if (c.kind === "mp") {
+    if (c.kind === "marfa") {
+      // Bought ready-packed and resold as is: supply pallets from pieces, kg from the grams in its name.
+      const eff = effectiveQty(c.qty, c.lossPct);
+      const ppp = c.piecesPerPallet ?? 0;
+      if (ppp > 0) supplyPallets += eff / ppp;
+      else if (basis === "pallet") missingInputs.push(`buc/palet: ${c.name}`);
+      const g = gramsPerPiece(c.name);
+      if (g) kgEffective += eff * g / 1000;
+      else if (basis === "kg") missingInputs.push(`grame/buc: ${c.name}`);
+      const v = eff * price;
+      rawMaterial += v;
+      lines.push({ group: "mp", label: c.name, value: r4(v), missing: c.price == null,
+        detail: `marfă revândută ca atare: ${r4(eff)} ${c.unit} × ${r4(price)} RON (${c.priceSource})${c.lossPct ? `; pierdere ${c.lossPct}%` : ""}${ppp > 0 ? `; ${r4(eff)} buc ÷ ${ppp} buc/palet = ${r4(eff / ppp)} paleți aprovizionare` : ""}` });
+    } else if (c.kind === "mp") {
       const eff = effectiveQty(c.qty, c.lossPct);
       if (/^kg$/i.test(c.unit)) kgEffective += eff;
       if (/^kg$/i.test(c.unit)) {
         if ((c.kgPerPallet ?? 0) > 0) supplyPallets += eff / (c.kgPerPallet ?? 1);
-        else if ((R.supplyBasis ?? (R.supplyPerPallet != null ? "pallet" : "kg")) === "pallet") missingInputs.push(`kg/palet: ${c.name}`);
+        else if (basis === "pallet") missingInputs.push(`kg/palet: ${c.name}`);
       }
       const v = eff * price;
       rawMaterial += v;
@@ -123,11 +149,10 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
         detail: `${r4(c.qty)} ${c.unit} × ${r4(price)} RON × (1 + ${c.lossPct || 0}% PT ambalaj) (${c.priceSource})` });
     }
   }
-  const basis = R.supplyBasis ?? (R.supplyPerPallet != null ? "pallet" : "kg");
   const byPallet = R.supplyPerPallet != null ? supplyPallets * R.supplyPerPallet : null;
   const byKg = R.supplyPerKg > 0 ? kgEffective * R.supplyPerKg : null;
   const supplyTransport = (basis === "pallet" ? byPallet : byKg) ?? 0;
-  const palletText = byPallet != null ? `pe palet: ${r4(supplyPallets)} paleți MP × ${r4(R.supplyPerPallet ?? 0)} = ${r4(byPallet)} RON` : "pe palet: tarif lipsă";
+  const palletText = byPallet != null ? `pe palet: ${r4(supplyPallets)} paleți aprovizionare × ${r4(R.supplyPerPallet ?? 0)} = ${r4(byPallet)} RON` : "pe palet: tarif lipsă";
   const kgText = byKg != null ? `pe kg: ${r4(kgEffective)} kg × ${r4(R.supplyPerKg)} = ${r4(byKg)} RON` : "pe kg: tarif lipsă";
   lines.push({ group: "transport", label: "Transport aprovizionare", value: r4(supplyTransport), detail: `${palletText} · ${kgText} · în total: ${basis === "pallet" ? "pe palet" : "pe kg"}` });
   const labour = n * R.labourPerPiece;
