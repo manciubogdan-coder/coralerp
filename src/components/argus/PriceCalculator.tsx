@@ -413,14 +413,14 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
       ["Materii prime", c.s.rawMaterial, c.s.rawMaterial / n], ["Transport aprovizionare", c.s.supplyTransport, c.s.supplyTransport / n], ["Ambalaje", c.s.packaging, c.s.packaging / n],
       ["Manoperă + regie", c.s.labour + c.s.utilities, (c.s.labour + c.s.utilities) / n],
       ["Cost producție", c.s.productionCost, c.s.perPiece.productionCost], ["Transport distribuție", c.s.logistics, c.s.perPiece.logistics],
-      ["Cost producție + distribuție", c.s.factoryGate, c.s.perPiece.factoryGate], [`Marjă brută ${marginShown}% din (producție + distribuție)`, c.s.grossMargin, c.s.perPiece.grossMargin],
-      ["Preț minim vânzare (break-even, fără taxe)", c.s.minPrice, c.s.perPiece.minPrice], [`Profitabilitate țintă ${c.s.profitPct}% din prețul minim`, c.s.profit, c.s.perPiece.profit],
+      ["Cost producție + distribuție", c.s.factoryGate, c.s.perPiece.factoryGate], [`Marjă brută ${marginShown}% din prețul de vânzare`, c.s.grossMargin, c.s.perPiece.grossMargin],
+      ["Preț minim vânzare (break-even, fără taxe)", c.s.minPrice, c.s.perPiece.minPrice], [`Profitabilitate țintă ${c.s.profitPct}% din prețul de vânzare fără taxe`, c.s.profit, c.s.perPiece.profit],
       ["Preț minim + profit (fără taxe)", c.s.delivered, c.s.perPiece.delivered], [`Taxe rețea ${c.s.feePct}% din prețul propus`, c.s.clientFees, c.s.perPiece.fees],
       ["Preț propus client (cu taxe incluse)", c.s.clientPrice, c.s.perPiece.clientPrice], ["Preț propus EUR", c.s.clientPriceEur, c.s.perPiece.clientPriceEur],
     ] as [string, number, number][]) rows.push([l, "", "", "", "", "", r4(b), r4(p)]);
     if (it.recentSale && c.s.complete) {
       const p = profitAt(c.s, it.recentSale.price);
-      rows.push([], ["Preț vânzare actual (90 zile, lei/buc)", r4(it.recentSale.price)], ["Bucăți vândute 90 zile", Math.round(it.recentSale.qty)], ["Profit real (lei/buc)", r4(p.profit)], ["Profitabilitate reală % din prețul minim", p.pct != null ? Math.round(p.pct * 10) / 10 : ""]);
+      rows.push([], ["Preț vânzare actual (90 zile, lei/buc)", r4(it.recentSale.price)], ["Bucăți vândute 90 zile", Math.round(it.recentSale.qty)], ["Profit real (lei/buc)", r4(p.profit)], ["Profitabilitate reală % din prețul de vânzare fără taxe", p.pct != null ? Math.round(p.pct * 10) / 10 : ""]);
     }
     if (!c.s.complete) rows.push([], ["Fișă incompletă", [...c.s.missingInputs, ...c.s.missingPrices].join("; ")]);
     if (it.warnings.length) { rows.push([], ["Avertismente"]); for (const w of it.warnings) rows.push([w]); }
@@ -433,7 +433,7 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
       ["Listă de prețuri", clientName || "Toți clienții"], ["Magazin", store != null ? storeName ?? "" : "Toate magazinele (medie)"],
       ["Perioadă", `${String(month).padStart(2, "0")}/${year}`], ["Marjă brută %", num(marginShown || "0")], ["Cursă distribuție", routeLabel(route)],
       ["Transport", `ultimele prețuri: cost pe camion/cursă din facturile ${result.logistics.closedStart} – ${result.logistics.closedEnd}; încărcare din ${result.logistics.loadWindow.start} – ${result.logistics.loadWindow.end}`], [],
-      ["Produs", "Buc/bax", "Cost producție (lei/buc)", "Distribuție (lei/buc)", "Marjă brută (lei/buc)", "Marjă brută % din producție + distribuție", "Preț minim vânzare fără taxe (lei/buc)", "Profitabilitate țintă % din prețul minim", "Taxe rețea (lei/buc)", "Preț propus cu taxe (lei/buc)", "Preț propus cu taxe (lei/bax)", "Preț propus (EUR/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profitabilitate reală % din prețul minim", "Stare"],
+      ["Produs", "Buc/bax", "Cost producție (lei/buc)", "Distribuție (lei/buc)", "Marjă brută (lei/buc)", "Marjă brută % din prețul de vânzare", "Preț minim vânzare fără taxe (lei/buc)", "Profitabilitate țintă % din prețul de vânzare fără taxe", "Taxe rețea (lei/buc)", "Preț propus cu taxe (lei/buc)", "Preț propus cu taxe (lei/bax)", "Preț propus (EUR/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profitabilitate reală % din prețul de vânzare fără taxe", "Stare"],
     ];
     for (const r of listRows) {
       const s = r.s;
@@ -447,9 +447,9 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
     ws["!cols"] = [{ wch: 40 }, ...Array(16).fill({ wch: 14 })];
     XLSX.utils.book_append_sheet(wb, ws, "Listă prețuri");
     if (multiStore) {
-      const rows: (string | number)[][] = [["Magazin", "Cursă", "Paleți livrați 90 zile", "Vânzări 90 zile (lei)", "Profit real 90 zile (lei)", "Profit real % din prețul minim"]];
+      const rows: (string | number)[][] = [["Magazin", "Cursă", "Paleți livrați 90 zile", "Vânzări 90 zile (lei)", "Profit real 90 zile (lei)", "Profit real % din prețul de vânzare fără taxe"]];
       for (const st of storeTotals) rows.push([st.name, st.route ?? "fără cursă", r4(st.pallets), r4(st.sales), r4(st.profit), st.pct != null ? Math.round(st.pct * 10) / 10 : ""]);
-      rows.push([], ["Produs", "Magazin", "Cursă", "Distribuție (lei/palet)", "Distribuție (lei/buc)", "Preț propus (lei/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profit real % din prețul minim"]);
+      rows.push([], ["Produs", "Magazin", "Cursă", "Distribuție (lei/palet)", "Distribuție (lei/buc)", "Preț propus (lei/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profit real % din prețul de vânzare fără taxe"]);
       for (const it of items) for (const st of storeRowsFor(it)) {
         if (!st.sale && !st.sheet) continue;
         rows.push([it.product.name, st.name, st.route ?? "fără cursă", st.perPallet != null ? r4(st.perPallet) : "", st.sheet ? r4(st.sheet.perPiece.logistics) : "", st.sheet?.complete ? r4(st.sheet.perPiece.clientPrice) : "",
@@ -484,8 +484,8 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
       ["Materii prime", s.rawMaterial, ""], ["Transport aprovizionare", s.supplyTransport, ""], ["Ambalaje", s.packaging, ""], ["Manoperă + regie", s.labour + s.utilities, ""],
       ...(s.techLoss ? [["Pierdere scenariu", s.techLoss, ""] as [string, number, string]] : []),
       ["Cost producție", s.productionCost, "font-semibold"], [`Distribuție · ${routeLabel(route)}`, s.logistics, ""],
-      [`Marjă brută ${marginShown}% din (producție + distribuție)`, s.grossMargin, "text-primary"], ["Preț minim vânzare (break-even, fără taxe)", s.minPrice, "font-semibold"],
-      [`Profitabilitate țintă ${n2(s.profitPct, 1)}% din prețul minim`, s.profit, "text-primary"], [`Taxe rețea ${n2(s.feePct, 2)}% din prețul propus`, s.clientFees, ""],
+      [`Marjă brută ${marginShown}% din prețul de vânzare`, s.grossMargin, "text-primary"], ["Preț minim vânzare (break-even, fără taxe)", s.minPrice, "font-semibold"],
+      [`Profitabilitate țintă ${n2(s.profitPct, 1)}% din prețul de vânzare fără taxe`, s.profit, "text-primary"], [`Taxe rețea ${n2(s.feePct, 2)}% din prețul propus`, s.clientFees, ""],
       ["Preț propus client (cu taxe incluse)", s.clientPrice, "font-bold"],
     ];
     return (
@@ -714,7 +714,7 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
                   <Button size="sm" variant="outline" disabled={!items.length} onClick={exportExcel}><Download className="mr-1 h-3.5 w-3.5" />Export Excel</Button>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">Clic pe un produs ca să-i vezi structura prețului și să modifici orice valoare doar pentru el. Preț minim de vânzare = (cost producție + distribuție) + marja brută din ele, fără taxe: la el ești la break-even. Preț propus = preț minim + profitabilitatea țintă (din prețul minim), apoi se adaugă taxele de rețea ale clientului, ca procent din prețul final. Profitabilitatea reală = ce rămâne la prețul cu care vinzi acum (media ultimelor 90 de zile) după taxe și prețul minim, ca % din prețul minim; negativă = cu roșu. {incompleteCount ? <span className="text-destructive">{incompleteCount} fișe incomplete.</span> : "Toate fișele sunt complete."}</p>
+              <p className="text-xs text-muted-foreground">Clic pe un produs ca să-i vezi structura prețului și să modifici orice valoare doar pentru el. Preț propus fără taxe = (cost producție + distribuție) ÷ (1 − marjă% − profit%), marja și profitul fiind procente din prețul de vânzare. Preț minim = cost + marja brută (break-even). Apoi se adaugă taxele de rețea ale clientului, ca procent din prețul final. Profitabilitatea reală = ce rămâne la prețul cu care vinzi acum (media ultimelor 90 de zile) după taxe și prețul minim, ca % din prețul de vânzare fără taxe; negativă = cu roșu. {incompleteCount ? <span className="text-destructive">{incompleteCount} fișe incomplete.</span> : "Toate fișele sunt complete."}</p>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <table className="w-full min-w-[1100px] text-sm">

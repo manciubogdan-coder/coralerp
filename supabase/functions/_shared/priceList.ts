@@ -65,5 +65,7 @@ export function profitAt(s: { unitsPerCase: number; minPrice: number; feePct: nu
   const fees = (pricePerPiece * (s.feePct || 0)) / 100 + (s.clientFeePerPiece || 0);
   const cost = s.minPrice / n;
   const profit = pricePerPiece - fees - cost;
-  return { fees, cost, profit, pct: cost > 0 ? (profit / cost) * 100 : null };
+  const net = pricePerPiece - fees;
+  // % of the selling price without fees, same base as the target profit.
+  return { fees, cost, profit, pct: net > 0 ? (profit / net) * 100 : null };
 }

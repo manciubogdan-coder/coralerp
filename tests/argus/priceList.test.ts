@@ -37,31 +37,27 @@ const sheet = (profitPct?: number) => computeSheet({ unitsPerCase: 10, component
   labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: 5, eurBufferPct: 0, techLossPct: 0,
   marginPct: 15, profitPct, supplyPerPallet: 0, distributionPerPallet: 300, piecesPerPallet: 1000, feePct: 10, supplyBasis: "pallet",
 } });
-it("gross margin is 15% of production cost + distribution; minimum price = that cost + margin, without network fees", () => {
+it("price without fees = (production + distribution) ÷ (1 − 15% − 5%); margin 15% of that price, minimum = cost + margin", () => {
   const s = sheet(5);
-  // Production 8.5 + distribution 3 = 11.5 lei/bax; margin 15% = 1.725; minimum 13.225 lei/bax (fees not included).
-  expect(s.grossMargin).toBeCloseTo(1.725, 4);
-  expect(s.perPiece.grossMargin).toBeCloseTo(0.1725, 4);
-  expect(s.minPrice).toBeCloseTo(13.225, 4);
-  expect(s.perPiece.minPrice).toBeCloseTo(1.3225, 4);
+  // Cost 11.5 lei/bax ÷ 0.80 = 14.375; margin 15% = 2.15625; minimum 13.65625.
+  expect(s.delivered).toBeCloseTo(14.375, 4);
+  expect(s.grossMargin).toBeCloseTo(2.15625, 4);
+  expect(s.minPrice).toBeCloseTo(13.65625, 4);
+  expect(s.perPiece.minPrice).toBeCloseTo(1.365625, 4);
 });
-it("proposed price = (minimum price + 5% of it) with the 10% network fee added last on the final price", () => {
+it("profit is 5% of the selling price and the 10% network fee is added last on the final price", () => {
   const s = sheet(5);
-  // 13.225 × 1.05 = 13.88625; ÷ (1 − 10%) = 15.429167 lei/bax; the fee is 10% of the proposed price.
-  expect(s.profit).toBeCloseTo(0.66125, 4);
-  expect(s.delivered).toBeCloseTo(13.88625, 4);
-  expect(s.clientPrice).toBeCloseTo(15.429167, 3);
+  expect(s.profit).toBeCloseTo(0.71875, 4);
+  expect(s.clientPrice).toBeCloseTo(14.375 / 0.9, 3);
   expect(s.clientFees).toBeCloseTo(s.clientPrice * 0.1, 3);
   expect(profitAt(s, s.perPiece.clientPrice).pct).toBeCloseTo(5, 1);
 });
-it("real profitability = (price − network fees − minimum price) ÷ minimum price, negative below break-even", () => {
+it("real profitability = (price − fees − minimum) ÷ (price − fees), negative below break-even", () => {
   const s = sheet(5);
-  // 1.50 − 0.15 fees − 1.3225 = 0.0275 lei/buc = 2.08% of the minimum price.
-  expect(profitAt(s, 1.5).profit).toBeCloseTo(0.0275, 4);
-  expect(profitAt(s, 1.5).pct).toBeCloseTo(2.0794, 2);
-  // Break-even with fees: 1.3225 ÷ 0.9 = 1.4694 lei/buc.
-  expect(profitAt(s, 1.3225 / 0.9).profit).toBeCloseTo(0, 4);
-  expect(profitAt(s, 1.4).profit).toBeLessThan(0);
+  // 1.50 − 0.15 − 1.365625 = −0.015625 lei/buc = −1.157% of 1.35.
+  expect(profitAt(s, 1.5).profit).toBeCloseTo(-0.015625, 4);
+  expect(profitAt(s, 1.5).pct).toBeCloseTo(-1.1574, 2);
+  expect(profitAt(s, 1.365625 / 0.9).profit).toBeCloseTo(0, 4);
 });
 
 const rs = (route: string, trips: number, total: number, pallets: number) => ({ route, trips, total, qty: trips, pmin: 0, pmax: 0, pallets, missingLines: 0, perPallet: null, perTrip: trips ? total / trips : null, palletsPerTrip: null, unitPrice: null, country: "RO", points: [] });

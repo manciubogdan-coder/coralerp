@@ -177,12 +177,14 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
   const logistics = R.distributionPerPallet != null ? (R.piecesPerPallet && R.piecesPerPallet > 0 ? n / R.piecesPerPallet * R.distributionPerPallet : 0) : n * R.distributionPerPiece;
   // Gross margin = margin % of (production cost + distribution); minimum price = that cost + margin (break-even, no fees).
   const costBase = productionCost + logistics;
-  const grossMargin = costBase * Math.min(Math.max(R.marginPct || 0, 0), 95) / 100;
-  const minPrice = costBase + grossMargin;
-  // Target profit = profit % of the minimum price; network fees are added last, as % of the final invoiced price.
+  // Margin and profit are % of the selling price without fees: price = cost ÷ (1 − margin% − profit%).
   const feeP = Math.min(Math.max(R.feePct ?? 0, 0), 89), profitP = Math.min(Math.max(R.profitPct ?? 0, 0), 89);
-  const profit = minPrice * profitP / 100;
-  const delivered = minPrice + profit;
+  const marginP = Math.min(Math.max(R.marginPct || 0, 0), 95);
+  const keep = Math.max(1 - (marginP + profitP) / 100, 0.05);
+  const delivered = costBase / keep;
+  const grossMargin = delivered * marginP / 100;
+  const minPrice = costBase + grossMargin;
+  const profit = delivered * profitP / 100;
   const clientPrice = (delivered + n * R.clientFeePerPiece) / (1 - feeP / 100);
   const clientFees = clientPrice - delivered;
   const factoryGate = costBase;
