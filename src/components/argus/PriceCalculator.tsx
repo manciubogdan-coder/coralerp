@@ -163,7 +163,7 @@ function NumField({ label, value, onChange, hint }: { label: string; value: stri
   );
 }
 
-const profitClass = (v: number | null | undefined) => (v == null ? "" : v >= 0 ? "text-primary" : "text-destructive");
+const profitClass = (v: number | null | undefined) => (v == null ? "" : v >= 0 ? "text-crm-green" : "text-destructive");
 const selectClass = "h-8 rounded-md border border-input bg-background px-2 text-xs";
 
 export default function PriceCalculator() {
