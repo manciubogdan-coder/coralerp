@@ -6,6 +6,9 @@ import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { compensateAdvanceQuantities } from "@/lib/productie/advanceCompensation";
 import { refreshProductionQueries } from '@/lib/productie/refreshProductionQueries';
 import { claimSessionFinish } from '@/lib/productie/finishSession';
+import { applyDirectPicking, loadDirectPickingIds } from '@/lib/productie/directPicking';
+
+export const DIRECT_PICKING_KEY = ['productie-direct-picking'] as const;
 import { loadMixedCartons } from './useMixedCartons';
 import { findCarton, expandCarton } from '../../../supabase/functions/_shared/mixedCartons';
 import { readAll } from '../../../supabase/functions/_shared/productRecipes';
@@ -224,6 +227,10 @@ export const useAutoDistributeToLine = () => {
         if (error) throw error;
         comenzi.push(...(data || []));
       }
+      // Produsele „direct în picking” nu se distribuie pe linii.
+      const direct = await queryClient.fetchQuery({ queryKey: DIRECT_PICKING_KEY, staleTime: 60_000, queryFn: loadDirectPickingIds });
+      for (let i = comenzi.length - 1; i >= 0; i--) if (direct.has(String(comenzi[i].produs_id))) comenzi.splice(i, 1);
+      if (comenzi.length === 0) return { distribuite: 0, esuate: [] as string[] };
 
       const produsIds = Array.from(new Set(comenzi.map((c) => c.produs_id).filter(Boolean)));
       const [{ data: linii, error: liniiError }, reguli] = await Promise.all([
@@ -583,7 +590,7 @@ export const useOrders = (day?: string) => {
         }
         return sessions;
       };
-      const [data, clients, sessions] = await Promise.all([
+      const [data, clients, sessions, directIds] = await Promise.all([
         fetchOrders(),
         queryClient.fetchQuery({
           queryKey: ['clients', 'production-order-lookup'], staleTime: 5 * 60_000,
@@ -602,6 +609,8 @@ export const useOrders = (day?: string) => {
           },
         }),
         fetchSessions(),
+        queryClient.fetchQuery({ queryKey: DIRECT_PICKING_KEY, staleTime: 60_000, queryFn: loadDirectPickingIds })
+          .catch(() => new Set<string>()),
       ]);
 
       const clientiMap = new Map<string, any>();
@@ -623,14 +632,14 @@ export const useOrders = (day?: string) => {
         const cantitateDinRestock = esteComandaReambalare(comanda) ? 0 : Number(comanda.cantitate_din_restock || 0);
         const necesarMaximDinProductie = Math.max(0, Number(comanda.cantitate || 0) - cantitateDinRestock);
         const cantitateRealaProadusa = Math.min(totalProdusDinSesiuni, necesarMaximDinProductie);
-        return {
+        return applyDirectPicking({
           ...comanda,
           productie_clienti: client,
           cantitate_din_restock: cantitateDinRestock,
           cantitate_reala_produsa: cantitateRealaProadusa,
           cantitate_produsa_sesiuni: totalProdusDinSesiuni,
           cantitate_surplus_produsa: Math.max(0, totalProdusDinSesiuni - cantitateRealaProadusa)
-        };
+        }, directIds);
       });
       
       // Alocare automată din restocări — BATCH-uită pentru performanță.

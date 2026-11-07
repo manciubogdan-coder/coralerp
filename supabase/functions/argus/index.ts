@@ -673,6 +673,25 @@ Deno.serve(async (req) => {
         if (error) throw error;
         return json(data);
       }
+      case 'direct_picking_save':
+      case 'direct_picking_delete': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        const body = await req.json();
+        const produsId = String(body?.produs_id ?? '').trim();
+        if (!/^[0-9a-f-]{36}$/i.test(produsId)) return json({ error: 'Alege un produs.' }, 400);
+        if (action === 'direct_picking_delete') {
+          const { error } = await c.cloud.from('productie_direct_picking').delete().eq('produs_id', produsId);
+          if (error) throw error;
+          return json({ ok: true });
+        }
+        const nume = String(body?.produs_nume ?? '').trim().slice(0, 200);
+        if (!nume) return json({ error: 'Produsul nu are denumire.' }, 400);
+        const { error } = await c.cloud.from('productie_direct_picking').upsert({
+          produs_id: produsId, produs_nume: nume, updated_by: auth.user.email ?? userId,
+        });
+        if (error) throw error;
+        return json({ ok: true });
+      }
       case "attachment_upload": {
         try { return json(await uploadAttachment(req, c, userId)); }
         catch (e) { return json({ error: (e as Error).message }, 400); }

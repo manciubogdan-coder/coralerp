@@ -260,6 +260,14 @@ Deno.serve(async (req) => {
   }
   const produseFaraLinie: string[] = [];
 
+  // Produse primite gata ambalate: comanda merge direct în Picking, fără linie.
+  const directPicking = new Set<string>();
+  {
+    const { data, error } = await cloud.from('productie_direct_picking').select('produs_id');
+    if (error) errors.push({ direct_picking: error.message });
+    (data || []).forEach((r: any) => directPicking.add(String(r.produs_id)));
+  }
+
 
 
   // Backfill lazy: aliniem numar_comanda + data_productie pe rândurile senior-erp mai vechi.
@@ -625,7 +633,7 @@ Deno.serve(async (req) => {
         // 2) Status + linie
         let statusFinal: string = "pending";
         let linieId: string | null = null;
-        if (cantitateRamasa === 0 && cantitate > 0) {
+        if ((cantitateRamasa === 0 && cantitate > 0) || directPicking.has(String(produsId))) {
           statusFinal = "completed";
         } else {
           const linieRegula = reguliByProdus.get(produsId) || linieByIstoric.get(produsId);

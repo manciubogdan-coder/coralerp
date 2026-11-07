@@ -32,6 +32,7 @@ import Reports from "@/components/productie/Reports";
 import LineSpeedReport from "@/components/productie/LineSpeedReport";
 import SeniorErpImport from "@/components/productie/SeniorErpImport";
 import RestockAllocationSettings from '@/components/productie/RestockAllocationSettings';
+import DirectPickingSettings from '@/components/productie/DirectPickingSettings';
 
 const ProductionStockPage = () => {
   const navigate = useNavigate();
@@ -164,6 +165,7 @@ const ProductionStockPage = () => {
 
           <TabsContent value="config">
             <div className="mb-5"><RestockAllocationSettings /></div>
+            <div className="mb-5"><DirectPickingSettings /></div>
             <Tabs defaultValue="lines" className="w-full">
               <TabsList className="flex flex-wrap gap-1 h-auto">
                 <TabsTrigger value="lines">Linii</TabsTrigger>

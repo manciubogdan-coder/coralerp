@@ -99,7 +99,8 @@ const PickingManagementSimple = () => {
       observatii: obs,
       comanda_id: produs.comanda_id || produs.sesiune_lucru_id,
       produs_id: produs.produs_id,
-      cantitate_alocata: Number(produs.cantitate_alocata || 0)
+      cantitate_alocata: Number(produs.cantitate_alocata || 0),
+      direct_picking: produs.direct_picking === true,
     });
   };
 
@@ -632,17 +633,20 @@ const ProdusPickingCard = ({
                   Comandat: {produs.cantitate_comandata} {produs.unitate_masura}
                 </p>
               )}
-              {produs.cantitate_realizata !== undefined && (
+              {produs.direct_picking && (
+                <p className="text-sm text-primary font-medium">Direct în picking — marfă gata ambalată, doar etichetare</p>
+              )}
+              {produs.cantitate_realizata !== undefined && !produs.direct_picking && (
                 <p className={`text-sm ${inProductie ? 'text-amber-700 dark:text-amber-500' : 'text-green-700 dark:text-green-500'}`}>
                   <span className="font-medium">Realizat în producție:</span> {produs.cantitate_realizata} / {produs.cantitate_totala_comanda ?? produs.cantitate_comandata} {produs.unitate_masura}
                 </p>
               )}
-              <p className="text-sm text-muted-foreground">
+              {!produs.direct_picking && <p className="text-sm text-muted-foreground">
                 <span className="font-medium">Alocat din restocări:</span> {cantitateAlocata} {produs.unitate_masura}
                 {' • '}
                 <span className="font-medium">Disponibil în restocări:</span> {poolDisponibil} {produs.unitate_masura}
-              </p>
-              {onAlocaManual && !inProductie && deAlocat > 0 && (
+              </p>}
+              {onAlocaManual && !inProductie && !produs.direct_picking && deAlocat > 0 && (
                 <Button size="sm" variant="ghost" className="h-7 px-2 -ml-2" onClick={() => setCautaOpen(true)}>
                   <Search className="h-3.5 w-3.5 mr-1" />
                   Caută manual în restocări

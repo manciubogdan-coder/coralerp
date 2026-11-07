@@ -159,9 +159,9 @@ export const useComenziDisponibile = () => {
 
         const cantitateComanda = Number(com.cantitate || 0);
         const alocat = Number(com.cantitate_din_restock || 0);
-        const { realized: realizat, ready: gata } = pickingReadiness(
-          cantitateComanda, Number(com.cantitate_reala_produsa || 0), alocat, ownPool.get(com.id) || 0,
-        );
+        const { realized: realizat, ready: gata } = com.direct_picking
+          ? { realized: cantitateComanda, ready: cantitateComanda > 0 }
+          : pickingReadiness(cantitateComanda, Number(com.cantitate_reala_produsa || 0), alocat, ownPool.get(com.id) || 0);
 
         // Adaug fiecare comandă ca un produs separat (nu mai agreghez)
         entry.total_produse += 1;
@@ -325,9 +325,10 @@ export const usePickingProduse = (sesiuneId?: string) => {
         const free = POOL_MODE ? Number(poolTotals.get(produsId) || 0) : 0;
         const poolDisponibil = POOL_MODE ? reserved + free : 0;
         if (POOL_MODE) poolTotals.set(produsId, Math.max(0, free - Math.max(0, total - alocat - reserved)));
-        const { realized: realizat, ready } = pickingReadiness(
-          total, Number(c?.cantitate_reala_produsa || 0), alocat, reserved,
-        );
+        const direct = c?.direct_picking === true;
+        const { realized: realizat, ready } = direct
+          ? { realized: total, ready: total > 0 }
+          : pickingReadiness(total, Number(c?.cantitate_reala_produsa || 0), alocat, reserved);
         return {
           ...p,
           comanda_id: p.sesiune_lucru_id,
@@ -338,6 +339,7 @@ export const usePickingProduse = (sesiuneId?: string) => {
           pool_disponibil: poolDisponibil,
           cantitate_realizata: Math.min(realizat, total),
           gata_productie: ready,
+          direct_picking: direct,
         };
       });
 
@@ -362,8 +364,9 @@ export const useUpdatePickingProdus = () => {
       comanda_id?: string;
       produs_id?: string;
       cantitate_alocata?: number;
+      direct_picking?: boolean;
     }) => {
-      const { comanda_id, produs_id, cantitate_alocata, ...updates } = params;
+      const { comanda_id, produs_id, cantitate_alocata, direct_picking, ...updates } = params;
 
       const { error } = await supabase
         .from('picking_produse')
@@ -373,7 +376,8 @@ export const useUpdatePickingProdus = () => {
       if (error) throw error;
 
       // POOL_MODE: cantitatea numărată consumă automat FIFO din pool-ul de marfă produsă.
-      if (POOL_MODE && comanda_id && produs_id) {
+      // Marfa „direct în picking” vine gata ambalată și nu trece prin pool.
+      if (POOL_MODE && !direct_picking && comanda_id && produs_id) {
         const numarat = Number(params.cantitate_numarata || 0);
         const dejaAlocat = Number(cantitate_alocata || 0);
         const necesar = numarat - dejaAlocat;

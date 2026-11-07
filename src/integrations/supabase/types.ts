@@ -1903,6 +1903,27 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_direct_picking: {
+        Row: {
+          created_at: string
+          produs_id: string
+          produs_nume: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          produs_id: string
+          produs_nume: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          produs_id?: string
+          produs_nume?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       productie_grupare_ambalare: {
         Row: {
           created_at: string
