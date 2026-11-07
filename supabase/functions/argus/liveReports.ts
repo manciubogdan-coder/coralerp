@@ -4,14 +4,14 @@
 import { generateText } from "npm:ai@7.0.123";
 import { fillTemplate, validTemplate, type SqlTemplate } from "../_shared/templates.ts";
 import { seniorLive } from "../_shared/senior.ts";
-import { computeSheet } from "../_shared/priceSheet.ts";
 import { defaultRates, priceCalcData } from "../_shared/priceCalcSenior.ts";
 import { templateValues } from "./liveFilters.ts";
+import { configuredSheet, validPriceConfig, type PriceConfig } from "../_shared/priceConfig.ts";
 export { filtersForTemplate } from "./liveFilters.ts";
 
 export type LiveSpec =
   | { kind: "sql"; template: SqlTemplate }
-  | { kind: "price"; articolId: number; partnerId: number | null; marginPct: number; product: string; client: string };
+  | { kind: "price"; articolId: number; partnerId: number | null; marginPct: number; product: string; client: string; config?: PriceConfig; year?: number; month?: number };
 
 const posInt = (v: unknown) => (Number.isInteger(Number(v)) && Number(v) > 0 ? Number(v) : null);
 
@@ -25,7 +25,11 @@ export function validLiveSpec(raw: any): LiveSpec | null {
     const articolId = posInt(raw.articolId);
     const m = Number(raw.marginPct ?? 0);
     if (!articolId || !Number.isFinite(m) || m < 0 || m >= 90) return null;
-    return { kind: "price", articolId, partnerId: posInt(raw.partnerId), marginPct: m, product: String(raw.product ?? "").slice(0, 150), client: String(raw.client ?? "").slice(0, 150) };
+    const config = raw.config == null ? undefined : validPriceConfig(raw.config);
+    if (config === null) return null;
+    if (raw.year != null && (!Number.isInteger(raw.year) || raw.year < 2016 || raw.year > 2099)) return null;
+    if (raw.month != null && (!Number.isInteger(raw.month) || raw.month < 1 || raw.month > 12)) return null;
+    return { kind: "price", articolId, partnerId: posInt(raw.partnerId), marginPct: m, product: String(raw.product ?? "").slice(0, 150), client: String(raw.client ?? "").slice(0, 150), ...(config ? { config } : {}), ...(raw.year ? { year: raw.year } : {}), ...(raw.month ? { month: raw.month } : {}) };
   }
   return null;
 }
@@ -46,13 +50,19 @@ export async function runLive(c: { cloud: any; legacy: any; legacyUser?: any }, 
     };
   }
   const [y, m] = today.split("-").map(Number);
-  const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: spec.articolId, partnerId: spec.partnerId, year: y, month: m });
-  const s = computeSheet({ unitsPerCase: d.product.unitsPerCase, components: d.components, rates: defaultRates(d, spec.marginPct) });
+  let config = spec.config ?? {};
+  if (values.price_config != null) {
+    const parsed = validPriceConfig(JSON.parse(String(values.price_config)));
+    if (!parsed) throw new Error("Parametri ai fișei invalizi.");
+    config = parsed;
+  }
+  const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: spec.articolId, partnerId: spec.partnerId, year: config.year ?? spec.year ?? y, month: config.month ?? spec.month ?? m, rawPriceMode: config.rawPriceMode });
+  const { sheet: s } = configuredSheet(d, defaultRates(d, spec.marginPct), config);
   const r2 = (n: number | null | undefined) => (n == null ? "—" : (Math.round(n * 100) / 100).toFixed(2));
   const rows = [
     ...s.lines.map((l) => [l.label, l.detail, r2(l.value)]),
     ["Cost producție", "", r2(s.productionCost)],
-    [`Preț poartă fabrică (marjă ${spec.marginPct}%)`, "", r2(s.factoryGate)],
+    [`Preț poartă fabrică (marjă ${config.rates?.marginPct ?? spec.marginPct}%)`, "", r2(s.factoryGate)],
     ["Cost logistic", "", r2(s.logistics)],
     ["Preț livrat", "", r2(s.delivered)],
     ["Taxe client", "", r2(s.clientFees)],
@@ -61,9 +71,9 @@ export async function runLive(c: { cloud: any; legacy: any; legacyUser?: any }, 
   ];
   return {
     widget_type: "table", title,
-    summary: `${d.product.name} · ${spec.client || "toți clienții"} · ${d.product.unitsPerCase} buc/bax · prețuri Senior la zi · fără credite AI`,
+    summary: `${d.product.name} · ${spec.client || "toți clienții"} · ${s.unitsPerCase} buc/bax · ${s.complete ? "fișă calculată" : `FIȘĂ INCOMPLETĂ — ${[...s.missingInputs, ...s.missingPrices].join("; ")}`} · fără credite AI`,
     table_data: { headers: ["Rând", "Detaliu", "RON / bax"], rows },
-    filtre: { produs: spec.product, client: spec.client || "toți", marja: `${spec.marginPct}%` },
+    filtre: { produs: spec.product, client: spec.client || "toți", marja: `${spec.marginPct}%`, price_config: JSON.stringify(config) },
   };
 }
 

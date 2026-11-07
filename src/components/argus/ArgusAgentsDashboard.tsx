@@ -17,6 +17,7 @@ import { AgentFilterBar, AgentFiltersEditor, type AgentFilter } from "./AgentFil
 import ReportTableEditor from "./ReportTableEditor";
 import { reportTables, type ReportView } from "@/lib/argus/reportTables";
 import { exportReport } from "@/lib/argus/exportReport";
+import LivePriceFilters from "./LivePriceFilters";
 
 const SCHED: Record<string, string> = { on_demand: "La cerere", daily: "Zilnic", weekly: "Săptămânal", monthly: "Lunar" };
 const WIDGET: Record<string, string> = { auto: "Auto", bar_chart: "Bare", line_chart: "Linie", pie_chart: "Pie", kpi: "KPI", table: "Tabel", markdown: "Text" };
@@ -81,7 +82,7 @@ export default function ArgusAgentsDashboard() {
   const run = async (templateId: string) => {
     setRunning((s) => ({ ...s, [templateId]: true }));
     try {
-      const r = await argusFetch<any>("agent_run", { id: templateId }, { values: values[templateId] ?? {} });
+      const r = await argusFetch<any>("agent_run", { id: templateId }, { values: values[templateId] ?? reports[templateId]?.content_json?.filtre ?? {} });
       // The agent runs in the background on the server; poll until its report is no longer pending (max ~8 min).
       if (r?.background) {
         for (let i = 0; i < 96; i++) {
@@ -203,6 +204,7 @@ export default function ArgusAgentsDashboard() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1">
+                  {t.live_spec?.kind === "price" && <LivePriceFilters config={t.live_spec.config} values={values[c.template_id] ?? r?.content_json?.filtre ?? {}} onChange={(v) => setValues((s) => ({ ...s, [c.template_id]: v }))} onRun={() => run(c.template_id)} busy={busy} />}
                   <AgentFilterBar
                     filters={Array.isArray(t.params) ? t.params : []}
                     values={values[c.template_id] ?? r?.content_json?.filtre ?? {}}

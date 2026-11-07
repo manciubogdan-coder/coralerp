@@ -9,7 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { argusFetch } from "@/lib/argusApi";
-import { computeSheet, type SheetComponent, type SheetRates } from "../../../supabase/functions/_shared/priceSheet";
+import { type SheetComponent } from "../../../supabase/functions/_shared/priceSheet";
+
+import { configuredSheet, LABOUR_LINES, RATE_KEYS, CONFIG_NUMBERS, validPriceConfig, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
+import { PriceParameters, NumericParameter } from "./PriceParameters";
 
 type Opt = { id: number; name: string };
 type Rate = { value: number; total: number; volume: number; unit: string; accounts: Array<{ cont: string; name: string; value: number }> };
@@ -18,6 +21,7 @@ type Data = {
   period: { startDay: string; endDay: string };
   components: SheetComponent[];
   rates: Record<"labourPerPiece" | "utilitiesPerPiece" | "supplyPerKg" | "distributionPerPiece" | "clientFeePerPiece", Rate>;
+  logistics: { supplyTotal: number | null; closedStart: string; closedEnd: string; note: string };
   eur: { rate: number; day: string } | null;
   salesHistory: Array<{ month: string; qty: number; value: number; price: number | null }>;
   priceList: { price: number; currency: string; list: string; since: string } | null;
@@ -25,7 +29,7 @@ type Data = {
 
 const MONTHS = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"];
 const n2 = (v: number | null | undefined, d = 2) => (v == null || !Number.isFinite(v) ? "—" : v.toLocaleString("ro-RO", { minimumFractionDigits: d, maximumFractionDigits: d }));
-const num = (s: string) => { const v = Number(String(s).replace(",", ".")); return Number.isFinite(v) ? v : 0; };
+const num = (s: string) => Number(String(s).replace(",", "."));
 
 function Picker({ label, options, value, onChange, placeholder, allowAll }: { label: string; options: Opt[]; value: number | null; onChange: (v: number | null) => void; placeholder: string; allowAll?: string }) {
   const [open, setOpen] = useState(false);
@@ -91,6 +95,11 @@ export default function PriceCalculator() {
   const [data, setData] = useState<Data | null>(null);
   const [rates, setRates] = useState<Record<string, string>>({});
   const [prices, setPrices] = useState<Record<number, string>>({});
+  const [mode, setMode] = useState<"annual" | "week">("annual");
+  const [route, setRoute] = useState("România");
+  const [line, setLine] = useState("");
+  const [quantities, setQuantities] = useState<Record<number, string>>({});
+  const [palletKg, setPalletKg] = useState<Record<number, string>>({});
   const [losses, setLosses] = useState<Record<number, string>>({});
 
   useEffect(() => {
@@ -111,28 +120,28 @@ export default function PriceCalculator() {
     if (!product) return;
     setLoading(true); setError(null);
     try {
-      const d = await argusFetch<Data>("price_calc", {}, { articolId: product, partnerId: client, year, month });
+      const d = await argusFetch<Data>("price_calc", {}, { articolId: product, partnerId: client, year, month, rawPriceMode: mode });
       setData(d);
-      setRates({
-        labourPerPiece: String(d.rates.labourPerPiece.value), utilitiesPerPiece: String(d.rates.utilitiesPerPiece.value),
-        supplyPerKg: String(d.rates.supplyPerKg.value), distributionPerPiece: String(d.rates.distributionPerPiece.value),
-        clientFeePerPiece: String(d.rates.clientFeePerPiece.value), eurRate: String(d.eur?.rate ?? ""), eurBufferPct: "1.5",
-        techLossPct: "0", marginPct: rates.marginPct ?? "0",
-      });
-      setPrices({}); setLosses({});
+      setRates((prev) => ({
+        ...prev, unitsPerCase: data?.product.id === d.product.id ? prev.unitsPerCase ?? String(d.product.unitsPerCase) : String(d.product.unitsPerCase),
+        supplyTotal: prev.supplyTotal ?? (d.logistics.supplyTotal == null ? "" : String(d.logistics.supplyTotal)),
+        eurRate: prev.eurRate || String(d.eur?.rate ?? ""), eurBufferPct: prev.eurBufferPct ?? "1.5",
+        techLossPct: prev.techLossPct ?? "0", marginPct: prev.marginPct ?? "0",
+      }));
+      if (data?.product.id !== d.product.id) { setPrices({}); setLosses({}); setQuantities({}); setPalletKg({}); }
     } catch (e) { setError((e as Error).message); setData(null); }
     finally { setLoading(false); }
   };
 
   const [saving, setSaving] = useState(false);
   const saveLive = async () => {
-    if (!data || !product) return;
+    if (!data || !product || data.product.id !== product) return;
     const clientName = clients.find((c) => c.id === client)?.name ?? "";
     const margin = num(rates.marginPct ?? "0");
     setSaving(true);
     try {
       const r = await argusFetch<any>("live_save", {}, {
-        kind: "price", articolId: product, partnerId: client, marginPct: margin, product: data.product.name, client: clientName,
+        kind: "price", articolId: product, partnerId: client, marginPct: margin, config: config, year, month, product: data.product.name, client: clientName,
         title: `Fișă preț — ${data.product.name}${clientName ? ` · ${clientName}` : ""}${margin ? ` · marjă ${margin}%` : ""}`,
       });
       toast({ title: "Fișă live salvată", description: r.firstRunOk ? "O găsești în „Agenți & Rapoarte”. Actualizează oricând, fără credite AI." : "Salvată; prima recalculare a eșuat, încearcă Actualizează." });
@@ -141,16 +150,31 @@ export default function PriceCalculator() {
     } finally { setSaving(false); }
   };
 
+  const config = useMemo(() => {
+    const cfg: PriceConfig = { year, month, rawPriceMode: mode, route, ...(line ? { labourLine: line } : {}), rates: {}, components: {} };
+    for (const k of RATE_KEYS) if (rates[k] != null && rates[k] !== "") cfg.rates = { ...cfg.rates, [k]: num(rates[k]) };
+    for (const k of CONFIG_NUMBERS) if (rates[k] != null && rates[k] !== "") Object.assign(cfg, { [k]: num(rates[k]) });
+    for (const c of data?.components ?? []) {
+      const o: { price?: number; qty?: number; lossPct?: number; kgPerPallet?: number } = {};
+      if (prices[c.id] != null && prices[c.id] !== "") o.price = num(prices[c.id]);
+      if (losses[c.id] != null && losses[c.id] !== "") o.lossPct = num(losses[c.id]);
+      if (quantities[c.id] != null && quantities[c.id] !== "") o.qty = num(quantities[c.id]);
+      if (palletKg[c.id] != null && palletKg[c.id] !== "") o.kgPerPallet = num(palletKg[c.id]);
+      cfg.components = { ...cfg.components, [c.id]: o };
+    }
+    return cfg;
+  }, [data, mode, route, line, rates, prices, losses, quantities, palletKg, year, month]);
   const sheet = useMemo(() => {
-    if (!data) return null;
-    const r = Object.fromEntries(Object.entries(rates).map(([k, v]) => [k, num(v)])) as unknown as SheetRates;
-    const comps = data.components.map((c) => ({
-      ...c,
-      price: prices[c.id] != null && prices[c.id] !== "" ? num(prices[c.id]) : c.price,
-      lossPct: losses[c.id] != null && losses[c.id] !== "" ? num(losses[c.id]) : c.lossPct,
-    }));
-    return { s: computeSheet({ unitsPerCase: data.product.unitsPerCase, components: comps, rates: r }), comps };
-  }, [data, rates, prices, losses]);
+    if (!data || !validPriceConfig(config)) return null;
+    const comps = data.components.map((c) => ({ ...c, ...(c.kind === "mp" ? { price: mode === "week" ? c.weekPrice ?? null : c.annualPrice ?? null } : {}) }));
+    const result = configuredSheet({ ...data, components: comps }, { labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: data.eur?.rate ?? 0, eurBufferPct: 1.5, techLossPct: 0, marginPct: 0 }, config);
+    return { s: result.sheet, comps: result.components };
+  }, [data, config, mode]);
+  const chooseLine = (v: string) => {
+    setLine(v);
+    const l = LABOUR_LINES.find((x) => x.name === v);
+    setRates((p) => ({ ...p, labourPerPiece: l?.direct == null ? "" : String(l.direct), utilitiesPerPiece: l?.overhead == null ? "" : String(l.overhead) }));
+  };
 
   const lastSale = data ? [...data.salesHistory].reverse().find((h) => h.price != null) ?? null : null;
   const setR = (k: string) => (v: string) => setRates((p) => ({ ...p, [k]: v }));
@@ -186,10 +210,12 @@ export default function PriceCalculator() {
               </Button>
             </div>
           </div>
+          <details open className="border-t pt-3"><summary className="cursor-pointer font-medium text-sm">Filtre și parametri de calcul</summary><div className="mt-3"><PriceParameters values={rates} setValue={(k, v) => setR(k)(v)} mode={mode} setMode={setMode} route={route} setRoute={(v) => { setRoute(v); setRates((p) => ({ ...p, distributionTotal: "", distributionPallets: "", distributionPerPallet: "" })); }} line={line} setLine={chooseLine} /></div></details>
+          {!validPriceConfig(config) && <p className="text-sm text-destructive">Parametri invalizi: valori pozitive, pierderi și marjă sub 100%, bucăți/palet și bucăți/bax peste zero.</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
           {data && product && (
             <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
-              <Button size="sm" variant="secondary" disabled={saving} onClick={saveLive}>
+              <Button size="sm" variant="secondary" disabled={saving || !sheet} onClick={saveLive}>
                 {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1 h-3.5 w-3.5" />}Salvează ca fișă live
               </Button>
               Apare în „Agenți & Rapoarte”; o recalculezi cu prețurile Senior la zi dintr-un clic, fără credite AI.
@@ -200,56 +226,44 @@ export default function PriceCalculator() {
 
       {data && sheet && (
         <>
+          <div className="border-y py-3 text-xs text-muted-foreground space-y-1">
+            <p>Materii prime: {mode === "annual" ? "media anuală ponderată" : "media ponderată ultimele 7 zile"}, până la {data.period.endDay} exclusiv. Ambalaje: ultima intrare NIR.</p>
+            <p>Aprovizionare: {data.logistics.closedStart} – {data.logistics.closedEnd} exclusiv. Distribuție: {route}. Manoperă: document octombrie 2026, regie inclusă, fără dublare.</p>
+            <p>{data.logistics.note}</p>
+          </div>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Tarife folosite · medie {data.period.startDay} — {data.period.endDay} din contabilitatea Senior</CardTitle>
-              <p className="text-xs text-muted-foreground">Le poți modifica; fișa se recalculează imediat. Costul logistic e media firmei — pentru export sau rute lungi pune costul real al rutei.</p>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {([
-                ["labourPerPiece", "Manoperă (lei/buc)"], ["utilitiesPerPiece", "Utilități și hală (lei/buc)"], ["supplyPerKg", "Transport aprovizionare (lei/kg MP)"],
-                ["distributionPerPiece", "Cost logistic rută (lei/buc)"], ["clientFeePerPiece", "Taxe client (lei/buc)"],
-              ] as const).map(([k, l]) => {
-                const r = data.rates[k];
-                return <NumField key={k} label={l} value={rates[k] ?? ""} onChange={setR(k)} hint={r.volume ? `${n2(r.total, 0)} lei ÷ ${n2(r.volume, 0)} ${r.unit}${r.accounts.length ? ` · conturi ${r.accounts.map((a) => a.cont).join(", ")}` : ""}` : "fără date în perioadă"} />;
-              })}
-              <NumField label="Curs EUR" value={rates.eurRate ?? ""} onChange={setR("eurRate")} hint={data.eur ? `BNR ${data.eur.day}` : "curs negăsit"} />
-              <NumField label="Marjă siguranță curs %" value={rates.eurBufferPct ?? ""} onChange={setR("eurBufferPct")} />
-              <NumField label="Pierdere tehnologică suplimentară %" value={rates.techLossPct ?? ""} onChange={setR("techLossPct")} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Fișă preț · {data.product.name} · bax {data.product.unitsPerCase} buc</CardTitle>
+              <CardTitle className="text-base">Fișă preț · {data.product.name} · bax {sheet.s.unitsPerCase} buc</CardTitle>
+              {!sheet.s.complete && <p className="text-sm text-destructive">Fișă incompletă — totaluri parțiale, nu preț final validat. De completat: {sheet.s.missingInputs.join("; ")}</p>}
               {sheet.s.missingPrices.length > 0 && <p className="text-sm text-destructive">Fără preț în Senior: {sheet.s.missingPrices.join(", ")} — completează prețul ca fișa să fie corectă.</p>}
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
                 <thead className="border-b text-left text-xs text-muted-foreground">
-                  <tr><th className="py-2">Componentă</th><th className="text-right">Rețetă</th><th className="text-right">PT %</th><th className="text-right">Cantitate cu pierdere</th><th className="text-right">Preț (lei/UM)</th><th className="text-right">Valoare (lei/bax)</th></tr>
+                  <tr><th className="py-2">Componentă</th><th className="text-right">Rețetă</th><th className="text-right">PT %</th><th className="text-right">Cantitate cu pierdere</th><th className="text-right">Preț (lei/UM)</th><th className="text-right">kg / palet MP</th><th className="text-right">Valoare (lei/bax)</th></tr>
                 </thead>
                 <tbody>
                   {sheet.comps.map((c) => {
                     const line = sheet.s.lines.find((l) => l.label === c.name);
-                    const eff = c.kind === "mp" ? c.qty / (1 - c.lossPct / 100) : c.qty;
+                    const eff = c.kind === "mp" ? c.qty / (1 - Math.min(c.lossPct, 95) / 100) : c.qty * (1 + c.lossPct / 100);
                     return (
                       <tr key={c.id} className="border-b last:border-0">
                         <td className="py-1.5">
                           <div className="font-medium">{c.name}</div>
                           <div className="text-[11px] text-muted-foreground">{c.kind === "mp" ? "Materie primă" : "Ambalaj"} · {c.priceSource}{c.lossSource ? ` · ${c.lossSource}` : ""}</div>
                         </td>
-                        <td className="text-right tabular-nums">{n2(c.qty, 3)} {c.unit}</td>
-                        <td className="text-right">{c.kind === "mp" ? <Input className="ml-auto h-8 w-16 text-right" value={losses[c.id] ?? String(c.lossPct)} onChange={(e) => setLosses((p) => ({ ...p, [c.id]: e.target.value }))} /> : "—"}</td>
+                        <td className="text-right"><NumericParameter label={`Cantitate ${c.name} (${c.unit})`} value={quantities[c.id] ?? String(c.qty)} onChange={(v) => setQuantities((p) => ({ ...p, [c.id]: v }))} /></td>
+                        <td className="text-right"><Input aria-label={`PT ${c.name}`} className="ml-auto h-8 w-16 text-right" value={losses[c.id] ?? String(c.lossPct)} onChange={(e) => setLosses((p) => ({ ...p, [c.id]: e.target.value }))} /></td>
                         <td className="text-right tabular-nums">{n2(eff, 4)}</td>
-                        <td className="text-right"><Input className="ml-auto h-8 w-24 text-right" value={prices[c.id] ?? (c.price == null ? "" : String(Math.round(c.price * 10000) / 10000))} onChange={(e) => setPrices((p) => ({ ...p, [c.id]: e.target.value }))} /></td>
+                        <td className="text-right"><Input aria-label={`Preț ${c.name}`} className="ml-auto h-8 w-24 text-right" value={prices[c.id] ?? (c.price == null ? "" : String(Math.round(c.price * 10000) / 10000))} onChange={(e) => setPrices((p) => ({ ...p, [c.id]: e.target.value }))} /></td>
+                        <td>{c.kind === "mp" ? <Input aria-label={`kg/palet ${c.name}`} className="ml-auto h-8 w-24 text-right" value={palletKg[c.id] ?? ""} onChange={(e) => setPalletKg((p) => ({ ...p, [c.id]: e.target.value }))} /> : "—"}</td>
                         <td className="text-right font-medium tabular-nums">{n2(line?.value ?? 0, 4)}</td>
                       </tr>
                     );
                   })}
                   {sheet.s.lines.filter((l) => !sheet.comps.some((c) => c.name === l.label)).map((l) => (
                     <tr key={l.label} className="border-b last:border-0">
-                      <td className="py-1.5" colSpan={5}><div className="font-medium">{l.label}</div><div className="text-[11px] text-muted-foreground">{l.detail}</div></td>
+                      <td className="py-1.5" colSpan={6}><div className="font-medium">{l.label}</div><div className="text-[11px] text-muted-foreground">{l.detail}</div></td>
                       <td className="text-right font-medium tabular-nums">{n2(l.value, 4)}</td>
                     </tr>
                   ))}
@@ -279,13 +293,13 @@ export default function PriceCalculator() {
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Comparație cu prețul de vânzare</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              {lastSale ? (() => {
-                const diff = lastSale.price! - sheet.s.perPiece.clientPrice;
+              {lastSale && sheet.s.complete ? (() => {
+                const diff = (lastSale.price ?? 0) - sheet.s.perPiece.clientPrice;
                 return (
                   <div className="grid gap-2 sm:grid-cols-3">
                     <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Preț calculat</div><div className="text-lg font-semibold tabular-nums">{n2(sheet.s.perPiece.clientPrice, 4)} lei/buc</div></div>
                     <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Preț vânzare mediu {lastSale.month}</div><div className="text-lg font-semibold tabular-nums">{n2(lastSale.price, 4)} lei/buc</div></div>
-                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Diferență (profit/pierdere pe bucată)</div><div className={`text-lg font-semibold tabular-nums ${diff >= 0 ? "text-primary" : "text-destructive"}`}>{n2(diff, 4)} lei · {n2((diff / lastSale.price!) * 100, 1)}%</div></div>
+                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Diferență (profit/pierdere pe bucată)</div><div className={`text-lg font-semibold tabular-nums ${diff >= 0 ? "text-primary" : "text-destructive"}`}>{n2(diff, 4)} lei · {n2((diff / (lastSale.price ?? 1)) * 100, 1)}%</div></div>
                   </div>
                 );
               })() : <p className="text-sm text-muted-foreground">Nu există vânzări pentru {client ? "acest client" : "acest produs"} în ultimele 12 luni.</p>}

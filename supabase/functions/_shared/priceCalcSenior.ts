@@ -61,12 +61,14 @@ export async function findPartners(sb: Rpc, name: string) {
   return SQL(sb, `SELECT TOP 10 p.Partener_ID id, p.Denumire name FROM dbo.D_Parteneri p WITH (NOLOCK) WHERE p.IsClient=1 AND ${like} ORDER BY p.Denumire`);
 }
 
-export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: unknown; partnerId?: unknown; year?: unknown; month?: unknown }) {
+export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: unknown; partnerId?: unknown; year?: unknown; month?: unknown; rawPriceMode?: unknown }) {
   const aid = int(body.articolId), pid = int(body.partnerId);
   const year = Number(body.year), month = Number(body.month);
   if (!aid) throw new Error("Alege produsul finit.");
   if (!(year > 2015 && year < 2100 && month >= 1 && month <= 12)) throw new Error("Lună invalidă.");
   const P = ratePeriod(year, month);
+  const weekStart = new Date(new Date(`${P.endDay}T00:00:00Z`).getTime() - 7 * 86400000).toISOString().slice(0, 10);
+  const closedStart = `${String(P.to).slice(0, 4)}-${String(P.to).slice(4)}-01`;
   const allAcc = Object.values(RATE_ACCOUNTS).flat().map((a) => `'${a}'`).join(",");
   const histStart = new Date(Date.UTC(year, month - 13, 1)).toISOString().slice(0, 10);
   const histEnd = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
@@ -80,7 +82,7 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
     SQL(sb, `SELECT p.Cont cont, MAX(p.Descriere) name, SUM(CASE WHEN dc.IsDebit=1 THEN CAST(dc.Valoare_Rol AS float) ELSE -CAST(dc.Valoare_Rol AS float) END) v
       FROM dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId
       JOIN dbo.C_H_Note_Contabile h WITH (NOLOCK) ON h.H_ID=dc.H_ID JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID
-      WHERE p.Cont IN (${allAcc}) AND t.Cod<>'NCICV' AND ${notCancelled} AND dc.LunaContabila BETWEEN ${P.from} AND ${P.to} GROUP BY p.Cont`),
+      WHERE p.Cont IN (${allAcc}) AND t.Cod<>'NCICV' AND ${notCancelled} AND dc.LunaContabila BETWEEN '${P.from}' AND '${P.to}' GROUP BY p.Cont`),
     SQL(sb, `SELECT SUM(CASE WHEN t.Cod IN ${SALES} AND um.Cod='BUC' THEN CAST(d.Cantitate AS float) ELSE 0 END) pieces,
         SUM(CASE WHEN t.Cod='NIR' AND um.Cod='KG' THEN CAST(d.Cantitate AS float) ELSE 0 END) kg
       FROM ${docs} LEFT JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UM_ID
@@ -112,32 +114,53 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
   const rows = pick.filter((r) => !isServiceComponent(String(r.name)));
   const ids = [...new Set(rows.map((r) => int(r.id)).filter(Boolean))] as number[];
 
-  const priceRows = ids.length ? await SQL(sb, `SELECT L.id, SUM(CASE WHEN L.cod='NIR' AND L.day>='${P.startDay}' THEN L.v END) v12, SUM(CASE WHEN L.cod='NIR' AND L.day>='${P.startDay}' THEN L.q END) q12,
-      MAX(CASE WHEN L.rn=1 THEN L.v/NULLIF(L.q,0) END) lastp, MAX(L.day) lastd FROM (
-        SELECT d.Articol_ID id, t.Cod cod, h.Data day, CAST(d.Valoare_Neta_Rol AS float) v, CAST(d.Cantitate AS float) q,
-          ROW_NUMBER() OVER (PARTITION BY d.Articol_ID ORDER BY h.Data DESC, d.D_ID DESC) rn
-        FROM ${docs} WHERE t.Cod IN ('NIR','FF','FFI','FFIC') AND ${notCancelled} AND d.Articol_ID IN (${ids.join(",")}) AND d.Cantitate>0
+  const priceRows = ids.length ? await SQL(sb, `SELECT L.id,
+      SUM(CASE WHEN L.day>='${P.startDay}' THEN L.v ELSE 0 END) v12,
+      SUM(CASE WHEN L.day>='${P.startDay}' THEN L.q ELSE 0 END) q12,
+      SUM(CASE WHEN L.day>='${weekStart}' THEN L.v ELSE 0 END) vw,
+      SUM(CASE WHEN L.day>='${weekStart}' THEN L.q ELSE 0 END) qw,
+      SUM(CASE WHEN L.day=L.lastday THEN L.v ELSE 0 END)/NULLIF(SUM(CASE WHEN L.day=L.lastday THEN L.q ELSE 0 END),0) lastp,
+      MAX(L.day) lastd FROM (
+        SELECT d.Articol_ID id, h.Data day, CAST(d.Valoare_Neta_Rol AS float) v, CAST(d.Cantitate AS float) q,
+          MAX(h.Data) OVER (PARTITION BY d.Articol_ID) lastday
+        FROM ${docs} WHERE t.Cod='NIR' AND ${notCancelled} AND d.Articol_ID IN (${ids.join(",")}) AND d.Cantitate>0
           AND h.Data<'${P.endDay}' AND h.Data>=DATEADD(year,-3,'${P.endDay}')) L GROUP BY L.id`) : [];
   const prices = new Map(priceRows.map((r: any) => [Number(r.id), r]));
 
-  let loss: Array<{ name: string; pt_percent: number | null }> = [];
-  try {
-    const { data } = await legacy.from("products").select("name,pt_percent").not("pt_percent", "is", null).limit(1000);
-    loss = data ?? [];
-  } catch { loss = []; }
-
+  const readLoss = async (table: string) => {
+    const all: Array<{ name: string; pt_percent: number | null }> = [];
+    let offset = 0;
+    while (true) {
+      const { data, error } = await legacy.from(table).select("name,pt_percent").order("id").range(offset, offset + 499);
+      if (error) throw new Error(`Nu pot citi pierderile tehnologice din ${table}: ${error.message}`);
+      all.push(...(data ?? []));
+      if (!data || data.length < 500) break;
+      offset += 500;
+    }
+    return all;
+  };
+  const [loss, packagingLoss, closedJournal] = await Promise.all([
+    readLoss("products"), readLoss("ambalaje_products"),
+    SQL(sb, `SELECT p.Cont cont, SUM(CASE WHEN dc.IsDebit=1 THEN CAST(dc.Valoare_Rol AS float) ELSE -CAST(dc.Valoare_Rol AS float) END) v
+      FROM dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId
+      JOIN dbo.C_H_Note_Contabile h WITH (NOLOCK) ON h.H_ID=dc.H_ID JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID
+      WHERE p.Cont IN ('624.01') AND t.Cod<>'NCICV' AND ${notCancelled} AND dc.LunaContabila='${P.to}' GROUP BY p.Cont`),
+  ]);
   const components: SheetComponent[] = rows.map((r): SheetComponent => {
     const name = String(r.name).trim(), unit = String(r.um ?? "").trim() || "BUC";
     const p = prices.get(Number(r.id));
     const annual = p && num(p.q12) > 0 ? num(p.v12) / num(p.q12) : null;
     const kind = componentKind(name, unit);
-    const m = kind === "mp" ? matchLoss(name, loss) : null;
+    const m = matchLoss(name, kind === "mp" ? loss : packagingLoss);
+    const week = p && num(p.qw) > 0 ? num(p.vw) / num(p.qw) : null;
+    const last = p?.lastp != null ? num(p.lastp) : null;
+    const chosen = kind === "ambalaj" ? last : body.rawPriceMode === "week" ? week : annual;
     return {
       id: Number(r.id), name, qty: num(r.q), unit, kind,
-      price: annual ?? (p?.lastp != null ? num(p.lastp) : null),
-      priceSource: annual != null ? "medie NIR 12 luni" : p?.lastp != null ? `ultimul preț ${String(p.lastd).slice(0, 10)}` : "fără achiziții în Senior",
+      price: chosen, annualPrice: annual, weekPrice: week, lastPrice: last,
+      priceSource: kind === "ambalaj" ? `ultima intrare NIR ${String(p?.lastd ?? "").slice(0, 10)}` : body.rawPriceMode === "week" ? `medie NIR ${weekStart} – ${P.endDay} (exclusiv)` : `medie NIR ${P.startDay} – ${P.endDay} (exclusiv)`,
       lossPct: m ? m.pt : 0,
-      ...(kind === "mp" ? { lossSource: m ? `PT Coral ERP: ${m.name}` : "fără PT setat" } : {}),
+      lossSource: m ? `PT Coral ERP: ${m.name}` : "PT nesetat — de completat",
     };
   });
 
@@ -154,6 +177,7 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
   return {
     product: { id: art[0].id, name: String(art[0].name).trim(), code: art[0].code, unitsPerCase },
     period: P,
+    logistics: { closedStart, closedEnd: P.endDay, supplyTotal: closedJournal.length ? closedJournal.reduce((s: number, r: any) => s + num(r.v), 0) : null, supplyPallets: null, distribution: { România: null, Bulgaria: null, Moldova: null }, piecesPerPallet: null, note: "Paleții recepționați/facturați și costurile pe rută nu au o legătură verificată în Senior. Completați valorile confirmate; nu se folosește media firmei pe bucată." },
     components,
     rates: {
       labourPerPiece: { value: rate(lab.total, pieces), total: lab.total, volume: pieces, unit: "buc vândute", accounts: lab.accounts },
@@ -173,11 +197,11 @@ export type PriceData = Awaited<ReturnType<typeof priceCalcData>>;
 /** Default rates straight from the Senior-derived data (EUR buffer 1.5%, no extra tech loss). */
 export function defaultRates(d: PriceData, marginPct = 0) {
   return {
-    labourPerPiece: d.rates.labourPerPiece.value,
-    utilitiesPerPiece: d.rates.utilitiesPerPiece.value,
-    supplyPerKg: d.rates.supplyPerKg.value,
-    distributionPerPiece: d.rates.distributionPerPiece.value,
-    clientFeePerPiece: d.rates.clientFeePerPiece.value,
+    labourPerPiece: 0,
+    utilitiesPerPiece: 0,
+    supplyPerKg: 0,
+    distributionPerPiece: 0,
+    clientFeePerPiece: 0,
     eurRate: d.eur?.rate ?? 0,
     eurBufferPct: 1.5,
     techLossPct: 0,

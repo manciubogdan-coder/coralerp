@@ -10,7 +10,11 @@ export interface SheetComponent {
   kind: ComponentKind;
   price: number | null; // RON per recipe unit
   priceSource: string;
-  lossPct: number; // raw materials only: technological loss, 19 = 19%
+  lossPct: number;
+  kgPerPallet?: number;
+  annualPrice?: number | null;
+  weekPrice?: number | null;
+  lastPrice?: number | null;
   lossSource?: string;
 }
 
@@ -24,6 +28,10 @@ export interface SheetRates {
   eurBufferPct: number;
   techLossPct: number;
   marginPct: number;
+  supplyPerPallet?: number;
+  distributionPerPallet?: number;
+  piecesPerPallet?: number;
+  feePct?: number;
 }
 
 export interface SheetLine { label: string; detail: string; value: number; group: "mp" | "transport" | "ambalaj" | "manopera" | "utilitati" | "pierdere"; missing?: boolean }
@@ -47,6 +55,8 @@ export interface PriceSheet {
   clientPriceEur: number;
   perPiece: { productionCost: number; factoryGate: number; delivered: number; clientPrice: number; clientPriceEur: number };
   missingPrices: string[];
+  missingInputs: string[];
+  complete: boolean;
 }
 
 const SERVICE_RE = /\b(MANOPERA|CHELTUIELI|SERVICI|TRANSPORT)\b/i;
@@ -79,6 +89,8 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
   const R = input.rates;
   const lines: SheetLine[] = [];
   const missingPrices: string[] = [];
+  const missingInputs: string[] = [];
+  let supplyPallets = 0;
   let rawMaterial = 0, packaging = 0, kgEffective = 0;
   for (const c of input.components) {
     const price = c.price ?? 0;
@@ -86,19 +98,23 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
     if (c.kind === "mp") {
       const eff = effectiveQty(c.qty, c.lossPct);
       if (/^kg$/i.test(c.unit)) kgEffective += eff;
+      if (R.supplyPerPallet != null && /^kg$/i.test(c.unit)) {
+        if ((c.kgPerPallet ?? 0) > 0) supplyPallets += eff / (c.kgPerPallet ?? 1);
+        else missingInputs.push(`kg/palet: ${c.name}`);
+      }
       const v = eff * price;
       rawMaterial += v;
       lines.push({ group: "mp", label: c.name, value: r4(v), missing: c.price == null,
         detail: `${r4(eff)} ${c.unit} × ${r4(price)} RON (${c.priceSource}); pierdere ${c.lossPct || 0}% (rețetă ${r4(c.qty)} → efectiv ${r4(eff)})` });
     } else {
-      const v = c.qty * price;
+      const v = c.qty * price * (1 + Math.max(c.lossPct || 0, 0) / 100);
       packaging += v;
       lines.push({ group: "ambalaj", label: c.name, value: r4(v), missing: c.price == null,
-        detail: `${r4(c.qty)} ${c.unit} × ${r4(price)} RON (${c.priceSource})` });
+        detail: `${r4(c.qty)} ${c.unit} × ${r4(price)} RON × (1 + ${c.lossPct || 0}% PT ambalaj) (${c.priceSource})` });
     }
   }
-  const supplyTransport = kgEffective * R.supplyPerKg;
-  lines.push({ group: "transport", label: "Transport aprovizionare", value: r4(supplyTransport), detail: `${r4(kgEffective)} kg × ${r4(R.supplyPerKg)} RON/kg` });
+  const supplyTransport = R.supplyPerPallet != null ? supplyPallets * R.supplyPerPallet : kgEffective * R.supplyPerKg;
+  lines.push({ group: "transport", label: "Transport aprovizionare", value: r4(supplyTransport), detail: R.supplyPerPallet != null ? `${r4(supplyPallets)} paleți MP × ${r4(R.supplyPerPallet)} RON/palet` : `${r4(kgEffective)} kg × ${r4(R.supplyPerKg)} RON/kg` });
   const labour = n * R.labourPerPiece;
   lines.push({ group: "manopera", label: "Manoperă", value: r4(labour), detail: `${r4(R.labourPerPiece)} RON/buc × ${n} buc` });
   const utilities = n * R.utilitiesPerPiece;
@@ -108,14 +124,15 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
   lines.push({ group: "pierdere", label: "Pierdere tehnologică", value: r4(techLoss), detail: `${R.techLossPct || 0}% din costurile de mai sus` });
   const productionCost = subtotal + techLoss;
   const factoryGate = withMargin(productionCost, R.marginPct);
-  const logistics = n * R.distributionPerPiece;
+  if (R.distributionPerPallet != null && !(R.piecesPerPallet && R.piecesPerPallet > 0)) missingInputs.push("Bucăți produs finit/palet");
+  const logistics = R.distributionPerPallet != null ? (R.piecesPerPallet && R.piecesPerPallet > 0 ? n / R.piecesPerPallet * R.distributionPerPallet : 0) : n * R.distributionPerPiece;
   const delivered = factoryGate + logistics;
-  const clientFees = n * R.clientFeePerPiece;
-  const clientPrice = delivered + clientFees;
+  const clientPrice = withMargin(delivered + n * R.clientFeePerPiece, R.feePct ?? 0);
+  const clientFees = clientPrice - delivered;
   const eurEffective = R.eurRate * (1 + (R.eurBufferPct || 0) / 100);
   const clientPriceEur = eurEffective > 0 ? clientPrice / eurEffective : 0;
   return {
-    unitsPerCase: n, lines, missingPrices,
+    unitsPerCase: n, lines, missingPrices, missingInputs, complete: !missingPrices.length && !missingInputs.length,
     rawMaterial: r4(rawMaterial), supplyTransport: r4(supplyTransport), packaging: r4(packaging), labour: r4(labour),
     utilities: r4(utilities), techLoss: r4(techLoss), productionCost: r4(productionCost), factoryGate: r4(factoryGate),
     logistics: r4(logistics), delivered: r4(delivered), clientFees: r4(clientFees), clientPrice: r4(clientPrice),
