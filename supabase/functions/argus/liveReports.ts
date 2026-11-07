@@ -7,6 +7,7 @@ import { seniorLive } from "../_shared/senior.ts";
 import { defaultRates, priceCalcData } from "../_shared/priceCalcSenior.ts";
 import { templateValues } from "./liveFilters.ts";
 import { configuredSheet, validPriceConfig, type PriceConfig } from "../_shared/priceConfig.ts";
+import { prefilledConfig } from "../_shared/priceDefaults.ts";
 export { filtersForTemplate } from "./liveFilters.ts";
 
 export type LiveSpec =
@@ -57,7 +58,7 @@ export async function runLive(c: { cloud: any; legacy: any; legacyUser?: any }, 
     config = parsed;
   }
   const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: spec.articolId, partnerId: spec.partnerId, year: config.year ?? spec.year ?? y, month: config.month ?? spec.month ?? m, rawPriceMode: config.rawPriceMode });
-  const { sheet: s } = configuredSheet(d, defaultRates(d, spec.marginPct), config);
+  const { sheet: s } = configuredSheet(d, defaultRates(d, spec.marginPct), prefilledConfig(d, config));
   const r2 = (n: number | null | undefined) => (n == null ? "—" : (Math.round(n * 100) / 100).toFixed(2));
   const rows = [
     ...s.lines.map((l) => [l.label, l.detail, r2(l.value)]),

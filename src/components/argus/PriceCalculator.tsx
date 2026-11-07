@@ -13,11 +13,14 @@ import { type SheetComponent } from "../../../supabase/functions/_shared/priceSh
 
 import { configuredSheet, LABOUR_LINES, RATE_KEYS, CONFIG_NUMBERS, validPriceConfig, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
 import { PriceParameters, NumericParameter } from "./PriceParameters";
+import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
 
 type Opt = { id: number; name: string };
 type Rate = { value: number; total: number; volume: number; unit: string; accounts: Array<{ cont: string; name: string; value: number }> };
 type Data = {
   product: { id: number; name: string; unitsPerCase: number };
+  defaults?: PriceConfig;
+  warnings?: string[];
   period: { startDay: string; endDay: string };
   components: SheetComponent[];
   rates: Record<"labourPerPiece" | "utilitiesPerPiece" | "supplyPerKg" | "distributionPerPiece" | "clientFeePerPiece", Rate>;
@@ -94,6 +97,7 @@ export default function PriceCalculator() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Data | null>(null);
   const [rates, setRates] = useState<Record<string, string>>({});
+  const [adjustedRates, setAdjustedRates] = useState<Record<string, string>>({});
   const [prices, setPrices] = useState<Record<number, string>>({});
   const [mode, setMode] = useState<"annual" | "week">("annual");
   const [route, setRoute] = useState("România");
@@ -122,13 +126,13 @@ export default function PriceCalculator() {
     try {
       const d = await argusFetch<Data>("price_calc", {}, { articolId: product, partnerId: client, year, month, rawPriceMode: mode });
       setData(d);
-      setRates((prev) => ({
-        ...prev, unitsPerCase: data?.product.id === d.product.id ? prev.unitsPerCase ?? String(d.product.unitsPerCase) : String(d.product.unitsPerCase),
-        supplyTotal: prev.supplyTotal ?? (d.logistics.supplyTotal == null ? "" : String(d.logistics.supplyTotal)),
-        eurRate: prev.eurRate || String(d.eur?.rate ?? ""), eurBufferPct: prev.eurBufferPct ?? "1.5",
-        techLossPct: prev.techLossPct ?? "0", marginPct: prev.marginPct ?? "0",
-      }));
-      if (data?.product.id !== d.product.id) { setPrices({}); setLosses({}); setQuantities({}); setPalletKg({}); }
+      const base = d.defaults ?? { unitsPerCase: d.product.unitsPerCase, rates: { eurRate: d.eur?.rate ?? 0, eurBufferPct: 1.5, techLossPct: 0, marginPct: 0 } };
+      const filled: Record<string, string> = {};
+      for (const k of CONFIG_NUMBERS) if (base[k] != null) filled[k] = String(base[k]);
+      for (const k of RATE_KEYS) if (base.rates?.[k] != null) filled[k] = String(base.rates[k]);
+      setRates({ ...filled, ...(data?.product.id === d.product.id ? adjustedRates : {}) });
+      if (!line || data?.product.id !== d.product.id) setLine(base.labourLine ?? "");
+      if (data?.product.id !== d.product.id) { setPrices({}); setLosses({}); setQuantities({}); setPalletKg({}); setAdjustedRates({}); }
     } catch (e) { setError((e as Error).message); setData(null); }
     finally { setLoading(false); }
   };
@@ -152,8 +156,8 @@ export default function PriceCalculator() {
 
   const config = useMemo(() => {
     const cfg: PriceConfig = { year, month, rawPriceMode: mode, route, ...(line ? { labourLine: line } : {}), rates: {}, components: {} };
-    for (const k of RATE_KEYS) if (rates[k] != null && rates[k] !== "") cfg.rates = { ...cfg.rates, [k]: num(rates[k]) };
-    for (const k of CONFIG_NUMBERS) if (rates[k] != null && rates[k] !== "") Object.assign(cfg, { [k]: num(rates[k]) });
+    for (const k of RATE_KEYS) if (adjustedRates[k] != null && adjustedRates[k] !== "") cfg.rates = { ...cfg.rates, [k]: num(adjustedRates[k]) };
+    for (const k of CONFIG_NUMBERS) if (adjustedRates[k] != null && adjustedRates[k] !== "") Object.assign(cfg, { [k]: num(adjustedRates[k]) });
     for (const c of data?.components ?? []) {
       const o: { price?: number; qty?: number; lossPct?: number; kgPerPallet?: number } = {};
       if (prices[c.id] != null && prices[c.id] !== "") o.price = num(prices[c.id]);
@@ -163,21 +167,22 @@ export default function PriceCalculator() {
       cfg.components = { ...cfg.components, [c.id]: o };
     }
     return cfg;
-  }, [data, mode, route, line, rates, prices, losses, quantities, palletKg, year, month]);
+  }, [data, mode, route, line, adjustedRates, prices, losses, quantities, palletKg, year, month]);
   const sheet = useMemo(() => {
     if (!data || !validPriceConfig(config)) return null;
     const comps = data.components.map((c) => ({ ...c, ...(c.kind === "mp" ? { price: mode === "week" ? c.weekPrice ?? null : c.annualPrice ?? null } : {}) }));
-    const result = configuredSheet({ ...data, components: comps }, { labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: data.eur?.rate ?? 0, eurBufferPct: 1.5, techLossPct: 0, marginPct: 0 }, config);
+    const result = configuredSheet({ ...data, components: comps }, { labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: data.eur?.rate ?? 0, eurBufferPct: 1.5, techLossPct: 0, marginPct: 0 }, prefilledConfig(data, config));
     return { s: result.sheet, comps: result.components };
   }, [data, config, mode]);
   const chooseLine = (v: string) => {
     setLine(v);
     const l = LABOUR_LINES.find((x) => x.name === v);
     setRates((p) => ({ ...p, labourPerPiece: l?.direct == null ? "" : String(l.direct), utilitiesPerPiece: l?.overhead == null ? "" : String(l.overhead) }));
+    setAdjustedRates((p) => { const n = { ...p }; delete n.labourPerPiece; delete n.utilitiesPerPiece; return n; });
   };
 
   const lastSale = data ? [...data.salesHistory].reverse().find((h) => h.price != null) ?? null : null;
-  const setR = (k: string) => (v: string) => setRates((p) => ({ ...p, [k]: v }));
+  const setR = (k: string) => (v: string) => { setRates((p) => ({ ...p, [k]: v })); setAdjustedRates((p) => ({ ...p, [k]: v })); };
   const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 
   return (
@@ -230,6 +235,7 @@ export default function PriceCalculator() {
             <p>Materii prime: {mode === "annual" ? "media anuală ponderată" : "media ponderată ultimele 7 zile"}, până la {data.period.endDay} exclusiv. Ambalaje: ultima intrare NIR.</p>
             <p>Aprovizionare: {data.logistics.closedStart} – {data.logistics.closedEnd} exclusiv. Distribuție: {route}. Manoperă: document octombrie 2026, regie inclusă, fără dublare.</p>
             <p>{data.logistics.note}</p>
+            {data.warnings?.map((w) => <p key={w} className="text-destructive">{w}</p>)}
           </div>
           <Card>
             <CardHeader className="pb-2">
@@ -256,7 +262,7 @@ export default function PriceCalculator() {
                         <td className="text-right"><Input aria-label={`PT ${c.name}`} className="ml-auto h-8 w-16 text-right" value={losses[c.id] ?? String(c.lossPct)} onChange={(e) => setLosses((p) => ({ ...p, [c.id]: e.target.value }))} /></td>
                         <td className="text-right tabular-nums">{n2(eff, 4)}</td>
                         <td className="text-right"><Input aria-label={`Preț ${c.name}`} className="ml-auto h-8 w-24 text-right" value={prices[c.id] ?? (c.price == null ? "" : String(Math.round(c.price * 10000) / 10000))} onChange={(e) => setPrices((p) => ({ ...p, [c.id]: e.target.value }))} /></td>
-                        <td>{c.kind === "mp" ? <Input aria-label={`kg/palet ${c.name}`} className="ml-auto h-8 w-24 text-right" value={palletKg[c.id] ?? ""} onChange={(e) => setPalletKg((p) => ({ ...p, [c.id]: e.target.value }))} /> : "—"}</td>
+                        <td>{c.kind === "mp" ? <Input aria-label={`kg/palet ${c.name}`} className="ml-auto h-8 w-24 text-right" value={palletKg[c.id] ?? (c.kgPerPallet == null ? "" : String(c.kgPerPallet))} onChange={(e) => setPalletKg((p) => ({ ...p, [c.id]: e.target.value }))} /> : "—"}</td>
                         <td className="text-right font-medium tabular-nums">{n2(line?.value ?? 0, 4)}</td>
                       </tr>
                     );
@@ -279,13 +285,13 @@ export default function PriceCalculator() {
                 ].map(([l, bax, buc]) => (
                   <div key={String(l)} className="rounded-lg border p-3">
                     <div className="text-xs text-muted-foreground">{l}</div>
-                    <div className="text-lg font-semibold tabular-nums">{n2(bax as number)} lei/bax</div>
-                    <div className="text-sm tabular-nums text-muted-foreground">{n2(buc as number, 4)} lei/buc</div>
+                    <div className="text-lg font-semibold tabular-nums">{sheet.s.complete ? `${n2(bax as number)} lei/bax` : "Calcul incomplet"}</div>
+                    <div className="text-sm tabular-nums text-muted-foreground">{sheet.s.complete ? `${n2(buc as number, 4)} lei/buc` : "Costuri lipsă — nu sunt zero"}</div>
                   </div>
                 ))}
               </div>
               <div className="mt-2 rounded-lg border bg-muted/40 p-3 text-sm">
-                În EUR (curs {n2(sheet.s.eurEffective, 4)} cu marjă de siguranță): <b className="tabular-nums">{n2(sheet.s.clientPriceEur)} €/bax</b> · <b className="tabular-nums">{n2(sheet.s.perPiece.clientPriceEur, 4)} €/buc</b>
+                {sheet.s.complete ? <>În EUR (curs {n2(sheet.s.eurEffective, 4)} cu marjă de siguranță): <b>{n2(sheet.s.clientPriceEur)} €/bax</b> · <b>{n2(sheet.s.perPiece.clientPriceEur, 4)} €/buc</b></> : "Prețul final EUR nu este disponibil până la calcularea tuturor costurilor."}
               </div>
             </CardContent>
           </Card>
@@ -302,7 +308,7 @@ export default function PriceCalculator() {
                     <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Diferență (profit/pierdere pe bucată)</div><div className={`text-lg font-semibold tabular-nums ${diff >= 0 ? "text-primary" : "text-destructive"}`}>{n2(diff, 4)} lei · {n2((diff / (lastSale.price ?? 1)) * 100, 1)}%</div></div>
                   </div>
                 );
-              })() : <p className="text-sm text-muted-foreground">Nu există vânzări pentru {client ? "acest client" : "acest produs"} în ultimele 12 luni.</p>}
+              })() : <p className="text-sm text-muted-foreground">{!sheet.s.complete ? "Comparația este indisponibilă până la calcularea costului complet." : `Nu există vânzări pentru ${client ? "acest client" : "acest produs"} în ultimele 12 luni.`}</p>}
               {data.priceList && <Badge variant="secondary">Listă de preț Senior: {n2(data.priceList.price, 4)} {data.priceList.currency} · {data.priceList.list} (din {data.priceList.since})</Badge>}
               {data.salesHistory.length > 0 && (
                 <div className="overflow-x-auto">

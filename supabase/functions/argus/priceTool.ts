@@ -2,6 +2,7 @@
 import { jsonSchema, tool } from "npm:ai@7.0.123";
 import { defaultRates, findArticles, findPartners, priceCalcData } from "../_shared/priceCalcSenior.ts";
 import { configuredSheet, validPriceConfig } from "../_shared/priceConfig.ts";
+import { prefilledConfig } from "../_shared/priceDefaults.ts";
 
 type C = { cloud: any; legacy: any; legacyUser?: any };
 
@@ -40,11 +41,11 @@ export function priceTools(c: C) {
           }
           const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Bucharest" }));
           const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: art.id, partnerId: partner?.id ?? null, year: an ?? now.getFullYear(), month: luna ?? now.getMonth() + 1, rawPriceMode: config.rawPriceMode });
-          const { sheet } = configuredSheet(d, defaultRates(d, marja ?? 0), config);
+          const { sheet } = configuredSheet(d, defaultRates(d, marja ?? 0), prefilledConfig(d, { ...config, rates: { ...config.rates, marginPct: marja ?? config.rates?.marginPct ?? 0 } }));
           const lastSale = [...d.salesHistory].reverse().find((h) => h.price != null) ?? null;
           return {
             produs: d.product.name, client: partner ? String(partner.name).trim() : "toți clienții", bucati_bax: d.product.unitsPerCase,
-            perioada_tarife: `${d.period.from}–${d.period.to}`,
+            perioada_tarife: `${d.accountingPeriod.from}–${d.accountingPeriod.to}`,
             fisa_per_bax_RON: sheet.lines.map((l) => ({ rand: l.label, valoare: l.value, detaliu: l.detail })),
             cost_productie: sheet.productionCost, pret_poarta_fabrica: sheet.factoryGate, cost_logistic: sheet.logistics,
             pret_final_livrare: sheet.delivered, taxe_client: sheet.clientFees, pret_livrare_client_RON: sheet.clientPrice,
