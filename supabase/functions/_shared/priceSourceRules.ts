@@ -45,8 +45,8 @@ export function historicalFeePct(discounts: number, sales: number): number | nul
 }
 export type OrderedPalletRow = { name: string; unit: string; kg: number; kgPerPallet: number | null; pallets: number };
 /** Supply pallets from supplier orders (Coral Achiziții): ordered kg ÷ configured kg/palet per product range. Products without a norm or not in kg are listed, never guessed. */
-/** Standard truck capacity used only to split one supplier's delivery day into trucks. */
-export const TRUCK_PALLETS = 33;
+/** Full supply truck capacity (non-EURO pallets); one delivery day's pallets from all suppliers share trucks of this size. */
+export const TRUCK_PALLETS = 26;
 export type OrderedLoad = { supplier: string; day: string; pallets: number; trucks: number };
 export function orderedPallets(orders: Array<{ name: string; unit?: string | null; qty: number; supplier?: string | null; day?: string | null }>) {
   const by = new Map<string, OrderedPalletRow>();
@@ -61,8 +61,9 @@ export function orderedPallets(orders: Array<{ name: string; unit?: string | nul
     by.set(key, row);
     if (norm && o.day) {
       const supplier = String(o.supplier ?? "fără furnizor"), day = String(o.day).slice(0, 10);
-      const lk = `${supplier}|${day}`;
-      const load = loadsBy.get(lk) ?? { supplier, day, pallets: 0, trucks: 0 };
+      const lk = day;
+      const load = loadsBy.get(lk) ?? { supplier: "", day, pallets: 0, trucks: 0 };
+      if (!load.supplier.split(", ").includes(supplier)) load.supplier = load.supplier ? `${load.supplier}, ${supplier}` : supplier;
       load.pallets += (Number(o.qty) || 0) / norm;
       load.trucks = Math.max(1, Math.ceil(load.pallets / TRUCK_PALLETS - 1e-9));
       loadsBy.set(lk, load);

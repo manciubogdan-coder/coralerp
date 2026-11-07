@@ -257,7 +257,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const pallets90 = ordered.pallets, kg90 = ordered.kg;
   if (ordered.skipped.length) warnings.push(`Aprovizionare: ${ordered.skipped.length} produse comandate fără normă kg/palet (ex. ${ordered.skipped.slice(0, 4).map((r) => r.name).join(", ")}) nu intră în paleți; spune-mi gama lor ca să le adaug.`);
   const costPerTruck = trucks30 > 0 && total30 > 0 ? total30 / trucks30 : null;
-  // Load per truck from the orders themselves: each supplier's delivery day = one truck (split at 33 pallets), so pallets and trucks share one source.
+  // Load per truck from the orders themselves: all pallets of one delivery day share full trucks of TRUCK_PALLETS, so pallets and trucks share one source.
   const orderTrucks = ordered.trucks;
   const palletsPerTruck = orderTrucks > 0 && pallets90 > 0 ? pallets90 / orderTrucks : null;
   const kgPerTruck = orderTrucks > 0 && kg90 > 0 ? kg90 / orderTrucks : null;
@@ -268,7 +268,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   if (palletsPerTruck != null) { shared.supplyPallets = palletsPerTruck; if (costPerTruck != null) shared.supplyPerPallet = costPerTruck / palletsPerTruck; }
   if (kgPerTruck != null) { shared.supplyKg = kgPerTruck; if (costPerTruck != null) shared.rates = { ...shared.rates, supplyPerKg: costPerTruck / kgPerTruck }; }
   if (costPerTruck == null) warnings.push(`Aprovizionare: nicio factură de transport aprovizionare (624.01) datată ${win.start} – ${win.end}; completează tariful manual.`);
-  info.push(`Aprovizionare: cost mediu pe camion din facturile ${win.start} – ${win.end} ÷ încărcarea medie pe camion (paleți = kg comandate în Achiziții ÷ kg/palet pe gamă: frunze/aromate 220, căpățâni 400, radicchio 500; camioane = zile de livrare per furnizor din aceleași comenzi, peste 33 paleți se numără mai multe camioane) din ${load.start} – ${load.end}; facturile nu sunt legate individual de NIR-uri. Capacitățile MP sunt reperele configurate Coral.`);
+  info.push(`Aprovizionare: cost mediu pe camion din facturile ${win.start} – ${win.end} ÷ încărcarea medie pe camion (paleți = kg comandate în Achiziții ÷ kg/palet pe gamă: frunze/aromate 220, căpățâni 400, radicchio 500; camioane = paleții fiecărei zile de livrare (toți furnizorii) ÷ 26 paleți/camion plin, rotunjit în sus) din ${load.start} – ${load.end}; facturile nu sunt legate individual de NIR-uri. Capacitățile MP sunt reperele configurate Coral.`);
 
   const read = logisticsRead as Awaited<ReturnType<typeof priceLogistics>> | null;
   const distribution: Record<string, PriceConfig> = {};

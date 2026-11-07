@@ -844,9 +844,9 @@ export default function PriceCalculator() {
                     ))}</tbody>
                   </table>
                   {!!logistics.supply.orderedLoads?.length && (<>
-                    <p className="mt-2 text-[11px] font-medium">Camioane din comenzi: {logistics.supply.loadTrucks} (o zi de livrare a unui furnizor = un camion; peste 33 paleți = mai multe camioane){logistics.supply.invoiceTrucks90 != null ? ` · pentru comparație, rânduri „camion” pe facturile 624.01 în aceeași perioadă: ${logistics.supply.invoiceTrucks90}` : ""}</p>
+                    <p className="mt-2 text-[11px] font-medium">Camioane din comenzi: {logistics.supply.loadTrucks} (paleții fiecărei zile de livrare, de la toți furnizorii ÷ 26 paleți/camion plin, rotunjit în sus){logistics.supply.invoiceTrucks90 != null ? ` · pentru comparație, rânduri „camion” pe facturile 624.01 în aceeași perioadă: ${logistics.supply.invoiceTrucks90}` : ""}</p>
                     <table className="mt-1 w-full text-[11px]">
-                      <thead className="border-b text-left text-muted-foreground"><tr><th>Data livrare</th><th>Furnizor</th><th className="text-right">Paleți</th><th className="text-right">Camioane</th></tr></thead>
+                      <thead className="border-b text-left text-muted-foreground"><tr><th>Data livrare</th><th>Furnizori</th><th className="text-right">Paleți</th><th className="text-right">Camioane</th></tr></thead>
                       <tbody>{logistics.supply.orderedLoads.map((l, i) => (
                         <tr key={i} className="border-b last:border-0"><td>{l.day}</td><td>{l.supplier}</td><td className="text-right tabular-nums">{n2(l.pallets, 1)}</td><td className="text-right tabular-nums">{l.trucks}</td></tr>
                       ))}</tbody>
@@ -857,7 +857,7 @@ export default function PriceCalculator() {
               {logistics.lastTrucks.length > 0 && (
                 <details className="rounded border bg-background p-2">
                   <summary className="cursor-pointer font-medium">Vezi toate facturile de transport aprovizionare folosite ({logistics.lastTrucks.length} rânduri, {logistics.closedStart} – {logistics.closedEnd})</summary>
-                  <p className="mt-1 text-[11px] text-muted-foreground">Pas 1: suma coloanei „Valoare” = {n2(logistics.supply.total)} lei. Pas 2: rândurile marcate „camion” = {logistics.supply.trucks} → {n2(logistics.supply.costPerTruck)} lei/camion. Pas 3: încărcare {n2(logistics.supply.pallets, 0)} paleți din comenzi ÷ {logistics.supply.loadTrucks} camioane din comenzi (zile de livrare per furnizor) în 90 de zile = {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion. Pas 4: {n2(logistics.supply.costPerTruck)} ÷ {n2(logistics.supply.palletsPerTruck, 1)} = lei/palet. Dacă vezi o factură care nu ține de aprovizionare sau lipsește cursa din luna asta, scrie tariful corect în „Parametri globali listă”.</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">Pas 1: suma coloanei „Valoare” = {n2(logistics.supply.total)} lei. Pas 2: rândurile marcate „camion” = {logistics.supply.trucks} → {n2(logistics.supply.costPerTruck)} lei/camion. Pas 3: încărcare {n2(logistics.supply.pallets, 0)} paleți din comenzi ÷ {logistics.supply.loadTrucks} camioane din comenzi (paleți pe zi ÷ 26, rotunjit în sus) în 90 de zile = {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion. Pas 4: {n2(logistics.supply.costPerTruck)} ÷ {n2(logistics.supply.palletsPerTruck, 1)} = lei/palet. Dacă vezi o factură care nu ține de aprovizionare sau lipsește cursa din luna asta, scrie tariful corect în „Parametri globali listă”.</p>
                   <table className="mt-1 w-full text-[11px]">
                     <thead className="border-b text-left text-muted-foreground"><tr><th>Data</th><th>Transportator</th><th>Rând factură</th><th className="text-right">Cant.</th><th className="text-right">Preț</th><th className="text-right">Valoare</th><th>Camion</th></tr></thead>
                     <tbody>{logistics.lastTrucks.map((t, i) => (

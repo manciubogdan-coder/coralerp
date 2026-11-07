@@ -83,13 +83,14 @@ describe("orderedPallets", () => {
 });
 
 describe("orderedPallets trucks", () => {
-  test("one supplier delivery day is one truck, split above 33 pallets", () => {
+  test("one delivery day pools all suppliers into full trucks of 26 pallets", () => {
     const r = orderedPallets([
       { name: "Baby Spanac", unit: "kg", qty: 2200, supplier: "A", day: "2026-11-02" },
       { name: "Rucola", unit: "kg", qty: 2200, supplier: "A", day: "2026-11-02" },
       { name: "Iceberg", unit: "kg", qty: 16000, supplier: "B", day: "2026-11-02" },
     ]);
     expect(r.pallets).toBe(60);
-    expect(r.trucks).toBe(3);
+    expect(r.trucks).toBe(3); // 60 pallets in one day ÷ 26 → 3 trucks
+    expect(orderedPallets([{ name: "Rucola", unit: "kg", qty: 5720, supplier: "A", day: "2026-11-02" }]).trucks).toBe(1);
   });
 });
