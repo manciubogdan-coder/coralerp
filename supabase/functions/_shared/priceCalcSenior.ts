@@ -6,6 +6,7 @@ import { priceLogistics } from "./priceLogistics.ts";
 import { transportRoute, historicalFeePct, configuredRawPalletKg, orderedPallets, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
 import { CLIENT_AVERAGE_ROUTE, DEFAULT_MARGIN_PCT, LOAD_DAYS, clientAverageRoute, latestCostWindow, latestRoutes } from "./priceList.ts";
 import { seniorLive } from "./senior.ts";
+import { cf, lit, partnerInfoSql, partnerScope, type PartnerInfo } from "./priceScope.ts";
 import { realLineSpeeds, SPEED_DAYS, type RealSpeed } from "./priceLineSpeed.ts";
 export { matchLoss } from "./priceSheet.ts";
 import { componentKind, isServiceComponent, matchLoss, ratePeriod, type SheetComponent } from "./priceSheet.ts";
@@ -51,20 +52,20 @@ async function readOrderedPallets(legacy: any, start: string, end: string) {
   })));
 }
 
-/** Senior "Partener_Central" text of a partner (stores carry the central name, e.g. "MEGA IMAGE SRL"). */
-const centralOf = (pid: number) => `(SELECT TOP 1 x.Partener_Central FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.Partener_ID=${pid} AND NULLIF(x.Partener_Central,'') IS NOT NULL ORDER BY x.H_ID DESC)`;
-/** Normalized fiscal code (CUI) of a document partner row. */
-const cf = (a: string) => `NULLIF(REPLACE(UPPER(LTRIM(RTRIM(${a}.Partener_Cod_Fiscal))),'RO',''),'')`;
-const cfOf = (pid: number) => `(SELECT TOP 1 ${cf("x")} FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.Partener_ID=${pid} AND ${cf("x")} IS NOT NULL ORDER BY x.H_ID DESC)`;
-/** Sales scope: one store, or every store of the central partner. Stores are grouped by fiscal code (CUI): Senior's
- * Partener_Central text differs between stores of the same company (e.g. "LIDL DISCOUNT SRL - ROMAN"). */
-const partnerScope = (pid: number | null, storeId: number | null) => storeId ? `pp.Partener_ID=${storeId}` : pid ? `(pp.Partener_ID=${pid} OR ${cf("pp")}=${cfOf(pid)} OR (${cfOf(pid)} IS NULL AND pp.Partener_Central=${centralOf(pid)}))` : null;
+/** Fiscal code and central name of a partner, read once. Inlining these lookups as correlated subqueries made SQL Server
+ * re-run them per sales line and exceed the 25 s Senior read limit for large chains (e.g. BAMIS). */
+async function partnerInfo(sb: Rpc, pid: number | null): Promise<PartnerInfo> {
+  if (!pid) return null;
+  const [r] = await SQL(sb, partnerInfoSql(pid));
+  const clean = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  return { cf: clean(r?.cf), central: clean(r?.central) };
+}
 const CLIENT_NAME = "LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(pp.Partener_Central)),''), pp.Partener_Denumire)))";
 
 export async function priceOptions(sb: Rpc, body: { partnerId?: unknown; allProducts?: unknown }) {
   const pid = int(body.partnerId);
   const since = new Date(Date.now() - 365 * 86400_000).toISOString().slice(0, 10);
-  const scope = partnerScope(pid, null);
+  const scope = partnerScope(pid, null, await partnerInfo(sb, pid));
   // Central partners: every store of a retail chain is grouped under its Senior Partener_Central.
   const clientsQ = SQL(sb, `SELECT TOP 600 COALESCE(MIN(CASE WHEN LTRIM(RTRIM(pp.Partener_Denumire))=LTRIM(RTRIM(pp.Partener_Central)) THEN pp.Partener_ID END), MIN(pp.Partener_ID)) id,
       MIN(${CLIENT_NAME}) name, COUNT(DISTINCT pp.Partener_ID) stores
@@ -124,7 +125,8 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const weekStart = pricesPeriod.weekStart;
   const win = latestCostWindow(pricesPeriod.endDay);
   const load = latestCostWindow(pricesPeriod.endDay, LOAD_DAYS);
-  const scope = partnerScope(pid, storeId);
+  const partner = await partnerInfo(sb, pid);
+  const scope = partnerScope(pid, storeId, partner);
   const histStart = new Date(Date.UTC(year, month - 13, 1)).toISOString().slice(0, 10);
   const histEnd = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
   const recentStart = addDays(pricesPeriod.endDay, -90);
@@ -176,11 +178,11 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
       AND EXISTS(SELECT 1 FROM dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) WHERE pp.H_ID=h.H_ID AND pp.TipPartener=1
         AND NULLIF(REPLACE(UPPER(pp.Partener_Cod_Fiscal),'RO',''),'') IN (SELECT DISTINCT REPLACE(UPPER(p.Partener_Cod_Fiscal),'RO','') FROM dbo.C_H_Note_Contabile_Parteneri p WITH (NOLOCK) WHERE p.Partener_ID=${pid} AND NULLIF(p.Partener_Cod_Fiscal,'') IS NOT NULL))`) : Promise.resolve([]),
     // Fees the client invoices to us (logistics, destruction, audit, advertising): supplier invoices of the same CUI booked on 628 / 6232.
-    pid ? SQL(sb, `SELECT TOP 30 LTRIM(RTRIM(dc.SubiectDenumire)) subject, p.Cont cont, SUM(CAST(dc.Valoare_Rol AS float)) total
+    pid && partner?.cf ? SQL(sb, `SELECT TOP 30 LTRIM(RTRIM(dc.SubiectDenumire)) subject, p.Cont cont, SUM(CAST(dc.Valoare_Rol AS float)) total
       FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID
       JOIN dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) ON dc.H_ID=h.H_ID JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId
       WHERE t.Cod='FF' AND ${notCancelled} AND h.Data>='${P.startDay}' AND h.Data<'${P.endDay}' AND dc.IsDebit=1 AND (p.Cont LIKE '628%' OR p.Cont LIKE '6232%')
-      AND EXISTS(SELECT 1 FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.H_ID=h.H_ID AND x.TipPartener=2 AND ${cf("x")}=${cfOf(pid)})
+      AND EXISTS(SELECT 1 FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.H_ID=h.H_ID AND x.TipPartener=2 AND ${cf("x")}=${lit(partner.cf)})
       GROUP BY LTRIM(RTRIM(dc.SubiectDenumire)), p.Cont ORDER BY SUM(CAST(dc.Valoare_Rol AS float)) DESC`) : Promise.resolve([]),
     // Supply transport: latest carrier invoices (invoice date in the window) posted on 624.01, distribution lines excluded.
     SQL(sb, `SELECT SUM(CASE WHEN h.Data>='${win.start}' THEN CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) total,
@@ -199,7 +201,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     Promise.resolve(null),
     pid ? SQL(sb, `SELECT TOP 300 pp.Partener_ID id, MAX(pp.Partener_Denumire) name, MAX(pp.Document_Judet) judet, MAX(pp.Document_Tara) country
       FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID ${PP1}
-      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${addDays(pricesPeriod.endDay, -365)}' AND ${partnerScope(pid, null)}
+      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${addDays(pricesPeriod.endDay, -365)}' AND ${partnerScope(pid, null, partner)}
       GROUP BY pp.Partener_ID ORDER BY MAX(pp.Partener_Denumire)`) : Promise.resolve([]),
     readLoss("products"), readLoss("ambalaje_products"), readLoss("etichete_products"),
     priceLogistics(sb, aids, win, load).then((r) => { logisticsRead = r; }).catch((e) => { warnings.push(`Citire logistică: ${(e as Error).message}`); }),
