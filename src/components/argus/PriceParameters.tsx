@@ -5,12 +5,12 @@ import { LABOUR_LINES, type PriceConfig } from "../../../supabase/functions/_sha
 export type ParameterValues = Record<string, string>;
 export const PARAMETER_GROUPS = [
   ["Produs", [["unitsPerCase", "Bucăți / bax"], ["piecesPerPallet", "Bucăți / palet produs finit"]]],
-  ["Transport aprovizionare (luna închisă)", [
-    ["supplyTotal", "Cost total aprovizionare (lei)"], ["supplyPallets", "Paleți recepționați NIR"], ["supplyKg", "Kg materii prime recepționate NIR"],
+  ["Transport aprovizionare (ultimele prețuri)", [
+    ["supplyTotal", "Cost mediu pe camion (lei, ultimele 30 zile)"], ["supplyPallets", "Paleți pe camion (medie 90 zile)"], ["supplyKg", "Kg materii prime pe camion (medie 90 zile)"],
     ["supplyPerPallet", "Tarif aprovizionare (lei/palet)"], ["supplyPerKg", "Tarif aprovizionare (lei/kg)"],
   ]],
-  ["Transport distribuție (cursa aleasă, luna închisă)", [
-    ["distributionTotal", "Cost curse în lună (lei)"], ["distributionTrips", "Număr curse în lună"], ["distributionPallets", "Paleți livrați pe cursă în lună"],
+  ["Transport distribuție (cursa aleasă, ultimele prețuri)", [
+    ["distributionTotal", "Cost curse ultimele 30 zile (lei)"], ["distributionTrips", "Număr curse ultimele 30 zile"], ["distributionPallets", "Paleți transportați în acele curse"],
     ["distributionPalletsPerTrip", "Paleți pe cursă (medie)"], ["distributionPerPallet", "Tarif distribuție (lei/palet)"],
   ]],
   ["Manoperă", [

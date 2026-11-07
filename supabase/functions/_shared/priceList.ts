@@ -6,6 +6,25 @@ export const DEFAULT_MARGIN_PCT = 15;
 export const CLIENT_AVERAGE_ROUTE = "MEDIE CLIENT";
 /** Transport tariffs use the latest invoices, not annual or closed-month averages. */
 export const LATEST_COST_DAYS = 30;
+/** Loads (pallets per truck / per cursă) come from a longer period: pallet NIRs and carrier invoices are not booked on the same days. */
+export const LOAD_DAYS = 90;
+
+type Route = { route: string; trips: number; total: number; qty: number; pmin: number; pmax: number; pallets: number; missingLines: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; country: string; points: Array<{ name: string; pallets: number }> };
+/** Latest cursă tariff: average trip cost of the last 30 days ÷ average pallets per trip of the last 90 days.
+ * A cursă without trips in the last 30 days keeps its 90-day trip cost and is flagged. */
+export function latestRoutes(latest: Route[], load: Route[]) {
+  const by = new Map(latest.map((r) => [r.route, r]));
+  return load.map((l) => {
+    const r = by.get(l.route);
+    const recent = !!r && r.trips > 0;
+    const perTrip = recent ? r!.total / r!.trips : l.perTrip;
+    const ppt = l.trips > 0 && l.pallets > 0 ? l.pallets / l.trips : null;
+    return {
+      ...l, ...(recent ? { trips: r!.trips, total: r!.total, qty: r!.qty, pmin: r!.pmin, pmax: r!.pmax, unitPrice: r!.unitPrice } : {}),
+      loadTrips: l.trips, perTrip, palletsPerTrip: ppt, perPallet: perTrip != null && ppt ? perTrip / ppt : null, recent,
+    };
+  }).sort((a, b) => b.total - a.total);
+}
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const ym = (d: Date) => d.getUTCFullYear() * 100 + d.getUTCMonth() + 1;

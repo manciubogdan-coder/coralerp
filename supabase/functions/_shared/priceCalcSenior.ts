@@ -4,7 +4,7 @@ import { readPriceSafety } from './receiptPriceSafety.ts';
 import { type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
 import { transportRoute, historicalFeePct, configuredRawPalletKg, buildRoutes, deliveryRoute, LEGACY_ROUTES } from "./priceSourceRules.ts";
-import { CLIENT_AVERAGE_ROUTE, DEFAULT_MARGIN_PCT, clientAverageRoute, latestCostWindow } from "./priceList.ts";
+import { CLIENT_AVERAGE_ROUTE, DEFAULT_MARGIN_PCT, LOAD_DAYS, clientAverageRoute, latestCostWindow, latestRoutes } from "./priceList.ts";
 import { seniorLive } from "./senior.ts";
 export { matchLoss } from "./priceSheet.ts";
 import { componentKind, isServiceComponent, matchLoss, ratePeriod, type SheetComponent } from "./priceSheet.ts";
@@ -87,6 +87,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const pricesPeriod = priceDates(year, month, today);
   const weekStart = pricesPeriod.weekStart;
   const win = latestCostWindow(pricesPeriod.endDay);
+  const load = latestCostWindow(pricesPeriod.endDay, LOAD_DAYS);
   const scope = partnerScope(pid, storeId);
   const histStart = new Date(Date.UTC(year, month - 13, 1)).toISOString().slice(0, 10);
   const histEnd = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
@@ -105,7 +106,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     }
     return all;
   };
-  const supplyIn = `h.H_ID IN (SELECT dc.H_ID FROM dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId WHERE p.Cont='624.01' AND dc.LunaContabila BETWEEN '${win.bookFrom}' AND '${win.bookTo}')`;
+  const supplyIn = `h.H_ID IN (SELECT dc.H_ID FROM dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId WHERE p.Cont='624.01' AND dc.LunaContabila BETWEEN '${load.bookFrom}' AND '${load.bookTo}')`;
   const supplyLine = "(d.Denumire LIKE 'TRANSPORT%' OR d.Denumire LIKE 'SERVICII TRANSPORT%') AND d.Denumire NOT LIKE 'TRANSPORT DIST%'";
 
   const warnings: string[] = [];
@@ -138,21 +139,23 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
       AND EXISTS(SELECT 1 FROM dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) WHERE pp.H_ID=h.H_ID AND pp.TipPartener=1
         AND NULLIF(REPLACE(UPPER(pp.Partener_Cod_Fiscal),'RO',''),'') IN (SELECT DISTINCT REPLACE(UPPER(p.Partener_Cod_Fiscal),'RO','') FROM dbo.C_H_Note_Contabile_Parteneri p WITH (NOLOCK) WHERE p.Partener_ID=${pid} AND NULLIF(p.Partener_Cod_Fiscal,'') IS NOT NULL))`) : Promise.resolve([]),
     // Supply transport: latest carrier invoices (invoice date in the window) posted on 624.01, distribution lines excluded.
-    SQL(sb, `SELECT SUM(CAST(d.Valoare_Neta_Rol AS float)) total, SUM(CASE WHEN d.Cantitate>0 AND d.Denumire LIKE 'TRANSPORT%' THEN 1 ELSE 0 END) trucks
+    SQL(sb, `SELECT SUM(CASE WHEN h.Data>='${win.start}' THEN CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) total,
+        SUM(CASE WHEN h.Data>='${win.start}' AND d.Cantitate>0 AND d.Denumire LIKE 'TRANSPORT%' THEN 1 ELSE 0 END) trucks,
+        SUM(CASE WHEN d.Cantitate>0 AND d.Denumire LIKE 'TRANSPORT%' THEN 1 ELSE 0 END) loadTrucks
       FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID
-      WHERE ${notCancelled} AND h.Data>='${win.start}' AND h.Data<'${win.end}' AND ${supplyLine} AND ${supplyIn}`),
+      WHERE ${notCancelled} AND h.Data>='${load.start}' AND h.Data<'${win.end}' AND ${supplyLine} AND ${supplyIn}`),
     SQL(sb, `SELECT TOP 5 CONVERT(char(10), h.Data, 120) day, CAST(d.Pret_Final_ROL AS float) price, UPPER(LTRIM(RTRIM(d.Denumire))) line
       FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID
       WHERE ${notCancelled} AND h.Data>='${win.start}' AND h.Data<'${win.end}' AND d.Cantitate>0 AND d.Denumire LIKE 'TRANSPORT%' AND ${supplyLine} AND ${supplyIn}
       ORDER BY h.Data DESC, h.H_ID DESC`),
-    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) pallets FROM ${docs} WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${win.start}' AND h.Data<'${win.end}' AND d.Denumire LIKE 'PALET%'`),
-    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) kg FROM ${docs} JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UM_ID WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${win.start}' AND h.Data<'${win.end}' AND um.Cod='KG' AND ${notPackaging}`),
+    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) pallets FROM ${docs} WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${load.start}' AND h.Data<'${load.end}' AND d.Denumire LIKE 'PALET%'`),
+    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) kg FROM ${docs} JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UM_ID WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${load.start}' AND h.Data<'${load.end}' AND um.Cod='KG' AND ${notPackaging}`),
     pid ? SQL(sb, `SELECT TOP 300 pp.Partener_ID id, MAX(pp.Partener_Denumire) name, MAX(pp.Document_Judet) judet, MAX(pp.Document_Tara) country
       FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID ${PP1}
       WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${addDays(pricesPeriod.endDay, -365)}' AND ${partnerScope(pid, null)}
       GROUP BY pp.Partener_ID ORDER BY MAX(pp.Partener_Denumire)`) : Promise.resolve([]),
     readLoss("products"), readLoss("ambalaje_products"), readLoss("etichete_products"),
-    priceLogistics(sb, aids, win).then((r) => { logisticsRead = r; }).catch((e) => { warnings.push(`Citire logistică: ${(e as Error).message}`); }),
+    priceLogistics(sb, aids, win, load).then((r) => { logisticsRead = r; }).catch((e) => { warnings.push(`Citire logistică: ${(e as Error).message}`); }),
   ]);
 
   // Component prices and packaging safety, for every component of every selected recipe at once.
@@ -195,27 +198,33 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     shared.feePct = feePct;
     warnings.push(`Taxe/reduceri: ${feePct.toFixed(2)}% istoric din facturi client negative, agregate pe cod fiscal (12 luni); nu tarif contractual. Reduceri ${num(clientAdjustments[0]?.discounts).toFixed(2)} lei / vânzări ${num(clientAdjustments[0]?.sales).toFixed(2)} lei.`);
   }
-  const supplyTotal = supply[0]?.total != null && num(supply[0].total) > 0 ? num(supply[0].total) : null;
-  if (supplyTotal != null) shared.supplyTotal = supplyTotal;
-  const supplyPallets = num(receivedPallets[0]?.pallets) > 0 ? num(receivedPallets[0].pallets) : null;
-  if (supplyPallets != null) { shared.supplyPallets = supplyPallets; if (supplyTotal != null) shared.supplyPerPallet = supplyTotal / supplyPallets; }
-  const supplyKg = num(receivedKg[0]?.kg) > 0 ? num(receivedKg[0].kg) : null;
-  if (supplyKg != null) { shared.supplyKg = supplyKg; if (supplyTotal != null) shared.rates = { ...shared.rates, supplyPerKg: supplyTotal / supplyKg }; }
-  if (supplyTotal == null) warnings.push(`Aprovizionare: nicio factură de transport aprovizionare (624.01) datată ${win.start} – ${win.end}; completează tariful manual.`);
-  warnings.push("Aprovizionare: facturi transport din ultimele 30 de zile ÷ paleți NIR din aceleași zile; facturile nu sunt legate individual de fiecare NIR. Capacitățile MP sunt reperele configurate Coral.");
+  // Latest prices: average cost per truck of the last 30 days (services included) ÷ average load per truck of the last 90 days.
+  const total30 = num(supply[0]?.total), trucks30 = num(supply[0]?.trucks), loadTrucks = num(supply[0]?.loadTrucks);
+  const pallets90 = num(receivedPallets[0]?.pallets), kg90 = num(receivedKg[0]?.kg);
+  const costPerTruck = trucks30 > 0 && total30 > 0 ? total30 / trucks30 : null;
+  const palletsPerTruck = loadTrucks > 0 && pallets90 > 0 ? pallets90 / loadTrucks : null;
+  const kgPerTruck = loadTrucks > 0 && kg90 > 0 ? kg90 / loadTrucks : null;
+  if (costPerTruck != null) shared.supplyTotal = costPerTruck;
+  if (palletsPerTruck != null) { shared.supplyPallets = palletsPerTruck; if (costPerTruck != null) shared.supplyPerPallet = costPerTruck / palletsPerTruck; }
+  if (kgPerTruck != null) { shared.supplyKg = kgPerTruck; if (costPerTruck != null) shared.rates = { ...shared.rates, supplyPerKg: costPerTruck / kgPerTruck }; }
+  if (costPerTruck == null) warnings.push(`Aprovizionare: nicio factură de transport aprovizionare (624.01) datată ${win.start} – ${win.end}; completează tariful manual.`);
+  warnings.push(`Aprovizionare: cost mediu pe camion din facturile ${win.start} – ${win.end} ÷ încărcarea medie pe camion (paleți și kg NIR ÷ camioane) din ${load.start} – ${load.end}; facturile nu sunt legate individual de NIR-uri. Capacitățile MP sunt reperele configurate Coral.`);
 
   const read = logisticsRead as Awaited<ReturnType<typeof priceLogistics>> | null;
   const distribution: Record<string, PriceConfig> = {};
-  const routeData = buildRoutes(read?.points ?? [], read?.trips ?? []);
+  const loadData = buildRoutes(read?.points ?? [], read?.loadTrips ?? []);
+  const routeData = { ...loadData, routes: latestRoutes(buildRoutes(read?.points ?? [], read?.trips ?? []).routes, loadData.routes) };
   for (const r of routeData.routes) {
-    distribution[r.route] = { distributionTotal: r.total, distributionTrips: r.trips, ...(r.pallets > 0 ? { distributionPallets: r.pallets, distributionPerPallet: r.total / r.pallets, distributionPalletsPerTrip: r.pallets / r.trips } : {}) };
+    // Latest trip cost × trips in the last 30 days, loaded with the 90-day pallets per trip.
+    distribution[r.route] = { distributionTotal: r.total, distributionTrips: r.trips, ...(r.palletsPerTrip ? { distributionPallets: r.trips * r.palletsPerTrip, distributionPerPallet: r.perPallet ?? undefined, distributionPalletsPerTrip: r.palletsPerTrip } : {}) };
+    if (!r.recent) warnings.push(`Cursa ${r.route}: nicio cursă facturată în ultimele 30 de zile; costul pe cursă este media ${load.start} – ${load.end}.`);
     if (r.missingLines) warnings.push(`Cursa ${r.route}: ${r.missingLines} linii de produse fără coeficient bucăți/palet în Senior; paleții cursei sunt subevaluați, deci tariful pe palet e supraevaluat.`);
     if (r.unitPrice != null) warnings.push(`Cursa ${r.route}: transportatorul facturează ${r.unitPrice.toFixed(2)} lei × ${Math.round(r.qty)} unități, nu pe cursă.`);
   }
   // Country averages kept for previously saved sheets: only cursă with known pallets.
   for (const country of LEGACY_ROUTES) {
     const rs = routeData.routes.filter((r) => r.country === country && r.pallets > 0);
-    const total = rs.reduce((s, r) => s + r.total, 0), pallets = rs.reduce((s, r) => s + r.pallets, 0), trips = rs.reduce((s, r) => s + r.trips, 0);
+    const total = rs.reduce((s, r) => s + r.total, 0), pallets = rs.reduce((s, r) => s + r.trips * (r.palletsPerTrip ?? 0), 0), trips = rs.reduce((s, r) => s + r.trips, 0);
     if (pallets > 0) distribution[country] = { distributionTotal: total, distributionPallets: pallets, distributionPerPallet: total / pallets, distributionTrips: trips, distributionPalletsPerTrip: pallets / trips };
   }
   const unassignedPallets = routeData.unassigned.reduce((s, p) => s + p.pallets, 0);
@@ -233,7 +242,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const avg = pid && !storeId ? clientAverageRoute(stores, perPallet) : null;
   if (avg) {
     distribution[CLIENT_AVERAGE_ROUTE] = avg.weighted ? { distributionTotal: avg.allocated!, distributionPallets: avg.pallets, distributionPerPallet: avg.perPallet } : { distributionPerPallet: avg.perPallet };
-    warnings.push(`Distribuție medie client: ${avg.weighted ? `ponderată cu ${avg.pallets.toFixed(1)} paleți livrați în ultimele 30 de zile` : "medie simplă (fără livrări în ultimele 30 de zile)"} pe ${avg.stores} magazine${avg.missing.length ? `; fără cursă/tarif: ${avg.missing.slice(0, 4).join(", ")}${avg.missing.length > 4 ? ` +${avg.missing.length - 4}` : ""}` : ""}.`);
+    warnings.push(`Distribuție medie client: ${avg.weighted ? `ponderată cu ${avg.pallets.toFixed(1)} paleți livrați în ultimele ${LOAD_DAYS} de zile` : `medie simplă (fără livrări în ultimele ${LOAD_DAYS} de zile)`} pe ${avg.stores} magazine${avg.missing.length ? `; fără cursă/tarif: ${avg.missing.slice(0, 4).join(", ")}${avg.missing.length > 4 ? ` +${avg.missing.length - 4}` : ""}` : ""}.`);
   }
   let point = storeId ? routeData.points.find((p) => p.pid === storeId) ?? null : null;
   if (!point && storeId) {
@@ -302,11 +311,11 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     eur: eur[0] ? { rate: num(eur[0].rate), day: String(eur[0].day).slice(0, 10) } : null,
     stores,
     logistics: {
-      closedStart: win.start, closedEnd: win.end, window: win, supplyTotal, supplyPallets, supplyKg,
-      supplyTrucks: num(supply[0]?.trucks), lastTrucks: lastTrucks.map((r: any) => ({ day: String(r.day), price: num(r.price), line: String(r.line) })),
+      closedStart: win.start, closedEnd: win.end, window: win, loadWindow: load,
+      supply: { total: total30, trucks: trucks30, costPerTruck, loadTrucks, pallets: pallets90, kg: kg90, palletsPerTruck, kgPerTruck }, lastTrucks: lastTrucks.map((r: any) => ({ day: String(r.day), price: num(r.price), line: String(r.line) })),
       distribution, routes: routeData.routes, clientAverage: avg,
       store: point ? { id: point.pid, name: point.name, route: point.route } : null, suggestedRoute,
-      note: `Ultimele prețuri: facturi transport datate ${win.start} – ${win.end} (exclusiv). Distribuție pe cursă: curse „TRANSPORT DIST <cursă>” ÷ paleți facturați (Cantitate/Coef Senior) către punctele de livrare ale cursei în aceleași zile. Punctele sunt atribuite cursei după oraș/județ; facturile transportatorilor nu indică livrarea exactă.`,
+      note: `Ultimele prețuri: cost mediu pe camion/cursă din facturile datate ${win.start} – ${win.end} (exclusiv); încărcarea (paleți pe camion/cursă) din ${load.start} – ${load.end}, ca să nu depindă de zilele în care se introduc NIR-urile sau facturile. Distribuție: curse „TRANSPORT DIST <cursă>”; paleți = Cantitate/Coef Senior facturați către punctele de livrare ale cursei. Punctele sunt atribuite cursei după oraș/județ; facturile transportatorilor nu indică livrarea exactă.`,
     },
     items,
   };

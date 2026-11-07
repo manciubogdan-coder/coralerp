@@ -54,7 +54,7 @@ export function priceTools(c: C) {
             pret_livrare_client_EUR: sheet.clientPriceEur, curs_EUR_folosit: sheet.eurEffective, per_bucata: sheet.perPiece,
             preturi_lipsa: sheet.missingPrices,
             fisa_completa: sheet.complete, parametri_lipsa: sheet.missingInputs,
-            transport: { aprovizionare_total_RON: d.logistics.supplyTotal, paleti_NIR: d.logistics.supplyPallets, cursa: d.defaults.route, ultimele_camioane: d.logistics.lastTrucks },
+            transport: { aprovizionare: d.logistics.supply, cursa: d.defaults.route, ultimele_camioane: d.logistics.lastTrucks },
             ultimul_pret_vanzare_buc: lastSale, istoric_vanzare: d.salesHistory, lista_pret: d.priceList,
             nota: "Materii prime anual/săptămânal, ambalaje ultima intrare, manoperă document octombrie 2026, transport din ultimele facturi (30 de zile) pe palet și cursă. Marja brută și profitul se prezintă separat. Dacă fisa_completa=false, totalurile sunt parțiale; nu prezenta un preț final validat.",
           };

@@ -23,7 +23,8 @@ type Product = Opt & { qty: number };
 type Store = Opt & { route: string | null };
 type RouteStat = { route: string; country: string; trips: number; total: number; pallets: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; points: Array<{ name: string; pallets: number }> };
 type Logistics = {
-  supplyTotal: number | null; supplyPallets: number | null; supplyKg: number | null; supplyTrucks: number; lastTrucks: Array<{ day: string; price: number; line: string }>;
+  supply: { total: number; trucks: number; costPerTruck: number | null; loadTrucks: number; pallets: number; kg: number; palletsPerTruck: number | null; kgPerTruck: number | null };
+  loadWindow: { start: string; end: string }; lastTrucks: Array<{ day: string; price: number; line: string }>;
   closedStart: string; closedEnd: string; note: string; distribution?: Record<string, PriceConfig | null>; routes?: RouteStat[];
   clientAverage: { perPallet: number; pallets: number; weighted: boolean; stores: number } | null;
   store?: { id: number; name: string; route: string | null } | null; suggestedRoute?: string | null;
@@ -351,7 +352,7 @@ export default function PriceCalculator() {
     const head: (string | number)[][] = [
       ["Listă de prețuri", clientName || "Toți clienții"], ["Magazin", store != null ? storeName ?? "" : "Toate magazinele (medie)"],
       ["Perioadă", `${String(month).padStart(2, "0")}/${year}`], ["Marjă brută %", num(marginShown || "0")], ["Cursă distribuție", routeLabel(route)],
-      ["Transport", `ultimele prețuri: facturi ${result.logistics.closedStart} – ${result.logistics.closedEnd} (exclusiv)`], [],
+      ["Transport", `ultimele prețuri: cost pe camion/cursă din facturile ${result.logistics.closedStart} – ${result.logistics.closedEnd}; încărcare din ${result.logistics.loadWindow.start} – ${result.logistics.loadWindow.end}`], [],
       ["Produs", "Buc/bax", "Cost producție (lei/buc)", "Distribuție (lei/buc)", "Taxe client (lei/buc)", "Marjă brută (lei/buc)", "Marjă brută %", "Preț propus (lei/buc)", "Preț propus (lei/bax)", "Preț propus (EUR/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profit real %", "Stare"],
     ];
     for (const r of listRows) {
@@ -445,8 +446,8 @@ export default function PriceCalculator() {
           <div className="border-y py-3 text-xs text-muted-foreground space-y-1">
             <p>Materii prime: {mode === "annual" ? "media anuală ponderată" : "media ponderată ultimele 7 zile"}, până la {result.period.endDay} exclusiv. Ambalaje: ultima intrare NIR.</p>
             <p>
-              Transport — ultimele prețuri, facturi {result.logistics.closedStart} – {result.logistics.closedEnd} exclusiv. Aprovizionare: {n2(result.logistics.supplyTotal)} lei pe {result.logistics.supplyTrucks} camioane ÷ {n2(result.logistics.supplyPallets, 0)} paleți NIR
-              {result.logistics.lastTrucks.length ? ` · ultimele camioane: ${result.logistics.lastTrucks.map((t) => `${t.day.slice(5)} ${n2(t.price, 0)} lei`).join(", ")}` : ""}.
+              Transport — ultimele prețuri, facturi {result.logistics.closedStart} – {result.logistics.closedEnd} exclusiv. Aprovizionare: {n2(result.logistics.supply.total)} lei ÷ {result.logistics.supply.trucks} camioane = <b>{n2(result.logistics.supply.costPerTruck)} lei/camion</b>, încărcare {n2(result.logistics.supply.palletsPerTruck, 1)} paleți/camion ({n2(result.logistics.supply.pallets, 0)} paleți NIR ÷ {result.logistics.supply.loadTrucks} camioane, {result.logistics.loadWindow.start} – {result.logistics.loadWindow.end})
+              {result.logistics.lastTrucks.length ? ` · ultimele facturi: ${result.logistics.lastTrucks.map((t) => `${t.day.slice(5)} ${n2(t.price, 0)} lei`).join(", ")}` : ""}.
               {" "}Distribuție: cursa {routeLabel(route)}{storeName && store != null ? ` (${storeName})` : ""}. Manoperă: tabel octombrie 2026 (directă + regie fabrică 41%).
             </p>
             <p>{result.logistics.note}</p>
@@ -511,7 +512,7 @@ export default function PriceCalculator() {
               <CardContent className="overflow-x-auto">
                 <table className="w-full min-w-[900px] text-sm">
                   <thead className="border-b text-left text-xs text-muted-foreground">
-                    <tr><th className="py-2">Magazin</th><th>Cursă</th><th className="text-right">Paleți livrați (30 zile)</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Distribuție lei/buc</th><th className="text-right">Preț propus lei/buc</th><th className="text-right">Preț vânzare actual</th><th className="text-right">Bucăți 90 zile</th><th className="text-right">Profit real lei/buc</th><th className="text-right">Profit %</th></tr>
+                    <tr><th className="py-2">Magazin</th><th>Cursă</th><th className="text-right">Paleți livrați (90 zile)</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Distribuție lei/buc</th><th className="text-right">Preț propus lei/buc</th><th className="text-right">Preț vânzare actual</th><th className="text-right">Bucăți 90 zile</th><th className="text-right">Profit real lei/buc</th><th className="text-right">Profit %</th></tr>
                   </thead>
                   <tbody>
                     {sheet && (
@@ -564,9 +565,9 @@ export default function PriceCalculator() {
                     <div className="mt-3"><PriceParameters values={display} basis={basis} setBasis={setBasis} setValue={(k, v) => setR(k)(v)} mode={mode} setMode={setMode} route={route} routes={routeOptions} setRoute={(v) => pickRoute(v)} line={line} setLine={chooseLine} /></div>
                     {!!result.logistics.routes?.length && (
                       <div className="mt-4 overflow-x-auto">
-                        <p className="mb-1 text-xs font-medium">Curse distribuție din Senior · facturi {result.logistics.closedStart} – {result.logistics.closedEnd} exclusiv · clic pe un rând ca să alegi cursa</p>
+                        <p className="mb-1 text-xs font-medium">Curse distribuție din Senior · cost pe cursă din facturile {result.logistics.closedStart} – {result.logistics.closedEnd}, paleți pe cursă din {result.logistics.loadWindow.start} – {result.logistics.loadWindow.end} · clic pe un rând ca să alegi cursa</p>
                         <table className="w-full min-w-[720px] text-xs">
-                          <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Cursă</th><th className="text-right">Curse</th><th className="text-right">Cost (lei)</th><th className="text-right">Lei/cursă</th><th className="text-right">Paleți livrați</th><th className="text-right">Paleți/cursă</th><th className="text-right">Lei/palet</th><th className="pl-3">Puncte de livrare incluse</th></tr></thead>
+                          <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Cursă</th><th className="text-right">Curse 30 zile</th><th className="text-right">Cost 30 zile (lei)</th><th className="text-right">Lei/cursă</th><th className="text-right">Paleți livrați 90 zile</th><th className="text-right">Paleți/cursă</th><th className="text-right">Lei/palet</th><th className="pl-3">Puncte de livrare incluse</th></tr></thead>
                           <tbody>
                             {result.logistics.routes.map((r) => (
                               <tr key={r.route} onClick={() => pickRoute(r.route)} className={`cursor-pointer border-b last:border-0 hover:bg-muted/50 ${r.route === route ? "bg-muted font-medium" : ""}`}>
