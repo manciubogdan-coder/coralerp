@@ -6,7 +6,7 @@ import { priceLogistics } from "./priceLogistics.ts";
 import { clientFeeFor, loadPriceRules, priceRules } from "./priceRules.ts";
 import { transportRoute, configuredRawPalletKg, rawPalletGroup, orderedPallets, tradedGood, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
 import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, latestCostWindow, latestRoutes } from "./priceList.ts";
-import { seniorLive } from "./senior.ts";
+import { seniorLive, seniorSqlAll } from "./senior.ts";
 import { cf, lit, partnerInfoSql, partnerScope, type PartnerInfo } from "./priceScope.ts";
 import { realLineSpeeds, SPEED_DAYS, type RealSpeed } from "./priceLineSpeed.ts";
 export { matchLoss } from "./priceSheet.ts";
@@ -158,10 +158,11 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   let logisticsRead: Awaited<ReturnType<typeof priceLogistics>> | null = null;
   const [art, recipe, history, recent, eur, priceList, supply, lastTrucks, receivedPallets, receivedKg, storeRows, loss, packagingLoss, labelLoss] = await Promise.all([
     SQL(sb, `SELECT a.Articol_ID id, a.Denumire name, a.Cod code FROM dbo.D_Articole a WITH (NOLOCK) WHERE a.Articol_ID IN (${A})`),
-    SQL(sb, `SELECT v.ArticolId pa, v.PKArticoleCompuseHVersiuni vid, CAST(v.Cantitate AS float) vq, v.IsImplicit impl, v.DataStart ds, d.ArticolId id, a.Denumire name, CAST(d.Cantitate AS float) q, um.Cod um
+    // 60 products × several components and versions can pass the reader's 500-row cap: read every page.
+    seniorSqlAll(sb, `SELECT v.ArticolId pa, v.PKArticoleCompuseHVersiuni vid, CAST(v.Cantitate AS float) vq, v.IsImplicit impl, v.DataStart ds, d.ArticolId id, a.Denumire name, CAST(d.Cantitate AS float) q, um.Cod um
       FROM dbo.DArticoleCompuseHVersiuni v WITH (NOLOCK) JOIN dbo.DArticoleCompuseD d WITH (NOLOCK) ON d.FKArticoleCompuseHVersiuni=v.PKArticoleCompuseHVersiuni
       JOIN dbo.D_Articole a WITH (NOLOCK) ON a.Articol_ID=d.ArticolId LEFT JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UMId
-      WHERE v.ArticolId IN (${A}) AND v.IsActiv=1 AND d.ArticolId<>v.ArticolId AND ISNULL(d.IsProdusPrincipal,0)=0`),
+      WHERE v.ArticolId IN (${A}) AND v.IsActiv=1 AND d.ArticolId<>v.ArticolId AND ISNULL(d.IsProdusPrincipal,0)=0`, "v.PKArticoleCompuseHVersiuni, d.ArticolId, d.Cantitate"),
     SQL(sb, `SELECT d.Articol_ID aid, CONVERT(char(7), h.Data, 120) m, SUM(CAST(d.Cantitate AS float)) q, SUM(CAST(d.Valoare_Neta_Rol AS float)) v FROM ${docs}
       ${scope ? PP1 : ""}
       WHERE t.Cod IN ${SALES} AND ${notCancelled} AND d.Articol_ID IN (${A}) ${scope ? `AND ${scope}` : ""} AND h.Data>='${histStart}' AND h.Data<'${histEnd}'

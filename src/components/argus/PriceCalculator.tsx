@@ -227,15 +227,22 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
   const auditRecipes = async () => {
     setAuditing(true);
     try {
-      const r = await argusFetch<{ checked: number; issues: any[] }>("recipe_case_audit", {}, {});
-      const rows: (string | number)[][] = [["Cod produs", "Articol ID Senior", "Produs", "Bucăți în rețetă (Senior)", "Bucăți în bax real", "Variante bax (ultimele 12 luni)", "Linii document", "Ultimul document", "Problema"]];
-      for (const i of r.issues) rows.push([i.code, i.id, i.name, i.recipeUnits, i.caseUnits, i.caseVariants, i.lines, i.lastDocument, i.problem]);
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      ws["!cols"] = [{ wch: 14 }, { wch: 10 }, { wch: 45 }, { wch: 12 }, { wch: 12 }, { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 55 }];
+      const r = await argusFetch<{ checked: number; issues: any[]; all: any[] }>("recipe_case_audit", {}, {});
+      const label: Record<string, string> = { ok: "OK", case_as_piece: "Rețetă pe bax, marcată 1 buc", component_qty: "Componentă greșită", kg_check: "La KG — de verificat" };
+      const sheet = (list: any[]) => {
+        const rows: (string | number | null)[][] = [["Cod produs", "Articol ID Senior", "Produs", "Bucăți în rețetă (Cantitate versiune)", "Bucăți pe bax după componente", "Bucăți în bax pe documente (12 luni)", "Variante bax pe documente", "Stare", "Ce e greșit / ce trebuie corectat", "Componentele rețetei active"]];
+        for (const i of list) rows.push([i.code, i.id, i.name, i.recipeUnits, i.suggestedUnits, i.caseUnits, i.caseVariants, label[i.status] ?? i.status, i.problem, i.components]);
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws["!cols"] = [{ wch: 11 }, { wch: 11 }, { wch: 36 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 24 }, { wch: 24 }, { wch: 60 }, { wch: 80 }];
+        return ws;
+      };
+      const wrong = r.issues.filter((i) => i.status !== "kg_check"), kg = r.issues.filter((i) => i.status === "kg_check");
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Rețete greșite");
+      XLSX.utils.book_append_sheet(wb, sheet(wrong), "Rețete greșite");
+      XLSX.utils.book_append_sheet(wb, sheet(kg), "Produse la KG de verificat");
+      XLSX.utils.book_append_sheet(wb, sheet(r.all), "Toate rețetele verificate");
       XLSX.writeFile(wb, `Retete gresite bax ${new Date().toISOString().slice(0, 10)}.xlsx`);
-      toast({ title: `${r.issues.length} rețete de corectat`, description: `Din ${r.checked} produse cu rețetă activă și bax în documente.` });
+      toast({ title: `${wrong.length} rețete de corectat`, description: `Din ${r.checked} produse cu rețetă activă în Senior; ${kg.length} produse la kg de verificat.` });
     } catch (e) { toast({ title: "Verificarea nu a reușit", description: (e as Error).message, variant: "destructive" }); }
     finally { setAuditing(false); }
   };

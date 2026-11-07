@@ -22,6 +22,17 @@ export async function seniorLive(sb: Rpc, kind: string, payload: unknown, waitMs
   throw new SeniorLiveError("Serverul Senior nu a răspuns în timp util. Verifică dacă programul de citire rulează pe server.");
 }
 
+/** The Senior reader returns at most 500 rows per SQL request: read every page in a stable order. */
+export async function seniorSqlAll(sb: Rpc, sql: string, orderBy: string, waitMs = 55000): Promise<any[]> {
+  const all: any[] = [];
+  for (let off = 0; ; off += 500) {
+    const r = await seniorLive(sb, "sql", { sql: `${sql} ORDER BY ${orderBy} OFFSET ${off} ROWS FETCH NEXT 500 ROWS ONLY` }, waitMs);
+    const page = Array.isArray(r) ? r : [];
+    all.push(...page);
+    if (page.length < 500) return all;
+  }
+}
+
 export async function seniorCatalog(sb: Rpc): Promise<any[]> {
   const { data } = await sb.rpc("erp_live_state", { p_key: "catalog" });
   if (Array.isArray(data?.value) && Date.now() - new Date(data.updated_at).getTime() < 6 * 3600_000) return data.value;
