@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { argusFetch } from "@/lib/argusApi";
 import { SENIOR_ROUTES } from "../../../supabase/functions/_shared/priceConfig";
-import { lineRates, setPriceRules, validPriceRules, type PriceRules, type RulesMeta } from "../../../supabase/functions/_shared/priceRules";
+import { DEFAULT_PRICE_RULES, lineRates, setPriceRules, validPriceRules, type PriceRules, type RulesMeta } from "../../../supabase/functions/_shared/priceRules";
 
 type Line = { name: string; people: string; speed: string; hourCost: string; overheadPct: string; note: string; builtIn?: boolean };
 type Draft = {
@@ -77,11 +77,17 @@ function Remove({ label, onClick }: { label: string; onClick: () => void }) {
 
 export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules) => void }) {
   const [meta, setMeta] = useState<Response | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [rawDraft, setDraft] = useState<Draft | null>(null);
+  // A draft kept from an earlier version of this screen can miss newer sections: fill them from the saved rules.
+  const draft = useMemo(() => (rawDraft && meta ? { ...toDraft(meta.rules), ...Object.fromEntries(Object.entries(rawDraft).filter(([, v]) => v != null)) } as Draft : rawDraft), [rawDraft, meta]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const apply = (r: Response) => { setMeta(r); setDraft(toDraft(r.rules)); setPriceRules(r.rules); };
+  // Rules answered by an older server version can miss newer sections: complete them with the defaults.
+  const apply = (res: Response) => {
+    const r = { ...res, rules: { ...DEFAULT_PRICE_RULES, ...res.rules }, defaults: { ...DEFAULT_PRICE_RULES, ...(res.defaults ?? {}) } };
+    setMeta(r); setDraft(toDraft(r.rules)); setPriceRules(r.rules);
+  };
   const load = () => { setError(null); argusFetch<Response>("price_rules").then(apply).catch((e) => setError((e as Error).message)); };
   useEffect(load, []);
 
@@ -92,7 +98,8 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
   if (error && !meta) return <div className="flex flex-wrap items-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"><span className="mr-auto">Regulile nu s-au putut încărca: {error}</span><Button size="sm" variant="outline" onClick={load}>Reîncearcă</Button></div>;
   if (!draft || !meta) return <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Se încarcă regulile…</p>;
 
-  const set = (f: (d: Draft) => Draft) => setDraft((d) => (d ? f(d) : d));
+  const complete = (d: Draft): Draft => (meta ? { ...toDraft(meta.rules), ...Object.fromEntries(Object.entries(d).filter(([, v]) => v != null)) } as Draft : d);
+  const set = (f: (d: Draft) => Draft) => setDraft((d) => (d ? f(complete(d)) : d));
   const setTop = (k: keyof Draft) => (v: string) => set((d) => ({ ...d, [k]: v }));
   function editRow<K extends "lines" | "palletGroups" | "tradedGoods" | "routePairs" | "cityRoutes" | "countyRoutes" | "clientFees">(k: K, i: number, patch: Partial<Draft[K][number]>) {
     set((d) => ({ ...d, [k]: (d[k] as Array<Draft[K][number]>).map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
