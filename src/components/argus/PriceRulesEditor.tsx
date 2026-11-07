@@ -22,7 +22,9 @@ type Draft = {
 type Response = RulesMeta & { defaults: PriceRules };
 
 const s = (v: number | null | undefined, d = 4) => (v == null ? "" : String(Math.round(v * 10 ** d) / 10 ** d));
-const n = (v: string) => (v.trim() === "" ? NaN : Number(v.replace(",", ".")));
+/** Text from older drafts (kept across reloads) can be missing: treat it as empty. */
+const t = (v: unknown) => (v == null ? "" : String(v));
+const n = (v: unknown) => (t(v).trim() === "" ? NaN : Number(t(v).replace(",", ".")));
 const fmt = (v: number | null, d = 3) => (v == null || !Number.isFinite(v) ? "—" : v.toLocaleString("ro-RO", { minimumFractionDigits: d, maximumFractionDigits: d }));
 
 function toDraft(r: PriceRules): Draft {
@@ -45,14 +47,14 @@ function fromDraft(d: Draft, base: PriceRules) {
     lines: d.lines.map((l) => {
       const b = base.lines.find((x) => x.name === l.name), h = n(l.hourCost), o = n(l.overheadPct);
       const keep = (typed: number, exact: number | undefined) => (exact != null && Math.abs(exact - typed) < 0.0001 ? exact : typed);
-      return { name: l.name, people: n(l.people), speed: l.speed.trim() === "" ? null : n(l.speed), hourCost: keep(h, b?.hourCost),
-        ...(l.overheadPct.trim() === "" ? {} : { overheadPct: keep(o, b?.overheadPct) }), note: l.note };
+      return { name: l.name, people: n(l.people), speed: t(l.speed).trim() === "" ? null : n(l.speed), hourCost: keep(h, b?.hourCost),
+        ...(t(l.overheadPct).trim() === "" ? {} : { overheadPct: keep(o, b?.overheadPct) }), note: l.note };
     }),
     palletGroups: d.palletGroups.map((g) => ({ label: g.label, keywords: g.keywords, kgPerPallet: n(g.kgPerPallet) })),
     tradedGoods: d.tradedGoods.map((g) => ({ label: g.label, keywords: g.keywords, piecesPerPallet: n(g.piecesPerPallet), note: g.note })),
     routePairs: d.routePairs.map((p) => [p.a, p.b]),
     cityRoutes: d.cityRoutes,
-    countyRoutes: Object.fromEntries(d.countyRoutes.filter((c) => c.county.trim() || c.route.trim()).map((c) => [c.county, c.route])),
+    countyRoutes: Object.fromEntries(d.countyRoutes.filter((c) => t(c.county).trim() || t(c.route).trim()).map((c) => [c.county, c.route])),
   };
 }
 
@@ -77,15 +79,14 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
   const [saving, setSaving] = useState(false);
 
   const apply = (r: Response) => { setMeta(r); setDraft(toDraft(r.rules)); setPriceRules(r.rules); };
-  useEffect(() => {
-    argusFetch<Response>("price_rules").then(apply).catch((e) => setError((e as Error).message));
-  }, []);
+  const load = () => { setError(null); argusFetch<Response>("price_rules").then(apply).catch((e) => setError((e as Error).message)); };
+  useEffect(load, []);
 
   const raw = useMemo(() => (draft && meta ? fromDraft(draft, meta.rules) : null), [draft, meta]);
   const check = useMemo(() => (raw ? validPriceRules(raw) : null), [raw]);
   const dirty = !!draft && !!meta && JSON.stringify(draft) !== JSON.stringify(toDraft(meta.rules));
 
-  if (error && !meta) return <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>;
+  if (error && !meta) return <div className="flex flex-wrap items-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"><span className="mr-auto">Regulile nu s-au putut încărca: {error}</span><Button size="sm" variant="outline" onClick={load}>Reîncearcă</Button></div>;
   if (!draft || !meta) return <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Se încarcă regulile…</p>;
 
   const set = (f: (d: Draft) => Draft) => setDraft((d) => (d ? f(d) : d));
@@ -145,7 +146,7 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
             <thead className="text-left text-xs text-muted-foreground"><tr><th className="py-1">Linie</th><th>Oameni</th><th>Viteză (buc/oră)</th><th>Cost orar / om (lei)</th><th>Regie %</th><th className="text-right">Directă lei/buc</th><th className="text-right">Regie lei/buc</th><th className="text-right">Total lei/buc</th><th>Notă</th><th /></tr></thead>
             <tbody>
               {draft.lines.map((l, i) => {
-                const r = lineRates({ name: l.name, people: n(l.people), speed: l.speed.trim() ? n(l.speed) : null, hourCost: n(l.hourCost), ...(l.overheadPct.trim() ? { overheadPct: n(l.overheadPct) } : {}) }, Number.isFinite(overhead) ? overhead : 0);
+                const r = lineRates({ name: l.name, people: n(l.people), speed: t(l.speed).trim() ? n(l.speed) : null, hourCost: n(l.hourCost), ...(t(l.overheadPct).trim() ? { overheadPct: n(l.overheadPct) } : {}) }, Number.isFinite(overhead) ? overhead : 0);
                 return <tr key={i} className="border-t">
                   <td className="py-1 pr-2">{l.builtIn ? <span className="font-medium">{l.name}</span> : <Input aria-label="Nume linie" className={cell} value={l.name} onChange={(e) => editRow("lines", i, { name: e.target.value })} />}</td>
                   <td className="pr-2"><Input aria-label={`Oameni ${l.name}`} className={`${cell} w-20`} inputMode="decimal" value={l.people} onChange={(e) => editRow("lines", i, { people: e.target.value })} /></td>
