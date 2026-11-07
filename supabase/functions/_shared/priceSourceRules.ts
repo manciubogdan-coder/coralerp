@@ -43,6 +43,23 @@ export function deliveryRoute(p: { name?: unknown; judet?: unknown; country?: un
 export function historicalFeePct(discounts: number, sales: number): number | null {
   return sales > 0 && discounts >= 0 && discounts < sales ? discounts / sales * 100 : null;
 }
+export type OrderedPalletRow = { name: string; unit: string; kg: number; kgPerPallet: number | null; pallets: number };
+/** Supply pallets from supplier orders (Coral Achiziții): ordered kg ÷ configured kg/palet per product range. Products without a norm or not in kg are listed, never guessed. */
+export function orderedPallets(orders: Array<{ name: string; unit?: string | null; qty: number }>) {
+  const by = new Map<string, OrderedPalletRow>();
+  for (const o of orders) {
+    const unit = String(o.unit ?? "kg").trim().toLowerCase() || "kg";
+    const key = `${o.name}|${unit}`;
+    const norm = unit === "kg" ? configuredRawPalletKg(o.name) ?? null : null;
+    const row = by.get(key) ?? { name: o.name, unit, kg: 0, kgPerPallet: norm, pallets: 0 };
+    row.kg += Number(o.qty) || 0;
+    row.pallets = norm ? row.kg / norm : 0;
+    by.set(key, row);
+  }
+  const rows = [...by.values()].sort((a, b) => b.pallets - a.pallets || b.kg - a.kg);
+  const counted = rows.filter((r) => r.kgPerPallet);
+  return { rows, pallets: counted.reduce((s, r) => s + r.pallets, 0), kg: counted.reduce((s, r) => s + r.kg, 0), skipped: rows.filter((r) => !r.kgPerPallet) };
+}
 export function configuredRawPalletKg(name: string): number | undefined {
   if (/radic|radich/i.test(name)) return 500;
   if (/iceberg|pan di|indivi|scarola|varz/i.test(name)) return 400;

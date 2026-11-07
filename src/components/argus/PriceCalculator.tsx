@@ -25,7 +25,7 @@ type Store = Opt & { route: string | null };
 type RouteStat = { route: string; country: string; trips: number; total: number; pallets: number; estimatedPallets?: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; points: Array<{ name: string; pallets: number }>; pool?: { routes: string[]; total: number; pallets: number; trips: number } };
 type CountyGap = { county: string; judet: string; pallets: number; points: number; names: string[] };
 type Logistics = {
-  supply: { total: number; trucks: number; costPerTruck: number | null; loadTrucks: number; pallets: number; kg: number; palletsPerTruck: number | null; kgPerTruck: number | null };
+  supply: { total: number; trucks: number; costPerTruck: number | null; loadTrucks: number; pallets: number; kg: number; palletsPerTruck: number | null; kgPerTruck: number | null; orderedRows?: Array<{ name: string; unit: string; kg: number; kgPerPallet: number | null; pallets: number }> };
   loadWindow: { start: string; end: string }; lastTrucks: Array<{ day: string; price: number; line: string; qty?: number; value?: number; supplier?: string; truck?: boolean }>;
   closedStart: string; closedEnd: string; note: string; distribution?: Record<string, PriceConfig | null>; routes?: RouteStat[];
   clientAverage: { perPallet: number; pallets: number; weighted: boolean; stores: number } | null;
@@ -832,7 +832,19 @@ export default function PriceCalculator() {
             <summary className="cursor-pointer text-sm font-medium text-foreground">Surse și metodă de calcul</summary>
             <div className="mt-2 space-y-1">
               <p>Materii prime: {mode === "annual" ? "media anuală ponderată" : "media ponderată ultimele 7 zile"}, până la {result.period.endDay} exclusiv. Ambalaje: ultima intrare NIR.</p>
-              <p>Aprovizionare: {n2(logistics.supply.total)} lei ÷ {logistics.supply.trucks} camioane = <b>{n2(logistics.supply.costPerTruck)} lei/camion</b>, încărcare {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion ({n2(logistics.supply.pallets, 0)} paleți NIR ÷ {logistics.supply.loadTrucks} camioane, {logistics.loadWindow.start} – {logistics.loadWindow.end}).</p>
+              <p>Aprovizionare: {n2(logistics.supply.total)} lei ÷ {logistics.supply.trucks} camioane = <b>{n2(logistics.supply.costPerTruck)} lei/camion</b>, încărcare {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion ({n2(logistics.supply.pallets, 0)} paleți din comenzi ÷ {logistics.supply.loadTrucks} camioane, {logistics.loadWindow.start} – {logistics.loadWindow.end}).</p>
+              {!!logistics.supply.orderedRows?.length && (
+                <details className="rounded border bg-background p-2">
+                  <summary className="cursor-pointer font-medium">Vezi paleții calculați din comenzile către furnizori ({n2(logistics.supply.pallets, 1)} paleți, {logistics.loadWindow.start} – {logistics.loadWindow.end})</summary>
+                  <p className="mt-1 text-[11px]">Paleți = kg comandate (livrare în perioadă, fără comenzile anulate) ÷ kg/palet pe gamă: frunze/baby leaf/aromate 220, căpățâni 400, radicchio 500. Produsele fără normă nu se numără.</p>
+                  <table className="mt-1 w-full text-[11px]">
+                    <thead className="border-b text-left text-muted-foreground"><tr><th>Produs</th><th className="text-right">Cantitate comandată</th><th className="text-right">Kg/palet</th><th className="text-right">Paleți</th></tr></thead>
+                    <tbody>{logistics.supply.orderedRows.map((r, i) => (
+                      <tr key={i} className={`border-b last:border-0 ${r.kgPerPallet ? "" : "text-crm-warning"}`}><td>{r.name}</td><td className="text-right tabular-nums">{n2(r.kg, 0)} {r.unit}</td><td className="text-right tabular-nums">{r.kgPerPallet ?? "fără normă"}</td><td className="text-right tabular-nums">{r.kgPerPallet ? n2(r.pallets, 1) : "—"}</td></tr>
+                    ))}</tbody>
+                  </table>
+                </details>
+              )}
               {logistics.lastTrucks.length > 0 && (
                 <details className="rounded border bg-background p-2">
                   <summary className="cursor-pointer font-medium">Vezi toate facturile de transport aprovizionare folosite ({logistics.lastTrucks.length} rânduri, {logistics.closedStart} – {logistics.closedEnd})</summary>

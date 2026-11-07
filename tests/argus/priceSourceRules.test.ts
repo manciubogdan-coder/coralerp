@@ -67,3 +67,17 @@ describe('distribution per Senior cursă', () => {
     expect(validPriceConfig({ route: "x'; DROP" })).toBeNull();
   });
 });
+
+import { orderedPallets } from "../../supabase/functions/_shared/priceSourceRules";
+describe("orderedPallets", () => {
+  test("divides ordered kg by range pallet norms and skips products without a norm", () => {
+    const r = orderedPallets([
+      { name: "Baby Spanac", unit: "kg", qty: 440 },
+      { name: "Iceberg", unit: "kg", qty: 800 },
+      { name: "Radicchio", unit: "kg", qty: 1000 },
+      { name: "Morcov", unit: "kg", qty: 500 },
+    ]);
+    expect(r.pallets).toBe(6);
+    expect(r.skipped.map((x) => x.name)).toEqual(["Morcov"]);
+  });
+});

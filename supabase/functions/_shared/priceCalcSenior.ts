@@ -3,7 +3,7 @@ import { priceDates, suggestedLabour } from "./priceDefaults.ts";
 import { readPriceSafety } from './receiptPriceSafety.ts';
 import { MIXED_WASHED, type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
-import { transportRoute, historicalFeePct, configuredRawPalletKg, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
+import { transportRoute, historicalFeePct, configuredRawPalletKg, orderedPallets, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
 import { CLIENT_AVERAGE_ROUTE, DEFAULT_MARGIN_PCT, LOAD_DAYS, clientAverageRoute, latestCostWindow, latestRoutes } from "./priceList.ts";
 import { seniorLive } from "./senior.ts";
 import { realLineSpeeds, SPEED_DAYS, type RealSpeed } from "./priceLineSpeed.ts";
@@ -21,6 +21,26 @@ const notCancelled = "ISNULL(h.Anulat,0)=0";
 const PP1 = "JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID AND pp.TipPartener=1";
 const MAX_PRODUCTS = 60;
 const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+
+/** Raw-material supplier orders (Coral Achiziții) delivered in [start, end), not cancelled, converted to pallets by product range. */
+async function readOrderedPallets(legacy: any, start: string, end: string) {
+  const orders: any[] = [];
+  for (let off = 0; ; off += 1000) {
+    const { data, error } = await legacy.from("product_orders").select("product_id,quantity_ordered,expected_delivery_date,status")
+      .gte("expected_delivery_date", start).lt("expected_delivery_date", end).neq("status", "cancelled").order("id").range(off, off + 999);
+    if (error) throw new Error(`Nu pot citi comenzile către furnizori: ${error.message}`);
+    orders.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  const ids = [...new Set(orders.map((o) => o.product_id).filter(Boolean))];
+  const prod = new Map<string, any>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const { data, error } = await legacy.from("products").select("id,name,default_unit").in("id", ids.slice(i, i + 50));
+    if (error) throw new Error(`Nu pot citi produsele comandate: ${error.message}`);
+    for (const p of data ?? []) prod.set(p.id, p);
+  }
+  return orderedPallets(orders.map((o) => ({ name: prod.get(o.product_id)?.name ?? "Produs necunoscut", unit: prod.get(o.product_id)?.default_unit, qty: Number(o.quantity_ordered) || 0 })));
+}
 
 /** Senior "Partener_Central" text of a partner (stores carry the central name, e.g. "MEGA IMAGE SRL"). */
 const centralOf = (pid: number) => `(SELECT TOP 1 x.Partener_Central FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.Partener_ID=${pid} AND NULLIF(x.Partener_Central,'') IS NOT NULL ORDER BY x.H_ID DESC)`;
@@ -100,7 +120,6 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const histEnd = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
   const recentStart = addDays(pricesPeriod.endDay, -90);
   const A = aids.join(",");
-  const notPackaging = ["FOLIE", "FILM", "PUNG", "BANDA", "SFOARA", "ETICHET", "CASEROL", "CUTI", "CAPAC", "PALET", "LADIT", "SAC", "TAVITA", "BOL"].map((w) => `(' '+UPPER(d.Denumire)) NOT LIKE '% ${w}%'`).join(" AND ");
   const readLoss = async (table: string) => {
     const all: Loss = [];
     let offset = 0;
@@ -167,8 +186,8 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
       FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID
       WHERE ${notCancelled} AND h.Data>='${win.start}' AND h.Data<'${win.end}' AND ${supplyLine} AND ${supplyIn}
       ORDER BY h.Data DESC, h.H_ID DESC`),
-    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) pallets FROM ${docs} WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${load.start}' AND h.Data<'${load.end}' AND d.Denumire LIKE 'PALET%'`),
-    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) kg FROM ${docs} JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UM_ID WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${load.start}' AND h.Data<'${load.end}' AND um.Cod='KG' AND ${notPackaging}`),
+    readOrderedPallets(legacy, load.start, load.end),
+    Promise.resolve(null),
     pid ? SQL(sb, `SELECT TOP 300 pp.Partener_ID id, MAX(pp.Partener_Denumire) name, MAX(pp.Document_Judet) judet, MAX(pp.Document_Tara) country
       FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID ${PP1}
       WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${addDays(pricesPeriod.endDay, -365)}' AND ${partnerScope(pid, null)}
@@ -224,7 +243,10 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   } else if (pid) warnings.push("Taxe client: nicio vânzare către acest cod fiscal în ultimele 12 luni; completează procentul manual.");
   // Latest prices: average cost per truck of the last 30 days (services included) ÷ average load per truck of the last 90 days.
   const total30 = num(supply[0]?.total), trucks30 = num(supply[0]?.trucks), loadTrucks = num(supply[0]?.loadTrucks);
-  const pallets90 = num(receivedPallets[0]?.pallets), kg90 = num(receivedKg[0]?.kg);
+  void receivedKg;
+  const ordered = receivedPallets as Awaited<ReturnType<typeof readOrderedPallets>>;
+  const pallets90 = ordered.pallets, kg90 = ordered.kg;
+  if (ordered.skipped.length) warnings.push(`Aprovizionare: ${ordered.skipped.length} produse comandate fără normă kg/palet (ex. ${ordered.skipped.slice(0, 4).map((r) => r.name).join(", ")}) nu intră în paleți; spune-mi gama lor ca să le adaug.`);
   const costPerTruck = trucks30 > 0 && total30 > 0 ? total30 / trucks30 : null;
   const palletsPerTruck = loadTrucks > 0 && pallets90 > 0 ? pallets90 / loadTrucks : null;
   const kgPerTruck = loadTrucks > 0 && kg90 > 0 ? kg90 / loadTrucks : null;
@@ -234,7 +256,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   if (palletsPerTruck != null) { shared.supplyPallets = palletsPerTruck; if (costPerTruck != null) shared.supplyPerPallet = costPerTruck / palletsPerTruck; }
   if (kgPerTruck != null) { shared.supplyKg = kgPerTruck; if (costPerTruck != null) shared.rates = { ...shared.rates, supplyPerKg: costPerTruck / kgPerTruck }; }
   if (costPerTruck == null) warnings.push(`Aprovizionare: nicio factură de transport aprovizionare (624.01) datată ${win.start} – ${win.end}; completează tariful manual.`);
-  info.push(`Aprovizionare: cost mediu pe camion din facturile ${win.start} – ${win.end} ÷ încărcarea medie pe camion (paleți și kg NIR ÷ camioane) din ${load.start} – ${load.end}; facturile nu sunt legate individual de NIR-uri. Capacitățile MP sunt reperele configurate Coral.`);
+  info.push(`Aprovizionare: cost mediu pe camion din facturile ${win.start} – ${win.end} ÷ încărcarea medie pe camion (paleți = kg comandate în Achiziții ÷ kg/palet pe gamă: frunze/aromate 220, căpățâni 400, radicchio 500; ÷ camioane) din ${load.start} – ${load.end}; facturile nu sunt legate individual de NIR-uri. Capacitățile MP sunt reperele configurate Coral.`);
 
   const read = logisticsRead as Awaited<ReturnType<typeof priceLogistics>> | null;
   const distribution: Record<string, PriceConfig> = {};
@@ -325,7 +347,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
         lossSource: m ? `PT Coral ERP: ${m.name}` : kind === "ambalaj" ? "PT ambalaj 0% — neconfigurat în Coral ERP (editabil)" : "PT nesetat — de completat",
         ...(kind === "mp" ? (configuredRawPalletKg(cname) != null
           ? { kgPerPallet: configuredRawPalletKg(cname), palletSource: "kg/palet Coral (căpățâni 400, radicchio 500, frunze/aromate 220)" }
-          : avgKgPerPallet != null ? { kgPerPallet: Math.round(avgKgPerPallet), palletSource: `kg/palet mediu din recepții: ${Math.round(kg90)} kg ÷ ${Math.round(pallets90)} paleți NIR, ${load.start} – ${load.end}` } : {}) : {}),
+          : avgKgPerPallet != null ? { kgPerPallet: Math.round(avgKgPerPallet), palletSource: `kg/palet mediu din comenzi: ${Math.round(kg90)} kg ÷ ${Math.round(pallets90)} paleți, ${load.start} – ${load.end}` } : {}) : {}),
       };
     });
     for (const c of components) if (c.priceSafety?.suspect) itemWarnings.push(`${c.name}: unitate NIR suspectă (rolă vs. bucată); ultima intrare depășește 3× media ponderată precedentelor 6 luni. Prețul Senior nu a fost modificat.`);
@@ -362,7 +384,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     stores,
     logistics: {
       closedStart: win.start, closedEnd: win.end, window: win, loadWindow: load,
-      supply: { total: total30, trucks: trucks30, costPerTruck, loadTrucks, pallets: pallets90, kg: kg90, palletsPerTruck, kgPerTruck }, lastTrucks: lastTrucks.map((r: any) => ({ day: String(r.day), price: num(r.price), line: String(r.line), qty: num(r.qty), value: num(r.value), supplier: String(r.supplier ?? ""), truck: num(r.truck) === 1 })),
+      supply: { total: total30, trucks: trucks30, costPerTruck, loadTrucks, pallets: pallets90, kg: kg90, palletsPerTruck, kgPerTruck, orderedRows: ordered.rows }, lastTrucks: lastTrucks.map((r: any) => ({ day: String(r.day), price: num(r.price), line: String(r.line), qty: num(r.qty), value: num(r.value), supplier: String(r.supplier ?? ""), truck: num(r.truck) === 1 })),
       distribution, routes: routeData.routes, clientAverage: avg, unassigned, piecesPerPallet: routeData.piecesPerPallet,
       store: point ? { id: point.pid, name: point.name, route: point.route } : null, suggestedRoute,
       note: `Ultimele prețuri: cost mediu pe camion/cursă din facturile datate ${win.start} – ${win.end} (exclusiv); încărcarea (paleți pe camion/cursă) din ${load.start} – ${load.end}, ca să nu depindă de zilele în care se introduc NIR-urile sau facturile. Distribuție: curse „TRANSPORT DIST <cursă>”; paleți = Cantitate/Coef Senior facturați către punctele de livrare ale cursei. Punctele sunt atribuite cursei după oraș/județ; facturile transportatorilor nu indică livrarea exactă.`,
