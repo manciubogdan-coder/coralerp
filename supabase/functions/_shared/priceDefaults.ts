@@ -25,7 +25,7 @@ export function suggestedLabour(name: string, components: SheetComponent[]) {
   return null;
 }
 
-export function prefilledConfig(d: { product: { unitsPerCase: number }; components: SheetComponent[]; defaults?: PriceConfig }, user: PriceConfig = {}): PriceConfig {
+export function prefilledConfig(d: { product: { unitsPerCase: number }; components: SheetComponent[]; defaults?: PriceConfig; logistics?: { distribution?: Record<string, PriceConfig | null> } }, user: PriceConfig = {}): PriceConfig {
   const base = d.defaults ?? {};
   const merged: PriceConfig = { ...base, ...user, rates: { ...base.rates, ...user.rates }, components: { ...base.components } };
   if (user.labourLine && user.labourLine !== base.labourLine) {
@@ -36,7 +36,13 @@ export function prefilledConfig(d: { product: { unitsPerCase: number }; componen
   }
   if (user.route && user.route !== base.route) {
     for (const k of ["distributionTotal", "distributionPallets", "distributionPerPallet"] as const) if (user[k] == null) delete merged[k];
+    for (const k of ["distributionTotal", "distributionPallets", "distributionPerPallet"] as const) {
+      const value = user[k] ?? d.logistics?.distribution?.[user.route]?.[k];
+      if (value != null) merged[k] = value;
+    }
   }
+  if ((user.supplyTotal != null || user.supplyPallets != null) && user.supplyPerPallet == null) delete merged.supplyPerPallet;
+  if ((user.distributionTotal != null || user.distributionPallets != null) && user.distributionPerPallet == null) delete merged.distributionPerPallet;
   for (const [id, values] of Object.entries(user.components ?? {})) merged.components = { ...merged.components, [id]: { ...merged.components?.[id], ...values } };
   return merged;
 }

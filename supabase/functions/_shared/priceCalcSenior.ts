@@ -2,6 +2,7 @@
 import { priceDates, suggestedLabour } from "./priceDefaults.ts";
 import { LABOUR_LINES, type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
+import { transportRoute, historicalFeePct, configuredRawPalletKg } from "./priceSourceRules.ts";
 import { seniorLive } from "./senior.ts";
 export { matchLoss } from "./priceSheet.ts";
 import { componentKind, isServiceComponent, matchLoss, ratePer, ratePeriod, type SheetComponent } from "./priceSheet.ts";
@@ -144,12 +145,18 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
     }
     return all;
   };
-  const [loss, packagingLoss, labelLoss, closedJournal] = await Promise.all([
+  const [loss, packagingLoss, labelLoss, closedJournal, receivedPallets, clientAdjustments] = await Promise.all([
     readLoss("products"), readLoss("ambalaje_products"), readLoss("etichete_products"),
     SQL(sb, `SELECT p.Cont cont, SUM(CASE WHEN dc.IsDebit=1 THEN CAST(dc.Valoare_Rol AS float) ELSE -CAST(dc.Valoare_Rol AS float) END) v
       FROM dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId
       JOIN dbo.C_H_Note_Contabile h WITH (NOLOCK) ON h.H_ID=dc.H_ID JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID
       WHERE p.Cont IN ('624.01') AND t.Cod<>'NCICV' AND ${notCancelled} AND dc.LunaContabila='${P.to}' GROUP BY p.Cont`),
+    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) pallets FROM ${docs} WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${closedStart}' AND h.Data<'${P.endDay}' AND d.Denumire LIKE 'PALET%'`),
+    pid ? SQL(sb, `SELECT SUM(CASE WHEN d.Denumire LIKE '%DISCOUNT%' OR d.Denumire LIKE '%Reducere de pret%' THEN -CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) discounts,
+      SUM(CASE WHEN d.Denumire NOT LIKE '%DISCOUNT%' AND d.Denumire NOT LIKE '%Reducere de pret%' THEN CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) sales
+      FROM ${docs} WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${P.startDay}' AND h.Data<'${P.endDay}'
+      AND EXISTS(SELECT 1 FROM dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) WHERE pp.H_ID=h.H_ID AND pp.TipPartener=1
+        AND NULLIF(REPLACE(UPPER(pp.Partener_Cod_Fiscal),'RO',''),'') IN (SELECT DISTINCT REPLACE(UPPER(p.Partener_Cod_Fiscal),'RO','') FROM dbo.C_H_Note_Contabile_Parteneri p WITH (NOLOCK) WHERE p.Partener_ID=${pid} AND NULLIF(p.Partener_Cod_Fiscal,'') IS NOT NULL))`) : Promise.resolve([]),
   ]);
   const components: SheetComponent[] = rows.map((r): SheetComponent => {
     const name = String(r.name).trim(), unit = String(r.um ?? "").trim() || "BUC";
@@ -188,26 +195,43 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
   const cfg: PriceConfig = { unitsPerCase, ...(suggested ? { labourLine: suggested } : {}), route: "România", rawPriceMode: body.rawPriceMode === "week" ? "week" : "annual", rates: { marginPct: 0, eurRate: eur[0] ? num(eur[0].rate) : 0, eurBufferPct: 1.5, techLossPct: 0 }, components: {} };
   if (line?.direct != null) cfg.rates = { ...cfg.rates, labourPerPiece: line.direct, utilitiesPerPiece: line.overhead };
   if (!pid) cfg.feePct = 0;
+  const feePct = historicalFeePct(num(clientAdjustments[0]?.discounts), num(clientAdjustments[0]?.sales));
+  if (pid && feePct != null && num(clientAdjustments[0]?.discounts) > 0) {
+    cfg.feePct = feePct;
+    warnings.push(`Taxe/reduceri: ${feePct.toFixed(2)}% istoric din facturi client negative, agregate pe cod fiscal; nu tarif contractual. Reduceri ${num(clientAdjustments[0]?.discounts).toFixed(2)} lei / vânzări ${num(clientAdjustments[0]?.sales).toFixed(2)} lei.`);
+  }
   const supplyTotal = closedJournal.length ? closedJournal.reduce((s: number, r: any) => s + num(r.v), 0) : null;
-  const supplyRows = logisticsRead?.pallets.filter((r: any) => r.doc === "NIR") ?? [];
   if (supplyTotal != null) cfg.supplyTotal = supplyTotal;
-  const supplyPallets = supplyRows.length && supplyRows.every((r: any) => !num(r.missing)) ? supplyRows.reduce((s: number, r: any) => s + num(r.pallets), 0) : null;
+  const supplyPallets = num(receivedPallets[0]?.pallets) > 0 ? num(receivedPallets[0].pallets) : null;
   if (supplyPallets != null && supplyPallets > 0) { cfg.supplyPallets = supplyPallets; cfg.supplyPerPallet = supplyTotal != null ? supplyTotal / supplyPallets : undefined; }
-  const pieceConversions = logisticsRead?.conversion.filter((r: any) => String(r.unit).toUpperCase() === "BUC") ?? [];
+  warnings.push("Aprovizionare: paleți înscriși pe NIR-uri separate, total lunar; nu legătură individuală verificată cu fiecare încărcare. Capacitățile MP sunt reperele configurate Coral, nu conversii Senior.");
+  const pieceConversions = logisticsRead?.conversion ?? [];
   if (pieceConversions.length === 1 && num(pieceConversions[0].coef) > 0) cfg.piecesPerPallet = num(pieceConversions[0].coef);
+  const distribution: Record<string, PriceConfig> = {};
+  for (const route of ["România", "Bulgaria", "Moldova"]) {
+    const costRows = logisticsRead?.costs.filter((r: any) => ['624.02','624.06'].includes(r.cont) && transportRoute(String(r.subject)) === route) ?? [];
+    const palletRows = logisticsRead?.pallets.filter((r: any) => r.route === route) ?? [];
+    const total = costRows.reduce((s: number, r: any) => s + num(r.total), 0);
+    const pallets = palletRows.reduce((s: number, r: any) => s + num(r.pallets), 0);
+    if (costRows.length && pallets > 0) distribution[route] = { distributionTotal: total, distributionPallets: pallets, distributionPerPallet: total / pallets };
+    const missing = palletRows.reduce((s: number, r: any) => s + num(r.missing), 0);
+    if (missing) warnings.push(`Distribuție ${route}: ${missing} linii de produse fără coeficient Senior; tariful precompletat este pe paleții calculabili, nu validare integrală a livrărilor.`);
+  }
+  Object.assign(cfg, distribution[cfg.route ?? 'România'] ?? {});
   for (const c of components) {
     // Recipe inputs remain live, only confirmed defaults are included here.
     if (c.kind === "mp") {
-      const matches = await SQL(sb, `SELECT MIN(CAST(r.Coef AS float)) coef FROM dbo.D_Articole_UM_Relatii r WITH (NOLOCK) JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=r.UM_ID_Corespondent WHERE r.Articol_ID=${c.id} AND r.Articol_UM_Vanzare_ID=28 AND um.Cod='KG' AND r.Coef>0 HAVING MIN(r.Coef)=MAX(r.Coef)`).catch(() => []);
-      if (num(matches[0]?.coef) > 0) { c.kgPerPallet = num(matches[0].coef); cfg.components = { ...cfg.components, [c.id]: { kgPerPallet: c.kgPerPallet } }; }
+      c.kgPerPallet = configuredRawPalletKg(c.name);
+      cfg.components = { ...cfg.components, [c.id]: { kgPerPallet: c.kgPerPallet } };
     }
   }
-  warnings.push("Costurile de distribuție pe țară nu sunt încă asociate verificat; un cont general nu este tarif de rută.");
+  const unknownCosts = logisticsRead?.costs.filter((r: any) => !transportRoute(String(r.subject)) && r.cont !== '624.01') ?? [];
+  if (unknownCosts.length) warnings.push(`Transport nealocat pe rută: ${unknownCosts.reduce((s: number,r: any)=>s+num(r.total),0).toFixed(2)} lei; exclus din tarife până la clarificare.`);
   return {
     product: { id: art[0].id, name: String(art[0].name).trim(), code: art[0].code, unitsPerCase },
     period: pricesPeriod,
     accountingPeriod: P, defaults: cfg, warnings, suggestedLabourSource: suggested ? "Propunere după produs/compoziție; tarif din CSV octombrie 2026" : "Linie neidentificată",
-    logistics: { closedStart, closedEnd: P.endDay, supplyTotal, supplyPallets, distribution: { România: null, Bulgaria: null, Moldova: null }, piecesPerPallet: null, note: "Paleții recepționați/facturați și costurile pe rută nu au o legătură verificată în Senior. Completați valorile confirmate; nu se folosește media firmei pe bucată." },
+    logistics: { closedStart, closedEnd: P.endDay, supplyTotal, supplyPallets, distribution, piecesPerPallet: cfg.piecesPerPallet ?? null, note: "Distribuție: cheltuieli pe destinații din jurnal / paleți facturați după formula Senior Cantitate/Coef, net de retururi. Verificați avertismentele de acoperire înainte de utilizarea comercială." },
     components,
     rates: {
       labourPerPiece: { value: rate(lab.total, pieces), total: lab.total, volume: pieces, unit: "buc vândute", accounts: lab.accounts },

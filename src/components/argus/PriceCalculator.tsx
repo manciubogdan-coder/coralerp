@@ -24,7 +24,7 @@ type Data = {
   period: { startDay: string; endDay: string };
   components: SheetComponent[];
   rates: Record<"labourPerPiece" | "utilitiesPerPiece" | "supplyPerKg" | "distributionPerPiece" | "clientFeePerPiece", Rate>;
-  logistics: { supplyTotal: number | null; closedStart: string; closedEnd: string; note: string };
+  logistics: { supplyTotal: number | null; closedStart: string; closedEnd: string; note: string; distribution?: Record<string, PriceConfig | null> };
   eur: { rate: number; day: string } | null;
   salesHistory: Array<{ month: string; qty: number; value: number; price: number | null }>;
   priceList: { price: number; currency: string; list: string; since: string } | null;
@@ -182,7 +182,19 @@ export default function PriceCalculator() {
   };
 
   const lastSale = data ? [...data.salesHistory].reverse().find((h) => h.price != null) ?? null : null;
-  const setR = (k: string) => (v: string) => { setRates((p) => ({ ...p, [k]: v })); setAdjustedRates((p) => ({ ...p, [k]: v })); };
+  const setR = (k: string) => (v: string) => {
+    const derived = k === 'supplyTotal' || k === 'supplyPallets' ? 'supplyPerPallet' : k === 'distributionTotal' || k === 'distributionPallets' ? 'distributionPerPallet' : null;
+    setRates((p) => {
+      const next = { ...p, [k]: v };
+      if (derived) {
+        const total = num(next[derived === 'supplyPerPallet' ? 'supplyTotal' : 'distributionTotal'] ?? '');
+        const pallets = num(next[derived === 'supplyPerPallet' ? 'supplyPallets' : 'distributionPallets'] ?? '');
+        next[derived] = pallets > 0 ? String(total / pallets) : '';
+      }
+      return next;
+    });
+    setAdjustedRates((p) => { const next = { ...p, [k]: v }; if (derived) delete next[derived]; return next; });
+  };
   const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 
   return (
@@ -215,7 +227,12 @@ export default function PriceCalculator() {
               </Button>
             </div>
           </div>
-          <details open className="border-t pt-3"><summary className="cursor-pointer font-medium text-sm">Filtre și parametri de calcul</summary><div className="mt-3"><PriceParameters values={rates} setValue={(k, v) => setR(k)(v)} mode={mode} setMode={setMode} route={route} setRoute={(v) => { setRoute(v); setRates((p) => ({ ...p, distributionTotal: "", distributionPallets: "", distributionPerPallet: "" })); }} line={line} setLine={chooseLine} /></div></details>
+          <details open className="border-t pt-3"><summary className="cursor-pointer font-medium text-sm">Filtre și parametri de calcul</summary><div className="mt-3"><PriceParameters values={rates} setValue={(k, v) => setR(k)(v)} mode={mode} setMode={setMode} route={route} setRoute={(v) => {
+            setRoute(v);
+            const defaults = data?.logistics.distribution?.[v];
+            setRates((p) => ({ ...p, distributionTotal: defaults?.distributionTotal == null ? "" : String(defaults.distributionTotal), distributionPallets: defaults?.distributionPallets == null ? "" : String(defaults.distributionPallets), distributionPerPallet: defaults?.distributionPerPallet == null ? "" : String(defaults.distributionPerPallet) }));
+            setAdjustedRates((p) => { const n = { ...p }; delete n.distributionTotal; delete n.distributionPallets; delete n.distributionPerPallet; return n; });
+          }} line={line} setLine={chooseLine} /></div></details>
           {!validPriceConfig(config) && <p className="text-sm text-destructive">Parametri invalizi: valori pozitive, pierderi și marjă sub 100%, bucăți/palet și bucăți/bax peste zero.</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
           {data && product && (
@@ -240,6 +257,7 @@ export default function PriceCalculator() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Fișă preț · {data.product.name} · bax {sheet.s.unitsPerCase} buc</CardTitle>
+              {!!data.warnings?.length && <p className="text-sm text-muted-foreground">Calcul orientativ: tarife istorice și repere configurate. Avertismentele de mai sus rămân de verificat.</p>}
               {!sheet.s.complete && <p className="text-sm text-destructive">Fișă incompletă — totaluri parțiale, nu preț final validat. De completat: {sheet.s.missingInputs.join("; ")}</p>}
               {sheet.s.missingPrices.length > 0 && <p className="text-sm text-destructive">Fără preț în Senior: {sheet.s.missingPrices.join(", ")} — completează prețul ca fișa să fie corectă.</p>}
             </CardHeader>
