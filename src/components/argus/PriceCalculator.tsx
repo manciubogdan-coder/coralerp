@@ -16,6 +16,8 @@ import { PriceParameters, NumericParameter } from "./PriceParameters";
 import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
 
 type Opt = { id: number; name: string };
+type Store = Opt & { route: string | null };
+type RouteStat = { route: string; country: string; trips: number; total: number; pallets: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; points: Array<{ name: string; pallets: number }> };
 type Rate = { value: number; total: number; volume: number; unit: string; accounts: Array<{ cont: string; name: string; value: number }> };
 type Data = {
   product: { id: number; name: string; unitsPerCase: number };
@@ -24,7 +26,7 @@ type Data = {
   period: { startDay: string; endDay: string };
   components: SheetComponent[];
   rates: Record<"labourPerPiece" | "utilitiesPerPiece" | "supplyPerKg" | "distributionPerPiece" | "clientFeePerPiece", Rate>;
-  logistics: { supplyTotal: number | null; closedStart: string; closedEnd: string; note: string; distribution?: Record<string, PriceConfig | null> };
+  logistics: { supplyTotal: number | null; closedStart: string; closedEnd: string; note: string; distribution?: Record<string, PriceConfig | null>; routes?: RouteStat[]; store?: { id: number; name: string; route: string | null } | null; suggestedRoute?: string | null };
   eur: { rate: number; day: string } | null;
   salesHistory: Array<{ month: string; qty: number; value: number; price: number | null }>;
   priceList: { price: number; currency: string; list: string; since: string } | null;
@@ -88,6 +90,9 @@ export default function PriceCalculator() {
   const [subgroups, setSubgroups] = useState<Opt[]>([]);
   const [clients, setClients] = useState<Opt[]>([]);
   const [products, setProducts] = useState<Opt[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [store, setStore] = useState<number | null>(null);
+  const [routeManual, setRouteManual] = useState(false);
   const [sg, setSg] = useState<number | null>(null);
   const [client, setClient] = useState<number | null>(null);
   const [product, setProduct] = useState<number | null>(null);
@@ -110,10 +115,10 @@ export default function PriceCalculator() {
   useEffect(() => {
     let off = false;
     setLoadingOpts(true);
-    argusFetch<{ subgroups: Opt[]; clients: Opt[]; products: Opt[] }>("price_options", {}, { subgroupId: sg, partnerId: client })
+    argusFetch<{ subgroups: Opt[]; clients: Opt[]; products: Opt[]; stores?: Store[] }>("price_options", {}, { subgroupId: sg, partnerId: client })
       .then((r) => {
         if (off) return;
-        setSubgroups(r.subgroups); setClients(r.clients); setProducts(r.products);
+        setSubgroups(r.subgroups); setClients(r.clients); setProducts(r.products); setStores(r.stores ?? []);
         if (client != null && !r.clients.some((c) => c.id === client)) setClient(null);
       })
       .catch((e) => !off && setError(e.message))
@@ -125,14 +130,16 @@ export default function PriceCalculator() {
     if (!product) return;
     setLoading(true); setError(null);
     try {
-      const d = await argusFetch<Data>("price_calc", {}, { articolId: product, partnerId: client, year, month, rawPriceMode: mode });
+      const d = await argusFetch<Data>("price_calc", {}, { articolId: product, partnerId: client, storeId: store ?? client, year, month, rawPriceMode: mode });
       setData(d);
       const base = d.defaults ?? {};
+      // The store's cursă is proposed on every run unless the user picked a cursă by hand.
+      if (!routeManual) { setRoute(base.route ?? "România"); clearDistribution(); }
       if (!line || data?.product.id !== d.product.id) setLine(base.labourLine ?? "");
       if (data?.product.id !== d.product.id) {
         setPrices({}); setLosses({}); setQuantities({}); setPalletKg({});
         setAdjustedRates((p) => (p.marginPct != null ? { marginPct: p.marginPct } : {}));
-        setRoute(base.route ?? "România"); setBasis(base.supplyBasis ?? "pallet");
+        setBasis(base.supplyBasis ?? "pallet");
       }
     } catch (e) { setError((e as Error).message); setData(null); }
     finally { setLoading(false); }
@@ -192,6 +199,19 @@ export default function PriceCalculator() {
     setAdjustedRates((p) => { const n = { ...p }; for (const k of LABOUR_FIELDS) delete n[k]; return n; });
   };
 
+  const clearDistribution = () => setAdjustedRates((p) => { const n = { ...p }; for (const k of ["distributionTotal", "distributionPallets", "distributionPerPallet", "distributionTrips", "distributionPalletsPerTrip"]) delete n[k]; return n; });
+  const pickRoute = (v: string, manual = true) => { setRoute(v); setRouteManual(manual); clearDistribution(); };
+  const chooseClient = (v: number | null) => { setClient(v); setStore(v); setRouteManual(false); };
+  const chooseStore = (v: number | null) => {
+    setStore(v); setRouteManual(false);
+    const r = stores.find((x) => x.id === v)?.route;
+    if (r && data?.logistics.distribution?.[r]) pickRoute(r, false);
+  };
+  const routeOptions = useMemo(() => [
+    ...(data?.logistics.routes ?? []).map((r) => ({ value: r.route, label: `${r.route} · ${r.perPallet != null ? `${n2(r.perPallet)} lei/palet` : r.perTrip != null ? `${n2(r.perTrip)} lei/cursă, paleți necunoscuți` : "fără curse"}` })),
+    { value: "România", label: "Media curselor interne" },
+  ], [data]);
+  const storeName = stores.find((x) => x.id === store)?.name ?? data?.logistics.store?.name;
   const lastSale = data ? [...data.salesHistory].reverse().find((h) => h.price != null) ?? null : null;
   const setR = (k: string) => (v: string) => {
     setAdjustedRates((p) => {
@@ -199,7 +219,8 @@ export default function PriceCalculator() {
       // A changed total or volume recalculates its tariff unless the tariff itself is typed afterwards.
       if (k === "supplyTotal" || k === "supplyPallets") delete next.supplyPerPallet;
       if (k === "supplyTotal" || k === "supplyKg") delete next.supplyPerKg;
-      if (k === "distributionTotal" || k === "distributionPallets") delete next.distributionPerPallet;
+      if (["distributionTotal", "distributionPallets", "distributionTrips", "distributionPalletsPerTrip"].includes(k)) delete next.distributionPerPallet;
+      if (k === "distributionPallets") delete next.distributionPalletsPerTrip;
       if (["labourPeople", "labourSpeed", "labourHourCost", "labourOverheadPct"].includes(k)) { delete next.labourPerPiece; delete next.utilitiesPerPiece; }
       return next;
     });
@@ -212,8 +233,11 @@ export default function PriceCalculator() {
         <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><Calculator className="h-5 w-5" /> Calculator preț</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Picker label="Subgrupă client" options={subgroups} value={sg} onChange={(v) => { setSg(v); setClient(null); }} placeholder="Toate" allowAll="Toate subgrupele" />
-            <Picker label="Client" options={clients} value={client} onChange={setClient} placeholder="Toți clienții" allowAll="Toți clienții (fără taxe client)" />
+            <Picker label="Subgrupă client" options={subgroups} value={sg} onChange={(v) => { setSg(v); setClient(null); setStore(null); }} placeholder="Toate" allowAll="Toate subgrupele" />
+            <Picker label="Client" options={clients} value={client} onChange={chooseClient} placeholder="Toți clienții" allowAll="Toți clienții (fără taxe client)" />
+            {client != null && stores.length > 1 && (
+              <Picker label="Magazin / punct de livrare" options={stores.map((x) => ({ id: x.id, name: `${x.name}${x.route ? ` · cursa ${x.route}` : " · cursă de ales"}` }))} value={store} onChange={chooseStore} placeholder="Alege magazinul" />
+            )}
             <Picker label={`Produs finit${loadingOpts ? " · se încarcă…" : ""}`} options={products} value={product} onChange={setProduct} placeholder="Alege produsul" />
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -236,10 +260,30 @@ export default function PriceCalculator() {
               </Button>
             </div>
           </div>
-          <details open className="border-t pt-3"><summary className="cursor-pointer font-medium text-sm">Filtre și parametri de calcul</summary><div className="mt-3"><PriceParameters values={display} basis={basis} setBasis={setBasis} setValue={(k, v) => setR(k)(v)} mode={mode} setMode={setMode} route={route} setRoute={(v) => {
-            setRoute(v);
-            setAdjustedRates((p) => { const n = { ...p }; delete n.distributionTotal; delete n.distributionPallets; delete n.distributionPerPallet; return n; });
-          }} line={line} setLine={chooseLine} /></div></details>
+          <details open className="border-t pt-3"><summary className="cursor-pointer font-medium text-sm">Filtre și parametri de calcul</summary><div className="mt-3"><PriceParameters values={display} basis={basis} setBasis={setBasis} setValue={(k, v) => setR(k)(v)} mode={mode} setMode={setMode} route={route} routes={routeOptions} setRoute={(v) => pickRoute(v)} line={line} setLine={chooseLine} /></div>
+            {!!data?.logistics.routes?.length && (
+              <div className="mt-4 overflow-x-auto">
+                <p className="mb-1 text-xs font-medium">Curse distribuție din Senior · {data.logistics.closedStart} – {data.logistics.closedEnd} exclusiv · clic pe un rând ca să alegi cursa</p>
+                <table className="w-full min-w-[720px] text-xs">
+                  <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Cursă</th><th className="text-right">Curse</th><th className="text-right">Cost (lei)</th><th className="text-right">Lei/cursă</th><th className="text-right">Paleți livrați</th><th className="text-right">Paleți/cursă</th><th className="text-right">Lei/palet</th><th className="pl-3">Puncte de livrare incluse</th></tr></thead>
+                  <tbody>
+                    {data.logistics.routes.map((r) => (
+                      <tr key={r.route} onClick={() => pickRoute(r.route)} className={`cursor-pointer border-b last:border-0 hover:bg-muted/50 ${r.route === route ? "bg-muted font-medium" : ""}`}>
+                        <td className="py-1">{r.route}</td>
+                        <td className="text-right tabular-nums">{r.trips}</td>
+                        <td className="text-right tabular-nums">{n2(r.total)}</td>
+                        <td className="text-right tabular-nums">{r.unitPrice != null ? `${n2(r.unitPrice)} lei/unitate` : `${n2(r.perTrip)} (${n2(r.pmin, 0)}–${n2(r.pmax, 0)})`}</td>
+                        <td className="text-right tabular-nums">{n2(r.pallets, 1)}</td>
+                        <td className="text-right tabular-nums">{n2(r.palletsPerTrip, 1)}</td>
+                        <td className="text-right tabular-nums">{n2(r.perPallet)}</td>
+                        <td className="pl-3 text-muted-foreground">{r.points.length ? r.points.slice(0, 4).map((x) => `${x.name} (${n2(x.pallets, 1)})`).join(", ") + (r.points.length > 4 ? ` +${r.points.length - 4}` : "") : "niciun punct atribuit — completează paleți pe cursă"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </details>
           {!validPriceConfig(config) && <p className="text-sm text-destructive">Parametri invalizi: valori pozitive, pierderi și marjă sub 100%, bucăți/palet și bucăți/bax peste zero.</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
           {data && product && (
@@ -257,7 +301,7 @@ export default function PriceCalculator() {
         <>
           <div className="border-y py-3 text-xs text-muted-foreground space-y-1">
             <p>Materii prime: {mode === "annual" ? "media anuală ponderată" : "media ponderată ultimele 7 zile"}, până la {data.period.endDay} exclusiv. Ambalaje: ultima intrare NIR.</p>
-            <p>Aprovizionare: {data.logistics.closedStart} – {data.logistics.closedEnd} exclusiv, cont 624.01 ÷ paleți NIR și ÷ kg materii prime NIR; ambele variante apar pe rând. Distribuție: {route}. Manoperă: tabel octombrie 2026 (directă + regie fabrică 41%).</p>
+            <p>Aprovizionare: {data.logistics.closedStart} – {data.logistics.closedEnd} exclusiv, cont 624.01 ÷ paleți NIR și ÷ kg materii prime NIR; ambele variante apar pe rând. Distribuție: cursa {route}{storeName ? ` (${storeName}${data.logistics.suggestedRoute && data.logistics.suggestedRoute === route && !routeManual ? ", propusă după oraș/județ" : ""})` : ""}. Manoperă: tabel octombrie 2026 (directă + regie fabrică 41%).</p>
             <p>{data.logistics.note}</p>
             {data.warnings?.map((w) => <p key={w} className="text-destructive">{w}</p>)}
           </div>

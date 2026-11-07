@@ -34,4 +34,36 @@ describe('audited Senior calculator sources', () => {
     const cfg = prefilledConfig(data,{supplyTotal:2000});
     expect(cfg.supplyPerPallet).toBe(200);
   });
+});import { deliveryRoute, buildRoutes, routeKey } from '../../supabase/functions/_shared/priceSourceRules';
+import { validPriceConfig } from '../../supabase/functions/_shared/priceConfig';
+describe('distribution per Senior cursă', () => {
+  test('stores propose their cursă from the store suffix, then the county', () => {
+    expect(deliveryRoute({ name: 'MEGA IMAGE SRL - BOLINTIN DEAL', judet: 'Giurgiu', country: 'România' })).toBe('BUCURESTI');
+    expect(deliveryRoute({ name: 'MEGA IMAGE SRL - ROMAN', judet: 'Neamt' })).toBe('ROMAN');
+    expect(deliveryRoute({ name: 'LIDL DISCOUNT SRL - LUGOJ', judet: 'Timis' })).toBe('LUGOJ');
+    expect(deliveryRoute({ name: 'LIDL DISCOUNT SRL - IERNUT', judet: 'Mures' })).toBe('TURDA-IERNUT');
+    expect(deliveryRoute({ name: 'SELGROS CASH & CARRY SRL - BUCURESTI 1410059', judet: 'Brasov' })).toBe('BUCURESTI');
+    expect(deliveryRoute({ name: 'AUCHAN ROMÂNIA SA - AUCHAN WAREHOUSE CAMPUS 5299', judet: 'Ilfov' })).toBe('BUCURESTI');
+    expect(deliveryRoute({ name: 'VALENCIA TRADING OFFICE', judet: 'MUSATCHEVO', country: 'Bulgaria' })).toBe('BULGARIA');
+    expect(deliveryRoute({ name: 'HONEST FOOD SRL', judet: 'Bihor' })).toBeNull();
+  });
+  test('cursă tariff = carrier trips of the cursă ÷ pallets delivered to its stores', () => {
+    expect(routeKey('TRANSPORT DIST BUCURESTI')).toBe('BUCURESTI');
+    const { routes, unassigned } = buildRoutes(
+      [{ pid: 2954, name: 'MEGA IMAGE SRL - BOLINTIN DEAL', judet: 'Giurgiu', pallets: 60, missing: 0 }, { pid: 1234, name: 'MEGA IMAGE SRL  - STEFANESTI', judet: 'Ilfov', pallets: 40, missing: 0 }, { pid: 9, name: 'HONEST FOOD SRL', judet: 'Bihor', pallets: 5, missing: 0 }],
+      [{ line: 'TRANSPORT DIST BUCURESTI', trips: 10, qty: 10, total: 30000, pmin: 700, pmax: 5800 }, { line: 'TRANSPORT DIST HORECA', trips: 1, qty: 4729, total: 22320.88, pmin: 4.72, pmax: 4.72 }],
+    );
+    const b = routes.find((r) => r.route === 'BUCURESTI')!;
+    expect(b.perPallet).toBe(300);
+    expect(b.perTrip).toBe(3000);
+    expect(b.palletsPerTrip).toBe(10);
+    expect(routes.find((r) => r.route === 'HORECA')!.unitPrice).toBeCloseTo(4.72, 2);
+    expect(unassigned.map((p) => p.name)).toEqual(['HONEST FOOD SRL']);
+  });
+  test('typed pallets per trip divide the average trip cost', () => {
+    const data = { product: { unitsPerCase: 4 }, components: [], defaults: { route: 'BUCURESTI', distributionTotal: 30000, distributionTrips: 10, distributionPallets: 100, distributionPerPallet: 300 } };
+    expect(prefilledConfig(data, { route: 'BUCURESTI', distributionPalletsPerTrip: 6 }).distributionPerPallet).toBe(500);
+    expect(validPriceConfig({ route: 'TURDA-IERNUT' })).toEqual({ route: 'TURDA-IERNUT' });
+    expect(validPriceConfig({ route: "x'; DROP" })).toBeNull();
+  });
 });

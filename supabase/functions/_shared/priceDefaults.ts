@@ -25,6 +25,7 @@ export function suggestedLabour(name: string, components: SheetComponent[]) {
   return null;
 }
 
+const DIST_KEYS = ["distributionTotal", "distributionPallets", "distributionPerPallet", "distributionTrips", "distributionPalletsPerTrip"] as const;
 const LABOUR_KEYS = ["labourPeople", "labourSpeed", "labourHourCost", "labourOverheadPct"] as const;
 
 export function prefilledConfig(d: { product: { unitsPerCase: number }; components: SheetComponent[]; defaults?: PriceConfig; logistics?: { distribution?: Record<string, PriceConfig | null> } }, user: PriceConfig = {}): PriceConfig {
@@ -40,8 +41,8 @@ export function prefilledConfig(d: { product: { unitsPerCase: number }; componen
   const lineInputs = labourDefaults(line) as Partial<Record<(typeof LABOUR_KEYS)[number], number>>;
   for (const k of LABOUR_KEYS) if (merged[k] == null && lineInputs[k] != null) merged[k] = lineInputs[k];
   if (user.route && user.route !== base.route) {
-    for (const k of ["distributionTotal", "distributionPallets", "distributionPerPallet"] as const) if (user[k] == null) delete merged[k];
-    for (const k of ["distributionTotal", "distributionPallets", "distributionPerPallet"] as const) {
+    for (const k of DIST_KEYS) if (user[k] == null) delete merged[k];
+    for (const k of DIST_KEYS) {
       const value = user[k] ?? d.logistics?.distribution?.[user.route]?.[k];
       if (value != null) merged[k] = value;
     }
@@ -49,7 +50,14 @@ export function prefilledConfig(d: { product: { unitsPerCase: number }; componen
   // Derived tariffs follow their total and volume unless the user typed the tariff itself.
   if (user.supplyPerPallet == null && merged.supplyTotal != null && (merged.supplyPallets ?? 0) > 0) merged.supplyPerPallet = merged.supplyTotal / merged.supplyPallets!;
   if (user.rates?.supplyPerKg == null && merged.supplyTotal != null && (merged.supplyKg ?? 0) > 0) merged.rates = { ...merged.rates, supplyPerKg: merged.supplyTotal / merged.supplyKg! };
-  if (user.distributionPerPallet == null && merged.distributionTotal != null && (merged.distributionPallets ?? 0) > 0) merged.distributionPerPallet = merged.distributionTotal / merged.distributionPallets!;
+  if (user.distributionPerPallet == null) {
+    // Typed pallets per trip: average trip cost of the cursă ÷ pallets loaded per trip.
+    if (user.distributionPalletsPerTrip != null && merged.distributionTotal != null && (merged.distributionTrips ?? 0) > 0) merged.distributionPerPallet = merged.distributionTotal / merged.distributionTrips! / user.distributionPalletsPerTrip;
+    else if (merged.distributionTotal != null && (merged.distributionPallets ?? 0) > 0) {
+      merged.distributionPerPallet = merged.distributionTotal / merged.distributionPallets!;
+      if ((merged.distributionTrips ?? 0) > 0 && user.distributionPallets != null) merged.distributionPalletsPerTrip = merged.distributionPallets! / merged.distributionTrips!;
+    }
+  }
   for (const [id, values] of Object.entries(user.components ?? {})) merged.components = { ...merged.components, [id]: { ...merged.components?.[id], ...values } };
   return merged;
 }

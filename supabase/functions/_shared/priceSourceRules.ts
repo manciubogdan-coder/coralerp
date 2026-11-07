@@ -1,12 +1,44 @@
 /** Audited Senior custom packaging relation: Coef for selling-unit 28 is pieces/pallet,
  * regardless of UM_ID_Corespondent (which is PALET on the audited article). */
 export const PALLET_RELATION = `SELECT Articol_ID,MIN(CAST(Coef AS float)) coef FROM dbo.D_Articole_UM_Relatii WITH (NOLOCK) WHERE Articol_UM_Vanzare_ID=28 AND Coef>0 GROUP BY Articol_ID HAVING MIN(Coef)=MAX(Coef)`;
+/** Legacy country aggregate of a journal subject / carrier line. */
 export function transportRoute(subject: string): string | null {
   const s = subject.trim().toUpperCase();
   if (s === 'TRANSPORT DIST BULGARIA') return 'Bulgaria';
   if (s === 'TRANSPORT DIST MOLDOVA ICS') return 'Moldova';
   if (/^TRANSPORT DIST (BUCURESTI|CRAIOVA|FOCSANI|HORECA|LUGOJ|PLOIESTI|ROMAN|TIMISOARA|TURDA|TURDA-IERNUT)$/.test(s)) return 'România';
   return null;
+}
+/** Senior carrier invoices (FF on 624.02/624.06) name each trip "TRANSPORT DIST <CURSĂ>"; the cursă is the route key. */
+export function routeKey(line: string): string | null {
+  const m = line.trim().toUpperCase().match(/^TRANSPORT DIST\s+(.+)$/);
+  return m ? m[1].replace(/\s+/g, ' ').trim() : null;
+}
+export const LEGACY_ROUTES = ['România', 'Bulgaria', 'Moldova'] as const;
+export function routeCountry(key: string): string {
+  if (key === 'BULGARIA') return 'Bulgaria';
+  if (key.startsWith('MOLDOVA')) return 'Moldova';
+  return 'România';
+}
+const plain = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+const CITY_ROUTES: Array<[RegExp, string]> = [
+  [/\bIERNUT\b/, 'TURDA-IERNUT'], [/\bTURDA\b/, 'TURDA'], [/\bLUGOJ\b/, 'LUGOJ'], [/\bROMAN\b/, 'ROMAN'], [/\bCRAIOVA\b/, 'CRAIOVA'],
+  [/\bTIMISOARA\b/, 'TIMISOARA'], [/\bPLOIESTI\b/, 'PLOIESTI'], [/\bFOCSANI\b/, 'FOCSANI'], [/\bBUCURESTI\b/, 'BUCURESTI'],
+];
+const COUNTY_ROUTES: Record<string, string> = {
+  BUCURESTI: 'BUCURESTI', ILFOV: 'BUCURESTI', GIURGIU: 'BUCURESTI', PRAHOVA: 'PLOIESTI', NEAMT: 'ROMAN', MURES: 'TURDA-IERNUT',
+  CLUJ: 'TURDA', TIMIS: 'TIMISOARA', DOLJ: 'CRAIOVA', VRANCEA: 'FOCSANI',
+};
+/** Route proposed for a delivery point: country, then the store suffix after " - " (e.g. "MEGA IMAGE SRL - ROMAN"), then county.
+ * A proposal only: Senior carrier invoices are not linked to individual deliveries. */
+export function deliveryRoute(p: { name?: unknown; judet?: unknown; country?: unknown }): string | null {
+  const country = plain(p.country), name = plain(p.name), county = plain(p.judet);
+  if (country.includes('BULG')) return 'BULGARIA';
+  if (country.includes('MOLD') || county.includes('CHISINAU')) return 'MOLDOVA ICS';
+  if (country && !country.includes('ROM')) return null;
+  const suffix = name.includes(' - ') ? name.slice(name.indexOf(' - ') + 3) : '';
+  for (const [re, route] of CITY_ROUTES) if (re.test(suffix)) return route;
+  return COUNTY_ROUTES[county] ?? null;
 }
 export function historicalFeePct(discounts: number, sales: number): number | null {
   return sales > 0 && discounts >= 0 && discounts < sales ? discounts / sales * 100 : null;
@@ -16,4 +48,42 @@ export function configuredRawPalletKg(name: string): number | undefined {
   if (/iceberg|pan di|indivi|scarola/i.test(name)) return 400;
   if (/spanac|rucola|valerian|latuga|salat|baby|mizuna|tsatsoi|blood|busuioc|marar|patrunjel|menta|cimbru|coriandru|rozmarin|oregano|tarhon|chivas/i.test(name)) return 220;
   return undefined;
+}
+
+export type RoutePoint = { pid: number; name: string; pallets: number; missing: number; route: string | null };
+export type RouteStat = {
+  route: string; country: string; trips: number; total: number; qty: number; pmin: number; pmax: number;
+  pallets: number; missingLines: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null;
+  /** Carrier billed per unit (e.g. HORECA 4.72 lei × units), not per trip. */
+  unitPrice: number | null; points: Array<{ name: string; pallets: number }>;
+};
+/** Route tariffs: carrier trips of the cursă ÷ pallets invoiced to the delivery points mapped to it. */
+export function buildRoutes(pointRows: any[], tripRows: any[]) {
+  const n = (v: unknown) => Number(v) || 0;
+  const points: RoutePoint[] = pointRows.map((r) => ({ pid: n(r.pid), name: String(r.name ?? '').trim(), pallets: n(r.pallets), missing: n(r.missing), route: deliveryRoute(r) }));
+  const routes = new Map<string, RouteStat>();
+  for (const t of tripRows) {
+    const key = routeKey(String(t.line ?? ''));
+    if (!key) continue;
+    const r = routes.get(key) ?? { route: key, country: routeCountry(key), trips: 0, total: 0, qty: 0, pmin: Infinity, pmax: 0, pallets: 0, missingLines: 0, perPallet: null, perTrip: null, palletsPerTrip: null, unitPrice: null, points: [] };
+    r.trips += n(t.trips); r.total += n(t.total); r.qty += n(t.qty); r.pmin = Math.min(r.pmin, n(t.pmin)); r.pmax = Math.max(r.pmax, n(t.pmax));
+    routes.set(key, r);
+  }
+  const unassigned: RoutePoint[] = [];
+  for (const p of points) {
+    const r = p.route ? routes.get(p.route) : undefined;
+    if (!r) { if (p.pallets > 0) unassigned.push(p); continue; }
+    r.pallets += p.pallets; r.missingLines += p.missing;
+    if (p.pallets > 0) r.points.push({ name: p.name, pallets: p.pallets });
+  }
+  for (const r of routes.values()) {
+    if (!Number.isFinite(r.pmin)) r.pmin = 0;
+    r.points.sort((a, b) => b.pallets - a.pallets);
+    r.perTrip = r.trips > 0 ? r.total / r.trips : null;
+    r.perPallet = r.pallets > 0 ? r.total / r.pallets : null;
+    r.palletsPerTrip = r.pallets > 0 && r.trips > 0 ? r.pallets / r.trips : null;
+    r.unitPrice = r.qty > r.trips * 1.5 && r.qty > 0 ? r.total / r.qty : null;
+  }
+  const list = [...routes.values()].sort((a, b) => b.total - a.total);
+  return { routes: list, points, unassigned: unassigned.sort((a, b) => b.pallets - a.pallets) };
 }

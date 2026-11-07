@@ -2,7 +2,7 @@
 import { priceDates, suggestedLabour } from "./priceDefaults.ts";
 import { type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
-import { transportRoute, historicalFeePct, configuredRawPalletKg } from "./priceSourceRules.ts";
+import { transportRoute, historicalFeePct, configuredRawPalletKg, buildRoutes, deliveryRoute, LEGACY_ROUTES } from "./priceSourceRules.ts";
 import { seniorLive } from "./senior.ts";
 export { matchLoss } from "./priceSheet.ts";
 import { componentKind, isServiceComponent, matchLoss, ratePer, ratePeriod, type SheetComponent } from "./priceSheet.ts";
@@ -42,8 +42,14 @@ export async function priceOptions(sb: Rpc, body: { subgroupId?: unknown; partne
       WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${since}' ${pid ? `AND pp.Partener_ID=${pid}` : ""}
       AND EXISTS (SELECT 1 FROM dbo.DArticoleCompuseHVersiuni v WITH (NOLOCK) WHERE v.ArticolId=d.Articol_ID AND v.IsActiv=1)
       GROUP BY d.Articol_ID ORDER BY MAX(d.Denumire)`);
-  const [subgroups, clients, products] = await Promise.all([subgroupsQ, clientsQ, productsQ]);
+  // Delivery points (stores) of the same central partner; each one proposes its Senior cursă.
+  const storesQ = pid ? SQL(sb, `SELECT TOP 300 pp.Partener_ID id, MAX(pp.Partener_Denumire) name, MAX(pp.Document_Judet) judet, MAX(pp.Document_Tara) country FROM dbo.C_H_Note_Contabile h WITH (NOLOCK)
+      JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID AND pp.TipPartener=1
+      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${since}' AND (pp.Partener_ID=${pid} OR pp.Partener_Central=(SELECT TOP 1 x.Partener_Central FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.Partener_ID=${pid} AND NULLIF(x.Partener_Central,'') IS NOT NULL ORDER BY x.H_ID DESC))
+      GROUP BY pp.Partener_ID ORDER BY MAX(pp.Partener_Denumire)`) : Promise.resolve([]);
+  const [subgroups, clients, products, stores] = await Promise.all([subgroupsQ, clientsQ, productsQ, storesQ]);
   return {
+    stores: stores.map((r: any) => ({ id: r.id, name: String(r.name).trim(), route: deliveryRoute(r) })),
     subgroups: subgroups.map((r: any) => ({ id: r.id, name: String(r.name).trim(), n: r.n })),
     clients: clients.map((r: any) => ({ id: r.id, name: String(r.name).trim() })),
     products: products.map((r: any) => ({ id: r.id, name: String(r.name).trim(), qty: num(r.qty) })),
@@ -65,8 +71,8 @@ export async function findPartners(sb: Rpc, name: string) {
   return SQL(sb, `SELECT TOP 10 p.Partener_ID id, p.Denumire name FROM dbo.D_Parteneri p WITH (NOLOCK) WHERE p.IsClient=1 AND ${like} ORDER BY p.Denumire`);
 }
 
-export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: unknown; partnerId?: unknown; year?: unknown; month?: unknown; rawPriceMode?: unknown }) {
-  const aid = int(body.articolId), pid = int(body.partnerId);
+export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: unknown; partnerId?: unknown; storeId?: unknown; year?: unknown; month?: unknown; rawPriceMode?: unknown }) {
+  const aid = int(body.articolId), pid = int(body.partnerId), storeId = int(body.storeId) ?? pid;
   const year = Number(body.year), month = Number(body.month);
   if (!aid) throw new Error("Alege produsul finit.");
   if (!(year > 2015 && year < 2100 && month >= 1 && month <= 12)) throw new Error("Lună invalidă.");
@@ -212,16 +218,30 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
   const pieceConversions = logisticsRead?.conversion ?? [];
   if (pieceConversions.length === 1 && num(pieceConversions[0].coef) > 0) cfg.piecesPerPallet = num(pieceConversions[0].coef);
   const distribution: Record<string, PriceConfig> = {};
-  for (const route of ["România", "Bulgaria", "Moldova"]) {
-    const costRows = logisticsRead?.costs.filter((r: any) => ['624.02','624.06'].includes(r.cont) && transportRoute(String(r.subject)) === route) ?? [];
-    const palletRows = logisticsRead?.pallets.filter((r: any) => r.route === route) ?? [];
-    const total = costRows.reduce((s: number, r: any) => s + num(r.total), 0);
-    const pallets = palletRows.reduce((s: number, r: any) => s + num(r.pallets), 0);
-    if (costRows.length && pallets > 0) distribution[route] = { distributionTotal: total, distributionPallets: pallets, distributionPerPallet: total / pallets };
-    const missing = palletRows.reduce((s: number, r: any) => s + num(r.missing), 0);
-    if (missing) warnings.push(`Distribuție ${route}: ${missing} linii de produse fără coeficient Senior; tariful precompletat este pe paleții calculabili, nu validare integrală a livrărilor.`);
+  const routeData = buildRoutes(logisticsRead?.points ?? [], logisticsRead?.trips ?? []);
+  for (const r of routeData.routes) {
+    distribution[r.route] = { distributionTotal: r.total, distributionTrips: r.trips, ...(r.pallets > 0 ? { distributionPallets: r.pallets, distributionPerPallet: r.total / r.pallets, distributionPalletsPerTrip: r.pallets / r.trips } : {}) };
+    if (r.missingLines) warnings.push(`Cursa ${r.route}: ${r.missingLines} linii de produse fără coeficient bucăți/palet în Senior; paleții cursei sunt subevaluați, deci tariful pe palet e supraevaluat.`);
+    if (r.unitPrice != null) warnings.push(`Cursa ${r.route}: transportatorul facturează ${r.unitPrice.toFixed(2)} lei × ${Math.round(r.qty)} unități, nu pe cursă.`);
   }
-  Object.assign(cfg, distribution[cfg.route ?? 'România'] ?? {});
+  // Country averages kept for previously saved sheets: only cursă with known pallets.
+  for (const country of LEGACY_ROUTES) {
+    const rs = routeData.routes.filter((r) => r.country === country && r.pallets > 0);
+    const total = rs.reduce((s, r) => s + r.total, 0), pallets = rs.reduce((s, r) => s + r.pallets, 0), trips = rs.reduce((s, r) => s + r.trips, 0);
+    if (pallets > 0) distribution[country] = { distributionTotal: total, distributionPallets: pallets, distributionPerPallet: total / pallets, distributionTrips: trips, distributionPalletsPerTrip: pallets / trips };
+  }
+  const unassignedPallets = routeData.unassigned.reduce((s, p) => s + p.pallets, 0);
+  if (unassignedPallets > 0) warnings.push(`${unassignedPallets.toFixed(1)} paleți livrați către puncte fără cursă identificată (ex. ${routeData.unassigned.slice(0, 3).map((p) => p.name).join(", ")}) nu intră în niciun tarif pe cursă.`);
+  // The selected store proposes its cursă; otherwise the domestic average.
+  let point = routeData.points.find((p) => p.pid === storeId) ?? null;
+  if (!point && storeId) {
+    const r = await SQL(sb, `SELECT TOP 1 Partener_Denumire name, Document_Judet judet, Document_Tara country FROM dbo.C_H_Note_Contabile_Parteneri WITH (NOLOCK) WHERE Partener_ID=${storeId} AND TipPartener=1 ORDER BY H_ID DESC`);
+    if (r[0]) point = { pid: storeId, name: String(r[0].name ?? "").trim(), pallets: 0, missing: 0, route: deliveryRoute(r[0]) };
+  }
+  const suggestedRoute = point?.route && distribution[point.route] ? point.route : null;
+  cfg.route = suggestedRoute ?? "România";
+  if (point && !suggestedRoute) warnings.push(`Nu am putut propune cursa pentru ${point.name}; alege cursa manual (implicit media curselor interne).`);
+  Object.assign(cfg, distribution[cfg.route] ?? {});
   for (const c of components) {
     // Recipe inputs remain live, only confirmed defaults are included here.
     if (c.kind === "mp") {
@@ -235,7 +255,7 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
     product: { id: art[0].id, name: String(art[0].name).trim(), code: art[0].code, unitsPerCase },
     period: pricesPeriod,
     accountingPeriod: P, defaults: cfg, warnings, suggestedLabourSource: suggested ? "Propunere după produs/compoziție; tarif din CSV octombrie 2026" : "Linie neidentificată",
-    logistics: { closedStart, closedEnd: P.endDay, supplyTotal, supplyPallets, supplyKg, distribution, piecesPerPallet: cfg.piecesPerPallet ?? null, note: "Distribuție: cheltuieli pe destinații din jurnal / paleți facturați după formula Senior Cantitate/Coef, net de retururi. Verificați avertismentele de acoperire înainte de utilizarea comercială." },
+    logistics: { closedStart, closedEnd: P.endDay, supplyTotal, supplyPallets, supplyKg, distribution, routes: routeData.routes, store: point ? { id: point.pid, name: point.name, route: point.route } : null, suggestedRoute, piecesPerPallet: cfg.piecesPerPallet ?? null, note: "Distribuție pe cursă: curse facturate de transportatori „TRANSPORT DIST <cursă>” în luna închisă ÷ paleți facturați (Cantitate/Coef Senior) către punctele de livrare ale cursei. Punctele sunt atribuite cursei după oraș/județ; facturile transportatorilor nu indică livrarea exactă." },
     components,
     rates: {
       labourPerPiece: { value: rate(lab.total, pieces), total: lab.total, volume: pieces, unit: "buc vândute", accounts: lab.accounts },

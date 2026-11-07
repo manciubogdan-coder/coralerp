@@ -40,6 +40,8 @@ export function lineLabour(cfg: PriceConfig): { direct: number; overhead: number
   return { direct, overhead: (direct * pct) / 100, detail: `${people} oameni × ${Math.round(hour * 100) / 100} lei/oră ÷ ${speed} buc/oră + regie ${pct}%` };
 }
 export const ROUTES = ["România", "Bulgaria", "Moldova"] as const;
+/** Cursă names seen on Senior carrier invoices (Oct 2026); the calculator lists the month's actual ones. */
+export const SENIOR_ROUTES = ["BUCURESTI", "PLOIESTI", "ROMAN", "TURDA", "TURDA-IERNUT", "LUGOJ", "TIMISOARA", "CRAIOVA", "FOCSANI", "HORECA", "BULGARIA", "MOLDOVA ICS"] as const;
 export type PriceConfig = {
   year?: number;
   month?: number;
@@ -54,6 +56,8 @@ export type PriceConfig = {
   supplyPallets?: number;
   distributionTotal?: number;
   distributionPallets?: number;
+  distributionTrips?: number;
+  distributionPalletsPerTrip?: number;
   feePct?: number;
   supplyKg?: number;
   supplyBasis?: "pallet" | "kg";
@@ -65,7 +69,7 @@ export type PriceConfig = {
   components?: Record<string, { price?: number; qty?: number; lossPct?: number; kgPerPallet?: number }>;
 };
 export const RATE_KEYS = ["labourPerPiece", "utilitiesPerPiece", "supplyPerKg", "distributionPerPiece", "clientFeePerPiece", "eurRate", "eurBufferPct", "techLossPct", "marginPct"] as const;
-export const CONFIG_NUMBERS = ["unitsPerCase", "piecesPerPallet", "supplyPerPallet", "distributionPerPallet", "supplyTotal", "supplyPallets", "distributionTotal", "distributionPallets", "feePct", "supplyKg", "labourPeople", "labourSpeed", "labourHourCost", "labourOverheadPct"] as const;
+export const CONFIG_NUMBERS = ["unitsPerCase", "piecesPerPallet", "supplyPerPallet", "distributionPerPallet", "supplyTotal", "supplyPallets", "distributionTotal", "distributionPallets", "distributionTrips", "distributionPalletsPerTrip", "feePct", "supplyKg", "labourPeople", "labourSpeed", "labourHourCost", "labourOverheadPct"] as const;
 
 export function validPriceConfig(raw: unknown): PriceConfig | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -82,7 +86,8 @@ export function validPriceConfig(raw: unknown): PriceConfig | null {
     out.supplyBasis = r.supplyBasis;
   }
   if (r.route != null) {
-    if (!(ROUTES as readonly string[]).includes(r.route)) return null;
+    // Country averages (legacy) or a Senior cursă key such as "BUCURESTI" / "TURDA-IERNUT".
+    if (typeof r.route !== "string" || !(ROUTES as readonly string[]).includes(r.route) && !/^[A-Z0-9][A-Z0-9 .\-]{0,59}$/.test(r.route)) return null;
     out.route = r.route;
   }
   if (r.labourLine != null) {
@@ -90,7 +95,7 @@ export function validPriceConfig(raw: unknown): PriceConfig | null {
     out.labourLine = r.labourLine;
   }
   for (const k of CONFIG_NUMBERS) if (r[k] != null) {
-    if (!numeric(r[k]) || (k === "feePct" && r[k] >= 100) || (["unitsPerCase", "piecesPerPallet", "labourPeople", "labourSpeed"].includes(k) && r[k] === 0) || (k === "labourOverheadPct" && r[k] >= 1000)) return null;
+    if (!numeric(r[k]) || (k === "feePct" && r[k] >= 100) || (["unitsPerCase", "piecesPerPallet", "labourPeople", "labourSpeed", "distributionPalletsPerTrip"].includes(k) && r[k] === 0) || (k === "labourOverheadPct" && r[k] >= 1000)) return null;
     out[k] = r[k];
   }
   if (r.rates != null) {
@@ -140,7 +145,7 @@ export function configuredSheet(d: { product: { unitsPerCase: number }; componen
   const basis = cfg.supplyBasis ?? (cfg.supplyPerPallet != null ? "pallet" : "kg");
   if (basis === "pallet" && cfg.supplyPerPallet == null) sheet.missingInputs.push("Cost aprovizionare/palet (total luna închisă ÷ paleți NIR)");
   if (basis === "kg" && !(cfg.rates?.supplyPerKg != null && cfg.rates.supplyPerKg > 0)) sheet.missingInputs.push("Cost aprovizionare/kg (total luna închisă ÷ kg NIR)");
-  if (cfg.distributionPerPallet == null && !(cfg.distributionTotal != null && (cfg.distributionPallets ?? 0) > 0)) sheet.missingInputs.push(`Cost distribuție/palet · ${cfg.route ?? "rută nealeasă"}`);
+  if (cfg.distributionPerPallet == null && !(cfg.distributionTotal != null && (cfg.distributionPallets ?? 0) > 0)) sheet.missingInputs.push(`Cost distribuție/palet · cursa ${cfg.route ?? "nealeasă"} (completează paleți pe cursă sau tariful)`);
   for (const c of components) if (c.lossSource?.startsWith("PT nesetat") && cfg.components?.[String(c.id)]?.lossPct == null) sheet.missingInputs.push(`PT ${c.name}`);
   if (cfg.feePct == null && cfg.rates?.clientFeePerPiece == null) sheet.missingInputs.push("Taxe rețea (confirmați 0 dacă nu există)");
   sheet.complete = !sheet.missingInputs.length && !sheet.missingPrices.length;
