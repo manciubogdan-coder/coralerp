@@ -160,9 +160,12 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
         SUM(CASE WHEN d.Cantitate>0 AND d.Denumire LIKE 'TRANSPORT%' THEN 1 ELSE 0 END) loadTrucks
       FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID
       WHERE ${notCancelled} AND h.Data>='${load.start}' AND h.Data<'${win.end}' AND ${supplyLine} AND ${supplyIn}`),
-    SQL(sb, `SELECT TOP 5 CONVERT(char(10), h.Data, 120) day, CAST(d.Pret_Final_ROL AS float) price, UPPER(LTRIM(RTRIM(d.Denumire))) line
+    SQL(sb, `SELECT TOP 300 CONVERT(char(10), h.Data, 120) day, CAST(d.Pret_Final_ROL AS float) price, UPPER(LTRIM(RTRIM(d.Denumire))) line,
+        CAST(d.Cantitate AS float) qty, CAST(d.Valoare_Neta_Rol AS float) value,
+        (SELECT TOP 1 x.Partener_Denumire FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.H_ID=h.H_ID) supplier,
+        CASE WHEN d.Cantitate>0 AND d.Denumire LIKE 'TRANSPORT%' THEN 1 ELSE 0 END truck
       FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID
-      WHERE ${notCancelled} AND h.Data>='${win.start}' AND h.Data<'${win.end}' AND d.Cantitate>0 AND d.Denumire LIKE 'TRANSPORT%' AND ${supplyLine} AND ${supplyIn}
+      WHERE ${notCancelled} AND h.Data>='${win.start}' AND h.Data<'${win.end}' AND ${supplyLine} AND ${supplyIn}
       ORDER BY h.Data DESC, h.H_ID DESC`),
     SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) pallets FROM ${docs} WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${load.start}' AND h.Data<'${load.end}' AND d.Denumire LIKE 'PALET%'`),
     SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) kg FROM ${docs} JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UM_ID WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${load.start}' AND h.Data<'${load.end}' AND um.Cod='KG' AND ${notPackaging}`),
@@ -359,7 +362,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     stores,
     logistics: {
       closedStart: win.start, closedEnd: win.end, window: win, loadWindow: load,
-      supply: { total: total30, trucks: trucks30, costPerTruck, loadTrucks, pallets: pallets90, kg: kg90, palletsPerTruck, kgPerTruck }, lastTrucks: lastTrucks.map((r: any) => ({ day: String(r.day), price: num(r.price), line: String(r.line) })),
+      supply: { total: total30, trucks: trucks30, costPerTruck, loadTrucks, pallets: pallets90, kg: kg90, palletsPerTruck, kgPerTruck }, lastTrucks: lastTrucks.map((r: any) => ({ day: String(r.day), price: num(r.price), line: String(r.line), qty: num(r.qty), value: num(r.value), supplier: String(r.supplier ?? ""), truck: num(r.truck) === 1 })),
       distribution, routes: routeData.routes, clientAverage: avg, unassigned, piecesPerPallet: routeData.piecesPerPallet,
       store: point ? { id: point.pid, name: point.name, route: point.route } : null, suggestedRoute,
       note: `Ultimele prețuri: cost mediu pe camion/cursă din facturile datate ${win.start} – ${win.end} (exclusiv); încărcarea (paleți pe camion/cursă) din ${load.start} – ${load.end}, ca să nu depindă de zilele în care se introduc NIR-urile sau facturile. Distribuție: curse „TRANSPORT DIST <cursă>”; paleți = Cantitate/Coef Senior facturați către punctele de livrare ale cursei. Punctele sunt atribuite cursei după oraș/județ; facturile transportatorilor nu indică livrarea exactă.`,

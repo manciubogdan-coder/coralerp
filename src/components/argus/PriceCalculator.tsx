@@ -22,11 +22,11 @@ type Opt = { id: number; name: string };
 type Client = Opt & { stores: number };
 type Product = Opt & { qty: number };
 type Store = Opt & { route: string | null };
-type RouteStat = { route: string; country: string; trips: number; total: number; pallets: number; estimatedPallets?: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; points: Array<{ name: string; pallets: number }> };
+type RouteStat = { route: string; country: string; trips: number; total: number; pallets: number; estimatedPallets?: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; points: Array<{ name: string; pallets: number }>; pool?: { routes: string[]; total: number; pallets: number; trips: number } };
 type CountyGap = { county: string; judet: string; pallets: number; points: number; names: string[] };
 type Logistics = {
   supply: { total: number; trucks: number; costPerTruck: number | null; loadTrucks: number; pallets: number; kg: number; palletsPerTruck: number | null; kgPerTruck: number | null };
-  loadWindow: { start: string; end: string }; lastTrucks: Array<{ day: string; price: number; line: string }>;
+  loadWindow: { start: string; end: string }; lastTrucks: Array<{ day: string; price: number; line: string; qty?: number; value?: number; supplier?: string; truck?: boolean }>;
   closedStart: string; closedEnd: string; note: string; distribution?: Record<string, PriceConfig | null>; routes?: RouteStat[];
   clientAverage: { perPallet: number; pallets: number; weighted: boolean; stores: number } | null;
   unassigned?: CountyGap[];
@@ -511,6 +511,18 @@ export default function PriceCalculator() {
                     <td className="py-1.5">
                       <div className={`font-medium ${x.priceSafety?.suspect ? 'text-crm-warning' : ''}`}>{x.name}{x.priceSafety?.suspect ? ' · NIR suspect' : ''}</div>
                       <div className="text-[11px] text-muted-foreground">{x.kind === "mp" ? "Materie primă" : "Ambalaj"} · {[x.priceSource, x.lossSource, x.palletSource].filter(Boolean).join(" · ")}</div>
+                      {x.kind === "mp" && <div className="text-[11px] tabular-nums">Medie anuală <b>{x.annualPrice != null ? n2(x.annualPrice, 4) : "—"}</b> · ultimă săptămână <b>{x.weekPrice != null ? n2(x.weekPrice, 4) : "—"}</b> · ultima intrare <b>{x.lastPrice != null ? n2(x.lastPrice, 4) : "—"}</b> lei/{x.unit}</div>}
+                      <details className="text-[11px]">
+                        <summary className="cursor-pointer text-primary">Cum s-a calculat</summary>
+                        <div className="mt-1 space-y-0.5 rounded bg-muted/40 p-2">
+                          <div>1. Cantitate din rețeta Senior: {n2(x.qty, 4)} {x.unit} pe bax.</div>
+                          <div>2. Cu pierdere ({n2(x.lossPct, 2)}%): {x.kind === "mp" ? `${n2(x.qty, 4)} ÷ (1 − ${n2(x.lossPct, 2)}%)` : `${n2(x.qty, 4)} × (1 + ${n2(x.lossPct, 2)}%)`} = <b>{n2(eff, 4)} {x.unit}</b>.</div>
+                          <div>3. Preț folosit: {x.price != null ? n2(x.price, 4) : "lipsă"} lei/{x.unit} ({x.kind === "mp" ? (mode === "week" ? "media ultimei săptămâni" : "media anuală ponderată NIR") : "ultima intrare NIR"}) → {n2(eff, 4)} × {x.price != null ? n2(x.price, 4) : "?"} = <b>{x.price != null ? n2(eff * x.price, 4) : "—"} lei/bax</b>.</div>
+                          {x.kind === "mp" && x.kgPerPallet ? <div>4. Paleți materie primă: {n2(eff, 4)} kg ÷ {n2(x.kgPerPallet, 0)} kg/palet = {n2(eff / x.kgPerPallet, 5)} paleți/bax (folosit la transportul de aprovizionare).</div> : null}
+                          {l?.detail && <div>Detaliu calcul: {l.detail}</div>}
+                          <div>Total rând: <b>{n2(l?.value ?? 0, 4)} lei/bax</b> ÷ {n} buc = {n2((l?.value ?? 0) / n, 4)} lei/buc. Toate câmpurile din dreapta se pot modifica.</div>
+                        </div>
+                      </details>
                     </td>
                     <td className="text-right"><Input aria-label={`Cantitate ${x.name} (${x.unit})`} className="ml-auto h-8 w-24 text-right" value={o.quantities[x.id] ?? String(it.components.find((k) => k.id === x.id)?.qty ?? x.qty)} onChange={(e) => setOv(id, (q) => ({ ...q, quantities: { ...q.quantities, [x.id]: e.target.value } }))} /><div className="text-[10px] text-muted-foreground">{x.unit}</div></td>
                     <td className="text-right"><Input aria-label={`PT ${x.name}`} className="ml-auto h-8 w-16 text-right" value={o.losses[x.id] ?? String(it.components.find((k) => k.id === x.id)?.lossPct ?? x.lossPct)} onChange={(e) => setOv(id, (q) => ({ ...q, losses: { ...q.losses, [x.id]: e.target.value } }))} /></td>
@@ -524,7 +536,12 @@ export default function PriceCalculator() {
               })}
               {s.lines.filter((l) => !c.comps.some((x) => x.name === l.label)).map((l) => (
                 <tr key={l.label} className="border-b last:border-0">
-                  <td className="py-1.5" colSpan={6}><div className="font-medium">{l.label}</div><div className="text-[11px] text-muted-foreground">{l.detail}</div></td>
+                  <td className="py-1.5" colSpan={6}>
+                    <details>
+                      <summary className="cursor-pointer font-medium">{l.label} <span className="text-[11px] font-normal text-primary">· cum s-a calculat</span></summary>
+                      <div className="mt-1 rounded bg-muted/40 p-2 text-[11px]">{l.detail || "Fără detalii suplimentare."} → <b>{n2(l.value, 4)} lei/bax</b> ÷ {n} buc = {n2(l.value / n, 4)} lei/buc. Valorile de bază se modifică în „Parametri produs” sau „Parametri globali listă”; sursele din Senior sunt în secțiunea Logistică (facturi pe rând).</div>
+                    </details>
+                  </td>
                   <td className="text-right font-medium tabular-nums">{n2(l.value, 4)}</td>
                   <td className="text-right tabular-nums text-muted-foreground">{n2(l.value / n, 4)}</td>
                 </tr>
@@ -778,7 +795,7 @@ export default function PriceCalculator() {
                             <td className="text-right tabular-nums">{r.unitPrice != null ? `${n2(r.unitPrice)} lei/unitate` : `${n2(r.perTrip)} (${n2(r.pmin, 0)}–${n2(r.pmax, 0)})`}</td>
                             <td className="text-right tabular-nums">{n2(r.pallets, 1)}{r.estimatedPallets ? <span className="text-muted-foreground"> (din care {n2(r.estimatedPallets, 1)} estimați)</span> : null}</td>
                             <td className="text-right tabular-nums">{n2(r.palletsPerTrip, 1)}</td>
-                            <td className="text-right tabular-nums">{n2(r.perPallet)}</td>
+                            <td className="text-right tabular-nums">{n2(r.perPallet)}{r.pool && <div className="text-[10px] text-muted-foreground">comun {r.pool.routes.join(" + ")}: {n2(r.pool.total)} lei ÷ {n2(r.pool.pallets, 1)} paleți</div>}</td>
                             <td className="pl-3 text-muted-foreground">{r.points.length ? r.points.slice(0, 4).map((x) => `${x.name} (${n2(x.pallets, 1)})`).join(", ") + (r.points.length > 4 ? ` +${r.points.length - 4}` : "") : <span className="text-destructive">niciun punct atribuit — alege cursa pe județ mai jos</span>}</td>
                           </tr>
                         ))}
@@ -815,7 +832,19 @@ export default function PriceCalculator() {
             <summary className="cursor-pointer text-sm font-medium text-foreground">Surse și metodă de calcul</summary>
             <div className="mt-2 space-y-1">
               <p>Materii prime: {mode === "annual" ? "media anuală ponderată" : "media ponderată ultimele 7 zile"}, până la {result.period.endDay} exclusiv. Ambalaje: ultima intrare NIR.</p>
-              <p>Aprovizionare: {n2(logistics.supply.total)} lei ÷ {logistics.supply.trucks} camioane = <b>{n2(logistics.supply.costPerTruck)} lei/camion</b>, încărcare {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion ({n2(logistics.supply.pallets, 0)} paleți NIR ÷ {logistics.supply.loadTrucks} camioane, {logistics.loadWindow.start} – {logistics.loadWindow.end}){logistics.lastTrucks.length ? ` · ultimele facturi: ${logistics.lastTrucks.map((t) => `${t.day.slice(5)} ${n2(t.price, 0)} lei`).join(", ")}` : ""}.</p>
+              <p>Aprovizionare: {n2(logistics.supply.total)} lei ÷ {logistics.supply.trucks} camioane = <b>{n2(logistics.supply.costPerTruck)} lei/camion</b>, încărcare {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion ({n2(logistics.supply.pallets, 0)} paleți NIR ÷ {logistics.supply.loadTrucks} camioane, {logistics.loadWindow.start} – {logistics.loadWindow.end}).</p>
+              {logistics.lastTrucks.length > 0 && (
+                <details className="rounded border bg-background p-2">
+                  <summary className="cursor-pointer font-medium">Vezi toate facturile de transport aprovizionare folosite ({logistics.lastTrucks.length} rânduri, {logistics.closedStart} – {logistics.closedEnd})</summary>
+                  <p className="mt-1 text-[11px] text-muted-foreground">Pas 1: suma coloanei „Valoare” = {n2(logistics.supply.total)} lei. Pas 2: rândurile marcate „camion” = {logistics.supply.trucks} → {n2(logistics.supply.costPerTruck)} lei/camion. Pas 3: încărcare {n2(logistics.supply.pallets, 0)} paleți NIR ÷ {logistics.supply.loadTrucks} camioane în 90 de zile = {n2(logistics.supply.palletsPerTruck, 1)} paleți/camion. Pas 4: {n2(logistics.supply.costPerTruck)} ÷ {n2(logistics.supply.palletsPerTruck, 1)} = lei/palet. Dacă vezi o factură care nu ține de aprovizionare sau lipsește cursa din luna asta, scrie tariful corect în „Parametri globali listă”.</p>
+                  <table className="mt-1 w-full text-[11px]">
+                    <thead className="border-b text-left text-muted-foreground"><tr><th>Data</th><th>Transportator</th><th>Rând factură</th><th className="text-right">Cant.</th><th className="text-right">Preț</th><th className="text-right">Valoare</th><th>Camion</th></tr></thead>
+                    <tbody>{logistics.lastTrucks.map((t, i) => (
+                      <tr key={i} className="border-b last:border-0"><td>{t.day}</td><td>{t.supplier || "—"}</td><td>{t.line}</td><td className="text-right tabular-nums">{n2(t.qty ?? 0, 2)}</td><td className="text-right tabular-nums">{n2(t.price)}</td><td className="text-right tabular-nums">{n2(t.value ?? 0)}</td><td>{t.truck ? "da" : "nu"}</td></tr>
+                    ))}</tbody>
+                  </table>
+                </details>
+              )}
               <p>{logistics.note}</p>
               {(result.info ?? []).map((w) => <p key={w}>{w}</p>)}
             </div>

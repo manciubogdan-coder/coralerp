@@ -62,7 +62,11 @@ export type RouteStat = {
   pallets: number; missingLines: number; estimatedPallets: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null;
   /** Carrier billed per unit (e.g. HORECA 4.72 lei × units), not per trip. */
   unitPrice: number | null; points: Array<{ name: string; pallets: number }>;
+  /** Paired cursă pooled with this one (same truck, short or long run). */
+  pool?: { routes: string[]; total: number; pallets: number; trips: number };
 };
+/** Cursă pairs served by the same truck: the long run also delivers the short run's points. */
+export const ROUTE_PAIRS: Array<[string, string]> = [['TURDA', 'TURDA-IERNUT'], ['TIMISOARA', 'LUGOJ']];
 export type RouteOverrides = Record<string, string>;
 export const countyKey = (judet: unknown) => plain(judet);
 /** User route choices: "p:<partner id>" for one store or "j:<COUNTY>" for every point of a county without its own choice. */
@@ -111,6 +115,18 @@ export function buildRoutes(pointRows: any[], tripRows: any[], overrides: RouteO
     r.perPallet = r.pallets > 0 ? r.total / r.pallets : null;
     r.palletsPerTrip = r.pallets > 0 && r.trips > 0 ? r.pallets / r.trips : null;
     r.unitPrice = r.qty > r.trips * 1.5 && r.qty > 0 ? r.total / r.qty : null;
+  }
+  // Paired trips: the same truck runs either the short cursă or the long one that also covers the short one's points
+  // (TURDA = Cluj only, TURDA-IERNUT = Cluj + Iernut; LUGOJ / TIMISOARA likewise). Their costs and pallets are pooled.
+  for (const [a, b] of ROUTE_PAIRS) {
+    const x = routes.get(a), y = routes.get(b);
+    if (!x || !y) continue;
+    const total = x.total + y.total, pallets = x.pallets + y.pallets, trips = x.trips + y.trips;
+    for (const r of [x, y]) {
+      r.pool = { routes: [a, b], total, pallets, trips };
+      r.perPallet = pallets > 0 ? total / pallets : null;
+      r.palletsPerTrip = pallets > 0 && trips > 0 ? pallets / trips : null;
+    }
   }
   const list = [...routes.values()].sort((a, b) => b.total - a.total);
   return { routes: list, points, unassigned: unassigned.sort((a, b) => b.pallets - a.pallets), piecesPerPallet: null };
