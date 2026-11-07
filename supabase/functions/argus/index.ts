@@ -23,6 +23,7 @@ import { filtersForTemplate, parameterizeSql, validLiveSpec, type LiveSpec } fro
 import { filterOptions } from "./filterOptions.ts";
 import { agentBuilderTools } from "./agentBuilder.ts";
 import { priceCalcData, priceOptions } from "../_shared/priceCalcSenior.ts";
+import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments, attachmentSummaries, rereadAttachment } from "./files.ts";
 import { validChatMessages, readChatHistory, repairChatMessageIds, isEmptyAssistant, markFailedTurn } from "./chatHistory.ts";
@@ -627,6 +628,10 @@ Deno.serve(async (req) => {
 
 
     switch (action) {
+      case 'receipt_price_safety': {
+        try { return json(await receptionPriceSafety(c.cloud, await req.json())); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
       case "price_options": {
         try { return json(await priceOptions(c.cloud, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }

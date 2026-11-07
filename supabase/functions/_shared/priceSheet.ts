@@ -1,4 +1,5 @@
 // Deterministic price sheet (per case and per piece). Pure: shared by the calculator screen and Argus.
+import type { PriceSafety } from './priceSafetyRules.ts';
 
 export type ComponentKind = "mp" | "ambalaj";
 
@@ -15,6 +16,7 @@ export interface SheetComponent {
   annualPrice?: number | null;
   weekPrice?: number | null;
   lastPrice?: number | null;
+  priceSafety?: PriceSafety;
   lossSource?: string;
 }
 

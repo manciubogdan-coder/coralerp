@@ -1,5 +1,6 @@
 // Live Senior reads for the price calculator. Every rate is derived from Senior data and returned with its source.
 import { priceDates, suggestedLabour } from "./priceDefaults.ts";
+import { readPriceSafety } from './receiptPriceSafety.ts';
 import { type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
 import { transportRoute, historicalFeePct, configuredRawPalletKg, buildRoutes, deliveryRoute, LEGACY_ROUTES } from "./priceSourceRules.ts";
@@ -138,6 +139,11 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
         FROM ${docs} WHERE t.Cod='NIR' AND ${notCancelled} AND d.Articol_ID IN (${ids.join(",")}) AND d.Cantitate>0
           AND h.Data<'${pricesPeriod.endDay}' AND h.Data>=DATEADD(year,-3,'${pricesPeriod.endDay}')) L GROUP BY L.id`) : [];
   const prices = new Map(priceRows.map((r: any) => [Number(r.id), r]));
+  const packagingIds = rows.filter(r => componentKind(String(r.name), String(r.um ?? 'BUC')) === 'ambalaj').map(r => Number(r.id));
+  let safety = new Map<number, import('./priceSafetyRules.ts').PriceSafety>();
+  let safetyError: string | null = null;
+  try { safety = await readPriceSafety(sb, packagingIds, pricesPeriod.endDay); }
+  catch (e) { safetyError = `Verificarea prețurilor suspecte nu este disponibilă: ${(e as Error).message}`; }
 
   const readLoss = async (table: string) => {
     const all: Array<{ name: string; pt_percent: number | null }> = [];
@@ -179,6 +185,7 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
     return {
       id: Number(r.id), name, qty: num(r.q), unit, kind,
       price: chosen, annualPrice: annual, weekPrice: week, lastPrice: last,
+      ...(kind === 'ambalaj' && safety.has(Number(r.id)) ? { priceSafety: safety.get(Number(r.id)) } : {}),
       priceSource: kind === "ambalaj" ? `ultima intrare NIR ${String(p?.lastd ?? "").slice(0, 10)}` : body.rawPriceMode === "week" ? `medie NIR ${weekStart} – ${pricesPeriod.endDay} (exclusiv)` : `medie NIR ${pricesPeriod.startDay} – ${pricesPeriod.endDay} (exclusiv)`,
       lossPct: m ? m.pt : 0,
       lossSource: m ? `PT Coral ERP: ${m.name}` : "PT nesetat — de completat",
@@ -196,6 +203,8 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
   const rate = (total: number, vol: number) => Math.round((ratePer(total, vol) ?? 0) * 10000) / 10000;
 
   const warnings: string[] = [];
+  if (safetyError) warnings.push(safetyError);
+  for (const c of components) if (c.priceSafety?.suspect) warnings.push(`${c.name}: unitate NIR suspectă (rolă vs. bucată); ultima intrare depășește 3× media ponderată precedentelor 6 luni. Prețul Senior nu a fost modificat.`);
   let logisticsRead: Awaited<ReturnType<typeof priceLogistics>> | null = null;
   try { logisticsRead = await priceLogistics(sb, aid, closedStart, P.endDay, P.to); }
   catch (e) { warnings.push(`Citire logistică: ${(e as Error).message}`); }

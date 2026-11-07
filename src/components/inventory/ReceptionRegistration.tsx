@@ -24,6 +24,7 @@ import { addTubMiscare, isFolie } from "@/lib/tuburi";
 import { type PrereceptieLinie, breakdownText, markLineReceived } from "@/lib/prereceptie";
 import { PrereceptiePicker } from "./PrereceptiePicker";
 import { operationDate } from "@/lib/operationDate";
+import { ReceptionPriceSafety } from './ReceptionPriceSafety';
 
 interface ReceptionRegistrationProps {
   products: Product[];
@@ -445,6 +446,9 @@ export function ReceptionRegistration({
 
           <div className="space-y-2">
             <label className="font-medium">Furnizor</label>
+            {selectedProduct && (inventoryType === 'ambalaje' || inventoryType === 'etichete') && (
+              <ReceptionPriceSafety key={`${inventoryType}:${selectedProduct.id}`} code={selectedProduct.cod_produs} name={selectedProduct.name} />
+            )}
             <Select value={supplierId || ''} onValueChange={setSupplierId}>
               <SelectTrigger>
                 <SelectValue placeholder="Selectează furnizorul" />

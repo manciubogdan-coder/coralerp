@@ -15,6 +15,7 @@ import { type SheetComponent } from "../../../supabase/functions/_shared/priceSh
 import { configuredSheet, lineLabour, RATE_KEYS, CONFIG_NUMBERS, validPriceConfig, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
 import { PriceParameters, NumericParameter } from "./PriceParameters";
 import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
+import { ReceiptPriceAlert } from '../inventory/ReceiptPriceAlert';
 
 type Opt = { id: number; name: string };
 type Store = Opt & { route: string | null };
@@ -347,6 +348,7 @@ export default function PriceCalculator() {
 
       {data && sheet && (
         <>
+          {data.components.filter(c => c.priceSafety?.suspect).map(c => c.priceSafety ? <ReceiptPriceAlert key={c.id} safety={c.priceSafety} name={c.name} /> : null)}
           <div className="border-y py-3 text-xs text-muted-foreground space-y-1">
             <p>Materii prime: {mode === "annual" ? "media anuală ponderată" : "media ponderată ultimele 7 zile"}, până la {data.period.endDay} exclusiv. Ambalaje: ultima intrare NIR.</p>
             <p>Aprovizionare: {data.logistics.closedStart} – {data.logistics.closedEnd} exclusiv, cont 624.01 ÷ paleți NIR și ÷ kg materii prime NIR; ambele variante apar pe rând. Distribuție: cursa {route}{storeName ? ` (${storeName}${data.logistics.suggestedRoute && data.logistics.suggestedRoute === route && !routeManual ? ", propusă după oraș/județ" : ""})` : ""}. Manoperă: tabel octombrie 2026 (directă + regie fabrică 41%).</p>
@@ -372,7 +374,7 @@ export default function PriceCalculator() {
                     return (
                       <tr key={c.id} className="border-b last:border-0">
                         <td className="py-1.5">
-                          <div className="font-medium">{c.name}</div>
+                          <div className={`font-medium ${c.priceSafety?.suspect ? 'text-crm-warning' : ''}`}>{c.name}{c.priceSafety?.suspect ? ' · NIR suspect' : ''}</div>
                           <div className="text-[11px] text-muted-foreground">{c.kind === "mp" ? "Materie primă" : "Ambalaj"} · {c.priceSource}{c.lossSource ? ` · ${c.lossSource}` : ""}</div>
                         </td>
                         <td className="text-right"><NumericParameter label={`Cantitate ${c.name} (${c.unit})`} value={quantities[c.id] ?? String(c.qty)} onChange={(v) => setQuantities((p) => ({ ...p, [c.id]: v }))} /></td>
