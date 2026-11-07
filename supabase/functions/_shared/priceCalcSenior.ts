@@ -3,8 +3,9 @@ import { priceDates, suggestedLabour } from "./priceDefaults.ts";
 import { readPriceSafety } from './receiptPriceSafety.ts';
 import { MIXED_WASHED, type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
-import { transportRoute, historicalFeePct, configuredRawPalletKg, orderedPallets, tradedGood, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
-import { CLIENT_AVERAGE_ROUTE, DEFAULT_MARGIN_PCT, LOAD_DAYS, clientAverageRoute, latestCostWindow, latestRoutes } from "./priceList.ts";
+import { loadPriceRules, priceRules } from "./priceRules.ts";
+import { transportRoute, historicalFeePct, configuredRawPalletKg, rawPalletGroup, orderedPallets, tradedGood, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
+import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, latestCostWindow, latestRoutes } from "./priceList.ts";
 import { seniorLive } from "./senior.ts";
 import { cf, lit, partnerInfoSql, partnerScope, type PartnerInfo } from "./priceScope.ts";
 import { realLineSpeeds, SPEED_DAYS, type RealSpeed } from "./priceLineSpeed.ts";
@@ -63,6 +64,7 @@ async function partnerInfo(sb: Rpc, pid: number | null): Promise<PartnerInfo> {
 const CLIENT_NAME = "LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(pp.Partener_Central)),''), pp.Partener_Denumire)))";
 
 export async function priceOptions(sb: Rpc, body: { partnerId?: unknown; allProducts?: unknown }) {
+  await loadPriceRules(sb);
   const pid = int(body.partnerId);
   const since = new Date(Date.now() - 365 * 86400_000).toISOString().slice(0, 10);
   const scope = partnerScope(pid, null, await partnerInfo(sb, pid));
@@ -117,14 +119,16 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const pid = int(body.partnerId), storeId = int(body.storeId);
   const year = Number(body.year), month = Number(body.month);
   if (!(year > 2015 && year < 2100 && month >= 1 && month <= 12)) throw new Error("Lună invalidă.");
+  const rulesMeta = await loadPriceRules(sb);
+  const rules = rulesMeta.rules;
   const rawMode = body.rawPriceMode === "week" ? "week" : "annual";
   const overrides = validRouteOverrides(body.routeOverrides);
   const P = ratePeriod(year, month);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Bucharest" });
   const pricesPeriod = priceDates(year, month, today);
   const weekStart = pricesPeriod.weekStart;
-  const win = latestCostWindow(pricesPeriod.endDay);
-  const load = latestCostWindow(pricesPeriod.endDay, LOAD_DAYS);
+  const win = latestCostWindow(pricesPeriod.endDay, rules.latestCostDays);
+  const load = latestCostWindow(pricesPeriod.endDay, rules.loadDays);
   const partner = await partnerInfo(sb, pid);
   const scope = partnerScope(pid, storeId, partner);
   const histStart = new Date(Date.UTC(year, month - 13, 1)).toISOString().slice(0, 10);
@@ -240,7 +244,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
 
   // ---- Shared defaults: latest supply transport, distribution per cursă, client average, fees, EUR, margin.
   const rawMaterialLabel = rawMode === "week" ? `medie NIR ${weekStart} – ${pricesPeriod.endDay} (exclusiv)` : `medie NIR ${pricesPeriod.startDay} – ${pricesPeriod.endDay} (exclusiv)`;
-  const shared: PriceConfig = { route: "România", supplyBasis: "pallet", rawPriceMode: rawMode, rates: { marginPct: DEFAULT_MARGIN_PCT, eurRate: eur[0] ? num(eur[0].rate) : 0, eurBufferPct: 1.5, techLossPct: 0 } };
+  const shared: PriceConfig = { route: "România", supplyBasis: "pallet", rawPriceMode: rawMode, rates: { marginPct: rules.marginPct, eurRate: eur[0] ? num(eur[0].rate) : 0, eurBufferPct: rules.eurBufferPct, techLossPct: rules.techLossPct } };
   if (!pid) shared.feePct = 0;
   // Client fees = discounts on our invoices + services the client invoices to us (628/6232), over 12 months, ÷ net sales to the same CUI.
   const discounts = Math.max(num(clientAdjustments[0]?.discounts), 0), sales = num(clientAdjustments[0]?.sales);
@@ -270,7 +274,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   if (palletsPerTruck != null) { shared.supplyPallets = palletsPerTruck; if (costPerTruck != null) shared.supplyPerPallet = costPerTruck / palletsPerTruck; }
   if (kgPerTruck != null) { shared.supplyKg = kgPerTruck; if (costPerTruck != null) shared.rates = { ...shared.rates, supplyPerKg: costPerTruck / kgPerTruck }; }
   if (costPerTruck == null) warnings.push(`Aprovizionare: nicio factură de transport aprovizionare (624.01) datată ${win.start} – ${win.end}; completează tariful manual.`);
-  info.push(`Aprovizionare: cost mediu pe camion din facturile ${win.start} – ${win.end} ÷ încărcarea medie pe camion (paleți = kg comandate în Achiziții ÷ kg/palet pe gamă: frunze/aromate 220, căpățâni 400, radicchio 500; camioane = paleții fiecărei zile de livrare (toți furnizorii) ÷ 26 paleți/camion plin, rotunjit în sus) din ${load.start} – ${load.end}; facturile nu sunt legate individual de NIR-uri. Capacitățile MP sunt reperele configurate Coral.`);
+  info.push(`Aprovizionare: cost mediu pe camion din facturile ${win.start} – ${win.end} ÷ încărcarea medie pe camion (paleți = kg comandate în Achiziții ÷ kg/palet pe gamă: ${rules.palletGroups.map((g) => `${g.label.toLowerCase()} ${g.kgPerPallet}`).join(", ")}; camioane = paleții fiecărei zile de livrare (toți furnizorii) ÷ ${rules.truckPallets} paleți/camion plin, rotunjit în sus) din ${load.start} – ${load.end}; facturile nu sunt legate individual de NIR-uri. Normele se modifică în „Reguli de calcul”.`);
 
   const read = logisticsRead as Awaited<ReturnType<typeof priceLogistics>> | null;
   const distribution: Record<string, PriceConfig> = {};
@@ -279,7 +283,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   for (const r of routeData.routes) {
     // Latest trip cost × trips in the last 30 days, loaded with the 90-day pallets per trip.
     distribution[r.route] = { distributionTotal: r.total, distributionTrips: r.trips, ...(r.palletsPerTrip ? { distributionPallets: r.trips * r.palletsPerTrip, distributionPerPallet: r.perPallet ?? undefined, distributionPalletsPerTrip: r.palletsPerTrip } : {}) };
-    if (!r.recent) info.push(`Cursa ${r.route}: nicio cursă facturată în ultimele 30 de zile; costul pe cursă este media ${load.start} – ${load.end}.`);
+    if (!r.recent) info.push(`Cursa ${r.route}: nicio cursă facturată în ultimele ${rules.latestCostDays} de zile; costul pe cursă este media ${load.start} – ${load.end}.`);
     if (r.missingLines > 0) info.push(`Cursa ${r.route}: ${r.missingLines} linii de factură fără bucăți/palet în Senior (produse HORECA/vrac) nu sunt numărate în cei ${r.pallets.toFixed(1)} paleți; tariful pe palet poate fi ușor supraevaluat.`);
     if (r.unitPrice != null) info.push(`Cursa ${r.route}: transportatorul facturează ${r.unitPrice.toFixed(2)} lei × ${Math.round(r.qty)} unități (facturare lunară, nu pe cursă); tariful pe palet = costul ÷ paleții punctelor atribuite cursei.`);
     if (r.pallets <= 0) warnings.push(`Cursa ${r.route}: ${r.total.toFixed(0)} lei facturați, dar niciun punct de livrare atribuit — alege cursa pentru punctele ei în „Puncte de livrare fără cursă”.`);
@@ -292,7 +296,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   }
   const unassigned = unassignedByCounty(routeData.unassigned);
   const unassignedPallets = unassigned.reduce((s, p) => s + p.pallets, 0);
-  if (unassignedPallets > 0) warnings.push(`${unassignedPallets.toFixed(1)} paleți (${LOAD_DAYS} zile) livrați în ${unassigned.length} județe fără cursă identificată (${unassigned.slice(0, 5).map((g) => `${g.judet} ${g.pallets.toFixed(1)}`).join(", ")}). Senior nu leagă livrările de curse; alege cursa pe județ în „Puncte de livrare fără cursă”, altfel tarifele curselor lor sunt supraevaluate.`);
+  if (unassignedPallets > 0) warnings.push(`${unassignedPallets.toFixed(1)} paleți (${rules.loadDays} zile) livrați în ${unassigned.length} județe fără cursă identificată (${unassigned.slice(0, 5).map((g) => `${g.judet} ${g.pallets.toFixed(1)}`).join(", ")}). Senior nu leagă livrările de curse; alege cursa pe județ în „Puncte de livrare fără cursă”, altfel tarifele curselor lor sunt supraevaluate.`);
   const unknownCosts = read?.costs.filter((r: any) => !transportRoute(String(r.subject)) && num(r.total) !== 0) ?? [];
   if (unknownCosts.length) info.push(`Alte costuri de transport din fereastră, neincluse în tarifele pe cursă: ${unknownCosts.map((r: any) => `${String(r.subject).trim()} (${r.cont}) ${num(r.total).toFixed(2)} lei`).join("; ")}.`);
 
@@ -306,7 +310,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const avg = pid && !storeId ? clientAverageRoute(stores, perPallet) : null;
   if (avg) {
     distribution[CLIENT_AVERAGE_ROUTE] = avg.weighted ? { distributionTotal: avg.allocated!, distributionPallets: avg.pallets, distributionPerPallet: avg.perPallet } : { distributionPerPallet: avg.perPallet };
-    info.push(`Distribuție medie client: ${avg.weighted ? `ponderată cu ${avg.pallets.toFixed(1)} paleți livrați în ultimele ${LOAD_DAYS} de zile` : `medie simplă (fără livrări în ultimele ${LOAD_DAYS} de zile)`} pe ${avg.stores} magazine.`);
+    info.push(`Distribuție medie client: ${avg.weighted ? `ponderată cu ${avg.pallets.toFixed(1)} paleți livrați în ultimele ${rules.loadDays} de zile` : `medie simplă (fără livrări în ultimele ${rules.loadDays} de zile)`} pe ${avg.stores} magazine.`);
     if (avg.missing.length) warnings.push(`Magazine fără cursă/tarif, excluse din media clientului: ${avg.missing.slice(0, 6).join(", ")}${avg.missing.length > 6 ? ` +${avg.missing.length - 6}` : ""}; alege cursa în tabelul de rentabilitate pe magazine.`);
   }
   let point: { pid: number; name: string; route: string | null } | null = storeId ? routeData.points.find((p) => p.pid === storeId) ?? null : null;
@@ -370,7 +374,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
         // Packaging without its own Coral ERP setting: 0%, like every packaging configured there (editable).
         lossSource: m ? `PT Coral ERP: ${m.name}` : kind === "ambalaj" ? "PT ambalaj 0% — neconfigurat în Coral ERP (editabil)" : "PT nesetat — de completat",
         ...(kind === "mp" ? (configuredRawPalletKg(cname) != null
-          ? { kgPerPallet: configuredRawPalletKg(cname), palletSource: "kg/palet Coral (căpățâni 400, radicchio 500, frunze/aromate 220)" }
+          ? { kgPerPallet: configuredRawPalletKg(cname), palletSource: `Reguli de calcul · ${rawPalletGroup(cname)?.label}: ${configuredRawPalletKg(cname)} kg/palet` }
           : avgKgPerPallet != null ? { kgPerPallet: Math.round(avgKgPerPallet), palletSource: `kg/palet mediu din comenzi: ${Math.round(kg90)} kg ÷ ${Math.round(ordered.kgPallets)} paleți, ${load.start} – ${load.end}` } : {}) : {}),
       };
     });
@@ -392,10 +396,10 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     return {
       product: { id: aid, name, code: a.code, unitsPerCase },
       components, defaults: cfg, warnings: itemWarnings,
-      suggestedLabourSource: traded ? `Marfă revândută ca atare (semifabricat cumpărat gata ambalat): fără manoperă directă, doar regia fabricii${suggested ? ` din CSV octombrie 2026, linia ${suggested}` : ""} (editabil)`
+      suggestedLabourSource: traded ? `Marfă revândută ca atare (semifabricat cumpărat gata ambalat): fără manoperă directă, doar regia fabricii${suggested ? ` din Reguli de calcul, linia ${suggested}` : ""} (editabil)`
         : suggested ? (speed && suggested === MIXED_WASHED
-        ? `Mix spălat: viteză reală ${Math.round(speed.speed)} buc/oră din Producție (${speed.sessions} sesiuni, ${speed.hours.toFixed(1)} ore lucrate, ${speed.from} – ${speed.to}; ${speed.products.join(", ")}); oameni și cost orar din CSV octombrie 2026`
-        : "Propunere după produs/compoziție; tarif din CSV octombrie 2026") : "Linie neidentificată",
+        ? `Mix spălat: viteză reală ${Math.round(speed.speed)} buc/oră din Producție (${speed.sessions} sesiuni, ${speed.hours.toFixed(1)} ore lucrate, ${speed.from} – ${speed.to}; ${speed.products.join(", ")}); oameni și cost orar din Reguli de calcul`
+        : `Propunere după produs/compoziție; oameni, viteză și cost orar din Reguli de calcul${rulesMeta.updatedAt ? ` (modificate ${rulesMeta.updatedAt.slice(0, 10)})` : ""}`) : "Linie neidentificată",
       realSpeed: speed,
       salesHistory: hist.map((r: any) => ({ month: String(r.m), qty: num(r.q), value: num(r.v), price: num(r.q) > 0 ? Math.round((num(r.v) / num(r.q)) * 10000) / 10000 : null })),
       storeSales,
@@ -407,7 +411,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   return {
     period: pricesPeriod,
     accountingPeriod: P,
-    warnings, info, fees, routeOverrides: overrides,
+    warnings, info, fees, routeOverrides: overrides, rules: rulesMeta,
     eur: eur[0] ? { rate: num(eur[0].rate), day: String(eur[0].day).slice(0, 10) } : null,
     stores,
     logistics: {
@@ -435,7 +439,7 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: Body) {
 export type PriceData = Awaited<ReturnType<typeof priceCalcData>>;
 
 /** Zero placeholders; every used rate comes from the prefilled config (EUR buffer 1.5%, no extra tech loss). */
-export function defaultRates(d: { eur: { rate: number } | null }, marginPct = DEFAULT_MARGIN_PCT) {
+export function defaultRates(d: { eur: { rate: number } | null }, marginPct = priceRules().marginPct) {
   return {
     labourPerPiece: 0,
     utilitiesPerPiece: 0,
@@ -443,8 +447,8 @@ export function defaultRates(d: { eur: { rate: number } | null }, marginPct = DE
     distributionPerPiece: 0,
     clientFeePerPiece: 0,
     eurRate: d.eur?.rate ?? 0,
-    eurBufferPct: 1.5,
-    techLossPct: 0,
+    eurBufferPct: priceRules().eurBufferPct,
+    techLossPct: priceRules().techLossPct,
     marginPct,
   };
 }

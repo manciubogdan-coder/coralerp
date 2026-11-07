@@ -12,11 +12,13 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { argusFetch } from "@/lib/argusApi";
 import { type SheetComponent } from "../../../supabase/functions/_shared/priceSheet";
 import { configuredSheet, lineLabour, RATE_KEYS, CONFIG_NUMBERS, validPriceConfig, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
-import { CLIENT_AVERAGE_ROUTE, DEFAULT_MARGIN_PCT, clientAverageRoute, profitAt } from "../../../supabase/functions/_shared/priceList";
+import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, profitAt } from "../../../supabase/functions/_shared/priceList";
 import { countyKey } from "../../../supabase/functions/_shared/priceSourceRules";
 import { PriceParameters, NumericParameter } from "./PriceParameters";
 import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
 import { ReceiptPriceAlert } from '../inventory/ReceiptPriceAlert';
+import { priceRules, setPriceRules, type RulesMeta } from "../../../supabase/functions/_shared/priceRules";
+import PriceRulesEditor from "./PriceRulesEditor";
 
 type Opt = { id: number; name: string };
 type Client = Opt & { stores: number };
@@ -45,7 +47,7 @@ type Item = {
 type Fees = { pct: number | null; discounts: number; services: Array<{ subject: string; account: string; total: number }>; servicesTotal: number; sales: number; from: string; to: string } | null;
 type ListResult = {
   period: { startDay: string; endDay: string }; warnings: string[]; info?: string[]; fees?: Fees; eur: { rate: number; day: string } | null;
-  stores: StoreRow[]; logistics: Logistics;
+  stores: StoreRow[]; logistics: Logistics; rules?: RulesMeta;
   items: Array<Item | { product: { id: number; name: string }; error: string }>;
 };
 type Over = { rates: Record<string, string>; prices: Record<number, string>; losses: Record<number, string>; quantities: Record<number, string>; palletKg: Record<number, string>; line?: string };
@@ -62,7 +64,7 @@ const PRODUCT_KEYS = new Set(["unitsPerCase", "piecesPerPallet", ...LABOUR_FIELD
 const DIST_KEYS = ["distributionTotal", "distributionPallets", "distributionPerPallet", "distributionTrips", "distributionPalletsPerTrip"];
 const EMPTY: Over = { rates: {}, prices: {}, losses: {}, quantities: {}, palletKg: {} };
 const isItem = (x: ListResult["items"][number]): x is Item => !("error" in x);
-const ZERO = (eur: number) => ({ labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: eur, eurBufferPct: 1.5, techLossPct: 0, marginPct: 0 });
+const ZERO = (eur: number) => ({ labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: eur, eurBufferPct: priceRules().eurBufferPct, techLossPct: 0, marginPct: 0 });
 const OVERRIDES_KEY = "argus-price-route-overrides";
 const loadOverrides = (): Record<string, string> => { try { const v = JSON.parse(localStorage.getItem(OVERRIDES_KEY) || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } };
 const sheetName = (i: number, name: string) => `${i + 1}. ${name}`.replace(/[\\/:*?"<>|[\]]/g, " ").slice(0, 31);
@@ -167,7 +169,7 @@ function NumField({ label, value, onChange, hint }: { label: string; value: stri
 const profitClass = (v: number | null | undefined) => (v == null ? "" : v >= 0 ? "text-crm-green" : "text-destructive");
 const selectClass = "h-8 rounded-md border border-input bg-background px-2 text-xs";
 
-export default function PriceCalculator() {
+function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
   const now = new Date();
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -191,6 +193,7 @@ export default function PriceCalculator() {
   const [basis, setBasis] = useState<"pallet" | "kg">("pallet");
   const [routeOverrides, setRouteOverrides] = useState<Record<string, string>>(loadOverrides);
   const [ranOverrides, setRanOverrides] = useState("{}");
+  const [ranRules, setRanRules] = useState(rulesVersion);
 
   useEffect(() => {
     let off = false;
@@ -225,6 +228,9 @@ export default function PriceCalculator() {
     setLoading(true); setError(null);
     try {
       const r = await argusFetch<ListResult>("price_list", {}, { articolIds: selected, partnerId: client, storeId: store, year, month, rawPriceMode: mode, routeOverrides });
+      // Rules read on the server for this run: the screen computes with the same ones.
+      if (r.rules) setPriceRules(r.rules.rules);
+      setRanRules(rulesVersion);
       setResult(r);
       setRanOverrides(JSON.stringify(routeOverrides));
       // The client's cursă (or the pallet-weighted client average) is proposed unless the user picked a cursă by hand.
@@ -280,7 +286,7 @@ export default function PriceCalculator() {
   };
   const sheets = useMemo(() => new Map(items.map((it) => [it.product.id, compute(it, buildConfig(it))])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, result, logistics, globalRates, over, mode, route, basis, year, month]);
+    [items, result, logistics, globalRates, over, mode, route, basis, year, month, rulesVersion]);
 
   /** Values shown in the fields: calculated from Senior/CSV unless the user typed one. */
   const displayFor = (it: Item | null, c: Computed | null, rates: Record<string, string>) => {
@@ -298,7 +304,7 @@ export default function PriceCalculator() {
   const globalDisplay = useMemo(() => displayFor(items[0] ?? null, items[0] ? sheets.get(items[0].product.id) ?? null : null, globalOnly),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [items, sheets, globalOnly]);
-  const marginShown = globalRates.marginPct ?? globalDisplay.marginPct ?? String(DEFAULT_MARGIN_PCT);
+  const marginShown = globalRates.marginPct ?? globalDisplay.marginPct ?? String(priceRules().marginPct);
 
   const setGlobal = (k: string, v: string) => setGlobalRates((p) => applyEdit(p, k, v));
   const setProduct = (id: number, k: string, v: string) => setOv(id, (o) => ({ ...o, rates: applyEdit(o.rates, k, v) }));
@@ -626,6 +632,7 @@ export default function PriceCalculator() {
       <Card>
         <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><Calculator className="h-5 w-5" /> Calculator preț · listă de prețuri client</CardTitle></CardHeader>
         <CardContent className="space-y-4">
+          {result && ranRules !== rulesVersion && <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-sm">Regulile de calcul s-au schimbat după acest calcul. Apasă „Calculează” ca să le aplici peste tot (normele de paleți și tarifele de transport se recitesc).</p>}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Picker label="Client (partener central, după cod fiscal)" options={clients.map((c) => ({ id: c.id, name: c.stores > 1 ? `${c.name} · ${c.stores} magazine` : c.name }))} value={client} onChange={chooseClient} placeholder="Toți clienții" allowAll="Toți clienții (fără taxe client)" />
             {client != null && stores.length > 1 && (
@@ -653,7 +660,7 @@ export default function PriceCalculator() {
                 </select>
               </div>
             </div>
-            <NumField label="Marjă brută %" value={marginShown} onChange={(v) => setGlobal("marginPct", v)} hint={`Implicit ${DEFAULT_MARGIN_PCT}% · din prețul de vânzare: cost ÷ (1 − marjă)`} />
+            <NumField label="Marjă brută %" value={marginShown} onChange={(v) => setGlobal("marginPct", v)} hint={`Implicit ${priceRules().marginPct}% (Reguli de calcul) · din prețul de vânzare: cost ÷ (1 − marjă)`} />
             <div className="flex items-end">
               <Button className="w-full" onClick={run} disabled={!selected.length || loading}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}Calculează {selected.length > 1 ? `${selected.length} produse` : ""}
@@ -876,6 +883,24 @@ export default function PriceCalculator() {
           </details>
         </>
       )}
+    </div>
+  );
+}
+
+/** Price list and the editable company-wide calculation rules it reads at every run. */
+export default function PriceCalculator() {
+  const [view, setView] = useState<"list" | "rules">("list");
+  const [rulesVersion, setRulesVersion] = useState(0);
+  return (
+    <div className="space-y-4">
+      <div role="tablist" aria-label="Calculator preț" className="inline-flex rounded-md border bg-muted p-1">
+        {([["list", "Listă de prețuri"], ["rules", "Reguli de calcul"]] as const).map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)}
+            className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${view === k ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
+        ))}
+      </div>
+      <div className={view === "list" ? "" : "hidden"}><PriceListCalculator rulesVersion={rulesVersion} /></div>
+      <div className={view === "rules" ? "" : "hidden"}><PriceRulesEditor onSaved={() => setRulesVersion((v) => v + 1)} /></div>
     </div>
   );
 }

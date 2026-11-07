@@ -3,7 +3,7 @@ import { jsonSchema, tool } from "npm:ai@7.0.123";
 import { defaultRates, findArticles, findPartners, priceCalcData } from "../_shared/priceCalcSenior.ts";
 import { configuredSheet, validPriceConfig } from "../_shared/priceConfig.ts";
 import { prefilledConfig } from "../_shared/priceDefaults.ts";
-import { DEFAULT_MARGIN_PCT } from "../_shared/priceList.ts";
+import { priceRules } from "../_shared/priceRules.ts";
 
 type C = { cloud: any; legacy: any; legacyUser?: any };
 
@@ -14,11 +14,11 @@ export function priceTools(c: C) {
       inputSchema: jsonSchema<{ produs: string; client: string | null; an: number | null; luna: number | null; marja: number | null; configurare: string | null }>({
         type: "object", additionalProperties: false, required: ["produs", "client", "an", "luna", "marja", "configurare"],
         properties: {
-          configurare: { type: ["string", "null"], description: "JSON opțional: rawPriceMode annual/week, labourLine (Giostra, Flowpack, Multihead — Monoprodus, Spanac Mare, Aromate, Vracuri / Gastro), route = cursa Senior (BUCURESTI, PLOIESTI, ROMAN, TURDA, TURDA-IERNUT, LUGOJ, TIMISOARA, CRAIOVA, FOCSANI, HORECA, BULGARIA, MOLDOVA ICS; implicit propusă după magazinul clientului) sau România pentru media internă, distributionPalletsPerTrip, unitsPerCase, piecesPerPallet, supplyPerPallet, distributionPerPallet, feePct, rates {labourPerPiece, utilitiesPerPiece,...}, components {ID:{price,qty,lossPct,kgPerPallet,piecesPerPallet}}, tradedGood (marfă revândută ca atare: fără manoperă directă, doar regie). Doar valori confirmate; cere datele lipsă, nu inventa." },
+          configurare: { type: ["string", "null"], description: "JSON opțional: rawPriceMode annual/week, labourLine (linie din Reguli de calcul: Giostra, Flowpack, Multihead — Monoprodus, Spanac Mare, Aromate, Vracuri / Gastro sau altă linie adăugată), route = cursa Senior (BUCURESTI, PLOIESTI, ROMAN, TURDA, TURDA-IERNUT, LUGOJ, TIMISOARA, CRAIOVA, FOCSANI, HORECA, BULGARIA, MOLDOVA ICS; implicit propusă după magazinul clientului) sau România pentru media internă, distributionPalletsPerTrip, unitsPerCase, piecesPerPallet, supplyPerPallet, distributionPerPallet, feePct, rates {labourPerPiece, utilitiesPerPiece,...}, components {ID:{price,qty,lossPct,kgPerPallet,piecesPerPallet}}, tradedGood (marfă revândută ca atare: fără manoperă directă, doar regie). Doar valori confirmate; cere datele lipsă, nu inventa." },
           produs: { type: "string", minLength: 2, maxLength: 120, description: "Denumire sau cuvinte din denumirea produsului finit din Senior, ex. 'busuioc 100 bulgaria'" },
           client: { type: ["string", "null"], maxLength: 120, description: "Client Senior (opțional)" },
           an: { type: ["integer", "null"] }, luna: { type: ["integer", "null"], minimum: 1, maximum: 12 },
-          marja: { type: ["number", "null"], minimum: 0, maximum: 90, description: "Marjă brută % din prețul de vânzare (implicit 15)" },
+          marja: { type: ["number", "null"], minimum: 0, maximum: 90, description: "Marjă brută % din prețul de vânzare (implicit din Reguli de calcul, de obicei 15)" },
         },
       }),
       execute: async ({ produs, client, an, luna, marja, configurare }) => {
@@ -42,7 +42,7 @@ export function priceTools(c: C) {
           }
           const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Bucharest" }));
           const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: art.id, partnerId: partner?.id ?? null, storeId: partner?.id ?? null, year: an ?? now.getFullYear(), month: luna ?? now.getMonth() + 1, rawPriceMode: config.rawPriceMode });
-          const margin = marja ?? config.rates?.marginPct ?? DEFAULT_MARGIN_PCT;
+          const margin = marja ?? config.rates?.marginPct ?? priceRules().marginPct;
           const { sheet } = configuredSheet(d, defaultRates(d, margin), prefilledConfig(d, { ...config, rates: { ...config.rates, marginPct: margin } }));
           const lastSale = [...d.salesHistory].reverse().find((h) => h.price != null) ?? null;
           return {
@@ -56,7 +56,7 @@ export function priceTools(c: C) {
             fisa_completa: sheet.complete, parametri_lipsa: sheet.missingInputs,
             transport: { aprovizionare: d.logistics.supply, cursa: d.defaults.route, ultimele_camioane: d.logistics.lastTrucks },
             ultimul_pret_vanzare_buc: lastSale, istoric_vanzare: d.salesHistory, lista_pret: d.priceList,
-            nota: "Materii prime anual/săptămânal, ambalaje ultima intrare, manoperă document octombrie 2026, transport din ultimele facturi (30 de zile) pe palet și cursă. Marja brută și profitul se prezintă separat. Dacă fisa_completa=false, totalurile sunt parțiale; nu prezenta un preț final validat.",
+            nota: "Materii prime anual/săptămânal, ambalaje ultima intrare, manoperă, norme paleți și marjă din Reguli de calcul (editabile de utilizator), transport din ultimele facturi pe palet și cursă. Marja brută și profitul se prezintă separat. Dacă fisa_completa=false, totalurile sunt parțiale; nu prezenta un preț final validat.",
           };
         } catch (e) { return { eroare: (e as Error).message }; }
       },

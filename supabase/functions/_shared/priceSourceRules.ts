@@ -1,3 +1,4 @@
+import { containsKeyword, hasWord, priceRules } from './priceRules.ts';
 /** Audited Senior custom packaging relation: Coef for selling-unit 28 is pieces/pallet,
  * regardless of UM_ID_Corespondent (which is PALET on the audited article). */
 export const PALLET_RELATION = `SELECT Articol_ID,MIN(CAST(Coef AS float)) coef FROM dbo.D_Articole_UM_Relatii WITH (NOLOCK) WHERE Articol_UM_Vanzare_ID=28 AND Coef>0 GROUP BY Articol_ID HAVING MIN(Coef)=MAX(Coef)`;
@@ -21,14 +22,6 @@ export function routeCountry(key: string): string {
   return 'România';
 }
 const plain = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
-const CITY_ROUTES: Array<[RegExp, string]> = [
-  [/\bIERNUT\b/, 'TURDA-IERNUT'], [/\bTURDA\b/, 'TURDA'], [/\bLUGOJ\b/, 'LUGOJ'], [/\bROMAN\b/, 'ROMAN'], [/\bCRAIOVA\b/, 'CRAIOVA'],
-  [/\bTIMISOARA\b/, 'TIMISOARA'], [/\bPLOIESTI\b/, 'PLOIESTI'], [/\bFOCSANI\b/, 'FOCSANI'], [/\bBUCURESTI\b/, 'BUCURESTI'],
-];
-const COUNTY_ROUTES: Record<string, string> = {
-  BUCURESTI: 'BUCURESTI', ILFOV: 'BUCURESTI', GIURGIU: 'BUCURESTI', PRAHOVA: 'PLOIESTI', NEAMT: 'ROMAN', MURES: 'TURDA-IERNUT',
-  CLUJ: 'TURDA', TIMIS: 'TIMISOARA', DOLJ: 'CRAIOVA', VRANCEA: 'FOCSANI',
-};
 /** Route proposed for a delivery point: country, then the store suffix after " - " (e.g. "MEGA IMAGE SRL - ROMAN"), then county.
  * A proposal only: Senior carrier invoices are not linked to individual deliveries. */
 export function deliveryRoute(p: { name?: unknown; judet?: unknown; country?: unknown }): string | null {
@@ -37,24 +30,21 @@ export function deliveryRoute(p: { name?: unknown; judet?: unknown; country?: un
   if (country.includes('MOLD') || county.includes('CHISINAU')) return 'MOLDOVA ICS';
   if (country && !country.includes('ROM')) return null;
   const suffix = name.includes(' - ') ? name.slice(name.indexOf(' - ') + 3) : '';
-  for (const [re, route] of CITY_ROUTES) if (re.test(suffix)) return route;
-  return COUNTY_ROUTES[county] ?? null;
+  // Editable in Reguli de calcul: city in the store name, then county.
+  for (const c of priceRules().cityRoutes) if (new RegExp(`(^|[^A-Z0-9])${c.city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Z0-9]|$)`).test(suffix)) return c.route;
+  return priceRules().countyRoutes[county] ?? null;
 }
 export function historicalFeePct(discounts: number, sales: number): number | null {
   return sales > 0 && discounts >= 0 && discounts < sales ? discounts / sales * 100 : null;
 }
-/** Semi-finished goods bought ready-packed and resold as they are: priced like a raw material, no direct labour, only factory overhead.
- * Pallets come from pieces (buc/palet), not kg. */
-export const TRADED_GOODS: ReadonlyArray<{ re: RegExp; piecesPerPallet: number; note: string }> = [
-  { re: /spanac.*\bbio\b|\bbio\b.*spanac/i, piecesPerPallet: 1000, note: "Bio Baby Spanac: semifabricat din Italia, revândut ca atare, 1000 buc/palet" },
-];
+/** Semi-finished goods bought ready-packed and resold as they are (Reguli de calcul): priced like a raw material, no direct labour,
+ * only factory overhead. Pallets come from pieces (buc/palet), not kg. Every keyword must appear as a whole word. */
 export function tradedGood(name: string) {
-  const n = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  return TRADED_GOODS.find((g) => g.re.test(n)) ?? null;
+  return priceRules().tradedGoods.find((g) => g.keywords.every((k) => hasWord(name, k))) ?? null;
 }
 export type OrderedPalletRow = { name: string; unit: string; kg: number; kgPerPallet: number | null; piecesPerPallet?: number | null; pallets: number };
 /** Supply pallets from supplier orders (Coral Achiziții): ordered kg ÷ configured kg/palet per product range. Products without a norm or not in kg are listed, never guessed. */
-/** Full supply truck capacity (non-EURO pallets); one delivery day's pallets from all suppliers share trucks of this size. */
+/** Built-in full supply truck capacity (non-EURO pallets); the active value is in Reguli de calcul. */
 export const TRUCK_PALLETS = 26;
 export type OrderedLoad = { supplier: string; day: string; pallets: number; trucks: number };
 export function orderedPallets(orders: Array<{ name: string; unit?: string | null; qty: number; supplier?: string | null; day?: string | null }>) {
@@ -77,7 +67,7 @@ export function orderedPallets(orders: Array<{ name: string; unit?: string | nul
       const load = loadsBy.get(lk) ?? { supplier: "", day, pallets: 0, trucks: 0 };
       if (!load.supplier.split(", ").includes(supplier)) load.supplier = load.supplier ? `${load.supplier}, ${supplier}` : supplier;
       load.pallets += (Number(o.qty) || 0) / norm;
-      load.trucks = Math.max(1, Math.ceil(load.pallets / TRUCK_PALLETS - 1e-9));
+      load.trucks = Math.max(1, Math.ceil(load.pallets / priceRules().truckPallets - 1e-9));
       loadsBy.set(lk, load);
     }
   }
@@ -89,11 +79,12 @@ export function orderedPallets(orders: Array<{ name: string; unit?: string | nul
     trucks: loads.reduce((s, l) => s + l.trucks, 0), skipped: rows.filter((r) => !r.kgPerPallet && !r.piecesPerPallet),
   };
 }
+/** Raw-material pallet group of a product (Reguli de calcul, first matching group wins). */
+export function rawPalletGroup(name: string) {
+  return priceRules().palletGroups.find((g) => g.keywords.some((k) => containsKeyword(name, k))) ?? null;
+}
 export function configuredRawPalletKg(name: string): number | undefined {
-  if (/radic|radich/i.test(name)) return 500;
-  if (/iceberg|pan di|indivi|scarola|varz/i.test(name)) return 400;
-  if (/spanac|rucola|valerian|latuga|salat|baby|mizuna|tsatsoi|blood|chard|busuioc|marar|patrunjel|menta|cimbru|coriandru|rozmarin|oregano|tarhon|chivas/i.test(name)) return 220;
-  return undefined;
+  return rawPalletGroup(name)?.kgPerPallet;
 }
 
 export type RoutePoint = {
@@ -113,6 +104,7 @@ export type RouteStat = {
 };
 /** Cursă pairs served by the same truck: the long run also delivers the short run's points. */
 export const ROUTE_PAIRS: Array<[string, string]> = [['TURDA', 'TURDA-IERNUT'], ['TIMISOARA', 'LUGOJ']];
+const routePairs = () => priceRules().routePairs;
 export type RouteOverrides = Record<string, string>;
 export const countyKey = (judet: unknown) => plain(judet);
 /** User route choices: "p:<partner id>" for one store or "j:<COUNTY>" for every point of a county without its own choice. */
@@ -164,7 +156,7 @@ export function buildRoutes(pointRows: any[], tripRows: any[], overrides: RouteO
   }
   // Paired trips: the same truck runs either the short cursă or the long one that also covers the short one's points
   // (TURDA = Cluj only, TURDA-IERNUT = Cluj + Iernut; LUGOJ / TIMISOARA likewise). Their costs and pallets are pooled.
-  for (const [a, b] of ROUTE_PAIRS) {
+  for (const [a, b] of routePairs()) {
     const x = routes.get(a), y = routes.get(b);
     if (!x || !y) continue;
     const total = x.total + y.total, pallets = x.pallets + y.pallets, trips = x.trips + y.trips;

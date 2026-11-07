@@ -239,6 +239,13 @@
       "when": 1793954982662,
       "tag": "0033_argus_report_views",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794060607223,
+      "tag": "0034_argus_price_rules",
+      "breakpoints": true
     }
   ]
 }

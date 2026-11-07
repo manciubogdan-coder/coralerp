@@ -23,6 +23,7 @@ import { filtersForTemplate, parameterizeSql, validLiveSpec, type LiveSpec } fro
 import { filterOptions } from "./filterOptions.ts";
 import { agentBuilderTools } from "./agentBuilder.ts";
 import { priceCalcData, priceListData, priceOptions } from "../_shared/priceCalcSenior.ts";
+import { DEFAULT_PRICE_RULES, loadPriceRules, savePriceRules } from "../_shared/priceRules.ts";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments, attachmentSummaries, rereadAttachment } from "./files.ts";
@@ -642,6 +643,15 @@ Deno.serve(async (req) => {
       }
       case "price_calc": {
         try { return json(await priceCalcData(c.cloud, c.legacyUser, await req.json())); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case "price_rules": {
+        try { return json({ ...(await loadPriceRules(c.cloud)), defaults: DEFAULT_PRICE_RULES }); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case "price_rules_save": {
+        if (req.method !== "POST") return json({ error: "Metodă invalidă." }, 405);
+        try { return json({ ...(await savePriceRules(c.cloud, (await req.json())?.rules, auth.user.email ?? userId)), defaults: DEFAULT_PRICE_RULES }); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case "price_list": {

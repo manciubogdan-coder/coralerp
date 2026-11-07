@@ -458,6 +458,27 @@ export type Database = {
           },
         ]
       }
+      argus_price_rules: {
+        Row: {
+          created_at: string
+          id: string
+          rules: Json
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rules: Json
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rules?: Json
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       argus_report_templates: {
         Row: {
           created_at: string

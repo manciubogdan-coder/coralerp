@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { LABOUR_LINES, configuredSheet, validPriceConfig } from "../../supabase/functions/_shared/priceConfig";
+import { labourLines, configuredSheet, validPriceConfig } from "../../supabase/functions/_shared/priceConfig";
 const defaults = { labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: 5, eurBufferPct: 0, techLossPct: 0, marginPct: 0 };
 const data = { product: { unitsPerCase: 6 }, components: [
   { id: 1, name: "Busuioc", qty: 0.6, unit: "KG", kind: "mp" as const, price: 20, priceSource: "NIR", lossPct: 0 },
@@ -7,10 +7,11 @@ const data = { product: { unitsPerCase: 6 }, components: [
 ] };
 describe("uploaded price calculation rules", () => {
   for (const [name, total] of [["Giostra", 0.213], ["Flowpack", 0.426], ["Multihead — Monoprodus", 0.299], ["Spanac Mare", 0.566], ["Aromate", 0.778], ["Vracuri / Gastro", 0.811]] as const) {
-    it(`${name} uses the October 2026 final labour rate ${total}`, () => {
-      expect(LABOUR_LINES.find(l => l.name === name)?.total).toBe(total);
+    it(`${name} labour ≈ October 2026 CSV rate ${total}`, () => {
+      const line = labourLines().find(l => l.name === name)!;
+      expect(line.total!).toBeCloseTo(total, 9);
       const { sheet } = configuredSheet(data, defaults, { labourLine: name });
-      expect(sheet.labour + sheet.utilities).toBeCloseTo(6 * total, 4);
+      expect(sheet.labour + sheet.utilities).toBeCloseTo(6 * line.total!, 4);
     });
   }
   it("packaging technological loss applies to packaging price", () => {
