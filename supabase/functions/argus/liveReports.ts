@@ -12,7 +12,7 @@ export { filtersForTemplate } from "./liveFilters.ts";
 
 export type LiveSpec =
   | { kind: "sql"; template: SqlTemplate }
-  | { kind: "price"; articolId: number; partnerId: number | null; marginPct: number; product: string; client: string; config?: PriceConfig; year?: number; month?: number };
+  | { kind: "price"; articolId: number; partnerId: number | null; storeId?: number | null; scope?: "central"; marginPct: number; product: string; client: string; config?: PriceConfig; year?: number; month?: number };
 
 const posInt = (v: unknown) => (Number.isInteger(Number(v)) && Number(v) > 0 ? Number(v) : null);
 
@@ -30,7 +30,7 @@ export function validLiveSpec(raw: any): LiveSpec | null {
     if (config === null) return null;
     if (raw.year != null && (!Number.isInteger(raw.year) || raw.year < 2016 || raw.year > 2099)) return null;
     if (raw.month != null && (!Number.isInteger(raw.month) || raw.month < 1 || raw.month > 12)) return null;
-    return { kind: "price", articolId, partnerId: posInt(raw.partnerId), marginPct: m, product: String(raw.product ?? "").slice(0, 150), client: String(raw.client ?? "").slice(0, 150), ...(config ? { config } : {}), ...(raw.year ? { year: raw.year } : {}), ...(raw.month ? { month: raw.month } : {}) };
+    return { kind: "price", articolId, partnerId: posInt(raw.partnerId), ...(raw.scope === "central" ? { scope: "central" as const, storeId: posInt(raw.storeId) } : {}), marginPct: m, product: String(raw.product ?? "").slice(0, 150), client: String(raw.client ?? "").slice(0, 150), ...(config ? { config } : {}), ...(raw.year ? { year: raw.year } : {}), ...(raw.month ? { month: raw.month } : {}) };
   }
   return null;
 }
@@ -57,13 +57,15 @@ export async function runLive(c: { cloud: any; legacy: any; legacyUser?: any }, 
     if (!parsed) throw new Error("Parametri ai fișei invalizi.");
     config = parsed;
   }
-  const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: spec.articolId, partnerId: spec.partnerId, year: config.year ?? spec.year ?? y, month: config.month ?? spec.month ?? m, rawPriceMode: config.rawPriceMode });
-  const { sheet: s } = configuredSheet(d, defaultRates(d, spec.marginPct), prefilledConfig(d, config));
+  const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: spec.articolId, partnerId: spec.partnerId, storeId: spec.scope === "central" ? spec.storeId ?? null : spec.partnerId, year: config.year ?? spec.year ?? y, month: config.month ?? spec.month ?? m, rawPriceMode: config.rawPriceMode });
+  // Saved margin stays the sheet's margin unless the config carries an explicit one.
+  const { sheet: s } = configuredSheet(d, defaultRates(d, spec.marginPct), prefilledConfig(d, { ...config, rates: { marginPct: spec.marginPct, ...config.rates } }));
   const r2 = (n: number | null | undefined) => (n == null ? "—" : (Math.round(n * 100) / 100).toFixed(2));
   const rows = [
     ...s.lines.map((l) => [l.label, l.detail, r2(l.value)]),
     ["Cost producție", "", r2(s.productionCost)],
-    [`Preț poartă fabrică (marjă ${config.rates?.marginPct ?? spec.marginPct}%)`, "", r2(s.factoryGate)],
+    [`Marjă brută ${config.rates?.marginPct ?? spec.marginPct}%`, "", r2(s.grossMargin)],
+    ["Preț poartă fabrică", "", r2(s.factoryGate)],
     ["Cost logistic", "", r2(s.logistics)],
     ["Preț livrat", "", r2(s.delivered)],
     ["Taxe client", "", r2(s.clientFees)],

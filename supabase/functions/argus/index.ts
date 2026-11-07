@@ -22,7 +22,7 @@ import { priceTools } from "./priceTool.ts";
 import { filtersForTemplate, parameterizeSql, validLiveSpec, type LiveSpec } from "./liveReports.ts";
 import { filterOptions } from "./filterOptions.ts";
 import { agentBuilderTools } from "./agentBuilder.ts";
-import { priceCalcData, priceOptions } from "../_shared/priceCalcSenior.ts";
+import { priceCalcData, priceListData, priceOptions } from "../_shared/priceCalcSenior.ts";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments, attachmentSummaries, rereadAttachment } from "./files.ts";
@@ -642,6 +642,10 @@ Deno.serve(async (req) => {
       }
       case "price_calc": {
         try { return json(await priceCalcData(c.cloud, c.legacyUser, await req.json())); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case "price_list": {
+        try { return json(await priceListData(c.cloud, c.legacyUser, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case 'restock_mode_save': {

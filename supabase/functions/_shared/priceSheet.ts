@@ -57,7 +57,11 @@ export interface PriceSheet {
   clientPrice: number;
   eurEffective: number;
   clientPriceEur: number;
-  perPiece: { productionCost: number; factoryGate: number; delivered: number; clientPrice: number; clientPriceEur: number };
+  /** Factory gate − production cost: the gross margin added on top of cost. */
+  grossMargin: number;
+  feePct: number;
+  clientFeePerPiece: number;
+  perPiece: { productionCost: number; factoryGate: number; delivered: number; clientPrice: number; clientPriceEur: number; grossMargin: number; logistics: number; fees: number };
   missingPrices: string[];
   missingInputs: string[];
   complete: boolean;
@@ -146,9 +150,11 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
     utilities: r4(utilities), techLoss: r4(techLoss), productionCost: r4(productionCost), factoryGate: r4(factoryGate),
     logistics: r4(logistics), delivered: r4(delivered), clientFees: r4(clientFees), clientPrice: r4(clientPrice),
     eurEffective: r4(eurEffective), clientPriceEur: r4(clientPriceEur),
+    grossMargin: r4(factoryGate - productionCost), feePct: R.feePct ?? 0, clientFeePerPiece: R.clientFeePerPiece || 0,
     perPiece: {
       productionCost: r4(productionCost / n), factoryGate: r4(factoryGate / n), delivered: r4(delivered / n),
       clientPrice: r4(clientPrice / n), clientPriceEur: r4(clientPriceEur / n),
+      grossMargin: r4((factoryGate - productionCost) / n), logistics: r4(logistics / n), fees: r4(clientFees / n),
     },
   };
 }

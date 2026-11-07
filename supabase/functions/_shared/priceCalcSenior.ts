@@ -1,12 +1,13 @@
-// Live Senior reads for the price calculator. Every rate is derived from Senior data and returned with its source.
+// Live Senior reads for the price calculator and client price lists. Every rate is derived from Senior data and returned with its source.
 import { priceDates, suggestedLabour } from "./priceDefaults.ts";
 import { readPriceSafety } from './receiptPriceSafety.ts';
 import { type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
 import { transportRoute, historicalFeePct, configuredRawPalletKg, buildRoutes, deliveryRoute, LEGACY_ROUTES } from "./priceSourceRules.ts";
+import { CLIENT_AVERAGE_ROUTE, DEFAULT_MARGIN_PCT, clientAverageRoute, latestCostWindow } from "./priceList.ts";
 import { seniorLive } from "./senior.ts";
 export { matchLoss } from "./priceSheet.ts";
-import { componentKind, isServiceComponent, matchLoss, ratePer, ratePeriod, type SheetComponent } from "./priceSheet.ts";
+import { componentKind, isServiceComponent, matchLoss, ratePeriod, type SheetComponent } from "./priceSheet.ts";
 
 type Rpc = { rpc: (fn: string, args?: Record<string, unknown>) => any };
 const SQL = (sb: Rpc, sql: string) => seniorLive(sb, "sql", { sql }, 55000).then((r: any) => (Array.isArray(r) ? r : []));
@@ -15,44 +16,40 @@ const num = (v: unknown) => Number(v) || 0;
 const SALES = "('FC','FCE','FCEC')";
 const docs = `dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID`;
 const notCancelled = "ISNULL(h.Anulat,0)=0";
+const PP1 = "JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID AND pp.TipPartener=1";
+const MAX_PRODUCTS = 60;
+const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 
-/** Journal accounts per rate, shown to the user next to each rate. */
-export const RATE_ACCOUNTS = {
-  labour: ["641.01", "641.05", "646", "6421", "6422", "624.05"],
-  utilities: ["605", "6028.02", "628.05", "628.06", "611.03", "6024.01", "612.04"],
-  supply: ["624.01"],
-  distribution: ["624.02", "624.03", "624.06"],
-} as const;
+/** Senior "Partener_Central" text of a partner (stores carry the central name, e.g. "MEGA IMAGE SRL"). */
+const centralOf = (pid: number) => `(SELECT TOP 1 x.Partener_Central FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.Partener_ID=${pid} AND NULLIF(x.Partener_Central,'') IS NOT NULL ORDER BY x.H_ID DESC)`;
+/** Sales scope: one store, or every store of the central partner. */
+const partnerScope = (pid: number | null, storeId: number | null) => storeId ? `pp.Partener_ID=${storeId}` : pid ? `(pp.Partener_ID=${pid} OR pp.Partener_Central=${centralOf(pid)})` : null;
+const CLIENT_NAME = "LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(pp.Partener_Central)),''), pp.Partener_Denumire)))";
 
-export async function priceOptions(sb: Rpc, body: { subgroupId?: unknown; partnerId?: unknown }) {
-  const sg = int(body.subgroupId), pid = int(body.partnerId);
+export async function priceOptions(sb: Rpc, body: { partnerId?: unknown; allProducts?: unknown }) {
+  const pid = int(body.partnerId);
   const since = new Date(Date.now() - 365 * 86400_000).toISOString().slice(0, 10);
-  const subgroupsQ = SQL(sb, `SELECT cv.D_Clasificari_Valori_ID id, MAX(cv.Val_Text) name, COUNT(*) n FROM dbo.D_Parteneri_Clasificari pc WITH (NOLOCK)
-    JOIN dbo.D_Clasificari_Valori cv WITH (NOLOCK) ON cv.D_Clasificari_Valori_ID=pc.D_Clasificari_Valori_ID
-    JOIN dbo.D_Clasificari c WITH (NOLOCK) ON c.D_Clasificari_ID=cv.D_Clasificari_ID
-    JOIN dbo.D_Parteneri p WITH (NOLOCK) ON p.Partener_ID=pc.Partener_ID
-    WHERE c.Descriere='Subgrupa' AND p.IsClient=1 AND cv.Val_Text<>'--' AND cv.Val_Text NOT LIKE 'Furn%' GROUP BY cv.D_Clasificari_Valori_ID ORDER BY COUNT(*) DESC`);
-  const clientsQ = sg
-    ? SQL(sb, `SELECT TOP 600 p.Partener_ID id, p.Denumire name FROM dbo.D_Parteneri p WITH (NOLOCK) JOIN dbo.D_Parteneri_Clasificari pc WITH (NOLOCK) ON pc.Partener_ID=p.Partener_ID
-        WHERE pc.D_Clasificari_Valori_ID=${sg} AND p.IsClient=1 AND ISNULL(p.IsActiv,1)=1 ORDER BY p.Denumire`)
-    : SQL(sb, `SELECT TOP 600 pp.Partener_ID id, MAX(pp.Partener_Denumire) name FROM dbo.C_H_Note_Contabile h WITH (NOLOCK)
-        JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID
-        WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${since}' GROUP BY pp.Partener_ID ORDER BY SUM(CAST(h.Valoare_Rol AS float)) DESC`);
+  const scope = partnerScope(pid, null);
+  // Central partners: every store of a retail chain is grouped under its Senior Partener_Central.
+  const clientsQ = SQL(sb, `SELECT TOP 600 COALESCE(MIN(CASE WHEN LTRIM(RTRIM(pp.Partener_Denumire))=LTRIM(RTRIM(pp.Partener_Central)) THEN pp.Partener_ID END), MIN(pp.Partener_ID)) id,
+      ${CLIENT_NAME} name, COUNT(DISTINCT pp.Partener_ID) stores
+      FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID ${PP1}
+      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${since}' GROUP BY ${CLIENT_NAME} ORDER BY SUM(CAST(h.Valoare_Rol AS float)) DESC`);
+  const filtered = scope && body.allProducts !== true;
   const productsQ = SQL(sb, `SELECT TOP 800 d.Articol_ID id, MAX(d.Denumire) name, SUM(CAST(d.Cantitate AS float)) qty FROM ${docs}
-      ${pid ? "JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID" : ""}
-      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${since}' ${pid ? `AND pp.Partener_ID=${pid}` : ""}
+      ${filtered ? PP1 : ""}
+      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${since}' ${filtered ? `AND ${scope}` : ""}
       AND EXISTS (SELECT 1 FROM dbo.DArticoleCompuseHVersiuni v WITH (NOLOCK) WHERE v.ArticolId=d.Articol_ID AND v.IsActiv=1)
       GROUP BY d.Articol_ID ORDER BY MAX(d.Denumire)`);
-  // Delivery points (stores) of the same central partner; each one proposes its Senior cursă.
-  const storesQ = pid ? SQL(sb, `SELECT TOP 300 pp.Partener_ID id, MAX(pp.Partener_Denumire) name, MAX(pp.Document_Judet) judet, MAX(pp.Document_Tara) country FROM dbo.C_H_Note_Contabile h WITH (NOLOCK)
-      JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID AND pp.TipPartener=1
-      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${since}' AND (pp.Partener_ID=${pid} OR pp.Partener_Central=(SELECT TOP 1 x.Partener_Central FROM dbo.C_H_Note_Contabile_Parteneri x WITH (NOLOCK) WHERE x.Partener_ID=${pid} AND NULLIF(x.Partener_Central,'') IS NOT NULL ORDER BY x.H_ID DESC))
+  // Delivery points (stores) of the central partner; each one proposes its Senior cursă.
+  const storesQ = scope ? SQL(sb, `SELECT TOP 300 pp.Partener_ID id, MAX(pp.Partener_Denumire) name, MAX(pp.Document_Judet) judet, MAX(pp.Document_Tara) country
+      FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID ${PP1}
+      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${since}' AND ${scope}
       GROUP BY pp.Partener_ID ORDER BY MAX(pp.Partener_Denumire)`) : Promise.resolve([]);
-  const [subgroups, clients, products, stores] = await Promise.all([subgroupsQ, clientsQ, productsQ, storesQ]);
+  const [clients, products, stores] = await Promise.all([clientsQ, productsQ, storesQ]);
   return {
     stores: stores.map((r: any) => ({ id: r.id, name: String(r.name).trim(), route: deliveryRoute(r) })),
-    subgroups: subgroups.map((r: any) => ({ id: r.id, name: String(r.name).trim(), n: r.n })),
-    clients: clients.map((r: any) => ({ id: r.id, name: String(r.name).trim() })),
+    clients: clients.map((r: any) => ({ id: r.id, name: String(r.name).trim(), stores: num(r.stores) })),
     products: products.map((r: any) => ({ id: r.id, name: String(r.name).trim(), qty: num(r.qty) })),
   };
 }
@@ -72,81 +69,32 @@ export async function findPartners(sb: Rpc, name: string) {
   return SQL(sb, `SELECT TOP 10 p.Partener_ID id, p.Denumire name FROM dbo.D_Parteneri p WITH (NOLOCK) WHERE p.IsClient=1 AND ${like} ORDER BY p.Denumire`);
 }
 
-export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: unknown; partnerId?: unknown; storeId?: unknown; year?: unknown; month?: unknown; rawPriceMode?: unknown }) {
-  const aid = int(body.articolId), pid = int(body.partnerId), storeId = int(body.storeId) ?? pid;
+type Body = { articolId?: unknown; articolIds?: unknown; partnerId?: unknown; storeId?: unknown; year?: unknown; month?: unknown; rawPriceMode?: unknown };
+type Loss = Array<{ name: string; pt_percent: number | null }>;
+
+/** Price list for several finished products of one client (central partner or one store), sharing every common Senior read. */
+export async function priceListData(sb: Rpc, legacy: any, body: Body) {
+  const raw = Array.isArray(body.articolIds) ? body.articolIds : [body.articolId];
+  const aids = [...new Set(raw.map(int).filter(Boolean))] as number[];
+  if (!aids.length) throw new Error("Alege cel puțin un produs finit.");
+  if (aids.length > MAX_PRODUCTS) throw new Error(`Maximum ${MAX_PRODUCTS} produse într-o listă de prețuri.`);
+  const pid = int(body.partnerId), storeId = int(body.storeId);
   const year = Number(body.year), month = Number(body.month);
-  if (!aid) throw new Error("Alege produsul finit.");
   if (!(year > 2015 && year < 2100 && month >= 1 && month <= 12)) throw new Error("Lună invalidă.");
+  const rawMode = body.rawPriceMode === "week" ? "week" : "annual";
   const P = ratePeriod(year, month);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Bucharest" });
   const pricesPeriod = priceDates(year, month, today);
   const weekStart = pricesPeriod.weekStart;
-  const closedStart = `${String(P.to).slice(0, 4)}-${String(P.to).slice(4)}-01`;
-  const allAcc = Object.values(RATE_ACCOUNTS).flat().map((a) => `'${a}'`).join(",");
+  const win = latestCostWindow(pricesPeriod.endDay);
+  const scope = partnerScope(pid, storeId);
   const histStart = new Date(Date.UTC(year, month - 13, 1)).toISOString().slice(0, 10);
   const histEnd = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
-
-  const [art, recipe, journal, volumes, history, eur, fees, priceList] = await Promise.all([
-    SQL(sb, `SELECT a.Articol_ID id, a.Denumire name, a.Cod code FROM dbo.D_Articole a WITH (NOLOCK) WHERE a.Articol_ID=${aid}`),
-    SQL(sb, `SELECT v.PKArticoleCompuseHVersiuni vid, CAST(v.Cantitate AS float) vq, v.IsImplicit impl, v.DataStart ds, d.ArticolId id, a.Denumire name, CAST(d.Cantitate AS float) q, um.Cod um
-      FROM dbo.DArticoleCompuseHVersiuni v WITH (NOLOCK) JOIN dbo.DArticoleCompuseD d WITH (NOLOCK) ON d.FKArticoleCompuseHVersiuni=v.PKArticoleCompuseHVersiuni
-      JOIN dbo.D_Articole a WITH (NOLOCK) ON a.Articol_ID=d.ArticolId LEFT JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UMId
-      WHERE v.ArticolId=${aid} AND v.IsActiv=1 AND d.ArticolId<>${aid} AND ISNULL(d.IsProdusPrincipal,0)=0`),
-    SQL(sb, `SELECT p.Cont cont, MAX(p.Descriere) name, SUM(CASE WHEN dc.IsDebit=1 THEN CAST(dc.Valoare_Rol AS float) ELSE -CAST(dc.Valoare_Rol AS float) END) v
-      FROM dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId
-      JOIN dbo.C_H_Note_Contabile h WITH (NOLOCK) ON h.H_ID=dc.H_ID JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID
-      WHERE p.Cont IN (${allAcc}) AND t.Cod<>'NCICV' AND ${notCancelled} AND dc.LunaContabila BETWEEN '${P.from}' AND '${P.to}' GROUP BY p.Cont`),
-    SQL(sb, `SELECT SUM(CASE WHEN t.Cod IN ${SALES} AND um.Cod='BUC' THEN CAST(d.Cantitate AS float) ELSE 0 END) pieces,
-        SUM(CASE WHEN t.Cod='NIR' AND um.Cod='KG' THEN CAST(d.Cantitate AS float) ELSE 0 END) kg
-      FROM ${docs} LEFT JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UM_ID
-      WHERE t.Cod IN ('FC','FCE','FCEC','NIR') AND ${notCancelled} AND h.Data>='${P.startDay}' AND h.Data<'${P.endDay}'`),
-    SQL(sb, `SELECT CONVERT(char(7), h.Data, 120) m, SUM(CAST(d.Cantitate AS float)) q, SUM(CAST(d.Valoare_Neta_Rol AS float)) v FROM ${docs}
-      ${pid ? "JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID" : ""}
-      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND d.Articol_ID=${aid} ${pid ? `AND pp.Partener_ID=${pid}` : ""} AND h.Data>='${histStart}' AND h.Data<'${histEnd}'
-      GROUP BY CONVERT(char(7), h.Data, 120) ORDER BY m`),
-    SQL(sb, `SELECT TOP 1 c.Data day, CAST(c.Curs AS float) rate FROM dbo.D_Valuta_Cursuri c WITH (NOLOCK) JOIN dbo.D_Valuta v WITH (NOLOCK) ON v.Valuta_ID=c.Valuta_ID
-      JOIN dbo.D_Valuta_Cursuri_Tipuri tt WITH (NOLOCK) ON tt.Valuta_Cursuri_Tipuri_ID=c.Valuta_Cursuri_Tipuri_ID
-      WHERE v.Simbol='EUR' AND tt.Descriere='BNR' AND c.Data<'${pricesPeriod.endDay}' ORDER BY c.Data DESC`),
-    pid ? SQL(sb, `SELECT SUM(CASE WHEN t.Cod IN ('FF','FFI','FFIC') THEN CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) fees,
-        SUM(CASE WHEN t.Cod IN ${SALES} AND um.Cod='BUC' THEN CAST(d.Cantitate AS float) ELSE 0 END) pieces
-      FROM ${docs} JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID LEFT JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UM_ID
-      WHERE pp.Partener_ID=${pid} AND t.Cod IN ('FF','FFI','FFIC','FC','FCE','FCEC') AND ${notCancelled} AND h.Data>='${P.startDay}' AND h.Data<'${P.endDay}'`) : Promise.resolve([]),
-    pid ? SQL(sb, `SELECT TOP 1 CAST(ld.Pret AS float) price, v.Simbol cur, lh.Descriere list, lh.Data_Start ds FROM dbo.D_Liste_Preturi_D ld WITH (NOLOCK)
-      JOIN dbo.D_Liste_Preturi_H lh WITH (NOLOCK) ON lh.D_Liste_Preturi_H_ID=ld.D_Liste_Preturi_H_ID
-      JOIN dbo.D_Parteneri_Liste_Preturi pl WITH (NOLOCK) ON pl.D_Liste_Preturi_H_ID=lh.D_Liste_Preturi_H_ID LEFT JOIN dbo.D_Valuta v WITH (NOLOCK) ON v.Valuta_ID=ld.Valuta_ID
-      WHERE pl.Partener_ID=${pid} AND ld.Articol_ID=${aid} AND ld.Pret>0 AND lh.Data_Start<'${histEnd}' AND (lh.Data_End IS NULL OR lh.Data_End>='${histEnd}') ORDER BY lh.Data_Start DESC`) : Promise.resolve([]),
-  ]);
-  if (!art.length) throw new Error("Produsul nu există în Senior.");
-  if (!recipe.length) throw new Error("Produsul nu are rețetă activă în Senior.");
-
-  // Pick the default active version, else the most recent.
-  const versions = new Map<number, any[]>();
-  for (const r of recipe) versions.set(r.vid, [...(versions.get(r.vid) ?? []), r]);
-  const pick = [...versions.values()].sort((a, b) => (Number(!!b[0].impl) - Number(!!a[0].impl)) || String(b[0].ds).localeCompare(String(a[0].ds)))[0];
-  const unitsPerCase = num(pick[0].vq) || 1;
-  const rows = pick.filter((r) => !isServiceComponent(String(r.name)));
-  const ids = [...new Set(rows.map((r) => int(r.id)).filter(Boolean))] as number[];
-
-  const priceRows = ids.length ? await SQL(sb, `SELECT L.id,
-      SUM(CASE WHEN L.day>='${pricesPeriod.startDay}' THEN L.v ELSE 0 END) v12,
-      SUM(CASE WHEN L.day>='${pricesPeriod.startDay}' THEN L.q ELSE 0 END) q12,
-      SUM(CASE WHEN L.day>='${weekStart}' THEN L.v ELSE 0 END) vw,
-      SUM(CASE WHEN L.day>='${weekStart}' THEN L.q ELSE 0 END) qw,
-      MAX(CASE WHEN L.rn=1 THEN L.v/NULLIF(L.q,0) END) lastp,
-      MAX(L.day) lastd FROM (
-        SELECT d.Articol_ID id, h.Data day, CAST(d.Valoare_Neta_Rol AS float) v, CAST(d.Cantitate AS float) q,
-          ROW_NUMBER() OVER(PARTITION BY d.Articol_ID ORDER BY h.Data DESC,h.H_ID DESC,d.D_ID DESC) rn
-        FROM ${docs} WHERE t.Cod='NIR' AND ${notCancelled} AND d.Articol_ID IN (${ids.join(",")}) AND d.Cantitate>0
-          AND h.Data<'${pricesPeriod.endDay}' AND h.Data>=DATEADD(year,-3,'${pricesPeriod.endDay}')) L GROUP BY L.id`) : [];
-  const prices = new Map(priceRows.map((r: any) => [Number(r.id), r]));
-  const packagingIds = rows.filter(r => componentKind(String(r.name), String(r.um ?? 'BUC')) === 'ambalaj').map(r => Number(r.id));
-  let safety = new Map<number, import('./priceSafetyRules.ts').PriceSafety>();
-  let safetyError: string | null = null;
-  try { safety = await readPriceSafety(sb, packagingIds, pricesPeriod.endDay); }
-  catch (e) { safetyError = `Verificarea prețurilor suspecte nu este disponibilă: ${(e as Error).message}`; }
-
+  const recentStart = addDays(pricesPeriod.endDay, -90);
+  const A = aids.join(",");
+  const notPackaging = ["FOLIE", "FILM", "PUNG", "BANDA", "SFOARA", "ETICHET", "CASEROL", "CUTI", "CAPAC", "PALET", "LADIT", "SAC", "TAVITA", "BOL"].map((w) => `(' '+UPPER(d.Denumire)) NOT LIKE '% ${w}%'`).join(" AND ");
   const readLoss = async (table: string) => {
-    const all: Array<{ name: string; pt_percent: number | null }> = [];
+    const all: Loss = [];
     let offset = 0;
     while (true) {
       const { data, error } = await legacy.from(table).select("name,pt_percent").order("id").range(offset, offset + 499);
@@ -157,77 +105,108 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
     }
     return all;
   };
-  // Raw-material kg received on NIR in the closed month (KG lines that are not packaging), denominator for supply lei/kg.
-  const notPackaging = ["FOLIE", "FILM", "PUNG", "BANDA", "SFOARA", "ETICHET", "CASEROL", "CUTI", "CAPAC", "PALET", "LADIT", "SAC", "TAVITA", "BOL"].map((w) => `(' '+UPPER(d.Denumire)) NOT LIKE '% ${w}%'`).join(" AND ");
-  const [loss, packagingLoss, labelLoss, closedJournal, receivedPallets, clientAdjustments, receivedKg] = await Promise.all([
-    readLoss("products"), readLoss("ambalaje_products"), readLoss("etichete_products"),
-    SQL(sb, `SELECT p.Cont cont, SUM(CASE WHEN dc.IsDebit=1 THEN CAST(dc.Valoare_Rol AS float) ELSE -CAST(dc.Valoare_Rol AS float) END) v
-      FROM dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId
-      JOIN dbo.C_H_Note_Contabile h WITH (NOLOCK) ON h.H_ID=dc.H_ID JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID
-      WHERE p.Cont IN ('624.01') AND t.Cod<>'NCICV' AND ${notCancelled} AND dc.LunaContabila='${P.to}' GROUP BY p.Cont`),
-    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) pallets FROM ${docs} WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${closedStart}' AND h.Data<'${P.endDay}' AND d.Denumire LIKE 'PALET%'`),
+  const supplyIn = `h.H_ID IN (SELECT dc.H_ID FROM dbo.C_H_Note_Contabile_Detalii_Conturi dc WITH (NOLOCK) JOIN dbo.C_Plan_Contabil p WITH (NOLOCK) ON p.Analitic_ID=dc.AnaliticId WHERE p.Cont='624.01' AND dc.LunaContabila BETWEEN '${win.bookFrom}' AND '${win.bookTo}')`;
+  const supplyLine = "(d.Denumire LIKE 'TRANSPORT%' OR d.Denumire LIKE 'SERVICII TRANSPORT%') AND d.Denumire NOT LIKE 'TRANSPORT DIST%'";
+
+  const warnings: string[] = [];
+  let logisticsRead: Awaited<ReturnType<typeof priceLogistics>> | null = null;
+  const [art, recipe, history, recent, eur, priceList, clientAdjustments, supply, lastTrucks, receivedPallets, receivedKg, storeRows, loss, packagingLoss, labelLoss] = await Promise.all([
+    SQL(sb, `SELECT a.Articol_ID id, a.Denumire name, a.Cod code FROM dbo.D_Articole a WITH (NOLOCK) WHERE a.Articol_ID IN (${A})`),
+    SQL(sb, `SELECT v.ArticolId pa, v.PKArticoleCompuseHVersiuni vid, CAST(v.Cantitate AS float) vq, v.IsImplicit impl, v.DataStart ds, d.ArticolId id, a.Denumire name, CAST(d.Cantitate AS float) q, um.Cod um
+      FROM dbo.DArticoleCompuseHVersiuni v WITH (NOLOCK) JOIN dbo.DArticoleCompuseD d WITH (NOLOCK) ON d.FKArticoleCompuseHVersiuni=v.PKArticoleCompuseHVersiuni
+      JOIN dbo.D_Articole a WITH (NOLOCK) ON a.Articol_ID=d.ArticolId LEFT JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UMId
+      WHERE v.ArticolId IN (${A}) AND v.IsActiv=1 AND d.ArticolId<>v.ArticolId AND ISNULL(d.IsProdusPrincipal,0)=0`),
+    SQL(sb, `SELECT d.Articol_ID aid, CONVERT(char(7), h.Data, 120) m, SUM(CAST(d.Cantitate AS float)) q, SUM(CAST(d.Valoare_Neta_Rol AS float)) v FROM ${docs}
+      ${scope ? PP1 : ""}
+      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND d.Articol_ID IN (${A}) ${scope ? `AND ${scope}` : ""} AND h.Data>='${histStart}' AND h.Data<'${histEnd}'
+      GROUP BY d.Articol_ID, CONVERT(char(7), h.Data, 120) ORDER BY m`),
+    // Current selling price per store: last 90 days of invoices.
+    scope ? SQL(sb, `SELECT d.Articol_ID aid, pp.Partener_ID pid, SUM(CAST(d.Cantitate AS float)) q, SUM(CAST(d.Valoare_Neta_Rol AS float)) v FROM ${docs} ${PP1}
+      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND d.Articol_ID IN (${A}) AND ${scope} AND h.Data>='${recentStart}' AND h.Data<'${pricesPeriod.endDay}'
+      GROUP BY d.Articol_ID, pp.Partener_ID`) : Promise.resolve([]),
+    SQL(sb, `SELECT TOP 1 c.Data day, CAST(c.Curs AS float) rate FROM dbo.D_Valuta_Cursuri c WITH (NOLOCK) JOIN dbo.D_Valuta v WITH (NOLOCK) ON v.Valuta_ID=c.Valuta_ID
+      JOIN dbo.D_Valuta_Cursuri_Tipuri tt WITH (NOLOCK) ON tt.Valuta_Cursuri_Tipuri_ID=c.Valuta_Cursuri_Tipuri_ID
+      WHERE v.Simbol='EUR' AND tt.Descriere='BNR' AND c.Data<'${pricesPeriod.endDay}' ORDER BY c.Data DESC`),
+    pid ? SQL(sb, `SELECT aid, price, cur, list, ds FROM (SELECT ld.Articol_ID aid, CAST(ld.Pret AS float) price, v.Simbol cur, lh.Descriere list, lh.Data_Start ds,
+        ROW_NUMBER() OVER(PARTITION BY ld.Articol_ID ORDER BY CASE WHEN pl.Partener_ID=${storeId ?? pid} THEN 0 ELSE 1 END, lh.Data_Start DESC) rn
+      FROM dbo.D_Liste_Preturi_D ld WITH (NOLOCK) JOIN dbo.D_Liste_Preturi_H lh WITH (NOLOCK) ON lh.D_Liste_Preturi_H_ID=ld.D_Liste_Preturi_H_ID
+      JOIN dbo.D_Parteneri_Liste_Preturi pl WITH (NOLOCK) ON pl.D_Liste_Preturi_H_ID=lh.D_Liste_Preturi_H_ID LEFT JOIN dbo.D_Valuta v WITH (NOLOCK) ON v.Valuta_ID=ld.Valuta_ID
+      WHERE pl.Partener_ID IN (${[...new Set([storeId, pid].filter(Boolean))].join(",")}) AND ld.Articol_ID IN (${A}) AND ld.Pret>0 AND lh.Data_Start<'${histEnd}' AND (lh.Data_End IS NULL OR lh.Data_End>='${histEnd}')) x WHERE rn=1`) : Promise.resolve([]),
     pid ? SQL(sb, `SELECT SUM(CASE WHEN d.Denumire LIKE '%DISCOUNT%' OR d.Denumire LIKE '%Reducere de pret%' THEN -CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) discounts,
       SUM(CASE WHEN d.Denumire NOT LIKE '%DISCOUNT%' AND d.Denumire NOT LIKE '%Reducere de pret%' THEN CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) sales
       FROM ${docs} WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${P.startDay}' AND h.Data<'${P.endDay}'
       AND EXISTS(SELECT 1 FROM dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) WHERE pp.H_ID=h.H_ID AND pp.TipPartener=1
         AND NULLIF(REPLACE(UPPER(pp.Partener_Cod_Fiscal),'RO',''),'') IN (SELECT DISTINCT REPLACE(UPPER(p.Partener_Cod_Fiscal),'RO','') FROM dbo.C_H_Note_Contabile_Parteneri p WITH (NOLOCK) WHERE p.Partener_ID=${pid} AND NULLIF(p.Partener_Cod_Fiscal,'') IS NOT NULL))`) : Promise.resolve([]),
-    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) kg FROM ${docs} JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UM_ID WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${closedStart}' AND h.Data<'${P.endDay}' AND um.Cod='KG' AND ${notPackaging}`),
+    // Supply transport: latest carrier invoices (invoice date in the window) posted on 624.01, distribution lines excluded.
+    SQL(sb, `SELECT SUM(CAST(d.Valoare_Neta_Rol AS float)) total, SUM(CASE WHEN d.Cantitate>0 AND d.Denumire LIKE 'TRANSPORT%' THEN 1 ELSE 0 END) trucks
+      FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID
+      WHERE ${notCancelled} AND h.Data>='${win.start}' AND h.Data<'${win.end}' AND ${supplyLine} AND ${supplyIn}`),
+    SQL(sb, `SELECT TOP 5 CONVERT(char(10), h.Data, 120) day, CAST(d.Pret_Final_ROL AS float) price, UPPER(LTRIM(RTRIM(d.Denumire))) line
+      FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID
+      WHERE ${notCancelled} AND h.Data>='${win.start}' AND h.Data<'${win.end}' AND d.Cantitate>0 AND d.Denumire LIKE 'TRANSPORT%' AND ${supplyLine} AND ${supplyIn}
+      ORDER BY h.Data DESC, h.H_ID DESC`),
+    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) pallets FROM ${docs} WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${win.start}' AND h.Data<'${win.end}' AND d.Denumire LIKE 'PALET%'`),
+    SQL(sb, `SELECT SUM(CAST(d.Cantitate AS float)) kg FROM ${docs} JOIN dbo.D_Articole_UM um WITH (NOLOCK) ON um.UM_ID=d.UM_ID WHERE t.Cod='NIR' AND ${notCancelled} AND h.Data>='${win.start}' AND h.Data<'${win.end}' AND um.Cod='KG' AND ${notPackaging}`),
+    pid ? SQL(sb, `SELECT TOP 300 pp.Partener_ID id, MAX(pp.Partener_Denumire) name, MAX(pp.Document_Judet) judet, MAX(pp.Document_Tara) country
+      FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID ${PP1}
+      WHERE t.Cod IN ${SALES} AND ${notCancelled} AND h.Data>='${addDays(pricesPeriod.endDay, -365)}' AND ${partnerScope(pid, null)}
+      GROUP BY pp.Partener_ID ORDER BY MAX(pp.Partener_Denumire)`) : Promise.resolve([]),
+    readLoss("products"), readLoss("ambalaje_products"), readLoss("etichete_products"),
+    priceLogistics(sb, aids, win).then((r) => { logisticsRead = r; }).catch((e) => { warnings.push(`Citire logistică: ${(e as Error).message}`); }),
   ]);
-  const components: SheetComponent[] = rows.map((r): SheetComponent => {
-    const name = String(r.name).trim(), unit = String(r.um ?? "").trim() || "BUC";
-    const p = prices.get(Number(r.id));
-    const annual = p && num(p.q12) > 0 ? num(p.v12) / num(p.q12) : null;
-    const kind = componentKind(name, unit);
-    const m = matchLoss(name, kind === "mp" ? loss : [...packagingLoss, ...labelLoss]);
-    const week = p && num(p.qw) > 0 ? num(p.vw) / num(p.qw) : null;
-    const last = p?.lastp != null ? num(p.lastp) : null;
-    const chosen = kind === "ambalaj" ? last : body.rawPriceMode === "week" ? week : annual;
-    return {
-      id: Number(r.id), name, qty: num(r.q), unit, kind,
-      price: chosen, annualPrice: annual, weekPrice: week, lastPrice: last,
-      ...(kind === 'ambalaj' && safety.has(Number(r.id)) ? { priceSafety: safety.get(Number(r.id)) } : {}),
-      priceSource: kind === "ambalaj" ? `ultima intrare NIR ${String(p?.lastd ?? "").slice(0, 10)}` : body.rawPriceMode === "week" ? `medie NIR ${weekStart} – ${pricesPeriod.endDay} (exclusiv)` : `medie NIR ${pricesPeriod.startDay} – ${pricesPeriod.endDay} (exclusiv)`,
-      lossPct: m ? m.pt : 0,
-      lossSource: m ? `PT Coral ERP: ${m.name}` : "PT nesetat — de completat",
-    };
-  });
 
-  const acc = new Map(journal.map((r: any) => [String(r.cont), { cont: String(r.cont), name: String(r.name ?? ""), value: Math.round(num(r.v) * 100) / 100 }]));
-  const bucket = (k: keyof typeof RATE_ACCOUNTS) => {
-    const items = RATE_ACCOUNTS[k].map((a) => acc.get(a)).filter(Boolean) as Array<{ cont: string; name: string; value: number }>;
-    return { total: items.reduce((s, x) => s + x.value, 0), accounts: items };
-  };
-  const pieces = num(volumes[0]?.pieces), kg = num(volumes[0]?.kg);
-  const lab = bucket("labour"), uti = bucket("utilities"), sup = bucket("supply"), dis = bucket("distribution");
-  const fee = fees[0] ? { fees: num(fees[0].fees), pieces: num(fees[0].pieces) } : null;
-  const rate = (total: number, vol: number) => Math.round((ratePer(total, vol) ?? 0) * 10000) / 10000;
+  // Component prices and packaging safety, for every component of every selected recipe at once.
+  const recipesByProduct = new Map<number, any[]>();
+  for (const r of recipe) recipesByProduct.set(Number(r.pa), [...(recipesByProduct.get(Number(r.pa)) ?? []), r]);
+  const picked = new Map<number, any[]>();
+  for (const [aid, rows] of recipesByProduct) {
+    const versions = new Map<number, any[]>();
+    for (const r of rows) versions.set(r.vid, [...(versions.get(r.vid) ?? []), r]);
+    // Default active version, else the most recent.
+    picked.set(aid, [...versions.values()].sort((a, b) => (Number(!!b[0].impl) - Number(!!a[0].impl)) || String(b[0].ds).localeCompare(String(a[0].ds)))[0]);
+  }
+  const compRows = [...picked.values()].flat().filter((r) => !isServiceComponent(String(r.name)));
+  const ids = [...new Set(compRows.map((r) => int(r.id)).filter(Boolean))] as number[];
+  const packagingIds = [...new Set(compRows.filter((r) => componentKind(String(r.name), String(r.um ?? "BUC")) === "ambalaj").map((r) => Number(r.id)))];
+  let safety = new Map<number, import('./priceSafetyRules.ts').PriceSafety>();
+  const [priceRows] = await Promise.all([
+    ids.length ? SQL(sb, `SELECT L.id,
+      SUM(CASE WHEN L.day>='${pricesPeriod.startDay}' THEN L.v ELSE 0 END) v12,
+      SUM(CASE WHEN L.day>='${pricesPeriod.startDay}' THEN L.q ELSE 0 END) q12,
+      SUM(CASE WHEN L.day>='${weekStart}' THEN L.v ELSE 0 END) vw,
+      SUM(CASE WHEN L.day>='${weekStart}' THEN L.q ELSE 0 END) qw,
+      MAX(CASE WHEN L.rn=1 THEN L.v/NULLIF(L.q,0) END) lastp,
+      MAX(L.day) lastd FROM (
+        SELECT d.Articol_ID id, h.Data day, CAST(d.Valoare_Neta_Rol AS float) v, CAST(d.Cantitate AS float) q,
+          ROW_NUMBER() OVER(PARTITION BY d.Articol_ID ORDER BY h.Data DESC,h.H_ID DESC,d.D_ID DESC) rn
+        FROM ${docs} WHERE t.Cod='NIR' AND ${notCancelled} AND d.Articol_ID IN (${ids.join(",")}) AND d.Cantitate>0
+          AND h.Data<'${pricesPeriod.endDay}' AND h.Data>=DATEADD(year,-3,'${pricesPeriod.endDay}')) L GROUP BY L.id`) : Promise.resolve([]),
+    readPriceSafety(sb, packagingIds, pricesPeriod.endDay).then((m) => { safety = m; })
+      .catch((e) => { warnings.push(`Verificarea prețurilor suspecte nu este disponibilă: ${(e as Error).message}`); }),
+  ]);
+  const prices = new Map(priceRows.map((r: any) => [Number(r.id), r]));
 
-  const warnings: string[] = [];
-  if (safetyError) warnings.push(safetyError);
-  for (const c of components) if (c.priceSafety?.suspect) warnings.push(`${c.name}: unitate NIR suspectă (rolă vs. bucată); ultima intrare depășește 3× media ponderată precedentelor 6 luni. Prețul Senior nu a fost modificat.`);
-  let logisticsRead: Awaited<ReturnType<typeof priceLogistics>> | null = null;
-  try { logisticsRead = await priceLogistics(sb, aid, closedStart, P.endDay, P.to); }
-  catch (e) { warnings.push(`Citire logistică: ${(e as Error).message}`); }
-  const suggested = suggestedLabour(String(art[0].name), components);
-  const cfg: PriceConfig = { unitsPerCase, ...(suggested ? { labourLine: suggested } : {}), route: "România", supplyBasis: "pallet", rawPriceMode: body.rawPriceMode === "week" ? "week" : "annual", rates: { marginPct: 0, eurRate: eur[0] ? num(eur[0].rate) : 0, eurBufferPct: 1.5, techLossPct: 0 }, components: {} };
-  // Labour comes from the CSV line (or its people/speed formula) in configuredSheet, so line edits recompute it.
-  if (!pid) cfg.feePct = 0;
+  // ---- Shared defaults: latest supply transport, distribution per cursă, client average, fees, EUR, margin.
+  const rawMaterialLabel = rawMode === "week" ? `medie NIR ${weekStart} – ${pricesPeriod.endDay} (exclusiv)` : `medie NIR ${pricesPeriod.startDay} – ${pricesPeriod.endDay} (exclusiv)`;
+  const shared: PriceConfig = { route: "România", supplyBasis: "pallet", rawPriceMode: rawMode, rates: { marginPct: DEFAULT_MARGIN_PCT, eurRate: eur[0] ? num(eur[0].rate) : 0, eurBufferPct: 1.5, techLossPct: 0 } };
+  if (!pid) shared.feePct = 0;
   const feePct = historicalFeePct(num(clientAdjustments[0]?.discounts), num(clientAdjustments[0]?.sales));
   if (pid && feePct != null && num(clientAdjustments[0]?.discounts) > 0) {
-    cfg.feePct = feePct;
-    warnings.push(`Taxe/reduceri: ${feePct.toFixed(2)}% istoric din facturi client negative, agregate pe cod fiscal; nu tarif contractual. Reduceri ${num(clientAdjustments[0]?.discounts).toFixed(2)} lei / vânzări ${num(clientAdjustments[0]?.sales).toFixed(2)} lei.`);
+    shared.feePct = feePct;
+    warnings.push(`Taxe/reduceri: ${feePct.toFixed(2)}% istoric din facturi client negative, agregate pe cod fiscal (12 luni); nu tarif contractual. Reduceri ${num(clientAdjustments[0]?.discounts).toFixed(2)} lei / vânzări ${num(clientAdjustments[0]?.sales).toFixed(2)} lei.`);
   }
-  const supplyTotal = closedJournal.length ? closedJournal.reduce((s: number, r: any) => s + num(r.v), 0) : null;
-  if (supplyTotal != null) cfg.supplyTotal = supplyTotal;
+  const supplyTotal = supply[0]?.total != null && num(supply[0].total) > 0 ? num(supply[0].total) : null;
+  if (supplyTotal != null) shared.supplyTotal = supplyTotal;
   const supplyPallets = num(receivedPallets[0]?.pallets) > 0 ? num(receivedPallets[0].pallets) : null;
-  if (supplyPallets != null && supplyPallets > 0) { cfg.supplyPallets = supplyPallets; cfg.supplyPerPallet = supplyTotal != null ? supplyTotal / supplyPallets : undefined; }
+  if (supplyPallets != null) { shared.supplyPallets = supplyPallets; if (supplyTotal != null) shared.supplyPerPallet = supplyTotal / supplyPallets; }
   const supplyKg = num(receivedKg[0]?.kg) > 0 ? num(receivedKg[0].kg) : null;
-  if (supplyKg != null) { cfg.supplyKg = supplyKg; if (supplyTotal != null) cfg.rates = { ...cfg.rates, supplyPerKg: supplyTotal / supplyKg }; }
-  warnings.push("Aprovizionare: paleți înscriși pe NIR-uri separate, total lunar; nu legătură individuală verificată cu fiecare încărcare. Capacitățile MP sunt reperele configurate Coral, nu conversii Senior.");
-  const pieceConversions = logisticsRead?.conversion ?? [];
-  if (pieceConversions.length === 1 && num(pieceConversions[0].coef) > 0) cfg.piecesPerPallet = num(pieceConversions[0].coef);
+  if (supplyKg != null) { shared.supplyKg = supplyKg; if (supplyTotal != null) shared.rates = { ...shared.rates, supplyPerKg: supplyTotal / supplyKg }; }
+  if (supplyTotal == null) warnings.push(`Aprovizionare: nicio factură de transport aprovizionare (624.01) datată ${win.start} – ${win.end}; completează tariful manual.`);
+  warnings.push("Aprovizionare: facturi transport din ultimele 30 de zile ÷ paleți NIR din aceleași zile; facturile nu sunt legate individual de fiecare NIR. Capacitățile MP sunt reperele configurate Coral.");
+
+  const read = logisticsRead as Awaited<ReturnType<typeof priceLogistics>> | null;
   const distribution: Record<string, PriceConfig> = {};
-  const routeData = buildRoutes(logisticsRead?.points ?? [], logisticsRead?.trips ?? []);
+  const routeData = buildRoutes(read?.points ?? [], read?.trips ?? []);
   for (const r of routeData.routes) {
     distribution[r.route] = { distributionTotal: r.total, distributionTrips: r.trips, ...(r.pallets > 0 ? { distributionPallets: r.pallets, distributionPerPallet: r.total / r.pallets, distributionPalletsPerTrip: r.pallets / r.trips } : {}) };
     if (r.missingLines) warnings.push(`Cursa ${r.route}: ${r.missingLines} linii de produse fără coeficient bucăți/palet în Senior; paleții cursei sunt subevaluați, deci tariful pe palet e supraevaluat.`);
@@ -241,48 +220,113 @@ export async function priceCalcData(sb: Rpc, legacy: any, body: { articolId?: un
   }
   const unassignedPallets = routeData.unassigned.reduce((s, p) => s + p.pallets, 0);
   if (unassignedPallets > 0) warnings.push(`${unassignedPallets.toFixed(1)} paleți livrați către puncte fără cursă identificată (ex. ${routeData.unassigned.slice(0, 3).map((p) => p.name).join(", ")}) nu intră în niciun tarif pe cursă.`);
-  // The selected store proposes its cursă; otherwise the domestic average.
-  let point = routeData.points.find((p) => p.pid === storeId) ?? null;
+  const unknownCosts = read?.costs.filter((r: any) => !transportRoute(String(r.subject))) ?? [];
+  if (unknownCosts.length) warnings.push(`Transport distribuție nealocat pe cursă (facturi din fereastră): ${unknownCosts.reduce((s: number, r: any) => s + num(r.total), 0).toFixed(2)} lei; exclus din tarife până la clarificare.`);
+
+  // Stores of the central partner with their cursă and pallets delivered in the window.
+  const pointBy = new Map(routeData.points.map((p) => [p.pid, p]));
+  const stores = storeRows.map((r: any) => {
+    const id = Number(r.id), p = pointBy.get(id);
+    return { pid: id, name: String(r.name ?? "").trim(), route: p?.route ?? deliveryRoute(r), pallets: p?.pallets ?? 0 };
+  });
+  const perPallet = Object.fromEntries(Object.entries(distribution).map(([k, v]) => [k, v.distributionPerPallet ?? null]));
+  const avg = pid && !storeId ? clientAverageRoute(stores, perPallet) : null;
+  if (avg) {
+    distribution[CLIENT_AVERAGE_ROUTE] = avg.weighted ? { distributionTotal: avg.allocated!, distributionPallets: avg.pallets, distributionPerPallet: avg.perPallet } : { distributionPerPallet: avg.perPallet };
+    warnings.push(`Distribuție medie client: ${avg.weighted ? `ponderată cu ${avg.pallets.toFixed(1)} paleți livrați în ultimele 30 de zile` : "medie simplă (fără livrări în ultimele 30 de zile)"} pe ${avg.stores} magazine${avg.missing.length ? `; fără cursă/tarif: ${avg.missing.slice(0, 4).join(", ")}${avg.missing.length > 4 ? ` +${avg.missing.length - 4}` : ""}` : ""}.`);
+  }
+  let point = storeId ? routeData.points.find((p) => p.pid === storeId) ?? null : null;
   if (!point && storeId) {
     const r = await SQL(sb, `SELECT TOP 1 Partener_Denumire name, Document_Judet judet, Document_Tara country FROM dbo.C_H_Note_Contabile_Parteneri WITH (NOLOCK) WHERE Partener_ID=${storeId} AND TipPartener=1 ORDER BY H_ID DESC`);
     if (r[0]) point = { pid: storeId, name: String(r[0].name ?? "").trim(), pallets: 0, missing: 0, route: deliveryRoute(r[0]) };
   }
-  const suggestedRoute = point?.route && distribution[point.route] ? point.route : null;
-  cfg.route = suggestedRoute ?? "România";
-  if (point && !suggestedRoute) warnings.push(`Nu am putut propune cursa pentru ${point.name}; alege cursa manual (implicit media curselor interne).`);
-  Object.assign(cfg, distribution[cfg.route] ?? {});
-  for (const c of components) {
-    // Recipe inputs remain live, only confirmed defaults are included here.
-    if (c.kind === "mp") {
-      c.kgPerPallet = configuredRawPalletKg(c.name);
-      cfg.components = { ...cfg.components, [c.id]: { kgPerPallet: c.kgPerPallet } };
-    }
-  }
-  const unknownCosts = logisticsRead?.costs.filter((r: any) => !transportRoute(String(r.subject)) && r.cont !== '624.01') ?? [];
-  if (unknownCosts.length) warnings.push(`Transport nealocat pe rută: ${unknownCosts.reduce((s: number,r: any)=>s+num(r.total),0).toFixed(2)} lei; exclus din tarife până la clarificare.`);
+  const suggestedRoute = point?.route && distribution[point.route] ? point.route : avg ? CLIENT_AVERAGE_ROUTE : null;
+  shared.route = suggestedRoute ?? "România";
+  if (point && !(point.route && distribution[point.route])) warnings.push(`Nu am putut propune cursa pentru ${point.name}; alege cursa manual (implicit media curselor interne).`);
+  Object.assign(shared, distribution[shared.route] ?? {});
+
+  // ---- Per product.
+  const artBy = new Map(art.map((a: any) => [Number(a.id), a]));
+  const convBy = new Map<number, number>();
+  for (const r of read?.conversion ?? []) if (num(r.coef) > 0) convBy.set(Number(r.id), num(r.coef));
+  const items = aids.map((aid) => {
+    const a = artBy.get(aid);
+    if (!a) return { product: { id: aid, name: `Articol ${aid}` }, error: "Produsul nu există în Senior." };
+    const name = String(a.name).trim();
+    const pick = picked.get(aid);
+    if (!pick?.length) return { product: { id: aid, name }, error: "Produsul nu are rețetă activă în Senior." };
+    const unitsPerCase = num(pick[0].vq) || 1;
+    const itemWarnings: string[] = [];
+    const components: SheetComponent[] = pick.filter((r) => !isServiceComponent(String(r.name))).map((r): SheetComponent => {
+      const cname = String(r.name).trim(), unit = String(r.um ?? "").trim() || "BUC";
+      const p = prices.get(Number(r.id));
+      const annual = p && num(p.q12) > 0 ? num(p.v12) / num(p.q12) : null;
+      const kind = componentKind(cname, unit);
+      const m = matchLoss(cname, kind === "mp" ? loss : [...packagingLoss, ...labelLoss]);
+      const week = p && num(p.qw) > 0 ? num(p.vw) / num(p.qw) : null;
+      const last = p?.lastp != null ? num(p.lastp) : null;
+      return {
+        id: Number(r.id), name: cname, qty: num(r.q), unit, kind,
+        price: kind === "ambalaj" ? last : rawMode === "week" ? week : annual, annualPrice: annual, weekPrice: week, lastPrice: last,
+        ...(kind === 'ambalaj' && safety.has(Number(r.id)) ? { priceSafety: safety.get(Number(r.id)) } : {}),
+        priceSource: kind === "ambalaj" ? `ultima intrare NIR ${String(p?.lastd ?? "").slice(0, 10)}` : rawMaterialLabel,
+        lossPct: m ? m.pt : 0,
+        lossSource: m ? `PT Coral ERP: ${m.name}` : "PT nesetat — de completat",
+        ...(kind === "mp" ? { kgPerPallet: configuredRawPalletKg(cname) } : {}),
+      };
+    });
+    for (const c of components) if (c.priceSafety?.suspect) itemWarnings.push(`${c.name}: unitate NIR suspectă (rolă vs. bucată); ultima intrare depășește 3× media ponderată precedentelor 6 luni. Prețul Senior nu a fost modificat.`);
+    const suggested = suggestedLabour(name, components);
+    const cfg: PriceConfig = { ...shared, rates: { ...shared.rates }, unitsPerCase, ...(suggested ? { labourLine: suggested } : {}), components: {} };
+    if (convBy.has(aid)) cfg.piecesPerPallet = convBy.get(aid);
+    for (const c of components) if (c.kind === "mp") cfg.components = { ...cfg.components, [c.id]: { kgPerPallet: c.kgPerPallet } };
+    const hist = history.filter((r: any) => Number(r.aid) === aid);
+    const storeSales = recent.filter((r: any) => Number(r.aid) === aid).map((r: any) => ({ pid: Number(r.pid), qty: num(r.q), value: num(r.v), price: num(r.q) > 0 ? num(r.v) / num(r.q) : null }));
+    const rq = storeSales.reduce((s, r) => s + r.qty, 0), rv = storeSales.reduce((s, r) => s + r.value, 0);
+    const pl = priceList.find((r: any) => Number(r.aid) === aid);
+    return {
+      product: { id: aid, name, code: a.code, unitsPerCase },
+      components, defaults: cfg, warnings: itemWarnings,
+      suggestedLabourSource: suggested ? "Propunere după produs/compoziție; tarif din CSV octombrie 2026" : "Linie neidentificată",
+      salesHistory: hist.map((r: any) => ({ month: String(r.m), qty: num(r.q), value: num(r.v), price: num(r.q) > 0 ? Math.round((num(r.v) / num(r.q)) * 10000) / 10000 : null })),
+      storeSales,
+      recentSale: rq > 0 ? { qty: rq, value: rv, price: rv / rq, from: recentStart, to: pricesPeriod.endDay } : null,
+      priceList: pl ? { price: num(pl.price), currency: String(pl.cur ?? "RON"), list: String(pl.list ?? "").trim(), since: String(pl.ds).slice(0, 10) } : null,
+    };
+  });
+
   return {
-    product: { id: art[0].id, name: String(art[0].name).trim(), code: art[0].code, unitsPerCase },
     period: pricesPeriod,
-    accountingPeriod: P, defaults: cfg, warnings, suggestedLabourSource: suggested ? "Propunere după produs/compoziție; tarif din CSV octombrie 2026" : "Linie neidentificată",
-    logistics: { closedStart, closedEnd: P.endDay, supplyTotal, supplyPallets, supplyKg, distribution, routes: routeData.routes, store: point ? { id: point.pid, name: point.name, route: point.route } : null, suggestedRoute, piecesPerPallet: cfg.piecesPerPallet ?? null, note: "Distribuție pe cursă: curse facturate de transportatori „TRANSPORT DIST <cursă>” în luna închisă ÷ paleți facturați (Cantitate/Coef Senior) către punctele de livrare ale cursei. Punctele sunt atribuite cursei după oraș/județ; facturile transportatorilor nu indică livrarea exactă." },
-    components,
-    rates: {
-      labourPerPiece: { value: rate(lab.total, pieces), total: lab.total, volume: pieces, unit: "buc vândute", accounts: lab.accounts },
-      utilitiesPerPiece: { value: rate(uti.total, pieces), total: uti.total, volume: pieces, unit: "buc vândute", accounts: uti.accounts },
-      supplyPerKg: { value: rate(sup.total, kg), total: sup.total, volume: kg, unit: "kg recepționate (NIR)", accounts: sup.accounts },
-      distributionPerPiece: { value: rate(dis.total, pieces), total: dis.total, volume: pieces, unit: "buc vândute", accounts: dis.accounts },
-      clientFeePerPiece: fee ? { value: rate(fee.fees, fee.pieces), total: fee.fees, volume: fee.pieces, unit: "buc vândute clientului", accounts: [{ cont: "FF", name: "facturi emise de client către Coral (servicii, taxe logistice)", value: Math.round(fee.fees * 100) / 100 }] } : { value: 0, total: 0, volume: 0, unit: "", accounts: [] },
-    },
+    accountingPeriod: P,
+    warnings,
     eur: eur[0] ? { rate: num(eur[0].rate), day: String(eur[0].day).slice(0, 10) } : null,
-    salesHistory: history.map((r: any) => ({ month: String(r.m), qty: num(r.q), value: num(r.v), price: num(r.q) > 0 ? Math.round((num(r.v) / num(r.q)) * 10000) / 10000 : null })),
-    priceList: priceList[0] ? { price: num(priceList[0].price), currency: String(priceList[0].cur ?? "RON"), list: String(priceList[0].list ?? "").trim(), since: String(priceList[0].ds).slice(0, 10) } : null,
+    stores,
+    logistics: {
+      closedStart: win.start, closedEnd: win.end, window: win, supplyTotal, supplyPallets, supplyKg,
+      supplyTrucks: num(supply[0]?.trucks), lastTrucks: lastTrucks.map((r: any) => ({ day: String(r.day), price: num(r.price), line: String(r.line) })),
+      distribution, routes: routeData.routes, clientAverage: avg,
+      store: point ? { id: point.pid, name: point.name, route: point.route } : null, suggestedRoute,
+      note: `Ultimele prețuri: facturi transport datate ${win.start} – ${win.end} (exclusiv). Distribuție pe cursă: curse „TRANSPORT DIST <cursă>” ÷ paleți facturați (Cantitate/Coef Senior) către punctele de livrare ale cursei în aceleași zile. Punctele sunt atribuite cursei după oraș/județ; facturile transportatorilor nu indică livrarea exactă.`,
+    },
+    items,
   };
+}
+
+export type PriceListData = Awaited<ReturnType<typeof priceListData>>;
+
+/** Single product sheet (chat tool, saved live sheets): same reads as the price list. */
+export async function priceCalcData(sb: Rpc, legacy: any, body: Body) {
+  const r = await priceListData(sb, legacy, { ...body, articolIds: [body.articolId] });
+  const it = r.items[0];
+  if (!it || "error" in it) throw new Error(it && "error" in it ? String(it.error) : "Produs invalid.");
+  const { items: _items, ...shared } = r;
+  return { ...shared, ...it, warnings: [...shared.warnings, ...it.warnings] };
 }
 
 export type PriceData = Awaited<ReturnType<typeof priceCalcData>>;
 
-/** Default rates straight from the Senior-derived data (EUR buffer 1.5%, no extra tech loss). */
-export function defaultRates(d: PriceData, marginPct = 0) {
+/** Zero placeholders; every used rate comes from the prefilled config (EUR buffer 1.5%, no extra tech loss). */
+export function defaultRates(d: { eur: { rate: number } | null }, marginPct = DEFAULT_MARGIN_PCT) {
   return {
     labourPerPiece: 0,
     utilitiesPerPiece: 0,
