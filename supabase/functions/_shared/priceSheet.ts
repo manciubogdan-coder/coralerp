@@ -58,19 +58,22 @@ export interface PriceSheet {
   utilities: number;
   techLoss: number;
   productionCost: number;
+  /** Production cost + distribution: the base of the gross margin. */
   factoryGate: number;
   logistics: number;
+  /** Minimum price + target profit, before network fees. */
   delivered: number;
   clientFees: number;
+  /** Proposed price with network fees included: (minimum price + profit) ÷ (1 − fee%). */
   clientPrice: number;
-  /** Break-even selling price: costs + gross margin (treated as a cost) + distribution + network fees, no profit. */
+  /** Break-even selling price, without fees: (production cost + distribution) × (1 + gross margin %). */
   minPrice: number;
-  /** Target profit in the proposed price and its % of the proposed price. */
+  /** Target profit = profit % of the minimum price. */
   profit: number;
   profitPct: number;
   eurEffective: number;
   clientPriceEur: number;
-  /** Factory gate − production cost: the gross margin added on top of cost. */
+  /** Gross margin % of (production cost + distribution), treated as a factory cost. */
   grossMargin: number;
   feePct: number;
   clientFeePerPiece: number;
@@ -170,17 +173,19 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
   const techLoss = subtotal * Math.max(R.techLossPct || 0, 0) / 100;
   lines.push({ group: "pierdere", label: "Pierdere suplimentară scenariu", value: r4(techLoss), detail: `${R.techLossPct || 0}% din costurile de mai sus (PT pe materii prime/ambalaje este deja inclusă pe rânduri)` });
   const productionCost = subtotal + techLoss;
-  const factoryGate = withMargin(productionCost, R.marginPct);
   if (R.distributionPerPallet != null && !(R.piecesPerPallet && R.piecesPerPallet > 0)) missingInputs.push("Bucăți produs finit/palet");
   const logistics = R.distributionPerPallet != null ? (R.piecesPerPallet && R.piecesPerPallet > 0 ? n / R.piecesPerPallet * R.distributionPerPallet : 0) : n * R.distributionPerPiece;
-  const delivered = factoryGate + logistics;
-  // Network fees and target profit are both % of the final price: price = (delivered + fixed fees) ÷ (1 − fee% − profit%).
+  // Gross margin = margin % of (production cost + distribution); minimum price = that cost + margin (break-even, no fees).
+  const costBase = productionCost + logistics;
+  const grossMargin = costBase * Math.min(Math.max(R.marginPct || 0, 0), 95) / 100;
+  const minPrice = costBase + grossMargin;
+  // Target profit = profit % of the minimum price; network fees are added last, as % of the final invoiced price.
   const feeP = Math.min(Math.max(R.feePct ?? 0, 0), 89), profitP = Math.min(Math.max(R.profitPct ?? 0, 0), 89);
-  const base = delivered + n * R.clientFeePerPiece;
-  const minPrice = withMargin(base, feeP);
-  const clientPrice = withMargin(base, Math.min(feeP + profitP, 95));
-  const profit = clientPrice * profitP / 100;
-  const clientFees = clientPrice - delivered - profit;
+  const profit = minPrice * profitP / 100;
+  const delivered = minPrice + profit;
+  const clientPrice = (delivered + n * R.clientFeePerPiece) / (1 - feeP / 100);
+  const clientFees = clientPrice - delivered;
+  const factoryGate = costBase;
   const eurEffective = R.eurRate * (1 + (R.eurBufferPct || 0) / 100);
   const clientPriceEur = eurEffective > 0 ? clientPrice / eurEffective : 0;
   return {
@@ -189,12 +194,12 @@ export function computeSheet(input: { unitsPerCase: number; components: SheetCom
     utilities: r4(utilities), techLoss: r4(techLoss), productionCost: r4(productionCost), factoryGate: r4(factoryGate),
     logistics: r4(logistics), delivered: r4(delivered), clientFees: r4(clientFees), clientPrice: r4(clientPrice),
     eurEffective: r4(eurEffective), clientPriceEur: r4(clientPriceEur), minPrice: r4(minPrice), profit: r4(profit), profitPct: profitP,
-    grossMargin: r4(factoryGate - productionCost), feePct: R.feePct ?? 0, clientFeePerPiece: R.clientFeePerPiece || 0,
+    grossMargin: r4(grossMargin), feePct: R.feePct ?? 0, clientFeePerPiece: R.clientFeePerPiece || 0,
     perPiece: {
       minPrice: r4(minPrice / n), profit: r4(profit / n),
       productionCost: r4(productionCost / n), factoryGate: r4(factoryGate / n), delivered: r4(delivered / n),
       clientPrice: r4(clientPrice / n), clientPriceEur: r4(clientPriceEur / n),
-      grossMargin: r4((factoryGate - productionCost) / n), logistics: r4(logistics / n), fees: r4(clientFees / n),
+      grossMargin: r4(grossMargin / n), logistics: r4(logistics / n), fees: r4(clientFees / n),
     },
   };
 }

@@ -65,12 +65,12 @@ export async function runLive(c: { cloud: any; legacy: any; legacyUser?: any }, 
   const rows = [
     ...s.lines.map((l) => [l.label, l.detail, r2(l.value)]),
     ["Cost producție", "", r2(s.productionCost)],
-    [`Marjă brută ${config.rates?.marginPct ?? spec.marginPct}%`, "", r2(s.grossMargin)],
-    ["Preț poartă fabrică", "", r2(s.factoryGate)],
-    ["Cost logistic", "", r2(s.logistics)],
-    ["Preț livrat", "", r2(s.delivered)],
-    ["Taxe client", "", r2(s.clientFees)],
-    ["Preț client RON / bax", "", r2(s.clientPrice)],
+    ["Cost distribuție", "", r2(s.logistics)],
+    [`Marjă brută ${config.rates?.marginPct ?? spec.marginPct}%`, "din cost producție + distribuție", r2(s.grossMargin)],
+    ["Preț minim vânzare (break-even)", "fără taxe", r2(s.minPrice)],
+    [`Profitabilitate țintă ${s.profitPct}%`, "din prețul minim", r2(s.profit)],
+    [`Taxe rețea ${s.feePct}%`, "din prețul propus", r2(s.clientFees)],
+    ["Preț propus RON / bax", "cu taxe incluse", r2(s.clientPrice)],
     ["Preț client EUR / bax", `curs ${r2(s.eurEffective)}`, r2(s.clientPriceEur)],
   ];
   return {

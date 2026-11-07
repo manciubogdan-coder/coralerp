@@ -57,12 +57,13 @@ export function clientAverageRoute(stores: StoreRoute[], perPallet: Record<strin
   return { perPallet: avg, allocated: null, pallets: 0, weighted: false, stores: priced.length, missing };
 }
 
-/** Real profitability per piece at a selling price: price − client fees (percent of price + fixed) − production cost − gross margin − distribution.
- * The gross margin is a cost of the factory: at the minimum (break-even) price the profit is 0, at the proposed price it is the target profit. */
-export function profitAt(s: { unitsPerCase: number; productionCost: number; factoryGate?: number; logistics: number; feePct: number; clientFeePerPiece: number }, pricePerPiece: number) {
+/** Real profitability per piece at a selling price: price − network fees (percent of price + fixed) − minimum price
+ * (production cost + distribution + gross margin, the margin being a factory cost). % is of the minimum price, the same base
+ * as the target profit: 0% at the minimum price + fees, the target % at the proposed price, negative below. */
+export function profitAt(s: { unitsPerCase: number; minPrice: number; feePct: number; clientFeePerPiece: number }, pricePerPiece: number) {
   const n = s.unitsPerCase > 0 ? s.unitsPerCase : 1;
   const fees = (pricePerPiece * (s.feePct || 0)) / 100 + (s.clientFeePerPiece || 0);
-  const cost = ((s.factoryGate ?? s.productionCost) + s.logistics) / n;
+  const cost = s.minPrice / n;
   const profit = pricePerPiece - fees - cost;
-  return { fees, cost, profit, pct: pricePerPiece > 0 ? (profit / pricePerPiece) * 100 : null };
+  return { fees, cost, profit, pct: cost > 0 ? (profit / cost) * 100 : null };
 }

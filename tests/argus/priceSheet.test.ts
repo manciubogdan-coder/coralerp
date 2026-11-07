@@ -35,7 +35,7 @@ describe("price sheet", () => {
     expect(s.packaging).toBeCloseTo(1.284, 4);
     expect(s.labour).toBeCloseTo(4.668, 4);
     expect(s.productionCost).toBeCloseTo(28.6815 + 1.4815 + 1.284 + 4.668 + 0.3402, 2);
-    expect(s.delivered).toBeCloseTo(s.factoryGate + 6 * 4.125, 4);
+    expect(s.factoryGate).toBeCloseTo(s.productionCost + 6 * 4.125, 3);
     expect(s.clientPriceEur).toBeCloseTo(s.clientPrice / (5.2473 * 1.015), 3);
     expect(s.perPiece.clientPrice).toBeCloseTo(s.clientPrice / 6, 3);
   });

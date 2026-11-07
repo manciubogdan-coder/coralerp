@@ -146,11 +146,12 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
           <li><b>Ambalaje și etichete</b>: cantitate × ultimul preț NIR × (1 + PT ambalaj %).</li>
           <li><b>Manoperă directă</b>: oameni × cost orar pe om ÷ viteza liniei (buc/oră). <b>Regie fabrică</b> = manopera directă × regia % a liniei (implicit {draft.labourOverheadPct || "?"}%). Marfa revândută ca atare are doar regie.</li>
           <li><b>Cost producție</b> = suma de mai sus + pierdere suplimentară {draft.techLossPct || "0"}%.</li>
-          <li><b>Preț poartă fabrică</b> = cost ÷ (1 − marjă brută); marja implicită {draft.marginPct || "?"}%.</li>
           <li><b>Distribuție</b>: bucăți ÷ bucăți/palet × tarif cursă (cost curse ÷ paleți livrați punctelor cursei; perechile de curse se calculează împreună).</li>
-          <li><b>Preț minim de vânzare (break-even)</b> = (poartă fabrică + distribuție) ÷ (1 − taxe rețea %, 0% dacă clientul lipsește din tabel). Marja brută e tratată ca o cheltuială.</li>
-          <li><b>Preț propus</b> = (poartă fabrică + distribuție) ÷ (1 − taxe rețea % − profitabilitate %); profitabilitatea implicită {draft.profitPct || "?"}%, sau cea a produsului / clientului de mai jos. În EUR la cursul BNR + {draft.eurBufferPct || "0"}% siguranță.</li>
-          <li><b>Profitabilitate reală</b> = (preț vânzare actual − taxe − cost − marjă brută − distribuție) ÷ preț vânzare actual; negativă = sub prețul minim.</li>
+          <li><b>Marjă brută</b> = (cost producție + distribuție) × {draft.marginPct || "?"}%. E tratată ca o cheltuială a fabricii.</li>
+          <li><b>Preț minim de vânzare (break-even)</b> = cost producție + distribuție + marjă brută, fără taxe.</li>
+          <li><b>Profitabilitate țintă</b> = preț minim × {draft.profitPct || "?"}% (sau procentul produsului / clientului de mai jos).</li>
+          <li><b>Preț propus</b> = (preț minim + profitabilitate) ÷ (1 − taxe rețea %): taxele se adaugă ultimele, ca procent din prețul final facturat (0% dacă clientul lipsește din tabel). În EUR la cursul BNR + {draft.eurBufferPct || "0"}% siguranță.</li>
+          <li><b>Profitabilitate reală</b> = (preț vânzare actual − taxe rețea − preț minim) ÷ preț minim; la prețul propus iese exact profitabilitatea țintă, negativă = cu roșu.</li>
         </ol>
       </Section>
 
@@ -269,7 +270,7 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
 
       <Section title="Marjă, profitabilitate, pierdere și curs">
         <div className="grid gap-3 sm:grid-cols-3">
-          <Num label="Marjă brută implicită %" value={draft.marginPct} onChange={setTop("marginPct")} hint="Din prețul de vânzare: cost ÷ (1 − marjă)" />
+          <Num label="Marjă brută implicită %" value={draft.marginPct} onChange={setTop("marginPct")} hint="Din cost producție + distribuție" />
           <Num label="Profitabilitate implicită %" value={draft.profitPct} onChange={setTop("profitPct")} hint="Peste prețul minim de vânzare (implicit 5%)" />
           <Num label="Pierdere suplimentară %" value={draft.techLossPct} onChange={setTop("techLossPct")} hint="Peste PT-ul din rețete" />
           <Num label="Siguranță curs EUR %" value={draft.eurBufferPct} onChange={setTop("eurBufferPct")} hint="Adăugat la cursul BNR" />

@@ -37,25 +37,30 @@ const sheet = (profitPct?: number) => computeSheet({ unitsPerCase: 10, component
   labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: 5, eurBufferPct: 0, techLossPct: 0,
   marginPct: 15, profitPct, supplyPerPallet: 0, distributionPerPallet: 300, piecesPerPallet: 1000, feePct: 10, supplyBasis: "pallet",
 } });
-it("minimum selling price is break-even: costs + gross margin + distribution + network fees, no profit", () => {
+it("gross margin is 15% of production cost + distribution; minimum price = that cost + margin, without network fees", () => {
   const s = sheet(5);
-  // Cost 8.5 → gate 10 (margin 1.5) → + distribution 3 = 13 lei/bax ÷ (1 − 10%) = 14.4444 lei/bax.
-  expect(s.perPiece.grossMargin).toBeCloseTo(0.15, 4);
-  expect(s.perPiece.minPrice).toBeCloseTo(1.44444, 4);
-  expect(profitAt(s, s.perPiece.minPrice).profit).toBeCloseTo(0, 3);
+  // Production 8.5 + distribution 3 = 11.5 lei/bax; margin 15% = 1.725; minimum 13.225 lei/bax (fees not included).
+  expect(s.grossMargin).toBeCloseTo(1.725, 4);
+  expect(s.perPiece.grossMargin).toBeCloseTo(0.1725, 4);
+  expect(s.minPrice).toBeCloseTo(13.225, 4);
+  expect(s.perPiece.minPrice).toBeCloseTo(1.3225, 4);
 });
-it("proposed price = minimum price + 5% target profitability on the final price", () => {
+it("proposed price = (minimum price + 5% of it) with the 10% network fee added last on the final price", () => {
   const s = sheet(5);
-  // 13 ÷ (1 − 10% − 5%) = 15.2941 lei/bax; profit 5% of it.
-  expect(s.perPiece.clientPrice).toBeCloseTo(1.52941, 4);
-  expect(s.profitPct).toBe(5);
-  expect(profitAt(s, s.perPiece.clientPrice).pct).toBeCloseTo(5, 2);
+  // 13.225 × 1.05 = 13.88625; ÷ (1 − 10%) = 15.429167 lei/bax; the fee is 10% of the proposed price.
+  expect(s.profit).toBeCloseTo(0.66125, 4);
+  expect(s.delivered).toBeCloseTo(13.88625, 4);
+  expect(s.clientPrice).toBeCloseTo(15.429167, 3);
+  expect(s.clientFees).toBeCloseTo(s.clientPrice * 0.1, 3);
+  expect(profitAt(s, s.perPiece.clientPrice).pct).toBeCloseTo(5, 1);
 });
-it("real profitability counts the gross margin as a cost and goes negative below the minimum price", () => {
+it("real profitability = (price − network fees − minimum price) ÷ minimum price, negative below break-even", () => {
   const s = sheet(5);
-  // 1.50 − 10% fees − (10 + 3) / 10 = 0.05 lei/buc = 3.33%.
-  expect(profitAt(s, 1.5).profit).toBeCloseTo(0.05, 6);
-  expect(profitAt(s, 1.5).pct).toBeCloseTo(3.3333, 3);
+  // 1.50 − 0.15 fees − 1.3225 = 0.0275 lei/buc = 2.08% of the minimum price.
+  expect(profitAt(s, 1.5).profit).toBeCloseTo(0.0275, 4);
+  expect(profitAt(s, 1.5).pct).toBeCloseTo(2.0794, 2);
+  // Break-even with fees: 1.3225 ÷ 0.9 = 1.4694 lei/buc.
+  expect(profitAt(s, 1.3225 / 0.9).profit).toBeCloseTo(0, 4);
   expect(profitAt(s, 1.4).profit).toBeLessThan(0);
 });
 
