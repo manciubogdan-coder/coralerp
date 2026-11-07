@@ -24,10 +24,10 @@ export const PARAMETER_FIELDS = PARAMETER_GROUPS.flatMap(([, f]) => f as unknown
 export function NumericParameter({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return <label className="block space-y-1 text-xs text-muted-foreground"><span>{label}</span><Input aria-label={label} inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} /></label>;
 }
-export function PriceParameters({ values, setValue, mode, setMode, route, setRoute, routes, line, setLine, basis, setBasis }: {
+export function PriceParameters({ values, setValue, mode, setMode, route, setRoute, routes = [], line, setLine, basis, setBasis }: {
   values: ParameterValues; setValue: (key: string, v: string) => void;
   mode: "annual" | "week"; setMode: (v: "annual" | "week") => void;
-  route: string; setRoute: (v: string) => void; routes: Array<{ value: string; label: string }>; line: string; setLine: (v: string) => void;
+  route: string; setRoute: (v: string) => void; routes?: Array<{ value: string; label: string }>; line: string; setLine: (v: string) => void;
   basis: "pallet" | "kg"; setBasis: (v: "pallet" | "kg") => void;
 }) {
   const selectClass = "h-10 w-full rounded-md border border-input bg-background px-2 text-sm";
