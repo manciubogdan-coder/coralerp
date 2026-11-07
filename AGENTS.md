@@ -30,4 +30,3 @@
 - Session finish claims active status and updates cache. Why: prevent repeat overwrites.
 - Auth uses isolated authState, 20s retry gate and stale-read guards. Why: avoid blank screens/endless login.
 - Operator screens use Realtime + 60s visible fallback, coalesced non-cancelling invalidations; mutations refresh own caches. useOrders reads selected day ±1 (default yesterday–tomorrow) on demand, id-ordered, 4 pages concurrently, sorted locally. Collaboration: Realtime + 60s single-flight. Why: full-history updated_at sorts timed out and froze Operator.
-- Line speed reports (`src/lib/productie/lineSpeed.ts`) divide pieces by worked session time with overlapping same-line sessions merged, compare to the line's configured hourly norm, and keep open sessions out; suspect sessions are listed and excluded only by an explicit toggle. Why: speed must reflect real working time, not calendar hours or double-counted grouped orders.
