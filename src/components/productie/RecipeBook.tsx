@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import XLSXStyle from "xlsx-js-style";
 import * as pdfjsLib from "pdfjs-dist";
 import { toast } from "sonner";
-import { Download, FileUp, Loader2, Pencil, Plus, Printer, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileUp, Loader2, Pencil, Plus, Printer, Search, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,7 @@ import RecipeEditDialog from "./RecipeEditDialog";
 import { findCarton } from "../../../supabase/functions/_shared/mixedCartons";
 import { packagingUnits, resolveStorePackaging } from "../../../supabase/functions/_shared/packagingRules";
 import {
-  ALL_STORES, buildRecipeBook, isMixed, lossFor, mainClient, manualOrders, matchMixedProduct, pickedStoresOf, sortPicked, storeLabel, toKg,
+  ALL_STORES, buildRecipeBook, grossNeeds, stockCheck, type StockLine, isMixed, lossFor, mainClient, manualOrders, matchMixedProduct, pickedStoresOf, sortPicked, storeLabel, toKg,
   type BookClient, type LossRule, type ManualLine, type MixedRecipe, type RecipeBookOrder,
 } from "@/lib/productie/recipeBook";
 
@@ -34,6 +34,8 @@ const per = (n: number) => n.toLocaleString("ro-RO", { maximumFractionDigits: 4 
 const ro = (d: string) => d.split("-").reverse().join(".");
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 const low = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+/** Same key as the stock check uses for raw-material names. */
+const plainKey = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 const nameKey = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim().toUpperCase();
 
 async function pages<T = any>(query: () => any): Promise<T[]> {
@@ -276,6 +278,89 @@ function StorePicker({ stores, unticked, setUnticked }: {
   );
 }
 
+// ---------- Stock check: start-of-day stock for today/past days, current warehouse stock for future days ----------
+
+type StockSource = { lines: StockLine[]; label: string; fallback: boolean };
+
+function useStockFor(day: string) {
+  return useQuery({
+    queryKey: ["retetar-stock", day],
+    staleTime: 60_000,
+    queryFn: async (): Promise<StockSource> => {
+      const toLines = (rows: any[]) => rows.map(r => ({ name: String(r.name ?? ""), kg: toKg(Number(r.quantity) || 0, r.unit) })).filter(l => l.kg > 0);
+      const current = async () => toLines(await pages(() => supabase.from("inventory").select("name, quantity, unit").gt("quantity", 0).order("id")));
+      if (day > today()) return { lines: await current(), label: `Stocul curent din depozit (acum), pentru ${ro(day)}`, fallback: false };
+      const snap = toLines(await pages(() => (supabase as any).from("daily_stock_snapshots").select("name, quantity, unit").eq("snapshot_date", day).gt("quantity", 0).order("id")));
+      if (snap.length) return { lines: snap, label: `Stocul de început de zi ${ro(day)}`, fallback: false };
+      return { lines: await current(), label: `Stocul curent din depozit — nu există stoc de început de zi pentru ${ro(day)}`, fallback: true };
+    },
+  });
+}
+
+function StockCheckPanel({ check, source, loading, error }: {
+  check: ReturnType<typeof stockCheck>; source?: StockSource; loading: boolean; error: unknown;
+}) {
+  const short = check.rows.filter(r => r.status === "short"), tight = check.rows.filter(r => r.status === "tight");
+  const [open, setOpen] = useState(false);
+  useEffect(() => { if (short.length || tight.length) setOpen(true); }, [short.length, tight.length]);
+  if (!check.rows.length) return null;
+  return (
+    <Card className={short.length ? "border-destructive border-2" : tight.length ? "border-crm-warning border-2" : undefined}>
+      <CardContent className="pt-4 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {short.length ? <AlertTriangle className="h-5 w-5 text-destructive" /> : tight.length ? <AlertTriangle className="h-5 w-5 text-crm-warning" /> : <CheckCircle2 className="h-5 w-5 text-primary" />}
+          <h3 className="font-bold">Îmi ajunge materia primă?</h3>
+          <span className={`text-sm font-semibold ${short.length ? "text-destructive" : tight.length ? "text-crm-warning" : "text-primary"}`}>
+            {loading ? "Se încarcă stocul…" : short.length ? `NU — lipsesc ${short.length} materii prime` : tight.length ? "Da pentru foile afișate, dar nu și pentru restul comenzilor zilei" : "Da, ajunge tot"}
+          </span>
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setOpen(o => !o)}>{open ? "Ascunde detaliile" : "Arată detaliile"}</Button>
+        </div>
+        {source && <p className={`text-xs ${source.fallback ? "text-crm-warning font-medium" : "text-muted-foreground"}`}>Comparat cu: {source.label}. Necesarul e brut (cu PT %). Recepțiile care încă n-au intrat nu sunt adunate.</p>}
+        {error && <p className="text-sm text-destructive">Nu am putut citi stocul: {(error as Error).message}</p>}
+        {!loading && short.length > 0 && (
+          <div className="rounded-md bg-destructive/10 p-3 space-y-2">
+            <div className="text-sm font-bold text-destructive">Nu ajunge: {short.map(r => `${r.nume} (ai ${kg(r.stockKg, 1)} kg, trebuie ${kg(r.needKg, 1)} kg, lipsă ${kg(-r.leftKg, 1)} kg)`).join(" · ")}</div>
+            {check.shortages.length > 0 && (
+              <div>
+                <div className="text-sm font-semibold text-destructive">Magazine care rămân fără marfă ({check.shortages.length}):</div>
+                <ul className="mt-1 grid gap-x-6 gap-y-0.5 text-sm md:grid-cols-2">
+                  {check.shortages.map(s => (
+                    <li key={`${s.sheet}|${s.store}`} className="text-destructive">
+                      <span className="font-semibold">{s.store}</span>
+                      {" — "}{s.missing.map(m => `${m.nume}: lipsă ${kg(m.shortKg, 1)} din ${kg(m.needKg, 1)} kg`).join(", ")}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-xs text-muted-foreground">Stocul e împărțit în ordinea foilor de mai jos și, în fiecare foaie, a magazinelor în ordine alfabetică. În „Centralizat”, magazinele bifate primesc primele.</p>
+              </div>
+            )}
+          </div>
+        )}
+        {open && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead className="bg-muted"><tr className="[&>th]:border [&>th]:px-2 [&>th]:py-1.5">
+                <th>Materie primă</th><th>Necesar foi (kg brut)</th><th>Stoc (kg)</th><th>Rămâne (kg)</th><th>Alte comenzi ale zilei (kg)</th><th>Rămâne după tot (kg)</th><th>Stare</th>
+              </tr></thead>
+              <tbody>{check.rows.map(r => (
+                <tr key={r.key} className={`[&>td]:border [&>td]:px-2 [&>td]:py-1 ${r.status === "short" ? "bg-destructive/10 text-destructive font-semibold" : r.status === "tight" ? "bg-crm-warning/10" : ""}`}>
+                  <td title={r.stockNames.length ? `Loturi din stoc: ${r.stockNames.join(", ")}` : "Nu am găsit materia primă în stoc"}>{r.nume}</td>
+                  <td className="text-right tabular-nums">{kg(r.needKg, 1)}</td>
+                  <td className="text-right tabular-nums">{kg(r.stockKg, 1)}{!r.stockNames.length && <span className="ml-1 text-xs">(negăsit)</span>}</td>
+                  <td className="text-right tabular-nums">{kg(r.leftKg, 1)}</td>
+                  <td className="text-right tabular-nums">{r.otherKg ? kg(r.otherKg, 1) : "—"}</td>
+                  <td className={`text-right tabular-nums ${r.leftAfterOtherKg < 0 ? "text-destructive font-semibold" : ""}`}>{kg(r.leftAfterOtherKg, 1)}</td>
+                  <td className={r.status === "tight" ? "text-crm-warning font-semibold" : undefined}>{r.status === "short" ? "NU AJUNGE" : r.status === "tight" ? "Ajunge doar pentru foi" : "Ajunge"}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 /** Shared sheet view: search by product and client, Excel/print for all or one client, edit recipes. */
 function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fileName, empty }: {
   orders: RecipeBookOrder[]; recipes: MixedRecipe[]; losses: LossRule[];
@@ -314,6 +399,19 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
     return [...qty.entries()].map(([store, bucati]) => ({ store, bucati, client: clientByStore.get(store) || "" }));
   }, [mode, shown, recipes, losses, clientOf, unitsOf]);
 
+  const stock = useStockFor(day);
+  const check = useMemo(() => {
+    const inShown = new Set(shown);
+    const other = grossNeeds((Array.isArray(orders) ? orders : []).filter(o => !inShown.has(o)), recipes, losses);
+    return stockCheck(book, stock.data?.lines ?? [], other);
+  }, [book, shown, orders, recipes, losses, stock.data]);
+  const shortBySheet = useMemo(() => {
+    const m = new Map<string, number>();
+    check.shortages.forEach(s => m.set(s.sheet, (m.get(s.sheet) || 0) + 1));
+    return m;
+  }, [check]);
+  const shortMat = useMemo(() => new Set(check.rows.filter(r => r.status === "short").map(r => r.key)), [check]);
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -339,12 +437,15 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
           <Button onClick={() => exportBook(book, day, source, fileName)} disabled={!book.length}><Download className="h-4 w-4 mr-1" />Export Excel</Button>
         </div>
       </div>
+      {stock.isLoading ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Verific stocul de materie primă…</div>
+        : <StockCheckPanel check={check} source={stock.data} loading={stock.isLoading} error={stock.error} />}
       {!book.length && <p className="text-sm text-muted-foreground">{orders.length && (productQ || clientQ) ? "Nimic nu corespunde filtrelor." : empty}</p>}
       {book.map(c => (
         <Card key={c.client}>
           <CardContent className="pt-4 space-y-3">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <h3 className="text-lg font-bold">{c.client}</h3>
+              {!!shortBySheet.get(c.client) && <span className="inline-flex items-center gap-1 rounded-md bg-destructive px-2 py-0.5 text-xs font-bold text-destructive-foreground"><AlertTriangle className="h-3.5 w-3.5" />Nu ajunge materia primă la {shortBySheet.get(c.client)} {shortBySheet.get(c.client) === 1 ? "magazin" : "magazine"}</span>}
               <span className="text-sm text-muted-foreground">{c.bucati.toLocaleString("ro-RO")} buc · {kg(c.netKg, 1)} kg net · {kg(c.brutKg, 1)} kg brut · <span title={c.stores.join("\n")}>{c.stores.length} {c.stores.length === 1 ? "punct de livrare" : "puncte de livrare"}</span></span>
               <div className="ml-auto flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => printBook([c], day, source)}><Printer className="h-4 w-4 mr-1" />Printează</Button>
@@ -371,7 +472,7 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
                         </td>
                         <td rowSpan={p.ingredients.length} className="text-center">{p.bucBax ? `${p.bucBax} buc/bax` : "—"}</td>
                       </>}
-                      <td>{ing.nume}</td>
+                      <td className={shortMat.has(plainKey(ing.nume)) ? "bg-destructive/10 text-destructive font-semibold" : undefined} title={shortMat.has(plainKey(ing.nume)) ? "Nu ajunge în stoc" : undefined}>{ing.nume}</td>
                       <td className="text-right tabular-nums">{per(ing.kgPerBuc)}</td>
                       {k === 0 && <td rowSpan={p.ingredients.length} className="text-center font-bold tabular-nums">{p.bucati.toLocaleString("ro-RO")}</td>}
                       <td className="text-right tabular-nums">{kg(ing.netKg)}</td>

@@ -100,3 +100,25 @@ test('delivery point is part of the store only when it is not Standard', () => {
   expect(storeLabel({ magazin: 'VALENCIA TRADING OFFICE', punct_livrare: 'Standard' })).toBe('VALENCIA TRADING OFFICE');
   expect(storeLabel({ magazin: 'VALENCIA TRADING OFFICE', punct_livrare: 'Depozit 2' })).toBe('VALENCIA TRADING OFFICE · Depozit 2');
 });
+
+import { grossNeeds, stockCheck } from '../../src/lib/productie/recipeBook';
+
+test('stock check: Atlantic 100 pieces needs 5.25 kg Morcovi + 13.5 kg Varza gross; 10 kg Varza runs out on the last stores', () => {
+  const book = buildRecipeBook(tenStores, [atlantic], losses, () => ALL_STORES);
+  const { rows, shortages } = stockCheck(book, [{ name: 'Morcovi', kg: 50 }, { name: 'Varza', kg: 6 }, { name: 'Varza', kg: 4 }]);
+  const varza = rows.find(r => r.nume === 'Varza')!;
+  expect([varza.needKg, varza.stockKg, varza.leftKg, varza.status]).toEqual([13.5, 10, -3.5, 'short']);
+  expect(rows.find(r => r.nume === 'Morcovi')!.status).toBe('ok');
+  // Each store needs 1.35 kg Varza; stores in alphabetical order (M1, M10, M2…): 7 stores covered, the 8th partly, 2 left with nothing.
+  expect(shortages.map(s => s.store)).toEqual(['MEGA IMAGE SRL - M7', 'MEGA IMAGE SRL - M8', 'MEGA IMAGE SRL - M9']);
+  expect(shortages[0].missing).toEqual([{ nume: 'Varza', needKg: 1.35, coveredKg: 0.55, shortKg: 0.8 }]);
+});
+
+test('enough for the sheet but not for the other orders of the day is a warning, not a shortage', () => {
+  const book = buildRecipeBook(tenStores.slice(0, 1), [atlantic], losses, () => ALL_STORES);
+  const other = grossNeeds([{ magazin: 'X', produs_id: 'rucola', cantitate: 1 }, { magazin: 'X', produs_id: 'atlantic', cantitate: 10 }], [atlantic, rucola], losses);
+  const { rows, shortages } = stockCheck(book, [{ name: 'Morcovi', kg: 1 }, { name: 'Varza', kg: 2 }], other);
+  const varza = rows.find(r => r.nume === 'Varza')!;
+  expect([varza.needKg, varza.leftKg, varza.otherKg, varza.leftAfterOtherKg, varza.status]).toEqual([1.35, 0.65, 1.35, -0.7, 'tight']);
+  expect(shortages).toEqual([]);
+});

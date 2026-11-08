@@ -211,3 +211,79 @@ export function manualOrders(lines: ManualLine[], cartons: CartonDef[]) {
   }
   return { orders, problems };
 }
+
+// ---------- Stock check: will the raw material in the warehouse cover these sheets? ----------
+
+export type StockLine = { name: string; kg: number };
+export type StockCheckRow = {
+  key: string; nume: string; needKg: number; stockKg: number; leftKg: number;
+  /** Gross kg the same day's other orders (single-ingredient products, filtered-out lines) also need. */
+  otherKg: number; leftAfterOtherKg: number; stockNames: string[];
+  status: 'short' | 'tight' | 'ok';
+};
+export type StoreShortage = { sheet: string; store: string; missing: { nume: string; needKg: number; coveredKg: number; shortKg: number }[] };
+
+/** Warehouse stock for one ingredient: lots with the same name, else lots whose name contains it (as in the material balance). */
+export function stockFor(ingredient: string, stock: StockLine[]) {
+  const k = plain(ingredient);
+  let lines = stock.filter(s => plain(s.name) === k);
+  if (!lines.length && k) lines = stock.filter(s => plain(s.name).includes(k));
+  return { kg: round(lines.reduce((s, l) => s + (Number(l.kg) || 0), 0)), names: [...new Set(lines.map(l => spaced(l.name)))].sort() };
+}
+
+/** Gross raw material (kg, with PT %) needed by any orders, single-ingredient products included. */
+export function grossNeeds(orders: RecipeBookOrder[], recipes: MixedRecipe[], losses: LossRule[]) {
+  const byProduct = new Map(recipes.map(r => [r.produsId, r]));
+  const out = new Map<string, number>();
+  for (const o of orders) {
+    const qty = Number(o.cantitate) || 0, r = o.produs_id ? byProduct.get(o.produs_id) : undefined;
+    if (qty <= 0 || !r) continue;
+    if (o.tip_comanda === 'PRODUCTIE_AVANS' || o.tip_comanda === 'REAMBALARE' || o.magazin === 'REAMBALARE') continue;
+    r.ingredients.filter(i => i.kgPerBuc > 0).forEach(i => {
+      const k = plain(i.nume);
+      out.set(k, (out.get(k) || 0) + i.kgPerBuc * qty * (1 + (lossFor(i.nume, losses) ?? 0) / 100));
+    });
+  }
+  return out;
+}
+
+/**
+ * Compares the sheets' gross raw-material need with stock and hands the stock out
+ * sheet by sheet (in the order shown), store by store (alphabetical), to show which stores would be left without.
+ */
+export function stockCheck(book: BookClient[], stock: StockLine[], other: Map<string, number> = new Map()) {
+  const mats = new Map<string, { nume: string; needKg: number }>();
+  book.forEach(c => c.materials.forEach(m => {
+    const k = plain(m.nume), e = mats.get(k) ?? { nume: m.nume, needKg: 0 };
+    e.needKg += m.brutKg; mats.set(k, e);
+  }));
+  const keys = new Set([...mats.keys(), ...[...other.keys()].filter(k => mats.has(k))]);
+  const rows: StockCheckRow[] = [...keys].map((k): StockCheckRow => {
+    const m = mats.get(k)!, s = stockFor(m.nume, stock), otherKg = round(other.get(k) || 0);
+    const needKg = round(m.needKg), leftKg = round(s.kg - needKg), leftAfterOtherKg = round(leftKg - otherKg);
+    return { key: k, nume: m.nume, needKg, stockKg: s.kg, leftKg, otherKg, leftAfterOtherKg, stockNames: s.names,
+      status: leftKg < -0.0005 ? 'short' : leftAfterOtherKg < -0.0005 ? 'tight' : 'ok' };
+  }).sort((a, b) => a.leftKg - b.leftKg || a.nume.localeCompare(b.nume, 'ro'));
+
+  const remaining = new Map(rows.map(r => [r.key, r.stockKg]));
+  const names = new Map(rows.map(r => [r.key, r.nume]));
+  const shortages: StoreShortage[] = [];
+  for (const c of book) {
+    const need = new Map<string, Map<string, number>>();
+    c.products.forEach(p => p.storeQty.forEach(sq => {
+      if (!need.has(sq.store)) need.set(sq.store, new Map());
+      const m = need.get(sq.store)!;
+      p.ingredients.forEach(i => { const k = plain(i.nume); m.set(k, (m.get(k) || 0) + i.kgPerBuc * sq.bucati * (1 + (i.ptPct ?? 0) / 100)); });
+    }));
+    [...need.keys()].sort((a, b) => a.localeCompare(b, 'ro')).forEach(store => {
+      const missing: StoreShortage['missing'] = [];
+      need.get(store)!.forEach((kgNeed, k) => {
+        const have = Math.max(0, remaining.get(k) ?? 0), covered = Math.min(have, kgNeed);
+        remaining.set(k, have - covered);
+        if (kgNeed - covered > 0.0005) missing.push({ nume: names.get(k) ?? k, needKg: round(kgNeed), coveredKg: round(covered), shortKg: round(kgNeed - covered) });
+      });
+      if (missing.length) shortages.push({ sheet: c.client, store, missing: missing.sort((a, b) => b.shortKg - a.shortKg) });
+    });
+  }
+  return { rows, shortages };
+}
