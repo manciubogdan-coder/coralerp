@@ -2014,6 +2014,30 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_retetar_inlocuiri: {
+        Row: {
+          id: boolean
+          max_increase_pct: number
+          rules: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          max_increase_pct?: number
+          rules?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          max_increase_pct?: number
+          rules?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       productie_sesiuni_rebut: {
         Row: {
           cantitate: number

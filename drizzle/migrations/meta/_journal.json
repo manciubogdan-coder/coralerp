@@ -253,6 +253,13 @@
       "when": 1794074422220,
       "tag": "0035_productie_direct_picking",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794116141349,
+      "tag": "0036_productie_retetar_inlocuiri",
+      "breakpoints": true
     }
   ]
 }

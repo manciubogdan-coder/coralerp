@@ -26,6 +26,8 @@ import { priceCalcData, priceListData, priceOptions } from "../_shared/priceCalc
 import { DEFAULT_PRICE_RULES, loadPriceRules, savePriceRules } from "../_shared/priceRules.ts";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
+import { rawMaterialPrices } from "../_shared/rawMaterialPrices.ts";
+import { validSubstitutions } from "../_shared/substitutionRules.ts";
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments, attachmentSummaries, rereadAttachment } from "./files.ts";
 import { validChatMessages, readChatHistory, repairChatMessageIds, isEmptyAssistant, markFailedTurn } from "./chatHistory.ts";
@@ -672,6 +674,21 @@ Deno.serve(async (req) => {
         }).select('auto_enabled').single();
         if (error) throw error;
         return json(data);
+      }
+      case 'retetar_mp_prices': {
+        try { return json(await rawMaterialPrices(c.cloud, await req.json())); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case 'retetar_substitutions_save': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        let s;
+        try { s = validSubstitutions(await req.json()); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+        const { error } = await c.cloud.from('productie_retetar_inlocuiri').upsert({
+          id: true, rules: s.rules, max_increase_pct: s.maxIncreasePct, updated_by: auth.user.email ?? userId, updated_at: new Date().toISOString(),
+        });
+        if (error) throw error;
+        return json(s);
       }
       case 'direct_picking_save':
       case 'direct_picking_delete': {

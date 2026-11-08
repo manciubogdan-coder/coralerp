@@ -22,6 +22,8 @@ import {
   ALL_STORES, buildRecipeBook, grossNeeds, stockCheck, type StockLine, isMixed, lossFor, mainClient, manualOrders, matchMixedProduct, pickedStoresOf, sortPicked, storeLabel, toKg,
   type BookClient, type LossRule, type ManualLine, type MixedRecipe, type RecipeBookOrder,
 } from "@/lib/productie/recipeBook";
+import { DEFAULT_SUBSTITUTIONS, priceFor, substituteBook } from "@/lib/productie/recipeSubstitution";
+import { SubstitutionPanel, useRawMaterialPrices, useSubstitutionSettings } from "./RecipeSubstitutions";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 
@@ -99,13 +101,14 @@ const HEAD = ["Nr.", "Produs", "Buc/bax", "Ingredient", "Kg / buc", "Total buc",
 function clientSheet(c: BookClient, day: string, source: string) {
   const aoa: any[][] = [[`REȚETE PENTRU COMENZILE PRIMITE — ${c.client}`], [`Data producție: ${ro(day)} · ${source}`], [], HEAD];
   const merges: any[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: HEAD.length - 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: HEAD.length - 1 } }];
+  const changedRows = new Set<number>();
   c.products.forEach((p, i) => {
     const start = aoa.length;
-    p.ingredients.forEach((ing, k) => aoa.push([
-      k ? "" : i + 1, k ? "" : p.produs, k ? "" : p.bucBax ? `${p.bucBax} buc/bax` : "", ing.nume, ing.kgPerBuc, k ? "" : p.bucati,
+    p.ingredients.forEach((ing, k) => (ing.nota && changedRows.add(aoa.length), aoa.push([
+      k ? "" : i + 1, k ? "" : p.produs, k ? "" : p.bucBax ? `${p.bucBax} buc/bax` : "", ing.nota ? `${ing.nume} (${ing.nota}; rețetă ${per(ing.origKgPerBuc ?? 0)})` : ing.nume, ing.kgPerBuc, k ? "" : p.bucati,
       { f: `E${aoa.length + 1}*$F$${start + 1}`, v: ing.netKg }, ing.ptPct ?? "", { f: `G${aoa.length + 1}*(1+N(H${aoa.length + 1})/100)`, v: ing.brutKg },
       k ? "" : { f: `SUM(G${start + 1}:G${start + p.ingredients.length})`, v: p.netKg }, k ? "" : { f: `SUM(I${start + 1}:I${start + p.ingredients.length})`, v: p.brutKg },
-    ]));
+    ])));
     if (p.ingredients.length > 1) [0, 1, 2, 5, 9, 10].forEach(col => merges.push({ s: { r: start, c: col }, e: { r: aoa.length - 1, c: col } }));
   });
   const last = aoa.length;
@@ -134,7 +137,7 @@ function clientSheet(c: BookClient, day: string, source: string) {
     const numFmt = col === 4 ? "0.0000" : col === 5 ? "#,##0" : col === 7 ? "0" : [6, 8, 9, 10].includes(col) ? "#,##0.00" : undefined;
     cell.s = {
       font: { ...font, bold: head || r === totalRow || col === 1 || col >= 9 },
-      fill: head ? { fgColor: { rgb: "D9E1F2" } } : r === totalRow ? { fgColor: { rgb: "FCE4D6" } } : undefined,
+      fill: head ? { fgColor: { rgb: "D9E1F2" } } : r === totalRow ? { fgColor: { rgb: "FCE4D6" } } : changedRows.has(r) && (col === 3 || col === 4) ? { fgColor: { rgb: "FFF2CC" } } : undefined,
       border: r > matHead && col < 3 ? undefined : box,
       alignment: { vertical: "center", horizontal: head || [0, 2, 5].includes(col) ? "center" : col >= 4 ? "right" : "left", wrapText: true },
       ...(numFmt && !head ? { numFmt } : {}),
@@ -162,7 +165,7 @@ function printBook(book: BookClient[], day: string, source: string) {
     <table><thead><tr>${th}</tr></thead><tbody>
     ${c.products.map((p, i) => p.ingredients.map((ing, k) => `<tr>
       ${k ? "" : `<td rowspan="${p.ingredients.length}" class="c">${i + 1}</td><td rowspan="${p.ingredients.length}" class="b">${esc(p.produs)}</td><td rowspan="${p.ingredients.length}" class="c">${p.bucBax ? `${esc(p.bucBax)} buc/bax` : ""}</td>`}
-      <td>${esc(ing.nume)}</td><td class="r">${per(ing.kgPerBuc)}</td>
+      <td${ing.nota ? ' class="chg"' : ""}>${esc(ing.nume)}${ing.nota ? `<div class="note">${esc(ing.nota)}</div>` : ""}</td><td class="r${ing.nota ? " chg" : ""}">${per(ing.kgPerBuc)}${ing.origKgPerBuc != null ? `<div class="note"><s>${per(ing.origKgPerBuc)}</s></div>` : ""}</td>
       ${k ? "" : `<td rowspan="${p.ingredients.length}" class="c b">${p.bucati.toLocaleString("ro-RO")}</td>`}
       <td class="r">${kg(ing.netKg)}</td><td class="r">${ing.ptPct ?? "—"}</td><td class="r">${kg(ing.brutKg)}</td>
       ${k ? "" : `<td rowspan="${p.ingredients.length}" class="r b">${kg(p.netKg, 1)}</td><td rowspan="${p.ingredients.length}" class="r b">${kg(p.brutKg, 1)}</td>`}
@@ -190,7 +193,7 @@ function printBook(book: BookClient[], day: string, source: string) {
     section{page-break-after:always} section:last-child{page-break-after:auto}
     h1{font-size:16px;margin:0 0 2px} h2{font-size:13px;margin:10px 0 4px} .sub{margin:0 0 6px;font-style:italic}
     table{border-collapse:collapse;width:100%} table.m{width:auto;min-width:50%} th,td{border:1px solid #000;padding:3px 5px;vertical-align:middle}
-    th{background:#d9e1f2} tr{page-break-inside:avoid} .c{text-align:center} .r{text-align:right} .b{font-weight:bold} .t td{font-weight:bold;background:#fce4d6}
+    th{background:#d9e1f2} tr{page-break-inside:avoid} .c{text-align:center} .r{text-align:right} .b{font-weight:bold} .t td{font-weight:bold;background:#fce4d6} .chg{background:#fff2cc} .note{font-size:9px;font-style:italic}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>${body}</body></html>`);
   doc.close();
   setTimeout(() => { frame.contentWindow!.focus(); frame.contentWindow!.print(); setTimeout(() => frame.remove(), 1000); }, 300);
@@ -217,6 +220,7 @@ function EditRecipeById({ recipeId, onClose }: { recipeId: string; onClose: () =
 
 type ViewMode = "client" | "total";
 const MODE_KEY = "retetar-mod-insumare-v1";
+const SUBS_KEY = "retetar-aplica-inlocuiri-v1";
 
 /** Tick the stores to sum together; unticked stores get their own sheet. */
 function StorePicker({ stores, unticked, setUnticked }: {
@@ -297,8 +301,8 @@ function useStockFor(day: string) {
   });
 }
 
-function StockCheckPanel({ check, source, loading, error }: {
-  check: ReturnType<typeof stockCheck>; source?: StockSource; loading: boolean; error: unknown;
+function StockCheckPanel({ check, source, loading, error, afterSubs }: {
+  check: ReturnType<typeof stockCheck>; source?: StockSource; loading: boolean; error: unknown; afterSubs?: boolean;
 }) {
   const short = check.rows.filter(r => r.status === "short"), tight = check.rows.filter(r => r.status === "tight");
   const [open, setOpen] = useState(false);
@@ -309,7 +313,7 @@ function StockCheckPanel({ check, source, loading, error }: {
       <CardContent className="pt-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           {short.length ? <AlertTriangle className="h-5 w-5 text-destructive" /> : tight.length ? <AlertTriangle className="h-5 w-5 text-crm-warning" /> : <CheckCircle2 className="h-5 w-5 text-primary" />}
-          <h3 className="font-bold">Îmi ajunge materia primă?</h3>
+          <h3 className="font-bold">Îmi ajunge materia primă?{afterSubs && <span className="ml-1 text-sm font-normal text-muted-foreground">(după înlocuiri)</span>}</h3>
           <span className={`text-sm font-semibold ${short.length ? "text-destructive" : tight.length ? "text-crm-warning" : "text-primary"}`}>
             {loading ? "Se încarcă stocul…" : short.length ? `NU — lipsesc ${short.length} materii prime` : tight.length ? "Da pentru foile afișate, dar nu și pentru restul comenzilor zilei" : "Da, ajunge tot"}
           </span>
@@ -385,7 +389,7 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
       (!pq || (names.get(String(o.produs_id)) || "").includes(pq)) &&
       (!cq || low(clientOf(o)).includes(cq) || low(o.magazin).includes(cq)));
   }, [orders, recipes, clientOf, productQ, clientQ]);
-  const book = useMemo(() => {
+  const baseBook = useMemo(() => {
     if (mode === "total") return sortPicked(buildRecipeBook(shown, recipes, losses, pickedStoresOf(unticked), unitsOf));
     return buildRecipeBook(shown, recipes, losses, clientOf, unitsOf);
   }, [shown, recipes, losses, clientOf, unitsOf, mode, unticked]);
@@ -400,11 +404,22 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
   }, [mode, shown, recipes, losses, clientOf, unitsOf]);
 
   const stock = useStockFor(day);
-  const check = useMemo(() => {
+  const other = useMemo(() => {
     const inShown = new Set(shown);
-    const other = grossNeeds((Array.isArray(orders) ? orders : []).filter(o => !inShown.has(o)), recipes, losses);
-    return stockCheck(book, stock.data?.lines ?? [], other);
-  }, [book, shown, orders, recipes, losses, stock.data]);
+    return grossNeeds((Array.isArray(orders) ? orders : []).filter(o => !inShown.has(o)), recipes, losses);
+  }, [shown, orders, recipes, losses]);
+  // Missing raw material: replace it, or put more of the recipe's cheaper ingredients.
+  const subSettings = useSubstitutionSettings();
+  const prices = useRawMaterialPrices();
+  const [applySubs, setApplySubs] = useState(() => localStorage.getItem(SUBS_KEY) !== "0");
+  useEffect(() => { localStorage.setItem(SUBS_KEY, applySubs ? "1" : "0"); }, [applySubs]);
+  const subs = useMemo(() => substituteBook(baseBook, {
+    stock: stock.data?.lines ?? null, other, settings: subSettings.data ?? DEFAULT_SUBSTITUTIONS,
+    priceOf: n => priceFor(n, prices.data?.prices ?? []), ptOf: n => lossFor(n, losses),
+  }), [baseBook, stock.data, other, subSettings.data, prices.data, losses]);
+  const book = applySubs ? subs.book : baseBook;
+  const ingredientNames = useMemo(() => [...new Set(recipes.flatMap(r => r.ingredients.map(i => i.nume.trim())).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ro")), [recipes]);
+  const check = useMemo(() => stockCheck(book, stock.data?.lines ?? [], other), [book, stock.data, other]);
   const shortBySheet = useMemo(() => {
     const m = new Map<string, number>();
     check.shortages.forEach(s => m.set(s.sheet, (m.get(s.sheet) || 0) + 1));
@@ -438,7 +453,10 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
         </div>
       </div>
       {stock.isLoading ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Verific stocul de materie primă…</div>
-        : <StockCheckPanel check={check} source={stock.data} loading={stock.isLoading} error={stock.error} />}
+        : <StockCheckPanel check={check} source={stock.data} loading={stock.isLoading} error={stock.error} afterSubs={applySubs && subs.changes.length > 0} />}
+      {!stock.isLoading && baseBook.length > 0 && (
+        <SubstitutionPanel changes={subs.changes} costDelta={subs.costDelta} unpriced={subs.unpriced} applied={applySubs} setApplied={setApplySubs} prices={prices} ingredients={ingredientNames} />
+      )}
       {!book.length && <p className="text-sm text-muted-foreground">{orders.length && (productQ || clientQ) ? "Nimic nu corespunde filtrelor." : empty}</p>}
       {book.map(c => (
         <Card key={c.client}>
@@ -472,8 +490,14 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
                         </td>
                         <td rowSpan={p.ingredients.length} className="text-center">{p.bucBax ? `${p.bucBax} buc/bax` : "—"}</td>
                       </>}
-                      <td className={shortMat.has(plainKey(ing.nume)) ? "bg-destructive/10 text-destructive font-semibold" : undefined} title={shortMat.has(plainKey(ing.nume)) ? "Nu ajunge în stoc" : undefined}>{ing.nume}</td>
-                      <td className="text-right tabular-nums">{per(ing.kgPerBuc)}</td>
+                      <td className={shortMat.has(plainKey(ing.nume)) ? "bg-destructive/10 text-destructive font-semibold" : ing.nota ? "bg-crm-warning/15" : undefined} title={shortMat.has(plainKey(ing.nume)) ? "Nu ajunge în stoc" : undefined}>
+                        {ing.nume}
+                        {ing.nota && <div className="text-[11px] font-medium text-crm-warning">{ing.nota}</div>}
+                      </td>
+                      <td className={`text-right tabular-nums ${ing.nota ? "bg-crm-warning/15" : ""}`}>
+                        {per(ing.kgPerBuc)}
+                        {ing.origKgPerBuc != null && <div className="text-[11px] text-muted-foreground line-through">{per(ing.origKgPerBuc)}</div>}
+                      </td>
                       {k === 0 && <td rowSpan={p.ingredients.length} className="text-center font-bold tabular-nums">{p.bucati.toLocaleString("ro-RO")}</td>}
                       <td className="text-right tabular-nums">{kg(ing.netKg)}</td>
                       <td className={`text-right tabular-nums ${ing.ptPct == null ? "text-destructive" : ""}`} title={ing.ptPct == null ? "PT nesetat în nomenclatorul de materii prime" : undefined}>{ing.ptPct ?? "—"}</td>

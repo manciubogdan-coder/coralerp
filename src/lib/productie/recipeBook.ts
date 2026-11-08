@@ -7,7 +7,8 @@ export type MixedRecipe = { produsId: string; produs: string; ingredients: Recip
 export type RecipeBookOrder = { magazin: string | null; punct_livrare?: string | null; produs_id: string | null; cantitate: number; baxare?: string | null; tip_comanda?: string | null };
 export type LossRule = { name: string; pt_percent: number | null };
 
-export type BookIngredient = RecipeIngredient & { netKg: number; ptPct: number | null; brutKg: number };
+/** `origKgPerBuc`/`nota` are set only when a raw-material substitution changed the recipe for this sheet. */
+export type BookIngredient = RecipeIngredient & { netKg: number; ptPct: number | null; brutKg: number; origKgPerBuc?: number; nota?: string };
 export type StoreQty = { store: string; bucati: number };
 export type BookProduct = { produsId: string; recipeId?: string; produs: string; bucBax: string | null; bucati: number; ingredients: BookIngredient[]; netKg: number; brutKg: number; stores: string[]; storeQty: StoreQty[] };
 export type BookClient = { client: string; products: BookProduct[]; stores: string[]; bucati: number; netKg: number; brutKg: number; materials: { nume: string; netKg: number; ptPct: number | null; brutKg: number }[] };
