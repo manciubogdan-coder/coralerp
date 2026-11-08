@@ -73,7 +73,7 @@ test('manual 12 bax of a 6 buc/bax product → 72 pieces; bax without pieces per
   expect(problems.map(p => p.id)).toEqual(['2', '3']);
 });
 
-import { ALL_STORES, REST_ROUTE, routeOf, sortByRoutes, storeLabel } from '../../src/lib/productie/recipeBook';
+import { ALL_STORES, OTHER_STORES, PICKED_STORES, pickedStoresOf, sortPicked, storeLabel } from '../../src/lib/productie/recipeBook';
 
 const atlantic: MixedRecipe = { produsId: 'atlantic', produs: 'Salata Atlantic 150 g', ingredients: [{ nume: 'Morcovi', kgPerBuc: 0.05 }, { nume: 'Varza', kgPerBuc: 0.1 }] };
 const tenStores = Array.from({ length: 10 }, (_, i) => ({ magazin: `MEGA IMAGE SRL - M${i + 1}`, punct_livrare: 'Standard', produs_id: 'atlantic', cantitate: 10 }));
@@ -84,20 +84,16 @@ test('centralized: Atlantic on 10 stores × 10 pieces = one sheet with 100 piece
   expect(book[0].products[0].storeQty).toHaveLength(10);
 });
 
-test('route of 8 stores sums 80 pieces; the other 2 stores stay apart with 20 pieces', () => {
-  const groups = [{ id: 'a', name: 'Traseu Nord', stores: tenStores.slice(0, 8).map(storeLabel) }];
-  const book = sortByRoutes(buildRecipeBook(tenStores, [atlantic], losses, routeOf(groups)), groups);
-  expect(book.map(c => [c.client, c.bucati])).toEqual([['TRASEU NORD', 80], [REST_ROUTE, 20]]);
+test('ticking 8 of 10 stores sums those 80 pieces together; the 2 unticked stores make a second sheet of 20', () => {
+  const unticked = tenStores.slice(8).map(storeLabel);
+  const book = sortPicked(buildRecipeBook(tenStores, [atlantic], losses, pickedStoresOf(unticked)));
+  expect(book.map(c => [c.client, c.bucati])).toEqual([[PICKED_STORES, 80], [OTHER_STORES, 20]]);
   expect(book[0].products[0].ingredients.map(i => i.netKg)).toEqual([4, 8]);
+  expect(book[1].stores).toEqual(['MEGA IMAGE SRL - M10', 'MEGA IMAGE SRL - M9']);
 });
 
-test('a store on two routes counts once, on the first route; duplicate route names never merge', () => {
-  const groups = [
-    { id: 'a', name: 'Traseu', stores: ['MEGA IMAGE SRL - M1'] },
-    { id: 'b', name: 'traseu', stores: ['MEGA IMAGE SRL - M1', 'MEGA IMAGE SRL - M2'] },
-  ];
-  const book = buildRecipeBook(tenStores.slice(0, 2), [atlantic], losses, routeOf(groups));
-  expect(Object.fromEntries(book.map(c => [c.client, c.bucati]))).toEqual({ TRASEU: 10, 'TRASEU (2)': 10 });
+test('nothing unticked keeps a single centralized sheet', () => {
+  expect(pickedStoresOf([])({ magazin: 'MEGA IMAGE SRL - M1' })).toBe(ALL_STORES);
 });
 
 test('delivery point is part of the store only when it is not Standard', () => {

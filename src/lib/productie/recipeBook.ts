@@ -29,38 +29,20 @@ function storeTotals(orders: RecipeBookOrder[]): StoreQty[] {
 
 /** Everything summed into one sheet, regardless of client or store. */
 export const ALL_STORES = 'CENTRALIZAT — TOATE MAGAZINELE';
-/** Stores not placed on any route. */
-export const REST_ROUTE = 'MAGAZINE FĂRĂ TRASEU';
-export type RouteGroup = { id: string; name: string; stores: string[] };
+/** Centralized sheet when the user unticks some stores: ticked stores summed together, the unticked ones on a second sheet. */
+export const PICKED_STORES = 'CENTRALIZAT — MAGAZINELE BIFATE';
+export const OTHER_STORES = 'CENTRALIZAT — CELELALTE MAGAZINE';
 
-/** Route names as shown on the sheets: blank → "TRASEU n", duplicates get a number so they never merge. */
-export function routeNames(groups: RouteGroup[]) {
-  const used = new Set<string>();
-  return groups.map((g, i) => {
-    const base = spaced(g.name).toUpperCase() || `TRASEU ${i + 1}`;
-    let name = base;
-    for (let n = 2; used.has(name) || name === REST_ROUTE || name === ALL_STORES; n++) name = `${base} (${n})`;
-    used.add(name);
-    return name;
-  });
+/** Store → sheet for the centralized view; nothing unticked = one sheet with all stores. */
+export function pickedStoresOf(unticked: string[]) {
+  const out = new Set(unticked.map(plain).filter(Boolean));
+  return (o: { magazin?: string | null; punct_livrare?: string | null }) =>
+    !out.size ? ALL_STORES : out.has(plain(storeLabel(o))) ? OTHER_STORES : PICKED_STORES;
 }
 
-/**
- * Store → route, for summing only the stores the user put on the same route.
- * A store sits on one route only (the first one listing it); unassigned stores go to REST_ROUTE.
- */
-export function routeOf(groups: RouteGroup[]) {
-  const names = routeNames(groups);
-  const byStore = new Map<string, string>();
-  groups.forEach((g, i) => g.stores.forEach(s => { const k = plain(s); if (k && !byStore.has(k)) byStore.set(k, names[i]); }));
-  return (o: { magazin?: string | null; punct_livrare?: string | null }) => byStore.get(plain(storeLabel(o))) ?? REST_ROUTE;
-}
-
-/** Sort sheets in route order, stores without a route last. */
-export function sortByRoutes<T extends { client: string }>(book: T[], groups: RouteGroup[]) {
-  const order = new Map(routeNames(groups).map((n, i) => [n, i]));
-  return [...book].sort((a, b) => (order.get(a.client) ?? 1e9) - (order.get(b.client) ?? 1e9));
-}
+/** Ticked stores first, then the others. */
+export const sortPicked = <T extends { client: string }>(book: T[]) =>
+  [...book].sort((a, b) => Number(a.client === OTHER_STORES) - Number(b.client === OTHER_STORES));
 
 /** Units in recipes are grams unless marked kg. */
 export const toKg = (q: number, unit: string | null | undefined) => {

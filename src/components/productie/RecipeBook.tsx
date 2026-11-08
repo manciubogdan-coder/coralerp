@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrderPackaging } from "@/hooks/productie/useOrderPackaging";
@@ -18,8 +19,8 @@ import RecipeEditDialog from "./RecipeEditDialog";
 import { findCarton } from "../../../supabase/functions/_shared/mixedCartons";
 import { packagingUnits, resolveStorePackaging } from "../../../supabase/functions/_shared/packagingRules";
 import {
-  ALL_STORES, REST_ROUTE, buildRecipeBook, isMixed, lossFor, mainClient, manualOrders, matchMixedProduct, routeNames, routeOf, sortByRoutes, storeLabel, toKg,
-  type BookClient, type LossRule, type ManualLine, type MixedRecipe, type RecipeBookOrder, type RouteGroup,
+  ALL_STORES, buildRecipeBook, isMixed, lossFor, mainClient, manualOrders, matchMixedProduct, pickedStoresOf, sortPicked, storeLabel, toKg,
+  type BookClient, type LossRule, type ManualLine, type MixedRecipe, type RecipeBookOrder,
 } from "@/lib/productie/recipeBook";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
@@ -210,38 +211,19 @@ function EditRecipeById({ recipeId, onClose }: { recipeId: string; onClose: () =
   return <RecipeEditDialog open onOpenChange={o => !o && onClose()} recipe={recipe} />;
 }
 
-// ---------- How sheets are summed: per client, everything together, or user-made routes ----------
+// ---------- How sheets are summed: per client, or all stores together with the stores the user ticks ----------
 
-type ViewMode = "client" | "total" | "routes";
+type ViewMode = "client" | "total";
 const MODE_KEY = "retetar-mod-insumare-v1";
-const ROUTES_KEY = "retetar-trasee-v1";
-const selectCls = "h-8 rounded-md border border-input bg-background px-2 text-sm";
 
-/** Routes are kept in this browser and reused every day (the same stores usually travel together). */
-function useRoutes() {
-  const [groups, setGroups] = useState<RouteGroup[]>(() => {
-    try { const v = JSON.parse(localStorage.getItem(ROUTES_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
-  });
-  useEffect(() => { localStorage.setItem(ROUTES_KEY, JSON.stringify(groups)); }, [groups]);
-  return [groups, setGroups] as const;
-}
-
-function RouteEditor({ groups, setGroups, stores }: {
-  groups: RouteGroup[]; setGroups: (f: (g: RouteGroup[]) => RouteGroup[]) => void;
+/** Tick the stores to sum together; unticked stores get their own sheet. */
+function StorePicker({ stores, unticked, setUnticked }: {
   stores: { store: string; client: string; bucati: number }[];
+  unticked: string[]; setUnticked: (f: (u: string[]) => string[]) => void;
 }) {
   const [q, setQ] = useState("");
-  const names = routeNames(groups);
-  const routeIdOf = useMemo(() => {
-    const m = new Map<string, string>();
-    groups.forEach(g => g.stores.forEach(s => { if (!m.has(s)) m.set(s, g.id); }));
-    return m;
-  }, [groups]);
-  const assign = (list: string[], id: string) => setGroups(gs => gs.map(g => {
-    const rest = g.stores.filter(s => !list.includes(s));
-    return g.id === id ? { ...g, stores: [...rest, ...list] } : { ...g, stores: rest };
-  }));
-  const addRoute = () => setGroups(gs => [...gs, { id: newId(), name: `Traseu ${gs.length + 1}`, stores: [] }]);
+  const out = new Set(unticked);
+  const toggle = (list: string[], on: boolean) => setUnticked(u => on ? u.filter(s => !list.includes(s)) : [...new Set([...u, ...list])]);
   const byClient = useMemo(() => {
     const s = low(q.trim());
     const m = new Map<string, typeof stores>();
@@ -250,62 +232,45 @@ function RouteEditor({ groups, setGroups, stores }: {
       .forEach(r => { if (!m.has(r.client)) m.set(r.client, []); m.get(r.client)!.push(r); });
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], "ro"));
   }, [stores, q]);
-  const qtyOf = new Map(stores.map(s => [s.store, s.bucati]));
-  const routeSelect = (value: string, onChange: (id: string) => void, label: string, placeholder = "Fără traseu") => (
-    <select aria-label={label} className={selectCls} value={value} onChange={e => onChange(e.target.value)}>
-      <option value="">{placeholder}</option>
-      {groups.map((g, i) => <option key={g.id} value={g.id}>{names[i]}</option>)}
-    </select>
-  );
+  const picked = stores.filter(s => !out.has(s.store));
+  const sum = (l: typeof stores) => l.reduce((t, x) => t + x.bucati, 0).toLocaleString("ro-RO");
 
   return (
     <Card>
-      <CardContent className="pt-4 space-y-3">
-        <div className="flex flex-wrap items-start gap-2">
-          <div className="flex-1 min-w-[260px]">
-            <h3 className="font-bold">Trasee</h3>
-            <p className="text-xs text-muted-foreground">Pune pe același traseu magazinele care pleacă împreună; produsele lor se însumează într-o singură foaie, pe care o printezi separat. Magazinele nealese rămân în „{REST_ROUTE.toLowerCase()}". Un magazin stă pe un singur traseu, cu toate produsele lui. Traseele rămân salvate pe acest calculator pentru zilele următoare.</p>
+      <CardContent className="pt-4 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-bold">Ce magazine însumez împreună</h3>
+          <span className="text-sm text-muted-foreground">Bifate: {picked.length} din {stores.length} · {sum(picked)} buc</span>
+          <div className="ml-auto flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setUnticked(() => [])}>Bifează toate</Button>
+            <Button size="sm" variant="outline" onClick={() => setUnticked(() => stores.map(s => s.store))}>Debifează toate</Button>
           </div>
-          <Button size="sm" onClick={addRoute}><Plus className="h-4 w-4 mr-1" />Adaugă traseu</Button>
         </div>
-        {groups.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {groups.map(g => {
-              const here = g.stores.filter(s => qtyOf.has(s));
-              return (
-                <div key={g.id} className="flex items-center gap-1 rounded-md border px-2 py-1">
-                  <Input aria-label="Nume traseu" value={g.name} onChange={e => setGroups(gs => gs.map(x => x.id === g.id ? { ...x, name: e.target.value } : x))} className="h-8 w-40" />
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{here.length} mag. · {here.reduce((s, x) => s + (qtyOf.get(x) || 0), 0).toLocaleString("ro-RO")} buc</span>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Șterge ${g.name}`} title="Șterge traseul (magazinele rămân fără traseu)" onClick={() => setGroups(gs => gs.filter(x => x.id !== g.id))}><Trash2 className="h-4 w-4" /></Button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {!groups.length && <p className="text-sm text-muted-foreground">Apasă „Adaugă traseu", apoi alege traseul la fiecare magazin de mai jos.</p>}
-        {groups.length > 0 && (
-          <>
-            <div className="relative w-64"><Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={e => setQ(e.target.value)} placeholder="Caută magazin" className="pl-8" /></div>
-            {!stores.length && <p className="text-sm text-muted-foreground">Nu există magazine cu produse mixte pentru filtrele alese.</p>}
-            <div className="max-h-96 overflow-y-auto space-y-3 pr-1">
-              {byClient.map(([client, rows]) => (
-                <div key={client}>
-                  <div className="flex flex-wrap items-center gap-2 border-b pb-1 mb-1">
-                    <span className="text-sm font-semibold flex-1">{client} <span className="font-normal text-muted-foreground">({rows.length})</span></span>
-                    {rows.length > 1 && routeSelect("", id => assign(rows.map(r => r.store), id), `Toate magazinele ${client} pe traseu`, "Toate pe traseul…")}
-                  </div>
+        <p className="text-xs text-muted-foreground">Magazinele bifate se adună într-o singură foaie. Cele debifate apar într-o a doua foaie, „Celelalte magazine", pe care o printezi separat.</p>
+        <div className="relative w-64"><Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={e => setQ(e.target.value)} placeholder="Caută magazin" className="pl-8" /></div>
+        {!stores.length && <p className="text-sm text-muted-foreground">Nu există magazine cu produse mixte pentru filtrele alese.</p>}
+        <div className="max-h-80 overflow-y-auto space-y-3 pr-1">
+          {byClient.map(([client, rows]) => {
+            const all = rows.every(r => !out.has(r.store)), some = rows.some(r => !out.has(r.store));
+            return (
+              <div key={client}>
+                <label className="flex items-center gap-2 border-b pb-1 mb-1 text-sm font-semibold cursor-pointer">
+                  <Checkbox checked={all ? true : some ? "indeterminate" : false} onCheckedChange={v => toggle(rows.map(r => r.store), v === true)} aria-label={`Toate magazinele ${client}`} />
+                  <span className="flex-1">{client} <span className="font-normal text-muted-foreground">({rows.length})</span></span>
+                </label>
+                <div className="grid gap-x-6 sm:grid-cols-2">
                   {rows.map(r => (
-                    <div key={r.store} className="flex items-center gap-2 py-0.5 text-sm">
+                    <label key={r.store} className="flex items-center gap-2 py-0.5 text-sm cursor-pointer">
+                      <Checkbox checked={!out.has(r.store)} onCheckedChange={v => toggle([r.store], v === true)} aria-label={r.store} />
                       <span className="flex-1">{r.store}</span>
-                      <span className="tabular-nums text-muted-foreground w-24 text-right">{r.bucati.toLocaleString("ro-RO")} buc</span>
-                      {routeSelect(routeIdOf.get(r.store) ?? "", id => assign([r.store], id), `Traseu pentru ${r.store}`)}
-                    </div>
+                      <span className="tabular-nums text-muted-foreground">{r.bucati.toLocaleString("ro-RO")} buc</span>
+                    </label>
                   ))}
                 </div>
-              ))}
-            </div>
-          </>
-        )}
+              </div>
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );
@@ -322,9 +287,9 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
   const [editing, setEditing] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem(MODE_KEY);
-    return saved === "total" || saved === "routes" ? saved : "client";
+    return saved === "total" ? saved : "client";
   });
-  const [groups, setGroups] = useRoutes();
+  const [unticked, setUnticked] = useState<string[]>([]);
   useEffect(() => { localStorage.setItem(MODE_KEY, mode); }, [mode]);
 
   const allClients = useMemo(() => [...new Set((Array.isArray(orders) ? orders : []).map(clientOf))].sort((a, b) => a.localeCompare(b, "ro")), [orders, clientOf]);
@@ -336,13 +301,12 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
       (!cq || low(clientOf(o)).includes(cq) || low(o.magazin).includes(cq)));
   }, [orders, recipes, clientOf, productQ, clientQ]);
   const book = useMemo(() => {
-    if (mode === "total") return buildRecipeBook(shown, recipes, losses, () => ALL_STORES, unitsOf);
-    if (mode === "routes") return sortByRoutes(buildRecipeBook(shown, recipes, losses, routeOf(groups), unitsOf), groups);
+    if (mode === "total") return sortPicked(buildRecipeBook(shown, recipes, losses, pickedStoresOf(unticked), unitsOf));
     return buildRecipeBook(shown, recipes, losses, clientOf, unitsOf);
-  }, [shown, recipes, losses, clientOf, unitsOf, mode, groups]);
-  // Stores with mixed products in the current filter, for placing them on routes.
+  }, [shown, recipes, losses, clientOf, unitsOf, mode, unticked]);
+  // Stores with mixed products in the current filter, for ticking which ones are summed together.
   const storeRows = useMemo(() => {
-    if (mode !== "routes") return [];
+    if (mode !== "total") return [];
     const clientByStore = new Map<string, string>();
     shown.forEach(o => { const s = storeLabel(o); if (s && !clientByStore.has(s)) clientByStore.set(s, clientOf(o)); });
     const qty = new Map<string, number>();
@@ -354,11 +318,11 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">Însumează:</span>
-        {([["client", "Pe client"], ["total", "Centralizat pe produse"], ["routes", "Pe trasee (magazinele alese de tine)"]] as const).map(([v, label]) => (
+        {([["client", "Pe client"], ["total", "Centralizat pe produse"]] as const).map(([v, label]) => (
           <Button key={v} size="sm" variant={mode === v ? "default" : "outline"} aria-pressed={mode === v} onClick={() => setMode(v)}>{label}</Button>
         ))}
       </div>
-      {mode === "routes" && <RouteEditor groups={groups} setGroups={setGroups} stores={storeRows} />}
+      {mode === "total" && <StorePicker stores={storeRows} unticked={unticked} setUnticked={setUnticked} />}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
