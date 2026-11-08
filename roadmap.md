@@ -103,3 +103,5 @@
 - [ ] Confirm suspicious Senior recipe Lupino/Amorino: Folie LUPINO 0.57 kg per bax (likely 0.0057) — waiting on Bogdan; recipe left unchanged.
 - [ ] Assign cursă for Iași, Bihor, Constanța, Arad, Suceava, Sălaj, Gorj, Botoșani deliveries and FOCȘANI/HORECA monthly carrier bills — waiting on Bogdan's route knowledge.
 - [x] Calculator: MP rows show annual/week/last price and step-by-step 'Cum s-a calculat'; all lines expandable; supply invoices listed row by row; TURDA+TURDA-IERNUT and TIMISOARA+LUGOJ pooled. Not tested on a signed-in account.
+- [x] Lidl mixed sheet: Senior "Primavara" now lands on the mixed sheet in the Primavera row with Silhouette's shared cartons (2 tests).
+- [x] Producție → Rețetar: "Rețete pentru comenzile primite" (Senior orders per day, Lidl stores summed, HoReCa by nickname, net/PT/brut kg, Excel + print) and "Toate rețetele mixte". 4 rule tests; real 8 Nov data checked; signed-in screen not opened (external operational session).

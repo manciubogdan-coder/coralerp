@@ -1,5 +1,5 @@
 import reference from './orderReference.json';
-import { finalQty, normalize, type OrderLine, type OrderSheet } from './orderSheets';
+import { finalQty, normalize, productSpelling, sharedCartonPairs, type OrderLine, type OrderSheet } from './orderSheets';
 
 export type DocumentCell = { value: string | number; style: number; formula?: string; lines?: OrderLine[]; field?: keyof OrderLine | 'final'; rowSpan?: number; colSpan?: number; hidden?: boolean };
 type Range = { s: { r: number; c: number }; e: { r: number; c: number } };
@@ -7,7 +7,7 @@ type ReferenceTemplate = { name: string; rows: { v: string; s: number }[][]; hea
 const templates = reference.templates as unknown as ReferenceTemplate[];
 export const referenceStyles = reference.styles;
 const synonyms: Record<string, string> = { CHIVAS: 'CHIVES', SPANAC: 'SPANAC', ARUGULA: 'RUCOLA' };
-const clean = (v: string) => normalize(v).replace(/\b(SALATA|SALATE|MIX|FRESHFUL|BY|CAS|CASOLETA|CASOLETE|PUNGA|GR|G)\b/g, '').replace(/\b\d+\b/g, '').split(' ').filter(Boolean).map(t => synonyms[t] || t).sort().join(' ');
+const clean = (v: string) => productSpelling(v).replace(/\b(SALATA|SALATE|MIX|FRESHFUL|BY|CAS|CASOLETA|CASOLETE|PUNGA|GR|G)\b/g, '').replace(/\b\d+\b/g, '').split(' ').filter(Boolean).map(t => synonyms[t] || t).sort().join(' ');
 // Customer PDFs abbreviate names ("MISTICANZA EXOT", "SPANAC BABY CAS."), so compare tokens order-free with prefix tolerance.
 const sameProduct = (a: string, b: string) => {
   const x = clean(a).split(' ').filter(Boolean), y = clean(b).split(' ').filter(Boolean);
@@ -175,8 +175,8 @@ export function orderDocument(sheet: OrderSheet, delivery: string) {
     }
   });
   if (sheet.mixed) {
-    for (const names of [['LUPINO', 'AMORINO'], ['SILHOUETTE', 'PRIMAVERA']]) {
-      const pair = candidates.filter(({ p }) => names.some(n => normalize(p.product).includes(n)));
+    for (const names of sharedCartonPairs) {
+      const pair = candidates.filter(({ p }) => names.some(n => productSpelling(p.product).includes(n)));
       if (pair.length !== 2) continue;
       const [a, b] = pair, c = labels.findIndex(v => v === 'BAX');
       const ac = rows[a.p.row][c], bc = rows[b.p.row][c];

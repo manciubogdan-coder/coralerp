@@ -8,12 +8,18 @@ export type OrderLine = {
 };
 export const normalize = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 export const finalQty = (l: OrderLine) => Math.max(0, l.bucati - l.taiat);
-const productKey = (l: OrderLine) => `${normalize(l.produs)}|${l.gramaj}`;
+// Senior writes "Primavara", the Lidl sheets write "Primavera": same product.
+export const productSpelling = (s: unknown) => normalize(s).replace(/\bPRIMAVARA\b/g, 'PRIMAVERA');
+const productKey = (l: OrderLine) => `${productSpelling(l.produs)}|${l.gramaj}`;
 const mixedNames = /PRESTIGIO|LUPINO|AMORINO|SILHOUETTE|PRIMAVERA/;
+/** Lidl mixed sheet: the named assortments plus every line that came from a configured mixed carton. */
+export const isMixedLine = (l: OrderLine) => !!l.carton_source || mixedNames.test(productSpelling(l.produs));
+/** Product pairs that share one physical carton on the Lidl mixed sheet. */
+export const sharedCartonPairs = [['LUPINO', 'AMORINO'], ['SILHOUETTE', 'PRIMAVERA']];
 export function templatePack(l: OrderLine) {
   const client = normalize(l.client);
   const ts = templates.filter(t => client.includes('LIDL') ? normalize(t.name).includes('SALATE MIXTE') || normalize(t.name).includes('SALATE MONO') : normalize(t.name).includes(client.split(' ')[0]));
-  return ts.flatMap(t => t.products).find(p => normalize(p.produs) === normalize(l.produs) && p.gramaj === l.gramaj);
+  return ts.flatMap(t => t.products).find(p => productSpelling(p.produs) === productSpelling(l.produs) && p.gramaj === l.gramaj);
 }
 export function withTemplatePack<T extends OrderLine>(l: T): T {
   const p = templatePack(l);
@@ -25,7 +31,7 @@ export function makeSheets(lines: OrderLine[]): OrderSheet[] {
   for (const client of [...new Set(lines.map(l => l.client))].sort()) {
     const all = lines.filter(l => l.client === client).map(withTemplatePack);
     const lidl = normalize(client).includes('LIDL');
-    const sets = lidl ? [all.filter(l => !mixedNames.test(normalize(l.produs))), all.filter(l => mixedNames.test(normalize(l.produs)))] : [all];
+    const sets = lidl ? [all.filter(l => !isMixedLine(l)), all.filter(isMixedLine)] : [all];
     sets.forEach((ls, idx) => {
       if (!ls.length) return;
       const mixed = lidl && idx === 1;
@@ -66,8 +72,8 @@ export function sheetTable(sheet: OrderSheet) {
   });
   // One shared carton for each 6+2 assortment: never add both product carton counts.
   if (sheet.mixed) {
-    for (const names of [['LUPINO', 'AMORINO'], ['SILHOUETTE', 'PRIMAVERA']]) {
-      const pair = rows.filter(r => names.some(n => normalize(r.line.produs).includes(n)));
+    for (const names of sharedCartonPairs) {
+      const pair = rows.filter(r => names.some(n => productSpelling(r.line.produs).includes(n)));
       if (pair.length !== 2) continue;
       const first = pair[0], second = pair[1]; if (!first || !second) continue;
       const caseCol = headers.indexOf('Nr. BAX');

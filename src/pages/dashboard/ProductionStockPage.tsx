@@ -33,6 +33,7 @@ import LineSpeedReport from "@/components/productie/LineSpeedReport";
 import SeniorErpImport from "@/components/productie/SeniorErpImport";
 import RestockAllocationSettings from '@/components/productie/RestockAllocationSettings';
 import DirectPickingSettings from '@/components/productie/DirectPickingSettings';
+import RecipeBook from '@/components/productie/RecipeBook';
 
 const ProductionStockPage = () => {
   const navigate = useNavigate();
@@ -67,6 +68,7 @@ const ProductionStockPage = () => {
             <TabsTrigger value="stocks">Stocuri Producție</TabsTrigger>
             <TabsTrigger value="consumption">Consumuri</TabsTrigger>
             <TabsTrigger value="restocking">Restocări</TabsTrigger>
+            <TabsTrigger value="retetar">Rețetar</TabsTrigger>
             <TabsTrigger value="reports">Rapoarte</TabsTrigger>
             <TabsTrigger value="erp">Import ERP</TabsTrigger>
             <TabsTrigger value="config">Configurări</TabsTrigger>
@@ -138,6 +140,10 @@ const ProductionStockPage = () => {
 
           <TabsContent value="restocking">
             <MarfaRestocataView />
+          </TabsContent>
+
+          <TabsContent value="retetar">
+            <RecipeBook />
           </TabsContent>
 
           <TabsContent value="reports">
