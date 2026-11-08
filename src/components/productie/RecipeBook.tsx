@@ -309,7 +309,6 @@ function StockCheckPanel({ check, source, loading, error, afterSubs }: {
 }) {
   const short = check.rows.filter(r => r.status === "short"), tight = check.rows.filter(r => r.status === "tight");
   const [open, setOpen] = useState(false);
-  useEffect(() => { if (short.length || tight.length) setOpen(true); }, [short.length, tight.length]);
   if (!check.rows.length) return null;
   return (
     <Card className={short.length ? "border-destructive border-2" : tight.length ? "border-crm-warning border-2" : undefined}>
