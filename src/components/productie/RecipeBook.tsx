@@ -207,11 +207,11 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
   const [clientQ, setClientQ] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
 
-  const allClients = useMemo(() => [...new Set(orders.map(clientOf))].sort((a, b) => a.localeCompare(b, "ro")), [orders, clientOf]);
+  const allClients = useMemo(() => [...new Set((Array.isArray(orders) ? orders : []).map(clientOf))].sort((a, b) => a.localeCompare(b, "ro")), [orders, clientOf]);
   const book = useMemo(() => {
     const pq = low(productQ.trim()), cq = low(clientQ.trim());
     const names = new Map(recipes.map(r => [r.produsId, low(r.produs)]));
-    const shown = orders.filter(o =>
+    const shown = (Array.isArray(orders) ? orders : []).filter(o =>
       (!pq || (names.get(String(o.produs_id)) || "").includes(pq)) &&
       (!cq || low(clientOf(o)).includes(cq) || low(o.magazin).includes(cq)));
     return buildRecipeBook(shown, recipes, losses, clientOf, unitsOf);
@@ -306,7 +306,7 @@ function OrdersRecipes() {
   const packaging = useOrderPackaging();
   const { clientOf, loading: clientsLoading } = useClientOf();
   const orders = useQuery({
-    queryKey: ["retetar-orders", day],
+    queryKey: ["retetar-senior-orders", day],
     queryFn: () => pages(() => supabase.from("productie_comenzi").select("id, magazin, punct_livrare, produs_id, cantitate, baxare, tip_comanda").eq("data_productie", day).eq("sursa", "senior-erp").order("id")),
   });
   const unitsOf = useMemo(() => (o: any) => packagingUnits(o.baxare) ?? (o.produs_id && o.magazin ? resolveStorePackaging(o.produs_id, o.magazin, packaging.data || []) : null), [packaging.data]);
@@ -322,7 +322,7 @@ function OrdersRecipes() {
       {loading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Se încarcă comenzile și rețetele…</div>}
       {error && <p className="text-sm text-destructive">Nu am putut încărca datele: {(error as Error).message}</p>}
       {!loading && !error && (
-        <BookPanel orders={orders.data || []} recipes={recipeData.data!.recipes} losses={recipeData.data!.losses} clientOf={clientOf} unitsOf={unitsOf}
+        <BookPanel orders={Array.isArray(orders.data) ? orders.data : []} recipes={recipeData.data!.recipes} losses={recipeData.data!.losses} clientOf={clientOf} unitsOf={unitsOf}
           day={day} source="comenzi Senior" fileName="Retetar comenzi" empty={`Nu există comenzi Senior cu produse mixte pentru ${ro(day)}.`} />
       )}
     </div>
