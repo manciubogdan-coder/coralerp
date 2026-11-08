@@ -133,6 +133,7 @@ export const useCreateRecipe = () => {
     onSuccess: async (recipe: any) => {
       await refreshCartons(recipe?.produs_id);
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
+      queryClient.invalidateQueries({ queryKey: ['retetar-recipes'] });
     }
   });
 };
@@ -190,6 +191,7 @@ export const useUpdateRecipe = () => {
     onSuccess: async (data: any) => {
       await refreshCartons(data?.produs_id);
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
+      queryClient.invalidateQueries({ queryKey: ['retetar-recipes'] });
     }
   });
 };
@@ -209,6 +211,7 @@ export const useDeleteRecipe = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
+      queryClient.invalidateQueries({ queryKey: ['retetar-recipes'] });
     }
   });
 };

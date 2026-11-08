@@ -43,3 +43,32 @@ test('single-ingredient products and advance production stay out of the recipe b
   ], [lupino, rucola], losses, clientOf);
   expect(book).toEqual([]);
 });
+
+import { manualOrders, matchMixedProduct } from '../../src/lib/productie/recipeBook';
+
+const lupino150: MixedRecipe = { produsId: 'lupino150', produs: 'Lupino 150 g', ingredients: lupino.ingredients };
+const amorino: MixedRecipe = { produsId: 'amorino', produs: 'Amorino 200 g LIDL', ingredients: lupino.ingredients };
+
+test('uploaded line "LUPINO" 200 g for LIDL matches Lupino 200 g LIDL, not the 150 g recipe', () => {
+  expect(matchMixedProduct('LUPINO', 200, [lupino150, lupino, amorino], 'LIDL')?.produsId).toBe('lupino');
+  expect(matchMixedProduct('LUPINO', 150, [lupino150, lupino, amorino], 'LIDL')?.produsId).toBe('lupino150');
+  expect(matchMixedProduct('SALATA PRIMAVERA', 120, [lupino, amorino], null)).toBeNull();
+});
+
+const cartons = [{ produs_id: 'lupamo', denumire: 'Mix salate Lupino/Amorino', components: [{ produs_id: 'lupino', nume: 'Lupino', units: 6 }, { produs_id: 'amorino', nume: 'Amorino', units: 2 }] }];
+
+test('manual 10 bax Lupino/Amorino 6+2 → 60 Lupino + 20 Amorino pieces', () => {
+  const { orders, problems } = manualOrders([{ id: '1', magazin: 'LIDL DISCOUNT SRL - ROMAN', produsId: 'lupamo', cantitate: 10, unit: 'bax' }], cartons);
+  expect(problems).toEqual([]);
+  expect(orders.map(o => [o.produs_id, o.cantitate])).toEqual([['lupino', 60], ['amorino', 20]]);
+});
+
+test('manual 12 bax of a 6 buc/bax product → 72 pieces; bax without pieces per case is refused', () => {
+  const { orders, problems } = manualOrders([
+    { id: '1', magazin: 'MEGA IMAGE', produsId: 'lupino', cantitate: 12, unit: 'bax', bucBax: '6' },
+    { id: '2', magazin: 'MEGA IMAGE', produsId: 'lupino', cantitate: 5, unit: 'bax', bucBax: '' },
+    { id: '3', magazin: 'LIDL', produsId: 'lupamo', cantitate: 12, unit: 'buc' },
+  ], cartons);
+  expect(orders.map(o => o.cantitate)).toEqual([72]);
+  expect(problems.map(p => p.id)).toEqual(['2', '3']);
+});
