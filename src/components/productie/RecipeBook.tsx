@@ -104,11 +104,14 @@ function clientSheet(c: BookClient, day: string, source: string) {
   const changedRows = new Set<number>();
   c.products.forEach((p, i) => {
     const start = aoa.length;
-    p.ingredients.forEach((ing, k) => (ing.nota && changedRows.add(aoa.length), aoa.push([
+    p.ingredients.forEach((ing, k) => {
+      if (ing.nota) changedRows.add(aoa.length);
+      aoa.push([
       k ? "" : i + 1, k ? "" : p.produs, k ? "" : p.bucBax ? `${p.bucBax} buc/bax` : "", ing.nota ? `${ing.nume} (${ing.nota}; rețetă ${per(ing.origKgPerBuc ?? 0)})` : ing.nume, ing.kgPerBuc, k ? "" : p.bucati,
       { f: `E${aoa.length + 1}*$F$${start + 1}`, v: ing.netKg }, ing.ptPct ?? "", { f: `G${aoa.length + 1}*(1+N(H${aoa.length + 1})/100)`, v: ing.brutKg },
       k ? "" : { f: `SUM(G${start + 1}:G${start + p.ingredients.length})`, v: p.netKg }, k ? "" : { f: `SUM(I${start + 1}:I${start + p.ingredients.length})`, v: p.brutKg },
-    ])));
+      ]);
+    });
     if (p.ingredients.length > 1) [0, 1, 2, 5, 9, 10].forEach(col => merges.push({ s: { r: start, c: col }, e: { r: aoa.length - 1, c: col } }));
   });
   const last = aoa.length;
