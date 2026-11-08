@@ -18,8 +18,8 @@ import RecipeEditDialog from "./RecipeEditDialog";
 import { findCarton } from "../../../supabase/functions/_shared/mixedCartons";
 import { packagingUnits, resolveStorePackaging } from "../../../supabase/functions/_shared/packagingRules";
 import {
-  buildRecipeBook, isMixed, lossFor, mainClient, manualOrders, matchMixedProduct, toKg,
-  type BookClient, type LossRule, type ManualLine, type MixedRecipe, type RecipeBookOrder,
+  ALL_STORES, REST_ROUTE, buildRecipeBook, isMixed, lossFor, mainClient, manualOrders, matchMixedProduct, routeNames, routeOf, sortByRoutes, storeLabel, toKg,
+  type BookClient, type LossRule, type ManualLine, type MixedRecipe, type RecipeBookOrder, type RouteGroup,
 } from "@/lib/productie/recipeBook";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
@@ -111,6 +111,12 @@ function clientSheet(c: BookClient, day: string, source: string) {
   aoa.push([], ["", "TOTAL PE MATERIE PRIMĂ", "", "Ingredient", "", "", "Kg net", "PT %", "Kg brut"]);
   const matHead = aoa.length - 1;
   c.materials.forEach(m => aoa.push(["", "", "", m.nume, "", "", m.netKg, m.ptPct ?? "", { f: `G${aoa.length + 1}*(1+N(H${aoa.length + 1})/100)`, v: m.brutKg }]));
+  aoa.push([], ["", `PUNCTE DE LIVRARE (${c.stores.length})`, "", "Produs", "", "Buc"]);
+  const storeHead = aoa.length - 1;
+  c.stores.forEach(s => {
+    const lines = c.products.flatMap(p => p.storeQty.filter(q => q.store === s).map(q => [p.produs, q.bucati] as const));
+    lines.forEach(([produs, buc], k) => aoa.push(["", k ? "" : s, "", produs, "", buc]));
+  });
   const ws = XLSXStyle.utils.aoa_to_sheet(aoa);
   ws["!merges"] = merges;
   ws["!cols"] = [6, 34, 11, 24, 10, 10, 11, 7, 11, 14, 14].map(wch => ({ wch }));
@@ -121,7 +127,7 @@ function clientSheet(c: BookClient, day: string, source: string) {
     const font = { name: "Arial", sz: 10 } as any;
     if (r === 0) { cell.s = { font: { name: "Arial", sz: 14, bold: true }, alignment: { horizontal: "center" } }; return; }
     if (r === 1) { cell.s = { font: { name: "Arial", sz: 10, italic: true }, alignment: { horizontal: "center" } }; return; }
-    const head = r === 3 || r === matHead;
+    const head = r === 3 || r === matHead || r === storeHead;
     const numFmt = col === 4 ? "0.0000" : col === 5 ? "#,##0" : col === 7 ? "0" : [6, 8, 9, 10].includes(col) ? "#,##0.00" : undefined;
     cell.s = {
       font: { ...font, bold: head || r === totalRow || col === 1 || col >= 9 },
@@ -163,6 +169,13 @@ function printBook(book: BookClient[], day: string, source: string) {
     <h2>Total pe materie primă</h2>
     <table class="m"><thead><tr><th>Ingredient</th><th>Kg net</th><th>PT %</th><th>Kg brut</th></tr></thead><tbody>
     ${c.materials.map(m => `<tr><td>${esc(m.nume)}</td><td class="r">${kg(m.netKg)}</td><td class="r">${m.ptPct ?? "—"}</td><td class="r">${kg(m.brutKg)}</td></tr>`).join("")}
+    </tbody></table>
+    <h2>Puncte de livrare (${c.stores.length})</h2>
+    <table class="m"><thead><tr><th>Magazin</th><th>Produs</th><th>Buc</th></tr></thead><tbody>
+    ${c.stores.map(s => {
+      const lines = c.products.flatMap(p => p.storeQty.filter(q => q.store === s).map(q => [p.produs, q.bucati] as const));
+      return lines.map(([produs, buc], k) => `<tr>${k ? "" : `<td rowspan="${lines.length}" class="b">${esc(s)}</td>`}<td>${esc(produs)}</td><td class="r">${buc.toLocaleString("ro-RO")}</td></tr>`).join("");
+    }).join("")}
     </tbody></table></section>`).join("");
   const frame = document.createElement("iframe");
   frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
@@ -197,6 +210,107 @@ function EditRecipeById({ recipeId, onClose }: { recipeId: string; onClose: () =
   return <RecipeEditDialog open onOpenChange={o => !o && onClose()} recipe={recipe} />;
 }
 
+// ---------- How sheets are summed: per client, everything together, or user-made routes ----------
+
+type ViewMode = "client" | "total" | "routes";
+const MODE_KEY = "retetar-mod-insumare-v1";
+const ROUTES_KEY = "retetar-trasee-v1";
+const selectCls = "h-8 rounded-md border border-input bg-background px-2 text-sm";
+
+/** Routes are kept in this browser and reused every day (the same stores usually travel together). */
+function useRoutes() {
+  const [groups, setGroups] = useState<RouteGroup[]>(() => {
+    try { const v = JSON.parse(localStorage.getItem(ROUTES_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
+  });
+  useEffect(() => { localStorage.setItem(ROUTES_KEY, JSON.stringify(groups)); }, [groups]);
+  return [groups, setGroups] as const;
+}
+
+function RouteEditor({ groups, setGroups, stores }: {
+  groups: RouteGroup[]; setGroups: (f: (g: RouteGroup[]) => RouteGroup[]) => void;
+  stores: { store: string; client: string; bucati: number }[];
+}) {
+  const [q, setQ] = useState("");
+  const names = routeNames(groups);
+  const routeIdOf = useMemo(() => {
+    const m = new Map<string, string>();
+    groups.forEach(g => g.stores.forEach(s => { if (!m.has(s)) m.set(s, g.id); }));
+    return m;
+  }, [groups]);
+  const assign = (list: string[], id: string) => setGroups(gs => gs.map(g => {
+    const rest = g.stores.filter(s => !list.includes(s));
+    return g.id === id ? { ...g, stores: [...rest, ...list] } : { ...g, stores: rest };
+  }));
+  const addRoute = () => setGroups(gs => [...gs, { id: newId(), name: `Traseu ${gs.length + 1}`, stores: [] }]);
+  const byClient = useMemo(() => {
+    const s = low(q.trim());
+    const m = new Map<string, typeof stores>();
+    stores.filter(r => !s || low(r.store).includes(s) || low(r.client).includes(s))
+      .sort((a, b) => a.store.localeCompare(b.store, "ro"))
+      .forEach(r => { if (!m.has(r.client)) m.set(r.client, []); m.get(r.client)!.push(r); });
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], "ro"));
+  }, [stores, q]);
+  const qtyOf = new Map(stores.map(s => [s.store, s.bucati]));
+  const routeSelect = (value: string, onChange: (id: string) => void, label: string, placeholder = "Fără traseu") => (
+    <select aria-label={label} className={selectCls} value={value} onChange={e => onChange(e.target.value)}>
+      <option value="">{placeholder}</option>
+      {groups.map((g, i) => <option key={g.id} value={g.id}>{names[i]}</option>)}
+    </select>
+  );
+
+  return (
+    <Card>
+      <CardContent className="pt-4 space-y-3">
+        <div className="flex flex-wrap items-start gap-2">
+          <div className="flex-1 min-w-[260px]">
+            <h3 className="font-bold">Trasee</h3>
+            <p className="text-xs text-muted-foreground">Pune pe același traseu magazinele care pleacă împreună; produsele lor se însumează într-o singură foaie, pe care o printezi separat. Magazinele nealese rămân în „{REST_ROUTE.toLowerCase()}". Un magazin stă pe un singur traseu, cu toate produsele lui. Traseele rămân salvate pe acest calculator pentru zilele următoare.</p>
+          </div>
+          <Button size="sm" onClick={addRoute}><Plus className="h-4 w-4 mr-1" />Adaugă traseu</Button>
+        </div>
+        {groups.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {groups.map(g => {
+              const here = g.stores.filter(s => qtyOf.has(s));
+              return (
+                <div key={g.id} className="flex items-center gap-1 rounded-md border px-2 py-1">
+                  <Input aria-label="Nume traseu" value={g.name} onChange={e => setGroups(gs => gs.map(x => x.id === g.id ? { ...x, name: e.target.value } : x))} className="h-8 w-40" />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">{here.length} mag. · {here.reduce((s, x) => s + (qtyOf.get(x) || 0), 0).toLocaleString("ro-RO")} buc</span>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Șterge ${g.name}`} title="Șterge traseul (magazinele rămân fără traseu)" onClick={() => setGroups(gs => gs.filter(x => x.id !== g.id))}><Trash2 className="h-4 w-4" /></Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {!groups.length && <p className="text-sm text-muted-foreground">Apasă „Adaugă traseu", apoi alege traseul la fiecare magazin de mai jos.</p>}
+        {groups.length > 0 && (
+          <>
+            <div className="relative w-64"><Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={e => setQ(e.target.value)} placeholder="Caută magazin" className="pl-8" /></div>
+            {!stores.length && <p className="text-sm text-muted-foreground">Nu există magazine cu produse mixte pentru filtrele alese.</p>}
+            <div className="max-h-96 overflow-y-auto space-y-3 pr-1">
+              {byClient.map(([client, rows]) => (
+                <div key={client}>
+                  <div className="flex flex-wrap items-center gap-2 border-b pb-1 mb-1">
+                    <span className="text-sm font-semibold flex-1">{client} <span className="font-normal text-muted-foreground">({rows.length})</span></span>
+                    {rows.length > 1 && routeSelect("", id => assign(rows.map(r => r.store), id), `Toate magazinele ${client} pe traseu`, "Toate pe traseul…")}
+                  </div>
+                  {rows.map(r => (
+                    <div key={r.store} className="flex items-center gap-2 py-0.5 text-sm">
+                      <span className="flex-1">{r.store}</span>
+                      <span className="tabular-nums text-muted-foreground w-24 text-right">{r.bucati.toLocaleString("ro-RO")} buc</span>
+                      {routeSelect(routeIdOf.get(r.store) ?? "", id => assign([r.store], id), `Traseu pentru ${r.store}`)}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 /** Shared sheet view: search by product and client, Excel/print for all or one client, edit recipes. */
 function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fileName, empty }: {
   orders: RecipeBookOrder[]; recipes: MixedRecipe[]; losses: LossRule[];
@@ -206,19 +320,42 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
   const [productQ, setProductQ] = useState("");
   const [clientQ, setClientQ] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
+  const [mode, setMode] = useState<ViewMode>(() => (localStorage.getItem(MODE_KEY) as ViewMode) || "client");
+  const [groups, setGroups] = useRoutes();
+  useEffect(() => { localStorage.setItem(MODE_KEY, mode); }, [mode]);
 
   const allClients = useMemo(() => [...new Set((Array.isArray(orders) ? orders : []).map(clientOf))].sort((a, b) => a.localeCompare(b, "ro")), [orders, clientOf]);
-  const book = useMemo(() => {
+  const shown = useMemo(() => {
     const pq = low(productQ.trim()), cq = low(clientQ.trim());
     const names = new Map(recipes.map(r => [r.produsId, low(r.produs)]));
-    const shown = (Array.isArray(orders) ? orders : []).filter(o =>
+    return (Array.isArray(orders) ? orders : []).filter(o =>
       (!pq || (names.get(String(o.produs_id)) || "").includes(pq)) &&
       (!cq || low(clientOf(o)).includes(cq) || low(o.magazin).includes(cq)));
+  }, [orders, recipes, clientOf, productQ, clientQ]);
+  const book = useMemo(() => {
+    if (mode === "total") return buildRecipeBook(shown, recipes, losses, () => ALL_STORES, unitsOf);
+    if (mode === "routes") return sortByRoutes(buildRecipeBook(shown, recipes, losses, routeOf(groups), unitsOf), groups);
     return buildRecipeBook(shown, recipes, losses, clientOf, unitsOf);
-  }, [orders, recipes, losses, clientOf, unitsOf, productQ, clientQ]);
+  }, [shown, recipes, losses, clientOf, unitsOf, mode, groups]);
+  // Stores with mixed products in the current filter, for placing them on routes.
+  const storeRows = useMemo(() => {
+    if (mode !== "routes") return [];
+    const clientByStore = new Map<string, string>();
+    shown.forEach(o => { const s = storeLabel(o); if (s && !clientByStore.has(s)) clientByStore.set(s, clientOf(o)); });
+    const qty = new Map<string, number>();
+    buildRecipeBook(shown, recipes, losses, () => ALL_STORES, unitsOf).forEach(c => c.products.forEach(p => p.storeQty.forEach(s => qty.set(s.store, (qty.get(s.store) || 0) + s.bucati))));
+    return [...qty.entries()].map(([store, bucati]) => ({ store, bucati, client: clientByStore.get(store) || "" }));
+  }, [mode, shown, recipes, losses, clientOf, unitsOf]);
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Însumează:</span>
+        {([["client", "Pe client"], ["total", "Centralizat pe produse"], ["routes", "Pe trasee (magazinele alese de tine)"]] as const).map(([v, label]) => (
+          <Button key={v} size="sm" variant={mode === v ? "default" : "outline"} aria-pressed={mode === v} onClick={() => setMode(v)}>{label}</Button>
+        ))}
+      </div>
+      {mode === "routes" && <RouteEditor groups={groups} setGroups={setGroups} stores={storeRows} />}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -241,7 +378,7 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
           <CardContent className="pt-4 space-y-3">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <h3 className="text-lg font-bold">{c.client}</h3>
-              <span className="text-sm text-muted-foreground">{c.bucati.toLocaleString("ro-RO")} buc · {kg(c.netKg, 1)} kg net · {kg(c.brutKg, 1)} kg brut</span>
+              <span className="text-sm text-muted-foreground">{c.bucati.toLocaleString("ro-RO")} buc · {kg(c.netKg, 1)} kg net · {kg(c.brutKg, 1)} kg brut · <span title={c.stores.join("\n")}>{c.stores.length} {c.stores.length === 1 ? "punct de livrare" : "puncte de livrare"}</span></span>
               <div className="ml-auto flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => printBook([c], day, source)}><Printer className="h-4 w-4 mr-1" />Printează</Button>
                 <Button size="sm" variant="outline" onClick={() => exportBook([c], day, source, `${fileName} ${c.client.replace(/[\\/?*[\]:"<>|]/g, " ").trim()}`)}><Download className="h-4 w-4 mr-1" />Excel</Button>
@@ -260,7 +397,10 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
                             <span className="flex-1">{p.produs}</span>
                             {p.recipeId && <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" aria-label={`Editează rețeta ${p.produs}`} title="Editează rețeta" onClick={() => setEditing(p.recipeId!)}><Pencil className="h-3.5 w-3.5" /></Button>}
                           </div>
-                          <div className="text-[11px] font-normal text-muted-foreground">{p.stores.length} {p.stores.length === 1 ? "punct de livrare" : "puncte de livrare"}</div>
+                          <details className="text-[11px] font-normal text-muted-foreground">
+                            <summary className="cursor-pointer">{p.stores.length} {p.stores.length === 1 ? "punct de livrare" : "puncte de livrare"}</summary>
+                            <ul className="mt-1 space-y-0.5">{p.storeQty.map(s => <li key={s.store} className="flex justify-between gap-2"><span>{s.store}</span><span className="tabular-nums">{s.bucati.toLocaleString("ro-RO")} buc</span></li>)}</ul>
+                          </details>
                         </td>
                         <td rowSpan={p.ingredients.length} className="text-center">{p.bucBax ? `${p.bucBax} buc/bax` : "—"}</td>
                       </>}

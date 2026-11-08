@@ -4,14 +4,63 @@
  */
 export type RecipeIngredient = { nume: string; kgPerBuc: number };
 export type MixedRecipe = { produsId: string; produs: string; ingredients: RecipeIngredient[]; recipeId?: string };
-export type RecipeBookOrder = { magazin: string | null; produs_id: string | null; cantitate: number; baxare?: string | null; tip_comanda?: string | null };
+export type RecipeBookOrder = { magazin: string | null; punct_livrare?: string | null; produs_id: string | null; cantitate: number; baxare?: string | null; tip_comanda?: string | null };
 export type LossRule = { name: string; pt_percent: number | null };
 
 export type BookIngredient = RecipeIngredient & { netKg: number; ptPct: number | null; brutKg: number };
-export type BookProduct = { produsId: string; recipeId?: string; produs: string; bucBax: string | null; bucati: number; ingredients: BookIngredient[]; netKg: number; brutKg: number; stores: string[] };
-export type BookClient = { client: string; products: BookProduct[]; bucati: number; netKg: number; brutKg: number; materials: { nume: string; netKg: number; ptPct: number | null; brutKg: number }[] };
+export type StoreQty = { store: string; bucati: number };
+export type BookProduct = { produsId: string; recipeId?: string; produs: string; bucBax: string | null; bucati: number; ingredients: BookIngredient[]; netKg: number; brutKg: number; stores: string[]; storeQty: StoreQty[] };
+export type BookClient = { client: string; products: BookProduct[]; stores: string[]; bucati: number; netKg: number; brutKg: number; materials: { nume: string; netKg: number; ptPct: number | null; brutKg: number }[] };
 
 const plain = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const spaced = (s: unknown) => String(s ?? '').replace(/\s+/g, ' ').trim();
+
+/** One delivery point: the store name, plus the delivery point when it is not the default "Standard". */
+export function storeLabel(o: { magazin?: string | null; punct_livrare?: string | null }) {
+  const store = spaced(o.magazin), point = spaced(o.punct_livrare);
+  return point && plain(point) !== 'STANDARD' && plain(point) !== plain(store) ? `${store} · ${point}` : store;
+}
+
+function storeTotals(orders: RecipeBookOrder[]): StoreQty[] {
+  const m = new Map<string, number>();
+  orders.forEach(o => { const s = storeLabel(o); if (s) m.set(s, (m.get(s) || 0) + (Number(o.cantitate) || 0)); });
+  return [...m.entries()].map(([store, bucati]) => ({ store, bucati })).sort((a, b) => b.bucati - a.bucati || a.store.localeCompare(b.store, 'ro'));
+}
+
+/** Everything summed into one sheet, regardless of client or store. */
+export const ALL_STORES = 'CENTRALIZAT — TOATE MAGAZINELE';
+/** Stores not placed on any route. */
+export const REST_ROUTE = 'MAGAZINE FĂRĂ TRASEU';
+export type RouteGroup = { id: string; name: string; stores: string[] };
+
+/** Route names as shown on the sheets: blank → "TRASEU n", duplicates get a number so they never merge. */
+export function routeNames(groups: RouteGroup[]) {
+  const used = new Set<string>();
+  return groups.map((g, i) => {
+    const base = spaced(g.name).toUpperCase() || `TRASEU ${i + 1}`;
+    let name = base;
+    for (let n = 2; used.has(name) || name === REST_ROUTE || name === ALL_STORES; n++) name = `${base} (${n})`;
+    used.add(name);
+    return name;
+  });
+}
+
+/**
+ * Store → route, for summing only the stores the user put on the same route.
+ * A store sits on one route only (the first one listing it); unassigned stores go to REST_ROUTE.
+ */
+export function routeOf(groups: RouteGroup[]) {
+  const names = routeNames(groups);
+  const byStore = new Map<string, string>();
+  groups.forEach((g, i) => g.stores.forEach(s => { const k = plain(s); if (k && !byStore.has(k)) byStore.set(k, names[i]); }));
+  return (o: { magazin?: string | null; punct_livrare?: string | null }) => byStore.get(plain(storeLabel(o))) ?? REST_ROUTE;
+}
+
+/** Sort sheets in route order, stores without a route last. */
+export function sortByRoutes<T extends { client: string }>(book: T[], groups: RouteGroup[]) {
+  const order = new Map(routeNames(groups).map((n, i) => [n, i]));
+  return [...book].sort((a, b) => (order.get(a.client) ?? 1e9) - (order.get(b.client) ?? 1e9));
+}
 
 /** Units in recipes are grams unless marked kg. */
 export const toKg = (q: number, unit: string | null | undefined) => {
@@ -89,7 +138,8 @@ export function buildRecipeBook(
       return {
         produsId: id, recipeId: r.recipeId, produs: r.produs, bucBax: mostCommon(os.map(unitsOf)), bucati, ingredients,
         netKg: round(ingredients.reduce((s, i) => s + i.netKg, 0)), brutKg: round(ingredients.reduce((s, i) => s + i.brutKg, 0)),
-        stores: [...new Set(os.map(o => String(o.magazin ?? '').trim()).filter(Boolean))].sort(),
+        stores: [...new Set(os.map(storeLabel).filter(Boolean))].sort(),
+        storeQty: storeTotals(os),
       };
     }).sort((a, b) => a.produs.localeCompare(b.produs, 'ro'));
     const materials = new Map<string, { nume: string; netKg: number; ptPct: number | null; brutKg: number }>();
@@ -101,6 +151,7 @@ export function buildRecipeBook(
     }));
     return {
       client, products: list,
+      stores: [...new Set(list.flatMap(p => p.stores))].sort(),
       bucati: list.reduce((s, p) => s + p.bucati, 0),
       netKg: round(list.reduce((s, p) => s + p.netKg, 0)), brutKg: round(list.reduce((s, p) => s + p.brutKg, 0)),
       materials: [...materials.values()].sort((a, b) => b.netKg - a.netKg),
