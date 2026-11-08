@@ -320,7 +320,10 @@ function BookPanel({ orders, recipes, losses, clientOf, unitsOf, day, source, fi
   const [productQ, setProductQ] = useState("");
   const [clientQ, setClientQ] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
-  const [mode, setMode] = useState<ViewMode>(() => (localStorage.getItem(MODE_KEY) as ViewMode) || "client");
+  const [mode, setMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem(MODE_KEY);
+    return saved === "total" || saved === "routes" ? saved : "client";
+  });
   const [groups, setGroups] = useRoutes();
   useEffect(() => { localStorage.setItem(MODE_KEY, mode); }, [mode]);
 
