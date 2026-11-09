@@ -14,7 +14,7 @@ import { plannedQuantity } from '../_shared/erpQuantity.ts';
 import { cancellationPatch, isErpCancellationApplied } from './cancellation.ts';
 import { findCarton, expandCarton, type MixedCarton } from '../_shared/mixedCartons.ts';
 import { cartonNameUnit } from './cartonUnit.ts';
-import { absorbEstimate } from './absorb.ts';
+import { findAbsorbPairs, applyAbsorb } from './absorb.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -164,10 +164,9 @@ Deno.serve(async (req) => {
     if (!data || data.length < 1000) break;
   }
   const absorptions: any[] = [];
-  const tryAbsorb = async (id: string, numar: string, magazin: string, produsId: string, day: string, cantitate: number) => {
-    try { const r = await absorbEstimate(supabase, cloud, absorbed, { id, numar, magazin, produsId, day, cantitate }); if (r) { absorptions.push(r); if (r.produced > cantitate) await setRestockLot(supabase, id, produsId, day, r.produced - cantitate); } }
-    catch (e: any) { errors.push({ absorbtie: numar, err: e.message || String(e) }); }
-  };
+  // Absorbția rulează o singură dată la final, pe zilele atinse (fără interogări per linie).
+  const absorbDays = new Set<string>();
+  const tryAbsorb = async (_id: string, _numar: string, _magazin: string, _produsId: string, day: string, _cantitate: number) => { if (day) absorbDays.add(day); };
 
   // Normalizare pentru match după denumire (trim, lower, colapsare spații, fără diacritice)
   const norm = (s: string) =>
@@ -827,6 +826,27 @@ Deno.serve(async (req) => {
     errors.push({ restock_pass: e.message || String(e) });
   }
 
+
+  // Estimare → fermă: o singură citire pe zilele importate, perechi găsite în memorie.
+  try {
+    const rows: any[] = [];
+    const days = [...absorbDays];
+    for (let offset = 0; days.length; offset += 1000) {
+      const { data, error } = await supabase.from('productie_comenzi')
+        .select('id,numar_comanda,magazin,produs_id,data_productie,cantitate,status,linie_id,tip_comanda')
+        .eq('sursa', 'senior-erp').in('data_productie', days).gt('cantitate', 0).order('id').range(offset, offset + 999);
+      if (error) throw error;
+      rows.push(...(data ?? []));
+      if (!data || data.length < 1000) break;
+    }
+    for (const { old, neu } of findAbsorbPairs(rows, absorbed)) {
+      try {
+        const r = await applyAbsorb(supabase, cloud, absorbed, old, neu);
+        absorptions.push(r);
+        if (r.produced > r.qty) await setRestockLot(supabase, r.id, r.produsId, r.day, r.produced - r.qty);
+      } catch (e: any) { errors.push({ absorbtie: `${old.numar_comanda} → ${neu.numar_comanda}`, err: e.message || String(e) }); }
+    }
+  } catch (e: any) { errors.push({ absorbtie: e.message || String(e) }); }
 
   // Log rulare
   await supabase.from("erp_import_log").insert({

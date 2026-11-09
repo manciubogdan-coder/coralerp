@@ -20,47 +20,62 @@ export function absorbedStatus(produced: number, qty: number, oldStatus: string,
   return linie ? (oldStatus === 'pending' ? 'assigned' : oldStatus) : 'pending';
 }
 
-export async function absorbEstimate(legacy: any, cloud: any, absorbed: Set<string>, o: {
-  id: string; numar: string; magazin: string; produsId: string; day: string; cantitate: number;
-}) {
-  const { data: cands, error } = await legacy.from('productie_comenzi')
-    .select('id,numar_comanda,cantitate,status,linie_id,tip_comanda')
-    .eq('sursa', 'senior-erp').eq('magazin', o.magazin).eq('produs_id', o.produsId)
-    .eq('data_productie', o.day).gt('cantitate', 0).neq('id', o.id);
-  if (error) throw error;
-  const older = (cands ?? []).filter((c: any) => !c.tip_comanda && !absorbed.has(String(c.id))
-    && docNumber(c.numar_comanda) < docNumber(o.numar) && isFirmReplacement(Number(c.cantitate), o.cantitate))
-    .sort((a: any, b: any) => docNumber(a.numar_comanda) - docNumber(b.numar_comanda));
-  const old = older[0];
-  if (!old) return null;
+type Row = { id: string; numar_comanda: string; magazin: string; produs_id: string; data_productie: string; cantitate: number; status: string; linie_id: string | null; tip_comanda?: string | null };
 
-  const { data: me, error: meErr } = await legacy.from('productie_comenzi').select('status,linie_id').eq('id', o.id).maybeSingle();
-  if (meErr) throw meErr;
-  const { error: sErr } = await legacy.from('productie_sesiuni_lucru').update({ comanda_id: o.id }).eq('comanda_id', old.id);
+/** Perechi estimare → fermă găsite în memorie (fără interogări per linie). */
+export function findAbsorbPairs(rows: Row[], absorbed: Set<string>) {
+  const groups = new Map<string, Row[]>();
+  for (const r of rows) {
+    if (r.tip_comanda || !(Number(r.cantitate) > 0) || absorbed.has(String(r.id))) continue;
+    const k = `${r.magazin}|${r.produs_id}|${r.data_productie}`;
+    (groups.get(k) ?? groups.set(k, []).get(k)!).push(r);
+  }
+  const pairs: { old: Row; neu: Row }[] = [];
+  for (const g of groups.values()) {
+    g.sort((a, b) => docNumber(a.numar_comanda) - docNumber(b.numar_comanda));
+    const used = new Set<string>();
+    for (let j = g.length - 1; j > 0; j--) {
+      const neu = g[j];
+      if (used.has(neu.id)) continue;
+      for (let i = 0; i < j; i++) {
+        const old = g[i];
+        if (used.has(old.id) || docNumber(old.numar_comanda) >= docNumber(neu.numar_comanda)) continue;
+        if (!isFirmReplacement(Number(old.cantitate), Number(neu.cantitate))) continue;
+        used.add(old.id); used.add(neu.id); pairs.push({ old, neu }); break;
+      }
+    }
+  }
+  return pairs;
+}
+
+export async function applyAbsorb(legacy: any, cloud: any, absorbed: Set<string>, old: Row, neu: Row) {
+  const { error: sErr } = await legacy.from('productie_sesiuni_lucru').update({ comanda_id: neu.id }).eq('comanda_id', old.id);
   if (sErr) throw sErr;
   for (const t of ['productie_sesiuni_rebut', 'productie_trasabilitate']) {
-    const { error: e } = await cloud.from(t).update({ comanda_id: o.id }).eq('comanda_id', old.id);
+    const { error: e } = await cloud.from(t).update({ comanda_id: neu.id }).eq('comanda_id', old.id);
     if (e) throw e;
   }
-  const { data: ses } = await legacy.from('productie_sesiuni_lucru').select('cantitate_produsa,status').eq('comanda_id', o.id);
+  const { data: ses, error: rErr } = await legacy.from('productie_sesiuni_lucru').select('cantitate_produsa,status').eq('comanda_id', neu.id);
+  if (rErr) throw rErr;
   const produced = (ses ?? []).filter((s: any) => ['finalizata', 'partial'].includes(s.status))
     .reduce((a: number, s: any) => a + Number(s.cantitate_produsa || 0), 0);
   const active = (ses ?? []).some((s: any) => !['finalizata', 'partial'].includes(s.status));
-  const linie = old.linie_id || me?.linie_id || null;
-  const baseStatus = Number(produced) > 0 || active ? String(old.status) : String(me?.status || old.status);
-  const status = active ? 'partial' : absorbedStatus(produced, o.cantitate, baseStatus, linie);
-  const { error: nErr } = await legacy.from('productie_comenzi').update({ status, linie_id: linie }).eq('id', o.id);
+  const qty = Number(neu.cantitate);
+  const linie = old.linie_id || neu.linie_id || null;
+  const baseStatus = produced > 0 || active ? String(old.status) : String(neu.status || old.status);
+  const status = active ? 'partial' : absorbedStatus(produced, qty, baseStatus, linie);
+  const { error: nErr } = await legacy.from('productie_comenzi').update({ status, linie_id: linie, cantitate_reala_produsa: produced }).eq('id', neu.id);
   if (nErr) throw nErr;
   const { error: cErr } = await legacy.from('productie_comenzi').update({ cantitate: 0, status: 'completed' }).eq('id', old.id);
   if (cErr) throw cErr;
   absorbed.add(String(old.id));
   await cloud.from('productie_comenzi_absorbite').upsert({
-    old_id: old.id, new_id: o.id, old_numar: old.numar_comanda, new_numar: o.numar, magazin: o.magazin,
-    produs_id: o.produsId, data_productie: o.day, cantitate_veche: old.cantitate, cantitate_noua: o.cantitate, produs_mutat: produced,
+    old_id: old.id, new_id: neu.id, old_numar: old.numar_comanda, new_numar: neu.numar_comanda, magazin: neu.magazin,
+    produs_id: neu.produs_id, data_productie: neu.data_productie, cantitate_veche: old.cantitate, cantitate_noua: qty, produs_mutat: produced,
   });
   await cloud.from('productie_comenzi_audit').insert({
-    table_name: 'productie_comenzi', action: 'update', record_ids: [old.id, o.id], comanda_ids: [old.id, o.id],
-    changes: { absorbtie: `${old.numar_comanda} → ${o.numar}`, produs_mutat: produced }, source: 'senior-erp',
+    table_name: 'productie_comenzi', action: 'update', record_ids: [old.id, neu.id], comanda_ids: [old.id, neu.id],
+    changes: { absorbtie: `${old.numar_comanda} → ${neu.numar_comanda}`, produs_mutat: produced }, source: 'senior-erp',
   });
-  return { from: old.numar_comanda, to: o.numar, produced };
+  return { from: old.numar_comanda, to: neu.numar_comanda, produced, qty, id: neu.id, produsId: neu.produs_id, day: neu.data_productie };
 }
