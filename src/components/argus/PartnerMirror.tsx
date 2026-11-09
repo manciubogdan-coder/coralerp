@@ -10,14 +10,14 @@ import { type SheetComponent } from "../../../supabase/functions/_shared/priceSh
 import { configuredSheet, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
 import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
 import { priceRules, profitFor, setPriceRules } from "../../../supabase/functions/_shared/priceRules";
-import { mirrorLine, profitPerPiece, targetCost } from "../../../supabase/functions/_shared/partnerMirrorMath";
+import { mirrorLine, palletDensity, profitPerPiece, targetCost } from "../../../supabase/functions/_shared/partnerMirrorMath";
 
 type Article = { id: number; name: string; qty: number; value: number };
 type Partner = { id: number; name: string; qty: number; value: number; articles: Article[] };
 type Item = { product: { id: number; name: string; unitsPerCase: number }; defaults: PriceConfig; components: SheetComponent[] };
 type ListResult = { eur: { rate: number } | null; logistics: { distribution?: Record<string, PriceConfig | null> }; rules?: { rules: any }; items: Array<Item | { product: { id: number; name: string }; error: string }> };
 type Sheet = ReturnType<typeof configuredSheet>["sheet"];
-type Line = { a: Article; sheet: Sheet | null; m: ReturnType<typeof mirrorLine> | null; error?: string };
+type Line = { a: Article; ppp?: number | null; sheet: Sheet | null; m: ReturnType<typeof mirrorLine> | null; error?: string };
 type Row = { p: Partner; lines: Line[]; error?: string; sales: number; actual: number; proposedRevenue: number; proposed: number; covered: number; missing: number };
 
 const PERIODS = [["1", "Ultima lună"], ["3", "3 luni"], ["6", "6 luni"], ["12", "1 an"], ["custom", "Personalizat"]] as const;
@@ -74,6 +74,38 @@ function Simulator({ l }: { l: Line }) {
           <tbody>{parts.map(([k, x]) => <tr key={k} className="border-t"><td className="py-0.5">{k}</td><td className="text-right">{n2(x)} lei/buc</td><td className="w-14 text-right text-muted-foreground">{n2((x / cost) * 100)}%</td></tr>)}</tbody>
         </table>
       </div>}
+      <Density l={l} margin={margin} profitPct={profitPct} />
+    </div>
+  );
+}
+
+/** Pallet density / case size what-if: distribution is paid per pallet, more pieces per pallet = cheaper piece. */
+function Density({ l, margin, profitPct }: { l: Line; margin: number; profitPct: number }) {
+  const s = l.sheet!;
+  const n = s.unitsPerCase || 1;
+  const ppp = l.ppp ?? 0;
+  const dist = s.logistics / n;
+  const [perCase, setPerCase] = useState(String(n));
+  const [cases, setCases] = useState(ppp ? String(Math.round(ppp / n)) : "");
+  if (!(ppp > 0) || !(dist > 0)) return <p className="text-xs text-muted-foreground md:col-span-2">Simulare densitate palet: lipsesc bucăți/palet sau tariful de distribuție pentru acest produs.</p>;
+  const pc = Number(perCase.replace(",", ".")), cs = Number(cases.replace(",", "."));
+  const newPpp = pc > 0 && cs > 0 ? pc * cs : 0;
+  const d = palletDensity(dist, ppp, newPpp, margin, profitPct);
+  return (
+    <div className="space-y-2 border-t pt-3 md:col-span-2">
+      <p className="font-medium text-sm">Densitate palet și baxare: ce câștig dacă încarc mai mult pe palet?</p>
+      <p className="text-xs text-muted-foreground">Acum: {n} buc/bax · {n0(ppp / n)} baxuri/palet · {n0(ppp)} buc/palet · distribuție {n2(d.perPallet)} lei/palet = {n2(dist)} lei/buc. Distribuția se plătește pe palet, deci mai multe bucăți pe palet scad costul pe bucată fără să schimbi prețul la raft.</p>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1"><Label className="text-xs">Bucăți / bax</Label><Input className="h-8 w-24" inputMode="decimal" value={perCase} onChange={(e) => setPerCase(e.target.value)} /></div>
+        <div className="space-y-1"><Label className="text-xs">Baxuri / palet (straturi × baxuri pe strat)</Label><Input className="h-8 w-24" inputMode="decimal" value={cases} onChange={(e) => setCases(e.target.value)} /></div>
+        <p className="text-sm">= <b>{n0(newPpp)} buc/palet</b> ({newPpp ? `${d.saving >= 0 ? "+" : ""}${n2(((newPpp - ppp) / ppp) * 100)}%` : "—"})</p>
+      </div>
+      {newPpp > 0 && <div className="grid gap-1 text-sm sm:grid-cols-3">
+        <p>Distribuție nouă: <b>{n2(d.newDistPerPiece)} lei/buc</b></p>
+        <p>Economie: <b className={tone(d.saving)}>{n2(d.saving)} lei/buc</b> · <b className={tone(d.saving)}>{n0(d.saving * l.a.qty)} lei</b> pe perioadă</p>
+        <p>Profit în plus (cu marjă {margin}% + profit {profitPct}%): <b className={tone(d.profitGain)}>{n2(d.profitGain)} lei/buc</b></p>
+      </div>}
+      <p className="text-xs text-muted-foreground">Verifică înainte cu depozitul clientului înălțimea maximă admisă a paletului și rezistența baxului. Costul cutiei pe bax nu este recalculat aici; dacă schimbi baxul, modifică ambalajul în fișa de preț.</p>
     </div>
   );
 }
@@ -115,7 +147,7 @@ export default function PartnerMirror() {
             const it = res.items.find((x) => x.product.id === a.id);
             if (!it || !isItem(it)) return { a, sheet: null, m: null, error: it && !isItem(it) ? it.error : "Fără fișă" };
             const sheet = sheetFor(it, res, p.name);
-            return sheet.complete ? { a, sheet, m: mirrorLine(sheet, a.qty, a.value) } : { a, sheet, m: null, error: `Fișă incompletă: ${[...sheet.missingInputs, ...sheet.missingPrices].slice(0, 3).join(", ")}` };
+            return sheet.complete ? { a, ppp: it.defaults.piecesPerPallet ?? null, sheet, m: mirrorLine(sheet, a.qty, a.value) } : { a, sheet, m: null, error: `Fișă incompletă: ${[...sheet.missingInputs, ...sheet.missingPrices].slice(0, 3).join(", ")}` };
           });
           out.push(summarize(p, lines));
         } catch (e) {

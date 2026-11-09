@@ -16,3 +16,13 @@ describe("partner mirror", () => {
     expect(targetCost(5, 20, 15, 5)).toBeCloseTo(3.2);
   });
 });
+
+import { palletDensity } from "./partnerMirrorMath";
+test("denser pallet cuts distribution per piece", () => {
+  // 0.62 lei/buc at 720 buc/palet = 446.4 lei/palet; at 960 buc → 0.465 lei/buc, saving 0.155.
+  const d = palletDensity(0.62, 720, 960, 15, 5);
+  expect(d.perPallet).toBeCloseTo(446.4);
+  expect(d.newDistPerPiece).toBeCloseTo(0.465);
+  expect(d.saving).toBeCloseTo(0.155);
+  expect(d.profitGain).toBeCloseTo(0.155 * 0.95 / 0.8);
+});

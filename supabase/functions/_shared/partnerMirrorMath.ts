@@ -25,3 +25,13 @@ export function targetCost(price: number, feePct: number, marginPct: number, pro
   return price * (1 - feePct / 100) * (1 - (marginPct + profitPct) / 100);
 }
 
+
+/** Pallet density what-if: distribution is paid per pallet, so cost per piece = tariff/pallet ÷ pieces/pallet.
+ * Profit per piece rises with the saving grossed up like the minimum price: saving × (1 − p) ÷ (1 − m − p). */
+export function palletDensity(distPerPiece: number, piecesPerPallet: number, newPiecesPerPallet: number, marginPct: number, profitPct: number) {
+  const perPallet = distPerPiece * piecesPerPallet;
+  const newDistPerPiece = newPiecesPerPallet > 0 ? perPallet / newPiecesPerPallet : distPerPiece;
+  const saving = distPerPiece - newDistPerPiece;
+  const k = 1 - (marginPct + profitPct) / 100;
+  return { perPallet, newDistPerPiece, saving, profitGain: k > 0 ? saving * (1 - profitPct / 100) / k : saving };
+}
