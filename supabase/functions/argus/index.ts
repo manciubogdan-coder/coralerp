@@ -125,7 +125,7 @@ Instrumente:
 3. genereaza_raport — când CEO-ul cere un raport/Excel: definește interogarea; utilizatorul primește un buton de descărcare.
 6. creeaza_agent / modifica_agent / lista_agenti — când utilizatorul vrea un agent, raport recurent sau calculator pe tabloul Argus: propune titlul, ce calculează și filtrele selectabile (perioadă, lună/an, produs, client etc.), întreabă „le vrei așa, adaugi, tai?” și abia după confirmare creează/modifică. Instrucțiunile agentului trebuie să fie complete, nu copia conversației.
 5. propune_actiune — când CEO-ul îți cere să CREEZI ceva (comandă de producție în avans, comandă de client, comandă la furnizor, task): pregătește acțiunea; el o confirmă dintr-un card. Nu spune niciodată că ai creat ceva — spune că așteaptă confirmarea. Poți propune mai multe acțiuni.
-4. senior_cauta_tabele / senior_descrie_tabel / senior_sql — citire LIVE din Senior ERP (contabilitate, facturi, comenzi clienți/furnizori, parteneri, articole, stocuri, încasări/plăți). Folosește-le pentru orice întrebare despre bani, vânzări, achiziții, clienți, furnizori sau documente.
+4. (Date mari/perioade lungi: scrie O SINGURĂ interogare senior_sql agregată cu JOIN și GROUP BY, nu mulți pași mărunți; livrează tabelul complet.) senior_cauta_tabele / senior_descrie_tabel / senior_sql — citire LIVE din Senior ERP (contabilitate, facturi, comenzi clienți/furnizori, parteneri, articole, stocuri, încasări/plăți). Folosește-le pentru orice întrebare despre bani, vânzări, achiziții, clienți, furnizori sau documente.
 
 Pentru Senior: cere schema_context("senior") înainte de SQL. Senior este numai citire; agregă în SQL, filtrează perioada, nu dubla antetele prin linii, exclude documentele anulate.
 
@@ -286,14 +286,14 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     stopWhen: isStepCount(30),
     // Before the step budget runs out, force a written answer from the data already gathered.
     prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-      stepNumber >= 27
+      stepNumber >= 22
         ? { toolChoice: "none" as const }
         : undefined,
     abortSignal: req.signal,
   });
 
   let lastError = "";
-  return withLovableAiGatewayRunIdHeader(result.toUIMessageStreamResponse({
+  return withLovableAiGatewayRunIdHeader(keepAlive(result.toUIMessageStreamResponse({
     headers: corsHeaders,
     originalMessages: messages,
     generateMessageId: () => crypto.randomUUID(),
@@ -326,7 +326,24 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
       const { error: upErr } = await c.cloud.from("argus_threads").update(patch).eq("id", threadId);
       if (upErr) console.error("argus thread update", upErr);
     },
-  }), run);
+  })), run);
+}
+
+// SSE comment pings keep the connection alive while Senior queries or long reasoning emit no bytes; the UI parser ignores comments.
+function keepAlive(res: Response, everyMs = 10_000): Response {
+  if (!res.body) return res;
+  const reader = res.body.getReader();
+  const ping = new TextEncoder().encode(": ping\n\n");
+  let timer: number | undefined;
+  const body = new ReadableStream<Uint8Array>({
+    start(ctrl) { timer = setInterval(() => { try { ctrl.enqueue(ping); } catch { clearInterval(timer); } }, everyMs); },
+    async pull(ctrl) {
+      const { done, value } = await reader.read();
+      if (done) { clearInterval(timer); ctrl.close(); } else ctrl.enqueue(value);
+    },
+    cancel(r) { clearInterval(timer); return reader.cancel(r); },
+  });
+  return new Response(body, { status: res.status, headers: res.headers });
 }
 
 async function handleSummary(c: ReturnType<typeof makeClients>, refresh: boolean) {
