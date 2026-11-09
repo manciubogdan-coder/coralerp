@@ -19,6 +19,7 @@ import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaul
 import { ReceiptPriceAlert } from '../inventory/ReceiptPriceAlert';
 import { priceRules, profitFor, setPriceRules, type RulesMeta } from "../../../supabase/functions/_shared/priceRules";
 import PriceRulesEditor from "./PriceRulesEditor";
+import PartnerMirror from "./PartnerMirror";
 
 type Opt = { id: number; name: string };
 type Client = Opt & { stores: number };
@@ -936,17 +937,18 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
 
 /** Price list and the editable company-wide calculation rules it reads at every run. */
 export default function PriceCalculator() {
-  const [view, setView] = useState<"list" | "rules">("list");
+  const [view, setView] = useState<"list" | "mirror" | "rules">("list");
   const [rulesVersion, setRulesVersion] = useState(0);
   return (
     <div className="space-y-4">
       <div role="tablist" aria-label="Calculator preț" className="inline-flex rounded-md border bg-muted p-1">
-        {([["list", "Listă de prețuri"], ["rules", "Reguli de calcul"]] as const).map(([k, label]) => (
+        {([["list", "Listă de prețuri"], ["mirror", "Oglindă parteneri"], ["rules", "Reguli de calcul"]] as const).map(([k, label]) => (
           <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)}
             className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${view === k ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
         ))}
       </div>
       <div className={view === "list" ? "" : "hidden"}><PriceListCalculator rulesVersion={rulesVersion} /></div>
+      <div className={view === "mirror" ? "" : "hidden"}><PartnerMirror /></div>
       <div className={view === "rules" ? "" : "hidden"}><PriceRulesEditor onSaved={() => setRulesVersion((v) => v + 1)} /></div>
     </div>
   );

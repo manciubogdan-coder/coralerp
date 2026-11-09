@@ -23,6 +23,7 @@ import { filtersForTemplate, parameterizeSql, validLiveSpec, type LiveSpec } fro
 import { filterOptions } from "./filterOptions.ts";
 import { agentBuilderTools } from "./agentBuilder.ts";
 import { priceCalcData, priceListData, priceOptions } from "../_shared/priceCalcSenior.ts";
+import { partnerMirrorSales } from "../_shared/partnerMirror.ts";
 import { DEFAULT_PRICE_RULES, loadPriceRules, savePriceRules } from "../_shared/priceRules.ts";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
@@ -659,6 +660,10 @@ Deno.serve(async (req) => {
       case "price_rules_save": {
         if (req.method !== "POST") return json({ error: "Metodă invalidă." }, 405);
         try { return json({ ...(await savePriceRules(c.cloud, (await req.json())?.rules, auth.user.email ?? userId)), defaults: DEFAULT_PRICE_RULES }); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case "partner_mirror_sales": {
+        try { return json(await partnerMirrorSales(c.cloud, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case "price_list": {
