@@ -14,6 +14,7 @@ import { plannedQuantity } from '../_shared/erpQuantity.ts';
 import { cancellationPatch, isErpCancellationApplied } from './cancellation.ts';
 import { findCarton, expandCarton, type MixedCarton } from '../_shared/mixedCartons.ts';
 import { cartonNameUnit } from './cartonUnit.ts';
+import { absorbEstimate } from './absorb.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -154,6 +155,19 @@ Deno.serve(async (req) => {
     if (!data || data.length < 1000) break;
   }
   const inherited = new Set<string>();
+  // Estimări deja absorbite de comenzi ferme: sincronizarea nu le mai redeschide.
+  const absorbed = new Set<string>();
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await cloud.from('productie_comenzi_absorbite').select('old_id').order('old_id').range(offset, offset + 999);
+    if (error) return json({ error: 'Lista comenzilor absorbite nu s-a încărcat; importul a fost oprit.' }, 503);
+    (data ?? []).forEach((r: any) => absorbed.add(String(r.old_id)));
+    if (!data || data.length < 1000) break;
+  }
+  const absorptions: any[] = [];
+  const tryAbsorb = async (id: string, numar: string, magazin: string, produsId: string, day: string, cantitate: number) => {
+    try { const r = await absorbEstimate(supabase, cloud, absorbed, { id, numar, magazin, produsId, day, cantitate }); if (r) { absorptions.push(r); if (r.produced > cantitate) await setRestockLot(supabase, id, produsId, day, r.produced - cantitate); } }
+    catch (e: any) { errors.push({ absorbtie: numar, err: e.message || String(e) }); }
+  };
 
   // Normalizare pentru match după denumire (trim, lower, colapsare spații, fără diacritice)
   const norm = (s: string) =>
@@ -512,6 +526,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (existingError) throw existingError;
+        if (existing && absorbed.has(String(existing.id))) { skipped++; continue; }
 
         // Skip retururi (cantitate <= 0)
         if (cantitate <= 0) {
@@ -592,6 +607,7 @@ Deno.serve(async (req) => {
           } else {
             skipped++;
           }
+          await tryAbsorb(String(ex.id), String(aviz.nr_aviz), numeMagazin, String(produsId), dataOnly, cantitate);
           continue;
         }
 
@@ -678,6 +694,7 @@ Deno.serve(async (req) => {
               .from("productie_comenzi")
               .update({ numar_comanda: aviz.nr_aviz, data_productie: dataOnly })
               .eq("id", inserted.id);
+            await tryAbsorb(String(inserted.id), String(aviz.nr_aviz), numeMagazin, String(produsId), dataOnly, cantitate);
           }
           lines++;
         }
@@ -830,7 +847,7 @@ Deno.serve(async (req) => {
     bridge_host: payload.bridge_host || null,
   });
 
-  return json({
+  return json({ absorptions,
     ok: true,
     avize_primite: payload.avize.length,
     comenzi_create: created,

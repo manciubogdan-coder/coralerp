@@ -1858,6 +1858,48 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_comenzi_absorbite: {
+        Row: {
+          cantitate_noua: number | null
+          cantitate_veche: number | null
+          created_at: string
+          data_productie: string | null
+          magazin: string | null
+          new_id: string
+          new_numar: string | null
+          old_id: string
+          old_numar: string | null
+          produs_id: string | null
+          produs_mutat: number
+        }
+        Insert: {
+          cantitate_noua?: number | null
+          cantitate_veche?: number | null
+          created_at?: string
+          data_productie?: string | null
+          magazin?: string | null
+          new_id: string
+          new_numar?: string | null
+          old_id: string
+          old_numar?: string | null
+          produs_id?: string | null
+          produs_mutat?: number
+        }
+        Update: {
+          cantitate_noua?: number | null
+          cantitate_veche?: number | null
+          created_at?: string
+          data_productie?: string | null
+          magazin?: string | null
+          new_id?: string
+          new_numar?: string | null
+          old_id?: string
+          old_numar?: string | null
+          produs_id?: string | null
+          produs_mutat?: number
+        }
+        Relationships: []
+      }
       productie_comenzi_audit: {
         Row: {
           action: string

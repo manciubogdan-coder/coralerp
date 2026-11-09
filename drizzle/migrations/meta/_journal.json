@@ -260,6 +260,13 @@
       "when": 1794116141349,
       "tag": "0036_productie_retetar_inlocuiri",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794249178777,
+      "tag": "0037_productie_comenzi_absorbite",
+      "breakpoints": true
     }
   ]
 }
