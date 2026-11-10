@@ -31,9 +31,14 @@ interface Props {
   takingStock?: boolean;
 }
 
+/** Unele produse au unitatea salvată ca „1”; afișăm „buc”. */
+const unitLabel = (u?: string | null) => (!u || /^\d+([.,]\d+)?$/.test(String(u).trim()) ? "buc" : String(u));
+
 export const GroupWorkTime: React.FC<{ ids: string[]; norm?: number | null; unit?: string }> = ({ ids, norm, unit }) => {
   const { data } = useOrdersWorkTime(ids);
-  const real = data && data.hours > 0 ? data.pieces / data.hours : 0;
+  // Sub 5 minute lucrate viteza nu e relevantă (ex. sesiune deschisă și închisă imediat).
+  const real = data && data.hours >= 5 / 60 ? data.pieces / data.hours : 0;
+  unit = unitLabel(unit);
   return (
     <div>
       <div className="text-xs text-gray-500 flex items-center gap-1"><Clock className="h-3 w-3" /> Timp real lucrat</div>
@@ -128,7 +133,7 @@ const GroupedOrdersView: React.FC<Props> = ({
         map.set(key, {
           key,
           nume,
-          unitate: (o as any).productie_produse?.unitate_masura || "buc",
+          unitate: unitLabel((o as any).productie_produse?.unitate_masura),
           isMerged: !!grup,
           orders: [],
         });
@@ -197,17 +202,21 @@ const GroupedOrdersView: React.FC<Props> = ({
         let totalAcoperit = 0;
         let totalRamas = 0;
         let totalSurplus = 0;
+        let totalLipsa = 0;
+        let lipsaCount = 0;
         for (const o of g.orders as any[]) {
           const esteReamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
           const ac = (o.cantitate_reala_produsa || 0) + (esteReamb ? 0 : o.cantitate_din_restock || 0);
           const cer = o.cantitate || 0;
           const done = o.status === "completed" && ac < cer && !lipsaIds?.has(String(o.id)) ? cer : ac;
           totalAcoperit += Math.min(done, cer);
+          if (lipsaIds?.has(String(o.id)) && ac < cer) { totalLipsa += cer - ac; lipsaCount += 1; continue; }
           totalRamas += Math.max(0, cer - done);
           totalSurplus += Math.max(0, ac - cer);
         }
         const procent = totalCerut > 0 ? Math.round((totalAcoperit / totalCerut) * 100) : 0;
-        const doneCount = g.orders.filter(isOrderDone).length;
+        const processedCount = g.orders.filter(isOrderDone).length;
+        const doneCount = processedCount - lipsaCount;
         const visibleOrders = hideDone ? g.orders.filter((o) => !isOrderDone(o)) : g.orders;
         const groupSessions = activeSessions.filter((s) => g.orders.some((o) => o.id === s.comanda_id));
         const hasActive = groupSessions.length > 0;
@@ -242,6 +251,11 @@ const GroupedOrdersView: React.FC<Props> = ({
                     {doneCount > 0 && (
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5">
                         {doneCount} {t("doneBadge")}
+                      </Badge>
+                    )}
+                    {lipsaCount > 0 && (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 text-[10px] px-1.5">
+                        {lipsaCount} încheiate – Lipsă MP
                       </Badge>
                     )}
                   </div>
@@ -292,8 +306,9 @@ const GroupedOrdersView: React.FC<Props> = ({
                 <div>
                   <div className="text-xs text-gray-500 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {t("leftLabel")}</div>
                   <div className={`font-bold ${totalRamas > 0 ? "text-red-600" : "text-gray-400"}`}>{totalRamas} {g.unitate}</div>
+                  {totalLipsa > 0 && <div className="text-xs font-semibold text-amber-700">Lipsă MP: {totalLipsa} {g.unitate} nefăcute</div>}
                 </div>
-                {doneCount === g.orders.length ? (
+                {processedCount === g.orders.length ? (
                   <GroupWorkTime ids={orderIds} norm={lineCapacity} unit={g.unitate} />
                 ) : (
                 <div>
@@ -305,7 +320,7 @@ const GroupedOrdersView: React.FC<Props> = ({
 
               <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mt-3">
                 <div
-                  className={`h-2 rounded-full ${procent >= 100 ? "bg-green-500" : procent >= 50 ? "bg-blue-500" : "bg-amber-500"}`}
+                  className={`h-2 rounded-full ${procent >= 100 ? "bg-green-500" : lipsaCount > 0 && totalRamas === 0 ? "bg-amber-500" : procent >= 50 ? "bg-blue-500" : "bg-amber-500"}`}
                   style={{ width: `${Math.min(100, procent)}%` }}
                 />
               </div>

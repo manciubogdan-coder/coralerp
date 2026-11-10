@@ -68,6 +68,7 @@ export const useOrdersWorkTime = (ids: string[], enabled = true) =>
         if (error) throw error;
         rows.push(...(data || []));
       }
-      return { hours: workedHours(rows), pieces: rows.reduce((s, r) => s + Number(r.cantitate_produsa || 0), 0) };
+      const closed = rows.filter(r => r.ora_start && r.ora_sfarsit);
+      return { hours: workedHours(closed), pieces: closed.reduce((s, r) => s + Number(r.cantitate_produsa || 0), 0) };
     },
   });
