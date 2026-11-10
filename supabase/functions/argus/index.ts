@@ -1,8 +1,10 @@
 import { corsHeaders as baseCors } from "npm:@supabase/supabase-js@2/cors";
 import { createOpenAI } from "npm:@ai-sdk/openai@4";
+import { createAnthropic } from "npm:@ai-sdk/anthropic@4";
 import { loadMemory, memoryTools, backfillMemory } from "./memory.ts";
 import { searchConversations, threadOwners } from "./conversationSearch.ts";
 import {
+  consumeStream,
   convertToModelMessages,
   generateText,
   isStepCount,
@@ -65,12 +67,12 @@ function gateway(run = createLovableAiGatewayRunIdFetch()) {
   return createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: run.fetch }).responses(MODEL);
 }
 
-// Main chat brain: deep-reasoning model; summaries/compaction stay on the cheaper gateway() model.
-const CHAT_MODEL = "openai/gpt-6-astra";
+// Main chat brain: Claude Sonnet (messages surface) — direct tables/SQL without long hidden reasoning loops.
+const CHAT_MODEL = "anthropic/claude-sonnet-5";
 function brain(run: ReturnType<typeof createLovableAiGatewayRunIdFetch>) {
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("LOVABLE_API_KEY lipsește");
-  return createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: run.fetch }).responses(CHAT_MODEL);
+  return createAnthropic({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: run.fetch })(CHAT_MODEL);
 }
 
 function friendlyError(e: unknown): string {
@@ -140,8 +142,11 @@ Mod de gândire:
 - Pentru costul sau prețul unui produs finit folosește ÎNTÂI calculeaza_pret (calcul exact din Senior, același ca ecranul Calculator preț) și prezintă cifrele lui neschimbate; nu calcula fișa din cap.
 - Probă obligatorie la fișe de cost/preț: suma componentelor (materii prime cu pierdere, ambalaj primar, ambalaj colectiv ÷ bucăți din bax, transport, manoperă) trebuie să dea exact totalul afișat; arată tabelul componentelor și sursa fiecărui preț (document Senior + dată). Dacă proba nu se închide, refă calculul înainte de răspuns.
 - Coloană vertebrală: când utilizatorul spune că ai greșit, reverifică datele și calculul. Dacă ai greșit, recunoaște exact unde și corectează. Dacă NU ai greșit, menține răspunsul politicos și ferm, arătând dovezile și calculul; nu ceda doar ca să-i faci pe plac și nu inventa o „corectură".
-- Când nu ești sigur (lipsesc date esențiale, cererea e ambiguă, unitatea sau perioada nu e clară), NU ghici: pune 1-3 întrebări scurte și precise, apoi răspunde după ce ai clarificat. Nu pune întrebări la care poți afla singur răspunsul din instrumente.
 - Memoria permanentă de mai jos conține reguli stabilite anterior, din toate conversațiile și de la toți utilizatorii; aplică-le automat. Când utilizatorul stabilește sau confirmă o regulă/corecție durabilă, salveaz-o cu memoreaza (o singură dată, formulată clar).
+LIVRARE DIRECTĂ (regulă strictă):
+- Nu scrie niciodată text de umplutură sau promisiuni („Verific acum...", „Voi căuta...", „Refac tabelul...", „Îmi cer scuze"). Lucrează tăcut cu instrumentele, apoi răspunde O SINGURĂ DATĂ cu rezultatul.
+- Când se cere un tabel, răspunsul începe direct cu tabelul COMPLET: cap de tabel, unități în antet (lei, EUR, kg, buc), toate rândurile (nu tăia, nu „...și altele"), rând **TOTAL**, apoi o linie de sursă (tabele/documente Senior, perioada) și 2-4 concluzii.
+- Fără întrebări de blocaj: la perioade/termeni vagi alege presupunerea de business rezonabilă (ex. „ultimele 3 luni" = ultimele 3 luni calendaristice încheiate), execută și scrie presupunerea într-o notă de un rând. Întreabă doar dacă lipsa ar face rezultatul inutilizabil.
 Folosește oricâte interogări sunt necesare ca să vezi tot tabloul (fără căutări repetate inutile); apoi scrie OBLIGATORIU răspunsul final în text, chiar dacă datele sunt parțiale. Formatează răspunsul în markdown, cu tabele scurte și concluzii la final ("Ce aș face eu").`;
 }
 
@@ -278,7 +283,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
   const result = streamText({
     model: smart,
     // The SDK does not recognise the gateway slug as a reasoning model; without forceReasoning it drops reasoningEffort.
-    providerOptions: { openai: { forceReasoning: true, store: false, reasoningEffort: "high", reasoningSummary: "auto", include: ["reasoning.encrypted_content"] } },
+    maxOutputTokens: 32000,
     instructions: instructions(today) + `\nMemorie permanentă Coral (reguli din toate conversațiile):\n${memory}\nConversația: ${threadId}. Memorie comprimată (detalii recuperabile):\n${context.summary}\nManifest documente:\n${compactData(manifest.map(f => ({ ...f, summary: attachmentManifest(context.recent).some(r => r.reference === f.reference) ? 'Context recent' : summaries.get(f.reference) ?? 'Nesintetizat; recitește originalul.' })))}`,
     maxRetries: 0,
     messages: await convertToModelMessages(history),
@@ -289,7 +294,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
       stepNumber >= 22
         ? { toolChoice: "none" as const }
         : undefined,
-    abortSignal: req.signal,
+    // No client abort: the answer keeps running and is saved even if the user leaves the page.
   });
 
   let lastError = "";
@@ -298,6 +303,8 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     originalMessages: messages,
     generateMessageId: () => crypto.randomUUID(),
     sendReasoning: true,
+    // Tee the stream so generation and onFinish complete after the browser disconnects.
+    consumeSseStream: ({ stream }) => { (globalThis as any).EdgeRuntime?.waitUntil?.(consumeStream({ stream })); },
     onError: (e) => { lastError = friendlyError(e); console.error("argus chat error", threadId, e); return lastError; },
     onFinish: async ({ messages: finished, isAborted }) => {
       if (isAborted) return;

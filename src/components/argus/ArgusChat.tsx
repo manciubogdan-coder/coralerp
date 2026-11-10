@@ -28,6 +28,7 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 import { ARGUS_URL, argusFetch, argusHeaders } from "@/lib/argusApi";
 import argusLogo from "@/assets/argus-logo.png";
 import { ARGUS_ACCEPT, MAX_FILE_BYTES, prepareArgusFile } from '@/lib/argus/prepareFile';
+import { markPending, readPending } from '@/lib/argus/backgroundWatch';
 import { PendingAttachments, AttachFilesButton, AttachmentSubmit, SentAttachment } from './ArgusAttachments';
 
 type Thread = { id: string; title: string; updated_at: string };
@@ -129,7 +130,7 @@ function ReportCard({ output }: { output: any }) {
   );
 }
 
-function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial: UIMessage[]; onSaved: () => void }) {
+function ChatWindow({ threadId, initial, onSaved, backgroundPending }: { threadId: string; initial: UIMessage[]; onSaved: () => void; backgroundPending?: boolean }) {
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -184,6 +185,7 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
       setFileProgress('');
       setText('');
       setPreparing(false);
+      markPending(threadId, t.trim() || 'Fișiere atașate');
       await sendMessage({ text: t.trim() || 'Citește și interpretează fișierele atașate. Prezintă datele importante și concluziile.', files: uploaded });
       preparedCache.current.clear();
     } catch (error) {
@@ -257,6 +259,11 @@ function ChatWindow({ threadId, initial, onSaved }: { threadId: string; initial:
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {backgroundPending && !busy && (
+        <div className="flex items-center gap-2 border-b bg-muted px-4 py-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Argus lucrează în fundal la ultima întrebare. Răspunsul apare aici automat și primești notificare.
+        </div>
+      )}
       {tables.length > 0 && (
         <div className="mx-auto flex w-full max-w-3xl justify-end px-3 pt-2">
           <Sheet open={tablesOpen} onOpenChange={setTablesOpen}>
@@ -445,6 +452,16 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
   const loadThreads = () => argusFetch<Thread[]>("threads").then(setThreads).catch((e) => setLoadErr(e.message));
+  const [reloadKey, setReloadKey] = useState(0);
+  const [bgPending, setBgPending] = useState(false);
+  useEffect(() => {
+    const sync = () => setBgPending(!!threadId && readPending().some((p) => p.threadId === threadId));
+    const done = (e: Event) => { if ((e as CustomEvent).detail === threadId) setReloadKey((k) => k + 1); loadThreads(); };
+    sync();
+    window.addEventListener("argus-pending-changed", sync);
+    window.addEventListener("argus-done", done);
+    return () => { window.removeEventListener("argus-pending-changed", sync); window.removeEventListener("argus-done", done); };
+  }, [threadId]);
   useEffect(() => {
     loadThreads();
   }, []);
@@ -461,7 +478,7 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
           navigate("/administrativ/argus/chat", { replace: true });
         } else setLoadErr(e.message);
       });
-  }, [threadId]);
+  }, [threadId, reloadKey]);
 
   const newThread = async () => {
     try {
@@ -535,7 +552,7 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <ChatWindow key={threadId} threadId={threadId} initial={initial} onSaved={loadThreads} />
+          <ChatWindow key={`${threadId}:${reloadKey}`} threadId={threadId} initial={initial} onSaved={loadThreads} backgroundPending={bgPending} />
         )}
         </div>
       </section>
