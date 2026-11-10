@@ -50,6 +50,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const [totalOperators, setTotalOperators] = useState<number>(1);
   const [producedQuantity, setProducedQuantity] = useState<number>(0);
   const [rebutQuantity, setRebutQuantity] = useState<number>(0);
+  const [lipsaMP, setLipsaMP] = useState<boolean>(false);
   const [sessionLineId, setSessionLineId] = useState<string>("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [forceRefreshKey, setForceRefreshKey] = useState(0);
@@ -380,7 +381,15 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     }
   };
 
-  const handleFinishSession = async (sessionId: string, cantitate: number, rebut: number = 0) => {
+
+  // Comandă închisă din lipsă de materie primă: se marchează finalizată (100% realizat), cantitatea cerută rămâne.
+  const closeOrdersShort = async (ids: string[]) => {
+    if (!ids.length) return;
+    const { error } = await supabase.from('productie_comenzi').update({ status: 'completed', updated_at: new Date().toISOString() }).in('id', ids);
+    if (error) toast({ title: t("error"), description: error.message, variant: "destructive" });
+    await queryClient.invalidateQueries();
+  };
+  const handleFinishSession = async (sessionId: string, cantitate: number, rebut: number = 0, lipsaMP = false) => {
     if (!Number.isFinite(cantitate) || cantitate < 0 || !Number.isFinite(rebut) || rebut < 0) {
       toast({ title: t("error"), description: "Introdu cantități valide înainte de finalizare.", variant: "destructive" });
       return;
@@ -400,7 +409,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     // Considerăm finalizată dacă această sesiune + acoperirea anterioară ≥ cantitatea cerută.
     const status: 'finalizata' | 'partial' = (acoperitPrev + cantitate) >= cantitateComandă ? 'finalizata' : 'partial';
 
-    if (cantitate <= 0) {
+    if (cantitate <= 0 && !lipsaMP) {
       const ok = window.confirm(t("confirmZero"));
       if (!ok) return;
     }
@@ -428,6 +437,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         }
       }
 
+      if (lipsaMP && status === 'partial') {
+        await closeOrdersShort([session.comanda_id]);
+        toast({ title: "Comandă încheiată – lipsă materie primă", description: `${cantitate} buc în această sesiune. Comanda e socotită 100% realizată.` });
+      } else
       toast({
         title: status === 'finalizata' ? t("sessionDoneFull") : t("sessionDonePartial"),
         description: `${cantitate} ${t("producedThisSession")} ${status === 'partial' ? `${t("remainsToProduce")} ~${Math.max(0, ramasDeAcoperit - cantitate)} ${t("pcs")}.` : t("orderFullyCovered")}`
@@ -437,6 +450,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       setTotalOperators(1);
       setProducedQuantity(0);
       setRebutQuantity(0);
+      setLipsaMP(false);
       setView('orders');
     } catch (error) {
       toast({
@@ -508,7 +522,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     });
   };
 
-  const handleFinishGroupSession = async (orderIds: string[], totalQty: number, rebut: number = 0) => {
+  const handleFinishGroupSession = async (orderIds: string[], totalQty: number, rebut: number = 0, lipsaMP = false) => {
     if (totalQty < 0 || !currentLineId) return;
     const idSet = new Set(orderIds);
     const groupOrders = lineOrders.filter((o: any) => idSet.has(o.id));
@@ -526,7 +540,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       return;
     }
 
-    if (totalQty === 0) {
+    if (totalQty === 0 && !lipsaMP) {
       const ok = window.confirm(t("confirmZeroGroup"));
       if (!ok) return;
     }
@@ -570,8 +584,9 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         console.error('Eroare salvare rebut grup', err);
       }
     }
+    if (lipsaMP) await closeOrdersShort(withSession.map((x: any) => x.order.id));
     toast({
-      title: t("groupFinished"),
+      title: lipsaMP ? "Grup încheiat – lipsă materie primă" : t("groupFinished"),
       description: t("groupDistributed", { q: totalQty, n: withSession.length }),
     });
   };
@@ -968,8 +983,13 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   <p className="text-xs text-muted-foreground mt-1">{t("rebutHint")}</p>
                 </div>
 
+                <label className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 cursor-pointer">
+                  <input type="checkbox" className="mt-1 h-5 w-5" checked={lipsaMP} onChange={e => setLipsaMP(e.target.checked)} />
+                  <span className="text-sm"><span className="font-semibold">Lipsă materie primă – încheie comanda</span><br /><span className="text-muted-foreground">Comanda se închide cu ce s-a produs și se socotește 100% realizată.</span></span>
+                </label>
+
                 <Button
-                  onClick={() => handleFinishSession(activeSession.id, producedQuantity, rebutQuantity)}
+                  onClick={() => handleFinishSession(activeSession.id, producedQuantity, rebutQuantity, lipsaMP)}
                   disabled={finishSessionMutation.isPending}
                   className="w-full bg-coral-primary hover:bg-coral-600 text-white h-12 text-base"
                 >

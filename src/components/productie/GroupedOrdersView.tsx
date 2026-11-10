@@ -24,7 +24,7 @@ interface Props {
   lineOptions?: { id: string; nume: string }[];
   onOrderSelect: (orderId: string) => void;
   onStartGroup: (orderIds: string[], principalOperator: string, totalOperators: number, lineId?: string) => Promise<void>;
-  onFinishGroup: (orderIds: string[], totalQty: number, rebut?: number) => Promise<void>;
+  onFinishGroup: (orderIds: string[], totalQty: number, rebut?: number, lipsaMP?: boolean) => Promise<void>;
   stockTotals?: Map<string, number>;
   onTakeStock?: (orderIds: string[]) => Promise<void>;
   takingStock?: boolean;
@@ -129,9 +129,11 @@ const GroupedOrdersView: React.FC<Props> = ({
     setStartDialog({ open: true, orderIds, nume });
   };
 
+  const [lipsaMP, setLipsaMP] = useState(false);
   const openFinish = (orderIds: string[], nume: string) => {
     setTotalQty(0);
     setRebutQty(0);
+    setLipsaMP(false);
     setFinishDialog({ open: true, orderIds, nume });
   };
 
@@ -148,7 +150,7 @@ const GroupedOrdersView: React.FC<Props> = ({
   const handleFinish = async () => {
     setSubmitting(true);
     try {
-      await onFinishGroup(finishDialog.orderIds, totalQty, rebutQty);
+      await onFinishGroup(finishDialog.orderIds, totalQty, rebutQty, lipsaMP);
       setFinishDialog({ open: false, orderIds: [], nume: "" });
     } finally {
       setSubmitting(false);
@@ -453,6 +455,10 @@ const GroupedOrdersView: React.FC<Props> = ({
               placeholder="0,00"
             />
             <p className="text-xs text-muted-foreground">{t("rebutHint")}</p>
+            <label className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 cursor-pointer">
+              <input type="checkbox" className="mt-1 h-5 w-5" checked={lipsaMP} onChange={e => setLipsaMP(e.target.checked)} />
+              <span className="text-sm"><span className="font-semibold">Lipsă materie primă – încheie comenzile</span><br /><span className="text-muted-foreground">Se închid cu ce s-a produs și se socotesc 100% realizate.</span></span>
+            </label>
           </div>
           <DialogFooter>
             <Button
