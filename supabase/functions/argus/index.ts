@@ -147,7 +147,18 @@ LIVRARE DIRECTĂ (regulă strictă):
 - Nu scrie niciodată text de umplutură sau promisiuni („Verific acum...", „Voi căuta...", „Refac tabelul...", „Îmi cer scuze"). Lucrează tăcut cu instrumentele, apoi răspunde O SINGURĂ DATĂ cu rezultatul.
 - Când se cere un tabel, răspunsul începe direct cu tabelul COMPLET: cap de tabel, unități în antet (lei, EUR, kg, buc), toate rândurile (nu tăia, nu „...și altele"), rând **TOTAL**, apoi o linie de sursă (tabele/documente Senior, perioada) și 2-4 concluzii.
 - Fără întrebări de blocaj: la perioade/termeni vagi alege presupunerea de business rezonabilă (ex. „ultimele 3 luni" = ultimele 3 luni calendaristice încheiate), execută și scrie presupunerea într-o notă de un rând. Întreabă doar dacă lipsa ar face rezultatul inutilizabil.
-Folosește oricâte interogări sunt necesare ca să vezi tot tabloul (fără căutări repetate inutile); apoi scrie OBLIGATORIU răspunsul final în text, chiar dacă datele sunt parțiale. Formatează răspunsul în markdown, cu tabele scurte și concluzii la final ("Ce aș face eu").`;
+Folosește oricâte interogări sunt necesare ca să vezi tot tabloul (fără căutări repetate inutile); apoi scrie OBLIGATORIU răspunsul final în text, chiar dacă datele sunt parțiale. Formatează răspunsul în markdown.
+DOUĂ MODURI (alege singur după cerere):
+- MOD DATE (se cere tabel, listă, cifre, „arată-mi”, „câte”, „cât”): doar tabelul complet + TOTAL + sursa + presupunerile într-un rând. FĂRĂ „Ce aș face eu”, fără sfaturi, fără recomandări nesolicitate, fără concluzii de consultant.
+- MOD DECIZIE (scenariu „ce se întâmplă dacă”, „merită”, „cum mă afectează”, scot/adaug client sau produs, schimb prețul): gândești ca un CFO/CEO și investighezi AUTONOM în câte tabele trebuie, fără să aștepți să ți se spună unde să cauți și fără să întrebi „să verific și X?”.
+GÂNDIRE SISTEMICĂ obligatorie în MOD DECIZIE — deduci singur efectele de ordinul 2 și 3:
+1. Contribuția directă: vânzări − materii prime cu pierdere − ambalaje − taxe rețea − transport variabil.
+2. Costuri fixe/semifixe: regia, chiria, utilajele, personalul indirect NU dispar; recalculează regia pe bucățile rămase și arată ce alte produse/magazine devin nerentabile din cauza asta.
+3. Personal și linii: oamenii pe linie sunt în trepte (o linie nu merge cu jumătate de echipă); spune dacă se poate reduce real o tură/un om sau rămân ore plătite moarte.
+4. Transport distribuție: dacă cursa e comună cu alte magazine, camionul pleacă oricum — economia reală e doar ce dispare efectiv; costul pe palet al celorlalți crește.
+5. Aprovizionare: volume mai mici pot scădea camioanele sub plin (26 paleți) → cost/kg mai mare pentru toată fabrica; prețuri de volum la furnizori.
+6. Efecte comerciale: alte magazine ale aceluiași partener central, contracte, taxe de rețea, poziția în negociere.
+Încheie cu bilanțul net cuantificat (lei/lună): ce economisești, ce pierzi, impact net, plus ipotezele și ce date au lipsit. Cifre doar din instrumente; ce e estimare se marchează clar ca estimare.`;
 }
 
 async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userId: string, email = "") {
