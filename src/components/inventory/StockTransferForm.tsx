@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { fetchUtilaje } from "@/hooks/productie/useUtilaje";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -101,8 +102,14 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       fetchInventory();
       fetchCrateTypes();
       setLineName("");
-      supabase.from("productie_linii").select("id, nume").order("nume")
-        .then(({ data }) => setLines(((data as any[]) || []).filter((l) => l?.nume)));
+      // Doar liniile de producție: utilajele (marcate în mentenanță) nu primesc marfă.
+      Promise.all([
+        supabase.from("productie_linii").select("id, nume").order("nume"),
+        fetchUtilaje().catch(() => [] as { linie_id: string }[]),
+      ]).then(([{ data }, utilaje]) => {
+        const utilajIds = new Set(utilaje.map((u) => u.linie_id));
+        setLines(((data as any[]) || []).filter((l) => l?.nume && !utilajIds.has(l.id)));
+      });
     } else {
       // Reset preselect when dialog closes
       pendingPreselectRef.current = null;
