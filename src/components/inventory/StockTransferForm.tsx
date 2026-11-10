@@ -79,7 +79,12 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
   const [showConfirm, setShowConfirm] = useState(false);
   const [qrLabels, setQrLabels] = useState<TransferLabelData[]>([]);
   const [qrOpen, setQrOpen] = useState(false);
+  const [lines, setLines] = useState<{ id: string; nume: string }[]>([]);
+  const [lineName, setLineName] = useState("");
   const isMobile = useIsMobile();
+  // Materia primă trimisă în producție trebuie să aibă linia de destinație.
+  const needsLine = (dest?: string) => inventoryType === "materii-prime" && /produc[țt]ie/i.test(dest || "");
+  const destinationLabel = (dest: string) => (needsLine(dest) && lineName ? `${dest} – linia ${lineName}` : dest);
   const productSelectTriggerRef = useRef<HTMLButtonElement>(null);
 
   const form = useForm<TransferFormValues>({
@@ -95,6 +100,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       form.setValue("transferDate", operationDate().day);
       fetchInventory();
       fetchCrateTypes();
+      setLineName("");
+      supabase.from("productie_linii").select("id, nume").order("nume")
+        .then(({ data }) => setLines(((data as any[]) || []).filter((l) => l?.nume)));
     } else {
       // Reset preselect when dialog closes
       pendingPreselectRef.current = null;
@@ -435,6 +443,14 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       });
       return;
     }
+    if (needsLine(formData.destination) && !lineName) {
+      toast({
+        variant: "destructive",
+        title: "Alege linia",
+        description: "Selectează linia de producție pe care se trimite marfa.",
+      });
+      return;
+    }
     form.setValue("transferDate", operationDate().day);
     setShowConfirm(true);
   };
@@ -474,7 +490,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         .insert({
           transfer_date: formData.transferDate,
           destination: formData.destination,
-          notes: formData.notes,
+          notes: needsLine(formData.destination) && lineName
+            ? [`Linia: ${lineName}`, formData.notes].filter(Boolean).join(" · ")
+            : formData.notes,
         })
         .select()
         .single();
@@ -522,7 +540,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
             product_id: inventoryItem.product_id,
             lot_number: inventoryItem.lot_number,
             document_number: inventoryItem.document_number,
-            notes: `Transfer către ${formData.destination}`,
+            notes: `Transfer către ${destinationLabel(formData.destination)}`,
             operation_date: formData.transferDate,
           });
 
@@ -656,7 +674,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
 
       toast({
         title: "Transfer creat cu succes",
-        description: `Bonul de transfer pentru ${formData.destination} a fost generat.`,
+        description: `Bonul de transfer pentru ${destinationLabel(formData.destination)} a fost generat.`,
       });
 
       // Pregătim etichetele QR (câte una pentru fiecare linie de transfer)
@@ -669,7 +687,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
         lot_number: it.lot_number,
         quantity: it.quantity,
         unit: it.unit,
-        destination: formData.destination,
+        destination: destinationLabel(formData.destination),
         transfer_date: formData.transferDate,
         supplier: it.supplier,
         manufacturer: it.manufacturer,
@@ -772,6 +790,21 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                       </FormItem>
                     )}
                   />
+                  {needsLine(form.watch("destination")) && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Linia de producție <span className="text-destructive">*</span></label>
+                      <Select value={lineName} onValueChange={setLineName}>
+                        <SelectTrigger className={!lineName ? "border-destructive" : ""}>
+                          <SelectValue placeholder="Alege linia (obligatoriu)" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover max-h-72 overflow-y-auto">
+                          {lines.map((l) => (
+                            <SelectItem key={l.id} value={l.nume.trim()} className="py-3 text-base">{l.nume.trim()}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
 
                 <FormField
@@ -932,7 +965,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
               <Button type="button" variant="outline" onClick={() => setIsOpen(false)} className="flex-1 sm:flex-none h-12 sm:h-10">
                 Anulează
               </Button>
-              <Button type="submit" form="transfer-form" disabled={selectedItems.length === 0 || isSubmitting} className="flex-1 sm:flex-none h-12 sm:h-10">
+              <Button type="submit" form="transfer-form" disabled={selectedItems.length === 0 || isSubmitting || (needsLine(form.watch("destination")) && !lineName)} className="flex-1 sm:flex-none h-12 sm:h-10">
                 {isSubmitting ? "Se procesează..." : "Creare bon"}
               </Button>
             </DialogFooter>
@@ -955,6 +988,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
               <div>
                 <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">Destinație</div>
                 <div className="text-2xl font-bold mt-1">{form.getValues("destination")}</div>
+                {needsLine(form.getValues("destination")) && lineName && (
+                  <div className="text-base font-semibold mt-1">Linia: {lineName}</div>
+                )}
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">Data transfer</div>
