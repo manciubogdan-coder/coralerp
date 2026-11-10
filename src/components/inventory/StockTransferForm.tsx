@@ -102,13 +102,14 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
       fetchInventory();
       fetchCrateTypes();
       setLineName("");
-      // Doar liniile de producție: utilajele (marcate în mentenanță) nu primesc marfă.
+      // Doar liniile de producție: utilajele (marcate în mentenanță) nu primesc marfă,
+      // cu excepția liniilor de spălat, care primesc materie primă.
       Promise.all([
         supabase.from("productie_linii").select("id, nume").order("nume"),
         fetchUtilaje().catch(() => [] as { linie_id: string }[]),
       ]).then(([{ data }, utilaje]) => {
         const utilajIds = new Set(utilaje.map((u) => u.linie_id));
-        setLines(((data as any[]) || []).filter((l) => l?.nume && !utilajIds.has(l.id)));
+        setLines(((data as any[]) || []).filter((l) => l?.nume && (!utilajIds.has(l.id) || /sp[ăa]lat/i.test(l.nume))));
       });
     } else {
       // Reset preselect when dialog closes
