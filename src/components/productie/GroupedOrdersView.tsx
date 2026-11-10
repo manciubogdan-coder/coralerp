@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { useOrdersWorkTime, useLipsaMpIds } from "@/lib/productie/lipsaMp";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Package, Clock, ChevronDown, ChevronRight, Play, CheckCircle, Users, Factory, AlertTriangle } from "lucide-react";
@@ -29,6 +30,21 @@ interface Props {
   onTakeStock?: (orderIds: string[]) => Promise<void>;
   takingStock?: boolean;
 }
+
+export const GroupWorkTime: React.FC<{ ids: string[]; norm?: number | null; unit?: string }> = ({ ids, norm, unit }) => {
+  const { data } = useOrdersWorkTime(ids);
+  const real = data && data.hours > 0 ? data.pieces / data.hours : 0;
+  return (
+    <div>
+      <div className="text-xs text-gray-500 flex items-center gap-1"><Clock className="h-3 w-3" /> Timp real lucrat</div>
+      <div className="font-bold text-blue-700">{data ? formatDur(data.hours) : "…"}</div>
+      <div className="text-[10px] text-gray-600">
+        Normă: {norm && norm > 0 ? `${norm} ${unit || "buc"}/h` : "—"}
+        {real > 0 && <> · Real: <span className={norm && real < norm ? "text-red-600 font-semibold" : "text-green-700 font-semibold"}>{Math.round(real)} {unit || "buc"}/h</span></>}
+      </div>
+    </div>
+  );
+};
 
 const formatDur = (hours: number) => {
   if (!isFinite(hours) || hours <= 0) return "-";
@@ -130,6 +146,7 @@ const GroupedOrdersView: React.FC<Props> = ({
   };
 
   const [lipsaMP, setLipsaMP] = useState(false);
+  const { data: lipsaIds } = useLipsaMpIds();
   const openFinish = (orderIds: string[], nume: string) => {
     setTotalQty(0);
     setRebutQty(0);
@@ -184,7 +201,7 @@ const GroupedOrdersView: React.FC<Props> = ({
           const esteReamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
           const ac = (o.cantitate_reala_produsa || 0) + (esteReamb ? 0 : o.cantitate_din_restock || 0);
           const cer = o.cantitate || 0;
-          const done = o.status === "completed" && ac < cer ? cer : ac;
+          const done = o.status === "completed" && ac < cer && !lipsaIds?.has(String(o.id)) ? cer : ac;
           totalAcoperit += Math.min(done, cer);
           totalRamas += Math.max(0, cer - done);
           totalSurplus += Math.max(0, ac - cer);
@@ -276,10 +293,14 @@ const GroupedOrdersView: React.FC<Props> = ({
                   <div className="text-xs text-gray-500 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {t("leftLabel")}</div>
                   <div className={`font-bold ${totalRamas > 0 ? "text-red-600" : "text-gray-400"}`}>{totalRamas} {g.unitate}</div>
                 </div>
+                {doneCount === g.orders.length ? (
+                  <GroupWorkTime ids={orderIds} norm={lineCapacity} unit={g.unitate} />
+                ) : (
                 <div>
                   <div className="text-xs text-gray-500 flex items-center gap-1"><Clock className="h-3 w-3" /> {t("estimatedTime")}</div>
                   <div className="font-bold text-blue-700">{lineCapacity && lineCapacity > 0 ? `~${formatDur(timp)}` : "—"}</div>
                 </div>
+                )}
               </div>
 
               <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mt-3">
@@ -331,8 +352,8 @@ const GroupedOrdersView: React.FC<Props> = ({
                             <span className="font-semibold">{o.cantitate}</span>
                             <span className="text-gray-500"> {o.productie_produse?.unitate_masura}</span>
                           </div>
-                          {ramas > 0 && <div className="text-red-600">{t("missingLabel", { n: ramas })}</div>}
-                          {done && <div className="text-green-600">{t("completedMark")}</div>}
+                          {ramas > 0 && !(done && lipsaIds?.has(String(o.id))) && <div className="text-red-600">{t("missingLabel", { n: ramas })}</div>}
+                          {lipsaIds?.has(String(o.id)) && acoperit < (o.cantitate || 0) ? <div className="text-amber-700 font-semibold">Încheiată – Lipsă MP</div> : done && <div className="text-green-600">{t("completedMark")}</div>}
                         </div>
                       </div>
                     );

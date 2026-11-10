@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bell, History } from "lucide-react";
+import { useLipsaMpIds } from "@/lib/productie/lipsaMp";
 
 const norm = (s: string) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -56,10 +57,10 @@ export const categoryOf = (o: any, ingMap?: IngCountMap): Cat => {
   return nrIng > 1 ? "Salate mixte" : "Salate mono";
 };
 
-export interface Stat { cerut: number; facut: number; comenzi: number; gata: number }
-const empty = (): Stat => ({ cerut: 0, facut: 0, comenzi: 0, gata: 0 });
+export interface Stat { cerut: number; facut: number; comenzi: number; gata: number; lipsa: number; lipsaBuc: number }
+const empty = (): Stat => ({ cerut: 0, facut: 0, comenzi: 0, gata: 0, lipsa: 0, lipsaBuc: 0 });
 
-export const computeStats = (orders: any[], ingMap?: IngCountMap): { total: Stat; byCat: Record<string, Stat> } => {
+export const computeStats = (orders: any[], ingMap?: IngCountMap, lipsaIds?: Set<string>): { total: Stat; byCat: Record<string, Stat> } => {
   const total = empty();
   const byCat: Record<string, Stat> = Object.fromEntries(CATEGORIES.map((k) => [k, empty()]));
   for (const o of orders) {
@@ -67,19 +68,24 @@ export const computeStats = (orders: any[], ingMap?: IngCountMap): { total: Stat
     if (cerut <= 0) continue;
     const reamb = o.magazin === "REAMBALARE" || o.tip_comanda === "REAMBALARE";
     const acoperit = Number(o.cantitate_reala_produsa || 0) + (reamb ? 0 : Number(o.cantitate_din_restock || 0));
-    const facut = o.status === "completed" ? cerut : Math.min(acoperit, cerut);
-    const gata = o.status === "completed" || acoperit >= cerut;
+    const lipsa = !!lipsaIds?.has(String(o.id)) && acoperit < cerut;
+    // Lipsă MP: se numără doar bucățile făcute fizic; comanda e totuși procesată.
+    const facut = lipsa ? Math.min(acoperit, cerut) : o.status === "completed" ? cerut : Math.min(acoperit, cerut);
+    const gata = !lipsa && (o.status === "completed" || acoperit >= cerut);
     for (const s of [total, byCat[categoryOf(o, ingMap)]]) {
       s.cerut += cerut;
       s.facut += facut;
       s.comenzi += 1;
       if (gata) s.gata += 1;
+      if (lipsa) { s.lipsa += 1; s.lipsaBuc += cerut - facut; }
     }
   }
   return { total, byCat };
 };
 
 export const pctOf = (s: Stat) => (s.cerut > 0 ? (s.facut / s.cerut) * 100 : 0);
+/** Comenzi procesate (finalizate pe bune + încheiate din lipsă MP) din total. */
+export const processedPct = (s: Stat) => (s.comenzi > 0 ? ((s.gata + s.lipsa) / s.comenzi) * 100 : 0);
 
 const Donut = ({ pct, size = 92, stroke = 10 }: { pct: number; size?: number; stroke?: number }) => {
   const r = (size - stroke) / 2;
@@ -140,7 +146,10 @@ type Props = {
 
 export default function OperatorDaySummary({ orders, allOrders = [], lineName, onOpenOrder }: Props) {
   const { data: ingMap } = useIngredientCounts();
-  const { total, byCat } = computeStats(orders, ingMap);
+  const { data: lipsaIds } = useLipsaMpIds();
+  const { total, byCat } = computeStats(orders, ingMap, lipsaIds);
+  const isLipsa = (o: any) => !!lipsaIds?.has(String(o.id)) && Number(o.cantitate_reala_produsa || 0) + Number(o.cantitate_din_restock || 0) < Number(o.cantitate || 0);
+  const isDoneReal = (o: any) => isDone(o) && !isLipsa(o);
   const [detail, setDetail] = useState<{ title: string; list: any[] } | null>(null);
   const [panel, setPanel] = useState<null | "new" | "ops">(null);
 
@@ -183,7 +192,7 @@ export default function OperatorDaySummary({ orders, allOrders = [], lineName, o
         <span>{fmt(facut)} / {fmt(cerut)} buc</span>
         {o.data_productie && <span className="text-muted-foreground">prod. {new Date(o.data_productie).toLocaleDateString("ro-RO")}</span>}
         <Badge variant="outline" className="ml-auto">{lineName?.(o) || "fără linie"}</Badge>
-        {isDone(o) && <Badge>Gata</Badge>}
+        {isLipsa(o) ? <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-800">Încheiată – Lipsă MP</Badge> : isDone(o) && <Badge>Gata</Badge>}
       </button>
     );
   };
@@ -208,14 +217,18 @@ export default function OperatorDaySummary({ orders, allOrders = [], lineName, o
     <Card className="border-coral-200">
       <CardContent className="pt-3 pb-3 space-y-3">
         <div className="flex flex-col md:flex-row items-center gap-4">
-          <Donut pct={pctOf(total)} />
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-2 flex-1 w-full">
+          <div className="flex flex-col items-center gap-1">
+            <Donut pct={processedPct(total)} />
+            <div className="text-[10px] text-muted-foreground text-center leading-tight">comenzi procesate<br />{fmt(pctOf(total))}% bucăți făcute</div>
+          </div>
+          <div className="grid grid-cols-3 md:grid-cols-7 gap-2 flex-1 w-full">
             <MiniStat label="Bucăți de făcut" value={fmt(total.cerut)} onClick={() => openStat("Toate comenzile zilei", () => true)} />
             <MiniStat label="Bucăți făcute" value={fmt(total.facut)} cls="text-primary" onClick={() => openStat("Comenzi cu bucăți făcute", (o) => Number(o.cantitate_reala_produsa || 0) + Number(o.cantitate_din_restock || 0) > 0 || o.status === "completed")} />
-            <MiniStat label="Bucăți rămase" value={fmt(total.cerut - total.facut)} cls="text-destructive" onClick={() => openStat("Comenzi cu bucăți rămase", (o) => !isDone(o))} />
+            <MiniStat label="Bucăți rămase de lucrat" value={fmt(total.cerut - total.facut - total.lipsaBuc)} cls="text-destructive" onClick={() => openStat("Comenzi cu bucăți rămase", (o) => !isDone(o))} />
             <MiniStat label="Comenzi total" value={total.comenzi} onClick={() => openStat("Toate comenzile zilei", () => true)} />
-            <MiniStat label="Finalizate (≥100%)" value={total.gata} cls="text-primary" onClick={() => openStat("Comenzi finalizate", isDone)} />
-            <MiniStat label="Comenzi rămase" value={total.comenzi - total.gata} cls="text-destructive" onClick={() => openStat("Comenzi rămase", (o) => !isDone(o))} />
+            <MiniStat label="Finalizate pe bune" value={total.gata} cls="text-primary" onClick={() => openStat("Comenzi finalizate", isDoneReal)} />
+            <MiniStat label="Lipsă MP" value={`${total.lipsa} · ${fmt(total.lipsaBuc)} buc`} cls="text-amber-700" onClick={() => openStat("Comenzi încheiate din lipsă de materie primă", isLipsa)} />
+            <MiniStat label="Comenzi rămase" value={total.comenzi - total.gata - total.lipsa} cls="text-destructive" onClick={() => openStat("Comenzi rămase", (o) => !isDone(o))} />
           </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -223,7 +236,7 @@ export default function OperatorDaySummary({ orders, allOrders = [], lineName, o
             const s = byCat[k];
             return (
               <div key={k} role="button" onClick={() => openStat(`${k} — comenzile zilei`, (o) => categoryOf(o, ingMap) === k)} className="border rounded-md px-2 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted">
-                <Donut pct={pctOf(s)} size={44} stroke={6} />
+                <Donut pct={processedPct(s)} size={44} stroke={6} />
                 <div className="text-[11px] leading-tight min-w-0">
                   <div className="font-semibold text-xs">{k}</div>
                   <div>{fmt(s.facut)} / {fmt(s.cerut)} buc</div>

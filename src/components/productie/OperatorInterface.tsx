@@ -12,14 +12,15 @@ import { useProductionLines, useOrders, useCreateWorkSession, useWorkSessions, u
 import { useOrdersPagination } from "@/hooks/productie/useOrdersPagination";
 import OrdersPagination from "./OrdersPagination";
 import OrdersTable from "./OrdersTable";
-import GroupedOrdersView from "./GroupedOrdersView";
+import GroupedOrdersView, { GroupWorkTime } from "./GroupedOrdersView";
 import { useGrupareAmbalare } from "@/hooks/productie/useGrupareAmbalare";
 import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 import TrasabilitateCard from "./TrasabilitateCard";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOperatorT } from "@/lib/operatorI18n";
 import { buildDisplayLines } from "@/lib/productie/lineGroups";
-import OperatorDaySummary, { computeStats, pctOf, CATEGORIES, Stat, useIngredientCounts } from "./OperatorDaySummary";
+import { markLipsaMp, useLipsaMpIds } from "@/lib/productie/lipsaMp";
+import OperatorDaySummary, { computeStats, pctOf, processedPct, CATEGORIES, Stat, useIngredientCounts } from "./OperatorDaySummary";
 import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
 import { useAddSessionRebut } from "@/hooks/productie/useSessionRebut";
@@ -44,6 +45,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 }) => {
   const [view, setView] = useState<'lines' | 'orders' | 'session'>('lines');
   const { data: ingCounts } = useIngredientCounts();
+  const { data: lipsaIds } = useLipsaMpIds();
   const [currentLineId, setCurrentLineId] = useState<string>("");
   const [currentOrderId, setCurrentOrderId] = useState<string>("");
   const [principalOperator, setPrincipalOperator] = useState("");
@@ -387,6 +389,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     if (!ids.length) return;
     const { error } = await supabase.from('productie_comenzi').update({ status: 'completed', updated_at: new Date().toISOString() }).in('id', ids);
     if (error) toast({ title: t("error"), description: error.message, variant: "destructive" });
+    else await markLipsaMp(ids).catch(() => {});
     await queryClient.invalidateQueries();
   };
   const handleFinishSession = async (sessionId: string, cantitate: number, rebut: number = 0, lipsaMP = false) => {
@@ -439,7 +442,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
       if (lipsaMP && status === 'partial') {
         await closeOrdersShort([session.comanda_id]);
-        toast({ title: "Comandă încheiată – lipsă materie primă", description: `${cantitate} buc în această sesiune. Comanda e socotită 100% realizată.` });
+        toast({ title: "Comandă încheiată – lipsă materie primă", description: `${cantitate} buc în această sesiune. Bucățile lipsă rămân evidențiate ca „Lipsă MP”.` });
       } else
       toast({
         title: status === 'finalizata' ? t("sessionDoneFull") : t("sessionDonePartial"),
@@ -853,6 +856,11 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                       <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
                         <CheckCircle className="w-5 h-5 text-green-600" />
                         <div className="font-bold text-green-700 text-lg">{t("exactQuantity")}</div>
+                      </div>
+                    )}
+                    {(procentProgres >= 100 || currentOrder.status === 'completed') && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <GroupWorkTime ids={[currentOrder.id]} norm={(lines || []).find((l: any) => l.id === currentOrder.linie_id)?.capacitate_ora} unit={currentOrder.productie_produse?.unitate_masura} />
                       </div>
                     )}
                     {cantitateAcoperitaTotal === 0 && (
@@ -1308,7 +1316,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
           }, 0);
           const cap = (line as any).capacitate_ora || 0;
           const lineAll = orders?.filter(o => o.linie_id && line.memberIds.includes(o.linie_id) && matchesSelectedDay(o)) || [];
-          const { total: lineStat, byCat: lineCats } = computeStats(lineAll, ingCounts);
+          const { total: lineStat, byCat: lineCats } = computeStats(lineAll, ingCounts, lipsaIds);
           const oreEst = cap > 0 ? totalBucRamase / cap : 0;
           const formatDur = (hours: number) => {
             if (!isFinite(hours) || hours <= 0) return '-';
@@ -1388,20 +1396,21 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
                   {lineStat.comenzi > 0 && (
                     <div className="space-y-1.5 border-t pt-3">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-600">Balanță</span>
-                        <span className="font-bold text-coral-primary">{Math.round(pctOf(lineStat))}%</span>
+                        <span className="text-gray-600">Balanță (comenzi procesate)</span>
+                        <span className="font-bold text-coral-primary">{Math.round(processedPct(lineStat))}%</span>
                       </div>
                       <div className="h-2 rounded-full bg-muted overflow-hidden">
                         <div
                           className="h-full bg-primary rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, pctOf(lineStat))}%` }}
+                          style={{ width: `${Math.min(100, processedPct(lineStat))}%` }}
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                         <div><span className="text-gray-600">Bucăți:</span> <span className="font-semibold">{Math.round(lineStat.facut).toLocaleString('ro-RO')} / {Math.round(lineStat.cerut).toLocaleString('ro-RO')}</span></div>
-                        <div className="text-right"><span className="text-gray-600">rămase:</span> <span className={`font-semibold ${lineStat.cerut - lineStat.facut > 0 ? 'text-destructive' : 'text-green-600'}`}>{Math.round(lineStat.cerut - lineStat.facut).toLocaleString('ro-RO')}</span></div>
+                        <div className="text-right"><span className="text-gray-600">rămase:</span> <span className={`font-semibold ${lineStat.cerut - lineStat.facut - lineStat.lipsaBuc > 0 ? 'text-destructive' : 'text-green-600'}`}>{Math.round(lineStat.cerut - lineStat.facut - lineStat.lipsaBuc).toLocaleString('ro-RO')}</span></div>
                         <div><span className="text-gray-600">Comenzi:</span> <span className="font-semibold">{lineStat.comenzi}</span></div>
-                        <div className="text-right"><span className="text-gray-600">finalizate:</span> <span className="font-semibold text-primary">{lineStat.gata}</span> <span className="text-gray-400">/ rămase {lineStat.comenzi - lineStat.gata}</span></div>
+                        <div className="text-right"><span className="text-gray-600">finalizate:</span> <span className="font-semibold text-primary">{lineStat.gata}</span> <span className="text-gray-400">/ rămase {lineStat.comenzi - lineStat.gata - lineStat.lipsa}</span></div>
+                        {lineStat.lipsa > 0 && <div className="col-span-2 text-amber-700 font-medium">Lipsă MP: {lineStat.lipsa} comenzi · {Math.round(lineStat.lipsaBuc).toLocaleString('ro-RO')} buc nefăcute</div>}
                       </div>
                       <div className="flex flex-wrap gap-1 pt-0.5">
                         {CATEGORIES.filter(k => lineCats[k].comenzi > 0).map(k => {
