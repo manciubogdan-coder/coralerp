@@ -28,6 +28,7 @@ import { exportToExcel } from "@/lib/excelExport";
 import { TransferReturnForm } from "./TransferReturnForm";
 import { useInventoryType } from "@/context/inventory-type";
 import { fetchGgnCode } from "@/lib/ggnCodes";
+import { parseTransferLine } from "@/lib/transferLine";
 
 interface TransferHistoryProps {
   onTransferReturned?: () => void;
@@ -48,6 +49,9 @@ interface TransferItem {
   unit: string;
   crate_count?: number;
   notes?: string;
+  /** Linia de producție (din note) și restul notelor, fără prefixul liniei. */
+  production_line?: string;
+  notes_text?: string;
   inventory_item_id: string;
   product_id?: string;
   supplier_id?: string;
@@ -65,6 +69,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [destinations, setDestinations] = useState<string[]>([]);
   const [selectedDestination, setSelectedDestination] = useState<string>("all");
+  const [productionLines, setProductionLines] = useState<string[]>([]);
+  const [selectedLine, setSelectedLine] = useState<string>("all");
   const [actionFilter, setActionFilter] = useState<string>("all");
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const initialToday = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
@@ -161,7 +167,9 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       console.log(`Fetched ${inventoryType} transfers total:`, data.length);
       
       // Transform the data to match the expected format
-      const transformedData = (data || []).map(item => ({
+      const transformedData = (data || []).map(item => {
+        const parsed = parseTransferLine(item.stock_transfers?.notes);
+        return {
         transfer_id: item.transfer_id,
         transfer_date: item.stock_transfers?.transfer_date || '',
         destination: item.stock_transfers?.destination || '',
@@ -174,10 +182,13 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
         quantity: item.quantity,
         unit: item.unit,
         notes: item.stock_transfers?.notes || '',
+        production_line: parsed.line || '',
+        notes_text: parsed.rest,
         inventory_item_id: item.inventory_item_id,
         created_at: item.stock_transfers?.created_at || item.created_at,
         lot_number: item.inventory?.lot_number || ''
-      }));
+      };
+      });
       
       setTransfers(transformedData);
       
@@ -186,6 +197,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       );
       
       setDestinations(uniqueDestinations);
+      setProductionLines(Array.from(new Set(transformedData.map((t) => t.production_line).filter(Boolean))).sort());
       
     } catch (error: any) {
       console.error("Error fetching transfers:", error);
@@ -222,6 +234,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
           ? format(new Date(transfer.transfer_date), 'dd.MM.yyyy')
           : '-',
       "Destinație": transfer.destination,
+      "Linia": transfer.production_line || "-",
       "Nr. Document": transfer.document_number || "-",
       "Produs": transfer.product_name,
       "Cod Produs": transfer.product_code || "-",
@@ -230,7 +243,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       "Producător": transfer.manufacturer_name || "-",
       "Cantitate": formatQuantity(transfer.quantity),
       "Unitate Măsură": transfer.unit,
-      "Note": transfer.notes || "-"
+      "Note": transfer.notes_text || "-"
     }));
     
     const filename = `istoric_transferuri_${dateRange[0] ? format(dateRange[0], 'dd-MM-yyyy') : 'toate'}_${dateRange[1] ? format(dateRange[1], 'dd-MM-yyyy') : 'prezent'}.xlsx`;
@@ -245,6 +258,9 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   
   const filteredTransfers = transfers.filter((transfer) => {
     if (selectedDestination !== "all" && transfer.destination !== selectedDestination) {
+      return false;
+    }
+    if (selectedLine !== "all" && transfer.production_line !== selectedLine) {
       return false;
     }
 
@@ -284,7 +300,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
   // Reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, selectedDestination, dateRange, itemsPerPage]);
+  }, [searchTerm, selectedDestination, selectedLine, dateRange, itemsPerPage]);
   
   const totalPages = Math.max(1, Math.ceil(filteredTransfers.length / itemsPerPage));
   
@@ -335,6 +351,19 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                 ))}
               </SelectContent>
             </Select>
+            {productionLines.length > 0 && (
+              <Select value={selectedLine} onValueChange={setSelectedLine}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Filtrează după linie" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toate liniile</SelectItem>
+                  {productionLines.map((l) => (
+                    <SelectItem key={l} value={l}>{l}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Select value={actionFilter} onValueChange={setActionFilter}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Tip operațiune" />
@@ -408,13 +437,14 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                 </div>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-1 border-t pt-2 text-xs">
                   <div><span className="text-muted-foreground">Destinație:</span> {transfer.destination}</div>
+                  {transfer.production_line && <div><span className="text-muted-foreground">Linia:</span> <span className="font-semibold">{transfer.production_line}</span></div>}
                   <div><span className="text-muted-foreground">Cantitate:</span> <span className="font-semibold">{formatQuantity(transfer.quantity)} {transfer.unit}</span></div>
                   {transfer.document_number && <div><span className="text-muted-foreground">Doc:</span> {transfer.document_number}</div>}
                   {transfer.lot_number && <div><span className="text-muted-foreground">Lot:</span> {transfer.lot_number}</div>}
                   {transfer.product_code && <div><span className="text-muted-foreground">Cod:</span> {transfer.product_code}</div>}
                   {transfer.supplier_name && <div className="col-span-2"><span className="text-muted-foreground">Furnizor:</span> {transfer.supplier_name}</div>}
                   {transfer.manufacturer_name && <div className="col-span-2"><span className="text-muted-foreground">Producător:</span> {transfer.manufacturer_name}</div>}
-                  {transfer.notes && <div className="col-span-2"><span className="text-muted-foreground">Note:</span> {transfer.notes}</div>}
+                  {transfer.notes_text && <div className="col-span-2"><span className="text-muted-foreground">Note:</span> {transfer.notes_text}</div>}
                 </div>
               </div>
             ))
@@ -435,6 +465,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                 <TableRow>
                   <TableHead>Data și ora</TableHead>
                   <TableHead>Destinație</TableHead>
+                  <TableHead>Linia</TableHead>
                   <TableHead>Nr. Document</TableHead>
                   <TableHead>Produs</TableHead>
                   <TableHead>Cod Produs</TableHead>
@@ -465,6 +496,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                             : '-'}
                       </TableCell>
                       <TableCell>{transfer.destination}</TableCell>
+                      <TableCell className="font-medium">{transfer.production_line || "-"}</TableCell>
                       <TableCell>{transfer.document_number || "-"}</TableCell>
                       <TableCell className="font-medium">{transfer.product_name}</TableCell>
                       <TableCell>{transfer.product_code || "-"}</TableCell>
@@ -473,7 +505,7 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
                       <TableCell>{transfer.manufacturer_name || "-"}</TableCell>
                       <TableCell className="text-right">{formatQuantity(transfer.quantity)}</TableCell>
                       <TableCell>{transfer.unit}</TableCell>
-                      <TableCell>{transfer.notes || "-"}</TableCell>
+                      <TableCell>{transfer.notes_text || "-"}</TableCell>
                       <TableCell className="sticky right-0 bg-white">
                         <div className="flex items-center gap-1 justify-end">
                           <Button size="sm" variant="outline" onClick={() => openQrFor(transfer)} title="Printează QR">

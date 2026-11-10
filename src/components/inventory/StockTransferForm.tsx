@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { fetchUtilaje } from "@/hooks/productie/useUtilaje";
+import { withTransferLine } from "@/lib/transferLine";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -499,7 +500,7 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
           transfer_date: formData.transferDate,
           destination: formData.destination,
           notes: needsLine(formData.destination) && lineName
-            ? [`Linia: ${lineName}`, formData.notes].filter(Boolean).join(" · ")
+            ? withTransferLine(lineName, formData.notes)
             : formData.notes,
         })
         .select()

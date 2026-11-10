@@ -16,6 +16,7 @@ import GroupedOrdersView, { GroupWorkTime } from "./GroupedOrdersView";
 import { useGrupareAmbalare } from "@/hooks/productie/useGrupareAmbalare";
 import DateProductiePicker, { todayISO } from "./DateProductiePicker";
 import TrasabilitateCard from "./TrasabilitateCard";
+import LineMaterialLotsCard from "./LineMaterialLotsCard";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOperatorT } from "@/lib/operatorI18n";
 import { buildDisplayLines } from "@/lib/productie/lineGroups";
@@ -416,6 +417,8 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       const ok = window.confirm(t("confirmZero"));
       if (!ok) return;
     }
+    // Rebutul lăsat 0 la o sesiune cu producție se confirmă explicit.
+    if (cantitate > 0 && rebut <= 0 && !window.confirm(t("confirmZeroRebut"))) return;
 
     try {
       await finishSessionMutation.mutateAsync({
@@ -908,6 +911,15 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {currentOrder && (
+          <LineMaterialLotsCard
+            produsId={(currentOrder as any).produs_id}
+            comandaId={currentOrder.id}
+            day={(currentOrder as any).data_productie}
+            lineNames={[...new Set([...lineMemberIds, (currentOrder as any).linie_id].map((id: string) => (lines || []).find((l: any) => l.id === id)?.nume).filter(Boolean) as string[])]}
+          />
         )}
 
         {/* Trasabilitate (opțional) */}

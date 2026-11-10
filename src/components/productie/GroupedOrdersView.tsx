@@ -170,6 +170,8 @@ const GroupedOrdersView: React.FC<Props> = ({
   };
 
   const handleFinish = async () => {
+    // Rebutul lăsat 0 se confirmă; la „Nu” fereastra rămâne deschisă pentru completare.
+    if (totalQty > 0 && rebutQty <= 0 && !window.confirm(t("confirmZeroRebut"))) return;
     setSubmitting(true);
     try {
       await onFinishGroup(finishDialog.orderIds, totalQty, rebutQty, lipsaMP);

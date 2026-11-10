@@ -100,6 +100,7 @@ const ro: Dict = {
   confirmZero:
     "Ai introdus 0 bucăți produse. Ești sigur că vrei să finalizezi sesiunea fără producție?",
   confirmZeroGroup: "Ai introdus 0 bucăți produse pentru tot grupul. Continui?",
+  confirmZeroRebut: "Rebutul este 0 kg. Ești sigur că nu ai avut rebut deloc?",
   sessionDoneFull: "✅ Sesiune finalizată complet",
   sessionDonePartial: "⚠️ Sesiune finalizată parțial",
   producedThisSession: "buc produse în această sesiune.",
@@ -229,6 +230,7 @@ const en: Dict = {
   confirmZero:
     "You entered 0 pieces produced. Are you sure you want to finish the session with no production?",
   confirmZeroGroup: "You entered 0 pieces produced for the whole group. Continue?",
+  confirmZeroRebut: "Rejects are 0 kg. Are you sure you had no rejects at all?",
   sessionDoneFull: "✅ Session fully completed",
   sessionDonePartial: "⚠️ Session partially completed",
   producedThisSession: "pcs produced in this session.",
@@ -358,6 +360,7 @@ const ne: Dict = {
   confirmZero:
     "तपाईंले ० पिस उत्पादन लेख्नुभयो। उत्पादन बिना सेसन समाप्त गर्ने पक्का हो?",
   confirmZeroGroup: "तपाईंले सम्पूर्ण समूहको लागि ० पिस लेख्नुभयो। जारी राख्ने?",
+  confirmZeroRebut: "बिग्रिएको ० के.जी. छ। के तपाईं पक्का हुनुहुन्छ कि कुनै बिग्रिएको थिएन?",
   sessionDoneFull: "✅ सेसन पूर्ण रूपमा समाप्त",
   sessionDonePartial: "⚠️ सेसन आंशिक रूपमा समाप्त",
   producedThisSession: "पिस यो सेसनमा उत्पादन भयो।",
@@ -486,6 +489,7 @@ const hu: Dict = {
   confirmZero:
     "0 gyártott darabot adtál meg. Biztosan befejezed a munkamenetet gyártás nélkül?",
   confirmZeroGroup: "0 darabot adtál meg az egész csoportra. Folytatod?",
+  confirmZeroRebut: "A selejt 0 kg. Biztos vagy benne, hogy egyáltalán nem volt selejt?",
   sessionDoneFull: "✅ Munkamenet teljesen befejezve",
   sessionDonePartial: "⚠️ Munkamenet részlegesen befejezve",
   producedThisSession: "db gyártva ebben a munkamenetben.",

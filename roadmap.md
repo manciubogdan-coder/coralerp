@@ -106,3 +106,6 @@
 - [x] Lidl mixed sheet: Senior "Primavara" now lands on the mixed sheet in the Primavera row with Silhouette's shared cartons (2 tests).
 - [x] Producție → Rețetar: "Rețete pentru comenzile primite" (Senior orders per day, Lidl stores summed, HoReCa by nickname, net/PT/brut kg, Excel + print) and "Toate rețetele mixte". 4 rule tests; real 8 Nov data checked; signed-in screen not opened (external operational session).
 - [x] Rețetar: edit recipes in place (shared Configurări form), per-client print/Excel, product and client/store search, „Generează necesar” tab with manual store/product/quantity lines and order upload (PDF/Excel/Word/photo) producing the same sheet. 7 rule tests pass. Signed-in screen check unavailable (external operational session).
+- [x] Transfer history: show/filter/export the production line each MP transfer was sent to. 3 tests pass; screen not checked signed-in.
+- [x] Operator order detail: show raw-material lots and net kg transferred to the order's line (production day + previous day), matched to the recipe. Lookup accepted by the database; not checked signed-in.
+- [x] Session finish (single + group): when pieces > 0 and waste is 0, ask "Ești sigur că nu ai avut rebut deloc?" (4 languages).
