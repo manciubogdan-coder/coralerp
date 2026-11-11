@@ -9,7 +9,18 @@ export const COST_LABEL: Record<CostKey | "taxe" | "profit", string> = {
 export type PieceCost = Record<CostKey, number>;
 export type SaleLine = { partner: string; product: string; gama: string; qty: number; value: number; feePct: number; cost: PieceCost };
 export type Structure = { qty: number; revenue: number; fees: number; costs: PieceCost; totalCost: number; profit: number };
-export type Scenario = { name: string; pct: Partial<Record<CostKey, number>>; pricePct: number; volumePct: number; feeDelta: number };
+export type Scenario = {
+  name: string; pct: Partial<Record<CostKey, number>>; pricePct: number; volumePct: number; feeDelta: number;
+  /** Partners removed from the portfolio: their sales and variable costs go, their share of fixed costs stays. */
+  dropPartners?: string[];
+  /** Real technological loss, as % of raw material processed, added on top of the sheet loss. */
+  lossPct?: number;
+  /** Share of each cost line that does not move with volume (rent, indirect staff, trucks already paid). */
+  fixedPct?: Partial<Record<CostKey, number>>;
+};
+/** Default fixed share per cost line: overhead is fixed, labour and distribution partly (minimum crews, shared trucks). */
+export const DEFAULT_FIXED: Record<CostKey, number> = { mp: 0, ambalaje: 0, manopera: 50, regie: 100, pierderi: 0, aprovizionare: 0, distributie: 60 };
+export const fixedOf = (sc: Scenario, k: CostKey) => Math.min(100, Math.max(0, sc.fixedPct?.[k] ?? DEFAULT_FIXED[k])) / 100;
 export const BASE: Scenario = { name: "Realitate", pct: {}, pricePct: 0, volumePct: 0, feeDelta: 0 };
 
 /** Product range from the name: what the user calls "gamă". */
@@ -24,16 +35,24 @@ export function gamaOf(name: string): string {
   return "Altele";
 }
 
+/**
+ * Fixed parts are taken from the whole selection and never shrink with volume or dropped partners:
+ * they are re-absorbed by the remaining pieces. Variable parts follow the pieces actually kept.
+ */
 export function structureOf(lines: SaleLine[], sc: Scenario = BASE): Structure {
   const costs = Object.fromEntries(COST_KEYS.map((k) => [k, 0])) as PieceCost;
   let qty = 0, revenue = 0, fees = 0;
   const vol = 1 + sc.volumePct / 100, price = 1 + sc.pricePct / 100;
+  const drop = new Set(sc.dropPartners ?? []);
   for (const l of lines) {
+    for (const k of COST_KEYS) costs[k] += l.cost[k] * fixedOf(sc, k) * l.qty * (1 + (sc.pct[k] ?? 0) / 100);
+    if (drop.has(l.partner)) continue;
     const q = l.qty * vol, v = l.value * vol * price;
     qty += q; revenue += v;
     fees += v * Math.max(0, l.feePct + sc.feeDelta) / 100;
-    for (const k of COST_KEYS) costs[k] += l.cost[k] * (1 + (sc.pct[k] ?? 0) / 100) * q;
+    for (const k of COST_KEYS) costs[k] += l.cost[k] * (1 - fixedOf(sc, k)) * (1 + (sc.pct[k] ?? 0) / 100) * q;
   }
+  costs.pierderi += costs.mp * Math.max(0, sc.lossPct ?? 0) / 100;
   const totalCost = COST_KEYS.reduce((t, k) => t + costs[k], 0);
   return { qty, revenue, fees, costs, totalCost, profit: revenue - fees - totalCost };
 }
@@ -48,3 +67,29 @@ export function breakEvenPricePct(lines: SaleLine[], sc: Scenario): number | nul
   if (!(net > 0)) return null;
   return ((s.totalCost / net) - 1) * 100;
 }
+
+export type PartnerContribution = { partner: string; qty: number; revenue: number; fees: number; variable: number; contribution: number; fixedShare: number; fullProfit: number; dropDelta: number };
+/**
+ * Contribution margin per partner: revenue − fees − variable costs. Dropping a partner changes company
+ * profit by −contribution (its fixed share stays and lands on the others), not by −fullProfit.
+ */
+export function partnerContributions(lines: SaleLine[], sc: Scenario = BASE): PartnerContribution[] {
+  return [...new Set(lines.map((l) => l.partner))].map((partner) => {
+    const own = lines.filter((l) => l.partner === partner);
+    const alone = structureOf(own, { ...sc, dropPartners: [] });
+    let fixedShare = 0;
+    for (const l of own) for (const k of COST_KEYS) fixedShare += l.cost[k] * fixedOf(sc, k) * l.qty * (1 + (sc.pct[k] ?? 0) / 100);
+    const without = structureOf(lines, { ...sc, dropPartners: [...(sc.dropPartners ?? []).filter((p) => p !== partner), partner] });
+    const withOthersDropped = structureOf(lines, { ...sc, dropPartners: (sc.dropPartners ?? []).filter((p) => p !== partner) });
+    const variable = alone.totalCost - fixedShare;
+    return { partner, qty: alone.qty, revenue: alone.revenue, fees: alone.fees, variable, contribution: alone.revenue - alone.fees - variable, fixedShare, fullProfit: alone.profit, dropDelta: without.profit - withOthersDropped.profit };
+  }).sort((a, b) => a.contribution - b.contribution);
+}
+
+/** Senior accounts that hold the real figure of each P&L line (company-wide, accounting journal). */
+export const ACCOUNTS: Record<CostKey | "venituri" | "taxe", string[]> = {
+  venituri: ["70"], mp: ["601"], ambalaje: ["602"], manopera: ["641", "642", "643", "645", "646"],
+  regie: ["605", "611", "612", "613", "614", "628", "635", "666", "681"], pierderi: ["607", "658"],
+  aprovizionare: ["624.01"], distributie: ["624.02", "624.03", "624.06"], taxe: ["709"],
+};
+export const accountMatch = (cont: string, prefixes: string[]) => prefixes.some((p) => cont.startsWith(p));
