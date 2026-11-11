@@ -43,7 +43,7 @@ const FORMULA: Record<RowKey, string> = {
 
 type Article = { id: number; name: string; qty: number; value: number };
 type Partner = { id: number; name: string; qty: number; value: number; articles: Article[] };
-const PERIODS = [["12", "Medie anuală (12 luni)"], ["1", "Ultima lună"], ["3", "3 luni"], ["6", "6 luni"], ["custom", "Personalizat"]] as const;
+const PERIODS = [["ytd", "Anul curent"], ["12", "Medie anuală (12 luni)"], ["1", "Ultima lună"], ["3", "3 luni"], ["6", "6 luni"], ["custom", "Personalizat"]] as const;
 const SC_KEY = "argus-cost-scenarios";
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const n0 = (v: number) => (Number.isFinite(v) ? Math.round(v).toLocaleString("ro-RO") : "—");
@@ -66,7 +66,7 @@ function Knob({ label, value, onChange, min = -50, max = 50, unit = "%" }: { lab
 
 /** Real weighted cost structure (sales × today's sheets) and an editable what-if on top. */
 export default function CostStructure() {
-  const [period, setPeriod] = useState<string>("12");
+  const [period, setPeriod] = useState<string>("ytd");
   const [from, setFrom] = useState(day(new Date(Date.now() - 30 * 86400_000)));
   const [to, setTo] = useState(day(new Date()));
   const [limit, setLimit] = useState(15);
@@ -102,6 +102,7 @@ export default function CostStructure() {
   const range = () => {
     if (period === "custom") return { start: from, end: day(new Date(new Date(`${to}T00:00:00Z`).getTime() + 86400_000)) };
     const end = new Date(); end.setUTCDate(end.getUTCDate() + 1);
+    if (period === "ytd") return { start: `${new Date().getUTCFullYear()}-01-01`, end: day(end) };
     const start = new Date(); start.setUTCMonth(start.getUTCMonth() - Number(period));
     return { start: day(start), end: day(end) };
   };
@@ -175,11 +176,29 @@ export default function CostStructure() {
     for (const l of view) m.set(l[by], (m.get(l[by]) ?? 0) + lineValue(l, key));
     return [...m].sort((a, b) => (key === "profit" ? a[1] - b[1] : b[1] - a[1])).slice(0, 10);
   };
+  const monthsCount = period === "custom" ? Math.max(1, (new Date(to).getTime() - new Date(from).getTime()) / (30 * 86400_000)) : period === "ytd" ? new Date().getUTCMonth() + 1 : Number(period);
+  const books = useMemo(() => {
+    if (!journal) return null;
+    const rows = journal.filter((r) => r.period >= months.a && r.period <= months.b);
+    const byMonth = new Map<string, { rev: number; exp: number }>();
+    for (const r of rows) { const m = byMonth.get(r.period) ?? { rev: 0, exp: 0 }; if (r.cont.startsWith("7")) m.rev += r.rev; if (r.cont.startsWith("6")) m.exp += r.exp; byMonth.set(r.period, m); }
+    const sum = (f: (r: Account) => boolean, v: (r: Account) => number) => rows.filter(f).reduce((t, r) => t + v(r), 0);
+    const mapped = COST_KEYS.flatMap((k) => ACCOUNTS[k]);
+    const line = (k: CostKey) => sum((r) => accountMatch(r.cont, ACCOUNTS[k]), (r) => r.exp);
+    return {
+      months: [...byMonth].sort((a, b) => a[0].localeCompare(b[0])),
+      sales: sum((r) => r.cont.startsWith("70"), (r) => r.rev),
+      otherIncome: sum((r) => r.cont.startsWith("7") && !r.cont.startsWith("70"), (r) => r.rev),
+      costs: Object.fromEntries(COST_KEYS.map((k) => [k, line(k)])) as Record<CostKey, number>,
+      unmapped: [...rows.filter((r) => r.cont.startsWith("6") && !accountMatch(r.cont, mapped)).reduce((m, r) => m.set(r.cont, { name: r.name, v: (m.get(r.cont)?.v ?? 0) + r.exp }), new Map<string, { name: string; v: number }>())].sort((a, b) => b[1].v - a[1].v),
+      rev: sum((r) => r.cont.startsWith("7"), (r) => r.rev), exp: sum((r) => r.cont.startsWith("6"), (r) => r.exp),
+    };
+  }, [journal, months]);
   const realProfit = journal ? (realOf("venituri")!.total - journal.filter((r) => r.period >= months.a && r.period <= months.b && r.cont.startsWith("6")).reduce((t, r) => t + r.exp, 0)) : null;
   const Detail = ({ k }: { k: RowKey | "venituri" }) => {
     const real = realOf(k); const theo = k === "venituri" ? base.revenue : k === "taxe" ? base.fees : k === "profit" ? base.profit : base.costs[k];
     return (
-      <tr className="border-b bg-muted/40"><td colSpan={7} className="p-3 text-xs">
+      <tr className="border-b bg-muted/40"><td colSpan={9} className="p-3 text-xs">
         <p className="mb-2"><b>Cum se calculează:</b> {k === "venituri" ? "Cantitate × preț din facturile Senior ale partenerilor incluși, în perioada aleasă." : FORMULA[k]}</p>
         {k !== "venituri" && k !== "taxe" && k !== "profit" && <p className="mb-2">Parte fixă în scenariu: <b>{Math.round(fixedOf(sc, k) * 100)}%</b> (rămâne și dacă scade volumul sau renunți la un client).</p>}
         <div className="grid gap-3 md:grid-cols-3">
@@ -279,12 +298,47 @@ export default function CostStructure() {
       </Card>
 
       {view.length > 0 && <>
+        <Card className={books && books.rev - books.exp < 0 ? "border-destructive" : ""}>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Realitatea din contabilitatea Senior ({months.a}–{months.b}, toată firma)</CardTitle></CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {journalErr && <p className="text-destructive">Nu am putut citi registrul contabil: {journalErr}</p>}
+            {!books && !journalErr && <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Citesc registrul contabil Senior…</p>}
+            {books && <>
+              <div className="grid gap-2 sm:grid-cols-4">
+                <p>Venituri (clasa 7): <b>{n0(books.rev)}</b> lei</p>
+                <p>Cheltuieli (clasa 6): <b>{n0(books.exp)}</b> lei</p>
+                <p>Rezultat real: <b className={tone(books.rev - books.exp)}>{n0(books.rev - books.exp)}</b> lei</p>
+                <p>Pe lună: <b className={tone(books.rev - books.exp)}>{n0((books.rev - books.exp) / Math.max(1, books.months.length))}</b> lei</p>
+              </div>
+              <div className="overflow-x-auto"><table className="w-full text-xs">
+                <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Lună</th>{books.months.map(([m]) => <th key={m} className="text-right">{m.slice(4)}.{m.slice(0, 4)}</th>)}</tr></thead>
+                <tbody>
+                  <tr className="border-b"><td className="py-1">Venituri</td>{books.months.map(([m, x]) => <td key={m} className="text-right tabular-nums">{n0(x.rev)}</td>)}</tr>
+                  <tr className="border-b"><td className="py-1">Cheltuieli</td>{books.months.map(([m, x]) => <td key={m} className="text-right tabular-nums">{n0(x.exp)}</td>)}</tr>
+                  <tr className="font-medium"><td className="py-1">Rezultat</td>{books.months.map(([m, x]) => <td key={m} className={`text-right tabular-nums ${tone(x.rev - x.exp)}`}>{n0(x.rev - x.exp)}</td>)}</tr>
+                </tbody></table></div>
+              <p className="text-xs text-muted-foreground">Fișele de mai jos acoperă {n1(books.sales ? base.revenue / books.sales * 100 : 0)}% din vânzările din contabilitate (doar partenerii incluși). Pentru o comparație completă bifează toți partenerii și mărește „max”.</p>
+              <div className="overflow-x-auto"><table className="w-full text-xs">
+                <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Unde e diferența</th><th className="text-right">Fișe (teoretic)</th><th className="text-right">Contabilitate</th><th className="text-right">Diferență</th></tr></thead>
+                <tbody>
+                  <tr className="border-b"><td className="py-1">Vânzări (70x)</td><td className="text-right tabular-nums">{n0(base.revenue)}</td><td className="text-right tabular-nums">{n0(books.sales)}</td><td className={`text-right tabular-nums ${tone(books.sales - base.revenue)}`}>{n0(books.sales - base.revenue)}</td></tr>
+                  {COST_KEYS.map((k) => <tr key={k} className="border-b"><td className="py-1">{COST_LABEL[k]} <span className="text-muted-foreground">({ACCOUNTS[k].join(", ")})</span></td><td className="text-right tabular-nums">{n0(base.costs[k])}</td><td className="text-right tabular-nums">{n0(books.costs[k])}</td><td className={`text-right tabular-nums ${tone(base.costs[k] - books.costs[k])}`}>{n0(books.costs[k] - base.costs[k])}</td></tr>)}
+                  <tr className="border-b"><td className="py-1">Taxe rețea client (în fișe; în contabilitate sunt în conturile de mai jos)</td><td className="text-right tabular-nums">{n0(base.fees)}</td><td className="text-right">—</td><td /></tr>
+                  <tr className="border-b"><td className="py-1"><details><summary className="cursor-pointer">Alte cheltuieli care nu sunt în fișe ({books.unmapped.length} conturi)</summary>
+                    <table className="mt-1 w-full"><tbody>{books.unmapped.slice(0, 25).map(([c, x]) => <tr key={c}><td className="pr-2">{c}</td><td className="truncate pr-2 text-muted-foreground">{x.name}</td><td className="text-right tabular-nums">{n0(x.v)}</td></tr>)}</tbody></table></details></td>
+                    <td className="text-right">0</td><td className="text-right tabular-nums">{n0(books.unmapped.reduce((t, [, x]) => t + x.v, 0))}</td><td className="text-right tabular-nums text-destructive">{n0(books.unmapped.reduce((t, [, x]) => t + x.v, 0))}</td></tr>
+                  <tr className="border-b"><td className="py-1">Alte venituri (71x–79x)</td><td className="text-right">0</td><td className="text-right tabular-nums">{n0(books.otherIncome)}</td><td /></tr>
+                  <tr className="font-semibold"><td className="py-1">Rezultat</td><td className={`text-right tabular-nums ${tone(base.profit)}`}>{n0(base.profit)}</td><td className={`text-right tabular-nums ${tone(books.rev - books.exp)}`}>{n0(books.rev - books.exp)}</td><td className="text-right tabular-nums">{n0(books.rev - books.exp - base.profit)}</td></tr>
+                </tbody></table></div>
+            </>}
+          </CardContent>
+        </Card>
         <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">P&L: realitate vs. „{sc.name}”</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Model din fișele de preț (teoretic, partenerii incluși) vs. „{sc.name}”</CardTitle></CardHeader>
             <CardContent className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-1">Linie</th><th className="text-right">Realitate lei</th><th className="text-right">%</th><th className="text-right">Scenariu lei</th><th className="text-right">%</th><th className="text-right">Diferență</th><th className="w-40" /></tr></thead>
+                <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-1">Linie</th><th className="text-right">Fișe lei</th><th className="text-right">%</th><th className="text-right">Scenariu lei</th><th className="text-right">%</th><th className="text-right">Diferență</th><th className="w-40" /></tr></thead>
                 <tbody>
                   <tr className="cursor-pointer border-b font-medium hover:bg-muted/50" onClick={() => setOpenRow(openRow === "venituri" ? null : "venituri")}><td className="py-1">▸ Venituri ({n0(base.qty)} buc)</td><td className="text-right tabular-nums">{n0(base.revenue)}</td><td className="text-right">100</td><td className="text-right tabular-nums">{n0(what.revenue)}</td><td className="text-right">100</td><td className={`text-right tabular-nums ${tone(what.revenue - base.revenue)}`}>{n0(what.revenue - base.revenue)}</td><td /></tr>
                   {openRow === "venituri" && <Detail k="venituri" />}
@@ -299,7 +353,7 @@ export default function CostStructure() {
               </table>
               <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
                 <p>Cost/buc: <b>{n2(base.qty ? base.totalCost / base.qty : NaN)}</b> → <b>{n2(what.qty ? what.totalCost / what.qty : NaN)}</b> lei</p>
-                <p>Profit pe lună în scenariu: <b className={tone(what.profit)}>{n0(what.profit / (period === "custom" ? Math.max(1, (new Date(to).getTime() - new Date(from).getTime()) / (30 * 86400_000)) : Number(period)))} lei</b></p>
+                <p>Profit teoretic pe lună (fișe, scenariu): <b className={tone(what.profit)}>{n0(what.profit / monthsCount)} lei</b>{books && <> · real: <b className={tone(books.rev - books.exp)}>{n0((books.rev - books.exp) / Math.max(1, books.months.length))}</b></>}</p>
                 <p>Prag de rentabilitate: {be == null ? "—" : <b>{be > 0 ? "+" : ""}{n1(be)}% la preț</b>}</p>
               </div>
             </CardContent>
