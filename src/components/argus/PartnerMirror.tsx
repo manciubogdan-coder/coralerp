@@ -28,7 +28,7 @@ const tone = (v: number) => (v >= 0 ? "text-crm-green" : "text-destructive");
 const ZERO = (eur: number) => ({ labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: eur, eurBufferPct: priceRules().eurBufferPct, techLossPct: 0, marginPct: 0 });
 const isItem = (x: ListResult["items"][number]): x is Item => !("error" in x);
 
-function sheetFor(it: Item, res: ListResult, partner: string): Sheet {
+export function sheetFor(it: Item, res: ListResult, partner: string): Sheet {
   const now = new Date();
   const cfg: PriceConfig = { year: now.getFullYear(), month: now.getMonth() + 1, rawPriceMode: "annual", route: it.defaults.route, supplyBasis: "pallet", ...(it.defaults.labourLine ? { labourLine: it.defaults.labourLine } : {}), rates: { profitPct: profitFor(it.product.name, null, partner).pct }, components: {} };
   const comps = it.components.map((c) => ({ ...c, ...(c.kind === "mp" || c.kind === "marfa" ? { price: c.annualPrice ?? null } : {}) }));
