@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { argusFetch } from "@/lib/argusApi";
 import { setPriceRules } from "../../../supabase/functions/_shared/priceRules";
 import { sheetFor } from "./PartnerMirror";
-import { ACCOUNTS, BASE, COST_KEYS, COST_LABEL, DEFAULT_FIXED, accountMatch, recipeLossValue, breakEvenPricePct, fixedOf, gamaOf, partnerContributions, pctOf, structureOf, type CostKey, type SaleLine, type Scenario, type Structure } from "@/lib/argus/costStructure";
+import { ACCOUNTS, BASE, COST_KEYS, COST_LABEL, DEFAULT_FIXED, accountMatch, lastClosedPeriod, recipeLossValue, breakEvenPricePct, fixedOf, gamaOf, partnerContributions, pctOf, structureOf, type CostKey, type SaleLine, type Scenario, type Structure } from "@/lib/argus/costStructure";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeFetchJson } from "@/lib/edgeFetch";
 
@@ -181,7 +181,10 @@ export default function CostStructure() {
   const monthsCount = period === "custom" ? Math.max(1, (new Date(to).getTime() - new Date(from).getTime()) / (30 * 86400_000)) : period === "ytd" ? new Date().getUTCMonth() + 1 : Number(period);
   const books = useMemo(() => {
     if (!journal) return null;
-    const rows = journal.filter((r) => r.period >= months.a && r.period <= months.b);
+    const now = new Date(); const cur = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const closed = lastClosedPeriod(journal, cur);
+    const upTo = closed && closed < months.b ? closed : months.b;
+    const rows = journal.filter((r) => r.period >= months.a && r.period <= upTo && (!closed || r.period <= closed));
     const byMonth = new Map<string, { rev: number; exp: number }>();
     for (const r of rows) { const m = byMonth.get(r.period) ?? { rev: 0, exp: 0 }; if (r.cont.startsWith("7")) m.rev += r.rev; if (r.cont.startsWith("6")) m.exp += r.exp; byMonth.set(r.period, m); }
     const sum = (f: (r: Account) => boolean, v: (r: Account) => number) => rows.filter(f).reduce((t, r) => t + v(r), 0);
@@ -193,6 +196,7 @@ export default function CostStructure() {
       otherIncome: sum((r) => r.cont.startsWith("7") && !r.cont.startsWith("70"), (r) => r.rev),
       costs: Object.fromEntries(COST_KEYS.map((k) => [k, line(k)])) as Record<CostKey, number>,
       unmapped: [...rows.filter((r) => r.cont.startsWith("6") && !accountMatch(r.cont, mapped)).reduce((m, r) => m.set(r.cont, { name: r.name, v: (m.get(r.cont)?.v ?? 0) + r.exp }), new Map<string, { name: string; v: number }>())].sort((a, b) => b[1].v - a[1].v),
+      closed, open: [...new Set(journal.filter((r) => r.period >= months.a && r.period <= months.b && (!closed || r.period > closed)).map((r) => r.period))].sort(),
       rev: sum((r) => r.cont.startsWith("7"), (r) => r.rev), exp: sum((r) => r.cont.startsWith("6"), (r) => r.exp),
     };
   }, [journal, months]);
@@ -325,7 +329,7 @@ export default function CostStructure() {
               <div><span>{l}</span><div className="h-1.5 rounded bg-muted"><div className="h-1.5 rounded bg-primary" style={{ width: `${Math.min(100, Math.max(0, pctOf(v, base)))}%` }} /></div></div>
               <b className="text-right tabular-nums">{n1(pctOf(v, base))} lei</b><span className="text-right text-xs tabular-nums text-muted-foreground">{n0(v)} lei total</span></div>)}
             <div className="grid grid-cols-[1fr_90px_110px] gap-2 border-t pt-2 font-semibold"><span>Rămâne profit</span><span className={`text-right tabular-nums ${tone(base.profit)}`}>{n1(pctOf(base.profit, base))} lei</span><span className={`text-right text-xs tabular-nums ${tone(base.profit)}`}>{n0(base.profit)} lei</span></div>
-            {books && <p className={`mt-2 rounded border p-2 text-xs ${books.rev - books.exp < 0 ? "border-destructive text-destructive" : ""}`}>Atenție: acesta e calculul din fișe. În contabilitatea Senior (toată firma, toate cheltuielile) rezultatul real e <b>{n0(books.rev - books.exp)} lei</b>. Diferența = cheltuieli care nu intră în fișe (vezi „Detalii pentru contabil” jos).</p>}
+            {books && <p className={`mt-2 rounded border p-2 text-xs ${books.rev - books.exp < 0 ? "border-destructive text-destructive" : ""}`}>Atenție: acesta e calculul din fișe. În contabilitatea Senior (toată firma, toate cheltuielile, până la ultima lună încheiată{books.closed ? ` ${books.closed.slice(4)}.${books.closed.slice(0, 4)}` : ""}) rezultatul real e <b>{n0(books.rev - books.exp)} lei</b>. Diferența = cheltuieli care nu intră în fișe (vezi „Detalii pentru contabil” jos).</p>}
           </CardContent>
         </Card>
 
@@ -367,11 +371,12 @@ export default function CostStructure() {
         <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Detalii pentru contabil (contabilitate Senior, scenarii avansate, structura pe game)</summary>
         <div className="mt-3 space-y-4">
         <Card className={books && books.rev - books.exp < 0 ? "border-destructive" : ""}>
-          <CardHeader className="pb-2"><CardTitle className="text-base">Realitatea din contabilitatea Senior ({months.a}–{months.b}, toată firma)</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Realitatea din contabilitatea Senior ({months.a}–{books?.closed ?? months.b}, doar luni încheiate, toată firma)</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
             {journalErr && <p className="text-destructive">Nu am putut citi registrul contabil: {journalErr}</p>}
             {!books && !journalErr && <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Citesc registrul contabil Senior…</p>}
             {books && <>
+              {books.open.length > 0 && <p className="text-xs text-crm-warning">Lăsate deoparte, neîncheiate (salarii sau contribuțiile la stat neînregistrate complet): {books.open.map((m) => `${m.slice(4)}.${m.slice(0, 4)}`).join(", ")}.</p>}
               <div className="grid gap-2 sm:grid-cols-4">
                 <p>Venituri (clasa 7): <b>{n0(books.rev)}</b> lei</p>
                 <p>Cheltuieli (clasa 6): <b>{n0(books.exp)}</b> lei</p>

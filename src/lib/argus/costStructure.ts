@@ -3,7 +3,7 @@ export const COST_KEYS = ["mp", "ambalaje", "manopera", "regie", "pierderi", "ap
 export type CostKey = typeof COST_KEYS[number];
 export const COST_LABEL: Record<CostKey | "taxe" | "profit", string> = {
   mp: "Materie primă", ambalaje: "Ambalaje & etichete", manopera: "Manoperă directă", regie: "Regie / utilități",
-  pierderi: "Pierderi tehnologice", aprovizionare: "Transport aprovizionare", distributie: "Transport distribuție", marja: "Marjă brută fișă (regie fabrică)",
+  pierderi: "Pierderi tehnologice", aprovizionare: "Transport aprovizionare", distributie: "Transport distribuție", marja: "Marjă brută (acoperă cheltuielile firmei)",
   taxe: "Taxe rețea client", profit: "Rezultat (profit operațional)",
 };
 export type PieceCost = Record<CostKey, number>;
@@ -113,4 +113,28 @@ export function recipeLossValue(components: Array<{ kind: string; qty: number; l
     v += (c.qty / (1 - l) - c.qty) * c.price;
   }
   return v;
+}
+
+/**
+ * Last accounting month that is really closed: before the current month and with salaries (641) and
+ * state contributions (646) booked at ≥ 60% of the median of earlier months. Later months are left out.
+ */
+export function lastClosedPeriod(rows: Array<{ period: string; cont: string; exp: number }>, current: string): string | null {
+  const by = new Map<string, { sal: number; st: number }>();
+  for (const r of rows) {
+    if (r.period >= current) continue;
+    const m = by.get(r.period) ?? { sal: 0, st: 0 };
+    if (r.cont.startsWith("641")) m.sal += r.exp;
+    if (r.cont.startsWith("646")) m.st += r.exp;
+    by.set(r.period, m);
+  }
+  const ps = [...by.keys()].sort();
+  const med = (xs: number[]) => { const s = xs.filter((x) => x > 0).sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
+  for (let i = ps.length - 1; i >= 0; i--) {
+    const prev = ps.slice(0, i).map((p) => by.get(p)!);
+    const ms = med(prev.map((x) => x.sal)), mt = med(prev.map((x) => x.st));
+    const x = by.get(ps[i])!;
+    if (x.sal > 0 && x.st > 0 && (!ms || x.sal >= 0.6 * ms) && (!mt || x.st >= 0.6 * mt)) return ps[i];
+  }
+  return null;
 }
