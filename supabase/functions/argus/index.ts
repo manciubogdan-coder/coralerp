@@ -27,6 +27,7 @@ import { agentBuilderTools } from "./agentBuilder.ts";
 import { priceCalcData, priceHistoryData, priceListData, priceOptions } from "../_shared/priceCalcSenior.ts";
 import { partnerMirrorSales } from "../_shared/partnerMirror.ts";
 import { DEFAULT_PRICE_RULES, loadPriceRules, savePriceRules } from "../_shared/priceRules.ts";
+import { SALES_PRICING_ACTIONS } from "../_shared/crmRules.ts";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
 import { rawMaterialPrices } from "../_shared/rawMaterialPrices.ts";
@@ -43,6 +44,7 @@ import {
   makeClients,
   overviewWithTrend,
   requireAdmin,
+  requirePricing,
   runQuery,
   TABLES,
   type QuerySpec,
@@ -658,7 +660,7 @@ Deno.serve(async (req) => {
     const action = url.searchParams.get("action") ?? "";
     if (action === "cron_agents") return await handleCron();
     const token = req.headers.get("x-app-token");
-    const auth = await requireAdmin(token);
+    const auth = SALES_PRICING_ACTIONS.has(action) ? await requirePricing(token) : await requireAdmin(token);
     if ("error" in auth) return json({ error: auth.error }, auth.status);
     const userId = auth.user.id;
     if (!token) return json({ error: "Autentificare necesară." }, 401);

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Download, Loader2, Send } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +20,7 @@ type Target = {
   logistics: { distribution?: Record<string, PriceConfig | null>; routes?: RouteStat[]; suggestedRoute?: string | null };
   items: Array<Item | { product: { id: number; name: string }; error: string }>;
 };
-type Hist = { aid: number; lastDay: string; lastPrice: number | null; lastStore: string; firstDay: string; qty: number; avgPrice: number | null };
+type Hist = { aid: number; lastDay: string; lastPrice: number | null; lastStore: string; firstDay: string; qty: number; avgPrice: number | null; matchedId?: number; matchedName?: string; match?: "same" | "exact" | "similar" };
 
 const n2 = (v: number | null | undefined, d = 2) => (v == null || !Number.isFinite(v) ? "—" : v.toLocaleString("ro-RO", { minimumFractionDigits: d, maximumFractionDigits: d }));
 const pct = (a: number | null | undefined, b: number | null | undefined) => (a != null && b != null && b > 0 ? ((a - b) / b) * 100 : null);
@@ -28,11 +28,18 @@ const DIST = ["distributionTotal", "distributionPallets", "distributionPerPallet
 const ZERO = (eur: number) => ({ labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: eur, eurBufferPct: priceRules().eurBufferPct, techLossPct: 0, marginPct: 0 });
 
 /** Offer the products of the current list to another client: its own cursă, network fee and full Senior price history. */
-export default function OfferToClient({ clients, sourceName, items, sourcePrice, year, month, mode, marginPct, picker }: {
+export default function OfferToClient({ clients, sourceName, items, sourcePrice, year, month, mode, marginPct, picker, productPicker, productName }: {
   clients: Opt[]; sourceName: string; items: Item[]; sourcePrice: (id: number) => number | null;
   year: number; month: number; mode: "annual" | "week"; marginPct: number;
   picker: (p: { value: number | null; onChange: (v: number | null) => void }) => JSX.Element;
+  /** Any finished product, not only the ones the source client buys. */
+  productPicker: (p: { value: number[]; onChange: (v: number[]) => void }) => JSX.Element;
+  productName: (id: number) => string | undefined;
 }) {
+  const listIds = useMemo(() => items.map((i) => i.product.id), [items]);
+  const [ids, setIds] = useState<number[]>(listIds);
+  const [ranIds, setRanIds] = useState("");
+  useEffect(() => { setIds((p) => [...new Set([...listIds, ...p.filter((id) => !listIds.includes(id))])]); }, [listIds]);
   const [target, setTarget] = useState<number | null>(null);
   const [data, setData] = useState<Target | null>(null);
   const [hist, setHist] = useState<Map<number, Hist>>(new Map());
@@ -41,15 +48,14 @@ export default function OfferToClient({ clients, sourceName, items, sourcePrice,
   const targetName = clients.find((c) => c.id === target)?.name ?? "";
 
   const run = async () => {
-    if (!target) return;
+    if (!target || !ids.length) return;
     setBusy(true);
     try {
-      const ids = items.map((i) => i.product.id);
       const [t, h] = await Promise.all([
         argusFetch<Target>("price_list", {}, { articolIds: ids, partnerId: target, year, month, rawPriceMode: mode }),
         argusFetch<{ items: Hist[] }>("price_history", {}, { articolIds: ids, partnerId: target }),
       ]);
-      setData(t); setHist(new Map(h.items.map((x) => [x.aid, x])));
+      setData(t); setHist(new Map(h.items.map((x) => [x.aid, x]))); setRanIds(ids.join(","));
       setRoute(proposedRoute(t));
     } catch (e: any) {
       toast({ variant: "destructive", title: "Oferta nu s-a putut calcula", description: e.message });
@@ -70,11 +76,11 @@ export default function OfferToClient({ clients, sourceName, items, sourcePrice,
   const rows = useMemo(() => {
     if (!data) return [];
     const dist = data.logistics.distribution ?? {};
-    return items.map((src) => {
-      const it = data.items.find((x) => x.product.id === src.product.id);
+    return data.items.map((it) => {
+      const src = { product: { id: it.product.id, name: it.product.name } };
       const h = hist.get(src.product.id) ?? null;
       const from = sourcePrice(src.product.id);
-      if (!it || "error" in it) return { src, h, from, s: null, error: it && "error" in it ? it.error : "lipsă" };
+      if ("error" in it) return { src, h, from, s: null, error: it.error };
       const comps = it.components.map((c) => ({ ...c, ...(c.kind === "mp" || c.kind === "marfa" ? { price: mode === "week" ? c.weekPrice ?? null : c.annualPrice ?? null } : {}) }));
       const base: PriceConfig = { ...it.defaults };
       for (const k of DIST) delete (base as Record<string, unknown>)[k];
@@ -84,14 +90,15 @@ export default function OfferToClient({ clients, sourceName, items, sourcePrice,
       const s = configuredSheet({ ...it, components: comps }, ZERO(data.eur?.rate ?? 0), prefilledConfig({ ...it, defaults: base, logistics: data.logistics }, user)).sheet;
       return { src, h, from, s, error: null as string | null };
     });
-  }, [data, hist, items, route, marginPct, mode, targetName, sourcePrice]);
+  }, [data, hist, route, marginPct, mode, targetName, sourcePrice]);
+  const stale = !!data && ranIds !== ids.join(",");
 
   const routeInfo = data?.logistics.routes?.find((r) => r.route === route);
   const exportXlsx = () => {
-    const head = ["Produs", "Buc/bax", `Preț actual ${sourceName} (lei/buc)`, `Ultimul preț ${targetName} (lei/buc)`, "Data ultimei facturi", "Prima vânzare", "Bucăți vândute istoric", "Cost producție (lei/buc)", "Transport (lei/buc)", "Preț minim (lei/buc)", "Taxe rețea %", "Preț propus (lei/buc)", "Preț propus (EUR/buc)", `Dif. vs ${sourceName} %`, "Dif. vs istoric %", "Observații"];
+    const head = ["Produs", "Buc/bax", `Preț actual ${sourceName} (lei/buc)`, `Ultimul preț ${targetName} (lei/buc)`, `Articol facturat la ${targetName}`, "Data ultimei facturi", "Prima vânzare", "Bucăți vândute istoric", "Cost producție (lei/buc)", "Transport (lei/buc)", "Preț minim (lei/buc)", "Taxe rețea %", "Preț propus (lei/buc)", "Preț propus (EUR/buc)", `Dif. vs ${sourceName} %`, "Dif. vs istoric %", "Observații"];
     const body = rows.map((r) => {
       const p = r.s?.perPiece;
-      return [r.src.product.name, r.s?.unitsPerCase ?? "", r.from ?? "", r.h?.lastPrice ?? "fără istoric", r.h?.lastDay ?? "", r.h?.firstDay ?? "", r.h?.qty ?? 0,
+      return [r.src.product.name, r.s?.unitsPerCase ?? "", r.from ?? "", r.h?.lastPrice ?? "fără istoric", r.h ? `${r.h.matchedName ?? ""}${r.h.match === "similar" ? " (produs asemănător)" : ""}` : "", r.h?.lastDay ?? "", r.h?.firstDay ?? "", r.h?.qty ?? 0,
         p?.productionCost ?? "", p?.logistics ?? "", p?.minPrice ?? "", r.s?.feePct ?? "", p?.clientPrice ?? "", p?.clientPriceEur ?? "",
         p ? pct(p.clientPrice, r.from) ?? "" : "", p ? pct(p.clientPrice, r.h?.lastPrice) ?? "" : "",
         r.error ?? (r.s && !r.s.complete ? `incomplet: ${[...r.s.missingInputs, ...r.s.missingPrices.map((x: any) => x.name ?? x)].join(", ")}` : "")];
@@ -103,14 +110,19 @@ export default function OfferToClient({ clients, sourceName, items, sourcePrice,
 
   return (
     <Card>
-      <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Send className="h-4 w-4" /> Ofertă pentru alt client · aceleași produse</CardTitle></CardHeader>
+      <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Send className="h-4 w-4" /> Ofertă pentru alt client</CardTitle></CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground">Alegi clientul căruia vrei să-i oferi produsele din listă. Recalculez cu cursa lui de transport, taxele lui de rețea și caut în tot istoricul Senior dacă i-am vândut vreodată și la ce preț.</p>
+        <p className="text-xs text-muted-foreground">Alegi clientul căruia vrei să-i oferi produsele din listă (poți adăuga și alte produse). Recalculez cu cursa lui de transport, taxele lui de rețea și caut în tot istoricul Senior dacă i-am vândut vreodată și la ce preț.</p>
         <div className="flex flex-wrap items-end gap-2">
           <div className="min-w-[260px] flex-1">{picker({ value: target, onChange: (v) => { setTarget(v); setData(null); } })}</div>
-          <Button onClick={run} disabled={!target || busy}>{busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Calculează oferta</Button>
+          <div className="min-w-[260px] flex-1">{productPicker({ value: ids, onChange: setIds })}</div>
+          <Button onClick={run} disabled={!target || !ids.length || busy}>{busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Calculează oferta</Button>
           {data && <Button variant="outline" onClick={exportXlsx}><Download className="mr-1 h-4 w-4" />Excel</Button>}
         </div>
+        {ids.some((id) => !listIds.includes(id)) && (
+          <p className="text-xs text-muted-foreground">Produse adăugate în plus față de listă: {ids.filter((id) => !listIds.includes(id)).map((id) => productName(id) ?? `#${id}`).join(", ")}. Ele nu au preț la {sourceName}, doar costul și prețul propus pentru clientul ofertat.</p>
+        )}
+        {stale && <p className="text-xs font-medium text-amber-600">Ai schimbat produsele — apasă „Calculează oferta” ca să le vezi în tabel.</p>}
         {data && (
           <>
             <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -136,7 +148,7 @@ export default function OfferToClient({ clients, sourceName, items, sourcePrice,
                         <tr className="border-b last:border-0">
                           <td className="py-1">{r.src.product.name}{r.error && <div className="text-destructive">{r.error}</div>}{r.s && !r.s.complete && <div className="text-amber-600">incomplet: {r.s.missingInputs.slice(0, 2).join(", ")}</div>}</td>
                           <td className="text-right tabular-nums">{n2(r.from, 4)}</td>
-                          <td className="text-right tabular-nums">{r.h?.lastPrice != null ? <>{n2(r.h.lastPrice, 4)}<div className="text-[10px] text-muted-foreground">{r.h.lastDay} · {n2(r.h.qty, 0)} buc din {r.h.firstDay}</div></> : <span className="text-muted-foreground">fără istoric</span>}</td>
+                          <td className="text-right tabular-nums">{r.h?.lastPrice != null ? <>{n2(r.h.lastPrice, 4)}<div className="text-[10px] text-muted-foreground">{r.h.lastDay} · {n2(r.h.qty, 0)} buc din {r.h.firstDay}</div>{r.h.match !== "same" && <div className={`text-[10px] ${r.h.match === "similar" ? "text-amber-600" : "text-muted-foreground"}`}>{r.h.match === "similar" ? "asemănător: " : "ca "}{r.h.matchedName}</div>}</> : <span className="text-muted-foreground">fără istoric</span>}</td>
                           <td className="text-right tabular-nums">{n2(p?.productionCost, 4)}</td>
                           <td className="text-right tabular-nums">{n2(p?.logistics, 4)}</td>
                           <td className="text-right tabular-nums">{n2(p?.minPrice, 4)}</td>

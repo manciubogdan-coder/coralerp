@@ -2,6 +2,11 @@ export const CRM_STAGES = ['lead','discovery','samples','negotiation','active'] 
 export function canAccessCrm(approved: boolean, roles: string[]): boolean {
   return approved && roles.some(role => role === 'admin' || role === 'picking_vanzari');
 }
+/** Read-only price calculator actions open to the sales team (Vânzări hub); everything else in Argus stays admin-only. */
+export const SALES_PRICING_ACTIONS = new Set(["price_options", "price_list", "price_history", "partner_mirror_sales"]);
+export function canUsePricing(approved: boolean, roles: string[]): boolean {
+  return canAccessCrm(approved, roles);
+}
 export function isInactive(lastOrder: string | null, frequency: number, now = new Date()): boolean {
   if (!lastOrder) return false;
   return Math.floor((Date.parse(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Bucharest',year:'numeric',month:'2-digit',day:'2-digit'}).format(now)) - Date.parse(lastOrder.slice(0,10))) / 86400000) > frequency;

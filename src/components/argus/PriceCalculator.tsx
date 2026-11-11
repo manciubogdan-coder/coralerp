@@ -172,7 +172,7 @@ function NumField({ label, value, onChange, hint }: { label: string; value: stri
 const profitClass = (v: number | null | undefined) => (v == null ? "" : v >= 0 ? "text-crm-green" : "text-destructive");
 const selectClass = "h-8 rounded-md border border-input bg-background px-2 text-xs";
 
-function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
+function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: number; sales?: boolean }) {
   const now = new Date();
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -212,7 +212,14 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, onlySold]);
 
+  // Every finished product (not only this client's), for offers to another client.
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const items = useMemo(() => (result?.items ?? []).filter(isItem), [result]);
+  useEffect(() => {
+    if (!items.length || allProducts.length) return;
+    argusFetch<{ products: Product[] }>("price_options", {}, { partnerId: null, allProducts: true }).then((r) => setAllProducts(r.products)).catch(() => {});
+  }, [items.length, allProducts.length]);
+  const offerProducts = useMemo(() => { const m = new Map<number, Opt>(); for (const p of [...products, ...allProducts]) m.set(p.id, p); for (const it of items) m.set(it.product.id, it.product); return [...m.values()].sort((a, b) => a.name.localeCompare(b.name, "ro")); }, [products, allProducts, items]);
   const failed = useMemo(() => (result?.items ?? []).filter((x) => !isItem(x)) as Array<{ product: { id: number; name: string }; error: string }>, [result]);
   const ov = (id: number) => over[id] ?? EMPTY;
   const setOv = (id: number, f: (o: Over) => Over) => setOver((p) => ({ ...p, [id]: f(p[id] ?? EMPTY) }));
@@ -522,9 +529,9 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
           <span className="text-xs text-muted-foreground">bax {n} buc · {c.effective.piecesPerPallet ? `${n2(c.effective.piecesPerPallet, 0)} buc/palet` : "buc/palet lipsă"} · {line || "linie nealeasă"}</span>
           <div className="ml-auto flex gap-2">
             {edited > 0 && <Button size="sm" variant="ghost" onClick={() => setOver((x) => { const nx = { ...x }; delete nx[id]; return nx; })}><RotateCcw className="mr-1 h-3.5 w-3.5" />Anulează modificările ({edited})</Button>}
-            <Button size="sm" variant="secondary" disabled={saving === id} onClick={() => saveLive(it)}>
+            {!sales && <Button size="sm" variant="secondary" disabled={saving === id} onClick={() => saveLive(it)}>
               {saving === id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1 h-3.5 w-3.5" />}Salvează fișa ca live
-            </Button>
+            </Button>}
           </div>
         </div>
         {!s.complete && <p className="text-sm text-destructive">De completat: {[...s.missingInputs, ...s.missingPrices.map((x) => `preț ${x}`)].join("; ")}</p>}
@@ -703,9 +710,9 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
             <NumField label="Marjă brută %" value={marginShown} onChange={(v) => setGlobal("marginPct", v)} hint={`Implicit ${priceRules().marginPct}% (Reguli de calcul) · din cost producție + distribuție`} />
             <NumField label="Profitabilitate %" value={globalRates.profitPct ?? ""} onChange={(v) => setGlobal("profitPct", v)} hint={`Gol = din Reguli de calcul (implicit ${priceRules().profitPct ?? 5}%, sau regula clientului/produsului) · peste prețul minim de vânzare`} />
             <div className="flex items-end gap-2">
-              <Button variant="outline" onClick={auditRecipes} disabled={auditing} title="Rețete Senior la care prețul pe bax iese egal cu prețul pe bucată, deși baxul are mai multe bucăți">
+              {!sales && <Button variant="outline" onClick={auditRecipes} disabled={auditing} title="Rețete Senior la care prețul pe bax iese egal cu prețul pe bucată, deși baxul are mai multe bucăți">
                 {auditing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Rețete greșite bax
-              </Button>
+              </Button>}
               <Button className="w-full" onClick={run} disabled={!selected.length || loading}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}Calculează {selected.length > 1 ? `${selected.length} produse` : ""}
               </Button>
@@ -799,7 +806,9 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
             <OfferToClient clients={clients.filter((c) => c.id !== client)} sourceName={(store != null ? storeName : clientName) || "lista curentă"} items={items}
               sourcePrice={(id) => { const it = items.find((x) => x.product.id === id); return it?.recentSale?.price ?? it?.priceList?.price ?? null; }}
               year={year} month={month} mode={mode} marginPct={num(marginShown || "0")}
-              picker={({ value, onChange }) => <Picker label="Client ofertat" options={clients.filter((c) => c.id !== client)} value={value} onChange={onChange} placeholder="Alege clientul" />} />
+              picker={({ value, onChange }) => <Picker label="Client ofertat" options={clients.filter((c) => c.id !== client)} value={value} onChange={onChange} placeholder="Alege clientul" />}
+              productPicker={({ value, onChange }) => <MultiPicker label="Produse ofertate (poți adăuga orice produs)" options={offerProducts} value={value} onChange={onChange} />}
+              productName={(id) => offerProducts.find((p) => p.id === id)?.name} />
           )}
 
           {storeTotals.length > 0 && (
@@ -945,21 +954,25 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
 }
 
 /** Price list and the editable company-wide calculation rules it reads at every run. */
-export default function PriceCalculator() {
-  const [view, setView] = useState<"list" | "mirror" | "structure" | "rules">("list");
+type View = "list" | "mirror" | "structure" | "rules";
+const VIEWS: Array<[View, string]> = [["list", "Listă de prețuri"], ["mirror", "Oglindă parteneri"], ["structure", "Structură & scenarii"], ["rules", "Reguli de calcul"]];
+
+/** `sales`: the Vânzări hub shows only the price list and the partner mirror, without admin-only actions. */
+export default function PriceCalculator({ sales = false }: { sales?: boolean }) {
+  const [view, setView] = useState<View>("list");
   const [rulesVersion, setRulesVersion] = useState(0);
   return (
     <div className="space-y-4">
       <div role="tablist" aria-label="Calculator preț" className="inline-flex rounded-md border bg-muted p-1">
-        {([["list", "Listă de prețuri"], ["mirror", "Oglindă parteneri"], ["structure", "Structură & scenarii"], ["rules", "Reguli de calcul"]] as const).map(([k, label]) => (
+        {VIEWS.filter(([k]) => !sales || k === "list" || k === "mirror").map(([k, label]) => (
           <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)}
             className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${view === k ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
         ))}
       </div>
-      <div className={view === "list" ? "" : "hidden"}><PriceListCalculator rulesVersion={rulesVersion} /></div>
+      <div className={view === "list" ? "" : "hidden"}><PriceListCalculator rulesVersion={rulesVersion} sales={sales} /></div>
       <div className={view === "mirror" ? "" : "hidden"}><PartnerMirror /></div>
-      <div className={view === "structure" ? "" : "hidden"}><CostStructure /></div>
-      <div className={view === "rules" ? "" : "hidden"}><PriceRulesEditor onSaved={() => setRulesVersion((v) => v + 1)} /></div>
+      {!sales && <div className={view === "structure" ? "" : "hidden"}><CostStructure /></div>}
+      {!sales && <div className={view === "rules" ? "" : "hidden"}><PriceRulesEditor onSaved={() => setRulesVersion((v) => v + 1)} /></div>}
     </div>
   );
 }

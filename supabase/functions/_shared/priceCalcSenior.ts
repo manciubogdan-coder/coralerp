@@ -8,6 +8,7 @@ import { transportRoute, configuredRawPalletKg, rawPalletGroup, orderedPallets, 
 import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, latestCostWindow, latestRoutes } from "./priceList.ts";
 import { seniorLive, seniorSqlAll } from "./senior.ts";
 import { cf, lit, partnerInfoSql, partnerScope, type PartnerInfo } from "./priceScope.ts";
+import { matchOffer, offerSearchWords } from "./offerMatch.ts";
 import { realLineSpeeds, SPEED_DAYS, type RealSpeed } from "./priceLineSpeed.ts";
 export { matchLoss } from "./priceSheet.ts";
 import { componentKind, isServiceComponent, matchLoss, ratePeriod, type SheetComponent } from "./priceSheet.ts";
@@ -464,24 +465,34 @@ export function defaultRates(d: { eur: { rate: number } | null }, marginPct = pr
   };
 }
 
-/** Offer to another client: last price ever invoiced to the target partner (all its stores, whole Senior history) per product. */
+/** Offer to another client: last price ever invoiced to the target partner (all its stores, whole Senior history) per product.
+ * The target often buys the same product under its own article (MENTA 30 MC → MENTA 30 MC MD): matched by family + grams. */
 export async function priceHistoryData(sb: Rpc, body: Body) {
   const raw = Array.isArray(body.articolIds) ? body.articolIds : [];
   const aids = [...new Set(raw.map(int).filter(Boolean))] as number[];
   const pid = int(body.partnerId);
   if (!pid || !aids.length) throw new Error("Alege clientul ofertat și produsele.");
   if (aids.length > MAX_PRODUCTS) throw new Error(`Maximum ${MAX_PRODUCTS} produse.`);
-  const scope = partnerScope(pid, null, await partnerInfo(sb, pid))!;
-  const rows = await SQL(sb, `SELECT x.aid, x.day, x.q, x.v, x.store, s.firstDay, s.qty, s.val FROM (
-      SELECT d.Articol_ID aid, CONVERT(char(10),h.Data,23) day, CAST(d.Cantitate AS float) q, CAST(d.Valoare_Neta_Rol AS float) v, pp.Partener_Denumire store,
+  const [info, names] = await Promise.all([partnerInfo(sb, pid),
+    SQL(sb, `SELECT a.Articol_ID aid, a.Denumire name FROM dbo.D_Articole a WITH (NOLOCK) WHERE a.Articol_ID IN (${aids.join(",")})`)]);
+  const scope = partnerScope(pid, null, info)!;
+  const sources = names.map((r: any) => ({ aid: Number(r.aid), name: String(r.name ?? "").trim() }));
+  const words = offerSearchWords(sources.map((s) => s.name));
+  const filter = `(d.Articol_ID IN (${aids.join(",")})${words.map((w) => ` OR d.Denumire LIKE N'%${w}%'`).join("")})`;
+  const rows = await seniorSqlAll(sb, `SELECT x.aid, x.name, x.day, x.q, x.v, x.store, s.firstDay, s.qty, s.val FROM (
+      SELECT d.Articol_ID aid, d.Denumire name, CONVERT(char(10),h.Data,23) day, CAST(d.Cantitate AS float) q, CAST(d.Valoare_Neta_Rol AS float) v, pp.Partener_Denumire store,
         ROW_NUMBER() OVER(PARTITION BY d.Articol_ID ORDER BY h.Data DESC,h.H_ID DESC,d.D_ID DESC) rn
-      FROM ${docs} ${PP1} WHERE t.Cod IN ${SALES} AND ${notCancelled} AND d.Articol_ID IN (${aids.join(",")}) AND ${scope} AND d.Cantitate>0) x
+      FROM ${docs} ${PP1} WHERE t.Cod IN ${SALES} AND ${notCancelled} AND ${filter} AND ${scope} AND d.Cantitate>0) x
     JOIN (SELECT d.Articol_ID aid, CONVERT(char(10),MIN(h.Data),23) firstDay, SUM(CAST(d.Cantitate AS float)) qty, SUM(CAST(d.Valoare_Neta_Rol AS float)) val
-      FROM ${docs} ${PP1} WHERE t.Cod IN ${SALES} AND ${notCancelled} AND d.Articol_ID IN (${aids.join(",")}) AND ${scope} GROUP BY d.Articol_ID) s ON s.aid=x.aid
-    WHERE x.rn=1`);
+      FROM ${docs} ${PP1} WHERE t.Cod IN ${SALES} AND ${notCancelled} AND ${filter} AND ${scope} GROUP BY d.Articol_ID) s ON s.aid=x.aid
+    WHERE x.rn=1`, "x.aid");
   const n = (v: unknown) => Number(v) || 0;
+  const sold = rows.map((r: any) => ({ aid: n(r.aid), name: String(r.name ?? "").trim(), lastDay: String(r.day), lastPrice: n(r.q) > 0 ? n(r.v) / n(r.q) : null,
+    lastStore: String(r.store ?? "").trim(), firstDay: String(r.firstDay), qty: n(r.qty), avgPrice: n(r.qty) > 0 ? n(r.val) / n(r.qty) : null }));
   return {
-    items: rows.map((r: any) => ({ aid: n(r.aid), lastDay: String(r.day), lastPrice: n(r.q) > 0 ? n(r.v) / n(r.q) : null, lastStore: String(r.store ?? "").trim(),
-      firstDay: String(r.firstDay), qty: n(r.qty), avgPrice: n(r.qty) > 0 ? n(r.val) / n(r.qty) : null })),
+    items: sources.flatMap((src) => {
+      const m = matchOffer(src, sold);
+      return m ? [{ ...m.row, aid: src.aid, matchedId: m.row.aid, matchedName: m.row.name, match: m.match }] : [];
+    }),
   };
 }
