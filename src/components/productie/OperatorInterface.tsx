@@ -536,9 +536,29 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     // Comenzile ferme primesc cantitatea înaintea celor de producție în avans,
     // ca la o finalizare parțială marfa să meargă întâi spre picking.
     const isAvans = (o: any) => o.magazin === 'PRODUCTIE_AVANS' || o.tip_comanda === 'PRODUCTIE_AVANS';
-    const withSession = groupOrders
-      .map((o: any) => ({ order: o, session: activeSessions.find(s => s.comanda_id === o.id && lineMemberIds.includes(s.linie_id)) }))
-      .filter(x => !!x.session)
+    const pairs = groupOrders
+      .map((o: any) => ({ order: o, session: activeSessions.find(s => s.comanda_id === o.id && lineMemberIds.includes(s.linie_id)) as any }));
+    // Comenzile deschise din grup fără sesiune (ex. sărite la pornire) primesc o sesiune
+    // acum, ca producția introdusă să le acopere în loc să ajungă surplus în restoc.
+    const ref = pairs.find(x => !!x.session)?.session;
+    if (ref) {
+      for (const x of pairs) {
+        if (x.session || isOrderDone(x.order)) continue;
+        try {
+          const created: any = await createSessionMutation.mutateAsync({
+            comanda_id: x.order.id,
+            linie_id: ref.linie_id,
+            nume_operator: ref.nume_operator,
+            numar_angajati: ref.numar_angajati || 1,
+          });
+          x.session = Array.isArray(created) ? created[0] : (created?.id ? created : null);
+        } catch (err) {
+          console.error('Eroare sesiune completare grup', x.order.numar_comanda, err);
+        }
+      }
+    }
+    const withSession = pairs
+      .filter(x => !!x.session?.id)
       .sort((a: any, b: any) => Number(isAvans(a.order)) - Number(isAvans(b.order)));
 
     if (withSession.length === 0) {
