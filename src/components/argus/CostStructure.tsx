@@ -236,6 +236,23 @@ export default function CostStructure() {
     XLSX.writeFile(wb, `Structura costuri ${start} - ${end}.xlsx`);
   };
 
+  const [simPartner, setSimPartner] = useState("");
+  const [simPrice, setSimPrice] = useState(5);
+  const [simDrop, setSimDrop] = useState(false);
+  const baseContrib = useMemo(() => partnerContributions(view, BASE).sort((a, b) => a.fullProfit - b.fullProfit), [view]);
+  const sim = useMemo(() => {
+    const c = baseContrib.find((x) => x.partner === simPartner);
+    if (!c) return null;
+    const fee = c.revenue ? c.fees / c.revenue : 0;
+    const delta = simDrop ? c.dropDelta : c.revenue * (simPrice / 100) * (1 - fee);
+    return { c, delta, after: base.profit + delta, clientAfter: simDrop ? 0 : c.fullProfit + c.revenue * (simPrice / 100) * (1 - fee) };
+  }, [baseContrib, simPartner, simPrice, simDrop, base.profit]);
+  const SIMPLE: Array<[string, number]> = [
+    ["Materie primă", base.costs.mp], ["Pierderi (curățare, sortare)", base.costs.pierderi], ["Ambalaje & etichete", base.costs.ambalaje],
+    ["Transport aprovizionare", base.costs.aprovizionare], ["Transport livrare la magazine", base.costs.distributie], ["Manoperă (oameni pe linie)", base.costs.manopera],
+    ["Regie fabrică", base.costs.regie + base.costs.marja], ["Taxe rețea client", base.fees],
+  ];
+
   const skippedValue = skipped.reduce((t, s) => t + s.value, 0);
   return (
     <div className="space-y-4">
@@ -300,6 +317,55 @@ export default function CostStructure() {
       </Card>
 
       {view.length > 0 && <>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">1. Din 100 lei încasați, unde se duc banii?</CardTitle></CardHeader>
+          <CardContent className="space-y-1.5 text-sm">
+            <p className="mb-2 text-xs text-muted-foreground">Facturat în perioadă la partenerii incluși: <b>{n0(base.revenue)} lei</b> ({n0(base.qty)} buc). Costurile sunt cele din Lista de prețuri (aceleași fișe).</p>
+            {SIMPLE.map(([l, v]) => <div key={l} className="grid grid-cols-[1fr_90px_110px] items-center gap-2">
+              <div><span>{l}</span><div className="h-1.5 rounded bg-muted"><div className="h-1.5 rounded bg-primary" style={{ width: `${Math.min(100, Math.max(0, pctOf(v, base)))}%` }} /></div></div>
+              <b className="text-right tabular-nums">{n1(pctOf(v, base))} lei</b><span className="text-right text-xs tabular-nums text-muted-foreground">{n0(v)} lei total</span></div>)}
+            <div className="grid grid-cols-[1fr_90px_110px] gap-2 border-t pt-2 font-semibold"><span>Rămâne profit</span><span className={`text-right tabular-nums ${tone(base.profit)}`}>{n1(pctOf(base.profit, base))} lei</span><span className={`text-right text-xs tabular-nums ${tone(base.profit)}`}>{n0(base.profit)} lei</span></div>
+            {books && <p className={`mt-2 rounded border p-2 text-xs ${books.rev - books.exp < 0 ? "border-destructive text-destructive" : ""}`}>Atenție: acesta e calculul din fișe. În contabilitatea Senior (toată firma, toate cheltuielile) rezultatul real e <b>{n0(books.rev - books.exp)} lei</b>. Diferența = cheltuieli care nu intră în fișe (vezi „Detalii pentru contabil” jos).</p>}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">2. Cine te bagă în gaură și cine îți aduce profit?</CardTitle></CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-1">Client</th><th className="text-right">Facturat</th><th className="text-right">Costuri + taxe</th><th className="text-right">Rezultat</th><th className="text-right">% din facturat</th><th className="text-right">Vândut sub preț minim</th></tr></thead>
+              <tbody>{baseContrib.map((c) => <tr key={c.partner} className="border-b last:border-0">
+                <td className="max-w-64 truncate py-1">{c.partner}</td><td className="text-right tabular-nums">{n0(c.revenue)}</td>
+                <td className="text-right tabular-nums">{n0(c.revenue - c.fullProfit)}</td>
+                <td className={`text-right font-semibold tabular-nums ${tone(c.fullProfit)}`}>{c.fullProfit >= 0 ? "+" : ""}{n0(c.fullProfit)}</td>
+                <td className={`text-right tabular-nums ${tone(c.fullProfit)}`}>{n1(c.revenue ? c.fullProfit / c.revenue * 100 : 0)}%</td>
+                <td className="text-right tabular-nums">{c.belowLoss > 0 ? <span className="text-destructive">{n0(c.belowQty)} buc (−{n0(c.belowLoss)} lei)</span> : "—"}</td></tr>)}</tbody>
+            </table>
+            <p className="mt-2 text-xs text-muted-foreground">Rezultat = facturat − taxe rețea − toate costurile din fișă (marfă, ambalaje, transport, oameni, regie). Cei pe minus sunt sus.</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">3. Ce se întâmplă dacă…</CardTitle></CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1"><Label className="text-xs">Client</Label>
+                <select className={`${sel} max-w-72`} value={simPartner} onChange={(e) => setSimPartner(e.target.value)}><option value="">Alege clientul</option>{baseContrib.map((c) => <option key={c.partner} value={c.partner}>{c.partner}</option>)}</select></div>
+              <label className="flex items-center gap-2"><input type="radio" checked={!simDrop} onChange={() => setSimDrop(false)} />îi schimb prețul cu
+                <Input className="h-8 w-20 text-right" inputMode="decimal" value={String(simPrice)} disabled={simDrop} onChange={(e) => { const x = Number(e.target.value.replace(",", ".")); if (Number.isFinite(x)) setSimPrice(x); }} />%</label>
+              <label className="flex items-center gap-2"><input type="radio" checked={simDrop} onChange={() => setSimDrop(true)} />nu mai livrez deloc</label>
+            </div>
+            {sim && <div className="rounded border p-3">
+              {simDrop
+                ? <p>Pierzi facturi de <b>{n0(sim.c.revenue)} lei</b>, dar scapi de costurile care pleacă odată cu el. Regia și oamenii care rămân (<b>{n0(sim.c.fixedShare)} lei</b>) trec pe ceilalți clienți.</p>
+                : <p>Rezultatul la {sim.c.partner}: <b className={tone(sim.c.fullProfit)}>{n0(sim.c.fullProfit)}</b> → <b className={tone(sim.clientAfter)}>{n0(sim.clientAfter)} lei</b> (după taxele de rețea ale clientului).</p>}
+              <p className="mt-1 text-base">Efect pe toată firma: <b className={tone(sim.delta)}>{sim.delta >= 0 ? "+" : ""}{n0(sim.delta)} lei</b> → profit total <b className={tone(sim.after)}>{n0(sim.after)} lei</b> (acum {n0(base.profit)}).</p>
+            </div>}
+          </CardContent>
+        </Card>
+
+        <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Detalii pentru contabil (contabilitate Senior, scenarii avansate, structura pe game)</summary>
+        <div className="mt-3 space-y-4">
         <Card className={books && books.rev - books.exp < 0 ? "border-destructive" : ""}>
           <CardHeader className="pb-2"><CardTitle className="text-base">Realitatea din contabilitatea Senior ({months.a}–{months.b}, toată firma)</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
@@ -414,6 +480,7 @@ export default function CostStructure() {
               <tr key={g.k} className="border-b last:border-0"><td className="py-1">{g.k}</td><td className="text-right tabular-nums">{n0(g.b.revenue)}</td>{COST_KEYS.map((k) => <td key={k} className="text-right tabular-nums">{n1(pctOf(g.b.costs[k], g.b))}</td>)}<td className="text-right">{n1(pctOf(g.b.fees, g.b))}</td><td className={`text-right ${tone(g.b.profit)}`}>{n1(pctOf(g.b.profit, g.b))}</td><td className={`text-right tabular-nums ${tone(g.b.profit)}`}>{n0(g.b.profit)}</td><td className={`text-right tabular-nums ${tone(g.w.profit)}`}>{n0(g.w.profit)}</td></tr>
             ))}</tbody>
           </table></CardContent></Card>
+        </div></details>
       </>}
     </div>
   );
