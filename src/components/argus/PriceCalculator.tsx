@@ -21,6 +21,7 @@ import { priceRules, profitFor, setPriceRules, type RulesMeta } from "../../../s
 import PriceRulesEditor from "./PriceRulesEditor";
 import PartnerMirror from "./PartnerMirror";
 import CostStructure from "./CostStructure";
+import OfferToClient from "./OfferToClient";
 
 type Opt = { id: number; name: string };
 type Client = Opt & { stores: number };
@@ -793,6 +794,13 @@ function PriceListCalculator({ rulesVersion }: { rulesVersion: number }) {
               )}
             </CardContent>
           </Card>
+
+          {items.length > 0 && (
+            <OfferToClient clients={clients.filter((c) => c.id !== client)} sourceName={(store != null ? storeName : clientName) || "lista curentă"} items={items}
+              sourcePrice={(id) => { const it = items.find((x) => x.product.id === id); return it?.recentSale?.price ?? it?.priceList?.price ?? null; }}
+              year={year} month={month} mode={mode} marginPct={num(marginShown || "0")}
+              picker={({ value, onChange }) => <Picker label="Client ofertat" options={clients.filter((c) => c.id !== client)} value={value} onChange={onChange} placeholder="Alege clientul" />} />
+          )}
 
           {storeTotals.length > 0 && (
             <Card>

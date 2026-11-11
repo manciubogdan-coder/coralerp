@@ -463,3 +463,25 @@ export function defaultRates(d: { eur: { rate: number } | null }, marginPct = pr
     profitPct: priceRules().profitPct,
   };
 }
+
+/** Offer to another client: last price ever invoiced to the target partner (all its stores, whole Senior history) per product. */
+export async function priceHistoryData(sb: Rpc, body: Body) {
+  const raw = Array.isArray(body.articolIds) ? body.articolIds : [];
+  const aids = [...new Set(raw.map(int).filter(Boolean))] as number[];
+  const pid = int(body.partnerId);
+  if (!pid || !aids.length) throw new Error("Alege clientul ofertat și produsele.");
+  if (aids.length > MAX_PRODUCTS) throw new Error(`Maximum ${MAX_PRODUCTS} produse.`);
+  const scope = partnerScope(pid, null, await partnerInfo(sb, pid))!;
+  const rows = await SQL(sb, `SELECT x.aid, x.day, x.q, x.v, x.store, s.firstDay, s.qty, s.val FROM (
+      SELECT d.Articol_ID aid, CONVERT(char(10),h.Data,23) day, CAST(d.Cantitate AS float) q, CAST(d.Valoare_Neta_Rol AS float) v, pp.Partener_Denumire store,
+        ROW_NUMBER() OVER(PARTITION BY d.Articol_ID ORDER BY h.Data DESC,h.H_ID DESC,d.D_ID DESC) rn
+      FROM ${docs} ${PP1} WHERE t.Cod IN ${SALES} AND ${notCancelled} AND d.Articol_ID IN (${aids.join(",")}) AND ${scope} AND d.Cantitate>0) x
+    JOIN (SELECT d.Articol_ID aid, CONVERT(char(10),MIN(h.Data),23) firstDay, SUM(CAST(d.Cantitate AS float)) qty, SUM(CAST(d.Valoare_Neta_Rol AS float)) val
+      FROM ${docs} ${PP1} WHERE t.Cod IN ${SALES} AND ${notCancelled} AND d.Articol_ID IN (${aids.join(",")}) AND ${scope} GROUP BY d.Articol_ID) s ON s.aid=x.aid
+    WHERE x.rn=1`);
+  const n = (v: unknown) => Number(v) || 0;
+  return {
+    items: rows.map((r: any) => ({ aid: n(r.aid), lastDay: String(r.day), lastPrice: n(r.q) > 0 ? n(r.v) / n(r.q) : null, lastStore: String(r.store ?? "").trim(),
+      firstDay: String(r.firstDay), qty: n(r.qty), avgPrice: n(r.qty) > 0 ? n(r.val) / n(r.qty) : null })),
+  };
+}

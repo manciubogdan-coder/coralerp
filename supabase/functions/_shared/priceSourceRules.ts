@@ -6,7 +6,7 @@ export const PALLET_RELATION = `SELECT Articol_ID,MIN(CAST(Coef AS float)) coef 
 export function transportRoute(subject: string): string | null {
   const s = subject.trim().toUpperCase();
   if (s === 'TRANSPORT DIST BULGARIA') return 'Bulgaria';
-  if (s === 'TRANSPORT DIST MOLDOVA ICS') return 'Moldova';
+  if (/^TRANSPORT DIST (MOLDOVA|LINELLA)/.test(s)) return 'Moldova';
   if (/^TRANSPORT DIST (BUCURESTI|CRAIOVA|FOCSANI|HORECA|LUGOJ|PLOIESTI|ROMAN|TIMISOARA|TURDA|TURDA-IERNUT)$/.test(s)) return 'România';
   return null;
 }
@@ -18,7 +18,7 @@ export function routeKey(line: string): string | null {
 export const LEGACY_ROUTES = ['România', 'Bulgaria', 'Moldova'] as const;
 export function routeCountry(key: string): string {
   if (key === 'BULGARIA') return 'Bulgaria';
-  if (key.startsWith('MOLDOVA')) return 'Moldova';
+  if (key.startsWith('MOLDOVA') || key.includes('LINELLA')) return 'Moldova';
   return 'România';
 }
 const plain = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
@@ -140,7 +140,10 @@ export function buildRoutes(pointRows: any[], tripRows: any[], overrides: RouteO
     routes.set(key, r);
   }
   const unassigned: RoutePoint[] = [];
+  // Republic of Moldova: one truck serves Linella and ICS Metro; a point proposed on a Moldova cursă without own trips uses the Moldova cursă that has trips (e.g. Linella's).
+  const moldova = [...routes.values()].filter((r) => r.country === 'Moldova').sort((a, b) => b.trips - a.trips)[0];
   for (const p of points) {
+    if (!p.manual && p.route && !routes.has(p.route) && moldova && routeCountry(p.route) === 'Moldova') p.route = moldova.route;
     const r = p.route ? routes.get(p.route) : undefined;
     if (!r) { if (p.pallets > 0) unassigned.push(p); continue; }
     r.pallets += p.pallets; r.missingLines += p.missing; r.estimatedPallets += p.estimatedPallets;

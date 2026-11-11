@@ -24,7 +24,7 @@ import { priceTools } from "./priceTool.ts";
 import { filtersForTemplate, parameterizeSql, validLiveSpec, type LiveSpec } from "./liveReports.ts";
 import { filterOptions } from "./filterOptions.ts";
 import { agentBuilderTools } from "./agentBuilder.ts";
-import { priceCalcData, priceListData, priceOptions } from "../_shared/priceCalcSenior.ts";
+import { priceCalcData, priceHistoryData, priceListData, priceOptions } from "../_shared/priceCalcSenior.ts";
 import { partnerMirrorSales } from "../_shared/partnerMirror.ts";
 import { DEFAULT_PRICE_RULES, loadPriceRules, savePriceRules } from "../_shared/priceRules.ts";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
@@ -699,6 +699,10 @@ Deno.serve(async (req) => {
       }
       case "partner_mirror_sales": {
         try { return json(await partnerMirrorSales(c.cloud, await req.json())); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case "price_history": {
+        try { return json(await priceHistoryData(c.cloud, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case "price_list": {
