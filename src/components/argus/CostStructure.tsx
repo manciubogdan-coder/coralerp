@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { argusFetch } from "@/lib/argusApi";
 import { setPriceRules } from "../../../supabase/functions/_shared/priceRules";
 import { sheetFor } from "./PartnerMirror";
-import { ACCOUNTS, BASE, COST_KEYS, COST_LABEL, DEFAULT_FIXED, accountMatch, breakEvenPricePct, fixedOf, gamaOf, partnerContributions, pctOf, structureOf, type CostKey, type SaleLine, type Scenario, type Structure } from "@/lib/argus/costStructure";
+import { ACCOUNTS, BASE, COST_KEYS, COST_LABEL, DEFAULT_FIXED, accountMatch, recipeLossValue, breakEvenPricePct, fixedOf, gamaOf, partnerContributions, pctOf, structureOf, type CostKey, type SaleLine, type Scenario, type Structure } from "@/lib/argus/costStructure";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeFetchJson } from "@/lib/edgeFetch";
 
@@ -34,7 +34,8 @@ const FORMULA: Record<RowKey, string> = {
   ambalaje: "Din fișa de preț: caserole, folii, etichete din rețetă × ultima intrare NIR, × bucăți facturate.",
   manopera: "Din fișa de preț: oameni pe linie × cost oră ÷ viteza normată a liniei (+ regie %). Nu conține ore moarte, TESA, depozit.",
   regie: "Procentul de regie din regulile de calcul aplicat pe fișă — alocare, nu factura reală de energie/chirie.",
-  pierderi: "Pierderea tehnologică din fișă + „Pierderi reale % din MP” din scenariu (marfa aruncată la sortare/curățare).",
+  marja: "Marja brută din fișă (implicit 15% din preț): costul de regie al fabricii pe care fișa de preț îl pune peste costul direct. Fără ea, un preț pare rentabil deși nu acoperă fabrica — exact ca în Lista de prețuri.",
+  pierderi: "PT din nomenclator (marfa aruncată la curățare: kg efectiv − kg din rețetă, la prețul MP) + pierderea suplimentară din fișă + „Pierderi reale % din MP” din scenariu (marfa aruncată la sortare/curățare).",
   aprovizionare: "Cost camion (facturi 624.01) ÷ paleți comandați pe zi de livrare ÷ bucăți pe palet.",
   distributie: "Facturi cărăuș „TRANSPORT DIST <cursă>” ÷ paleți facturați magazinelor de pe cursă.",
   taxe: "Taxele de rețea din tabelul clientului (Reguli de calcul) × valoarea facturată.",
@@ -133,8 +134,9 @@ export default function CostStructure() {
             const s = sheetFor(it, res, p.name);
             if (!s.complete) { miss.push({ partner: p.name, product: a.name, value: a.value, why: `Fișă incompletă: ${[...s.missingInputs, ...s.missingPrices].slice(0, 3).join(", ")}` }); continue; }
             const n = s.unitsPerCase || 1;
-            out.push({ partner: p.name, product: a.name, gama: gamaOf(a.name), qty: a.qty, value: a.value, feePct: s.feePct ?? 0,
-              cost: { mp: s.rawMaterial / n, ambalaje: s.packaging / n, manopera: s.labour / n, regie: s.utilities / n, pierderi: s.techLoss / n, aprovizionare: s.supplyTransport / n, distributie: s.logistics / n } });
+            const ptLoss = recipeLossValue(it.components.map((c: any) => ({ ...c, price: c.kind === "mp" || c.kind === "marfa" ? c.annualPrice ?? null : c.price })));
+            out.push({ partner: p.name, product: a.name, gama: gamaOf(a.name), qty: a.qty, value: a.value, feePct: s.feePct ?? 0, minPiece: s.minPrice / n,
+              cost: { mp: (s.rawMaterial - ptLoss) / n, ambalaje: s.packaging / n, manopera: s.labour / n, regie: s.utilities / n, pierderi: (s.techLoss + ptLoss) / n, aprovizionare: s.supplyTransport / n, distributie: s.logistics / n, marja: s.grossMargin / n } });
           }
         } catch (e) { miss.push({ partner: p.name, product: "toate", value: p.value, why: (e as Error).message }); }
         setLines([...out]); setSkipped([...miss]);
@@ -170,7 +172,7 @@ export default function CostStructure() {
     for (const r of rows) { const x = byCont.get(r.cont) ?? { name: r.name, v: 0 }; x.v += key === "venituri" ? r.rev : r.exp; byCont.set(r.cont, x); }
     return { total: [...byCont.values()].reduce((t, x) => t + x.v, 0), accounts: [...byCont].sort((a, b) => b[1].v - a[1].v) };
   };
-  const lineValue = (l: SaleLine, key: RowKey | "venituri") => key === "venituri" ? l.value : key === "taxe" ? l.value * l.feePct / 100 : key === "profit" ? structureOf([l]).profit : l.cost[key] * l.qty;
+  const lineValue = (l: SaleLine, key: RowKey | "venituri") => key === "venituri" ? l.value : key === "taxe" ? l.value * l.feePct / 100 : key === "profit" ? structureOf([l]).profit : (l.cost[key] ?? 0) * l.qty;
   const top = (key: RowKey | "venituri", by: "product" | "partner") => {
     const m = new Map<string, number>();
     for (const l of view) m.set(l[by], (m.get(l[by]) ?? 0) + lineValue(l, key));
@@ -381,19 +383,20 @@ export default function CostStructure() {
 
         <Card><CardHeader className="pb-2"><CardTitle className="text-base">Portofoliu clienți: ce se întâmplă dacă renunț la unul</CardTitle></CardHeader>
           <CardContent className="overflow-x-auto">
-            <p className="mb-2 text-xs text-muted-foreground">Contribuția = venituri − taxe − costuri variabile. Dacă renunți la client pierzi contribuția lui; partea lui de costuri fixe rămâne și o plătesc ceilalți. Bifează ca să-l scoți din scenariu.</p>
+            <p className="mb-2 text-xs text-muted-foreground">Profitul după marja fișei se compară cu Lista de prețuri (prețul facturat real − taxe − preț minim). Contribuția = venituri − taxe − costuri variabile (distribuția pe curse pleacă cu clientul). Dacă renunți la client pierzi contribuția lui; partea lui de costuri fixe rămâne și o plătesc ceilalți. Bifează ca să-l scoți din scenariu.</p>
             <table className="w-full text-xs">
-              <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Renunț</th><th>Partener</th><th className="text-right">Venituri</th><th className="text-right">Costuri variabile</th><th className="text-right">Contribuție</th><th className="text-right">Contribuție %</th><th className="text-right">Costuri fixe purtate</th><th className="text-right">Profit „pe hârtie”</th><th className="text-right">Efect real dacă renunț</th></tr></thead>
+              <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Renunț</th><th>Partener</th><th className="text-right">Venituri</th><th className="text-right">Costuri variabile</th><th className="text-right">Contribuție</th><th className="text-right">Contribuție %</th><th className="text-right">Costuri fixe purtate</th><th className="text-right">Profit după marja fișei</th><th className="text-right" title="Bucăți facturate sub prețul minim din fișă (cost + marjă, după taxe)">Vândut sub preț minim</th><th className="text-right">Efect real dacă renunț</th></tr></thead>
               <tbody>{contrib.map((c) => { const on = (sc.dropPartners ?? []).includes(c.partner); return (
                 <tr key={c.partner} className={`border-b last:border-0 ${on ? "bg-destructive/5 line-through decoration-muted-foreground/40" : ""}`}>
                   <td className="py-1"><Checkbox checked={on} onCheckedChange={() => toggleDrop(c.partner)} aria-label={`Renunț la ${c.partner}`} /></td>
                   <td className="max-w-56 truncate">{c.partner}</td><td className="text-right tabular-nums">{n0(c.revenue)}</td><td className="text-right tabular-nums">{n0(c.variable)}</td>
                   <td className={`text-right tabular-nums ${tone(c.contribution)}`}>{n0(c.contribution)}</td><td className="text-right">{n1(c.revenue ? c.contribution / c.revenue * 100 : 0)}</td>
                   <td className="text-right tabular-nums">{n0(c.fixedShare)}</td><td className={`text-right tabular-nums ${tone(c.fullProfit)}`}>{n0(c.fullProfit)}</td>
+                  <td className="text-right tabular-nums">{c.belowLoss > 0 ? <span className="text-destructive" title={`${n0(c.belowQty)} buc sub prețul minim`}>−{n0(c.belowLoss)} ({n1(c.revenue ? c.belowQty / Math.max(1, c.qty) * 100 : 0)}% buc)</span> : "—"}</td>
                   <td className={`text-right font-medium tabular-nums ${tone(c.dropDelta)}`}>{c.dropDelta > 0 ? "+" : ""}{n0(c.dropDelta)}</td>
                 </tr>); })}</tbody>
             </table>
-            {(sc.dropPartners?.length ?? 0) > 0 && <p className="mt-2 text-sm">Fără {sc.dropPartners!.join(", ")}: profit <b className={tone(what.profit)}>{n0(what.profit)}</b> lei (față de {n0(base.profit)}), cost/buc la restul {n2(base.qty ? base.totalCost / base.qty : NaN)} → <b>{n2(what.qty ? what.totalCost / what.qty : NaN)}</b> lei, din care fix {n2(base.qty ? COST_KEYS.reduce((t, k) => t + base.costs[k] * fixedOf(sc, k), 0) / base.qty : NaN)} → <b>{n2(what.qty ? COST_KEYS.reduce((t, k) => t + view.reduce((a, l) => a + l.cost[k] * l.qty, 0) * fixedOf(sc, k) * (1 + (sc.pct[k] ?? 0) / 100), 0) / what.qty : NaN)}</b> lei.</p>}
+            {(sc.dropPartners?.length ?? 0) > 0 && <p className="mt-2 text-sm">Fără {sc.dropPartners!.join(", ")}: profit <b className={tone(what.profit)}>{n0(what.profit)}</b> lei (față de {n0(base.profit)}), cost/buc la restul {n2(base.qty ? base.totalCost / base.qty : NaN)} → <b>{n2(what.qty ? what.totalCost / what.qty : NaN)}</b> lei, din care fix {n2(base.qty ? COST_KEYS.reduce((t, k) => t + base.costs[k] * fixedOf(sc, k), 0) / base.qty : NaN)} → <b>{n2(what.qty ? COST_KEYS.reduce((t, k) => t + view.reduce((a, l) => a + (l.cost[k] ?? 0) * l.qty, 0) * fixedOf(sc, k) * (1 + (sc.pct[k] ?? 0) / 100), 0) / what.qty : NaN)}</b> lei.</p>}
           </CardContent></Card>
 
         {saved.length > 0 && <Card><CardHeader className="pb-2"><CardTitle className="text-base">Scenarii salvate (pe selecția curentă)</CardTitle></CardHeader>
