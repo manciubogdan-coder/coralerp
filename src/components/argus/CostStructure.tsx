@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
-import { Download, Loader2, Play, Save, Trash2 } from "lucide-react";
+import { Download, Loader2, Play, Save, Trash2, Users } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { argusFetch } from "@/lib/argusApi";
 import { setPriceRules } from "../../../supabase/functions/_shared/priceRules";
 import { sheetFor } from "./PartnerMirror";
@@ -50,6 +52,21 @@ export default function CostStructure() {
   const [groupBy, setGroupBy] = useState<"partner" | "gama" | "product">("gama");
   const [sc, setSc] = useState<Scenario>({ ...BASE, name: "Scenariu nou" });
   const [saved, setSaved] = useState<Scenario[]>(loadSc);
+  const [allPartners, setAllPartners] = useState<Partner[] | null>(null);
+  const [excluded, setExcluded] = useState<Set<number>>(new Set());
+  const [loadingPartners, setLoadingPartners] = useState(false);
+
+  const loadPartners = async () => {
+    setLoadingPartners(true);
+    try {
+      const { partners } = await argusFetch<{ partners: Partner[] }>("partner_mirror_sales", {}, range());
+      setAllPartners(partners);
+      setExcluded(new Set());
+    } catch (e) { setError((e as Error).message); }
+    finally { setLoadingPartners(false); }
+  };
+  const togglePartner = (id: number, on: boolean) => setExcluded((s) => { const n = new Set(s); if (on) n.delete(id); else n.add(id); return n; });
+  const changePeriod = (p: string) => { setPeriod(p); setAllPartners(null); setExcluded(new Set()); };
 
   const range = () => {
     if (period === "custom") return { start: from, end: day(new Date(new Date(`${to}T00:00:00Z`).getTime() + 86400_000)) };
@@ -62,8 +79,10 @@ export default function CostStructure() {
     setError(null); setLines([]); setSkipped([]);
     try {
       setProgress("Citesc vânzările din Senior…");
-      const { partners } = await argusFetch<{ partners: Partner[] }>("partner_mirror_sales", {}, range());
-      const list = partners.slice(0, limit);
+      const partners = allPartners ?? (await argusFetch<{ partners: Partner[] }>("partner_mirror_sales", {}, range())).partners;
+      setAllPartners(partners);
+      const list = partners.filter((p) => !excluded.has(p.id)).slice(0, limit);
+      if (list.length === 0) { setError("Nu ai selectat niciun partener."); return; }
       const out: SaleLine[] = [], miss: typeof skipped = [];
       for (let i = 0; i < list.length; i++) {
         const p = list[i];
@@ -128,14 +147,42 @@ export default function CostStructure() {
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-end gap-2">
             <div className="inline-flex flex-wrap rounded-md border bg-muted p-1">
-              {PERIODS.map(([k, l]) => <button key={k} onClick={() => setPeriod(k)} className={`rounded px-3 py-1 text-sm ${period === k ? "bg-background shadow-sm" : "text-muted-foreground"}`}>{l}</button>)}
+              {PERIODS.map(([k, l]) => <button key={k} onClick={() => changePeriod(k)} className={`rounded px-3 py-1 text-sm ${period === k ? "bg-background shadow-sm" : "text-muted-foreground"}`}>{l}</button>)}
             </div>
             {period === "custom" && <>
               <div className="space-y-1"><Label className="text-xs">De la</Label><Input type="date" className="h-8" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
               <div className="space-y-1"><Label className="text-xs">Până la</Label><Input type="date" className="h-8" value={to} onChange={(e) => setTo(e.target.value)} /></div>
             </>}
             <div className="space-y-1"><Label className="text-xs">Parteneri incluși</Label>
-              <select className={sel} value={limit} onChange={(e) => setLimit(Number(e.target.value))}>{[5, 10, 15, 25, 40, 80].map((x) => <option key={x} value={x}>Primii {x} după vânzări</option>)}</select></div>
+              <div className="flex gap-1">
+                <Popover onOpenChange={(o) => { if (o && !allPartners && !loadingPartners) void loadPartners(); }}>
+                  <PopoverTrigger asChild>
+                    <Button size="sm" variant="outline" className="h-8">
+                      <Users className="mr-1 h-4 w-4" />
+                      {!allPartners ? "Alege partenerii" : excluded.size === 0 ? `Toți (${allPartners.length})` : `${allPartners.length - excluded.size} din ${allPartners.length}`}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-2" align="start">
+                    {loadingPartners && <p className="flex items-center gap-2 p-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Citesc partenerii din Senior…</p>}
+                    {allPartners && <>
+                      <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm font-medium hover:bg-muted">
+                        <Checkbox checked={excluded.size === 0} onCheckedChange={(c) => setExcluded(c ? new Set() : new Set(allPartners.map((p) => p.id)))} />
+                        Toți
+                      </label>
+                      <div className="mt-1 max-h-72 overflow-y-auto border-t pt-1">
+                        {allPartners.map((p) => (
+                          <label key={p.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted">
+                            <Checkbox checked={!excluded.has(p.id)} onCheckedChange={(c) => togglePartner(p.id, !!c)} />
+                            <span className="flex-1 truncate">{p.name}</span>
+                            <span className="text-xs tabular-nums text-muted-foreground">{n0(p.value)} lei</span>
+                          </label>
+                        ))}
+                      </div>
+                    </>}
+                  </PopoverContent>
+                </Popover>
+                <select className={sel} value={limit} onChange={(e) => setLimit(Number(e.target.value))} title="Maxim parteneri luați în calcul">{[5, 10, 15, 25, 40, 80].map((x) => <option key={x} value={x}>max {x}</option>)}</select>
+              </div></div>
             <Button size="sm" onClick={run} disabled={!!progress}>{progress ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}Calculează</Button>
             {lines.length > 0 && <Button size="sm" variant="outline" onClick={exportXlsx}><Download className="mr-1 h-4 w-4" />Excel P&L</Button>}
           </div>
