@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { partnerContributions, structureOf, breakEvenPricePct, gamaOf, recipeLossValue, type SaleLine } from "../src/lib/argus/costStructure";
+import { partnerContributions, partnerResults, structureOf, breakEvenPricePct, gamaOf, recipeLossValue, type SaleLine } from "../src/lib/argus/costStructure";
 const cost = { mp: 2, ambalaje: 1, manopera: 0.5, regie: 0.5, pierderi: 0, aprovizionare: 0.5, distributie: 0.5 };
 const lines: SaleLine[] = [{ partner: "A", product: "Mix", gama: "Mixte", qty: 100, value: 1000, feePct: 10, cost }];
 describe("cost structure", () => {
@@ -33,5 +33,17 @@ describe("cost structure", () => {
   });
   test("volume −50% keeps fixed overhead whole", () => {
     expect(structureOf(lines, { name: "x", pct: {}, pricePct: 0, volumePct: -50, feeDelta: 0 }).costs.regie).toBeCloseTo(50);
+  });
+  test("price change for one client moves only that client's revenue", () => {
+    const s = structureOf(two, { name: "x", pct: {}, pricePct: 0, volumePct: 0, feeDelta: 0, partnerPricePct: { B: 10 } });
+    expect(s.revenue).toBeCloseTo(1440);
+  });
+  test("dropped client's fixed costs land on the others; per-client results add up to the company", () => {
+    const sc = { name: "x", pct: {}, pricePct: 0, volumePct: 0, feeDelta: 0, dropPartners: ["B"] };
+    const r = partnerResults(two, sc);
+    const a = r.find((x) => x.partner === "A")!;
+    // B leaves 0,75 lei/buc × 100 fixed = 75 lei, all on A: 400 − 75
+    expect(a.result).toBeCloseTo(325);
+    expect(r.reduce((t, x) => t + x.result, 0)).toBeCloseTo(structureOf(two, sc).profit);
   });
 });

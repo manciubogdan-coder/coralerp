@@ -15,6 +15,8 @@ export type Scenario = {
   name: string; pct: Partial<Record<CostKey, number>>; pricePct: number; volumePct: number; feeDelta: number;
   /** Partners removed from the portfolio: their sales and variable costs go, their share of fixed costs stays. */
   dropPartners?: string[];
+  /** Price change per partner, in %, on top of the global price change. */
+  partnerPricePct?: Record<string, number>;
   /** Real technological loss, as % of raw material processed, added on top of the sheet loss. */
   lossPct?: number;
   /** Share of each cost line that does not move with volume (rent, indirect staff, trucks already paid). */
@@ -50,7 +52,7 @@ export function structureOf(lines: SaleLine[], sc: Scenario = BASE): Structure {
   for (const l of lines) {
     for (const k of COST_KEYS) costs[k] += (l.cost[k] ?? 0) * fixedOf(sc, k) * l.qty * (1 + (sc.pct[k] ?? 0) / 100);
     if (drop.has(l.partner)) continue;
-    const q = l.qty * vol, v = l.value * vol * price;
+    const q = l.qty * vol, v = l.value * vol * price * (1 + (sc.partnerPricePct?.[l.partner] ?? 0) / 100);
     qty += q; revenue += v;
     fees += v * Math.max(0, l.feePct + sc.feeDelta) / 100;
     for (const k of COST_KEYS) costs[k] += (l.cost[k] ?? 0) * (1 - fixedOf(sc, k)) * (1 + (sc.pct[k] ?? 0) / 100) * q;
@@ -58,6 +60,27 @@ export function structureOf(lines: SaleLine[], sc: Scenario = BASE): Structure {
   costs.pierderi += costs.mp * Math.max(0, sc.lossPct ?? 0) / 100;
   const totalCost = COST_KEYS.reduce((t, k) => t + costs[k], 0);
   return { qty, revenue, fees, costs, totalCost, profit: revenue - fees - totalCost };
+}
+
+export type PartnerResult = { partner: string; dropped: boolean; qty: number; revenue: number; fees: number; cost: number; result: number };
+/**
+ * Result per partner under a scenario. The fixed costs a dropped partner leaves behind are moved onto the
+ * remaining partners proportionally to their revenue, so the sum of results always equals the company total.
+ */
+export function partnerResults(lines: SaleLine[], sc: Scenario = BASE): PartnerResult[] {
+  const drop = new Set(sc.dropPartners ?? []);
+  const rows = [...new Set(lines.map((l) => l.partner))].map((partner) => {
+    const s = structureOf(lines.filter((l) => l.partner === partner), { ...sc, dropPartners: drop.has(partner) ? [partner] : [] });
+    return { partner, dropped: drop.has(partner), qty: s.qty, revenue: s.revenue, fees: s.fees, cost: s.totalCost, result: s.profit };
+  });
+  const orphan = rows.filter((r) => r.dropped).reduce((t, r) => t + r.cost, 0);
+  const keptRev = rows.filter((r) => !r.dropped).reduce((t, r) => t + r.revenue, 0);
+  for (const r of rows) {
+    if (r.dropped) { r.cost = 0; r.result = 0; continue; }
+    const extra = keptRev > 0 ? orphan * (r.revenue / keptRev) : 0;
+    r.cost += extra; r.result -= extra;
+  }
+  return rows.sort((a, b) => a.result - b.result);
 }
 
 export const pctOf = (part: number, s: Structure) => (s.revenue ? (part / s.revenue) * 100 : 0);

@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { argusFetch } from "@/lib/argusApi";
 import { setPriceRules } from "../../../supabase/functions/_shared/priceRules";
 import { sheetFor } from "./PartnerMirror";
-import { ACCOUNTS, BASE, COST_KEYS, COST_LABEL, DEFAULT_FIXED, accountMatch, lastClosedPeriod, recipeLossValue, breakEvenPricePct, fixedOf, gamaOf, partnerContributions, pctOf, structureOf, type CostKey, type SaleLine, type Scenario, type Structure } from "@/lib/argus/costStructure";
+import { ACCOUNTS, BASE, COST_KEYS, COST_LABEL, DEFAULT_FIXED, accountMatch, lastClosedPeriod, recipeLossValue, breakEvenPricePct, fixedOf, gamaOf, partnerContributions, pctOf, structureOf, partnerResults, type CostKey, type SaleLine, type Scenario, type Structure } from "@/lib/argus/costStructure";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeFetchJson } from "@/lib/edgeFetch";
 
@@ -147,21 +147,30 @@ export default function CostStructure() {
 
   const opts = (f: (l: SaleLine) => string) => [...new Set(lines.map(f))].sort((a, b) => a.localeCompare(b, "ro"));
   const view = useMemo(() => lines.filter((l) => (!fPartner || l.partner === fPartner) && (!fGama || l.gama === fGama) && (!fProduct || l.product === fProduct)), [lines, fPartner, fGama, fProduct]);
+  type Change = { partner: string; drop: boolean; pct: number };
+  const [changes, setChanges] = useState<Change[]>([]);
+  const [newPartner, setNewPartner] = useState("");
+  const eff = useMemo<Scenario>(() => ({
+    ...sc,
+    dropPartners: [...new Set([...(sc.dropPartners ?? []), ...changes.filter((c) => c.drop).map((c) => c.partner)])],
+    partnerPricePct: Object.fromEntries(changes.filter((c) => !c.drop && c.pct).map((c) => [c.partner, c.pct])),
+  }), [sc, changes]);
+  const active = changes.length > 0 || JSON.stringify({ ...sc, name: "" }) !== JSON.stringify({ ...BASE, name: "" });
   const base = useMemo(() => structureOf(view), [view]);
-  const what = useMemo(() => structureOf(view, sc), [view, sc]);
-  const be = useMemo(() => breakEvenPricePct(view, { ...sc, pricePct: 0 }), [view, sc]);
+  const what = useMemo(() => structureOf(view, eff), [view, eff]);
+  const be = useMemo(() => breakEvenPricePct(view, { ...eff, pricePct: 0 }), [view, eff]);
   const groups = useMemo(() => {
     const m = new Map<string, SaleLine[]>();
     for (const l of view) { const k = l[groupBy]; m.set(k, [...(m.get(k) ?? []), l]); }
-    return [...m].map(([k, ls]) => ({ k, b: structureOf(ls), w: structureOf(ls, sc) })).sort((a, b) => a.w.profit - b.w.profit);
-  }, [view, groupBy, sc]);
+    return [...m].map(([k, ls]) => ({ k, b: structureOf(ls), w: structureOf(ls, eff) })).sort((a, b) => a.w.profit - b.w.profit);
+  }, [view, groupBy, eff]);
 
   const setPct = (k: CostKey, v: number) => setSc((s) => ({ ...s, pct: { ...s.pct, [k]: v } }));
   const persist = (list: Scenario[]) => { setSaved(list); localStorage.setItem(SC_KEY, JSON.stringify(list)); };
   const saveSc = () => persist([...saved.filter((x) => x.name !== sc.name), sc]);
   const rowsOf = (s: Structure): Array<[string, number]> => [...COST_KEYS.map((k) => [COST_LABEL[k], s.costs[k]] as [string, number]), [COST_LABEL.taxe, s.fees], [COST_LABEL.profit, s.profit]];
   const ROW_KEYS: RowKey[] = [...COST_KEYS, "taxe", "profit"];
-  const contrib = useMemo(() => partnerContributions(view, sc), [view, sc]);
+  const contrib = useMemo(() => partnerContributions(view, eff), [view, eff]);
   const toggleDrop = (p: string) => setSc((s) => { const d = new Set(s.dropPartners ?? []); if (d.has(p)) d.delete(p); else d.add(p); return { ...s, dropPartners: [...d] }; });
   const months = useMemo(() => { const { start, end } = range(); const a = start.slice(0, 7).replace("-", ""), b = end.slice(0, 7).replace("-", ""); return { a, b }; }, [period, from, to]);
   const realOf = (key: RowKey | "venituri") => {
@@ -240,22 +249,17 @@ export default function CostStructure() {
     XLSX.writeFile(wb, `Structura costuri ${start} - ${end}.xlsx`);
   };
 
-  const [simPartner, setSimPartner] = useState("");
-  const [simPrice, setSimPrice] = useState(5);
-  const [simDrop, setSimDrop] = useState(false);
   const baseContrib = useMemo(() => partnerContributions(view, BASE).sort((a, b) => a.fullProfit - b.fullProfit), [view]);
-  const sim = useMemo(() => {
-    const c = baseContrib.find((x) => x.partner === simPartner);
-    if (!c) return null;
-    const fee = c.revenue ? c.fees / c.revenue : 0;
-    const delta = simDrop ? c.dropDelta : c.revenue * (simPrice / 100) * (1 - fee);
-    return { c, delta, after: base.profit + delta, clientAfter: simDrop ? 0 : c.fullProfit + c.revenue * (simPrice / 100) * (1 - fee) };
-  }, [baseContrib, simPartner, simPrice, simDrop, base.profit]);
-  const SIMPLE: Array<[string, number]> = [
-    ["Materie primă", base.costs.mp], ["Pierderi (curățare, sortare)", base.costs.pierderi], ["Ambalaje & etichete", base.costs.ambalaje],
-    ["Transport aprovizionare", base.costs.aprovizionare], ["Transport livrare la magazine", base.costs.distributie], ["Manoperă (oameni pe linie)", base.costs.manopera],
-    ["Regie fabrică", base.costs.regie + base.costs.marja], ["Taxe rețea client", base.fees],
+  const resNow = useMemo(() => partnerResults(view, BASE), [view]);
+  const resAfter = useMemo(() => new Map(partnerResults(view, eff).map((r) => [r.partner, r])), [view, eff]);
+  const delta = what.profit - base.profit;
+  const upd = (i: number, c: Partial<Change>) => setChanges((xs) => xs.map((x, j) => (j === i ? { ...x, ...c } : x)));
+  const simpleOf = (s: Structure): Array<[string, number]> => [
+    ["Materie primă", s.costs.mp], ["Pierderi (curățare, sortare)", s.costs.pierderi], ["Ambalaje & etichete", s.costs.ambalaje],
+    ["Transport aprovizionare", s.costs.aprovizionare], ["Transport livrare la magazine", s.costs.distributie], ["Manoperă (oameni pe linie)", s.costs.manopera],
+    ["Regie fabrică + marjă brută (cheltuielile firmei)", s.costs.regie + s.costs.marja], ["Taxe rețea client", s.fees],
   ];
+  const realNow = books ? books.rev - books.exp : null;
 
   const skippedValue = skipped.reduce((t, s) => t + s.value, 0);
   return (
@@ -321,15 +325,48 @@ export default function CostStructure() {
       </Card>
 
       {view.length > 0 && <>
+        <Card className="border-primary">
+          <CardHeader className="pb-2"><CardTitle className="text-base">Ce se întâmplă dacă… <span className="text-xs font-normal text-muted-foreground">(tot ce e mai jos se recalculează după alegerea de aici)</span></CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {changes.map((c, i) => <div key={c.partner} className="flex flex-wrap items-center gap-3 rounded border p-2">
+              <b className="min-w-48 max-w-72 truncate">{c.partner}</b>
+              <label className="flex items-center gap-2"><input type="radio" checked={!c.drop} onChange={() => upd(i, { drop: false })} />îi schimb prețul cu
+                <Input className="h-8 w-20 text-right" inputMode="decimal" value={String(c.pct)} disabled={c.drop} onChange={(e) => { const x = Number(e.target.value.replace(",", ".")); if (Number.isFinite(x)) upd(i, { pct: x }); }} />%</label>
+              <label className="flex items-center gap-2"><input type="radio" checked={c.drop} onChange={() => upd(i, { drop: true })} />nu mai livrez deloc</label>
+              <Button size="sm" variant="ghost" onClick={() => setChanges((xs) => xs.filter((_, j) => j !== i))} aria-label={`Scot ${c.partner}`}><Trash2 className="h-4 w-4" /></Button>
+            </div>)}
+            <div className="flex flex-wrap items-end gap-2">
+              <select className={`${sel} max-w-72`} value={newPartner} onChange={(e) => setNewPartner(e.target.value)}><option value="">Alege un client…</option>{resNow.filter((r) => !changes.some((c) => c.partner === r.partner)).map((r) => <option key={r.partner} value={r.partner}>{r.partner}</option>)}</select>
+              <Button size="sm" variant="outline" disabled={!newPartner} onClick={() => { setChanges((xs) => [...xs, { partner: newPartner, drop: false, pct: 5 }]); setNewPartner(""); }}>Adaugă modificare</Button>
+              {active && <Button size="sm" variant="ghost" onClick={() => { setChanges([]); setSc({ ...BASE, name: "Scenariu nou" }); }}>Șterge tot (înapoi la realitate)</Button>}
+            </div>
+            <div className="grid gap-2 border-t pt-2 sm:grid-cols-2">
+              <div className="rounded border p-2"><p className="text-xs text-muted-foreground">Profit/pierdere pe calculul din fișe ({monthsCount.toFixed(0)} luni, clienții incluși)</p>
+                <p className="text-base">Acum <b className={tone(base.profit)}>{n0(base.profit)}</b>{active && <> → după <b className={tone(what.profit)}>{n0(what.profit)}</b> lei (<b className={tone(delta)}>{delta >= 0 ? "+" : ""}{n0(delta)}</b>)</>}</p></div>
+              <div className="rounded border p-2"><p className="text-xs text-muted-foreground">Rezultat real din contabilitate (luni încheiate, toată firma)</p>
+                {realNow == null ? <p className="text-muted-foreground">{journalErr ?? "Citesc contabilitatea…"}</p>
+                  : <p className="text-base">Acum <b className={tone(realNow)}>{n0(realNow)}</b>{active && <> → estimat <b className={tone(realNow + delta)}>{n0(realNow + delta)}</b> lei</>}</p>}</div>
+            </div>
+            {!active && <p className="text-xs text-muted-foreground">Alege un client și spune ce faci cu el: scumpești/ieftinești sau renunți. Poți adăuga mai mulți clienți deodată.</p>}
+            {changes.some((c) => c.drop) && <p className="text-xs text-muted-foreground">La renunțare pierzi facturile și costurile care pleacă odată cu clientul (marfă, ambalaje, transport, o parte din oameni). Regia și oamenii care rămân se mută pe ceilalți clienți — vezi coloana „După” mai jos.</p>}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">1. Din 100 lei încasați, unde se duc banii?</CardTitle></CardHeader>
           <CardContent className="space-y-1.5 text-sm">
-            <p className="mb-2 text-xs text-muted-foreground">Facturat în perioadă la partenerii incluși: <b>{n0(base.revenue)} lei</b> ({n0(base.qty)} buc). Costurile sunt cele din Lista de prețuri (aceleași fișe).</p>
-            {SIMPLE.map(([l, v]) => <div key={l} className="grid grid-cols-[1fr_90px_110px] items-center gap-2">
-              <div><span>{l}</span><div className="h-1.5 rounded bg-muted"><div className="h-1.5 rounded bg-primary" style={{ width: `${Math.min(100, Math.max(0, pctOf(v, base)))}%` }} /></div></div>
-              <b className="text-right tabular-nums">{n1(pctOf(v, base))} lei</b><span className="text-right text-xs tabular-nums text-muted-foreground">{n0(v)} lei total</span></div>)}
-            <div className="grid grid-cols-[1fr_90px_110px] gap-2 border-t pt-2 font-semibold"><span>Rămâne profit</span><span className={`text-right tabular-nums ${tone(base.profit)}`}>{n1(pctOf(base.profit, base))} lei</span><span className={`text-right text-xs tabular-nums ${tone(base.profit)}`}>{n0(base.profit)} lei</span></div>
-            {books && <p className={`mt-2 rounded border p-2 text-xs ${books.rev - books.exp < 0 ? "border-destructive text-destructive" : ""}`}>Atenție: acesta e calculul din fișe. În contabilitatea Senior (toată firma, toate cheltuielile, până la ultima lună încheiată{books.closed ? ` ${books.closed.slice(4)}.${books.closed.slice(0, 4)}` : ""}) rezultatul real e <b>{n0(books.rev - books.exp)} lei</b>. Diferența = cheltuieli care nu intră în fișe (vezi „Detalii pentru contabil” jos).</p>}
+            <p className="mb-2 text-xs text-muted-foreground">Facturat la clienții incluși: <b>{n0(base.revenue)} lei</b>{active && <> → după modificări <b>{n0(what.revenue)} lei</b></>}. Costurile sunt cele din Lista de prețuri.</p>
+            <div className={`grid ${active ? "grid-cols-[1fr_80px_80px_110px]" : "grid-cols-[1fr_80px_110px]"} gap-2 text-xs text-muted-foreground`}><span /><span className="text-right">Acum</span>{active && <span className="text-right">După</span>}<span className="text-right">Total {active ? "după" : ""} (lei)</span></div>
+            {simpleOf(base).map(([l, v], i) => { const w = simpleOf(what)[i][1]; return <div key={l} className={`grid ${active ? "grid-cols-[1fr_80px_80px_110px]" : "grid-cols-[1fr_80px_110px]"} items-center gap-2`}>
+              <div><span>{l}</span><div className="h-1.5 rounded bg-muted"><div className="h-1.5 rounded bg-primary" style={{ width: `${Math.min(100, Math.max(0, pctOf(active ? w : v, active ? what : base)))}%` }} /></div></div>
+              <b className="text-right tabular-nums">{n1(pctOf(v, base))} lei</b>
+              {active && <b className={`text-right tabular-nums ${pctOf(w, what) > pctOf(v, base) + 0.05 ? "text-destructive" : pctOf(w, what) < pctOf(v, base) - 0.05 ? "text-crm-green" : ""}`}>{n1(pctOf(w, what))} lei</b>}
+              <span className="text-right text-xs tabular-nums text-muted-foreground">{n0(active ? w : v)}</span></div>; })}
+            <div className={`grid ${active ? "grid-cols-[1fr_80px_80px_110px]" : "grid-cols-[1fr_80px_110px]"} gap-2 border-t pt-2 font-semibold`}><span>Rămâne profit</span>
+              <span className={`text-right tabular-nums ${tone(base.profit)}`}>{n1(pctOf(base.profit, base))} lei</span>
+              {active && <span className={`text-right tabular-nums ${tone(what.profit)}`}>{n1(pctOf(what.profit, what))} lei</span>}
+              <span className={`text-right text-xs tabular-nums ${tone(active ? what.profit : base.profit)}`}>{n0(active ? what.profit : base.profit)}</span></div>
+            {realNow != null && <p className={`mt-2 rounded border p-2 text-xs ${realNow < 0 ? "border-destructive text-destructive" : ""}`}>Atenție: acesta e calculul din fișe. În contabilitate (toată firma, până la ultima lună încheiată{books?.closed ? ` ${books.closed.slice(4)}.${books.closed.slice(0, 4)}` : ""}) rezultatul real e <b>{n0(realNow)} lei</b>{active && <>, iar cu modificările ar fi aproximativ <b>{n0(realNow + delta)} lei</b></>}. Diferența dintre fișe și contabilitate = cheltuieli care nu intră în fișe (vezi „Detalii pentru contabil” jos).</p>}
           </CardContent>
         </Card>
 
@@ -337,34 +374,16 @@ export default function CostStructure() {
           <CardHeader className="pb-2"><CardTitle className="text-base">2. Cine te bagă în gaură și cine îți aduce profit?</CardTitle></CardHeader>
           <CardContent className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-1">Client</th><th className="text-right">Facturat</th><th className="text-right">Costuri + taxe</th><th className="text-right">Rezultat</th><th className="text-right">% din facturat</th><th className="text-right">Vândut sub preț minim</th></tr></thead>
-              <tbody>{baseContrib.map((c) => <tr key={c.partner} className="border-b last:border-0">
+              <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-1">Client</th><th className="text-right">Facturat</th><th className="text-right">Rezultat acum</th><th className="text-right">% din facturat</th>{active && <><th className="text-right">Rezultat după</th><th className="text-right">Diferență</th></>}<th className="text-right">Vândut sub preț minim</th></tr></thead>
+              <tbody>{resNow.map((c) => { const w = resAfter.get(c.partner); const below = baseContrib.find((x) => x.partner === c.partner); return <tr key={c.partner} className={`border-b last:border-0 ${w?.dropped ? "bg-destructive/5" : changes.some((x) => x.partner === c.partner) ? "bg-primary/5" : ""}`}>
                 <td className="max-w-64 truncate py-1">{c.partner}</td><td className="text-right tabular-nums">{n0(c.revenue)}</td>
-                <td className="text-right tabular-nums">{n0(c.revenue - c.fullProfit)}</td>
-                <td className={`text-right font-semibold tabular-nums ${tone(c.fullProfit)}`}>{c.fullProfit >= 0 ? "+" : ""}{n0(c.fullProfit)}</td>
-                <td className={`text-right tabular-nums ${tone(c.fullProfit)}`}>{n1(c.revenue ? c.fullProfit / c.revenue * 100 : 0)}%</td>
-                <td className="text-right tabular-nums">{c.belowLoss > 0 ? <span className="text-destructive">{n0(c.belowQty)} buc (−{n0(c.belowLoss)} lei)</span> : "—"}</td></tr>)}</tbody>
+                <td className={`text-right font-semibold tabular-nums ${tone(c.result)}`}>{c.result >= 0 ? "+" : ""}{n0(c.result)}</td>
+                <td className={`text-right tabular-nums ${tone(c.result)}`}>{n1(c.revenue ? c.result / c.revenue * 100 : 0)}%</td>
+                {active && <>{w?.dropped ? <td className="text-right text-muted-foreground">renunțat</td> : <td className={`text-right font-semibold tabular-nums ${tone(w?.result ?? 0)}`}>{n0(w?.result ?? 0)}</td>}
+                  <td className={`text-right tabular-nums ${tone((w?.result ?? 0) - c.result)}`}>{w && Math.abs(w.result - c.result) >= 1 ? `${w.result - c.result >= 0 ? "+" : ""}${n0(w.result - c.result)}` : "—"}</td></>}
+                <td className="text-right tabular-nums">{below && below.belowLoss > 0 ? <span className="text-destructive">{n0(below.belowQty)} buc (−{n0(below.belowLoss)} lei)</span> : "—"}</td></tr>; })}</tbody>
             </table>
-            <p className="mt-2 text-xs text-muted-foreground">Rezultat = facturat − taxe rețea − toate costurile din fișă (marfă, ambalaje, transport, oameni, regie). Cei pe minus sunt sus.</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">3. Ce se întâmplă dacă…</CardTitle></CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-1"><Label className="text-xs">Client</Label>
-                <select className={`${sel} max-w-72`} value={simPartner} onChange={(e) => setSimPartner(e.target.value)}><option value="">Alege clientul</option>{baseContrib.map((c) => <option key={c.partner} value={c.partner}>{c.partner}</option>)}</select></div>
-              <label className="flex items-center gap-2"><input type="radio" checked={!simDrop} onChange={() => setSimDrop(false)} />îi schimb prețul cu
-                <Input className="h-8 w-20 text-right" inputMode="decimal" value={String(simPrice)} disabled={simDrop} onChange={(e) => { const x = Number(e.target.value.replace(",", ".")); if (Number.isFinite(x)) setSimPrice(x); }} />%</label>
-              <label className="flex items-center gap-2"><input type="radio" checked={simDrop} onChange={() => setSimDrop(true)} />nu mai livrez deloc</label>
-            </div>
-            {sim && <div className="rounded border p-3">
-              {simDrop
-                ? <p>Pierzi facturi de <b>{n0(sim.c.revenue)} lei</b>, dar scapi de costurile care pleacă odată cu el. Regia și oamenii care rămân (<b>{n0(sim.c.fixedShare)} lei</b>) trec pe ceilalți clienți.</p>
-                : <p>Rezultatul la {sim.c.partner}: <b className={tone(sim.c.fullProfit)}>{n0(sim.c.fullProfit)}</b> → <b className={tone(sim.clientAfter)}>{n0(sim.clientAfter)} lei</b> (după taxele de rețea ale clientului).</p>}
-              <p className="mt-1 text-base">Efect pe toată firma: <b className={tone(sim.delta)}>{sim.delta >= 0 ? "+" : ""}{n0(sim.delta)} lei</b> → profit total <b className={tone(sim.after)}>{n0(sim.after)} lei</b> (acum {n0(base.profit)}).</p>
-            </div>}
+            <p className="mt-2 text-xs text-muted-foreground">Rezultat = facturat − taxe rețea − toate costurile din fișă (marfă, ambalaje, transport, oameni, regie). Cei pe minus sunt sus.{active && " „După” arată fiecare client după modificările de sus; la renunțare, cheltuielile firmei rămase se împart pe ceilalți după cât facturează."}</p>
           </CardContent>
         </Card>
 
