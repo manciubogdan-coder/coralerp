@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { lastClosedPeriod } from "./costStructure";
+import { describe, expect, it } from "bun:test";
+import { lastClosedPeriod } from "../src/lib/argus/costStructure";
 const m = (period: string, sal: number, st: number) => [{ period, cont: "641", exp: sal }, { period, cont: "646", exp: st }];
 describe("lastClosedPeriod", () => {
   it("skips the current month and a month without salaries booked", () => {
