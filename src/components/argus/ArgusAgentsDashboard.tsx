@@ -79,10 +79,12 @@ export default function ArgusAgentsDashboard() {
   useEffect(() => { load(); }, [load]);
 
   const [values, setValues] = useState<Record<string, Record<string, string>>>({});
+  // Untouched cards send no values so relative periods ("azi", "ultimele 7 zile") resolve again on the server;
+  // only price sheets reuse their last filters, which hold no dates.
   const run = async (templateId: string) => {
     setRunning((s) => ({ ...s, [templateId]: true }));
     try {
-      const r = await argusFetch<any>("agent_run", { id: templateId }, { values: values[templateId] ?? reports[templateId]?.content_json?.filtre ?? {} });
+      const r = await argusFetch<any>("agent_run", { id: templateId }, { values: values[templateId] ?? (cards.find((c) => c.template_id === templateId)?.argus_report_templates?.live_spec?.kind === "price" ? reports[templateId]?.content_json?.filtre : undefined) ?? {} });
       // The agent runs in the background on the server; poll until its report is no longer pending (max ~8 min).
       if (r?.background) {
         for (let i = 0; i < 96; i++) {
