@@ -44,23 +44,37 @@ export function compensateAdvanceQuantities(
     let demand = Math.max(0, Number(firm.cantitate || 0) - Number(firm.cantitate_din_restock || 0));
     let unmet = Math.max(0, demand - Number(firm.cantitate_reala_produsa || 0));
     let transferred = 0;
-    for (const balance of balances) {
-      if (demand <= 0) break;
-      if (dayOf(balance.order) !== dayOf(firm) || balance.capacity <= 0) continue;
-      const reducePlan = canCompensateAdvance(balance.order, firm, balance.automatic);
-      // Existing physical advance production covers this day's demand even when
-      // Senior created the firm order earlier. Unproduced manual plans stay intact.
-      const take = reducePlan
-        ? Math.min(demand, balance.capacity)
-        : Math.min(unmet, balance.produced, balance.capacity);
-      const fromProduced = Math.min(unmet, balance.produced, take);
-      balance.capacity -= take;
+    const eligible = balances.filter(b => dayOf(b.order) === dayOf(firm));
+    const take = (balance: typeof balances[number], qty: number, fromProduced: number) => {
+      balance.capacity -= qty;
       balance.produced -= fromProduced;
-      balance.reduction += take;
+      balance.reduction += qty;
       balance.transferred += fromProduced;
-      demand -= take;
+      demand -= qty;
       unmet -= fromProduced;
       transferred += fromProduced;
+    };
+    // 1) Existing physical advance production covers this day's unmet firm demand,
+    //    even when Senior created the firm order earlier.
+    for (const balance of eligible) {
+      if (unmet <= 0) break;
+      const qty = Math.min(unmet, balance.produced, balance.capacity);
+      if (qty > 0) take(balance, qty, qty);
+    }
+    // 2) Demand already covered elsewhere reduces only plans allowed to shrink,
+    //    starting with their unproduced part, so an advance that was already made
+    //    is not emptied while a twin advance of the group shows a fake shortage.
+    //    Unproduced manual plans stay intact.
+    const reducible = eligible.filter(b => canCompensateAdvance(b.order, firm, b.automatic));
+    for (const balance of reducible) {
+      if (demand <= 0) break;
+      const qty = Math.min(demand, Math.max(0, balance.capacity - balance.produced));
+      if (qty > 0) take(balance, qty, 0);
+    }
+    for (const balance of reducible) {
+      if (demand <= 0) break;
+      const qty = Math.min(demand, balance.capacity);
+      if (qty > 0) take(balance, qty, Math.min(unmet, balance.produced, qty));
     }
     if (transferred > 0) {
       firm.cantitate_din_avans = transferred;

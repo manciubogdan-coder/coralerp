@@ -73,3 +73,13 @@ test('partially compensated automatic advance keeps its open status and remainin
   expect(advance.cantitate).toBe(198);
   expect(advance.status).toBe('assigned');
 });
+test('Menta 30 g: firm 406 shrinks the unproduced CB0004 plan, not the already-made CB0003', () => {
+  const day = { data_productie: '2026-11-11', created_at: '2026-11-10T07:44:19Z' };
+  const cb3 = { ...day, cantitate: 210, cantitate_reala_produsa: 210, status: 'completed' };
+  const cb4 = { ...day, cantitate: 800, cantitate_reala_produsa: 394, status: 'partial' };
+  const firms = [404, 2].map(cantitate => ({ ...day, created_at: '2026-11-10T20:00:00Z', cantitate, cantitate_reala_produsa: cantitate }));
+  compensateAdvanceQuantities([{ order: cb3, automatic: true }, { order: cb4, automatic: true }], firms);
+  expect([cb3.cantitate, cb3.cantitate_reala_produsa]).toEqual([210, 210]);
+  expect([cb4.cantitate, cb4.cantitate_reala_produsa]).toEqual([394, 394]);
+  expect(firms.map(f => f.cantitate_reala_produsa)).toEqual([404, 2]);
+});
