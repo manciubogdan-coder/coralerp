@@ -47,3 +47,18 @@ describe("cost structure", () => {
     expect(r.reduce((t, x) => t + x.result, 0)).toBeCloseTo(structureOf(two, sc).profit);
   });
 });
+
+describe("product scenarios", () => {
+  const cost = { mp: 1, ambalaje: 0, manopera: 0, regie: 0, pierderi: 0, aprovizionare: 0, distributie: 0, marja: 0 } as any;
+  const ls = [
+    { partner: "A", product: "X", gama: "g", qty: 10, value: 100, feePct: 0, cost },
+    { partner: "B", product: "Y", gama: "g", qty: 10, value: 50, feePct: 0, cost },
+  ];
+  test("dropping a product removes its sales and variable costs", () => {
+    const s = structureOf(ls as any, { name: "s", pct: {}, pricePct: 0, volumePct: 0, feeDelta: 0, dropProducts: ["X"] });
+    expect(s.revenue).toBe(50); expect(s.totalCost).toBe(10);
+  });
+  test("product price change applies only to that product", () => {
+    expect(structureOf(ls as any, { name: "s", pct: {}, pricePct: 0, volumePct: 0, feeDelta: 0, productPricePct: { Y: 10 } }).revenue).toBeCloseTo(155);
+  });
+});

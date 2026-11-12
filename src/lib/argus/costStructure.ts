@@ -17,6 +17,10 @@ export type Scenario = {
   dropPartners?: string[];
   /** Price change per partner, in %, on top of the global price change. */
   partnerPricePct?: Record<string, number>;
+  /** Products no longer sold: their sales and variable costs go, their share of fixed costs stays. */
+  dropProducts?: string[];
+  /** Price change per product, in %, on top of the global and partner price change. */
+  productPricePct?: Record<string, number>;
   /** Real technological loss, as % of raw material processed, added on top of the sheet loss. */
   lossPct?: number;
   /** Share of each cost line that does not move with volume (rent, indirect staff, trucks already paid). */
@@ -48,11 +52,11 @@ export function structureOf(lines: SaleLine[], sc: Scenario = BASE): Structure {
   const costs = Object.fromEntries(COST_KEYS.map((k) => [k, 0])) as PieceCost;
   let qty = 0, revenue = 0, fees = 0;
   const vol = 1 + sc.volumePct / 100, price = 1 + sc.pricePct / 100;
-  const drop = new Set(sc.dropPartners ?? []);
+  const drop = new Set(sc.dropPartners ?? []), dropP = new Set(sc.dropProducts ?? []);
   for (const l of lines) {
     for (const k of COST_KEYS) costs[k] += (l.cost[k] ?? 0) * fixedOf(sc, k) * l.qty * (1 + (sc.pct[k] ?? 0) / 100);
-    if (drop.has(l.partner)) continue;
-    const q = l.qty * vol, v = l.value * vol * price * (1 + (sc.partnerPricePct?.[l.partner] ?? 0) / 100);
+    if (drop.has(l.partner) || dropP.has(l.product)) continue;
+    const q = l.qty * vol, v = l.value * vol * price * (1 + (sc.partnerPricePct?.[l.partner] ?? 0) / 100) * (1 + (sc.productPricePct?.[l.product] ?? 0) / 100);
     qty += q; revenue += v;
     fees += v * Math.max(0, l.feePct + sc.feeDelta) / 100;
     for (const k of COST_KEYS) costs[k] += (l.cost[k] ?? 0) * (1 - fixedOf(sc, k)) * (1 + (sc.pct[k] ?? 0) / 100) * q;

@@ -147,13 +147,17 @@ export default function CostStructure() {
 
   const opts = (f: (l: SaleLine) => string) => [...new Set(lines.map(f))].sort((a, b) => a.localeCompare(b, "ro"));
   const view = useMemo(() => lines.filter((l) => (!fPartner || l.partner === fPartner) && (!fGama || l.gama === fGama) && (!fProduct || l.product === fProduct)), [lines, fPartner, fGama, fProduct]);
-  type Change = { partner: string; drop: boolean; pct: number };
+  type Change = { partner: string; drop: boolean; pct: number; kind?: "partner" | "product" };
+  const isProd = (c: Change) => c.kind === "product";
   const [changes, setChanges] = useState<Change[]>([]);
   const [newPartner, setNewPartner] = useState("");
+  const [newProduct, setNewProduct] = useState("");
   const eff = useMemo<Scenario>(() => ({
     ...sc,
-    dropPartners: [...new Set([...(sc.dropPartners ?? []), ...changes.filter((c) => c.drop).map((c) => c.partner)])],
-    partnerPricePct: Object.fromEntries(changes.filter((c) => !c.drop && c.pct).map((c) => [c.partner, c.pct])),
+    dropPartners: [...new Set([...(sc.dropPartners ?? []), ...changes.filter((c) => c.drop && !isProd(c)).map((c) => c.partner)])],
+    partnerPricePct: Object.fromEntries(changes.filter((c) => !isProd(c) && !c.drop && c.pct).map((c) => [c.partner, c.pct])),
+    dropProducts: changes.filter((c) => isProd(c) && c.drop).map((c) => c.partner),
+    productPricePct: Object.fromEntries(changes.filter((c) => isProd(c) && !c.drop && c.pct).map((c) => [c.partner, c.pct])),
   }), [sc, changes]);
   const active = changes.length > 0 || JSON.stringify({ ...sc, name: "" }) !== JSON.stringify({ ...BASE, name: "" });
   const base = useMemo(() => structureOf(view), [view]);
@@ -328,16 +332,19 @@ export default function CostStructure() {
         <Card className="border-primary">
           <CardHeader className="pb-2"><CardTitle className="text-base">Ce se întâmplă dacă… <span className="text-xs font-normal text-muted-foreground">(tot ce e mai jos se recalculează după alegerea de aici)</span></CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {changes.map((c, i) => <div key={c.partner} className="flex flex-wrap items-center gap-3 rounded border p-2">
+            {changes.map((c, i) => <div key={`${c.kind ?? "partner"}:${c.partner}`} className="flex flex-wrap items-center gap-3 rounded border p-2">
+              <span className="text-xs text-muted-foreground">{isProd(c) ? "Produs" : "Client"}</span>
               <b className="min-w-48 max-w-72 truncate">{c.partner}</b>
               <label className="flex items-center gap-2"><input type="radio" checked={!c.drop} onChange={() => upd(i, { drop: false })} />îi schimb prețul cu
                 <Input className="h-8 w-20 text-right" inputMode="decimal" value={String(c.pct)} disabled={c.drop} onChange={(e) => { const x = Number(e.target.value.replace(",", ".")); if (Number.isFinite(x)) upd(i, { pct: x }); }} />%</label>
-              <label className="flex items-center gap-2"><input type="radio" checked={c.drop} onChange={() => upd(i, { drop: true })} />nu mai livrez deloc</label>
+              <label className="flex items-center gap-2"><input type="radio" checked={c.drop} onChange={() => upd(i, { drop: true })} />{isProd(c) ? "nu mai vând produsul" : "nu mai livrez deloc"}</label>
               <Button size="sm" variant="ghost" onClick={() => setChanges((xs) => xs.filter((_, j) => j !== i))} aria-label={`Scot ${c.partner}`}><Trash2 className="h-4 w-4" /></Button>
             </div>)}
             <div className="flex flex-wrap items-end gap-2">
-              <select className={`${sel} max-w-72`} value={newPartner} onChange={(e) => setNewPartner(e.target.value)}><option value="">Alege un client…</option>{resNow.filter((r) => !changes.some((c) => c.partner === r.partner)).map((r) => <option key={r.partner} value={r.partner}>{r.partner}</option>)}</select>
-              <Button size="sm" variant="outline" disabled={!newPartner} onClick={() => { setChanges((xs) => [...xs, { partner: newPartner, drop: false, pct: 5 }]); setNewPartner(""); }}>Adaugă modificare</Button>
+              <select className={`${sel} max-w-72`} value={newPartner} onChange={(e) => setNewPartner(e.target.value)}><option value="">Alege un client…</option>{resNow.filter((r) => !changes.some((c) => !isProd(c) && c.partner === r.partner)).map((r) => <option key={r.partner} value={r.partner}>{r.partner}</option>)}</select>
+              <Button size="sm" variant="outline" disabled={!newPartner} onClick={() => { setChanges((xs) => [...xs, { partner: newPartner, drop: false, pct: 5 }]); setNewPartner(""); }}>Adaugă client</Button>
+              <select className={`${sel} max-w-72`} value={newProduct} onChange={(e) => setNewProduct(e.target.value)}><option value="">Alege un produs…</option>{opts((l) => l.product).filter((p) => !changes.some((c) => isProd(c) && c.partner === p)).map((p) => <option key={p} value={p}>{p}</option>)}</select>
+              <Button size="sm" variant="outline" disabled={!newProduct} onClick={() => { setChanges((xs) => [...xs, { partner: newProduct, drop: false, pct: 5, kind: "product" }]); setNewProduct(""); }}>Adaugă produs</Button>
               {active && <Button size="sm" variant="ghost" onClick={() => { setChanges([]); setSc({ ...BASE, name: "Scenariu nou" }); }}>Șterge tot (înapoi la realitate)</Button>}
             </div>
             <div className="grid gap-2 border-t pt-2 sm:grid-cols-2">
@@ -347,7 +354,8 @@ export default function CostStructure() {
                 {realNow == null ? <p className="text-muted-foreground">{journalErr ?? "Citesc contabilitatea…"}</p>
                   : <p className="text-base">Acum <b className={tone(realNow)}>{n0(realNow)}</b>{active && <> → estimat <b className={tone(realNow + delta)}>{n0(realNow + delta)}</b> lei</>}</p>}</div>
             </div>
-            {!active && <p className="text-xs text-muted-foreground">Alege un client și spune ce faci cu el: scumpești/ieftinești sau renunți. Poți adăuga mai mulți clienți deodată.</p>}
+            {!active && <p className="text-xs text-muted-foreground">Alege un client sau un produs și spune ce faci: scumpești/ieftinești sau renunți. Poți adăuga mai mulți deodată.</p>}
+            {changes.some((c) => c.drop) && <p className="text-xs text-muted-foreground">La un produs scos sau scumpit, efectul se aplică la toți clienții care îl cumpără.</p>}
             {changes.some((c) => c.drop) && <p className="text-xs text-muted-foreground">La renunțare pierzi facturile și costurile care pleacă odată cu clientul (marfă, ambalaje, transport, o parte din oameni). Regia și oamenii care rămân se mută pe ceilalți clienți — vezi coloana „După” mai jos.</p>}
           </CardContent>
         </Card>
@@ -375,7 +383,7 @@ export default function CostStructure() {
           <CardContent className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-1">Client</th><th className="text-right">Facturat</th><th className="text-right">Rezultat acum</th><th className="text-right">% din facturat</th>{active && <><th className="text-right">Rezultat după</th><th className="text-right">Diferență</th></>}<th className="text-right">Vândut sub preț minim</th></tr></thead>
-              <tbody>{resNow.map((c) => { const w = resAfter.get(c.partner); const below = baseContrib.find((x) => x.partner === c.partner); return <tr key={c.partner} className={`border-b last:border-0 ${w?.dropped ? "bg-destructive/5" : changes.some((x) => x.partner === c.partner) ? "bg-primary/5" : ""}`}>
+              <tbody>{resNow.map((c) => { const w = resAfter.get(c.partner); const below = baseContrib.find((x) => x.partner === c.partner); return <tr key={c.partner} className={`border-b last:border-0 ${w?.dropped ? "bg-destructive/5" : changes.some((x) => !isProd(x) && x.partner === c.partner) ? "bg-primary/5" : ""}`}>
                 <td className="max-w-64 truncate py-1">{c.partner}</td><td className="text-right tabular-nums">{n0(c.revenue)}</td>
                 <td className={`text-right font-semibold tabular-nums ${tone(c.result)}`}>{c.result >= 0 ? "+" : ""}{n0(c.result)}</td>
                 <td className={`text-right tabular-nums ${tone(c.result)}`}>{n1(c.revenue ? c.result / c.revenue * 100 : 0)}%</td>
