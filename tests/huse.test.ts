@@ -16,4 +16,10 @@ describe("husaBalance", () => {
     expect(b.total).toBe(47);
     expect(b.inDepozit).toBe(40);
   });
+  it("returul peste ce s-a predat intra in depozit, iar persoana nu ramane cu datorie negativa", () => {
+    const b = husaBalance([r("intrare", 10), r("predare", 5, "Ion"), r("retur", 8, "Ion"), r("predare", 4, "Vasile")]);
+    expect(b.inDepozit).toBe(9);
+    expect(b.persoane.find((p) => p.persoana === "Ion")!.afara).toBe(0);
+    expect(b.afara).toBe(4);
+  });
 });

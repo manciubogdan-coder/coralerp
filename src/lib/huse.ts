@@ -35,15 +35,17 @@ export function husaBalance(rows: HusaMiscare[]) {
       if (r.tip === "predare") { predate += q; p.predate += q; if (!p.ultima || r.occurred_at > p.ultima) p.ultima = r.occurred_at; }
       if (r.tip === "retur") { returnate += q; p.returnate += q; }
       if (r.tip === "pierdere") { pierdute += q; p.pierdute += q; }
-      p.afara = p.predate - p.returnate - p.pierdute;
+      // Returul peste ce s-a predat e permis (huse venite de la mai mulți); nimeni nu poate datora sub 0.
+      p.afara = Math.max(0, p.predate - p.returnate - p.pierdute);
       perPersoana.set(key.toLowerCase(), p);
     }
   }
+  const persoane = [...perPersoana.values()];
   return {
     intrate, predate, returnate, pierdute,
     inDepozit: intrate - predate + returnate,
-    afara: predate - returnate - pierdute,
+    afara: persoane.reduce((s, p) => s + p.afara, 0),
     total: intrate - pierdute,
-    persoane: [...perPersoana.values()].sort((a, b) => b.afara - a.afara),
+    persoane: persoane.sort((a, b) => b.afara - a.afara),
   };
 }

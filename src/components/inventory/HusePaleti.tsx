@@ -55,7 +55,8 @@ export function HusePaleti({ zona }: { zona: HusaZona }) {
     const q = parseInt(cant, 10);
     if (!q || q <= 0) return toast.error("Introdu o cantitate validă");
     if (tip !== "intrare" && !persoana.trim()) return toast.error("Scrie cui ai dat / de la cine vin husele");
-    if ((tip === "retur" || tip === "pierdere")) {
+    // Retururile nu se limitează: pot veni huse de la mai mulți / mai multe decât am dat.
+    if (tip === "pierdere") {
       const p = all.persoane.find((x) => x.persoana.toLowerCase() === persoana.trim().toLowerCase());
       if (!p || q > p.afara) return toast.error(`${persoana} are doar ${p?.afara ?? 0} huse nereturnate`);
     }
