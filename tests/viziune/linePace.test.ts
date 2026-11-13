@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { linePace, teamSize, buildLines } from "@/lib/viziune/factoryState";
-import { assignStations } from "@/lib/viziune/hallLayout";
+import { defaultLayout, placementOf } from "@/lib/viziune/hallLayout";
+const assignStations = (lines: { id: string; nume: string }[], o = {}) => placementOf(defaultLayout(lines, o), lines);
 
 const T0 = Date.parse("2026-11-13T04:00:00Z");
 const at = (min: number) => new Date(T0 + min * 60_000).toISOString();

@@ -7,9 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { useFactoryData } from "@/components/viziune/useFactoryData";
 import { FactoryScene, ZONES, type Selection, type Zone } from "@/components/viziune/FactoryScene";
 import { producedOf, remainingOf, type LineView } from "@/lib/viziune/factoryState";
-import { STATIONS } from "@/lib/viziune/hallLayout";
+import { defaultLayout, type HallStation } from "@/lib/viziune/hallLayout";
+import { HallEditor } from "@/components/viziune/HallEditor";
+import { toast } from "sonner";
 import { clockTime, minutesLabel, PaceBadge } from "@/components/viziune/pace";
-import { AlertTriangle, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, LayoutGrid, RefreshCw, X } from "lucide-react";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("ro-RO");
 const STATUS_LABEL: Record<string, string> = { lucreaza: "Lucrează", asteapta: "În așteptare", terminat: "Gata pe azi", oprita: "Oprită" };
@@ -79,6 +81,9 @@ export default function ViziunePage() {
   const [zone, setZone] = useState<Zone>("all");
   const [sel, setSel] = useState<Selection>(null);
   const [ready, setReady] = useState(false);
+  const [draft, setDraft] = useState<HallStation[] | null>(null);
+  const editing = draft !== null;
+  const changed = editing && JSON.stringify(draft) !== JSON.stringify(data.layout);
 
   useEffect(() => { const t = setInterval(() => data.refetch(), 30_000); return () => clearInterval(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -90,10 +95,27 @@ export default function ViziunePage() {
   const recKg = data.receptions.reduce((a, r) => a + r.kg, 0);
   const line = sel?.kind === "line" ? data.lineViews.find((l) => l.id === sel.id) : null;
   const late = data.lineViews.filter((l) => l.pace.status === "intarziat").sort((a, b) => b.pace.lateMinutes - a.pace.lateMinutes);
-  const stationOfLine = (id: string) => [...data.placement.byStation.entries()].find(([, lid]) => lid === id)?.[0] ?? "";
-  const emptyStation = sel?.kind === "station" ? STATIONS.find((st) => st.id === sel.id) : null;
+  const stationOfLine = (id: string) => [...data.placement.byStation.entries()].find(([, lid]) => lid === id)?.[0] ?? null;
+  const emptyStation = sel?.kind === "station" ? data.layout.find((st) => st.id === sel.id) : null;
+
+  const startEdit = (stationId: string | null = null) => {
+    setDraft(data.layout.map((st) => ({ ...st })));
+    setSel(stationId ? { kind: "station", id: stationId } : null);
+    setZone("plan");
+  };
+  const stopEdit = () => {
+    if (changed && !window.confirm("Ai schimbări nesalvate în hală. Renunți la ele?")) return;
+    setDraft(null); setSel(null);
+  };
+  const saveDraft = async () => {
+    if (!draft) return;
+    try { await data.saveLayout(draft); toast.success("Hala a fost salvată pentru toți colegii."); setDraft(null); setSel(null); }
+    catch (e) { toast.error(`Nu s-a salvat: ${(e as Error).message}`); }
+  };
+  const moveStation = (id: string, px: number, py: number) => setDraft((d) => d && d.map((st) => (st.id === id && (st.px !== px || st.py !== py) ? { ...st, px, py } : st)));
 
   const select = (s: Selection) => {
+    if (editing) { setSel(s?.kind === "station" ? s : null); return; }
     setSel(s);
     if (s?.kind === "line" || s?.kind === "station") setZone("productie");
     if (s?.kind === "receptie") setZone("receptie");
@@ -112,6 +134,9 @@ export default function ViziunePage() {
             <p className="text-[10px] text-muted-foreground">{data.today} · actualizat {data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) : "…"} · se reîmprospătează la 30 s</p>
           </div>
           <Button size="icon" variant="ghost" onClick={() => data.refetch()} title="Reîmprospătează"><RefreshCw className="h-4 w-4" /></Button>
+          <Button size="sm" variant={editing ? "default" : "outline"} disabled={editing || data.layoutLoading} onClick={() => startEdit()} title="Mută, adaugă sau scoate utilaje și alege ce linie lucrează pe fiecare">
+            <LayoutGrid className="mr-1 h-4 w-4" />Aranjează hala
+          </Button>
         </div>
         <Kpi label="Producție azi" value={pieces ? `${Math.round((produced / pieces) * 100)}%` : "—"} sub={`${fmt(produced)} / ${fmt(pieces)} buc`} />
         <Kpi label="Linii care lucrează" value={`${working.length} / ${data.lineViews.length}`} sub={`${people} oameni pe linii`} />
@@ -144,8 +169,15 @@ export default function ViziunePage() {
       </div>
 
       {/* detail panel */}
-      {sel && (
-        <div className="absolute right-3 top-28 z-20 flex max-h-[calc(100%-10rem)] w-[min(92vw,380px)] flex-col rounded-xl border bg-card/97 shadow-xl">
+      {editing && draft && (
+        <HallEditor draft={draft} setDraft={setDraft} selectedId={sel?.kind === "station" ? sel.id : null}
+          setSelectedId={(id) => setSel(id ? { kind: "station", id } : null)}
+          lines={data.lines} onSave={saveDraft} onCancel={stopEdit} saving={data.savingLayout} changed={changed}
+          onReset={() => { if (window.confirm("Pui la loc utilajele și liniile din planul inițial al halei?")) { setDraft(defaultLayout(data.lines)); setSel(null); } }} />
+      )}
+
+      {sel && !editing && (
+        <div className="absolute right-3 top-28 z-20 flex max-h-[calc(100%-10rem)] w-[min(92vw,380px)] flex-col rounded-xl border bg-card shadow-xl">
           <div className="flex items-start justify-between gap-2 border-b p-3">
             <div>
               <div className="text-base font-black">{line ? line.name : emptyStation ? emptyStation.label : sel.kind === "receptie" ? "Recepție azi" : sel.kind === "depozit" ? "Depozit materie primă" : "Gata de livrare"}</div>
@@ -156,24 +188,13 @@ export default function ViziunePage() {
           <div className="flex-1 overflow-y-auto p-3 text-sm">
             {line && <LineDetail line={line} />}
             {(line || emptyStation) && (
-              <label className="mt-3 block border-t pt-2 text-xs">
-                <span className="font-semibold">Unde stă în hală</span>
-                <select className="mt-1 w-full rounded border bg-background px-2 py-1"
-                  value={line ? stationOfLine(line.id) : data.placement.byStation.get(emptyStation!.id) ?? ""}
-                  onChange={(e) => {
-                    if (line) { if (e.target.value) data.placeLine(e.target.value, line.id); }
-                    else data.placeLine(emptyStation!.id, e.target.value || null);
-                  }}>
-                  {line ? <>
-                    <option value="">— fără loc —</option>
-                    {STATIONS.map((st) => { const other = data.placement.byStation.get(st.id); const on = other && other !== line.id ? data.lineViews.find((l) => l.id === other)?.name : null; return <option key={st.id} value={st.id}>{st.label}{on ? ` (acum: ${on})` : ""}</option>; })}
-                  </> : <>
-                    <option value="">— liber —</option>
-                    {data.lineViews.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                  </>}
-                </select>
-                <span className="mt-1 block text-[10px] text-muted-foreground">Se ține minte pe acest calculator; nu schimbă nimic în producție.</span>
-              </label>
+              <div className="mt-3 border-t pt-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground">În hală: <b className="text-foreground">{line ? data.layout.find((st) => st.id === stationOfLine(line.id))?.label ?? "fără loc" : emptyStation!.label}</b></span>
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => startEdit(line ? stationOfLine(line.id) : emptyStation!.id)}><LayoutGrid className="mr-1 h-3 w-3" />Mută / schimbă</Button>
+                </div>
+                {data.layoutInfo && <span className="mt-1 block text-[10px] text-muted-foreground">Hala aranjată de {data.layoutInfo.by ?? "un coleg"} pe {new Date(data.layoutInfo.at).toLocaleDateString("ro-RO")}.</span>}
+              </div>
             )}
             {data.placement.unplaced.length > 0 && (line || emptyStation) && <p className="mt-2 text-[10px] text-muted-foreground">Fără loc în hală: {data.placement.unplaced.map((l) => l.nume).join(", ")}</p>}
             {sel.kind === "receptie" && <>
@@ -208,7 +229,7 @@ export default function ViziunePage() {
       {data.error && <div className="absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-lg border border-destructive bg-card px-3 py-2 text-sm text-destructive shadow">Nu am putut citi datele: {data.error.message}</div>}
 
       <Canvas shadows dpr={[1, 1.75]} camera={{ position: ZONES.all.pos, fov: 42, near: 0.5, far: 300 }} onCreated={() => setTimeout(() => setReady(true), 500)} onPointerMissed={() => setSel(null)}>
-        <FactoryScene data={data} zone={zone} selection={sel} onSelect={select} />
+        <FactoryScene data={data} zone={zone} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation} />
       </Canvas>
     </div>
   );

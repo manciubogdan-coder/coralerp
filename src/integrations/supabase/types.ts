@@ -2938,6 +2938,27 @@ export type Database = {
           },
         ]
       }
+      viziune_hala_layout: {
+        Row: {
+          id: boolean
+          stations: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          stations?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          stations?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

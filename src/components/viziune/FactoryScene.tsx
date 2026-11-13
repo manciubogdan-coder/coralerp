@@ -1,10 +1,11 @@
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Html, Environment, Lightformer, OrbitControls, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import type { FactoryData } from "./useFactoryData";
 import type { LineView } from "@/lib/viziune/factoryState";
-import { FIXTURES, FLOWS, HALL, STATIONS, toWorld, type Station } from "@/lib/viziune/hallLayout";
+import { FIXTURES, FLOWS, HALL, toPlan, toWorld, type HallStation } from "@/lib/viziune/hallLayout";
+type Station = HallStation;
 import { clockTime, minutesLabel, PaceBadge } from "./pace";
 
 // Scene materials are a fixed physical palette (steel, crates, greens, water), not UI theme colors.
@@ -18,9 +19,10 @@ const C = {
 };
 const W2 = HALL.w / 2, D2 = HALL.d / 2;
 
-export type Zone = "all" | "productie" | "cantare" | "spalare" | "receptie" | "depozit" | "livrare";
+export type Zone = "all" | "plan" | "productie" | "cantare" | "spalare" | "receptie" | "depozit" | "livrare";
 export const ZONES: Record<Zone, { pos: [number, number, number]; target: [number, number, number]; label: string }> = {
   all: { pos: [-10, 62, 58], target: [0, 0, 2], label: "Toată fabrica" },
+  plan: { pos: [0, 52, 0.01], target: [0, 0, 0], label: "Hala de sus" },
   productie: { pos: [-4, 36, 30], target: [0, 0, 0], label: "Hala de producție" },
   cantare: { pos: [-2, 17, 6], target: [1, 0, -10], label: "Cântare & flowpack" },
   spalare: { pos: [-6, 16, 24], target: [5, 0, 8], label: "Spălare & mese" },
@@ -249,8 +251,8 @@ function Dryer({ position, running }: { position: [number, number, number]; runn
 }
 
 function StationModel({ st, running, busy }: { st: Station; running: boolean; busy: boolean }) {
-  if (st.kind === "cantar") {
-    const giostra = st.id === "cantar5";
+  if (st.kind === "cantar" || st.kind === "giostra") {
+    const giostra = st.kind === "giostra";
     return (
       <group>
         <Weigher running={running} />
@@ -283,6 +285,13 @@ function StationModel({ st, running, busy }: { st: Station; running: boolean; bu
         {running && Array.from({ length: 6 }).map((_, i) => (<group key={i} position={[-1 + (i % 3) * 1, 0, i < 3 ? -0.3 : 0.3]}><Tray i={i} /></group>))}
       </SteelTable>
       <CrateStack position={[2.1, 0, 0]} levels={busy ? 3 : 1} full={busy} seed={st.px} />
+    </group>
+  );
+  if (st.kind === "utilaj") return (
+    <group>
+      <RoundedBox args={[2, 1.4, 1.6]} radius={0.06} position={[0, 0.7, 0]} castShadow><meshStandardMaterial color={C.steel} metalness={0.7} roughness={0.3} /></RoundedBox>
+      <mesh position={[0, 1.5, 0.81]}><boxGeometry args={[0.8, 0.35, 0.02]} /><meshStandardMaterial color={C.darkSteel} /></mesh>
+      <CrateStack position={[1.6, 0, 0]} levels={busy ? 3 : 1} full={busy} seed={st.px} />
     </group>
   );
   if (st.kind === "spalare_manual") return (
@@ -357,7 +366,7 @@ function StationCard({ st, line }: { st: Station; line?: LineView }) {
   );
 }
 
-function StationNode({ st, line, selected, onSelect }: { st: Station; line?: LineView; selected: boolean; onSelect: () => void }) {
+function StationNode({ st, line, selected, onSelect, editing, onGrab }: { st: Station; line?: LineView; selected: boolean; onSelect: () => void; editing?: boolean; onGrab?: (offset: [number, number]) => void }) {
   const [x, z] = toWorld(st.px, st.py);
   const running = line?.status === "lucreaza";
   const busy = !!line && (line.pace.orders.length > 0 || line.pace.queueOrders > 0);
@@ -365,24 +374,26 @@ function StationNode({ st, line, selected, onSelect }: { st: Station; line?: Lin
   const sc = late ? C.status.late : line ? C.status[line.status] : C.status.oprita;
   const andon = useRef<THREE.MeshStandardMaterial>(null);
   useFrame(({ clock }) => { if (andon.current) andon.current.emissiveIntensity = late ? 1 + Math.abs(Math.sin(clock.elapsedTime * 5)) * 2 : 1.3; });
-  const big = st.kind === "cantar" || st.kind === "spalare_auto";
-  const footprint: [number, number] = st.kind === "spalare_auto" ? [6.5, 20] : st.kind === "cantar" ? [5, 15] : st.kind === "flowpack" ? [3.4, 7] : st.kind === "spalare_manual" ? [4.6, 4.4] : [5, 2.4];
+  const big = st.kind === "cantar" || st.kind === "giostra" || st.kind === "spalare_auto";
+  const footprint: [number, number] = st.kind === "spalare_auto" ? [6.5, 20] : st.kind === "cantar" || st.kind === "giostra" ? [5, 15] : st.kind === "utilaj" ? [4, 3] : st.kind === "flowpack" ? [3.4, 7] : st.kind === "spalare_manual" ? [4.6, 4.4] : [5, 2.4];
   const workers = running ? Math.min(Math.max(1, line!.workers), 8) : 0;
-  const spots: [number, number, number][] = st.kind === "cantar"
-    ? (st.id === "cantar5" ? [[-3.9, 0, -5.7], [-1.8, 0, -5.9], [-2.8, 0, -4.6], [0.7, 0, 3], [-0.7, 0, 4.2], [0.7, 0, 5], [0, 0, 7.5], [-0.7, 0, 2.4]]
+  const spots: [number, number, number][] = st.kind === "cantar" || st.kind === "giostra"
+    ? (st.kind === "giostra" ? [[-3.9, 0, -5.7], [-1.8, 0, -5.9], [-2.8, 0, -4.6], [0.7, 0, 3], [-0.7, 0, 4.2], [0.7, 0, 5], [0, 0, 7.5], [-0.7, 0, 2.4]]
       : [[-1.4, 0, -6.4], [0.8, 0, -6.6], [-0.3, 0, -7.5], [0.7, 0, 2.6], [-0.7, 0, 3.6], [0.7, 0, 4.8], [-0.7, 0, 5.6], [0.6, 0, -4]])
     : st.kind === "flowpack" ? [[-0.6, 0, -2.4], [1.1, 0, -2.6], [0.8, 0, 3.2], [-0.8, 0, 3.4], [0.3, 0, -3.2], [-0.8, 0, 1], [0.8, 0, 1.5], [-0.8, 0, 2.4]]
-    : st.kind === "masa" ? [[-0.9, 0, -0.95], [0, 0, -0.95], [0.9, 0, -0.95], [-0.9, 0, 0.95], [0, 0, 0.95], [0.9, 0, 0.95], [-1.6, 0, 0], [1.6, 0, 0.9]]
+    : st.kind === "masa" || st.kind === "utilaj" ? [[-0.9, 0, -0.95], [0, 0, -0.95], [0.9, 0, -0.95], [-0.9, 0, 0.95], [0, 0, 0.95], [0.9, 0, 0.95], [-1.6, 0, 0], [1.6, 0, 0.9]]
     : st.kind === "spalare_manual" ? [[0.3, 0, -2.2], [-0.8, 0, -2.2], [1.4, 0, -2.2], [-1.8, 0, 1], [0, 0, 0.6], [1.4, 0, 0.4], [-1.8, 0, 2.2], [0.4, 0, 1.6]]
     : [[-1.8, 0, 7.6], [-1.8, 0, 1], [-1.8, 0, -4.8], [1.8, 0, 3], [1.8, 0, -1], [-3.4, 0, -1.4], [1.8, 0, -7], [-1.8, 0, 4.5]];
   return (
     <group position={[x, 0, z]}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
-      onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }}
+      onPointerDown={(e) => { if (!editing || !onGrab) return; e.stopPropagation(); onSelect(); onGrab([x - e.point.x, z - e.point.z]); }}
+      onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = editing ? "grab" : "pointer"; }}
       onPointerOut={() => { document.body.style.cursor = ""; }}>
+      <group rotation={[0, -((st.rot || 0) * Math.PI) / 180, 0]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
         <planeGeometry args={footprint} />
-        <meshBasicMaterial color={sc} transparent opacity={selected ? 0.32 : late ? 0.2 : 0.07} />
+        <meshBasicMaterial color={editing && selected ? C.status.lucreaza : sc} transparent opacity={selected ? 0.32 : editing ? 0.16 : late ? 0.2 : 0.07} />
       </mesh>
       <StationModel st={st} running={running} busy={busy} />
       {Array.from({ length: workers }).map((_, i) => {
@@ -392,6 +403,7 @@ function StationNode({ st, line, selected, onSelect }: { st: Station; line?: Lin
       <group position={[big ? 2.2 : 1.4, 0, big ? 1.4 : -1]}>
         <mesh position={[0, 1.1, 0]}><cylinderGeometry args={[0.03, 0.03, 2.2]} /><meshStandardMaterial color={C.darkSteel} /></mesh>
         <mesh position={[0, 2.3, 0]}><cylinderGeometry args={[0.12, 0.12, 0.35, 12]} /><meshStandardMaterial ref={andon} color={sc} emissive={sc} emissiveIntensity={1.3} /></mesh>
+      </group>
       </group>
       {late && <LateBeacon minutes={line!.pace.lateMinutes} />}
       <Html position={[0, big ? 6.4 : 3.2, 0]} center distanceFactor={20} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
@@ -541,7 +553,11 @@ function HallShell() {
   );
 }
 
-export function FactoryScene({ data: raw, zone, selection, onSelect }: { data: FactoryData; zone: Zone; selection: Selection; onSelect: (s: Selection) => void }) {
+export function FactoryScene({ data: raw, zone, selection, onSelect, layout: layoutProp, editing = false, onMove }: {
+  data: FactoryData; zone: Zone; selection: Selection; onSelect: (s: Selection) => void;
+  /** Hall being edited (draft); defaults to the saved layout. */
+  layout?: HallStation[]; editing?: boolean; onMove?: (id: string, px: number, py: number) => void;
+}) {
   // Every list may still be loading (or missing while the page reloads): draw empty zones instead of crashing.
   const data = {
     ...raw,
@@ -550,7 +566,18 @@ export function FactoryScene({ data: raw, zone, selection, onSelect }: { data: F
   };
   const controls = useRef<any>(null);
   const byId = new Map(data.lineViews.map((l) => [l.id, l]));
-  const byStation = raw?.placement?.byStation ?? new Map<string, string>();
+  const layout = layoutProp ?? raw?.layout ?? [];
+  const byStation = new Map<string, string>();
+  for (const st of layout) if (st.lineId && byId.has(st.lineId) && ![...byStation.values()].includes(st.lineId)) byStation.set(st.id, st.lineId);
+  // Dragging a machine across the floor in edit mode: the camera stays still while a finger/mouse is down.
+  const [drag, setDrag] = useState<{ id: string; off: [number, number] } | null>(null);
+  useEffect(() => {
+    if (!drag) return;
+    const up = () => { setDrag(null); document.body.style.cursor = ""; if (controls.current) controls.current.enabled = true; };
+    window.addEventListener("pointerup", up);
+    return () => window.removeEventListener("pointerup", up);
+  }, [drag]);
+  useEffect(() => { if (!editing) setDrag(null); }, [editing]);
   const working = data.lineViews.filter((l) => l.status === "lucreaza");
   const late = data.lineViews.filter((l) => l.pace.status === "intarziat");
   const stock = data.stock.slice(0, 12);
@@ -578,12 +605,22 @@ export function FactoryScene({ data: raw, zone, selection, onSelect }: { data: F
       {/* ===== HALA DE PRODUCȚIE (după plan) ===== */}
       <HallShell />
       <ZoneSign position={[-W2 - 2, 4, -D2 + 3]} title="Hala de producție" sub={`${working.length} linii lucrează · ${data.lineViews.reduce((a, l) => a + l.workers, 0)} oameni${late.length ? ` · ⚠ ${late.length} peste normă` : ""}`} />
-      {STATIONS.map((st) => {
+      {layout.map((st) => {
         const lid = byStation.get(st.id);
         const line = lid ? byId.get(lid) : undefined;
-        if (st.spare && !line) return null;
-        return <StationNode key={st.id} st={st} line={line} selected={(selection?.kind === "line" && selection.id === lid) || (selection?.kind === "station" && selection.id === st.id)} onSelect={() => onSelect(line ? { kind: "line", id: line.id } : { kind: "station", id: st.id })} />;
+        return <StationNode key={st.id} st={st} line={line} editing={editing}
+          selected={editing ? selection?.kind === "station" && selection.id === st.id : (selection?.kind === "line" && selection.id === lid) || (selection?.kind === "station" && selection.id === st.id)}
+          onSelect={() => onSelect(line && !editing ? { kind: "line", id: line.id } : { kind: "station", id: st.id })}
+          onGrab={(off) => { if (controls.current) controls.current.enabled = false; setDrag({ id: st.id, off }); document.body.style.cursor = "grabbing"; }} />;
       })}
+      {editing && drag && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}
+          onPointerMove={(e) => { e.stopPropagation(); const [px, py] = toPlan(e.point.x + drag.off[0], e.point.z + drag.off[1]); onMove?.(drag.id, px, py); }}
+          onPointerUp={() => setDrag(null)}>
+          <planeGeometry args={[HALL.w + 30, HALL.d + 30]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
       {working.length > 0 && FLOWS.filter((f) => f.kind !== "igiena").map((f, i) => <FlowMovers key={i} pts={f.pts} kind={f.kind} count={f.pts.length > 3 ? 4 : 2} />)}
 
       {/* ===== DEPOZIT MP (frig), la poarta de materie primă ===== */}
@@ -654,7 +691,7 @@ export function FactoryScene({ data: raw, zone, selection, onSelect }: { data: F
       <Forklift path={[[exitX - 4, -24], [exitX, -21.5], [exitX + 4, -25], [exitX, -31]]} speed={0.05} phase={0.4} />
       {outTrucks.map((r, i) => (<Truck key={r.store} from={[exitX - 6 + i * 6, 0, -64]} to={[exitX - 6 + i * 6, 0, -38.5]} delay={i * 5 + 3} loop={26} label={`→ ${r.store}`} />))}
 
-      <OrbitControls ref={controls} makeDefault maxPolarAngle={Math.PI / 2.15} minDistance={4} maxDistance={130} />
+      <OrbitControls ref={controls} makeDefault enabled={!drag} maxPolarAngle={Math.PI / 2.15} minDistance={4} maxDistance={130} />
     </>
   );
 }

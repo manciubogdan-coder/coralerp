@@ -28,6 +28,7 @@ import { priceCalcData, priceHistoryData, priceListData, priceOptions } from "..
 import { partnerMirrorSales } from "../_shared/partnerMirror.ts";
 import { DEFAULT_PRICE_RULES, loadPriceRules, savePriceRules } from "../_shared/priceRules.ts";
 import { SALES_PRICING_ACTIONS } from "../_shared/crmRules.ts";
+import { validateHallLayout } from "../_shared/hallLayoutRules.ts";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
 import { rawMaterialPrices } from "../_shared/rawMaterialPrices.ts";
@@ -735,6 +736,17 @@ Deno.serve(async (req) => {
         });
         if (error) throw error;
         return json(s);
+      }
+      case 'viziune_layout_save': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        let stations;
+        try { stations = validateHallLayout((await req.json())?.stations); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+        const { error } = await c.cloud.from('viziune_hala_layout').upsert({
+          id: true, stations, updated_by: auth.user.email ?? userId, updated_at: new Date().toISOString(),
+        });
+        if (error) throw error;
+        return json({ stations });
       }
       case 'direct_picking_save':
       case 'direct_picking_delete': {

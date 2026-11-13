@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { argusFetch } from "@/lib/argusApi";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { useOrders, useProductionLines } from "@/hooks/productie/useProductionData";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
 import { bucharestToday, buildLines, isOpenSession, pendingPrereceptions, readyByStore, stockByProduct, type VOrder, type VSession } from "@/lib/viziune/factoryState";
-import { assignStations, type StationOverrides } from "@/lib/viziune/hallLayout";
+import { defaultLayout, placementOf, validateHallLayout, type HallStation, type StationOverrides } from "@/lib/viziune/hallLayout";
 
+// Old per-browser choices, used only until someone saves the hall layout for everyone.
 const LAYOUT_KEY = "viziune-hala-linii";
 const readOverrides = (): StationOverrides => { try { return JSON.parse(localStorage.getItem(LAYOUT_KEY) || "{}") || {}; } catch { return {}; } };
 
@@ -32,16 +34,19 @@ export function useFactoryData() {
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15_000); return () => clearInterval(t); }, []);
-  const [overrides, setOverrides] = useState<StationOverrides>(readOverrides);
-  const placeLine = (stationId: string, lineId: string | null) => {
-    setOverrides((prev) => {
-      const next: StationOverrides = {};
-      for (const [k, v] of Object.entries(prev)) if (k !== stationId && v !== lineId) next[k] = v;
-      next[stationId] = lineId ?? "";
-      try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(next)); } catch { /* private mode */ }
-      return next;
-    });
-  };
+  const cache = useQueryClient();
+  const layoutQ = useQuery({
+    queryKey: ["viziune-hala-layout"],
+    queryFn: async () => {
+      const { data, error } = await supabaseCloud.from("viziune_hala_layout").select("stations, updated_by, updated_at").maybeSingle();
+      if (error) throw error;
+      return data as { stations: unknown; updated_by: string | null; updated_at: string } | null;
+    },
+  });
+  const saveLayoutM = useMutation({
+    mutationFn: (stations: HallStation[]) => argusFetch<{ stations: HallStation[] }>("viziune_layout_save", {}, { stations }),
+    onSuccess: () => cache.invalidateQueries({ queryKey: ["viziune-hala-layout"] }),
+  });
 
   // Open sessions (whatever day they started) plus everything started since yesterday, so worked time
   // of orders paused and resumed today is counted.
@@ -87,7 +92,10 @@ export function useFactoryData() {
   const orders = ((ordersQ.data as any[]) || []).filter((o: VOrder) => String(o.data_productie || "").slice(0, 10) === today || openOrderIds.has(o.id)) as VOrder[];
   const lines = ((linesQ.data as any[]) || []).filter((l) => !utilajIds.has(l.id) || /sp[ăa]lat/i.test(l.nume));
   const lineViews = buildLines(lines, orders, sessions, now);
-  const placement = assignStations(lines, overrides);
+  let saved: HallStation[] | null = null;
+  try { saved = layoutQ.data ? validateHallLayout(layoutQ.data.stations) : null; } catch { saved = null; }
+  const layout = saved ?? defaultLayout(lines, readOverrides());
+  const placement = placementOf(layout, lines);
   const ready = readyByStore(orders);
   const stock = stockByProduct(stockQ.data || []);
   const receptionsBySupplier = new Map<string, { supplier: string; kg: number; lots: number; products: Set<string> }>();
@@ -104,7 +112,11 @@ export function useFactoryData() {
     loading: linesQ.isLoading || ordersQ.isLoading,
     error: (linesQ.error || ordersQ.error || sessionsQ.error) as Error | null,
     updatedAt: Math.max(ordersQ.dataUpdatedAt || 0, sessionsQ.dataUpdatedAt || 0),
-    now, orders, lineViews, ready, stock, unassigned, placement, overrides, placeLine,
+    now, orders, lineViews, ready, stock, unassigned, layout, placement,
+    lines: lines as { id: string; nume: string }[],
+    layoutLoading: layoutQ.isLoading,
+    layoutInfo: saved && layoutQ.data ? { by: layoutQ.data.updated_by, at: layoutQ.data.updated_at } : null,
+    saveLayout: saveLayoutM.mutateAsync, savingLayout: saveLayoutM.isPending,
     prereceptions: pendingPrereceptions(preQ.data || [], today),
     receptions: [...receptionsBySupplier.values()].sort((a, b) => b.kg - a.kg),
     refetch: () => { ordersQ.refetch(); sessionsQ.refetch(); stockQ.refetch(); receptionsQ.refetch(); preQ.refetch(); },
