@@ -30,3 +30,4 @@
 - Session finish claims active status and updates cache. Why: prevent repeat overwrites.
 - Auth uses isolated authState, 20s retry gate and stale-read guards. Why: avoid blank screens/endless login.
 - Operator screens use Realtime + 60s visible fallback, coalesced non-cancelling invalidations; mutations refresh own caches. useOrders reads selected day ±1 (default yesterday–tomorrow) on demand, id-ordered, 4 pages concurrently, sorted locally. Collaboration: Realtime + 60s single-flight. Why: full-history updated_at sorts timed out and froze Operator.
+- Viziune (`/administrativ/viziune`) is a live 3D factory: rules in `src/lib/viziune/factoryState.ts` (no React/three), data via `useFactoryData` reusing production hooks, scene in `src/components/viziune/`; it only reads and never writes. Why: the 3D view must show real state without becoming a second place where data changes.
