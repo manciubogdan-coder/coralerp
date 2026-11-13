@@ -253,7 +253,13 @@ function CameraRig({ zone, controls }: { zone: Zone; controls: React.MutableRefO
   return null;
 }
 
-export function FactoryScene({ data, zone, selection, onSelect }: { data: FactoryData; zone: Zone; selection: Selection; onSelect: (s: Selection) => void }) {
+export function FactoryScene({ data: raw, zone, selection, onSelect }: { data: FactoryData; zone: Zone; selection: Selection; onSelect: (s: Selection) => void }) {
+  // Every list may still be loading (or missing while the page reloads): draw an empty zone instead of crashing.
+  const data = {
+    ...raw,
+    lineViews: raw?.lineViews ?? [], receptions: raw?.receptions ?? [], prereceptions: raw?.prereceptions ?? [],
+    stock: raw?.stock ?? [], ready: raw?.ready ?? [],
+  };
   const floor = useFloorTexture();
   const controls = useRef<any>(null);
   const lines = data.lineViews;
