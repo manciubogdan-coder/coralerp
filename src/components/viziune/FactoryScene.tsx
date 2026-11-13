@@ -16,7 +16,7 @@ const C = {
 export type Zone = "all" | "receptie" | "depozit" | "productie" | "livrare";
 export const ZONES: Record<Zone, { pos: [number, number, number]; target: [number, number, number]; label: string }> = {
   all: { pos: [6, 34, 40], target: [2, 0, 0], label: "Toată fabrica" },
-  receptie: { pos: [-38, 12, 14], target: [-28, 0, 0], label: "Recepție" },
+  receptie: { pos: [-32, 16, 26], target: [-28, 0, 3], label: "Poartă & recepție" },
   depozit: { pos: [-24, 12, 14], target: [-17, 0, 0], label: "Depozit MP (frig)" },
   productie: { pos: [3, 20, 22], target: [3, 0, 0], label: "Linii producție" },
   livrare: { pos: [32, 13, 16], target: [22, 0, 0], label: "Picking & livrare" },
@@ -240,11 +240,13 @@ function Clickable({ onSelect, children }: { onSelect: () => void; children: Rea
 function CameraRig({ zone, controls }: { zone: Zone; controls: React.MutableRefObject<any> }) {
   const { camera } = useThree();
   const goal = useRef({ zone, active: true });
+  const first = useRef(true);
   if (goal.current.zone !== zone) goal.current = { zone, active: true };
   useFrame((_, d) => {
     if (!goal.current.active || !controls.current) return;
     const z = ZONES[goal.current.zone]; const k = 1 - Math.exp(-3 * Math.min(d, 0.05));
     const p = new THREE.Vector3(...z.pos); const t = new THREE.Vector3(...z.target);
+    if (first.current) { first.current = false; camera.position.copy(p); controls.current.target.copy(t); controls.current.update(); goal.current.active = false; return; }
     camera.position.lerp(p, k); controls.current.target.lerp(t, k); controls.current.update();
     if (camera.position.distanceTo(p) < 0.2) goal.current.active = false;
   });
@@ -298,6 +300,18 @@ export function FactoryScene({ data, zone, selection, onSelect }: { data: Factor
       {Array.from({ length: recTrucks }).map((_, i) => (
         <Truck key={i} from={[-48, 0, -6 + i * 5]} to={[-33, 0, -6 + i * 5]} delay={i * 7} label={data.receptions[i]?.supplier} />
       ))}
+      {/* prerecepții: camioane anunțate care așteaptă la poartă (coadă pe drumul de acces) */}
+      <Clickable onSelect={() => onSelect({ kind: "receptie" })}>
+        <ZoneSign position={[-27, 5, hallDepth / 2 + 5]} title="Poartă · prerecepții" sub={data.prereceptions.length ? `${data.prereceptions.length} camioane așteptate · ${Math.round(data.prereceptions.reduce((a, p) => a + p.kgLeft, 0)).toLocaleString("ro-RO")} kg de descărcat` : "Nimic anunțat care să mai aștepte"} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-27, 0.005, hallDepth / 2 + 6]}><planeGeometry args={[22, 6]} /><meshStandardMaterial color="#6f726c" /></mesh>
+        <mesh position={[-37.5, 0.9, hallDepth / 2 + 3.2]}><boxGeometry args={[0.2, 1.8, 0.2]} /><meshStandardMaterial color="#d04437" /></mesh>
+        <mesh position={[-37.5, 1.7, hallDepth / 2 + 5]}><boxGeometry args={[0.12, 0.12, 3.6]} /><meshStandardMaterial color="#d04437" /></mesh>
+        {data.prereceptions.slice(0, 4).map((p, i) => (
+          <group key={p.id} position={[-35 + i * 4.2, 0, hallDepth / 2 + 6.5]}>
+            <Truck from={[0, 0, 0]} to={[0, 0, -0.01]} loop={1000} label={`${p.late ? "⚠ întârziat · " : ""}${p.supplier} · ${Math.round(p.kgLeft).toLocaleString("ro-RO")} kg`} />
+          </group>
+        ))}
+      </Clickable>
 
       {/* ===== DEPOZIT MP (cold room) ===== */}
       <Clickable onSelect={() => onSelect({ kind: "depozit" })}>

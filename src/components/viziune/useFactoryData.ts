@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { useOrders, useProductionLines } from "@/hooks/productie/useProductionData";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
-import { bucharestToday, buildLines, readyByStore, stockByProduct, type VOrder, type VSession } from "@/lib/viziune/factoryState";
+import { bucharestToday, buildLines, pendingPrereceptions, readyByStore, stockByProduct, type VOrder, type VSession } from "@/lib/viziune/factoryState";
 
 const REFRESH = 30_000;
+const shiftDays = (day: string, n: number) => { const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 async function readAllRows(build: (from: number, to: number) => any) {
   const out: any[] = [];
@@ -49,6 +51,18 @@ export function useFactoryData() {
     },
   });
 
+  const preQ = useQuery({
+    queryKey: ["viziune-prereceptii", today],
+    refetchInterval: REFRESH * 2,
+    queryFn: async () => {
+      const { data, error } = await supabaseCloud.from("prereceptii")
+        .select("id, document_number, supplier_name, expected_date, status, linii:prereceptie_linii(product_name, cantitate_document, unit, received_at)")
+        .eq("inventory_type", "materii-prime").neq("status", "receptionata").lte("expected_date", today).gte("expected_date", shiftDays(today, -7)).limit(200);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
   const orders = ((ordersQ.data as any[]) || []).filter((o: VOrder) => String(o.data_productie || "").slice(0, 10) === today) as VOrder[];
   const lines = ((linesQ.data as any[]) || []).filter((l) => !utilajIds.has(l.id) || /sp[ăa]lat/i.test(l.nume));
   const lineViews = buildLines(lines, orders, sessionsQ.data || []);
@@ -69,8 +83,9 @@ export function useFactoryData() {
     error: (linesQ.error || ordersQ.error || sessionsQ.error) as Error | null,
     updatedAt: Math.max(ordersQ.dataUpdatedAt || 0, sessionsQ.dataUpdatedAt || 0),
     orders, lineViews, ready, stock, unassigned,
+    prereceptions: pendingPrereceptions(preQ.data || [], today),
     receptions: [...receptionsBySupplier.values()].sort((a, b) => b.kg - a.kg),
-    refetch: () => { ordersQ.refetch(); sessionsQ.refetch(); stockQ.refetch(); receptionsQ.refetch(); },
+    refetch: () => { ordersQ.refetch(); sessionsQ.refetch(); stockQ.refetch(); receptionsQ.refetch(); preQ.refetch(); },
   };
 }
 export type FactoryData = ReturnType<typeof useFactoryData>;

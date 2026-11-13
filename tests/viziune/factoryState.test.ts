@@ -24,3 +24,17 @@ describe("viziune factory state", () => {
     expect(r).toEqual([{ store: "LIDL ROMAN", pieces: 20, orders: 1 }]);
   });
 });
+
+import { pendingPrereceptions } from "@/lib/viziune/factoryState";
+describe("viziune prereceptions", () => {
+  it("only announced deliveries due today or overdue with unreceived lines wait at the gate", () => {
+    const r = pendingPrereceptions([
+      { id: "a", status: "asteptare", expected_date: "2026-11-13", supplier_name: "Agro", linii: [{ product_name: "Rucola", cantitate_document: 300 }] },
+      { id: "b", status: "partial", expected_date: "2026-11-12", supplier_name: "Fresh", linii: [{ product_name: "Menta", cantitate_document: 50, received_at: "x" }, { product_name: "PDZ", cantitate_document: 120 }] },
+      { id: "c", status: "asteptare", expected_date: "2026-11-14", linii: [{ product_name: "X", cantitate_document: 10 }] },
+      { id: "d", status: "receptionata", expected_date: "2026-11-13", linii: [{ product_name: "Y", cantitate_document: 10, received_at: "x" }] },
+    ], "2026-11-13");
+    expect(r.map((p) => p.id)).toEqual(["b", "a"]);
+    expect(r[0]).toMatchObject({ late: true, kgLeft: 120, linesLeft: 1 });
+  });
+});

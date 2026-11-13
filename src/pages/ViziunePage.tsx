@@ -63,6 +63,7 @@ export default function ViziunePage() {
         <Kpi label="Linii care lucrează" value={`${working.length} / ${data.lineViews.length}`} sub={`${people} oameni pe linii`} />
         <Kpi label="Comenzi azi" value={fmt(real.length)} sub={`${real.filter((o) => o.status === "completed").length} gata · ${data.unassigned.length} fără linie`} />
         <Kpi label="Recepții azi" value={`${fmt(recKg)} kg`} sub={`${data.receptions.length} furnizori`} />
+        <Kpi label="Prerecepții de descărcat" value={`${data.prereceptions.length} camioane`} sub={`${fmt(data.prereceptions.reduce((a, p) => a + p.kgLeft, 0))} kg${data.prereceptions.some((p) => p.late) ? ` · ${data.prereceptions.filter((p) => p.late).length} întârziate` : ""}`} />
         <Kpi label="Gata de livrare" value={`${data.ready.length} magazine`} sub={`${fmt(data.ready.reduce((a, r) => a + r.pieces, 0))} buc`} />
       </div>
 
@@ -102,9 +103,20 @@ export default function ViziunePage() {
                   </tr>))}</tbody>
               </table>
             ))}
-            {sel.kind === "receptie" && (data.receptions.length === 0 ? <p className="text-muted-foreground">Nicio recepție azi.</p> : data.receptions.map((r) => (
-              <div key={r.supplier} className="border-b py-1.5 last:border-0"><div className="flex justify-between font-medium"><span>{r.supplier}</span><span className="tabular-nums">{fmt(r.kg)} kg</span></div><div className="text-xs text-muted-foreground">{r.lots} loturi · {[...r.products].slice(0, 4).join(", ")}</div></div>
-            )))}
+            {sel.kind === "receptie" && <>
+              <div className="mb-1 text-xs font-bold uppercase text-muted-foreground">La poartă — prerecepții nedescărcate</div>
+              {data.prereceptions.length === 0 ? <p className="mb-3 text-xs text-muted-foreground">Nimic anunțat care să mai aștepte.</p> : data.prereceptions.map((p) => (
+                <div key={p.id} className="border-b py-1.5 last:border-0">
+                  <div className="flex justify-between font-medium"><span>{p.supplier}</span><span className="tabular-nums">{fmt(p.kgLeft)} kg</span></div>
+                  <div className="text-xs text-muted-foreground">{p.doc && `Doc ${p.doc} · `}{p.linesLeft}/{p.linesTotal} poziții de recepționat{p.late && <span className="font-semibold text-destructive"> · întârziat (anunțat {p.expected})</span>}</div>
+                  <div className="text-xs text-muted-foreground">{p.products.slice(0, 5).join(", ")}</div>
+                </div>
+              ))}
+              <div className="mb-1 mt-3 text-xs font-bold uppercase text-muted-foreground">Recepționat azi</div>
+              {data.receptions.length === 0 ? <p className="text-xs text-muted-foreground">Nicio recepție azi.</p> : data.receptions.map((r) => (
+                <div key={r.supplier} className="border-b py-1.5 last:border-0"><div className="flex justify-between font-medium"><span>{r.supplier}</span><span className="tabular-nums">{fmt(r.kg)} kg</span></div><div className="text-xs text-muted-foreground">{r.lots} loturi · {[...r.products].slice(0, 4).join(", ")}</div></div>
+              ))}
+            </>}
             {sel.kind === "depozit" && data.stock.slice(0, 60).map((s) => (
               <div key={s.name} className="flex justify-between border-b py-1 text-xs last:border-0"><span>{s.name}</span><span className="tabular-nums">{fmt(s.qty)} {s.unit}</span></div>
             ))}
