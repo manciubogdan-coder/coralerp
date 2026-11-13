@@ -32,6 +32,9 @@ export const STATIONS: PlanStation[] = [
   { id: "masa_bio", kind: "masa", label: "Masă bio / coleslaw", px: 520, py: 585, match: /bio|coleslo|fructe/i },
   { id: "spalare_auto", kind: "spalare_auto", label: "Linia de spălat automată", px: 650, py: 820, match: /sp[ăa]lat.*automat/i },
   { id: "spalare_manual", kind: "spalare_manual", label: "Spălătoare mari", px: 520, py: 790, match: /sp[ăa]lat.*manual/i },
+  { id: "iceberg", kind: "utilaj", label: "Iceberg", px: 395, py: 620, match: /iceberg/i },
+  { id: "replay55", kind: "utilaj", label: "Replay 55", px: 390, py: 680, match: /replay/i },
+  { id: "topsealing", kind: "utilaj", label: "Top sealing", px: 395, py: 740, match: /top\s*seal/i },
   { id: "rezerva1", kind: "masa", label: "Masă liberă", px: 420, py: 880, spare: true },
   { id: "rezerva2", kind: "masa", label: "Masă liberă", px: 140, py: 860, spare: true },
   { id: "rezerva3", kind: "masa", label: "Masă liberă", px: 150, py: 455, spare: true },
@@ -100,11 +103,4 @@ export const FLOWS: { kind: "materie" | "finit" | "igiena"; pts: [number, number
   { kind: "finit", pts: [[455, 55], [480, 165]] },
   { kind: "finit", pts: [[575, 55], [600, 150]] },
   { kind: "igiena", pts: [[300, 150], [300, 565], [355, 565], [355, 785], [325, 785], [325, 915]] },
-];
-
-/** Machines on the plan that are not production lines: drawn for orientation only. */
-export const FIXTURES: { label: string; px: number; py: number; w: number; d: number }[] = [
-  { label: "Iceberg", px: 395, py: 620, w: 55, d: 40 },
-  { label: "Replay 55", px: 390, py: 680, w: 35, d: 50 },
-  { label: "Top sealing", px: 395, py: 740, w: 55, d: 25 },
 ];

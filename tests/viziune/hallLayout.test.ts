@@ -47,3 +47,12 @@ describe("Viziune: planul halei salvat", () => {
     expect(toPlan(x, z)).toEqual([320, 1045]);
   });
 });
+
+describe("plan machines Iceberg / Replay / Top sealing", () => {
+  it("are editable stations and the replay line lands on Replay 55", () => {
+    const lines = [{ id: "70ac5c26-861d-4f56-803a-413e608f9328", nume: "replay 55 nr2" }];
+    const layout = defaultLayout(lines);
+    expect(layout.map((s) => s.id)).toEqual(expect.arrayContaining(["iceberg", "replay55", "topsealing"]));
+    expect(layout.find((s) => s.id === "replay55")?.lineId).toBe(lines[0].id);
+  });
+});

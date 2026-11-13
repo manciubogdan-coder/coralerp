@@ -4,7 +4,7 @@ import { Html, Environment, Lightformer, OrbitControls, RoundedBox } from "@reac
 import * as THREE from "three";
 import type { FactoryData } from "./useFactoryData";
 import type { LineView } from "@/lib/viziune/factoryState";
-import { FIXTURES, FLOWS, HALL, toPlan, toWorld, type HallStation } from "@/lib/viziune/hallLayout";
+import { FLOWS, HALL, toPlan, toWorld, type HallStation } from "@/lib/viziune/hallLayout";
 type Station = HallStation;
 import { clockTime, minutesLabel, PaceBadge } from "./pace";
 
@@ -543,11 +543,6 @@ function HallShell() {
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[(ox0 + ox1) / 2, 0.01, (oz0 + D2) / 2]}><planeGeometry args={[ox1 - ox0, D2 - oz0]} /><meshStandardMaterial color="#9a9d97" /></mesh>
         <Html position={[(ox0 + ox1) / 2, 3.2, (oz0 + D2) / 2]} center distanceFactor={26} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/85 px-1.5 py-0.5 text-[10px] text-muted-foreground">Vestiare · birouri</div></Html>
       </group>
-      {FIXTURES.map((f) => { const [x, z] = toWorld(f.px, f.py); return (
-        <group key={f.label} position={[x, 0, z]}>
-          <RoundedBox args={[(f.w / 780) * HALL.w, 1.3, (f.d / 1200) * HALL.d]} radius={0.05} position={[0, 0.65, 0]} castShadow><meshStandardMaterial color={C.steel} metalness={0.7} roughness={0.3} /></RoundedBox>
-          <Html position={[0, 1.8, 0]} center distanceFactor={22} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/85 px-1 text-[9px] text-muted-foreground">{f.label}</div></Html>
-        </group>); })}
       {FLOWS.map((f, i) => <FlowStripe key={i} pts={f.pts} color={C.flow[f.kind]} />)}
     </group>
   );
