@@ -16,6 +16,7 @@ import ProfilePage from "./pages/ProfilePage";
 
 import DepartmentHub from "./pages/DepartmentHub";
 import AdministrativHub from "./pages/AdministrativHub";
+const ViziunePage = React.lazy(() => import("./pages/ViziunePage"));
 import AchizitiiHub from "./pages/AchizitiiHub";
 import PlaceholderPage from "./components/PlaceholderPage";
 
@@ -372,6 +373,14 @@ const AppShell = () => {
                   element={
                     <ProtectedRoute requireDepartment="administrativ">
                       <AdministrativHub />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/administrativ/viziune"
+                  element={
+                    <ProtectedRoute requireDepartment="administrativ">
+                      <React.Suspense fallback={null}><ViziunePage /></React.Suspense>
                     </ProtectedRoute>
                   }
                 />
