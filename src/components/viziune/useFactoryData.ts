@@ -1,9 +1,14 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { useOrders, useProductionLines } from "@/hooks/productie/useProductionData";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
-import { bucharestToday, buildLines, pendingPrereceptions, readyByStore, stockByProduct, type VOrder, type VSession } from "@/lib/viziune/factoryState";
+import { bucharestToday, buildLines, isOpenSession, pendingPrereceptions, readyByStore, stockByProduct, type VOrder, type VSession } from "@/lib/viziune/factoryState";
+import { assignStations, type StationOverrides } from "@/lib/viziune/hallLayout";
+
+const LAYOUT_KEY = "viziune-hala-linii";
+const readOverrides = (): StationOverrides => { try { return JSON.parse(localStorage.getItem(LAYOUT_KEY) || "{}") || {}; } catch { return {}; } };
 
 const REFRESH = 30_000;
 const shiftDays = (day: string, n: number) => { const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -25,14 +30,27 @@ export function useFactoryData() {
   const ordersQ = useOrders(today);
   const { utilajIds } = useUtilajIds();
 
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15_000); return () => clearInterval(t); }, []);
+  const [overrides, setOverrides] = useState<StationOverrides>(readOverrides);
+  const placeLine = (stationId: string, lineId: string | null) => {
+    setOverrides((prev) => {
+      const next: StationOverrides = {};
+      for (const [k, v] of Object.entries(prev)) if (k !== stationId && v !== lineId) next[k] = v;
+      next[stationId] = lineId ?? "";
+      try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
+  };
+
+  // Open sessions (whatever day they started) plus everything started since yesterday, so worked time
+  // of orders paused and resumed today is counted.
   const sessionsQ = useQuery({
-    queryKey: ["viziune-sessions"],
+    queryKey: ["viziune-sessions", today],
     refetchInterval: REFRESH,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("productie_sesiuni_lucru").select("id, comanda_id, linie_id, nume_operator, numar_angajati, ora_start").eq("status", "activa");
-      if (error) throw error;
-      return (data || []) as VSession[];
-    },
+    queryFn: () => readAllRows((a, b) => supabase.from("productie_sesiuni_lucru")
+      .select("id, comanda_id, linie_id, nume_operator, numar_angajati, ora_start, ora_sfarsit, cantitate_produsa, status")
+      .or(`status.eq.activa,ora_start.gte.${shiftDays(today, -1)}T00:00:00Z`).order("id").range(a, b)) as Promise<VSession[]>,
   });
 
   const stockQ = useQuery({
@@ -63,9 +81,13 @@ export function useFactoryData() {
     },
   });
 
-  const orders = ((ordersQ.data as any[]) || []).filter((o: VOrder) => String(o.data_productie || "").slice(0, 10) === today) as VOrder[];
+  const sessions = sessionsQ.data || [];
+  const openOrderIds = new Set(sessions.filter(isOpenSession).map((s) => s.comanda_id));
+  // Today's orders, plus any order still being worked on even if it was planned for another day.
+  const orders = ((ordersQ.data as any[]) || []).filter((o: VOrder) => String(o.data_productie || "").slice(0, 10) === today || openOrderIds.has(o.id)) as VOrder[];
   const lines = ((linesQ.data as any[]) || []).filter((l) => !utilajIds.has(l.id) || /sp[ăa]lat/i.test(l.nume));
-  const lineViews = buildLines(lines, orders, sessionsQ.data || []);
+  const lineViews = buildLines(lines, orders, sessions, now);
+  const placement = assignStations(lines, overrides);
   const ready = readyByStore(orders);
   const stock = stockByProduct(stockQ.data || []);
   const receptionsBySupplier = new Map<string, { supplier: string; kg: number; lots: number; products: Set<string> }>();
@@ -82,7 +104,7 @@ export function useFactoryData() {
     loading: linesQ.isLoading || ordersQ.isLoading,
     error: (linesQ.error || ordersQ.error || sessionsQ.error) as Error | null,
     updatedAt: Math.max(ordersQ.dataUpdatedAt || 0, sessionsQ.dataUpdatedAt || 0),
-    orders, lineViews, ready, stock, unassigned,
+    now, orders, lineViews, ready, stock, unassigned, placement, overrides, placeLine,
     prereceptions: pendingPrereceptions(preQ.data || [], today),
     receptions: [...receptionsBySupplier.values()].sort((a, b) => b.kg - a.kg),
     refetch: () => { ordersQ.refetch(); sessionsQ.refetch(); stockQ.refetch(); receptionsQ.refetch(); preQ.refetch(); },
