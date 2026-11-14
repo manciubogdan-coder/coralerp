@@ -91,7 +91,7 @@ describe("Viziune: sesiuni uitate deschise", () => {
   it("a session left open for more than 12 hours is ignored and listed, not shown as hours of delay", () => {
     const sessions = [open("old", "a", -60 * 30), open("s1", "b", 0)];
     const p = linePace(120, [order("a", 100), order("b", 60)], sessions, "L", T0 + 10 * 60_000);
-    expect(p.forgotten.map((s) => s.id)).toEqual(["old"]);
+    expect(p.forgotten).toEqual([]); // started on an earlier day: ignored and not listed
     expect(p.orders.map((o) => o.id)).toEqual(["b"]);
     expect(Math.round(p.workedHours * 60)).toBe(10);
     expect(p.status).toBe("in_norma");

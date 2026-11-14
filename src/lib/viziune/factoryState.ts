@@ -115,7 +115,9 @@ const msOf = (s?: string | null) => (s ? new Date(s).getTime() : NaN);
  * against quantity ÷ line norm (buc/h).
  */
 export function linePace(norm: number, lineOrders: VOrder[], allSessions: VSession[], lineId: string, now: number, allOrders: VOrder[] = lineOrders): LinePace {
-  const forgotten = allSessions.filter((s) => s.linie_id === lineId && isForgotten(s, now));
+  // Only today's forgotten sessions are listed; old ones from earlier days stay ignored without being shown.
+  const today = bucharestToday(new Date(now));
+  const forgotten = allSessions.filter((s) => s.linie_id === lineId && isForgotten(s, now) && bucharestToday(new Date(s.ora_start!)) === today);
   const open = allSessions.filter((s) => s.linie_id === lineId && isLiveSession(s, now));
   const inWorkIds = new Set(open.map((s) => s.comanda_id));
   // The session says where the order runs, even if the order was planned on another line.
