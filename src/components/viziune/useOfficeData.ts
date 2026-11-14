@@ -10,7 +10,8 @@ export function useOfficeData() {
     queryFn: () => argusFetch<RawOffices>("viziune_offices"),
     refetchInterval: 60_000,
     staleTime: 30_000,
-    retry: 1,
+    retry: 3,
+    retryDelay: (n) => Math.min(15_000, 2_000 * 2 ** n),
   });
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
