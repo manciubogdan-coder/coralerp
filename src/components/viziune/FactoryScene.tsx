@@ -15,6 +15,10 @@ const RECEPTION_CELLS = rowPairCells(-27.8, 24.4, 9, 3);
 const pickingCells = (x: number) => rowPairCells(x - 8.45, -24.6, 14, 2, { dir: -1, aisle: 4.5 });
 type Station = HallStation;
 import { clockTime, minutesLabel, PaceBadge } from "./pace";
+import { OfficesScene } from "./OfficeScene";
+import type { OfficeData } from "./useOfficeData";
+import type { OfficeId } from "@/lib/viziune/officeState";
+import { HALL_OFFICE_SPLIT } from "@/lib/viziune/officeLayout";
 
 // Scene materials are a fixed physical palette (steel, crates, greens, water), not UI theme colors.
 const C = {
@@ -27,9 +31,9 @@ const C = {
 };
 const W2 = HALL.w / 2, D2 = HALL.d / 2;
 
-export type Zone = "all" | "plan" | "productie" | "cantare" | "spalare" | "receptie" | "depozit" | "livrare";
+export type Zone = "all" | "plan" | "productie" | "cantare" | "spalare" | "receptie" | "depozit" | "livrare" | "birouri" | "birouriHala";
 export const ZONES: Record<Zone, { pos: [number, number, number]; target: [number, number, number]; label: string }> = {
-  all: { pos: [-10, 62, 58], target: [0, 0, 2], label: "Toată fabrica" },
+  all: { pos: [0, 66, 62], target: [8, 0, 2], label: "Toată fabrica" },
   plan: { pos: [0, 52, 0.01], target: [0, 0, 0], label: "Hala de sus" },
   productie: { pos: [-4, 36, 30], target: [0, 0, 0], label: "Hala de producție" },
   cantare: { pos: [-2, 17, 6], target: [1, 0, -10], label: "Cântare & flowpack" },
@@ -37,12 +41,14 @@ export const ZONES: Record<Zone, { pos: [number, number, number]; target: [numbe
   receptie: { pos: [-38, 18, 46], target: [-22, 0, 30], label: "Poartă & recepție" },
   depozit: { pos: [0, 16, 46], target: [0, 0, 28], label: "Depozit MP (frig)" },
   livrare: { pos: [20, 20, -52], target: [6, 0, -29], label: "Picking & livrare" },
+  birouri: { pos: [24, 26, 30], target: [29, 0, 0], label: "Clădirea de birouri" },
+  birouriHala: { pos: [-11, 17, 24], target: [-8.2, 0, 15.5], label: "Birouri din hală" },
 };
 
 /** A camera move asked by the page: fly to a zone, nudge with the navigation pad, or look at one machine. */
 export type CameraCmd = { seq: number } & ({ kind: "zone"; zone: Zone } | { kind: "nav"; action: NavAction } | { kind: "focus"; x: number; z: number });
 
-export type Selection = { kind: "line"; id: string } | { kind: "station"; id: string } | { kind: "receptie" } | { kind: "depozit" } | { kind: "livrare" } | null;
+export type Selection = { kind: "line"; id: string } | { kind: "station"; id: string } | { kind: "receptie" } | { kind: "depozit" } | { kind: "livrare" } | { kind: "office"; id: OfficeId } | { kind: "birouri" } | null;
 
 function useFloorTexture() {
   return useMemo(() => {
@@ -634,15 +640,17 @@ function HallShell() {
         <mesh position={[ox1, 1.3, (oz0 + D2) / 2]}><boxGeometry args={[0.25, 2.6, D2 - oz0]} /><meshStandardMaterial color={C.pillar} /></mesh>
         <mesh position={[(ox0 + ox1) / 2 - 1, 1.3, (oz0 + D2) / 2]}><boxGeometry args={[0.2, 2.6, D2 - oz0 - 2]} /><meshStandardMaterial color={C.pillar} /></mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[(ox0 + ox1) / 2, 0.01, (oz0 + D2) / 2]}><planeGeometry args={[ox1 - ox0, D2 - oz0]} /><meshStandardMaterial color="#9a9d97" /></mesh>
-        <Html position={[(ox0 + ox1) / 2, 3.2, (oz0 + D2) / 2]} center distanceFactor={26} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/85 px-1.5 py-0.5 text-[10px] text-muted-foreground">Vestiare · birouri</div></Html>
+        <Html position={[(ox0 + HALL_OFFICE_SPLIT) / 2, 3.2, (oz0 + D2) / 2]} center distanceFactor={26} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/85 px-1.5 py-0.5 text-[10px] text-muted-foreground">Vestiare</div></Html>
       </group>
       {FLOWS.map((f, i) => <FlowStripe key={i} pts={f.pts} color={C.flow[f.kind]} />)}
     </group>
   );
 }
 
-export function FactoryScene({ data: raw, camera, selection, onSelect, layout: layoutProp, editing = false, onMove }: {
+export function FactoryScene({ data: raw, camera, selection, onSelect, layout: layoutProp, editing = false, onMove, offices = null }: {
   data: FactoryData; camera: CameraCmd; selection: Selection; onSelect: (s: Selection) => void;
+  /** People in the offices (office building + offices in the hall). */
+  offices?: OfficeData | null;
   /** Hall being edited (draft); defaults to the saved layout. */
   layout?: HallStation[]; editing?: boolean; onMove?: (id: string, px: number, py: number) => void;
 }) {
@@ -764,6 +772,9 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
       </Clickable>
       <Forklift path={[[exitX - 10.6, -26.85], [exitX, -26.85], [exitX + 10.6, -26.85], [exitX + 10.6, -33.6], [exitX, -33.6], [exitX - 10.6, -33.6]]} speed={0.035} phase={0.4} />
       {outTrucks.map((r, i) => (<Truck key={r.store} from={[exitX - 6 + i * 6, 0, -64]} to={[exitX - 6 + i * 6, 0, -38.5]} delay={i * 5 + 3} loop={26} label={`→ ${r.store}`} />))}
+
+      {/* ===== BIROURI ===== */}
+      {!editing && <OfficesScene offices={offices} selection={selection} onSelect={onSelect} />}
 
       <OrbitControls ref={controls} makeDefault enabled={!drag} maxPolarAngle={Math.PI / 2.15} minDistance={4} maxDistance={130} />
     </>

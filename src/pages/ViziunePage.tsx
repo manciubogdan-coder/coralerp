@@ -14,6 +14,9 @@ import { HallEditor } from "@/components/viziune/HallEditor";
 import { toast } from "sonner";
 import { clockTime, minutesLabel, PaceBadge } from "@/components/viziune/pace";
 import { AlertTriangle, LayoutGrid, RefreshCw, X } from "lucide-react";
+import { useOfficeData } from "@/components/viziune/useOfficeData";
+import { OfficeDetail, OfficesOverview, type OfficeFacts } from "@/components/viziune/OfficeDetail";
+import { OFFICES } from "@/lib/viziune/officeState";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("ro-RO");
 const STATUS_LABEL: Record<string, string> = { lucreaza: "Lucrează", asteapta: "În așteptare", terminat: "Gata pe azi", oprita: "Oprită" };
@@ -80,6 +83,7 @@ function LineDetail({ line }: { line: LineView }) {
 export default function ViziunePage() {
   const navigate = useNavigate();
   const data = useFactoryData();
+  const offices = useOfficeData();
   const [zone, setZoneState] = useState<Zone>("all");
   const [cam, setCam] = useState<CameraCmd>({ seq: 0, kind: "zone", zone: "all" });
   const setZone = (z: Zone) => { setZoneState(z); setCam((c) => ({ seq: c.seq + 1, kind: "zone", zone: z })); };
@@ -148,7 +152,17 @@ export default function ViziunePage() {
     if (s?.kind === "receptie") setZone("receptie");
     if (s?.kind === "depozit") setZone("depozit");
     if (s?.kind === "livrare") setZone("livrare");
+    if (s?.kind === "birouri") setZone("birouri");
+    if (s?.kind === "office") setZone(OFFICES[s.id].building === "hala" ? "birouriHala" : "birouri");
   };
+  const officeFacts: OfficeFacts = {
+    linesWorking: working.length, linesTotal: data.lineViews.length, producedPct: pieces ? Math.round((produced / pieces) * 100) : null,
+    lateLines: late.length, receptionLots: data.receptions.reduce((a, r) => a + r.lots, 0), receptionKg: recKg,
+    prereceptions: (data.prereceptions ?? []).length, stoppedLines: data.lineViews.filter((l) => l.status === "oprita").length,
+  };
+  const officeNow = offices.people.filter((p) => p.status === "aplicatie" || p.status === "senior").length;
+  const seniorDocs = [...offices.docTotals.values()].reduce((a, t) => a + t.n, 0);
+  const isOffice = sel?.kind === "office" || sel?.kind === "birouri";
 
   return (
     <div className="relative h-[calc(100vh-4rem)] w-full overflow-hidden bg-background" data-scene-ready={ready ? "" : undefined}>
@@ -160,7 +174,7 @@ export default function ViziunePage() {
             <h1 className="text-base font-black leading-tight">Viziune · Fabrica Coral live</h1>
             <p className="text-[10px] text-muted-foreground">{data.today} · actualizat {data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) : "…"} · se reîmprospătează la 30 s</p>
           </div>
-          <Button size="icon" variant="ghost" onClick={() => data.refetch()} title="Reîmprospătează"><RefreshCw className="h-4 w-4" /></Button>
+          <Button size="icon" variant="ghost" onClick={() => { data.refetch(); offices.refetch(); }} title="Reîmprospătează"><RefreshCw className="h-4 w-4" /></Button>
           <Button size="sm" variant={editing ? "default" : "outline"} disabled={editing || data.layoutLoading} onClick={() => startEdit()} title="Mută, adaugă sau scoate utilaje și alege ce linie lucrează pe fiecare">
             <LayoutGrid className="mr-1 h-4 w-4" />Aranjează hala
           </Button>
@@ -177,6 +191,9 @@ export default function ViziunePage() {
         <Kpi label="Comenzi azi" value={fmt(real.length)} sub={`${real.filter((o) => o.status === "completed").length} gata · ${data.unassigned.length} fără linie`} />
         <Kpi label="Recepții azi" value={`${fmt(recKg)} kg`} sub={`${data.receptions.length} furnizori`} />
         <Kpi label="Prerecepții de descărcat" value={`${(data.prereceptions ?? []).length} camioane`} sub={`${fmt((data.prereceptions ?? []).reduce((a, p) => a + p.kgLeft, 0))} kg${(data.prereceptions ?? []).some((p) => p.late) ? ` · ${(data.prereceptions ?? []).filter((p) => p.late).length} întârziate` : ""}`} />
+        <button type="button" className="pointer-events-auto text-left" onClick={() => select({ kind: "birouri" })}>
+          <Kpi label="Birouri" value={offices.loading ? "…" : `${officeNow} lucrează acum`} sub={offices.error ? "nu s-au putut citi" : `${seniorDocs} documente Senior azi${offices.seniorError ? " · Senior indisponibil" : ""}`} />
+        </button>
         <Kpi label="Gata de livrare" value={`${data.ready.length} magazine`} sub={`${fmt(data.ready.reduce((a, r) => a + r.pieces, 0))} buc`} />
       </div>
 
@@ -211,13 +228,16 @@ export default function ViziunePage() {
         <div className="absolute right-3 top-28 z-20 flex max-h-[calc(100%-10rem)] w-[min(92vw,380px)] flex-col rounded-xl border bg-card shadow-xl">
           <div className="flex items-start justify-between gap-2 border-b p-3">
             <div>
-              <div className="text-base font-black">{line ? line.name : emptyStation ? emptyStation.label : sel.kind === "receptie" ? "Recepție azi" : sel.kind === "depozit" ? "Depozit materie primă" : "Gata de livrare"}</div>
+              <div className="text-base font-black">{line ? line.name : emptyStation ? emptyStation.label : sel.kind === "office" ? OFFICES[sel.id].label : sel.kind === "birouri" ? "Birourile firmei azi" : sel.kind === "receptie" ? "Recepție azi" : sel.kind === "depozit" ? "Depozit materie primă" : "Gata de livrare"}</div>
               {line && <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><Badge variant="secondary">{STATUS_LABEL[line.status]}</Badge><PaceBadge pace={line.pace} />{line.operator && <span>{line.operator} · {line.workers} oameni</span>}</div>}
             </div>
             <Button size="icon" variant="ghost" onClick={() => setSel(null)}><X className="h-4 w-4" /></Button>
           </div>
           <div className="flex-1 overflow-y-auto p-3 text-sm">
             {line && <LineDetail line={line} />}
+            {sel.kind === "office" && <OfficeDetail id={sel.id} offices={offices} facts={officeFacts} />}
+            {sel.kind === "birouri" && <OfficesOverview offices={offices} onOffice={(id) => select({ kind: "office", id })} />}
+            {isOffice && offices.error && <p className="text-xs text-destructive">Nu am putut citi activitatea birourilor: {offices.error.message}</p>}
             {(line || emptyStation) && (
               <div className="mt-3 border-t pt-2 text-xs">
                 <div className="flex items-center justify-between gap-2">
@@ -250,9 +270,10 @@ export default function ViziunePage() {
             )))}
           </div>
           <div className="border-t p-2">
+            {isOffice ? <Button className="w-full" variant="outline" onClick={() => navigate("/administrativ/activitate")}>Deschide Activitate (istoric pe zile)</Button> :
             <Button className="w-full" variant="outline" onClick={() => navigate(line || emptyStation ? "/operator" : sel.kind === "receptie" ? "/depozit-mp" : sel.kind === "depozit" ? "/depozit-mp" : "/picking")}>
               Deschide {line || emptyStation ? "Operator" : sel.kind === "livrare" ? "Picking" : "Depozit MP"}
-            </Button>
+            </Button>}
           </div>
         </div>
       )}
@@ -260,7 +281,7 @@ export default function ViziunePage() {
       {data.error && <div className="absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-lg border border-destructive bg-card px-3 py-2 text-sm text-destructive shadow">Nu am putut citi datele: {data.error.message}</div>}
 
       <Canvas shadows dpr={[1, 1.75]} camera={{ position: ZONES.all.pos, fov: 42, near: 0.5, far: 300 }} onCreated={() => setTimeout(() => setReady(true), 500)} onPointerMissed={() => setSel(null)}>
-        <FactoryScene data={data} camera={cam} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation} />
+        <FactoryScene data={data} offices={offices} camera={cam} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation} />
       </Canvas>
     </div>
   );
