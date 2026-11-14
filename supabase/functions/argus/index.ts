@@ -747,6 +747,11 @@ Deno.serve(async (req) => {
         try { return json(await saveOfficeConfig(c, await req.json(), auth.user.email ?? userId)); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
+      case 'viziune_layout': {
+        const { data, error } = await c.cloud.from('viziune_hala_layout').select('stations, updated_by, updated_at').maybeSingle();
+        if (error) throw error;
+        return json({ layout: data ?? null });
+      }
       case 'viziune_layout_save': {
         if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
         let stations;

@@ -38,9 +38,8 @@ export function useFactoryData() {
   const layoutQ = useQuery({
     queryKey: ["viziune-hala-layout"],
     queryFn: async () => {
-      const { data, error } = await supabaseCloud.from("viziune_hala_layout").select("stations, updated_by, updated_at").maybeSingle();
-      if (error) throw error;
-      return data as { stations: unknown; updated_by: string | null; updated_at: string } | null;
+      const { layout } = await argusFetch<{ layout: { stations: unknown; updated_by: string | null; updated_at: string } | null }>("viziune_layout");
+      return layout;
     },
   });
   const saveLayoutM = useMutation({

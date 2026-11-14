@@ -288,6 +288,13 @@
       "when": 1794661989513,
       "tag": "0040_viziune_office_room_order",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794664643616,
+      "tag": "0041_viziune_hala_layout_server_only",
+      "breakpoints": true
     }
   ]
 }
