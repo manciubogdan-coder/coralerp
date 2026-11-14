@@ -8,6 +8,7 @@ import { deskSpots, OFFICE_BUILDING, OFFICE_CORRIDOR_Z, roomCenter, roomsFor, ty
 import { roomOrderOf } from "@/lib/viziune/officeState";
 import { labelForPath } from "@/lib/activityTracking";
 import { Bake, LIVE, NearHtml } from "./Bake";
+import { labelScale, useWalking } from "./walkContext";
 
 // Fixed physical palette for furniture, carpets and screens (scene materials, not UI theme colours).
 const P = {
@@ -50,6 +51,7 @@ function OfficePerson({ p }: { p: PersonView }) {
 
 /** One work place: desk with a monitor (green = in the app, blue = in Senior, dark = away) and a chair. */
 function Desk({ x, z, p, showLabel }: { x: number; z: number; p?: PersonView; showLabel: boolean }) {
+  const walking = useWalking();
   const here = p && (p.status === "aplicatie" || p.status === "senior");
   const glow = p?.status === "aplicatie" ? P.app : p?.status === "senior" ? P.senior : null;
   return (
@@ -67,7 +69,7 @@ function Desk({ x, z, p, showLabel }: { x: number; z: number; p?: PersonView; sh
       <mesh position={[0, 0.22, 0.1]}><cylinderGeometry args={[0.03, 0.03, 0.44, 6]} /><meshStandardMaterial color={P.deskLeg} /></mesh>
       {here && <OfficePerson p={p!} />}
       {here && showLabel && (
-        <NearHtml maxDist={30} position={[0, 1.65, 0]} center distanceFactor={14} style={{ pointerEvents: "none" }}>
+        <NearHtml maxDist={30} position={[0, 1.65, 0]} center distanceFactor={labelScale(walking, 14)} style={{ pointerEvents: "none" }}>
           <div className="max-w-[170px] whitespace-nowrap rounded bg-card/90 px-1.5 py-0.5 text-center text-[9px] leading-tight text-card-foreground shadow">
             <div className="truncate font-bold">{p!.name}</div>
             <div className="truncate text-muted-foreground">{doingNow(p!)}</div>
@@ -98,6 +100,7 @@ function MeetingTable({ x, z }: { x: number; z: number }) {
 }
 
 function OfficeRoom({ room, office, selected, onSelect, walls = true }: { room: Room; office?: OfficeView; selected: boolean; onSelect: () => void; walls?: boolean }) {
+  const walking = useWalking();
   const people = office?.people ?? [];
   const inHall = room.inHall;
   const spots = useMemo(() => deskSpots(room, Math.max(inHall ? 2 : 4, people.length)), [room, people.length, inHall]);
@@ -107,7 +110,7 @@ function OfficeRoom({ room, office, selected, onSelect, walls = true }: { room: 
   const wall = (x: number, z: number, ww: number, dd: number, k: string) => <mesh key={k} position={[x, 0.55, z]} castShadow receiveShadow><boxGeometry args={[ww, 1.1, dd]} /><meshStandardMaterial color={P.wall} /></mesh>;
   const look = people.map((p) => `${p.key}:${p.status}`).join(",");
   return (
-    <group onClick={(e) => { e.stopPropagation(); onSelect(); }} onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
+    <group onClick={(e) => { e.stopPropagation(); if (!walking) onSelect(); }} onPointerOver={(e) => { e.stopPropagation(); if (!walking) document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
       <Bake deps={[room.id, room.x0, room.z0, spots.length, look, selected, walls]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0.02, cz]} receiveShadow><planeGeometry args={[w - 0.1, d - 0.1]} /><meshStandardMaterial color={P.carpet[room.id]} roughness={0.95} /></mesh>
       {selected && <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0.03, cz]}><ringGeometry args={[Math.min(w, d) / 2 - 0.25, Math.min(w, d) / 2 - 0.05, 48]} /><meshBasicMaterial color={P.select} /></mesh>}
@@ -122,7 +125,7 @@ function OfficeRoom({ room, office, selected, onSelect, walls = true }: { room: 
         {room.id === "ceo" && <MeetingTable x={cx} z={room.z1 - 2.6} />}
       </>}
       </Bake>
-      <Html position={[cx, inHall ? 2.9 : 2.4, room.z0 + 0.6]} center distanceFactor={inHall ? 13 : 22} style={{ pointerEvents: "none" }}>
+      <Html position={[cx, inHall ? 2.9 : 2.4, room.z0 + 0.6]} center distanceFactor={labelScale(walking, inHall ? 13 : 22)} style={{ pointerEvents: "none" }}>
         <div className={`whitespace-nowrap rounded-md px-2 py-0.5 text-center shadow-lg ${selected ? "bg-primary text-primary-foreground" : "bg-foreground/85 text-background"}`}>
           <div className="text-[11px] font-black uppercase tracking-wide">{office?.label ?? room.id}</div>
           <div className="text-[9px] opacity-80">{office ? `${office.onlineNow} lucrează acum · ${office.docs} doc. Senior azi${extra ? ` · +${extra} fără loc` : ""}` : "…"}</div>
@@ -136,6 +139,7 @@ export type OfficeSelection = { kind: "office"; id: OfficeId } | { kind: "birour
 
 /** Office building next to the hall plus the three offices in the changing-rooms corner of the hall. */
 export function OfficesScene({ offices, selection, onSelect }: { offices: OfficeData | null; selection: { kind: string; id?: string } | null; onSelect: (s: OfficeSelection) => void }) {
+  const walking = useWalking();
   const byId = new Map((offices?.offices ?? []).map((o) => [o.id, o]));
   const rooms = useMemo(() => roomsFor((offices?.order ?? roomOrderOf([])) as OfficeId[]), [offices?.order]);
   const B = OFFICE_BUILDING;
@@ -148,8 +152,8 @@ export function OfficesScene({ offices, selection, onSelect }: { offices: Office
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[(walkX0 + walkX1) / 2, 0.008, OFFICE_CORRIDOR_Z]} receiveShadow><planeGeometry args={[walkX1 - walkX0 + 0.6, 2.4]} /><meshStandardMaterial color={P.corridor} /></mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[bcx, 0.01, bcz]} receiveShadow><planeGeometry args={[bw + 1, bd + 1]} /><meshStandardMaterial color={P.slab} /></mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[bcx, 0.015, OFFICE_CORRIDOR_Z]} receiveShadow><planeGeometry args={[bw, 3]} /><meshStandardMaterial color={P.corridor} /></mesh>
-      <group onClick={(e) => { e.stopPropagation(); onSelect({ kind: "birouri" }); }}>
-        <Html position={[bcx, 4.2, B.z0 - 1]} center distanceFactor={26} style={{ pointerEvents: "none" }}>
+      <group onClick={(e) => { e.stopPropagation(); if (!walking) onSelect({ kind: "birouri" }); }}>
+        <Html position={[bcx, 4.2, B.z0 - 1]} center distanceFactor={labelScale(walking, 26)} style={{ pointerEvents: "none" }}>
           <div className="whitespace-nowrap rounded-md bg-foreground/85 px-3 py-1 text-center text-background shadow-lg">
             <div className="text-sm font-black uppercase tracking-wider">Clădirea de birouri</div>
             <div className="text-[10px] opacity-80">{offices?.loading ? "se încarcă…" : `${onlineB} oameni lucrează acum`}</div>

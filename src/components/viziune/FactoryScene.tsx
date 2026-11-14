@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Html, Environment, Lightformer, OrbitControls, RoundedBox } from "@react-three/drei";
+import { Html, Environment, Lightformer, OrbitControls, RoundedBox, Sky } from "@react-three/drei";
 import * as THREE from "three";
 import type { FactoryData } from "./useFactoryData";
 import type { LineView } from "@/lib/viziune/factoryState";
@@ -21,6 +21,8 @@ import type { OfficeId } from "@/lib/viziune/officeState";
 import { HALL_OFFICE_SPLIT } from "@/lib/viziune/officeLayout";
 import { Bake, LIVE, NearHtml } from "./Bake";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { Walker, type WalkPad } from "./Walker";
+import { labelScale, useWalking, WalkCtx } from "./walkContext";
 
 // Scene materials are a fixed physical palette (steel, crates, greens, water), not UI theme colors.
 const C = {
@@ -32,6 +34,10 @@ const C = {
   status: { lucreaza: "#3fbf4f", asteapta: "#e8b923", terminat: "#3a7bd5", oprita: "#7d8288", late: "#e5332a" } as Record<string, string>,
 };
 const W2 = HALL.w / 2, D2 = HALL.d / 2;
+/** Late-morning sun from the south-east: long enough shadows to read the shapes, warm light. */
+const SUN: [number, number, number] = [55, 48, 38];
+// Passed without JSX: Sky hands every prop to a three object, and dev tooling adds data-* attributes to JSX.
+const SKY = { distance: 200, sunPosition: SUN, turbidity: 4.5, rayleigh: 0.9, mieCoefficient: 0.004, mieDirectionalG: 0.82 };
 
 export type Zone = "all" | "plan" | "productie" | "cantare" | "spalare" | "receptie" | "depozit" | "livrare" | "birouri" | "birouriHala" | "birouDepozit";
 export const ZONES: Record<Zone, { pos: [number, number, number]; target: [number, number, number]; label: string }> = {
@@ -65,6 +71,60 @@ function useFloorTexture() {
     const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(HALL.w / 6, HALL.d / 6); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
     return t;
   }, []);
+}
+
+/** Speckled outdoor surface (asphalt yard, grass around it), drawn once on a canvas. */
+function useNoiseTexture(base: string, specks: [number, number, number], repeat: number, lines = false) {
+  return useMemo(() => {
+    const c = document.createElement("canvas"); c.width = c.height = 256;
+    const g = c.getContext("2d")!;
+    g.fillStyle = base; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 5000; i++) {
+      const v = (Math.random() - 0.5) * 34;
+      g.fillStyle = `rgba(${specks[0] + v},${specks[1] + v},${specks[2] + v},0.35)`;
+      g.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 1.5);
+    }
+    for (let i = 0; i < 14; i++) { g.fillStyle = "rgba(0,0,0,0.05)"; g.beginPath(); g.ellipse(Math.random() * 256, Math.random() * 256, 12 + Math.random() * 30, 6 + Math.random() * 16, Math.random() * 3, 0, Math.PI * 2); g.fill(); }
+    if (lines) { g.strokeStyle = "rgba(0,0,0,0.18)"; g.lineWidth = 1; g.beginPath(); g.moveTo(0, 128); g.lineTo(256, 128); g.moveTo(128, 0); g.lineTo(128, 256); g.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    return t;
+  }, [base, specks, repeat, lines]);
+}
+const ASPHALT: [number, number, number] = [96, 100, 100], GRASS: [number, number, number] = [96, 132, 70];
+
+/** Factory grounds: grass all around, an asphalt yard under the buildings and truck roads, kerbs at its edge. */
+function Grounds() {
+  const grass = useNoiseTexture("#5f7f45", GRASS, 40);
+  const asphalt = useNoiseTexture("#5b5f60", ASPHALT, 18, true);
+  const Y = { x0: -64, x1: 48, z0: -74, z1: 54 };
+  const w = Y.x1 - Y.x0, d = Y.z1 - Y.z0, cx = (Y.x0 + Y.x1) / 2, cz = (Y.z0 + Y.z1) / 2;
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.04, 0]} receiveShadow><planeGeometry args={[420, 420]} /><meshStandardMaterial map={grass} roughness={1} /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, -0.02, cz]} receiveShadow><planeGeometry args={[w, d]} /><meshStandardMaterial map={asphalt} roughness={0.92} /></mesh>
+      <Bake>
+        {[[cx, Y.z0, w, 0.3], [cx, Y.z1, w, 0.3], [Y.x0, cz, 0.3, d], [Y.x1, cz, 0.3, d]].map(([x, z, a, b], i) => (
+          <mesh key={i} position={[x, 0.06, z]} receiveShadow><boxGeometry args={[a, 0.16, b]} /><meshStandardMaterial color="#c9c7bf" roughness={0.9} /></mesh>
+        ))}
+      </Bake>
+    </group>
+  );
+}
+
+/** Ceiling light panels over the hall, seen when walking inside (they glow with the "beautiful" graphics). */
+function HallLights() {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const spots = useMemo(() => { const out: [number, number][] = []; for (let i = 0; i < 4; i++) for (let j = 0; j < 7; j++) out.push([-W2 + (i + 0.5) * (HALL.w / 4), -D2 + (j + 0.5) * (HALL.d / 7)]); return out; }, []);
+  React.useLayoutEffect(() => {
+    const m = new THREE.Matrix4();
+    spots.forEach(([x, z], i) => ref.current?.setMatrixAt(i, m.makeTranslation(x, 4.6, z)));
+    if (ref.current) { ref.current.instanceMatrix.needsUpdate = true; ref.current.computeBoundingSphere(); }
+  }, [spots]);
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, spots.length]}>
+      <boxGeometry args={[0.5, 0.08, 2.6]} /><meshStandardMaterial color="#ffffff" emissive="#fff6e8" emissiveIntensity={2.2} toneMapped={false} />
+    </instancedMesh>
+  );
 }
 
 function useBeltTexture(len: number) {
@@ -420,6 +480,7 @@ function StationModel({ st, running, busy }: { st: Station; running: boolean; bu
 }
 
 function LateBeacon({ minutes }: { minutes: number }) {
+  const walking = useWalking();
   const g = useRef<THREE.Group>(null);
   const mat = useRef<THREE.MeshStandardMaterial>(null);
   useFrame(({ clock }) => {
@@ -430,7 +491,7 @@ function LateBeacon({ minutes }: { minutes: number }) {
   return (
     <group ref={g} position={[0, 5.3, 0]}>
       <mesh><octahedronGeometry args={[0.45]} /><meshStandardMaterial ref={mat} color={C.status.late} emissive={C.status.late} emissiveIntensity={1.6} /></mesh>
-      <Html center position={[0, 0.8, 0]} distanceFactor={18} style={{ pointerEvents: "none" }}>
+      <Html center position={[0, 0.8, 0]} distanceFactor={labelScale(walking, 18)} style={{ pointerEvents: "none" }}>
         <div className="whitespace-nowrap rounded bg-destructive px-1.5 py-0.5 text-[11px] font-black text-destructive-foreground shadow">⚠ +{minutesLabel(minutes)}</div>
       </Html>
     </group>
@@ -466,6 +527,7 @@ function StationCard({ st, line }: { st: Station; line?: LineView }) {
 
 function StationNode({ st, line, selected, onSelect, editing, onGrab }: { st: Station; line?: LineView; selected: boolean; onSelect: () => void; editing?: boolean; onGrab?: (offset: [number, number]) => void }) {
   const [x, z] = toWorld(st.px, st.py);
+  const walking = useWalking();
   const running = line?.status === "lucreaza";
   const busy = !!line && (line.pace.orders.length > 0 || line.pace.queueOrders > 0);
   const late = line?.pace.status === "intarziat";
@@ -484,9 +546,9 @@ function StationNode({ st, line, selected, onSelect, editing, onGrab }: { st: St
     : [[-1.8, 0, 7.6], [-1.8, 0, 1], [-1.8, 0, -4.8], [1.8, 0, 3], [1.8, 0, -1], [-3.4, 0, -1.4], [1.8, 0, -7], [-1.8, 0, 4.5]];
   return (
     <group position={[x, 0, z]}
-      onClick={(e) => { e.stopPropagation(); onSelect(); }}
+      onClick={(e) => { e.stopPropagation(); if (!walking) onSelect(); }}
       onPointerDown={(e) => { if (!editing || !onGrab) return; e.stopPropagation(); onSelect(); onGrab([x - e.point.x, z - e.point.z]); }}
-      onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = editing ? "grab" : "pointer"; }}
+      onPointerOver={(e) => { e.stopPropagation(); if (!walking) document.body.style.cursor = editing ? "grab" : "pointer"; }}
       onPointerOut={() => { document.body.style.cursor = ""; }}>
       <Bake rotation={[0, -((st.rot || 0) * Math.PI) / 180, 0]} deps={[st.kind, running, busy, workers, st.px, st.py]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
@@ -506,9 +568,16 @@ function StationNode({ st, line, selected, onSelect, editing, onGrab }: { st: St
       </group>
       </Bake>
       {late && <LateBeacon minutes={line!.pace.lateMinutes} />}
-      <Html position={[0, big ? 6.4 : 3.2, 0]} center distanceFactor={20} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
-        <StationCard st={st} line={line} />
-      </Html>
+      {walking ? (
+        // At eye height the card of the machine right next to you would fill the screen: the crosshair shows it instead.
+        <NearHtml minDist={6} maxDist={45} position={[0, big ? 5.2 : 2.6, 0]} center distanceFactor={labelScale(walking, 20)} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
+          <StationCard st={st} line={line} />
+        </NearHtml>
+      ) : (
+        <Html position={[0, big ? 6.4 : 3.2, 0]} center distanceFactor={20} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
+          <StationCard st={st} line={line} />
+        </Html>
+      )}
     </group>
   );
 }
@@ -553,6 +622,7 @@ function FlowMovers({ pts, kind, count }: { pts: [number, number][]; kind: strin
  * it is loaded/unloaded, then drives off forward. `heading` overrides the facing for parked trucks.
  */
 function Truck({ from, to, label, delay = 0, loop = 22, heading }: { from: [number, number, number]; to: [number, number, number]; label?: string; delay?: number; loop?: number; heading?: number }) {
+  const walking = useWalking();
   const ref = useRef<THREE.Group>(null);
   const rear = useRef<THREE.Group>(null);
   const logo = useLogo();
@@ -580,7 +650,7 @@ function Truck({ from, to, label, delay = 0, loop = 22, heading }: { from: [numb
         <mesh position={[0, 1.15, -2.81]}><planeGeometry args={[1.2, 0.5]} /><meshStandardMaterial color="#9fc7de" metalness={0.8} roughness={0.1} /></mesh>
         {[-1.2, 0.9, -2.3].map((z) => [-0.7, 0.7].map((x) => (<mesh key={`${z}${x}`} position={[x, 0.3, z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.3, 0.3, 0.2, 14]} /><meshStandardMaterial color="#222" /></mesh>)))}
       </Bake>
-      {label && <NearHtml maxDist={55} position={[0, 2.8, 0]} center distanceFactor={22} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded border bg-card/95 px-1.5 py-0.5 text-[10px] font-semibold text-card-foreground shadow">{label}</div></NearHtml>}
+      {label && <NearHtml maxDist={55} position={[0, 2.8, 0]} center distanceFactor={labelScale(walking, 22)} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded border bg-card/95 px-1.5 py-0.5 text-[10px] font-semibold text-card-foreground shadow">{label}</div></NearHtml>}
     </group>
   );
 }
@@ -605,8 +675,9 @@ function Forklift({ path, speed = 0.12, phase = 0 }: { path: [number, number][];
 }
 
 function ZoneSign({ position, title, sub }: { position: [number, number, number]; title: string; sub?: string }) {
+  const walking = useWalking();
   return (
-    <Html position={position} center distanceFactor={26} style={{ pointerEvents: "none" }}>
+    <Html position={position} center distanceFactor={labelScale(walking, 26)} style={{ pointerEvents: "none" }}>
       <div className="whitespace-nowrap rounded-md bg-foreground/85 px-3 py-1 text-center text-background shadow-lg">
         <div className="text-sm font-black uppercase tracking-wider">{title}</div>
         {sub && <div className="text-[10px] opacity-80">{sub}</div>}
@@ -616,7 +687,8 @@ function ZoneSign({ position, title, sub }: { position: [number, number, number]
 }
 
 function Clickable({ onSelect, children }: { onSelect: () => void; children: React.ReactNode }) {
-  return <group onClick={(e) => { e.stopPropagation(); onSelect(); }} onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>{children}</group>;
+  const walking = useWalking();
+  return <group onClick={(e) => { e.stopPropagation(); if (!walking) onSelect(); }} onPointerOver={(e) => { e.stopPropagation(); if (!walking) document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>{children}</group>;
 }
 
 function CameraRig({ cmd, controls }: { cmd: CameraCmd; controls: React.MutableRefObject<any> }) {
@@ -646,19 +718,21 @@ function CameraRig({ cmd, controls }: { cmd: CameraCmd; controls: React.MutableR
 }
 
 /** Hall shell from the plan: cut-away walls with the raw-material gate (south) and dispatch exit (north), pillars, staff rooms. */
-function HallShell() {
+function HallShell({ tall = false }: { tall?: boolean }) {
   const floor = useFloorTexture();
   const gateX = toWorld(375, 0)[0], exitX = toWorld(610, 0)[0];
-  const wall = (x: number, z: number, w: number, d: number, k: string) => (<mesh key={k} position={[x, 0.7, z]} castShadow receiveShadow><boxGeometry args={[w, 1.4, d]} /><meshStandardMaterial color={C.wall} /></mesh>);
+  // Seen from above the walls are cut away; walking inside they stand at full height around you.
+  const h = tall ? 5 : 1.4;
+  const wall = (x: number, z: number, w: number, d: number, k: string) => (<mesh key={k} position={[x, h / 2, z]} castShadow receiveShadow><boxGeometry args={[w, h, d]} /><meshStandardMaterial color={C.wall} roughness={0.85} /></mesh>);
   const seg = (a: number, b: number, z: number, k: string) => wall((a + b) / 2, z, b - a, 0.3, k);
   const [ox0, oz0] = toWorld(0, 930); const [ox1] = toWorld(215, 1200);
   return (
-    <Bake>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0.005, 0]}><planeGeometry args={[HALL.w, HALL.d]} /><meshStandardMaterial map={floor} roughness={0.55} metalness={0.05} /></mesh>
+    <Bake deps={[tall]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0.005, 0]}><planeGeometry args={[HALL.w, HALL.d]} /><meshStandardMaterial map={floor} roughness={0.32} metalness={0.05} envMapIntensity={1.2} /></mesh>
       {wall(-W2, 0, 0.3, HALL.d, "w")}{wall(W2, 0, 0.3, HALL.d, "e")}
       {seg(-W2, gateX - 1.8, D2, "s1")}{seg(gateX + 1.8, W2, D2, "s2")}
       {seg(-W2, exitX - 1.6, -D2, "n1")}{seg(exitX + 1.6, W2, -D2, "n2")}
-      {Array.from({ length: 7 }).flatMap((_, i) => { const z = -D2 + (i * HALL.d) / 6; return [-W2, W2].map((x) => (<mesh key={`p${i}${x}`} position={[x, 1.6, z]}><boxGeometry args={[0.55, 3.2, 0.55]} /><meshStandardMaterial color={C.pillar} /></mesh>)); })}
+      {Array.from({ length: 7 }).flatMap((_, i) => { const z = -D2 + (i * HALL.d) / 6; return [-W2, W2].map((x) => (<mesh key={`p${i}${x}`} position={[x, (tall ? 5.4 : 3.2) / 2, z]} castShadow><boxGeometry args={[0.55, tall ? 5.4 : 3.2, 0.55]} /><meshStandardMaterial color={C.pillar} /></mesh>)); })}
       {/* vestiare / birouri (colțul de jos-stânga din plan) */}
       <group>
         <mesh position={[(ox0 + ox1) / 2, 1.3, oz0]}><boxGeometry args={[ox1 - ox0, 2.6, 0.25]} /><meshStandardMaterial color={C.pillar} /></mesh>
@@ -668,12 +742,17 @@ function HallShell() {
         <Html position={[(ox0 + HALL_OFFICE_SPLIT) / 2, 3.2, (oz0 + D2) / 2]} center distanceFactor={26} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/85 px-1.5 py-0.5 text-[10px] text-muted-foreground">Vestiare</div></Html>
       </group>
       {FLOWS.map((f, i) => <FlowStripe key={i} pts={f.pts} color={C.flow[f.kind]} />)}
+      {tall && Array.from({ length: 7 }).map((_, i) => (
+        <mesh key={`b${i}`} position={[0, 5.2, -D2 + (i * HALL.d) / 6]}><boxGeometry args={[HALL.w, 0.35, 0.25]} /><meshStandardMaterial color={C.pillar} metalness={0.4} roughness={0.6} /></mesh>
+      ))}
     </Bake>
   );
 }
 
-export function FactoryScene({ data: raw, camera, selection, onSelect, layout: layoutProp, editing = false, onMove, offices = null }: {
+export function FactoryScene({ data: raw, camera, selection, onSelect, layout: layoutProp, editing = false, onMove, offices = null, walk }: {
   data: FactoryData; camera: CameraCmd; selection: Selection; onSelect: (s: Selection) => void;
+  /** Walking through the factory at eye height instead of the bird's-eye camera. */
+  walk?: { pad: React.MutableRefObject<WalkPad>; onLook: (stationId: string | null) => void; onPick: (stationId: string) => void; onExit: () => void; onLock: (locked: boolean) => void } | null;
   /** People in the offices (office building + offices in the hall). */
   offices?: OfficeData | null;
   /** Hall being edited (draft); defaults to the saved layout. */
@@ -686,6 +765,7 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
     stock: raw?.stock ?? [], ready: raw?.ready ?? [],
   };
   const controls = useRef<any>(null);
+  const walking = !!walk && !editing;
   const byId = new Map(data.lineViews.map((l) => [l.id, l]));
   const layout = layoutProp ?? raw?.layout ?? [];
   const byStation = new Map<string, string>();
@@ -713,21 +793,28 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
   const exitX = toWorld(610, 0)[0];
 
   return (
-    <>
-      <color attach="background" args={["#dfe7ea"]} />
-      <fog attach="fog" args={["#dfe7ea", 90, 190]} />
-      <hemisphereLight args={["#ffffff", "#8c9282", 0.75]} />
-      <directionalLight position={[25, 45, 20]} intensity={1.5} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-45} shadow-camera-right={45} shadow-camera-top={45} shadow-camera-bottom={-45} />
-      <Environment resolution={64}>
-        <Lightformer intensity={2} position={[0, 8, 0]} rotation-x={Math.PI / 2} scale={[20, 20, 1]} />
-        <Lightformer intensity={1} color="#cde" position={[-10, 2, -1]} rotation-y={Math.PI / 2} scale={[30, 2, 1]} />
+    <WalkCtx.Provider value={walking}>
+      <color attach="background" args={["#cfe0ea"]} />
+      <fog attach="fog" args={["#d4e2ea", walking ? 45 : 110, walking ? 150 : 260]} />
+      {React.createElement(Sky, SKY)}
+      <hemisphereLight args={["#e3f0ff", "#6d6a58", 0.55]} />
+      <directionalLight position={SUN} intensity={2.3} color="#fff1dc" castShadow
+        shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.03}
+        shadow-camera-left={-62} shadow-camera-right={62} shadow-camera-top={62} shadow-camera-bottom={-62} shadow-camera-far={200} />
+      <directionalLight position={[-40, 25, -30]} intensity={0.35} color="#c9dcff" />
+      <Environment resolution={128}>
+        <Lightformer intensity={2.2} position={[0, 10, 0]} rotation-x={Math.PI / 2} scale={[30, 30, 1]} />
+        <Lightformer intensity={1.1} color="#d5e6ff" position={[-14, 3, -2]} rotation-y={Math.PI / 2} scale={[40, 3, 1]} />
+        <Lightformer intensity={0.9} color="#ffe3bf" position={[14, 3, 4]} rotation-y={-Math.PI / 2} scale={[40, 3, 1]} />
+        <Lightformer intensity={0.5} color="#9fb3a0" position={[0, -4, 0]} rotation-x={-Math.PI / 2} scale={[40, 40, 1]} />
       </Environment>
       <CameraRig cmd={camera} controls={controls} />
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow><planeGeometry args={[260, 260]} /><meshStandardMaterial color="#8c8f88" roughness={1} /></mesh>
+      <Grounds />
 
       {/* ===== HALA DE PRODUCȚIE (după plan) ===== */}
-      <HallShell />
+      <HallShell tall={walking} />
+      {walking && <HallLights />}
       <ZoneSign position={[-W2 - 2, 4, -D2 + 3]} title="Hala de producție" sub={`${working.length} linii lucrează · ${data.lineViews.reduce((a, l) => a + l.workers, 0)} oameni${late.length ? ` · ⚠ ${late.length} peste normă` : ""}`} />
       {layout.map((st) => {
         const lid = byStation.get(st.id);
@@ -754,7 +841,7 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 28.5]}><planeGeometry args={[24, 10]} /><meshStandardMaterial color="#b9c3c8" /></mesh>
         <PalletField slots={stockSlots} goods="crate" />
         {firstSlot(stockSlots, 12).map(([item, sl]) => { const it = data.stock[item]; return (
-          <NearHtml maxDist={40} key={it.name} position={[sl.x, sl.levels * 0.3 + 0.7, sl.z]} center distanceFactor={18} style={{ pointerEvents: "none" }}>
+          <NearHtml maxDist={40} key={it.name} position={[sl.x, sl.levels * 0.3 + 0.7, sl.z]} center distanceFactor={labelScale(walking, 18)} style={{ pointerEvents: "none" }}>
             <div className="max-w-[120px] truncate whitespace-nowrap rounded bg-card/90 px-1.5 py-0.5 text-[9px] font-semibold text-card-foreground shadow">{it.name} · {Math.round(it.qty).toLocaleString("ro-RO")} {it.unit}</div>
           </NearHtml>
         ); })}
@@ -766,7 +853,7 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
         <ZoneSign position={[-22, 4.5, 23]} title="Recepție" sub={`${data.receptions.reduce((a, r) => a + r.lots, 0)} loturi azi · ${Math.round(data.receptions.reduce((a, r) => a + r.kg, 0)).toLocaleString("ro-RO")} kg`} />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-22, 0.006, 29]}><planeGeometry args={[14, 12]} /><meshStandardMaterial color="#a9aea7" /></mesh>
         <PalletField slots={recSlots} goods="crate" />
-        {data.receptions.length === 0 && <Html position={[-22, 1, 29]} center distanceFactor={20} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/90 px-2 py-1 text-xs text-muted-foreground">Nicio recepție azi</div></Html>}
+        {data.receptions.length === 0 && <Html position={[-22, 1, 29]} center distanceFactor={labelScale(walking, 20)} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/90 px-2 py-1 text-xs text-muted-foreground">Nicio recepție azi</div></Html>}
       </Clickable>
       {Array.from({ length: recTrucks }).map((_, i) => (
         <Truck key={i} from={[-55, 0, 25 + i * 4.5]} to={[-31, 0, 25 + i * 4.5]} delay={i * 7} label={data.receptions[i]?.supplier} />
@@ -789,7 +876,7 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[exitX, 0.006, -29]}><planeGeometry args={[24, 12]} /><meshStandardMaterial color="#b3b8b0" /></mesh>
         <PalletField slots={readySlots} goods="carton" />
         {firstSlot(readySlots, 12).map(([item, sl]) => { const r = data.ready[item]; return (
-          <NearHtml maxDist={40} key={r.store} position={[sl.x, sl.levels * 0.3 + 0.7, sl.z]} center distanceFactor={18} style={{ pointerEvents: "none" }}>
+          <NearHtml maxDist={40} key={r.store} position={[sl.x, sl.levels * 0.3 + 0.7, sl.z]} center distanceFactor={labelScale(walking, 18)} style={{ pointerEvents: "none" }}>
             <div className="max-w-[130px] truncate whitespace-nowrap rounded bg-card/90 px-1.5 py-0.5 text-[9px] font-semibold text-card-foreground shadow">{r.store} · {r.pieces.toLocaleString("ro-RO")} buc</div>
           </NearHtml>
         ); })}
@@ -801,7 +888,9 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
       {/* ===== BIROURI ===== */}
       {!editing && <OfficesScene offices={offices} selection={selection} onSelect={onSelect} />}
 
-      <OrbitControls ref={controls} makeDefault enabled={!drag} maxPolarAngle={Math.PI / 2.15} minDistance={4} maxDistance={130} />
-    </>
+      {walking && walk
+        ? <Walker layout={layout} pad={walk.pad} onLook={walk.onLook} onPick={walk.onPick} onExit={walk.onExit} onLock={walk.onLock} />
+        : <OrbitControls ref={controls} makeDefault enabled={!drag} maxPolarAngle={Math.PI / 2.15} minDistance={4} maxDistance={130} />}
+    </WalkCtx.Provider>
   );
 }

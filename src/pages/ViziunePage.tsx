@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";
@@ -14,7 +14,9 @@ import { defaultLayout, toWorld, type HallStation } from "@/lib/viziune/hallLayo
 import { HallEditor } from "@/components/viziune/HallEditor";
 import { toast } from "sonner";
 import { clockTime, minutesLabel, PaceBadge } from "@/components/viziune/pace";
-import { AlertTriangle, LayoutGrid, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, Footprints, LayoutGrid, LogOut, RefreshCw, Sparkles, X } from "lucide-react";
+import { Effects } from "@/components/viziune/Effects";
+import type { WalkPad } from "@/components/viziune/Walker";
 import { useOfficeData } from "@/components/viziune/useOfficeData";
 import { OfficeDetail, OfficesOverview, type OfficeFacts } from "@/components/viziune/OfficeDetail";
 import { buildingOf, OFFICES } from "@/lib/viziune/officeState";
@@ -83,6 +85,10 @@ function LineDetail({ line }: { line: LineView }) {
 }
 
 const MAX_DPR = 1.5;
+type Quality = "inalta" | "rapida";
+const QUALITY_KEY = "viziune-grafica";
+const readQuality = (): Quality => { try { return localStorage.getItem(QUALITY_KEY) === "rapida" ? "rapida" : "inalta"; } catch { return "inalta"; } };
+const PAD_AXIS: Partial<Record<NavAction, [keyof WalkPad, number]>> = { inainte: ["fwd", 1], inapoi: ["fwd", -1], stanga: ["side", -1], dreapta: ["side", 1], rotStanga: ["turn", 1], rotDreapta: ["turn", -1] };
 
 export default function ViziunePage() {
   const navigate = useNavigate();
@@ -90,6 +96,21 @@ export default function ViziunePage() {
   const offices = useOfficeData();
   const [dpr, setDpr] = useState(() => Math.min(MAX_DPR, window.devicePixelRatio || 1));
   const [officeEdit, setOfficeEdit] = useState(false);
+  const [quality, setQualityState] = useState<Quality>(readQuality);
+  const setQuality = (q: Quality, remember = true) => { setQualityState(q); if (remember) try { localStorage.setItem(QUALITY_KEY, q); } catch { /* private mode */ } };
+  // Walking through the hall at eye height.
+  const [walking, setWalking] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [looked, setLooked] = useState<string | null>(null);
+  const walkPad = useRef<WalkPad>({ fwd: 0, side: 0, turn: 0 });
+  const held = useRef(new Set<NavAction>());
+  const walkingRef = useRef(false); walkingRef.current = walking;
+  const holdPad = (a: NavAction, down: boolean) => {
+    if (down) held.current.add(a); else held.current.delete(a);
+    const p: WalkPad = { fwd: 0, side: 0, turn: 0 };
+    for (const h of held.current) { const ax = PAD_AXIS[h]; if (ax) p[ax[0]] += ax[1]; }
+    walkPad.current = p;
+  };
   const [zone, setZoneState] = useState<Zone>("all");
   const [cam, setCam] = useState<CameraCmd>({ seq: 0, kind: "zone", zone: "all" });
   const setZone = (z: Zone) => { setZoneState(z); setCam((c) => ({ seq: c.seq + 1, kind: "zone", zone: z })); };
@@ -114,6 +135,7 @@ export default function ViziunePage() {
     const keys: Record<string, NavAction> = { ArrowUp: "inainte", w: "inainte", ArrowDown: "inapoi", s: "inapoi", ArrowLeft: "stanga", a: "stanga", ArrowRight: "dreapta", d: "dreapta", q: "rotStanga", e: "rotDreapta", "+": "aproape", "=": "aproape", "-": "departe" };
     const onKey = (ev: KeyboardEvent) => {
       const t = ev.target as HTMLElement | null;
+      if (walkingRef.current) return; // the walk camera reads its own keys
       if (ev.ctrlKey || ev.metaKey || ev.altKey || (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.getAttribute("role") === "combobox"))) return;
       const a = keys[ev.key.length === 1 ? ev.key.toLowerCase() : ev.key];
       if (!a) return;
@@ -135,6 +157,7 @@ export default function ViziunePage() {
   const emptyStation = sel?.kind === "station" ? data.layout.find((st) => st.id === sel.id) : null;
 
   const startEdit = (stationId: string | null = null) => {
+    setWalking(false); setLocked(false); setLooked(null);
     setDraft(data.layout.map((st) => ({ ...st })));
     setSel(stationId ? { kind: "station", id: stationId } : null);
     setZone("plan");
@@ -150,8 +173,18 @@ export default function ViziunePage() {
   };
   const moveStation = (id: string, px: number, py: number) => setDraft((d) => d && d.map((st) => (st.id === id && (st.px !== px || st.py !== py) ? { ...st, px, py } : st)));
 
+  const startWalk = () => { setSel(null); held.current.clear(); walkPad.current = { fwd: 0, side: 0, turn: 0 }; setWalking(true); };
+  const exitWalk = () => { setWalking(false); setLocked(false); setLooked(null); held.current.clear(); walkPad.current = { fwd: 0, side: 0, turn: 0 }; setZone("productie"); };
+  const pickStation = (stationId: string) => {
+    const lid = data.placement.byStation.get(stationId);
+    setSel(lid && data.lineViews.some((l) => l.id === lid) ? { kind: "line", id: lid } : { kind: "station", id: stationId });
+  };
+  const lookedStation = looked ? data.layout.find((st) => st.id === looked) : null;
+  const lookedLine = looked ? data.lineViews.find((l) => l.id === data.placement.byStation.get(looked)) : null;
+
   const select = (s: Selection) => {
     if (editing) { setSel(s?.kind === "station" ? s : null); return; }
+    if (walking) { setSel(s); return; }
     setSel(s);
     if (s?.kind === "line") { if (!flyToStation(stationOfLine(s.id))) setZone("productie"); }
     if (s?.kind === "station") { if (!flyToStation(s.id)) setZone("productie"); }
@@ -184,7 +217,15 @@ export default function ViziunePage() {
           <Button size="sm" variant={editing ? "default" : "outline"} disabled={editing || data.layoutLoading} onClick={() => startEdit()} title="Mută, adaugă sau scoate utilaje și alege ce linie lucrează pe fiecare">
             <LayoutGrid className="mr-1 h-4 w-4" />Aranjează hala
           </Button>
+          {walking
+            ? <Button size="sm" onClick={exitWalk} title="Înapoi la vederea de sus (Esc)"><LogOut className="mr-1 h-4 w-4" />Ieși din plimbare</Button>
+            : <Button size="sm" variant="outline" disabled={editing} onClick={startWalk} title="Mergi prin fabrică la înălțimea ochilor, ca într-un joc"><Footprints className="mr-1 h-4 w-4" />Plimbă-te prin hală</Button>}
+          <Button size="sm" variant={quality === "inalta" ? "secondary" : "ghost"} onClick={() => setQuality(quality === "inalta" ? "rapida" : "inalta")}
+            title={quality === "inalta" ? "Grafică frumoasă (umbre fine, lumini care strălucesc). Apasă pentru modul rapid, pe calculatoare mai slabe." : "Grafică rapidă. Apasă pentru grafica frumoasă."}>
+            <Sparkles className="mr-1 h-4 w-4" />{quality === "inalta" ? "Grafică frumoasă" : "Grafică rapidă"}
+          </Button>
         </div>
+        {!walking && <>
         <Kpi label="Producție azi" value={pieces ? `${Math.round((produced / pieces) * 100)}%` : "—"} sub={`${fmt(produced)} / ${fmt(pieces)} buc`} />
         <Kpi label="Linii care lucrează" value={`${working.length} / ${data.lineViews.length}`} sub={`${people} oameni pe linii`} />
         <button type="button" className="pointer-events-auto text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
@@ -201,21 +242,40 @@ export default function ViziunePage() {
           <Kpi label="Birouri" value={offices.loading ? "…" : `${officeNow} lucrează acum`} sub={offices.error ? "nu s-au putut citi" : `${seniorDocs} documente Senior azi${offices.seniorError ? " · Senior indisponibil" : ""}`} />
         </button>
         <Kpi label="Gata de livrare" value={`${data.ready.length} magazine`} sub={`${fmt(data.ready.reduce((a, r) => a + r.pieces, 0))} buc`} />
+        </>}
       </div>
 
-      <NavPad onNav={nav} onHome={() => setZone("all")}
+      <NavPad onNav={nav} onHome={walking ? exitWalk : () => setZone("all")} onHold={walking ? holdPad : undefined}
         lines={data.lineViews.filter((l) => stationOfLine(l.id)).map((l) => ({ id: l.id, name: l.name, workers: l.workers, late: l.pace.status === "intarziat" }))}
         onLine={(id) => select({ kind: "line", id })} />
 
+      {walking && <>
+        {/* crosshair + what is under it */}
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+          <div className={`h-3 w-3 rounded-full border-2 ${lookedStation ? "border-primary bg-primary/40" : "border-background/90 bg-foreground/30"} shadow`} />
+        </div>
+        {lookedStation && (
+          <div className="pointer-events-none absolute left-1/2 top-[calc(50%+18px)] z-10 -translate-x-1/2 whitespace-nowrap rounded-md border bg-card/95 px-2 py-1 text-center text-xs shadow">
+            <div className="font-bold">{lookedLine?.name ?? lookedStation.label}</div>
+            <div className="text-[10px] text-muted-foreground">{lookedLine ? `${STATUS_LABEL[lookedLine.status]}${lookedLine.workers ? ` · 👷 ${lookedLine.workers}` : ""}${lookedLine.pace.status === "intarziat" ? ` · ⚠ +${minutesLabel(lookedLine.pace.lateMinutes)}` : ""}` : "fără linie"} · clic pentru detalii</div>
+          </div>
+        )}
+        <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-lg border bg-card/95 px-3 py-2 text-center text-[11px] shadow">
+          {locked
+            ? <span><b>W A S D</b> / săgeți = mergi · <b>Shift</b> = alergi · <b>mouse</b> = privești · <b>clic</b> pe un utilaj = detalii · <b>Esc</b> = eliberezi mouse-ul</span>
+            : <span><b>Clic pe ecran</b> ca să privești cu mouse-ul (pe telefon: trage cu degetul) · <b>W A S D</b> / săgeți = mergi · <b>Esc</b> = ieși din plimbare</span>}
+        </div>
+      </>}
+
       {/* zone camera buttons */}
-      <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
+      {!walking && <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
         {(Object.keys(ZONES) as Zone[]).map((z) => (
           <Button key={z} size="sm" variant={zone === z ? "default" : "ghost"} onClick={() => setZone(z)}>{ZONES[z].label}</Button>
         ))}
-      </div>
+      </div>}
 
       {/* legend */}
-      <div className="absolute bottom-3 right-3 z-10 hidden rounded-lg border bg-card/95 px-3 py-2 text-[10px] shadow md:block">
+      <div className={`absolute bottom-3 right-3 z-10 hidden rounded-lg border bg-card/95 px-3 py-2 text-[10px] shadow ${walking ? "" : "md:block"}`}>
         <div className="mb-1 font-semibold">Lumina de pe linie</div>
         <div className="flex gap-3"><span>🟢 lucrează</span><span>🟡 așteaptă</span><span>🔵 gata</span><span>⚪ oprită</span><span className="font-bold text-destructive">🔴 ⚠ peste normă</span></div>
         <div className="mt-1 flex gap-3"><span className="font-semibold text-crm-cool">━ materie primă</span><span className="font-semibold text-crm-green">━ produs finit</span><span className="font-semibold text-crm-warning">━ graniță igienă</span></div>
@@ -288,10 +348,12 @@ export default function ViziunePage() {
 
       {data.error && <div className="absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-lg border border-destructive bg-card px-3 py-2 text-sm text-destructive shadow">Nu am putut citi datele: {data.error.message}</div>}
 
-      <Canvas shadows dpr={dpr} gl={{ powerPreference: "high-performance" }} camera={{ position: ZONES.all.pos, fov: 42, near: 0.5, far: 300 }} onCreated={() => setTimeout(() => setReady(true), 500)} onPointerMissed={() => setSel(null)}>
+      <Canvas shadows dpr={dpr} gl={{ powerPreference: "high-performance" }} camera={{ position: ZONES.all.pos, fov: 42, near: 0.5, far: 300 }} onCreated={() => setTimeout(() => setReady(true), 500)} onPointerMissed={() => { if (!walking) setSel(null); }}>
         {/* Sharpness follows the computer: lower resolution when frames drop, back up when there is room. */}
-        <PerformanceMonitor bounds={() => [45, 58]} flipflops={4} onDecline={() => setDpr((d) => Math.max(0.6, +(d - 0.2).toFixed(2)))} onIncline={() => setDpr((d) => Math.min(MAX_DPR, +(d + 0.2).toFixed(2)))} onFallback={() => setDpr(0.6)} />
-        <FactoryScene data={data} offices={offices} camera={cam} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation} />
+        <PerformanceMonitor bounds={() => [45, 58]} flipflops={4} onDecline={() => setDpr((d) => Math.max(0.6, +(d - 0.2).toFixed(2)))} onIncline={() => setDpr((d) => Math.min(MAX_DPR, +(d + 0.2).toFixed(2)))} onFallback={() => { setDpr(0.6); setQuality("rapida", false); }} />
+        <FactoryScene data={data} offices={offices} camera={cam} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation}
+          walk={walking ? { pad: walkPad, onLook: setLooked, onPick: pickStation, onExit: exitWalk, onLock: setLocked } : null} />
+        {quality === "inalta" && <Effects />}
       </Canvas>
     </div>
   );

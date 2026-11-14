@@ -47,6 +47,7 @@
     "@radix-ui/react-tooltip": "^1.1.4",
     "@react-three/drei": "^9.122",
     "@react-three/fiber": "^8.18",
+    "@react-three/postprocessing": "^2.16",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",
     "@streamdown/math": "^1.0.2",
