@@ -99,8 +99,33 @@ export const FLOWS: { kind: "materie" | "finit" | "igiena"; pts: [number, number
   { kind: "materie", pts: [[350, 1150], [350, 830]] },
   { kind: "materie", pts: [[375, 1150], [575, 1150], [575, 1090]] },
   { kind: "finit", pts: [[130, 620], [130, 55], [610, 50], [610, 5]] },
-  { kind: "finit", pts: [[395, 55], [395, 165]] },
-  { kind: "finit", pts: [[455, 55], [480, 165]] },
-  { kind: "finit", pts: [[575, 55], [600, 150]] },
+  { kind: "finit", pts: [[395, 165], [395, 55]] },
+  { kind: "finit", pts: [[480, 165], [455, 55]] },
+  { kind: "finit", pts: [[600, 150], [575, 55]] },
   { kind: "igiena", pts: [[300, 150], [300, 565], [355, 565], [355, 785], [325, 785], [325, 915]] },
 ];
+
+/** Where raw material enters the hall (MP gate) and where finished goods leave it (picking exit), in plan pixels. */
+export const MP_GATE: [number, number] = [375, 1195];
+export const PICKING_EXIT: [number, number] = [610, 5];
+
+/**
+ * Routes the moving crates follow: every raw-material route starts at the MP gate and every finished-goods
+ * route ends at the picking exit, so branches drawn from a corridor are joined to the rest of their journey.
+ */
+type MoverRoute = { kind: "materie" | "finit"; pts: [number, number][] };
+export function moverRoutes(flows = FLOWS): MoverRoute[] {
+  const same = (a: [number, number], b: [number, number]) => a[0] === b[0] && a[1] === b[1];
+  return flows.flatMap((f): MoverRoute[] => {
+    if (f.kind === "materie") {
+      const pts = same(f.pts[0], MP_GATE) ? f.pts : [MP_GATE, [MP_GATE[0], f.pts[0][1]] as [number, number], ...f.pts];
+      return [{ kind: f.kind, pts: pts.filter((p, i) => i === 0 || !same(p, pts[i - 1])) }];
+    }
+    if (f.kind === "finit") {
+      const last = f.pts[f.pts.length - 1];
+      const pts = same(last, PICKING_EXIT) ? f.pts : [...f.pts, [PICKING_EXIT[0], last[1]] as [number, number], PICKING_EXIT];
+      return [{ kind: f.kind, pts: pts.filter((p, i) => i === 0 || !same(p, pts[i - 1])) }];
+    }
+    return [];
+  });
+}

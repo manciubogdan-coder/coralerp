@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultLayout, newStation, placementOf, setStationLine, toPlan, toWorld, validateHallLayout } from "@/lib/viziune/hallLayout";
+import { defaultLayout, moverRoutes, MP_GATE, PICKING_EXIT, newStation, placementOf, setStationLine, toPlan, toWorld, validateHallLayout } from "@/lib/viziune/hallLayout";
 
 const L1 = "3378201c-50a6-406a-9e79-9252a48a95ba";
 const L2 = "60ac5c26-861d-4f56-803a-413e608f9328";
@@ -54,5 +54,19 @@ describe("plan machines Iceberg / Replay / Top sealing", () => {
     const layout = defaultLayout(lines);
     expect(layout.map((s) => s.id)).toEqual(expect.arrayContaining(["iceberg", "replay55", "topsealing"]));
     expect(layout.find((s) => s.id === "replay55")?.lineId).toBe(lines[0].id);
+  });
+});
+
+describe("moving goods follow the factory flow", () => {
+  it("every raw-material route starts at the MP gate", () => {
+    for (const r of moverRoutes().filter((r) => r.kind === "materie")) expect(r.pts[0]).toEqual(MP_GATE);
+  });
+  it("every finished-goods route ends at the picking exit, never back at a line", () => {
+    const fin = moverRoutes().filter((r) => r.kind === "finit");
+    expect(fin.length).toBe(4);
+    for (const r of fin) expect(r.pts[r.pts.length - 1]).toEqual(PICKING_EXIT);
+  });
+  it("finished goods leave the weighers toward the top corridor (y decreases)", () => {
+    for (const r of moverRoutes().filter((r) => r.kind === "finit")) expect(r.pts[0][1]).toBeGreaterThan(r.pts[1][1]);
   });
 });

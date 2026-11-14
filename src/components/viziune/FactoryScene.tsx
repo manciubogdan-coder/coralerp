@@ -4,7 +4,9 @@ import { Html, Environment, Lightformer, OrbitControls, RoundedBox } from "@reac
 import * as THREE from "three";
 import type { FactoryData } from "./useFactoryData";
 import type { LineView } from "@/lib/viziune/factoryState";
-import { FLOWS, HALL, toPlan, toWorld, type HallStation } from "@/lib/viziune/hallLayout";
+import { FLOWS, HALL, moverRoutes, toPlan, toWorld, type HallStation } from "@/lib/viziune/hallLayout";
+
+const MOVER_ROUTES = moverRoutes();
 type Station = HallStation;
 import { clockTime, minutesLabel, PaceBadge } from "./pace";
 
@@ -189,7 +191,7 @@ function Weigher({ running }: { running: boolean }) {
       <mesh position={[0, 1.5, 0]} castShadow><boxGeometry args={[0.9, 1.6, 0.9]} /><meshStandardMaterial color={C.steel} metalness={0.6} roughness={0.4} /></mesh>
       <mesh position={[0, 1.6, 0.46]}><planeGeometry args={[0.4, 0.25]} /><meshStandardMaterial color="#123" emissive={running ? "#39d353" : "#223"} emissiveIntensity={0.9} /></mesh>
       {/* Z-elevator */}
-      <group position={[1.9, 0, -0.4]} rotation={[0, 0, 0]}>
+      <group position={[1.9, 0, 0.4]} scale={[1, 1, -1]}>
         <mesh position={[0, 2.1, -1.1]} rotation={[-0.95, 0, 0]} castShadow><boxGeometry args={[0.5, 0.12, 4.6]} /><meshStandardMaterial color={C.elevator} roughness={0.5} /></mesh>
         <mesh position={[0, 0.35, -2.8]}><boxGeometry args={[0.7, 0.7, 0.7]} /><meshStandardMaterial color={C.steel} metalness={0.6} /></mesh>
         <mesh position={[-0.9, 3.95, 0.3]} rotation={[0, 0, Math.PI / 2]}><boxGeometry args={[0.12, 1.6, 0.5]} /><meshStandardMaterial color={C.elevator} /></mesh>
@@ -258,13 +260,13 @@ function StationModel({ st, running, busy }: { st: Station; running: boolean; bu
         <Weigher running={running} />
         {giostra ? <>
           <RotaryTable position={[-2.8, 0, -5.7]} running={running} />
-          <group position={[-2.5, 0, -3]}><FlowPacker running={running} /></group>
-          <Conveyor z0={1.6} z1={5.6} running={running} />
+          <group position={[-2.5, 0, -3]} rotation={[0, Math.PI, 0]}><FlowPacker running={running} /></group>
+          <Conveyor z0={6.2} z1={3.4} x={1.9} running={running} />
           <SteelTable position={[0, 0, 6.6]} w={1.4} d={1.2} />
         </> : <>
           <RotaryTable position={[-0.3, 0, -6.4]} running={running} />
-          <Conveyor z0={-5.3} z1={-1.6} running={running} items={4} />
-          <Conveyor z0={1.6} z1={6.2} running={running} />
+          <Conveyor z0={-1.6} z1={-5.3} running={running} items={4} />
+          <Conveyor z0={6.6} z1={3.4} x={1.9} running={running} items={4} />
         </>}
         <CrateStack position={[-1.9, 0, giostra ? -1.5 : -4.2]} levels={busy ? 4 : 1} full={busy} seed={st.px} />
         <CrateStack position={[-1.9, 0, giostra ? 3 : 3.2]} levels={busy ? 3 : 1} full={busy} seed={st.py} />
@@ -274,7 +276,7 @@ function StationModel({ st, running, busy }: { st: Station; running: boolean; bu
   if (st.kind === "flowpack") return (
     <group>
       <RotaryTable position={[0.3, 0, -2.2]} running={running} r={0.75} />
-      <FlowPacker running={running} />
+      <group rotation={[0, Math.PI, 0]}><FlowPacker running={running} /></group>
       <SteelTable position={[0, 0, 3.2]} w={1} d={1.6} />
       <CrateStack position={[1.6, 0, 0]} levels={busy ? 3 : 1} full={busy} seed={st.py} />
     </group>
@@ -423,6 +425,7 @@ function FlowStripe({ pts, color }: { pts: [number, number][]; color: string }) 
 
 /** Crates riding a floor flow while the hall works: raw material in, finished cartons out. */
 function FlowMovers({ pts, kind, count }: { pts: [number, number][]; kind: string; count: number }) {
+  // pts always run in the direction goods travel (see moverRoutes)
   const path = useMemo(() => {
     const cp = new THREE.CurvePath<THREE.Vector3>();
     pts.slice(1).forEach((p, i) => { const [ax, az] = toWorld(...pts[i]); const [bx, bz] = toWorld(...p); cp.add(new THREE.LineCurve3(new THREE.Vector3(ax, 0, az), new THREE.Vector3(bx, 0, bz))); });
@@ -447,19 +450,29 @@ function FlowMovers({ pts, kind, count }: { pts: [number, number][]; kind: strin
   );
 }
 
-function Truck({ from, to, label, delay = 0, loop = 22 }: { from: [number, number, number]; to: [number, number, number]; label?: string; delay?: number; loop?: number }) {
+/**
+ * Truck docking at a ramp: it backs in (cab facing away from the dock, rear doors to the ramp), waits while
+ * it is loaded/unloaded, then drives off forward. `heading` overrides the facing for parked trucks.
+ */
+function Truck({ from, to, label, delay = 0, loop = 22, heading }: { from: [number, number, number]; to: [number, number, number]; label?: string; delay?: number; loop?: number; heading?: number }) {
   const ref = useRef<THREE.Group>(null);
+  const rear = useRef<THREE.Group>(null);
   const a = useMemo(() => new THREE.Vector3(...from), [from]); const b = useMemo(() => new THREE.Vector3(...to), [to]);
   useFrame(({ clock }) => {
     if (!ref.current) return;
     const t = ((clock.elapsedTime + delay) % loop) / loop;
     const k = t < 0.25 ? THREE.MathUtils.smoothstep(t / 0.25, 0, 1) : t < 0.75 ? 1 : 1 - THREE.MathUtils.smoothstep((t - 0.75) / 0.25, 0, 1);
     ref.current.position.lerpVectors(a, b, k);
+    const backing = heading === undefined && t > 0.02 && t < 0.25;
+    const glow = backing ? (Math.sin(clock.elapsedTime * 10) > 0 ? 2 : 0.3) : 0;
+    rear.current?.children.forEach((m) => { ((m as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity = glow; });
   });
-  const dir = Math.atan2(to[0] - from[0], to[2] - from[2]);
+  // Cab is at local -z; facing the travel direction would be dir + π, so dir points the cab away from the dock.
+  const dir = heading ?? Math.atan2(to[0] - from[0], to[2] - from[2]);
   return (
     <group ref={ref} position={from}>
-      <group rotation={[0, dir + Math.PI, 0]}>
+      <group rotation={[0, dir, 0]}>
+        <group ref={rear}>{[-0.55, 0.55].map((x) => (<mesh key={x} position={[x, 0.7, 1.82]}><boxGeometry args={[0.22, 0.14, 0.04]} /><meshStandardMaterial color="#f6b73c" emissive="#ffb020" emissiveIntensity={0} /></mesh>))}</group>
         <RoundedBox args={[1.5, 1.6, 3.6]} radius={0.05} position={[0, 1.25, 0]} castShadow><meshStandardMaterial color={C.truck} roughness={0.5} /></RoundedBox>
         <mesh position={[0, 0.85, 0]} castShadow><boxGeometry args={[1.52, 0.18, 3.62]} /><meshStandardMaterial color={C.stripe} /></mesh>
         <RoundedBox args={[1.45, 1.2, 1]} radius={0.08} position={[0, 0.95, -2.3]} castShadow><meshStandardMaterial color={C.cab} metalness={0.3} roughness={0.4} /></RoundedBox>
@@ -616,7 +629,7 @@ export function FactoryScene({ data: raw, zone, selection, onSelect, layout: lay
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       )}
-      {working.length > 0 && FLOWS.filter((f) => f.kind !== "igiena").map((f, i) => <FlowMovers key={i} pts={f.pts} kind={f.kind} count={f.pts.length > 3 ? 4 : 2} />)}
+      {working.length > 0 && MOVER_ROUTES.map((f, i) => <FlowMovers key={i} pts={f.pts} kind={f.kind} count={f.pts.length > 4 ? 5 : 3} />)}
 
       {/* ===== DEPOZIT MP (frig), la poarta de materie primă ===== */}
       <Clickable onSelect={() => onSelect({ kind: "depozit" })}>
@@ -657,7 +670,7 @@ export function FactoryScene({ data: raw, zone, selection, onSelect, layout: lay
         <mesh position={[-40, 1.7, 41.5]}><boxGeometry args={[0.12, 0.12, 4]} /><meshStandardMaterial color="#d04437" /></mesh>
         {data.prereceptions.slice(0, 5).map((p, i) => (
           <group key={p.id} position={[-37 + i * 4.4, 0, 42.5]}>
-            <Truck from={[0, 0, 0]} to={[0, 0, -0.01]} loop={1000} label={`${p.late ? "⚠ întârziat · " : ""}${p.supplier} · ${Math.round(p.kgLeft).toLocaleString("ro-RO")} kg`} />
+            <Truck from={[0, 0, 0]} to={[0, 0, -0.01]} loop={1000} heading={0} label={`${p.late ? "⚠ întârziat · " : ""}${p.supplier} · ${Math.round(p.kgLeft).toLocaleString("ro-RO")} kg`} />
           </group>
         ))}
       </Clickable>
