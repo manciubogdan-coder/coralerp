@@ -16,7 +16,7 @@ import { clockTime, minutesLabel, PaceBadge } from "@/components/viziune/pace";
 import { AlertTriangle, LayoutGrid, RefreshCw, X } from "lucide-react";
 import { useOfficeData } from "@/components/viziune/useOfficeData";
 import { OfficeDetail, OfficesOverview, type OfficeFacts } from "@/components/viziune/OfficeDetail";
-import { OFFICES } from "@/lib/viziune/officeState";
+import { buildingOf, OFFICES } from "@/lib/viziune/officeState";
 import { OfficeEditor } from "@/components/viziune/OfficeEditor";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("ro-RO");
@@ -155,7 +155,7 @@ export default function ViziunePage() {
     if (s?.kind === "depozit") setZone("depozit");
     if (s?.kind === "livrare") setZone("livrare");
     if (s?.kind === "birouri") setZone("birouri");
-    if (s?.kind === "office") setZone(OFFICES[s.id].building === "hala" ? "birouriHala" : "birouri");
+    if (s?.kind === "office") setZone(buildingOf(s.id, offices.order) === "hala" ? "birouriHala" : "birouri");
   };
   const officeFacts: OfficeFacts = {
     linesWorking: working.length, linesTotal: data.lineViews.length, producedPct: pieces ? Math.round((produced / pieces) * 100) : null,

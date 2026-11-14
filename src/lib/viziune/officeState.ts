@@ -21,8 +21,11 @@ export const ONLINE_MS = 3 * 60_000;
 /** A Senior document saved this recently means the person is working in Senior right now. */
 export const SENIOR_NOW_MS = 15 * 60_000;
 
-import type { OfficeChoice, OfficeConfig } from "../../../supabase/functions/_shared/officeConfigRules";
-export { OFFICE_CHOICES, validateOfficeConfig, type OfficeChoice, type OfficeConfig } from "../../../supabase/functions/_shared/officeConfigRules";
+import { BUILDING_PLACES, roomOrderOf, type OfficeChoice, type OfficeConfig } from "../../../supabase/functions/_shared/officeConfigRules";
+export { BUILDING_PLACES, OFFICE_CHOICES, ROOM_ORDER_DEFAULT, roomOrderOf, validateOfficeConfig, type OfficeChoice, type OfficeConfig } from "../../../supabase/functions/_shared/officeConfigRules";
+
+/** Building of an office for a room order: the first places are in the offices building, the rest in the hall. */
+export const buildingOf = (id: OfficeId, order: readonly OfficeId[]): "birouri" | "hala" => (order.indexOf(id) < BUILDING_PLACES ? "birouri" : "hala");
 
 // ---------- raw data (as returned by the server action viziune_offices) ----------
 export interface RawAppUser { id: string; name: string | null; email: string | null; roles: string[] }
@@ -151,7 +154,8 @@ const STATUS_RANK: Record<PersonStatus, number> = { aplicatie: 0, senior: 1, azi
 
 /** Builds every person (app user and/or Senior account) and groups them into offices. */
 export function buildOffices(raw: RawOffices | null | undefined, now: number) {
-  const empty = { offices: OFFICE_IDS.map((id) => ({ id, ...OFFICES[id], people: [], onlineNow: 0, activeToday: 0, docs: 0, appSeconds: 0 })) as OfficeView[], unassigned: [] as PersonView[], people: [] as PersonView[], roster: [] as PersonView[], seniorUsers: [] as RawSeniorUser[], config: { offices: {}, links: {} } as OfficeConfig, seniorError: null as string | null, docTotals: new Map<string, DocType>() };
+  const order = roomOrderOf(raw?.config?.order) as OfficeId[];
+  const empty = { order, offices: OFFICE_IDS.map((id) => ({ id, ...OFFICES[id], building: buildingOf(id, order), people: [], onlineNow: 0, activeToday: 0, docs: 0, appSeconds: 0 })) as OfficeView[], unassigned: [] as PersonView[], people: [] as PersonView[], roster: [] as PersonView[], seniorUsers: [] as RawSeniorUser[], config: { offices: {}, links: {}, order: [] } as OfficeConfig, seniorError: null as string | null, docTotals: new Map<string, DocType>() };
   if (!raw) return empty;
   const senior = raw.senior.ok ? raw.senior : null;
   const activity = new Map(raw.app.activity.map((a) => [a.userId, a]));
@@ -171,7 +175,7 @@ export function buildOffices(raw: RawOffices | null | undefined, now: number) {
     t.n += Number(d.n) || 0; t.value += Number(d.val) || 0; docTotals.set(d.cod, t);
   }
 
-  const config: OfficeConfig = { offices: raw.config?.offices ?? {}, links: raw.config?.links ?? {} };
+  const config: OfficeConfig = { offices: raw.config?.offices ?? {}, links: raw.config?.links ?? {}, order: raw.config?.order ?? [] };
   const linked = new Map<string, RawSeniorUser[]>();
   const usedSenior = new Set<number>();
   for (const su of seniorUsers) {
@@ -240,7 +244,7 @@ export function buildOffices(raw: RawOffices | null | undefined, now: number) {
   const offices: OfficeView[] = OFFICE_IDS.map((id) => {
     const ps = people.filter((p) => p.office === id);
     return {
-      id, ...OFFICES[id], people: ps,
+      id, ...OFFICES[id], building: buildingOf(id, order), people: ps,
       onlineNow: ps.filter((p) => p.status === "aplicatie" || p.status === "senior").length,
       activeToday: ps.filter((p) => p.status !== "absent").length,
       docs: ps.reduce((s, p) => s + p.docs, 0),
@@ -248,7 +252,7 @@ export function buildOffices(raw: RawOffices | null | undefined, now: number) {
     };
   });
   roster.sort((a, b) => a.name.localeCompare(b.name, "ro"));
-  return { offices, unassigned: people.filter((p) => !p.office), people, roster, seniorUsers, config, seniorError: "error" in raw.senior ? raw.senior.error : null, docTotals };
+  return { order, offices, unassigned: people.filter((p) => !p.office), people, roster, seniorUsers, config, seniorError: "error" in raw.senior ? raw.senior.error : null, docTotals };
 }
 export type OfficesView = ReturnType<typeof buildOffices>;
 

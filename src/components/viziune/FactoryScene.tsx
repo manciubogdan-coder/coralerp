@@ -41,7 +41,7 @@ export const ZONES: Record<Zone, { pos: [number, number, number]; target: [numbe
   receptie: { pos: [-38, 18, 46], target: [-22, 0, 30], label: "Poartă & recepție" },
   depozit: { pos: [0, 16, 46], target: [0, 0, 28], label: "Depozit MP (frig)" },
   livrare: { pos: [20, 20, -52], target: [6, 0, -29], label: "Picking & livrare" },
-  birouri: { pos: [24, 26, 30], target: [29, 0, 0], label: "Clădirea de birouri" },
+  birouri: { pos: [-34, 26, -8], target: [-19, 0, -34], label: "Clădirea de birouri" },
   birouriHala: { pos: [-11, 17, 24], target: [-8.2, 0, 15.5], label: "Birouri din hală" },
 };
 

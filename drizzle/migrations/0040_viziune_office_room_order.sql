@@ -1,0 +1,2 @@
+ALTER TABLE public.viziune_birouri_config ADD COLUMN IF NOT EXISTS room_order jsonb NOT NULL DEFAULT '[]'::jsonb;
+COMMENT ON COLUMN public.viziune_birouri_config.room_order IS 'Viziune: which office stands in each room place (array of office ids, building places first, then hall places); empty = default order.';

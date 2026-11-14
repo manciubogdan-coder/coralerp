@@ -2,10 +2,16 @@
 import type { OfficeId } from "./officeState";
 import { toWorld } from "./hallLayout";
 
-export interface Room { id: OfficeId; x0: number; x1: number; z0: number; z1: number }
+export interface Room { id: OfficeId; x0: number; x1: number; z0: number; z1: number; inHall: boolean }
+type Place = Omit<Room, "id"> & { label: string };
 
-/** Separate office building east of the hall, with a corridor along z = 0 and the door facing the hall. */
-export const OFFICE_BUILDING = { x0: 17, x1: 41, z0: -13, z1: 13 };
+/**
+ * Separate office building left of Picking & livrare (north of the hall, seen from the main view), with a
+ * corridor along its middle and a walkway from its east end to the picking floor.
+ */
+export const OFFICE_BUILDING = { x0: -31, x1: -7, z0: -46, z1: -22 };
+export const OFFICE_CORRIDOR_Z = -34;
+const B = OFFICE_BUILDING, cN = OFFICE_CORRIDOR_Z - 1.5, cS = OFFICE_CORRIDOR_Z + 1.5;
 
 // Offices inside the hall: the right half of the changing-rooms corner of the floor plan (bottom-left).
 const [hx0, hz0] = toWorld(0, 930);
@@ -14,17 +20,22 @@ export const HALL_OFFICE_SPLIT = hx0 + (hx1 - hx0) * 0.36; // changing rooms on 
 const third = (hz1 - hz0) / 3;
 export const HALL_CORNER = { x0: hx0, x1: hx1, z0: hz0, z1: hz1 };
 
-export const ROOMS: Room[] = [
-  { id: "ceo", x0: 17, x1: 25, z0: -13, z1: -1.5 },
-  { id: "vanzari", x0: 25, x1: 33, z0: -13, z1: -1.5 },
-  { id: "achizitii", x0: 33, x1: 41, z0: -13, z1: -1.5 },
-  { id: "contabilitate", x0: 17, x1: 31, z0: 1.5, z1: 13 },
-  { id: "hr", x0: 31, x1: 41, z0: 1.5, z1: 13 },
-  { id: "productie", x0: HALL_OFFICE_SPLIT, x1: hx1, z0: hz0, z1: hz0 + third },
-  { id: "calitate", x0: HALL_OFFICE_SPLIT, x1: hx1, z0: hz0 + third, z1: hz0 + 2 * third },
-  { id: "mentenanta", x0: HALL_OFFICE_SPLIT, x1: hx1, z0: hz0 + 2 * third, z1: hz1 },
+/** Room places, in the order offices are put into them: the first BUILDING_PLACES in the building, then the hall. */
+export const ROOM_PLACES: Place[] = [
+  { label: "Clădirea de birouri · spate stânga", x0: B.x0, x1: B.x0 + 8, z0: B.z0, z1: cN, inHall: false },
+  { label: "Clădirea de birouri · spate mijloc", x0: B.x0 + 8, x1: B.x0 + 16, z0: B.z0, z1: cN, inHall: false },
+  { label: "Clădirea de birouri · spate dreapta (spre Picking)", x0: B.x0 + 16, x1: B.x1, z0: B.z0, z1: cN, inHall: false },
+  { label: "Clădirea de birouri · față stânga (birou mare)", x0: B.x0, x1: B.x0 + 14, z0: cS, z1: B.z1, inHall: false },
+  { label: "Clădirea de birouri · față dreapta (spre Picking)", x0: B.x0 + 14, x1: B.x1, z0: cS, z1: B.z1, inHall: false },
+  { label: "Hală, lângă vestiare · primul", x0: HALL_OFFICE_SPLIT, x1: hx1, z0: hz0, z1: hz0 + third, inHall: true },
+  { label: "Hală, lângă vestiare · al doilea", x0: HALL_OFFICE_SPLIT, x1: hx1, z0: hz0 + third, z1: hz0 + 2 * third, inHall: true },
+  { label: "Hală, lângă vestiare · al treilea (spre poartă)", x0: HALL_OFFICE_SPLIT, x1: hx1, z0: hz0 + 2 * third, z1: hz1, inHall: true },
 ];
-export const roomOf = (id: OfficeId) => ROOMS.find((r) => r.id === id)!;
+
+/** Rooms for an order of the offices (a full order, see roomOrderOf): office i stands in place i. */
+export function roomsFor(order: readonly OfficeId[]): Room[] {
+  return order.slice(0, ROOM_PLACES.length).map((id, i) => { const { label: _l, ...p } = ROOM_PLACES[i]; return { id, ...p }; });
+}
 export const roomCenter = (r: Room): [number, number] => [(r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2];
 
 /**

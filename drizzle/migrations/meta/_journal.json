@@ -281,6 +281,13 @@
       "when": 1794661560115,
       "tag": "0039_viziune_birouri_config",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794661989513,
+      "tag": "0040_viziune_office_room_order",
+      "breakpoints": true
     }
   ]
 }

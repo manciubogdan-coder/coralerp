@@ -4,7 +4,8 @@ import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import type { OfficeData } from "./useOfficeData";
 import type { OfficeId, OfficeView, PersonView } from "@/lib/viziune/officeState";
-import { deskSpots, OFFICE_BUILDING, ROOMS, roomCenter, type Room } from "@/lib/viziune/officeLayout";
+import { deskSpots, OFFICE_BUILDING, OFFICE_CORRIDOR_Z, roomCenter, roomsFor, type Room } from "@/lib/viziune/officeLayout";
+import { roomOrderOf } from "@/lib/viziune/officeState";
 import { labelForPath } from "@/lib/activityTracking";
 
 // Fixed physical palette for furniture, carpets and screens (scene materials, not UI theme colours).
@@ -95,7 +96,7 @@ function MeetingTable({ x, z }: { x: number; z: number }) {
 
 function OfficeRoom({ room, office, selected, onSelect, walls = true }: { room: Room; office?: OfficeView; selected: boolean; onSelect: () => void; walls?: boolean }) {
   const people = office?.people ?? [];
-  const inHall = room.x0 < 0;
+  const inHall = room.inHall;
   const spots = useMemo(() => deskSpots(room, Math.max(inHall ? 2 : 4, people.length)), [room, people.length, inHall]);
   const extra = Math.max(0, people.length - spots.length);
   const [cx, cz] = roomCenter(room);
@@ -130,15 +131,17 @@ export type OfficeSelection = { kind: "office"; id: OfficeId } | { kind: "birour
 /** Office building next to the hall plus the three offices in the changing-rooms corner of the hall. */
 export function OfficesScene({ offices, selection, onSelect }: { offices: OfficeData | null; selection: { kind: string; id?: string } | null; onSelect: (s: OfficeSelection) => void }) {
   const byId = new Map((offices?.offices ?? []).map((o) => [o.id, o]));
+  const rooms = useMemo(() => roomsFor((offices?.order ?? roomOrderOf([])) as OfficeId[]), [offices?.order]);
   const B = OFFICE_BUILDING;
   const bw = B.x1 - B.x0, bd = B.z1 - B.z0, bcx = (B.x0 + B.x1) / 2, bcz = (B.z0 + B.z1) / 2;
-  const onlineB = ROOMS.filter((r) => byId.get(r.id)?.building === "birouri").reduce((a, r) => a + (byId.get(r.id)?.onlineNow ?? 0), 0);
+  const onlineB = rooms.filter((r) => !r.inHall).reduce((a, r) => a + (byId.get(r.id)?.onlineNow ?? 0), 0);
+  const walkX0 = B.x1, walkX1 = -4.6; // up to the picking floor
   return (
     <group>
-      {/* walkway from the hall to the offices building */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[15, 0.008, 0]} receiveShadow><planeGeometry args={[4.2, 2.4]} /><meshStandardMaterial color={P.corridor} /></mesh>
+      {/* walkway from the offices building to Picking & livrare */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[(walkX0 + walkX1) / 2, 0.008, OFFICE_CORRIDOR_Z]} receiveShadow><planeGeometry args={[walkX1 - walkX0 + 0.6, 2.4]} /><meshStandardMaterial color={P.corridor} /></mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[bcx, 0.01, bcz]} receiveShadow><planeGeometry args={[bw + 1, bd + 1]} /><meshStandardMaterial color={P.slab} /></mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[bcx, 0.015, 0]} receiveShadow><planeGeometry args={[bw, 3]} /><meshStandardMaterial color={P.corridor} /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[bcx, 0.015, OFFICE_CORRIDOR_Z]} receiveShadow><planeGeometry args={[bw, 3]} /><meshStandardMaterial color={P.corridor} /></mesh>
       <group onClick={(e) => { e.stopPropagation(); onSelect({ kind: "birouri" }); }}>
         <Html position={[bcx, 4.2, B.z0 - 1]} center distanceFactor={26} style={{ pointerEvents: "none" }}>
           <div className="whitespace-nowrap rounded-md bg-foreground/85 px-3 py-1 text-center text-background shadow-lg">
@@ -147,10 +150,7 @@ export function OfficesScene({ offices, selection, onSelect }: { offices: Office
           </div>
         </Html>
       </group>
-      {ROOMS.filter((r) => (byId.get(r.id)?.building ?? (r.x0 > 0 ? "birouri" : "hala")) === "birouri").map((r) => (
-        <OfficeRoom key={r.id} room={r} office={byId.get(r.id)} selected={selection?.kind === "office" && selection.id === r.id} onSelect={() => onSelect({ kind: "office", id: r.id })} />
-      ))}
-      {ROOMS.filter((r) => r.x0 < 0).map((r) => (
+      {rooms.map((r) => (
         <OfficeRoom key={r.id} room={r} office={byId.get(r.id)} selected={selection?.kind === "office" && selection.id === r.id} onSelect={() => onSelect({ kind: "office", id: r.id })} />
       ))}
     </group>

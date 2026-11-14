@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildOffices, bucharestLocalToMs, officeFromRoles, officeFromSeniorGroup, samePerson, statusOf, validateOfficeConfig, type RawOffices } from "@/lib/viziune/officeState";
+import { buildingOf, roomOrderOf, buildOffices, bucharestLocalToMs, officeFromRoles, officeFromSeniorGroup, samePerson, statusOf, validateOfficeConfig, type RawOffices } from "@/lib/viziune/officeState";
 
 const NOW = Date.parse("2026-11-14T12:50:00Z"); // 14:50 in Bucharest
 const raw = (over: Partial<RawOffices> = {}): RawOffices => ({
@@ -120,6 +120,26 @@ describe("Viziune birouri: alegerile făcute de mână", () => {
   it("unknown offices and malformed people are refused before saving", () => {
     expect(() => validateOfficeConfig({ offices: { "app:u1": "vanzari" } })).toThrow(/Persoană/);
     expect(() => validateOfficeConfig({ offices: { "senior:23": "cantina" } })).toThrow(/Birou/);
-    expect(validateOfficeConfig({ offices: { "senior:23": "hr" }, links: { "23": "" } })).toEqual({ offices: { "senior:23": "hr" }, links: { "23": "" } });
+    expect(validateOfficeConfig({ offices: { "senior:23": "hr" }, links: { "23": "" } })).toEqual({ offices: { "senior:23": "hr" }, links: { "23": "" }, order: [] });
+  });
+});
+
+describe("Viziune birouri: ordinea camerelor", () => {
+  const swapped = ["productie", "vanzari", "achizitii", "contabilitate", "hr", "ceo", "calitate", "mentenanta"] as const;
+  it("an order must name every office exactly once", () => {
+    expect(() => validateOfficeConfig({ order: ["ceo", "ceo", "achizitii", "contabilitate", "hr", "productie", "calitate", "mentenanta"] })).toThrow(/Ordinea/);
+    expect(() => validateOfficeConfig({ order: ["ceo"] })).toThrow(/Ordinea/);
+    expect(validateOfficeConfig({ order: [...swapped] }).order).toEqual([...swapped]);
+  });
+  it("without a saved order the first five offices are in the building, the last three in the hall", () => {
+    const o = roomOrderOf([]);
+    expect(o).toEqual(["ceo", "vanzari", "achizitii", "contabilitate", "hr", "productie", "calitate", "mentenanta"]);
+    expect(buildingOf("hr", o as any)).toBe("birouri");
+    expect(buildingOf("productie", o as any)).toBe("hala");
+  });
+  it("swapping CEO with Producție moves CEO into the hall and Producție into the building", () => {
+    const v = buildOffices(raw({ config: { offices: {}, links: {}, order: [...swapped] } }), NOW);
+    expect(v.offices.find((o) => o.id === "ceo")!.building).toBe("hala");
+    expect(v.offices.find((o) => o.id === "productie")!.building).toBe("birouri");
   });
 });

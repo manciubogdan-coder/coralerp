@@ -2943,6 +2943,7 @@ export type Database = {
           id: boolean
           links: Json
           offices: Json
+          room_order: Json
           updated_at: string
           updated_by: string | null
         }
@@ -2950,6 +2951,7 @@ export type Database = {
           id?: boolean
           links?: Json
           offices?: Json
+          room_order?: Json
           updated_at?: string
           updated_by?: string | null
         }
@@ -2957,6 +2959,7 @@ export type Database = {
           id?: boolean
           links?: Json
           offices?: Json
+          room_order?: Json
           updated_at?: string
           updated_by?: string | null
         }

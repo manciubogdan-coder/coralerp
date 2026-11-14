@@ -5,7 +5,7 @@ import { bucharestDay, endIso, fetchAll, startIso, type Clients } from "./appDat
 import { EMPTY_OFFICE_CONFIG, validateOfficeConfig, type OfficeConfig } from "./officeConfigRules.ts";
 
 export async function readOfficeConfig(c: Clients): Promise<OfficeConfig & { updatedBy: string | null; updatedAt: string | null }> {
-  const { data, error } = await c.cloud.from("viziune_birouri_config").select("offices, links, updated_by, updated_at").maybeSingle();
+  const { data, error } = await c.cloud.from("viziune_birouri_config").select("offices, links, room_order, updated_by, updated_at").maybeSingle();
   if (error) throw new Error(`Birouri: ${error.message}`);
   if (!data) return { ...EMPTY_OFFICE_CONFIG, updatedBy: null, updatedAt: null };
   let cfg = EMPTY_OFFICE_CONFIG;
@@ -15,7 +15,7 @@ export async function readOfficeConfig(c: Clients): Promise<OfficeConfig & { upd
 
 export async function saveOfficeConfig(c: Clients, input: unknown, by: string) {
   const cfg = validateOfficeConfig(input);
-  const { error } = await c.cloud.from("viziune_birouri_config").upsert({ id: true, offices: cfg.offices, links: cfg.links, updated_by: by, updated_at: new Date().toISOString() });
+  const { error } = await c.cloud.from("viziune_birouri_config").upsert({ id: true, offices: cfg.offices, links: cfg.links, room_order: cfg.order, updated_by: by, updated_at: new Date().toISOString() });
   if (error) throw new Error(error.message);
   return cfg;
 }

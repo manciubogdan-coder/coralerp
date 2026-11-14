@@ -4,18 +4,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { OfficeData } from "./useOfficeData";
-import { normName, OFFICES, OFFICE_IDS, seniorLabel, type OfficeChoice, type OfficeConfig } from "@/lib/viziune/officeState";
+import { ArrowDown, ArrowUp } from "lucide-react";
+import { BUILDING_PLACES, normName, OFFICES, OFFICE_IDS, roomOrderOf, seniorLabel, type OfficeChoice, type OfficeConfig, type OfficeId } from "@/lib/viziune/officeState";
+import { ROOM_PLACES } from "@/lib/viziune/officeLayout";
 
 const CHOICE_LABEL: Record<string, string> = { ...Object.fromEntries(OFFICE_IDS.map((id) => [id, OFFICES[id].label])), none: "Fără birou (în hală / depozit)", hidden: "Ascuns — nu apare deloc" };
 const sel = "h-8 w-full rounded-md border bg-background px-2 text-xs";
 
 /** Lets an admin put every person in an office by hand and say whose each Senior account is; saved for everyone. */
 export function OfficeEditor({ offices, open, onClose }: { offices: OfficeData; open: boolean; onClose: () => void }) {
-  const [draft, setDraft] = useState<OfficeConfig>({ offices: {}, links: {} });
+  const [draft, setDraft] = useState<OfficeConfig>({ offices: {}, links: {}, order: [] });
   const [q, setQ] = useState("");
-  const [tab, setTab] = useState<"oameni" | "senior">("oameni");
-  useEffect(() => { if (open) setDraft({ offices: { ...offices.config.offices }, links: { ...offices.config.links } }); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  const changed = JSON.stringify(draft) !== JSON.stringify(offices.config);
+  const [tab, setTab] = useState<"oameni" | "senior" | "ordine">("oameni");
+  const savedOrder = offices.config.order ?? [];
+  useEffect(() => { if (open) setDraft({ offices: { ...offices.config.offices }, links: { ...offices.config.links }, order: [...savedOrder] }); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const changed = JSON.stringify({ ...draft, order: roomOrderOf(draft.order) }) !== JSON.stringify({ ...offices.config, order: roomOrderOf(savedOrder) });
+  const order = roomOrderOf(draft.order) as OfficeId[];
+  /** Swaps the office in place i with the one in place j (any two places, building or hall). */
+  const swap = (i: number, j: number) => setDraft((d) => { const o = roomOrderOf(d.order); if (j < 0 || j >= o.length) return d; [o[i], o[j]] = [o[j], o[i]]; return { ...d, order: o }; });
+  const putIn = (i: number, id: OfficeId) => swap(i, order.indexOf(id));
   const match = (s: string) => !q.trim() || normName(s).includes(normName(q));
   const appPeople = useMemo(() => offices.roster.filter((p) => p.appUserId), [offices.roster]);
 
@@ -37,7 +44,8 @@ export function OfficeEditor({ offices, open, onClose }: { offices: OfficeData; 
           <div className="flex flex-wrap items-center gap-2 pt-2">
             <Button size="sm" variant={tab === "oameni" ? "default" : "outline"} onClick={() => setTab("oameni")}>Oameni ({offices.roster.length})</Button>
             <Button size="sm" variant={tab === "senior" ? "default" : "outline"} onClick={() => setTab("senior")}>Conturi Senior ({offices.seniorUsers.length})</Button>
-            <Input className="h-8 w-56" placeholder="Caută nume, e-mail, cont…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Button size="sm" variant={tab === "ordine" ? "default" : "outline"} onClick={() => setTab("ordine")}>Ordinea birourilor</Button>
+            {tab !== "ordine" && <Input className="h-8 w-56" placeholder="Caută nume, e-mail, cont…" value={q} onChange={(e) => setQ(e.target.value)} />}
           </div>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto px-4">
@@ -59,6 +67,28 @@ export function OfficeEditor({ offices, open, onClose }: { offices: OfficeData; 
               );
             })}
           </tbody></table>}
+          {tab === "ordine" && <>
+            <p className="mb-2 text-xs text-muted-foreground">Alege ce birou stă în fiecare cameră, sau mută-l cu săgețile. Birourile își schimbă locul între ele, inclusiv între clădirea de birouri și hală. „Stânga/dreapta” e privit din vederea „Toată fabrica”.</p>
+            <table className="w-full text-xs"><thead><tr className="text-left text-muted-foreground"><th className="w-8 py-1">#</th><th className="py-1">Camera</th><th className="w-52 py-1">Biroul</th><th className="w-20 py-1" /></tr></thead><tbody>
+              {ROOM_PLACES.map((pl, i) => (
+                <React.Fragment key={i}>
+                  {(i === 0 || i === BUILDING_PLACES) && <tr><td colSpan={4} className="pb-1 pt-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{i === 0 ? "Clădirea de birouri (lângă Picking)" : "Birourile din hală (colțul vestiarelor)"}</td></tr>}
+                  <tr className="border-t">
+                    <td className="py-1.5 font-semibold">{i + 1}</td>
+                    <td className="py-1.5 pr-2">{pl.label}</td>
+                    <td className="py-1.5"><select aria-label={`Biroul din camera ${i + 1}`} className={sel} value={order[i]} onChange={(e) => putIn(i, e.target.value as OfficeId)}>
+                      {OFFICE_IDS.map((id) => <option key={id} value={id}>{OFFICES[id].label}</option>)}
+                    </select></td>
+                    <td className="py-1.5 text-right">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Mută mai sus" disabled={i === 0} onClick={() => swap(i, i - 1)}><ArrowUp className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Mută mai jos" disabled={i === ROOM_PLACES.length - 1} onClick={() => swap(i, i + 1)}><ArrowDown className="h-3.5 w-3.5" /></Button>
+                    </td>
+                  </tr>
+                </React.Fragment>
+              ))}
+            </tbody></table>
+            <Button size="sm" variant="outline" className="mt-3" onClick={() => setDraft((d) => ({ ...d, order: [] }))}>Înapoi la ordinea inițială</Button>
+          </>}
           {tab === "senior" && <>
             <p className="mb-2 text-xs text-muted-foreground">Spune al cui e fiecare cont din Senior, ca documentele lui să apară la omul potrivit. „Cont separat” îl lasă om de sine stătător (bun pentru conturile comune).</p>
             <table className="w-full text-xs"><thead><tr className="text-left text-muted-foreground"><th className="py-1">Cont Senior</th><th className="w-64 py-1">Al cui e</th></tr></thead><tbody>
