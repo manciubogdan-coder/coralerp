@@ -15,7 +15,7 @@ import { HallEditor } from "@/components/viziune/HallEditor";
 import { toast } from "sonner";
 import { clockTime, minutesLabel, PaceBadge } from "@/components/viziune/pace";
 import { AlertTriangle, Footprints, LayoutGrid, LogOut, RefreshCw, Sparkles, X } from "lucide-react";
-import { Effects } from "@/components/viziune/Effects";
+import { Effects, EffectsGuard } from "@/components/viziune/Effects";
 import type { WalkPad } from "@/components/viziune/Walker";
 import { useOfficeData } from "@/components/viziune/useOfficeData";
 import { OfficeDetail, OfficesOverview, type OfficeFacts } from "@/components/viziune/OfficeDetail";
@@ -353,7 +353,7 @@ export default function ViziunePage() {
         <PerformanceMonitor bounds={() => [45, 58]} flipflops={4} onDecline={() => setDpr((d) => Math.max(0.6, +(d - 0.2).toFixed(2)))} onIncline={() => setDpr((d) => Math.min(MAX_DPR, +(d + 0.2).toFixed(2)))} onFallback={() => { setDpr(0.6); setQuality("rapida", false); }} />
         <FactoryScene data={data} offices={offices} camera={cam} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation}
           walk={walking ? { pad: walkPad, onLook: setLooked, onPick: pickStation, onExit: exitWalk, onLock: setLocked } : null} />
-        {quality === "inalta" && <Effects />}
+        {quality === "inalta" && <EffectsGuard onFail={() => setQuality("rapida", false)}><Effects /></EffectsGuard>}
       </Canvas>
     </div>
   );
