@@ -1,6 +1,7 @@
 // Walking through the factory at eye height: movement, what the walker bumps into and what they look at.
 // Pure maths on the hall layout, no React or three.
 import { HALL, toWorld, type HallStation, type StationKind } from "./hallLayout";
+import { OFFICE_BUILDING, type Room } from "./officeLayout";
 
 export type Box = { x0: number; z0: number; x1: number; z1: number; id?: string };
 export type WalkPose = { x: number; z: number; yaw: number };
@@ -85,19 +86,68 @@ export function stepWalk(p: WalkPose, input: WalkInput, dt: number, boxes: Box[]
   return { x, z, yaw };
 }
 
+/** Distance along the floor ray to where it enters `b` (0 when standing inside), or null when it misses within `maxDist`. */
+function rayEnter(p: WalkPose, b: Box, maxDist: number): number | null {
+  const dx = -Math.sin(p.yaw), dz = -Math.cos(p.yaw);
+  let t0 = 0, t1 = maxDist;
+  for (const [o, d, lo, hi] of [[p.x, dx, b.x0, b.x1], [p.z, dz, b.z0, b.z1]] as const) {
+    if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) return null; continue; }
+    let a = (lo - o) / d, c = (hi - o) / d; if (a > c) [a, c] = [c, a];
+    t0 = Math.max(t0, a); t1 = Math.min(t1, c);
+  }
+  return t0 <= t1 ? t0 : null;
+}
+
 /** First box (with an id) straight ahead on the floor within `maxDist`, e.g. the machine under the crosshair. */
 export function lookedAt(p: WalkPose, boxes: Box[], maxDist = WALK.lookDist): string | null {
-  const dx = -Math.sin(p.yaw), dz = -Math.cos(p.yaw);
   let best: { id: string; t: number } | null = null;
   for (const b of boxes) {
     if (!b.id) continue;
-    let t0 = 0, t1 = maxDist;
-    for (const [o, d, lo, hi] of [[p.x, dx, b.x0, b.x1], [p.z, dz, b.z0, b.z1]] as const) {
-      if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) { t0 = Infinity; break; } continue; }
-      let a = (lo - o) / d, c = (hi - o) / d; if (a > c) [a, c] = [c, a];
-      t0 = Math.max(t0, a); t1 = Math.min(t1, c);
-    }
-    if (t0 <= t1 && (!best || t0 < best.t)) best = { id: b.id, t: t0 };
+    const t = rayEnter(p, b, maxDist);
+    if (t != null && (!best || t < best.t)) best = { id: b.id, t };
+  }
+  return best?.id ?? null;
+}
+
+/** How far the crosshair reaches for whole areas (warehouses, offices): they are bigger than machines. */
+export const AREA_LOOK_DIST = 20;
+/** Area targets carry ids with these prefixes, so they never mix with machine ids. */
+export const ZONE_PREFIX = "zona:", OFFICE_PREFIX = "birou:";
+
+/**
+ * Walkable areas the crosshair can point at (not solid): raw-material store, reception and its gate,
+ * picking & dispatch, the office building and every office room (as placed for the chosen room order).
+ * Same footprints as drawn in the scene.
+ */
+export function walkAreas(rooms: Room[]): Box[] {
+  const B = OFFICE_BUILDING;
+  return [
+    { x0: -12, x1: 12, z0: 23.5, z1: 33.5, id: `${ZONE_PREFIX}depozit` },
+    { x0: -29, x1: -15, z0: 23, z1: 35, id: `${ZONE_PREFIX}receptie` },
+    { x0: -40, x1: -14, z0: 39, z1: 45, id: `${ZONE_PREFIX}receptie` },
+    { x0: EXIT_X - 12, x1: EXIT_X + 12, z0: -36, z1: -23, id: `${ZONE_PREFIX}livrare` },
+    { x0: B.x0, x1: B.x1, z0: B.z0, z1: B.z1, id: `${ZONE_PREFIX}birouri` },
+    ...rooms.map((r) => ({ x0: r.x0, x1: r.x1, z0: r.z0, z1: r.z1, id: `${OFFICE_PREFIX}${r.id}` })),
+  ];
+}
+
+/**
+ * What the crosshair points at: a machine first (as `lookedAt`), otherwise the nearest area straight ahead,
+ * unless a wall or machine stands in front of it. Standing inside several areas (a room in the office
+ * building) picks the smallest one, i.e. the room rather than the building.
+ */
+export function lookTarget(p: WalkPose, solid: Box[], areas: Box[]): string | null {
+  const station = lookedAt(p, solid);
+  if (station) return station;
+  let wall = Infinity;
+  for (const b of solid) { const t = rayEnter(p, b, AREA_LOOK_DIST); if (t != null && t < wall) wall = t; }
+  let best: { id: string; t: number; size: number } | null = null;
+  for (const b of areas) {
+    if (!b.id) continue;
+    const t = rayEnter(p, b, AREA_LOOK_DIST);
+    if (t == null || t > wall + 0.5) continue;
+    const size = (b.x1 - b.x0) * (b.z1 - b.z0);
+    if (!best || t < best.t - 0.3 || (Math.abs(t - best.t) <= 0.3 && size < best.size)) best = { id: b.id, t, size };
   }
   return best?.id ?? null;
 }

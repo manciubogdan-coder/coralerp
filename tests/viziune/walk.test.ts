@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { hallWalls, lookedAt, stationBoxes, stepWalk, WALK, WALK_START, GATE_X, type Box } from "@/lib/viziune/walk";
+import { hallWalls, lookedAt, lookTarget, stationBoxes, stepWalk, walkAreas, WALK, WALK_START, GATE_X, type Box } from "@/lib/viziune/walk";
+import { HALL_CORNER, HALL_OFFICE_SPLIT, roomsFor } from "@/lib/viziune/officeLayout";
+import { ROOM_ORDER_DEFAULT } from "../../supabase/functions/_shared/officeConfigRules";
 import { HALL, toWorld, type HallStation } from "@/lib/viziune/hallLayout";
 
 const still = { fwd: 0, side: 0, turn: 0, run: false };
@@ -69,5 +71,31 @@ describe("walking through the factory", () => {
     expect(lookedAt({ x: tx, z: tz + 5, yaw: Math.PI }, boxes)).toBeNull();
     expect(lookedAt({ x: tx, z: tz + 30, yaw: 0 }, boxes)).toBeNull();
     expect(lookedAt({ x: tx, z: tz + 5, yaw: 0 }, hallWalls())).toBeNull(); // walls are not pickable
+  });
+});
+
+
+describe("walk mode crosshair on warehouses and offices", () => {
+  const areas = walkAreas(roomsFor([...ROOM_ORDER_DEFAULT]));
+
+  it("looking at the raw-material store from outside picks the store", () => {
+    expect(lookTarget({ x: 0, z: 21.5, yaw: Math.PI }, [], areas)).toBe("zona:depozit");
+  });
+
+  it("inside an office room picks that office, in the corridor the building", () => {
+    expect(lookTarget({ x: -27, z: -40, yaw: 0 }, [], areas)).toBe("birou:ceo");
+    expect(lookTarget({ x: -20, z: -34, yaw: -Math.PI / 2 }, [], areas)).toBe("zona:birouri");
+  });
+
+  it("a wall in between hides the area, a machine in front wins over it", () => {
+    const wall: Box = { x0: -5, x1: 5, z0: 22.4, z1: 22.6 };
+    expect(lookTarget({ x: 0, z: 21.5, yaw: Math.PI }, [wall], areas)).toBeNull();
+    const machine: Box = { x0: -1, x1: 1, z0: 22, z1: 23, id: "m1" };
+    expect(lookTarget({ x: 0, z: 21.5, yaw: Math.PI }, [machine], areas)).toBe("m1");
+  });
+
+  it("the offices behind the changing-rooms wall in the hall can be picked from the hall floor", () => {
+    const x = (HALL_OFFICE_SPLIT + HALL_CORNER.x1) / 2;
+    expect(lookTarget({ x, z: HALL_CORNER.z0 - 3, yaw: Math.PI }, hallWalls(), areas)).toBe("birou:productie");
   });
 });

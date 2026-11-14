@@ -17,8 +17,9 @@ type Station = HallStation;
 import { clockTime, minutesLabel, PaceBadge } from "./pace";
 import { OfficesScene } from "./OfficeScene";
 import type { OfficeData } from "./useOfficeData";
-import type { OfficeId } from "@/lib/viziune/officeState";
-import { HALL_OFFICE_SPLIT } from "@/lib/viziune/officeLayout";
+import { roomOrderOf, type OfficeId } from "@/lib/viziune/officeState";
+import { HALL_OFFICE_SPLIT, roomsFor } from "@/lib/viziune/officeLayout";
+import { walkAreas } from "@/lib/viziune/walk";
 import { Bake, LIVE, NearHtml } from "./Bake";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Walker, type WalkPad } from "./Walker";
@@ -752,7 +753,7 @@ function HallShell({ tall = false }: { tall?: boolean }) {
 export function FactoryScene({ data: raw, camera, selection, onSelect, layout: layoutProp, editing = false, onMove, offices = null, walk }: {
   data: FactoryData; camera: CameraCmd; selection: Selection; onSelect: (s: Selection) => void;
   /** Walking through the factory at eye height instead of the bird's-eye camera. */
-  walk?: { pad: React.MutableRefObject<WalkPad>; onLook: (stationId: string | null) => void; onPick: (stationId: string) => void; onExit: () => void; onLock: (locked: boolean) => void } | null;
+  walk?: { pad: React.MutableRefObject<WalkPad>; onLook: (targetId: string | null) => void; onPick: (targetId: string) => void; onExit: () => void; onLock: (locked: boolean) => void } | null;
   /** People in the offices (office building + offices in the hall). */
   offices?: OfficeData | null;
   /** Hall being edited (draft); defaults to the saved layout. */
@@ -766,6 +767,7 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
   };
   const controls = useRef<any>(null);
   const walking = !!walk && !editing;
+  const walkTargets = useMemo(() => walkAreas(roomsFor((offices?.order ?? roomOrderOf([])) as OfficeId[])), [offices?.order]);
   const byId = new Map(data.lineViews.map((l) => [l.id, l]));
   const layout = layoutProp ?? raw?.layout ?? [];
   const byStation = new Map<string, string>();
@@ -889,7 +891,7 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
       {!editing && <OfficesScene offices={offices} selection={selection} onSelect={onSelect} />}
 
       {walking && walk
-        ? <Walker layout={layout} pad={walk.pad} onLook={walk.onLook} onPick={walk.onPick} onExit={walk.onExit} onLock={walk.onLock} />
+        ? <Walker layout={layout} areas={walkTargets} pad={walk.pad} onLook={walk.onLook} onPick={walk.onPick} onExit={walk.onExit} onLock={walk.onLock} />
         : <OrbitControls ref={controls} makeDefault enabled={!drag} maxPolarAngle={Math.PI / 2.15} minDistance={4} maxDistance={130} />}
     </WalkCtx.Provider>
   );

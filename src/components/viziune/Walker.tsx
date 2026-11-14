@@ -1,10 +1,11 @@
 // First-person camera for walking through the factory: mouse (pointer lock) or finger drag to look,
-// WASD / arrows / on-screen pad to walk, Shift to run, click on a machine under the crosshair for its details.
+// WASD / arrows / on-screen pad to walk, Shift to run, click on a machine, warehouse or office under the crosshair for its details.
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { hallWalls, lookedAt, stationBoxes, stepWalk, WALK, WALK_START, type WalkInput, type WalkPose } from "@/lib/viziune/walk";
+import { hallWalls, lookTarget, stationBoxes, stepWalk, WALK, WALK_START, type WalkInput, type WalkPose } from "@/lib/viziune/walk";
 import type { HallStation } from "@/lib/viziune/hallLayout";
+import type { Box } from "@/lib/viziune/walk";
 
 export type WalkPad = { fwd: number; side: number; turn: number };
 const LOOK = 0.0022;
@@ -13,9 +14,10 @@ const typing = (t: EventTarget | null) => {
   return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.getAttribute("role") === "combobox");
 };
 
-export function Walker({ layout, pad, onLook, onPick, onExit, onLock }: {
-  layout: HallStation[]; pad: React.MutableRefObject<WalkPad>;
-  onLook: (stationId: string | null) => void; onPick: (stationId: string) => void; onExit: () => void; onLock: (locked: boolean) => void;
+export function Walker({ layout, areas, pad, onLook, onPick, onExit, onLock }: {
+  layout: HallStation[]; areas: Box[]; pad: React.MutableRefObject<WalkPad>;
+  /** Ids are machine ids or area ids (see walkAreas). */
+  onLook: (targetId: string | null) => void; onPick: (targetId: string) => void; onExit: () => void; onLock: (locked: boolean) => void;
 }) {
   const { camera, gl } = useThree();
   const pose = useRef<WalkPose>({ ...WALK_START });
@@ -25,6 +27,7 @@ export function Walker({ layout, pad, onLook, onPick, onExit, onLock }: {
   const bob = useRef(0);
   const frame = useRef(0);
   const solid = useMemo(() => [...hallWalls(), ...layout.flatMap(stationBoxes)], [layout]);
+  const areasRef = useRef(areas); areasRef.current = areas;
   const cb = useRef({ onLook, onPick, onExit, onLock }); cb.current = { onLook, onPick, onExit, onLock };
 
   // Wider lens at eye height; the bird's-eye lens comes back when the walk ends.
@@ -113,7 +116,7 @@ export function Walker({ layout, pad, onLook, onPick, onExit, onLock }: {
     camera.position.set(next.x, WALK.eye + sway, next.z);
     camera.rotation.set(pitch.current, next.yaw, 0, "YXZ");
     if (frame.current++ % 6 === 0) {
-      const id = lookedAt(next, solid);
+      const id = lookTarget(next, solid, areasRef.current);
       if (id !== looked.current) { looked.current = id; cb.current.onLook(id); }
     }
   });

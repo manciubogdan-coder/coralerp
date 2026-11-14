@@ -17,6 +17,8 @@ import { clockTime, minutesLabel, PaceBadge } from "@/components/viziune/pace";
 import { AlertTriangle, Footprints, LayoutGrid, LogOut, RefreshCw, Sparkles, X } from "lucide-react";
 import { Effects, EffectsGuard } from "@/components/viziune/Effects";
 import type { WalkPad } from "@/components/viziune/Walker";
+import { OFFICE_PREFIX, ZONE_PREFIX } from "@/lib/viziune/walk";
+import type { OfficeId } from "@/lib/viziune/officeState";
 import { useOfficeData } from "@/components/viziune/useOfficeData";
 import { OfficeDetail, OfficesOverview, type OfficeFacts } from "@/components/viziune/OfficeDetail";
 import { buildingOf, OFFICES } from "@/lib/viziune/officeState";
@@ -175,12 +177,27 @@ export default function ViziunePage() {
 
   const startWalk = () => { setSel(null); held.current.clear(); walkPad.current = { fwd: 0, side: 0, turn: 0 }; setWalking(true); };
   const exitWalk = () => { setWalking(false); setLocked(false); setLooked(null); held.current.clear(); walkPad.current = { fwd: 0, side: 0, turn: 0 }; setZone("productie"); };
-  const pickStation = (stationId: string) => {
-    const lid = data.placement.byStation.get(stationId);
-    setSel(lid && data.lineViews.some((l) => l.id === lid) ? { kind: "line", id: lid } : { kind: "station", id: stationId });
+  const officeNow = offices.people.filter((p) => p.status === "aplicatie" || p.status === "senior").length;
+  /** What a walk-mode target id (machine, warehouse, office) opens. */
+  const targetSelection = (id: string): Selection => {
+    if (id.startsWith(OFFICE_PREFIX)) return { kind: "office", id: id.slice(OFFICE_PREFIX.length) as OfficeId };
+    if (id.startsWith(ZONE_PREFIX)) { const k = id.slice(ZONE_PREFIX.length); return k === "depozit" || k === "receptie" || k === "livrare" || k === "birouri" ? { kind: k } : null; }
+    const lid = data.placement.byStation.get(id);
+    return lid && data.lineViews.some((l) => l.id === lid) ? { kind: "line", id: lid } : { kind: "station", id };
   };
-  const lookedStation = looked ? data.layout.find((st) => st.id === looked) : null;
-  const lookedLine = looked ? data.lineViews.find((l) => l.id === data.placement.byStation.get(looked)) : null;
+  const pickTarget = (id: string) => setSel(targetSelection(id));
+  const lookedSel = looked ? targetSelection(looked) : null;
+  const lookedStation = looked && (lookedSel?.kind === "line" || lookedSel?.kind === "station") ? data.layout.find((st) => st.id === looked) : null;
+  const lookedLine = lookedSel?.kind === "line" ? data.lineViews.find((l) => l.id === lookedSel.id) : null;
+  const lookedOffice = lookedSel?.kind === "office" ? offices.offices.find((o) => o.id === lookedSel.id) : null;
+  const lookedLabel: { title: string; sub: string } | null = !lookedSel ? null
+    : lookedStation ? { title: lookedLine?.name ?? lookedStation.label, sub: lookedLine ? `${STATUS_LABEL[lookedLine.status]}${lookedLine.workers ? ` · 👷 ${lookedLine.workers}` : ""}${lookedLine.pace.status === "intarziat" ? ` · ⚠ +${minutesLabel(lookedLine.pace.lateMinutes)}` : ""}` : "fără linie" }
+    : lookedSel.kind === "office" ? { title: OFFICES[lookedSel.id].label, sub: lookedOffice ? `${lookedOffice.onlineNow} lucrează acum · ${lookedOffice.people.length} oameni` : "birou" }
+    : lookedSel.kind === "depozit" ? { title: "Depozit materie primă", sub: `${data.stock.length} produse pe stoc` }
+    : lookedSel.kind === "receptie" ? { title: "Recepție", sub: `${data.receptions.reduce((a, r) => a + r.lots, 0)} loturi azi · ${(data.prereceptions ?? []).length} camioane așteptate` }
+    : lookedSel.kind === "livrare" ? { title: "Picking & livrare", sub: `${data.ready.length} magazine cu marfă gata` }
+    : lookedSel.kind === "birouri" ? { title: "Clădirea de birouri", sub: `${officeNow} lucrează acum` }
+    : null;
 
   const select = (s: Selection) => {
     if (editing) { setSel(s?.kind === "station" ? s : null); return; }
@@ -199,7 +216,6 @@ export default function ViziunePage() {
     lateLines: late.length, receptionLots: data.receptions.reduce((a, r) => a + r.lots, 0), receptionKg: recKg,
     prereceptions: (data.prereceptions ?? []).length, stoppedLines: data.lineViews.filter((l) => l.status === "oprita").length,
   };
-  const officeNow = offices.people.filter((p) => p.status === "aplicatie" || p.status === "senior").length;
   const seniorDocs = [...offices.docTotals.values()].reduce((a, t) => a + t.n, 0);
   const isOffice = sel?.kind === "office" || sel?.kind === "birouri";
 
@@ -252,17 +268,17 @@ export default function ViziunePage() {
       {walking && <>
         {/* crosshair + what is under it */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
-          <div className={`h-3 w-3 rounded-full border-2 ${lookedStation ? "border-primary bg-primary/40" : "border-background/90 bg-foreground/30"} shadow`} />
+          <div className={`h-3 w-3 rounded-full border-2 ${lookedLabel ? "border-primary bg-primary/40" : "border-background/90 bg-foreground/30"} shadow`} />
         </div>
-        {lookedStation && (
+        {lookedLabel && (
           <div className="pointer-events-none absolute left-1/2 top-[calc(50%+18px)] z-10 -translate-x-1/2 whitespace-nowrap rounded-md border bg-card/95 px-2 py-1 text-center text-xs shadow">
-            <div className="font-bold">{lookedLine?.name ?? lookedStation.label}</div>
-            <div className="text-[10px] text-muted-foreground">{lookedLine ? `${STATUS_LABEL[lookedLine.status]}${lookedLine.workers ? ` · 👷 ${lookedLine.workers}` : ""}${lookedLine.pace.status === "intarziat" ? ` · ⚠ +${minutesLabel(lookedLine.pace.lateMinutes)}` : ""}` : "fără linie"} · clic pentru detalii</div>
+            <div className="font-bold">{lookedLabel.title}</div>
+            <div className="text-[10px] text-muted-foreground">{lookedLabel.sub} · clic pentru detalii</div>
           </div>
         )}
         <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-lg border bg-card/95 px-3 py-2 text-center text-[11px] shadow">
           {locked
-            ? <span><b>W A S D</b> / săgeți = mergi · <b>Shift</b> = alergi · <b>mouse</b> = privești · <b>clic</b> pe un utilaj = detalii · <b>Esc</b> = eliberezi mouse-ul</span>
+            ? <span><b>W A S D</b> / săgeți = mergi · <b>Shift</b> = alergi · <b>mouse</b> = privești · <b>clic</b> pe un utilaj, depozit sau birou = detalii · <b>Esc</b> = eliberezi mouse-ul</span>
             : <span><b>Clic pe ecran</b> ca să privești cu mouse-ul (pe telefon: trage cu degetul) · <b>W A S D</b> / săgeți = mergi · <b>Esc</b> = ieși din plimbare</span>}
         </div>
       </>}
@@ -352,7 +368,7 @@ export default function ViziunePage() {
         {/* Sharpness follows the computer: lower resolution when frames drop, back up when there is room. */}
         <PerformanceMonitor bounds={() => [45, 58]} flipflops={4} onDecline={() => setDpr((d) => Math.max(0.6, +(d - 0.2).toFixed(2)))} onIncline={() => setDpr((d) => Math.min(MAX_DPR, +(d + 0.2).toFixed(2)))} onFallback={() => { setDpr(0.6); setQuality("rapida", false); }} />
         <FactoryScene data={data} offices={offices} camera={cam} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation}
-          walk={walking ? { pad: walkPad, onLook: setLooked, onPick: pickStation, onExit: exitWalk, onLock: setLocked } : null} />
+          walk={walking ? { pad: walkPad, onLook: setLooked, onPick: pickTarget, onExit: exitWalk, onLock: setLocked } : null} />
         {quality === "inalta" && <EffectsGuard onFail={() => setQuality("rapida", false)}><Effects /></EffectsGuard>}
       </Canvas>
     </div>
