@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
+import { PerformanceMonitor } from "@react-three/drei";
 import BackToHubButton from "@/components/BackToHubButton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -81,10 +82,13 @@ function LineDetail({ line }: { line: LineView }) {
   );
 }
 
+const MAX_DPR = 1.5;
+
 export default function ViziunePage() {
   const navigate = useNavigate();
   const data = useFactoryData();
   const offices = useOfficeData();
+  const [dpr, setDpr] = useState(() => Math.min(MAX_DPR, window.devicePixelRatio || 1));
   const [officeEdit, setOfficeEdit] = useState(false);
   const [zone, setZoneState] = useState<Zone>("all");
   const [cam, setCam] = useState<CameraCmd>({ seq: 0, kind: "zone", zone: "all" });
@@ -155,7 +159,7 @@ export default function ViziunePage() {
     if (s?.kind === "depozit") setZone("depozit");
     if (s?.kind === "livrare") setZone("livrare");
     if (s?.kind === "birouri") setZone("birouri");
-    if (s?.kind === "office") setZone(buildingOf(s.id, offices.order) === "hala" ? "birouriHala" : "birouri");
+    if (s?.kind === "office") { const area = buildingOf(s.id, offices.order); setZone(area === "hala" ? "birouriHala" : area === "depozit" ? "birouDepozit" : "birouri"); };
   };
   const officeFacts: OfficeFacts = {
     linesWorking: working.length, linesTotal: data.lineViews.length, producedPct: pieces ? Math.round((produced / pieces) * 100) : null,
@@ -284,7 +288,9 @@ export default function ViziunePage() {
 
       {data.error && <div className="absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-lg border border-destructive bg-card px-3 py-2 text-sm text-destructive shadow">Nu am putut citi datele: {data.error.message}</div>}
 
-      <Canvas shadows dpr={[1, 1.75]} camera={{ position: ZONES.all.pos, fov: 42, near: 0.5, far: 300 }} onCreated={() => setTimeout(() => setReady(true), 500)} onPointerMissed={() => setSel(null)}>
+      <Canvas shadows dpr={dpr} gl={{ powerPreference: "high-performance" }} camera={{ position: ZONES.all.pos, fov: 42, near: 0.5, far: 300 }} onCreated={() => setTimeout(() => setReady(true), 500)} onPointerMissed={() => setSel(null)}>
+        {/* Sharpness follows the computer: lower resolution when frames drop, back up when there is room. */}
+        <PerformanceMonitor bounds={() => [45, 58]} flipflops={4} onDecline={() => setDpr((d) => Math.max(0.6, +(d - 0.2).toFixed(2)))} onIncline={() => setDpr((d) => Math.min(MAX_DPR, +(d + 0.2).toFixed(2)))} onFallback={() => setDpr(0.6)} />
         <FactoryScene data={data} offices={offices} camera={cam} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation} />
       </Canvas>
     </div>

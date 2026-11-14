@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { OfficeData } from "./useOfficeData";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { BUILDING_PLACES, normName, OFFICES, OFFICE_IDS, roomOrderOf, seniorLabel, type OfficeChoice, type OfficeConfig, type OfficeId } from "@/lib/viziune/officeState";
+import { normName, PLACE_AREAS, OFFICES, OFFICE_IDS, roomOrderOf, seniorLabel, type OfficeChoice, type OfficeConfig, type OfficeId } from "@/lib/viziune/officeState";
 import { ROOM_PLACES } from "@/lib/viziune/officeLayout";
 
 const CHOICE_LABEL: Record<string, string> = { ...Object.fromEntries(OFFICE_IDS.map((id) => [id, OFFICES[id].label])), none: "Fără birou (în hală / depozit)", hidden: "Ascuns — nu apare deloc" };
+const AREA_TITLE: Record<string, string> = { birouri: "Clădirea de birouri (lângă Picking)", hala: "Birourile din hală (colțul vestiarelor)", depozit: "Depozitul de materie primă" };
 const sel = "h-8 w-full rounded-md border bg-background px-2 text-xs";
 
 /** Lets an admin put every person in an office by hand and say whose each Senior account is; saved for everyone. */
@@ -68,11 +69,11 @@ export function OfficeEditor({ offices, open, onClose }: { offices: OfficeData; 
             })}
           </tbody></table>}
           {tab === "ordine" && <>
-            <p className="mb-2 text-xs text-muted-foreground">Alege ce birou stă în fiecare cameră, sau mută-l cu săgețile. Birourile își schimbă locul între ele, inclusiv între clădirea de birouri și hală. „Stânga/dreapta” e privit din vederea „Toată fabrica”.</p>
+            <p className="mb-2 text-xs text-muted-foreground">Alege ce birou stă în fiecare cameră, sau mută-l cu săgețile. Birourile își schimbă locul între ele, inclusiv între clădirea de birouri, hală și depozitul de materie primă. „Stânga/dreapta” e privit din vederea „Toată fabrica”.</p>
             <table className="w-full text-xs"><thead><tr className="text-left text-muted-foreground"><th className="w-8 py-1">#</th><th className="py-1">Camera</th><th className="w-52 py-1">Biroul</th><th className="w-20 py-1" /></tr></thead><tbody>
               {ROOM_PLACES.map((pl, i) => (
                 <React.Fragment key={i}>
-                  {(i === 0 || i === BUILDING_PLACES) && <tr><td colSpan={4} className="pb-1 pt-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{i === 0 ? "Clădirea de birouri (lângă Picking)" : "Birourile din hală (colțul vestiarelor)"}</td></tr>}
+                  {(i === 0 || PLACE_AREAS[i] !== PLACE_AREAS[i - 1]) && <tr><td colSpan={4} className="pb-1 pt-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{AREA_TITLE[PLACE_AREAS[i]]}</td></tr>}
                   <tr className="border-t">
                     <td className="py-1.5 font-semibold">{i + 1}</td>
                     <td className="py-1.5 pr-2">{pl.label}</td>

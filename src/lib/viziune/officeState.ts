@@ -2,9 +2,10 @@
 // Pure rules (no React or three): people come from app accounts and Senior accounts, offices are guessed
 // from the Senior user group first, then from the app access rights.
 
-export type OfficeId = "ceo" | "vanzari" | "contabilitate" | "achizitii" | "hr" | "productie" | "calitate" | "mentenanta";
+export type OfficeId = "ceo" | "vanzari" | "contabilitate" | "achizitii" | "hr" | "productie" | "calitate" | "mentenanta" | "depozit";
+export type OfficeArea = "birouri" | "hala" | "depozit";
 
-export const OFFICES: Record<OfficeId, { label: string; building: "birouri" | "hala" }> = {
+export const OFFICES: Record<OfficeId, { label: string; building: OfficeArea }> = {
   ceo: { label: "Birou CEO", building: "birouri" },
   vanzari: { label: "Vânzări", building: "birouri" },
   achizitii: { label: "Achiziții", building: "birouri" },
@@ -13,7 +14,9 @@ export const OFFICES: Record<OfficeId, { label: string; building: "birouri" | "h
   productie: { label: "Birou producție", building: "hala" },
   calitate: { label: "Birou calitate", building: "hala" },
   mentenanta: { label: "Birou mentenanță", building: "hala" },
+  depozit: { label: "Birou depozit MP", building: "depozit" },
 };
+export const AREA_LABEL: Record<OfficeArea, string> = { birouri: "clădirea de birouri", hala: "în hală", depozit: "în depozitul de materie primă" };
 export const OFFICE_IDS = Object.keys(OFFICES) as OfficeId[];
 
 /** App activity counts as "online now" while the last minute ping is this recent (pings are sent every minute). */
@@ -21,11 +24,11 @@ export const ONLINE_MS = 3 * 60_000;
 /** A Senior document saved this recently means the person is working in Senior right now. */
 export const SENIOR_NOW_MS = 15 * 60_000;
 
-import { BUILDING_PLACES, roomOrderOf, type OfficeChoice, type OfficeConfig } from "../../../supabase/functions/_shared/officeConfigRules";
-export { BUILDING_PLACES, OFFICE_CHOICES, ROOM_ORDER_DEFAULT, roomOrderOf, validateOfficeConfig, type OfficeChoice, type OfficeConfig } from "../../../supabase/functions/_shared/officeConfigRules";
+import { areaOf, roomOrderOf, type OfficeChoice, type OfficeConfig } from "../../../supabase/functions/_shared/officeConfigRules";
+export { BUILDING_PLACES, OFFICE_CHOICES, PLACE_AREAS, ROOM_ORDER_DEFAULT, roomOrderOf, validateOfficeConfig, type OfficeChoice, type OfficeConfig } from "../../../supabase/functions/_shared/officeConfigRules";
 
-/** Building of an office for a room order: the first places are in the offices building, the rest in the hall. */
-export const buildingOf = (id: OfficeId, order: readonly OfficeId[]): "birouri" | "hala" => (order.indexOf(id) < BUILDING_PLACES ? "birouri" : "hala");
+/** Where an office stands for a room order: offices building, hall or raw-material warehouse. */
+export const buildingOf = (id: OfficeId, order: readonly OfficeId[]): OfficeArea => areaOf(id, order);
 
 // ---------- raw data (as returned by the server action viziune_offices) ----------
 export interface RawAppUser { id: string; name: string | null; email: string | null; roles: string[] }
@@ -50,6 +53,7 @@ const SENIOR_GROUPS: [RegExp, OfficeId][] = [
   [/calit/i, "calitate"],
   [/mentenan|tehnic/i, "mentenanta"],
   [/produc/i, "productie"],
+  [/depozit|gestiun|magazi/i, "depozit"],
   [/\bhr\b|resurse|personal|salariz/i, "hr"],
   [/director|manag|ceo|general/i, "ceo"],
 ];
@@ -63,11 +67,12 @@ export function officeFromSeniorGroup(group: string | null | undefined): OfficeI
 const ROLE_OFFICE: [string, OfficeId][] = [
   ["calitate", "calitate"], ["mentenanta", "mentenanta"], ["evidenta_documente", "contabilitate"],
   ["picking_vanzari", "vanzari"], ["achizitii", "achizitii"], ["administrativ", "hr"], ["productie", "productie"],
+  ["depozit_mp", "depozit"],
 ];
 /**
  * Office from the app access rights: the most specific department wins; an administrator with many
- * departments (or only the admin right) sits in the CEO office. Warehouse-only and line-operator accounts
- * work in the hall, not in an office.
+ * departments (or only the admin right) sits in the CEO office. Raw-material warehouse accounts sit in the
+ * warehouse office; line-operator accounts work in the hall, not in an office.
  */
 export function officeFromRoles(roles: string[]): OfficeId | null {
   const depts = roles.filter((r) => r !== "admin");
@@ -131,7 +136,7 @@ export interface PersonView {
   email: string | null;
   seniorIds: number[];
 }
-export interface OfficeView { id: OfficeId; label: string; building: "birouri" | "hala"; people: PersonView[]; onlineNow: number; activeToday: number; docs: number; appSeconds: number }
+export interface OfficeView { id: OfficeId; label: string; building: OfficeArea; people: PersonView[]; onlineNow: number; activeToday: number; docs: number; appSeconds: number }
 
 /** Senior times are local Bucharest wall-clock strings ("2026-11-14 14:01:00"). */
 export function bucharestLocalToMs(s: string): number {

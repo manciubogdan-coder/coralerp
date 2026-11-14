@@ -19,6 +19,8 @@ import { OfficesScene } from "./OfficeScene";
 import type { OfficeData } from "./useOfficeData";
 import type { OfficeId } from "@/lib/viziune/officeState";
 import { HALL_OFFICE_SPLIT } from "@/lib/viziune/officeLayout";
+import { Bake, LIVE, NearHtml } from "./Bake";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 // Scene materials are a fixed physical palette (steel, crates, greens, water), not UI theme colors.
 const C = {
@@ -31,7 +33,7 @@ const C = {
 };
 const W2 = HALL.w / 2, D2 = HALL.d / 2;
 
-export type Zone = "all" | "plan" | "productie" | "cantare" | "spalare" | "receptie" | "depozit" | "livrare" | "birouri" | "birouriHala";
+export type Zone = "all" | "plan" | "productie" | "cantare" | "spalare" | "receptie" | "depozit" | "livrare" | "birouri" | "birouriHala" | "birouDepozit";
 export const ZONES: Record<Zone, { pos: [number, number, number]; target: [number, number, number]; label: string }> = {
   all: { pos: [0, 66, 62], target: [8, 0, 2], label: "Toată fabrica" },
   plan: { pos: [0, 52, 0.01], target: [0, 0, 0], label: "Hala de sus" },
@@ -43,6 +45,7 @@ export const ZONES: Record<Zone, { pos: [number, number, number]; target: [numbe
   livrare: { pos: [20, 20, -52], target: [6, 0, -29], label: "Picking & livrare" },
   birouri: { pos: [-34, 26, -8], target: [-19, 0, -34], label: "Clădirea de birouri" },
   birouriHala: { pos: [-11, 17, 24], target: [-8.2, 0, 15.5], label: "Birouri din hală" },
+  birouDepozit: { pos: [25, 13, 40], target: [15.4, 0, 27], label: "Birou depozit MP" },
 };
 
 /** A camera move asked by the page: fly to a zone, nudge with the navigation pad, or look at one machine. */
@@ -168,22 +171,22 @@ function CrateStack({ position, levels, seed = 0, full = true }: { position: [nu
 }
 
 function Worker({ position, phase = 0, rotY = 0, sitting = false }: { position: [number, number, number]; phase?: number; rotY?: number; sitting?: boolean }) {
+  // One merged figure per worker (arms in working pose); it bobs and turns a little while working.
   const body = useRef<THREE.Group>(null);
-  const armL = useRef<THREE.Mesh>(null); const armR = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime * 3 + phase;
-    if (body.current) body.current.position.y = (sitting ? -0.25 : 0) + Math.abs(Math.sin(t)) * 0.02;
-    if (armL.current) armL.current.rotation.x = -1 + Math.sin(t) * 0.45;
-    if (armR.current) armR.current.rotation.x = -1 + Math.cos(t) * 0.45;
+    if (body.current) { body.current.position.y = (sitting ? -0.25 : 0) + Math.abs(Math.sin(t)) * 0.03; body.current.rotation.y = Math.sin(t * 0.5) * 0.18; }
   });
   return (
     <group position={position} rotation={[0, rotY, 0]}>
-      <group ref={body}>
-        <mesh castShadow position={[0, 0.55, 0]}><capsuleGeometry args={[0.2, 0.55, 4, 8]} /><meshStandardMaterial color={C.coat} /></mesh>
-        <mesh castShadow position={[0, 1.1, 0]}><sphereGeometry args={[0.15, 10, 8]} /><meshStandardMaterial color={C.skin} /></mesh>
-        <mesh position={[0, 1.18, 0]} scale={[1, 0.6, 1]}><sphereGeometry args={[0.165, 10, 6]} /><meshStandardMaterial color={C.net} /></mesh>
-        <mesh ref={armL} position={[-0.24, 0.8, 0.05]}><capsuleGeometry args={[0.06, 0.35, 3, 6]} /><meshStandardMaterial color={C.coat} /></mesh>
-        <mesh ref={armR} position={[0.24, 0.8, 0.05]}><capsuleGeometry args={[0.06, 0.35, 3, 6]} /><meshStandardMaterial color={C.coat} /></mesh>
+      <group ref={body} userData={LIVE}>
+        <Bake>
+          <mesh castShadow position={[0, 0.55, 0]}><capsuleGeometry args={[0.2, 0.55, 4, 8]} /><meshStandardMaterial color={C.coat} /></mesh>
+          <mesh castShadow position={[0, 1.1, 0]}><sphereGeometry args={[0.15, 10, 8]} /><meshStandardMaterial color={C.skin} /></mesh>
+          <mesh castShadow position={[0, 1.18, 0]} scale={[1, 0.6, 1]}><sphereGeometry args={[0.165, 10, 6]} /><meshStandardMaterial color={C.net} /></mesh>
+          <mesh castShadow position={[-0.24, 0.8, 0.05]} rotation={[-1, 0, 0]}><capsuleGeometry args={[0.06, 0.35, 3, 6]} /><meshStandardMaterial color={C.coat} /></mesh>
+          <mesh castShadow position={[0.24, 0.8, 0.05]} rotation={[-1, 0, 0]}><capsuleGeometry args={[0.06, 0.35, 3, 6]} /><meshStandardMaterial color={C.coat} /></mesh>
+        </Bake>
       </group>
       {sitting && <mesh position={[0, 0.25, 0.1]}><cylinderGeometry args={[0.18, 0.18, 0.05, 12]} /><meshStandardMaterial color={C.darkSteel} /></mesh>}
     </group>
@@ -193,23 +196,48 @@ function Worker({ position, phase = 0, rotY = 0, sitting = false }: { position: 
 function Tray({ i }: { i: number }) {
   return (
     <group>
-      <mesh castShadow position={[0, 0.06, 0]}><boxGeometry args={[0.3, 0.1, 0.22]} /><meshStandardMaterial color="#e8f4ea" transparent opacity={0.75} roughness={0.2} /></mesh>
+      <mesh castShadow position={[0, 0.06, 0]}><boxGeometry args={[0.3, 0.1, 0.22]} /><meshStandardMaterial color="#dcebdf" roughness={0.3} /></mesh>
       <mesh position={[0, 0.07, 0]} scale={[1.3, 0.45, 1]}><sphereGeometry args={[0.08, 7, 5]} /><meshStandardMaterial color={C.leaf[i % 4]} /></mesh>
     </group>
   );
+}
+
+/** Tray with leaves as one shared geometry (vertex colours), so a whole belt of trays is one instanced draw. */
+let trayGeo: THREE.BufferGeometry | null = null;
+let trayMat: THREE.Material | null = null;
+function trayParts() {
+  if (!trayGeo) {
+    const part = (g: THREE.BufferGeometry, hex: string) => {
+      const n = g.index ? g.toNonIndexed() : g; const out = new THREE.BufferGeometry();
+      out.setAttribute("position", n.getAttribute("position")); out.setAttribute("normal", n.getAttribute("normal"));
+      const c = new THREE.Color(hex), col = new Float32Array(out.getAttribute("position").count * 3);
+      for (let i = 0; i < col.length; i += 3) { col[i] = c.r; col[i + 1] = c.g; col[i + 2] = c.b; }
+      out.setAttribute("color", new THREE.BufferAttribute(col, 3)); return out;
+    };
+    const box = new THREE.BoxGeometry(0.3, 0.1, 0.22); box.translate(0, 0.06, 0);
+    const leaf = new THREE.SphereGeometry(0.08, 7, 5); leaf.scale(1.3, 0.45, 1); leaf.translate(0, 0.09, 0);
+    trayGeo = mergeGeometries([part(box, "#dcebdf"), part(leaf, C.leaf[0])], false);
+    trayMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5 });
+  }
+  return { geo: trayGeo!, mat: trayMat! };
 }
 
 /** Conveyor along local z, from z0 to z1, with trays riding it while the line runs. */
 function Conveyor({ z0, z1, x = 0, y = 0.8, width = 0.6, running, items = 6, slope = 0 }: { z0: number; z1: number; x?: number; y?: number; width?: number; running: boolean; items?: number; slope?: number }) {
   const len = Math.abs(z1 - z0);
   const tex = useBeltTexture(len);
-  const packs = useRef<THREE.Group>(null);
+  const packs = useRef<THREE.InstancedMesh>(null);
+  const xs = useMemo(() => Array.from({ length: items }, (_, i) => -len / 2 + 0.3 + i * ((len - 0.6) / items)), [items, len]);
+  const tray = trayParts();
   const dir = Math.sign(z1 - z0) || 1;
+  const mtx = useMemo(() => new THREE.Matrix4(), []);
   useFrame((_, d) => {
     if (!running) return;
     const dt = Math.min(d, 0.05);
     tex.offset.x -= dt * 0.8;
-    packs.current?.children.forEach((ch) => { ch.position.x += dt * 0.6; if (ch.position.x > len / 2 - 0.2) ch.position.x = -len / 2 + 0.2; });
+    const m = packs.current; if (!m) return;
+    for (let i = 0; i < xs.length; i++) { xs[i] += dt * 0.6; if (xs[i] > len / 2 - 0.2) xs[i] = -len / 2 + 0.2; m.setMatrixAt(i, mtx.makeTranslation(xs[i], 0, 0)); }
+    m.instanceMatrix.needsUpdate = true;
   });
   const ang = Math.atan2(slope, len);
   return (
@@ -217,9 +245,7 @@ function Conveyor({ z0, z1, x = 0, y = 0.8, width = 0.6, running, items = 6, slo
       <group rotation={[0, 0, ang * (dir > 0 ? 1 : 1)]}>
         <mesh castShadow receiveShadow><boxGeometry args={[Math.hypot(len, slope), 0.08, width]} /><meshStandardMaterial map={tex} roughness={0.9} /></mesh>
         {[-width / 2, width / 2].map((zz) => (<mesh key={zz} position={[0, 0.06, zz]}><boxGeometry args={[Math.hypot(len, slope), 0.1, 0.05]} /><meshStandardMaterial color={C.steel} metalness={0.8} roughness={0.25} /></mesh>))}
-        <group ref={packs} position={[0, 0.04, 0]}>
-          {running && Array.from({ length: items }).map((_, i) => (<group key={i} position={[-len / 2 + 0.3 + i * ((len - 0.6) / items), 0, 0]}><Tray i={i} /></group>))}
-        </group>
+        {running && <instancedMesh ref={packs} args={[tray.geo, tray.mat, items]} position={[0, 0.04, 0]} userData={LIVE} frustumCulled={false} dispose={null} />}
       </group>
       {Array.from({ length: Math.max(2, Math.round(len / 1.5)) }).map((_, i, a) => (
         <mesh key={i} position={[-len / 2 + 0.2 + i * ((len - 0.4) / (a.length - 1)), -(y + slope / 2) / 2 + (slope * ((i / (a.length - 1)) - 0.5)) / 2, 0]}>
@@ -236,9 +262,11 @@ function RotaryTable({ position, running, r = 0.9 }: { position: [number, number
   return (
     <group position={position}>
       <mesh position={[0, 0.4, 0]}><cylinderGeometry args={[0.12, 0.25, 0.8, 10]} /><meshStandardMaterial color={C.darkSteel} metalness={0.6} /></mesh>
-      <group ref={disc} position={[0, 0.85, 0]}>
-        <mesh castShadow receiveShadow><cylinderGeometry args={[r, r, 0.06, 32]} /><meshStandardMaterial color={C.steel} metalness={0.85} roughness={0.25} /></mesh>
-        {running && Array.from({ length: 8 }).map((_, i) => { const a = (i / 8) * Math.PI * 2; return <group key={i} position={[Math.cos(a) * r * 0.7, 0.03, Math.sin(a) * r * 0.7]} rotation={[0, -a, 0]}><Tray i={i} /></group>; })}
+      <group ref={disc} position={[0, 0.85, 0]} userData={LIVE}>
+        <Bake deps={[running, r]}>
+          <mesh castShadow receiveShadow><cylinderGeometry args={[r, r, 0.06, 32]} /><meshStandardMaterial color={C.steel} metalness={0.85} roughness={0.25} /></mesh>
+          {running && Array.from({ length: 8 }).map((_, i) => { const a = (i / 8) * Math.PI * 2; return <group key={i} position={[Math.cos(a) * r * 0.7, 0.03, Math.sin(a) * r * 0.7]} rotation={[0, -a, 0]}><Tray i={i} /></group>; })}
+        </Bake>
       </group>
     </group>
   );
@@ -247,15 +275,17 @@ function RotaryTable({ position, running, r = 0.9 }: { position: [number, number
 /** Multihead weigher on a platform fed by a blue Z-elevator, bagger underneath (as in the hall photos). */
 function Weigher({ running }: { running: boolean }) {
   const head = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => { if (running && head.current) head.current.children.forEach((c, i) => { c.position.y = Math.max(0, Math.sin(clock.elapsedTime * 4 + i)) * 0.05; }); });
+  useFrame(({ clock }) => { if (running && head.current) { head.current.position.y = 3.55 + Math.max(0, Math.sin(clock.elapsedTime * 4)) * 0.04; head.current.rotation.y = clock.elapsedTime * 0.5; } });
   return (
     <group>
       {[[-1.2, -1.2], [1.2, -1.2], [-1.2, 1.2], [1.2, 1.2]].map(([x, z]) => (<mesh key={`${x}${z}`} position={[x, 1.2, z]} castShadow><boxGeometry args={[0.1, 2.4, 0.1]} /><meshStandardMaterial color={C.steel} metalness={0.7} /></mesh>))}
       <mesh position={[0, 2.45, 0]} castShadow receiveShadow><boxGeometry args={[2.8, 0.1, 2.8]} /><meshStandardMaterial color={C.steel} metalness={0.7} roughness={0.35} /></mesh>
       {[-1.38, 1.38].map((x) => (<mesh key={x} position={[x, 2.9, 0]}><boxGeometry args={[0.04, 0.04, 2.8]} /><meshStandardMaterial color={C.steel} metalness={0.8} /></mesh>))}
       <mesh position={[0, 3.0, 0]} castShadow><cylinderGeometry args={[0.95, 0.35, 0.9, 16]} /><meshStandardMaterial color={C.steel} metalness={0.85} roughness={0.25} /></mesh>
-      <group ref={head} position={[0, 3.55, 0]}>
-        {Array.from({ length: 14 }).map((_, i) => { const a = (i / 14) * Math.PI * 2; return <mesh key={i} position={[Math.cos(a) * 0.95, 0, Math.sin(a) * 0.95]} rotation={[0, -a, 0]} castShadow><boxGeometry args={[0.28, 0.32, 0.38]} /><meshStandardMaterial color={C.steel} metalness={0.8} roughness={0.3} /></mesh>; })}
+      <group ref={head} position={[0, 3.55, 0]} userData={LIVE}>
+        <Bake>
+          {Array.from({ length: 14 }).map((_, i) => { const a = (i / 14) * Math.PI * 2; return <mesh key={i} position={[Math.cos(a) * 0.95, 0, Math.sin(a) * 0.95]} rotation={[0, -a, 0]} castShadow><boxGeometry args={[0.28, 0.32, 0.38]} /><meshStandardMaterial color={C.steel} metalness={0.8} roughness={0.3} /></mesh>; })}
+        </Bake>
       </group>
       <mesh position={[0, 3.95, 0]}><coneGeometry args={[0.5, 0.5, 14]} /><meshStandardMaterial color={C.steel} metalness={0.85} /></mesh>
       <mesh position={[0, 1.5, 0]} castShadow><boxGeometry args={[0.9, 1.6, 0.9]} /><meshStandardMaterial color={C.steel} metalness={0.6} roughness={0.4} /></mesh>
@@ -272,12 +302,10 @@ function Weigher({ running }: { running: boolean }) {
 }
 
 function FlowPacker({ running }: { running: boolean }) {
-  const roll = useRef<THREE.Mesh>(null);
-  useFrame((_, d) => { if (running && roll.current) roll.current.rotation.x += Math.min(d, 0.05) * 3; });
   return (
     <group>
       <RoundedBox args={[1.1, 1.2, 1.6]} radius={0.05} position={[0, 0.9, 0.6]} castShadow><meshStandardMaterial color={C.steel} metalness={0.7} roughness={0.3} /></RoundedBox>
-      <mesh ref={roll} position={[0, 1.75, 0.6]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.3, 0.3, 0.8, 18]} /><meshStandardMaterial color="#dfe9ef" roughness={0.3} /></mesh>
+      <mesh position={[0, 1.75, 0.6]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.3, 0.3, 0.8, 18]} /><meshStandardMaterial color="#dfe9ef" roughness={0.3} /></mesh>
       <mesh position={[0, 1.2, 1.41]}><planeGeometry args={[0.4, 0.25]} /><meshStandardMaterial color="#123" emissive={running ? "#39d353" : "#223"} emissiveIntensity={0.9} /></mesh>
       <Conveyor z0={-1.6} z1={-0.2} running={running} width={0.4} items={3} />
       <Conveyor z0={1.4} z1={2.0} y={0.7} running={running} width={0.5} items={1} />
@@ -312,12 +340,10 @@ function WaterTank({ position, size, running }: { position: [number, number, num
 }
 
 function Dryer({ position, running }: { position: [number, number, number]; running: boolean }) {
-  const drum = useRef<THREE.Mesh>(null);
-  useFrame((_, d) => { if (running && drum.current) drum.current.rotation.y += Math.min(d, 0.05) * 8; });
   return (
     <group position={position}>
       <mesh position={[0, 0.5, 0]} castShadow><boxGeometry args={[0.9, 1, 0.9]} /><meshStandardMaterial color={C.steel} metalness={0.7} roughness={0.3} /></mesh>
-      <mesh ref={drum} position={[0, 1.05, 0]}><cylinderGeometry args={[0.38, 0.38, 0.12, 12]} /><meshStandardMaterial color={C.darkSteel} metalness={0.6} /></mesh>
+      <mesh position={[0, 1.05, 0]}><cylinderGeometry args={[0.38, 0.38, 0.12, 12]} /><meshStandardMaterial color={C.darkSteel} metalness={0.6} /></mesh>
     </group>
   );
 }
@@ -395,16 +421,15 @@ function StationModel({ st, running, busy }: { st: Station; running: boolean; bu
 
 function LateBeacon({ minutes }: { minutes: number }) {
   const g = useRef<THREE.Group>(null);
-  const light = useRef<THREE.PointLight>(null);
+  const mat = useRef<THREE.MeshStandardMaterial>(null);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     if (g.current) { g.current.position.y = 5.3 + Math.sin(t * 2.5) * 0.15; g.current.rotation.y = t * 1.5; }
-    if (light.current) light.current.intensity = 4 + Math.sin(t * 6) * 3;
+    if (mat.current) mat.current.emissiveIntensity = 1.4 + Math.abs(Math.sin(t * 6)) * 1.6;
   });
   return (
     <group ref={g} position={[0, 5.3, 0]}>
-      <mesh><octahedronGeometry args={[0.45]} /><meshStandardMaterial color={C.status.late} emissive={C.status.late} emissiveIntensity={1.6} /></mesh>
-      <pointLight ref={light} color={C.status.late} distance={7} intensity={5} />
+      <mesh><octahedronGeometry args={[0.45]} /><meshStandardMaterial ref={mat} color={C.status.late} emissive={C.status.late} emissiveIntensity={1.6} /></mesh>
       <Html center position={[0, 0.8, 0]} distanceFactor={18} style={{ pointerEvents: "none" }}>
         <div className="whitespace-nowrap rounded bg-destructive px-1.5 py-0.5 text-[11px] font-black text-destructive-foreground shadow">⚠ +{minutesLabel(minutes)}</div>
       </Html>
@@ -463,7 +488,7 @@ function StationNode({ st, line, selected, onSelect, editing, onGrab }: { st: St
       onPointerDown={(e) => { if (!editing || !onGrab) return; e.stopPropagation(); onSelect(); onGrab([x - e.point.x, z - e.point.z]); }}
       onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = editing ? "grab" : "pointer"; }}
       onPointerOut={() => { document.body.style.cursor = ""; }}>
-      <group rotation={[0, -((st.rot || 0) * Math.PI) / 180, 0]}>
+      <Bake rotation={[0, -((st.rot || 0) * Math.PI) / 180, 0]} deps={[st.kind, running, busy, workers, st.px, st.py]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
         <planeGeometry args={footprint} />
         <meshBasicMaterial color={editing && selected ? C.status.lucreaza : sc} transparent opacity={selected ? 0.32 : editing ? 0.16 : late ? 0.2 : 0.07} />
@@ -477,9 +502,9 @@ function StationNode({ st, line, selected, onSelect, editing, onGrab }: { st: St
       })}
       <group position={[big ? 2.2 : 1.4, 0, big ? 1.4 : -1]}>
         <mesh position={[0, 1.1, 0]}><cylinderGeometry args={[0.03, 0.03, 2.2]} /><meshStandardMaterial color={C.darkSteel} /></mesh>
-        <mesh position={[0, 2.3, 0]}><cylinderGeometry args={[0.12, 0.12, 0.35, 12]} /><meshStandardMaterial ref={andon} color={sc} emissive={sc} emissiveIntensity={1.3} /></mesh>
+        <mesh position={[0, 2.3, 0]} userData={LIVE}><cylinderGeometry args={[0.12, 0.12, 0.35, 12]} /><meshStandardMaterial ref={andon} color={sc} emissive={sc} emissiveIntensity={1.3} /></mesh>
       </group>
-      </group>
+      </Bake>
       {late && <LateBeacon minutes={line!.pace.lateMinutes} />}
       <Html position={[0, big ? 6.4 : 3.2, 0]} center distanceFactor={20} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
         <StationCard st={st} line={line} />
@@ -493,7 +518,7 @@ function FlowStripe({ pts, color }: { pts: [number, number][]; color: string }) 
     const [ax, az] = toWorld(...pts[i]); const [bx, bz] = toWorld(...p);
     return { x: (ax + bx) / 2, z: (az + bz) / 2, len: Math.hypot(bx - ax, bz - az) + 0.25, rot: Math.atan2(bx - ax, bz - az) };
   });
-  return <>{segs.map((s, i) => (<mesh key={i} position={[s.x, 0.014, s.z]} rotation={[-Math.PI / 2, 0, s.rot]}><planeGeometry args={[0.25, s.len]} /><meshBasicMaterial color={color} transparent opacity={0.85} /></mesh>))}</>;
+  return <>{segs.map((s, i) => (<mesh key={i} position={[s.x, 0.014, s.z]} rotation={[-Math.PI / 2, 0, s.rot]}><planeGeometry args={[0.25, s.len]} /><meshBasicMaterial color={color} /></mesh>))}</>;
 }
 
 /** Crates riding a floor flow while the hall works: raw material in, finished cartons out. */
@@ -516,7 +541,7 @@ function FlowMovers({ pts, kind, count }: { pts: [number, number][]; kind: strin
     <group ref={ref}>
       {Array.from({ length: count }).map((_, i) => (
         <group key={i}>
-          {kind === "materie" ? <Crate position={[0, 0.02, 0]} seed={i} /> : <mesh position={[0, 0.2, 0]} castShadow><boxGeometry args={[0.5, 0.35, 0.4]} /><meshStandardMaterial color={C.carton} /></mesh>}
+          <Bake>{kind === "materie" ? <Crate position={[0, 0.02, 0]} seed={i} /> : <mesh position={[0, 0.2, 0]} castShadow><boxGeometry args={[0.5, 0.35, 0.4]} /><meshStandardMaterial color={C.carton} /></mesh>}</Bake>
         </group>
       ))}
     </group>
@@ -545,8 +570,8 @@ function Truck({ from, to, label, delay = 0, loop = 22, heading }: { from: [numb
   const dir = heading ?? Math.atan2(to[0] - from[0], to[2] - from[2]);
   return (
     <group ref={ref} position={from}>
-      <group rotation={[0, dir, 0]}>
-        <group ref={rear}>{[-0.55, 0.55].map((x) => (<mesh key={x} position={[x, 0.7, 1.82]}><boxGeometry args={[0.22, 0.14, 0.04]} /><meshStandardMaterial color="#f6b73c" emissive="#ffb020" emissiveIntensity={0} /></mesh>))}</group>
+      <Bake rotation={[0, dir, 0]} deps={[dir]}>
+        <group ref={rear} userData={LIVE}>{[-0.55, 0.55].map((x) => (<mesh key={x} position={[x, 0.7, 1.82]}><boxGeometry args={[0.22, 0.14, 0.04]} /><meshStandardMaterial color="#f6b73c" emissive="#ffb020" emissiveIntensity={0} /></mesh>))}</group>
         <RoundedBox args={[1.5, 1.6, 3.6]} radius={0.05} position={[0, 1.25, 0]} castShadow><meshStandardMaterial color={C.truck} roughness={0.5} /></RoundedBox>
         <mesh position={[0, 0.85, 0]} castShadow><boxGeometry args={[1.52, 0.18, 3.62]} /><meshStandardMaterial color={C.stripe} /></mesh>
         {[1, -1].map((sx) => (<mesh key={sx} position={[sx * 0.765, 1.35, 0.1]} rotation={[0, (sx * Math.PI) / 2, 0]}><planeGeometry args={[1.25, 1.25]} /><meshStandardMaterial map={logo} transparent alphaTest={0.05} roughness={0.5} /></mesh>))}
@@ -554,8 +579,8 @@ function Truck({ from, to, label, delay = 0, loop = 22, heading }: { from: [numb
         <RoundedBox args={[1.45, 1.2, 1]} radius={0.08} position={[0, 0.95, -2.3]} castShadow><meshStandardMaterial color={C.cab} metalness={0.3} roughness={0.4} /></RoundedBox>
         <mesh position={[0, 1.15, -2.81]}><planeGeometry args={[1.2, 0.5]} /><meshStandardMaterial color="#9fc7de" metalness={0.8} roughness={0.1} /></mesh>
         {[-1.2, 0.9, -2.3].map((z) => [-0.7, 0.7].map((x) => (<mesh key={`${z}${x}`} position={[x, 0.3, z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.3, 0.3, 0.2, 14]} /><meshStandardMaterial color="#222" /></mesh>)))}
-      </group>
-      {label && <Html position={[0, 2.8, 0]} center distanceFactor={22} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded border bg-card/95 px-1.5 py-0.5 text-[10px] font-semibold text-card-foreground shadow">{label}</div></Html>}
+      </Bake>
+      {label && <NearHtml maxDist={55} position={[0, 2.8, 0]} center distanceFactor={22} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded border bg-card/95 px-1.5 py-0.5 text-[10px] font-semibold text-card-foreground shadow">{label}</div></NearHtml>}
     </group>
   );
 }
@@ -570,12 +595,12 @@ function Forklift({ path, speed = 0.12, phase = 0 }: { path: [number, number][];
     ref.current.position.copy(p); ref.current.rotation.y = Math.atan2(q.x - p.x, q.z - p.z);
   });
   return (
-    <group ref={ref}>
+    <group ref={ref}><Bake>
       <mesh castShadow position={[0, 0.45, 0]}><boxGeometry args={[0.8, 0.6, 1.2]} /><meshStandardMaterial color="#e8b923" /></mesh>
       {[-0.3, 0.3].map((x) => <mesh key={x} position={[x, 0.8, -0.45]}><boxGeometry args={[0.04, 0.9, 0.04]} /><meshStandardMaterial color="#333" /></mesh>)}
       <mesh position={[0, 0.9, 0.85]}><boxGeometry args={[0.7, 1.2, 0.05]} /><meshStandardMaterial color="#555" /></mesh>
       <group position={[0, 0.25, 0.95]}><Crate position={[0, 0, 0]} seed={phase * 7} /></group>
-    </group>
+    </Bake></group>
   );
 }
 
@@ -628,7 +653,7 @@ function HallShell() {
   const seg = (a: number, b: number, z: number, k: string) => wall((a + b) / 2, z, b - a, 0.3, k);
   const [ox0, oz0] = toWorld(0, 930); const [ox1] = toWorld(215, 1200);
   return (
-    <group>
+    <Bake>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0.005, 0]}><planeGeometry args={[HALL.w, HALL.d]} /><meshStandardMaterial map={floor} roughness={0.55} metalness={0.05} /></mesh>
       {wall(-W2, 0, 0.3, HALL.d, "w")}{wall(W2, 0, 0.3, HALL.d, "e")}
       {seg(-W2, gateX - 1.8, D2, "s1")}{seg(gateX + 1.8, W2, D2, "s2")}
@@ -643,7 +668,7 @@ function HallShell() {
         <Html position={[(ox0 + HALL_OFFICE_SPLIT) / 2, 3.2, (oz0 + D2) / 2]} center distanceFactor={26} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/85 px-1.5 py-0.5 text-[10px] text-muted-foreground">Vestiare</div></Html>
       </group>
       {FLOWS.map((f, i) => <FlowStripe key={i} pts={f.pts} color={C.flow[f.kind]} />)}
-    </group>
+    </Bake>
   );
 }
 
@@ -729,9 +754,9 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 28.5]}><planeGeometry args={[24, 10]} /><meshStandardMaterial color="#b9c3c8" /></mesh>
         <PalletField slots={stockSlots} goods="crate" />
         {firstSlot(stockSlots, 12).map(([item, sl]) => { const it = data.stock[item]; return (
-          <Html key={it.name} position={[sl.x, sl.levels * 0.3 + 0.7, sl.z]} center distanceFactor={18} style={{ pointerEvents: "none" }}>
+          <NearHtml maxDist={40} key={it.name} position={[sl.x, sl.levels * 0.3 + 0.7, sl.z]} center distanceFactor={18} style={{ pointerEvents: "none" }}>
             <div className="max-w-[120px] truncate whitespace-nowrap rounded bg-card/90 px-1.5 py-0.5 text-[9px] font-semibold text-card-foreground shadow">{it.name} · {Math.round(it.qty).toLocaleString("ro-RO")} {it.unit}</div>
-          </Html>
+          </NearHtml>
         ); })}
       </Clickable>
       <Forklift path={[[-10.6, 26.7], [0, 26.7], [10.6, 26.7], [10.6, 30.4], [0, 30.4], [-10.6, 30.4]]} speed={0.035} />
@@ -764,9 +789,9 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[exitX, 0.006, -29]}><planeGeometry args={[24, 12]} /><meshStandardMaterial color="#b3b8b0" /></mesh>
         <PalletField slots={readySlots} goods="carton" />
         {firstSlot(readySlots, 12).map(([item, sl]) => { const r = data.ready[item]; return (
-          <Html key={r.store} position={[sl.x, sl.levels * 0.3 + 0.7, sl.z]} center distanceFactor={18} style={{ pointerEvents: "none" }}>
+          <NearHtml maxDist={40} key={r.store} position={[sl.x, sl.levels * 0.3 + 0.7, sl.z]} center distanceFactor={18} style={{ pointerEvents: "none" }}>
             <div className="max-w-[130px] truncate whitespace-nowrap rounded bg-card/90 px-1.5 py-0.5 text-[9px] font-semibold text-card-foreground shadow">{r.store} · {r.pieces.toLocaleString("ro-RO")} buc</div>
-          </Html>
+          </NearHtml>
         ); })}
         {[-6, 0, 6].map((dx) => (<mesh key={dx} position={[exitX + dx, 0.6, -35.5]} castShadow><boxGeometry args={[3.2, 1.2, 1]} /><meshStandardMaterial color={C.darkSteel} /></mesh>))}
       </Clickable>

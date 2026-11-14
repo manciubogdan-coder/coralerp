@@ -1,12 +1,15 @@
 // Viziune offices chosen by hand: which office each person sits in and whose each Senior account is.
 // Shared by the page (editing) and the argus function (validating before saving for everyone). No React, no Deno.
 
-/** Default order of the offices over the room places: the first BUILDING_PLACES are in the offices building, the rest in the hall. */
-export const ROOM_ORDER_DEFAULT = ["ceo", "vanzari", "achizitii", "contabilitate", "hr", "productie", "calitate", "mentenanta"] as const;
+/** Default order of the offices over the room places (see PLACE_AREAS for where each place stands). */
+export const ROOM_ORDER_DEFAULT = ["ceo", "vanzari", "achizitii", "contabilitate", "hr", "productie", "calitate", "mentenanta", "depozit"] as const;
 export type RoomOfficeId = typeof ROOM_ORDER_DEFAULT[number];
-export const BUILDING_PLACES = 5;
+export type PlaceArea = "birouri" | "hala" | "depozit";
+/** Where each room place stands: offices building, hall (changing-rooms corner), raw-material warehouse. */
+export const PLACE_AREAS: PlaceArea[] = ["birouri", "birouri", "birouri", "birouri", "birouri", "hala", "hala", "hala", "depozit"];
+export const BUILDING_PLACES = PLACE_AREAS.filter((a) => a === "birouri").length;
 
-export const OFFICE_CHOICES = ["ceo", "vanzari", "achizitii", "contabilitate", "hr", "productie", "calitate", "mentenanta", "none", "hidden"] as const;
+export const OFFICE_CHOICES = [...ROOM_ORDER_DEFAULT, "none", "hidden"] as const;
 export type OfficeChoice = typeof OFFICE_CHOICES[number];
 export interface OfficeConfig {
   /** person key (`app:<uuid>` or `senior:<id>`) → office, "none" (no office) or "hidden" (not shown). */
@@ -18,11 +21,17 @@ export interface OfficeConfig {
 }
 export const EMPTY_OFFICE_CONFIG: OfficeConfig = { offices: {}, links: {}, order: [] };
 
-/** The saved order when it names every office exactly once, otherwise the default order. */
+/**
+ * Full order of the offices: the saved one (known offices, each once) followed by offices it does not name
+ * yet, in default order. An order saved before a new office existed keeps its places; the new office takes the next one.
+ */
 export function roomOrderOf(order: readonly string[] | null | undefined): RoomOfficeId[] {
-  const ok = Array.isArray(order) && order.length === ROOM_ORDER_DEFAULT.length && ROOM_ORDER_DEFAULT.every((id) => order.includes(id));
-  return ok ? [...order] as RoomOfficeId[] : [...ROOM_ORDER_DEFAULT];
+  const seen = new Set<RoomOfficeId>();
+  for (const id of Array.isArray(order) ? order : []) if ((ROOM_ORDER_DEFAULT as readonly string[]).includes(id)) seen.add(id as RoomOfficeId);
+  return [...seen, ...ROOM_ORDER_DEFAULT.filter((id) => !seen.has(id))];
 }
+/** Where an office stands for an order. */
+export const areaOf = (id: RoomOfficeId, order: readonly string[] | null | undefined): PlaceArea => PLACE_AREAS[roomOrderOf(order).indexOf(id)];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PERSON = /^(app:[0-9a-f-]{36}|senior:\d{1,9})$/i;
@@ -49,8 +58,8 @@ export function validateOfficeConfig(input: unknown): OfficeConfig {
   }
   const rawOrder = o.order ?? o.room_order ?? [];
   if (!Array.isArray(rawOrder)) throw new Error("Ordinea birourilor nu e o listă.");
-  if (rawOrder.length && (rawOrder.length !== ROOM_ORDER_DEFAULT.length || new Set(rawOrder).size !== rawOrder.length || !rawOrder.every((x) => ROOM_ORDER_DEFAULT.includes(x as RoomOfficeId)))) {
+  if (rawOrder.length > ROOM_ORDER_DEFAULT.length || new Set(rawOrder).size !== rawOrder.length || !rawOrder.every((x) => ROOM_ORDER_DEFAULT.includes(x as RoomOfficeId))) {
     throw new Error("Ordinea birourilor trebuie să conțină fiecare birou o singură dată.");
   }
-  return { offices, links, order: rawOrder as RoomOfficeId[] };
+  return { offices, links, order: rawOrder.length ? roomOrderOf(rawOrder as string[]) : [] };
 }

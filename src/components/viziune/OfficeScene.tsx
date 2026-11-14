@@ -7,13 +7,14 @@ import type { OfficeId, OfficeView, PersonView } from "@/lib/viziune/officeState
 import { deskSpots, OFFICE_BUILDING, OFFICE_CORRIDOR_Z, roomCenter, roomsFor, type Room } from "@/lib/viziune/officeLayout";
 import { roomOrderOf } from "@/lib/viziune/officeState";
 import { labelForPath } from "@/lib/activityTracking";
+import { Bake, LIVE, NearHtml } from "./Bake";
 
 // Fixed physical palette for furniture, carpets and screens (scene materials, not UI theme colours).
 const P = {
   wall: "#eef0ec", desk: "#c9a77c", deskLeg: "#55595c", chair: "#30343a", screenOff: "#1b1e22", app: "#39d353", senior: "#4a8fe8",
   skin: "#e2b48f", hair: ["#3b2a20", "#6b4a2e", "#1f1f1f", "#a07a4a"], shirt: ["#3c6e9f", "#8a4f6b", "#4f7d5a", "#c27c3a", "#5b5f97", "#7a8a96"],
   slab: "#a4a8a1", corridor: "#cfd2cb", select: "#f2c14e",
-  carpet: { ceo: "#7a6a58", vanzari: "#5f7f9a", achizitii: "#6f8a6a", contabilitate: "#8a7f9c", hr: "#9a7a6e", productie: "#8d9493", calitate: "#7f9a92", mentenanta: "#9a927a" } as Record<OfficeId, string>,
+  carpet: { ceo: "#7a6a58", vanzari: "#5f7f9a", achizitii: "#6f8a6a", contabilitate: "#8a7f9c", hr: "#9a7a6e", productie: "#8d9493", calitate: "#7f9a92", mentenanta: "#9a927a", depozit: "#7d8f9e" } as Record<OfficeId, string>,
 };
 const hash = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); };
 const hhmm = (s: string | null) => (s ? s.slice(11, 16) : "");
@@ -26,21 +27,23 @@ export function doingNow(p: PersonView) {
 }
 
 function OfficePerson({ p }: { p: PersonView }) {
-  const armL = useRef<THREE.Mesh>(null); const armR = useRef<THREE.Mesh>(null);
+  // One merged figure (arms on the keyboard) that sways a little while working.
+  const g = useRef<THREE.Group>(null);
   const h = hash(p.key);
   useFrame(({ clock }) => {
-    const t = clock.elapsedTime * 7 + h;
-    if (armL.current) armL.current.rotation.x = -1.25 + Math.sin(t) * 0.12;
-    if (armR.current) armR.current.rotation.x = -1.25 + Math.cos(t * 1.3) * 0.12;
+    const t = clock.elapsedTime * 2 + h;
+    if (g.current) { g.current.rotation.y = Math.sin(t * 0.6) * 0.12; g.current.position.y = 0.2 + Math.abs(Math.sin(t * 3)) * 0.01; }
   });
   const shirt = P.shirt[h % P.shirt.length];
   return (
-    <group position={[0, 0.2, 0]}>
-      <mesh castShadow position={[0, 0.55, 0]}><capsuleGeometry args={[0.19, 0.42, 4, 8]} /><meshStandardMaterial color={shirt} /></mesh>
-      <mesh castShadow position={[0, 1.02, 0]}><sphereGeometry args={[0.14, 10, 8]} /><meshStandardMaterial color={P.skin} /></mesh>
-      <mesh position={[0, 1.09, 0.03]} scale={[1, 0.7, 1]}><sphereGeometry args={[0.15, 10, 6]} /><meshStandardMaterial color={P.hair[h % P.hair.length]} /></mesh>
-      <mesh ref={armL} position={[-0.23, 0.72, -0.05]}><capsuleGeometry args={[0.055, 0.3, 3, 6]} /><meshStandardMaterial color={shirt} /></mesh>
-      <mesh ref={armR} position={[0.23, 0.72, -0.05]}><capsuleGeometry args={[0.055, 0.3, 3, 6]} /><meshStandardMaterial color={shirt} /></mesh>
+    <group ref={g} position={[0, 0.2, 0]} userData={LIVE}>
+      <Bake deps={[shirt, h]}>
+        <mesh castShadow position={[0, 0.55, 0]}><capsuleGeometry args={[0.19, 0.42, 4, 8]} /><meshStandardMaterial color={shirt} /></mesh>
+        <mesh castShadow position={[0, 1.02, 0]}><sphereGeometry args={[0.14, 10, 8]} /><meshStandardMaterial color={P.skin} /></mesh>
+        <mesh castShadow position={[0, 1.09, 0.03]} scale={[1, 0.7, 1]}><sphereGeometry args={[0.15, 10, 6]} /><meshStandardMaterial color={P.hair[h % P.hair.length]} /></mesh>
+        <mesh castShadow position={[-0.23, 0.72, -0.05]} rotation={[-1.25, 0, 0]}><capsuleGeometry args={[0.055, 0.3, 3, 6]} /><meshStandardMaterial color={shirt} /></mesh>
+        <mesh castShadow position={[0.23, 0.72, -0.05]} rotation={[-1.25, 0, 0]}><capsuleGeometry args={[0.055, 0.3, 3, 6]} /><meshStandardMaterial color={shirt} /></mesh>
+      </Bake>
     </group>
   );
 }
@@ -64,12 +67,12 @@ function Desk({ x, z, p, showLabel }: { x: number; z: number; p?: PersonView; sh
       <mesh position={[0, 0.22, 0.1]}><cylinderGeometry args={[0.03, 0.03, 0.44, 6]} /><meshStandardMaterial color={P.deskLeg} /></mesh>
       {here && <OfficePerson p={p!} />}
       {here && showLabel && (
-        <Html position={[0, 1.65, 0]} center distanceFactor={14} style={{ pointerEvents: "none" }}>
+        <NearHtml maxDist={30} position={[0, 1.65, 0]} center distanceFactor={14} style={{ pointerEvents: "none" }}>
           <div className="max-w-[170px] whitespace-nowrap rounded bg-card/90 px-1.5 py-0.5 text-center text-[9px] leading-tight text-card-foreground shadow">
             <div className="truncate font-bold">{p!.name}</div>
             <div className="truncate text-muted-foreground">{doingNow(p!)}</div>
           </div>
-        </Html>
+        </NearHtml>
       )}
     </group>
   );
@@ -102,8 +105,10 @@ function OfficeRoom({ room, office, selected, onSelect, walls = true }: { room: 
   const [cx, cz] = roomCenter(room);
   const w = room.x1 - room.x0, d = room.z1 - room.z0;
   const wall = (x: number, z: number, ww: number, dd: number, k: string) => <mesh key={k} position={[x, 0.55, z]} castShadow receiveShadow><boxGeometry args={[ww, 1.1, dd]} /><meshStandardMaterial color={P.wall} /></mesh>;
+  const look = people.map((p) => `${p.key}:${p.status}`).join(",");
   return (
     <group onClick={(e) => { e.stopPropagation(); onSelect(); }} onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
+      <Bake deps={[room.id, room.x0, room.z0, spots.length, look, selected, walls]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0.02, cz]} receiveShadow><planeGeometry args={[w - 0.1, d - 0.1]} /><meshStandardMaterial color={P.carpet[room.id]} roughness={0.95} /></mesh>
       {selected && <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0.03, cz]}><ringGeometry args={[Math.min(w, d) / 2 - 0.25, Math.min(w, d) / 2 - 0.05, 48]} /><meshBasicMaterial color={P.select} /></mesh>}
       {walls && <>
@@ -116,6 +121,7 @@ function OfficeRoom({ room, office, selected, onSelect, walls = true }: { room: 
         <mesh position={[room.x0 + 0.45, 0.9, room.z1 - 1.2]} castShadow><boxGeometry args={[0.5, 1.8, 1.4]} /><meshStandardMaterial color="#8b6f4e" roughness={0.7} /></mesh>
         {room.id === "ceo" && <MeetingTable x={cx} z={room.z1 - 2.6} />}
       </>}
+      </Bake>
       <Html position={[cx, inHall ? 2.9 : 2.4, room.z0 + 0.6]} center distanceFactor={inHall ? 13 : 22} style={{ pointerEvents: "none" }}>
         <div className={`whitespace-nowrap rounded-md px-2 py-0.5 text-center shadow-lg ${selected ? "bg-primary text-primary-foreground" : "bg-foreground/85 text-background"}`}>
           <div className="text-[11px] font-black uppercase tracking-wide">{office?.label ?? room.id}</div>
@@ -134,7 +140,7 @@ export function OfficesScene({ offices, selection, onSelect }: { offices: Office
   const rooms = useMemo(() => roomsFor((offices?.order ?? roomOrderOf([])) as OfficeId[]), [offices?.order]);
   const B = OFFICE_BUILDING;
   const bw = B.x1 - B.x0, bd = B.z1 - B.z0, bcx = (B.x0 + B.x1) / 2, bcz = (B.z0 + B.z1) / 2;
-  const onlineB = rooms.filter((r) => !r.inHall).reduce((a, r) => a + (byId.get(r.id)?.onlineNow ?? 0), 0);
+  const onlineB = rooms.filter((r) => r.area === "birouri").reduce((a, r) => a + (byId.get(r.id)?.onlineNow ?? 0), 0);
   const walkX0 = B.x1, walkX1 = -4.6; // up to the picking floor
   return (
     <group>

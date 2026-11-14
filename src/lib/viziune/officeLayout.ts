@@ -2,8 +2,10 @@
 import type { OfficeId } from "./officeState";
 import { toWorld } from "./hallLayout";
 
-export interface Room { id: OfficeId; x0: number; x1: number; z0: number; z1: number; inHall: boolean }
-type Place = Omit<Room, "id"> & { label: string };
+import { PLACE_AREAS } from "../../../supabase/functions/_shared/officeConfigRules";
+
+export interface Room { id: OfficeId; x0: number; x1: number; z0: number; z1: number; inHall: boolean; area: "birouri" | "hala" | "depozit" }
+type Place = Omit<Room, "id" | "area"> & { label: string };
 
 /**
  * Separate office building left of Picking & livrare (north of the hall, seen from the main view), with a
@@ -20,6 +22,9 @@ export const HALL_OFFICE_SPLIT = hx0 + (hx1 - hx0) * 0.36; // changing rooms on 
 const third = (hz1 - hz0) / 3;
 export const HALL_CORNER = { x0: hx0, x1: hx1, z0: hz0, z1: hz1 };
 
+/** Office at the east end of the raw-material cold store (24×10 m at x −12…12, z 23.5…33.5), outside the forklift aisle. */
+export const DEPOT_OFFICE = { x0: 12.3, x1: 18.5, z0: 23.5, z1: 30.5 };
+
 /** Room places, in the order offices are put into them: the first BUILDING_PLACES in the building, then the hall. */
 export const ROOM_PLACES: Place[] = [
   { label: "Clădirea de birouri · spate stânga", x0: B.x0, x1: B.x0 + 8, z0: B.z0, z1: cN, inHall: false },
@@ -30,11 +35,12 @@ export const ROOM_PLACES: Place[] = [
   { label: "Hală, lângă vestiare · primul", x0: HALL_OFFICE_SPLIT, x1: hx1, z0: hz0, z1: hz0 + third, inHall: true },
   { label: "Hală, lângă vestiare · al doilea", x0: HALL_OFFICE_SPLIT, x1: hx1, z0: hz0 + third, z1: hz0 + 2 * third, inHall: true },
   { label: "Hală, lângă vestiare · al treilea (spre poartă)", x0: HALL_OFFICE_SPLIT, x1: hx1, z0: hz0 + 2 * third, z1: hz1, inHall: true },
+  { label: "Depozit MP · biroul de la capătul din dreapta", ...DEPOT_OFFICE, inHall: false },
 ];
 
 /** Rooms for an order of the offices (a full order, see roomOrderOf): office i stands in place i. */
 export function roomsFor(order: readonly OfficeId[]): Room[] {
-  return order.slice(0, ROOM_PLACES.length).map((id, i) => { const { label: _l, ...p } = ROOM_PLACES[i]; return { id, ...p }; });
+  return order.slice(0, ROOM_PLACES.length).map((id, i) => { const { label: _l, ...p } = ROOM_PLACES[i]; return { id, ...p, area: PLACE_AREAS[i] }; });
 }
 export const roomCenter = (r: Room): [number, number] => [(r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2];
 

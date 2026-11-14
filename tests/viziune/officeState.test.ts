@@ -42,8 +42,9 @@ describe("Viziune birouri: cine stă în ce birou", () => {
     expect(officeFromRoles(["calitate"])).toBe("calitate");
     expect(officeFromRoles(["picking_vanzari"])).toBe("vanzari");
   });
-  it("warehouse-only and line-operator accounts have no office", () => {
-    expect(officeFromRoles(["depozit_mp"])).toBeNull();
+  it("raw-material warehouse accounts sit in the warehouse office, line operators have no office", () => {
+    expect(officeFromRoles(["depozit_mp"])).toBe("depozit");
+    expect(officeFromSeniorGroup("Gestiune depozit")).toBe("depozit");
     expect(officeFromRoles(["operator"])).toBeNull();
   });
   it("Senior groups map to offices; administrator/system groups do not", () => {
@@ -64,7 +65,10 @@ describe("Viziune birouri: cine stă în ce birou", () => {
     expect(shared.docs).toBe(100);
   });
   it("app users without an office and without activity today are not shown", () => {
-    expect(buildOffices(raw(), NOW).people.some((p) => p.name === "Ion Depozit")).toBe(false);
+    const base = raw();
+    const v = buildOffices(raw({ app: { ...base.app, users: [...base.app.users, { id: "u4", name: "Vasile Operator", email: null, roles: ["operator"] }] } }), NOW);
+    expect(v.people.some((p) => p.name === "Vasile Operator")).toBe(false);
+    expect(v.offices.find((o) => o.id === "depozit")!.people.map((p) => p.name)).toEqual(["Ion Depozit"]);
   });
 });
 
@@ -125,17 +129,23 @@ describe("Viziune birouri: alegerile făcute de mână", () => {
 });
 
 describe("Viziune birouri: ordinea camerelor", () => {
-  const swapped = ["productie", "vanzari", "achizitii", "contabilitate", "hr", "ceo", "calitate", "mentenanta"] as const;
-  it("an order must name every office exactly once", () => {
-    expect(() => validateOfficeConfig({ order: ["ceo", "ceo", "achizitii", "contabilitate", "hr", "productie", "calitate", "mentenanta"] })).toThrow(/Ordinea/);
-    expect(() => validateOfficeConfig({ order: ["ceo"] })).toThrow(/Ordinea/);
+  const swapped = ["productie", "vanzari", "achizitii", "contabilitate", "hr", "ceo", "calitate", "mentenanta", "depozit"] as const;
+  it("an order names each office at most once and only known offices", () => {
+    expect(() => validateOfficeConfig({ order: ["ceo", "ceo"] })).toThrow(/Ordinea/);
+    expect(() => validateOfficeConfig({ order: ["cantina"] })).toThrow(/Ordinea/);
     expect(validateOfficeConfig({ order: [...swapped] }).order).toEqual([...swapped]);
   });
-  it("without a saved order the first five offices are in the building, the last three in the hall", () => {
+  it("without a saved order: five offices in the building, three in the hall, the warehouse office in the raw-material warehouse", () => {
     const o = roomOrderOf([]);
-    expect(o).toEqual(["ceo", "vanzari", "achizitii", "contabilitate", "hr", "productie", "calitate", "mentenanta"]);
+    expect(o).toEqual(["ceo", "vanzari", "achizitii", "contabilitate", "hr", "productie", "calitate", "mentenanta", "depozit"]);
     expect(buildingOf("hr", o as any)).toBe("birouri");
     expect(buildingOf("productie", o as any)).toBe("hala");
+    expect(buildingOf("depozit", o as any)).toBe("depozit");
+  });
+  it("an order saved before the warehouse office existed keeps its places and gets the warehouse office last", () => {
+    const old = swapped.slice(0, 8);
+    expect(roomOrderOf(old)).toEqual([...swapped]);
+    expect(validateOfficeConfig({ order: old }).order).toEqual([...swapped]);
   });
   it("swapping CEO with Producție moves CEO into the hall and Producție into the building", () => {
     const v = buildOffices(raw({ config: { offices: {}, links: {}, order: [...swapped] } }), NOW);

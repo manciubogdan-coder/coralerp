@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users } from "lucide-react";
 import type { OfficeData } from "./useOfficeData";
-import type { OfficeId, PersonView } from "@/lib/viziune/officeState";
+import { AREA_LABEL, type OfficeId, type PersonView } from "@/lib/viziune/officeState";
 import { labelForPath, formatDuration } from "@/lib/activityTracking";
 import { doingNow } from "./OfficeScene";
 
@@ -63,6 +63,7 @@ function highlights(id: OfficeId, o: OfficeData, f: OfficeFacts): string[] {
     case "contabilitate": return [doc("FF", "Facturi furnizori azi"), `Documente Senior azi în toată firma: ${fmt([...o.docTotals.values()].reduce((a, x) => a + x.n, 0))}`];
     case "productie": return [`Linii care lucrează: ${f.linesWorking} / ${f.linesTotal}`, `Producție azi: ${f.producedPct == null ? "—" : `${f.producedPct}%`}`, `Linii peste normă: ${f.lateLines}`];
     case "calitate": return [`Recepții azi: ${f.receptionLots} loturi · ${fmt(f.receptionKg)} kg`, `Prerecepții de verificat: ${f.prereceptions}`];
+    case "depozit": return [`Recepții azi: ${f.receptionLots} loturi · ${fmt(f.receptionKg)} kg`, `Prerecepții de descărcat: ${f.prereceptions}`];
     case "mentenanta": return [`Linii oprite acum: ${f.stoppedLines}`, `Linii peste normă: ${f.lateLines}`];
     case "hr": return [`Colegi care au lucrat azi: ${all.filter((p) => p.status !== "absent").length}`, `Lucrează acum: ${all.filter((p) => p.status === "aplicatie" || p.status === "senior").length}`];
     case "ceo": return [`Lucrează acum în firmă: ${all.filter((p) => p.status === "aplicatie" || p.status === "senior").length} oameni`, `Documente Senior azi: ${fmt([...o.docTotals.values()].reduce((a, x) => a + x.n, 0))}`, `Producție azi: ${f.producedPct == null ? "—" : `${f.producedPct}%`} · ${f.lateLines} linii peste normă`];
@@ -102,7 +103,7 @@ export function OfficesOverview({ offices, onOffice, onEdit }: { offices: Office
       {offices.seniorError && <p className="text-xs text-destructive">Nu am putut citi Senior acum ({offices.seniorError}).</p>}
       <table className="w-full text-xs"><tbody>{offices.offices.map((o) => (
         <tr key={o.id} className="cursor-pointer border-t hover:bg-muted/50" onClick={() => onOffice(o.id)}>
-          <td className="py-1.5 pr-2"><div className="font-semibold">{o.label}</div><div className="text-muted-foreground">{o.building === "hala" ? "în hală" : "clădirea de birouri"}</div></td>
+          <td className="py-1.5 pr-2"><div className="font-semibold">{o.label}</div><div className="text-muted-foreground">{AREA_LABEL[o.building]}</div></td>
           <td className="py-1.5 text-right tabular-nums"><div><Badge variant="secondary">{o.onlineNow} acum</Badge></div><div className="text-muted-foreground">{o.activeToday} azi · {o.docs} doc. · {formatDuration(o.appSeconds)}</div></td>
         </tr>
       ))}</tbody></table>
