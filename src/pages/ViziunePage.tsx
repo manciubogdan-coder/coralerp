@@ -5,9 +5,11 @@ import BackToHubButton from "@/components/BackToHubButton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useFactoryData } from "@/components/viziune/useFactoryData";
-import { FactoryScene, ZONES, type Selection, type Zone } from "@/components/viziune/FactoryScene";
+import { FactoryScene, ZONES, type CameraCmd, type Selection, type Zone } from "@/components/viziune/FactoryScene";
+import { NavPad } from "@/components/viziune/NavPad";
+import type { NavAction } from "@/lib/viziune/cameraNav";
 import { producedOf, remainingOf, type LineView } from "@/lib/viziune/factoryState";
-import { defaultLayout, type HallStation } from "@/lib/viziune/hallLayout";
+import { defaultLayout, toWorld, type HallStation } from "@/lib/viziune/hallLayout";
 import { HallEditor } from "@/components/viziune/HallEditor";
 import { toast } from "sonner";
 import { clockTime, minutesLabel, PaceBadge } from "@/components/viziune/pace";
@@ -78,7 +80,17 @@ function LineDetail({ line }: { line: LineView }) {
 export default function ViziunePage() {
   const navigate = useNavigate();
   const data = useFactoryData();
-  const [zone, setZone] = useState<Zone>("all");
+  const [zone, setZoneState] = useState<Zone>("all");
+  const [cam, setCam] = useState<CameraCmd>({ seq: 0, kind: "zone", zone: "all" });
+  const setZone = (z: Zone) => { setZoneState(z); setCam((c) => ({ seq: c.seq + 1, kind: "zone", zone: z })); };
+  const nav = (action: NavAction) => setCam((c) => ({ seq: c.seq + 1, kind: "nav", action }));
+  const flyToStation = (stationId: string | null) => {
+    const st = (draft ?? data.layout).find((x) => x.id === stationId);
+    if (!st) return false;
+    const [x, z] = toWorld(st.px, st.py);
+    setZoneState("productie"); setCam((c) => ({ seq: c.seq + 1, kind: "focus", x, z }));
+    return true;
+  };
   const [sel, setSel] = useState<Selection>(null);
   const [ready, setReady] = useState(false);
   const [draft, setDraft] = useState<HallStation[] | null>(null);
@@ -86,6 +98,20 @@ export default function ViziunePage() {
   const changed = editing && JSON.stringify(draft) !== JSON.stringify(data.layout);
 
   useEffect(() => { const t = setInterval(() => data.refetch(), 30_000); return () => clearInterval(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keyboard: arrows / WASD move, Q/E rotate, +/- zoom (ignored while typing in a field).
+  useEffect(() => {
+    const keys: Record<string, NavAction> = { ArrowUp: "inainte", w: "inainte", ArrowDown: "inapoi", s: "inapoi", ArrowLeft: "stanga", a: "stanga", ArrowRight: "dreapta", d: "dreapta", q: "rotStanga", e: "rotDreapta", "+": "aproape", "=": "aproape", "-": "departe" };
+    const onKey = (ev: KeyboardEvent) => {
+      const t = ev.target as HTMLElement | null;
+      if (ev.ctrlKey || ev.metaKey || ev.altKey || (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.getAttribute("role") === "combobox"))) return;
+      const a = keys[ev.key.length === 1 ? ev.key.toLowerCase() : ev.key];
+      if (!a) return;
+      ev.preventDefault(); nav(a);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const real = data.orders.filter((o) => o.magazin !== "PRODUCTIE_AVANS" && o.magazin !== "REAMBALARE");
   const pieces = real.reduce((a, o) => a + (Number(o.cantitate) || 0), 0);
@@ -117,7 +143,8 @@ export default function ViziunePage() {
   const select = (s: Selection) => {
     if (editing) { setSel(s?.kind === "station" ? s : null); return; }
     setSel(s);
-    if (s?.kind === "line" || s?.kind === "station") setZone("productie");
+    if (s?.kind === "line") { if (!flyToStation(stationOfLine(s.id))) setZone("productie"); }
+    if (s?.kind === "station") { if (!flyToStation(s.id)) setZone("productie"); }
     if (s?.kind === "receptie") setZone("receptie");
     if (s?.kind === "depozit") setZone("depozit");
     if (s?.kind === "livrare") setZone("livrare");
@@ -152,6 +179,10 @@ export default function ViziunePage() {
         <Kpi label="Prerecepții de descărcat" value={`${(data.prereceptions ?? []).length} camioane`} sub={`${fmt((data.prereceptions ?? []).reduce((a, p) => a + p.kgLeft, 0))} kg${(data.prereceptions ?? []).some((p) => p.late) ? ` · ${(data.prereceptions ?? []).filter((p) => p.late).length} întârziate` : ""}`} />
         <Kpi label="Gata de livrare" value={`${data.ready.length} magazine`} sub={`${fmt(data.ready.reduce((a, r) => a + r.pieces, 0))} buc`} />
       </div>
+
+      <NavPad onNav={nav} onHome={() => setZone("all")}
+        lines={data.lineViews.filter((l) => stationOfLine(l.id)).map((l) => ({ id: l.id, name: l.name, workers: l.workers, late: l.pace.status === "intarziat" }))}
+        onLine={(id) => select({ kind: "line", id })} />
 
       {/* zone camera buttons */}
       <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
@@ -229,7 +260,7 @@ export default function ViziunePage() {
       {data.error && <div className="absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-lg border border-destructive bg-card px-3 py-2 text-sm text-destructive shadow">Nu am putut citi datele: {data.error.message}</div>}
 
       <Canvas shadows dpr={[1, 1.75]} camera={{ position: ZONES.all.pos, fov: 42, near: 0.5, far: 300 }} onCreated={() => setTimeout(() => setReady(true), 500)} onPointerMissed={() => setSel(null)}>
-        <FactoryScene data={data} zone={zone} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation} />
+        <FactoryScene data={data} camera={cam} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation} />
       </Canvas>
     </div>
   );

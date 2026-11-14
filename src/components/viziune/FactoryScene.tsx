@@ -5,8 +5,14 @@ import * as THREE from "three";
 import type { FactoryData } from "./useFactoryData";
 import type { LineView } from "@/lib/viziune/factoryState";
 import { FLOWS, HALL, moverRoutes, toPlan, toWorld, type HallStation } from "@/lib/viziune/hallLayout";
+import { fillSlots, rowPairCells, type StorageSlot } from "@/lib/viziune/storageLayout";
+import { focusView, nextView, type NavAction, type V3 } from "@/lib/viziune/cameraNav";
 
 const MOVER_ROUTES = moverRoutes();
+// Pallet places: MP cold store (24×10 m south of the gate), reception floor, picking floor before the docks.
+const DEPOT_CELLS = rowPairCells(-8.45, 24.4, 14, 3);
+const RECEPTION_CELLS = rowPairCells(-27.8, 24.4, 9, 3);
+const pickingCells = (x: number) => rowPairCells(x - 8.45, -24.6, 14, 2, { dir: -1, aisle: 4.5 });
 type Station = HallStation;
 import { clockTime, minutesLabel, PaceBadge } from "./pace";
 
@@ -32,6 +38,9 @@ export const ZONES: Record<Zone, { pos: [number, number, number]; target: [numbe
   depozit: { pos: [0, 16, 46], target: [0, 0, 28], label: "Depozit MP (frig)" },
   livrare: { pos: [20, 20, -52], target: [6, 0, -29], label: "Picking & livrare" },
 };
+
+/** A camera move asked by the page: fly to a zone, nudge with the navigation pad, or look at one machine. */
+export type CameraCmd = { seq: number } & ({ kind: "zone"; zone: Zone } | { kind: "nav"; action: NavAction } | { kind: "focus"; x: number; z: number });
 
 export type Selection = { kind: "line"; id: string } | { kind: "station"; id: string } | { kind: "receptie" } | { kind: "depozit" } | { kind: "livrare" } | null;
 
@@ -74,6 +83,61 @@ function Crate({ position, color = C.crateBlue, full = true, seed = 0 }: { posit
     <group position={position}>
       <mesh castShadow receiveShadow position={[0, 0.15, 0]}><boxGeometry args={[0.6, 0.3, 0.4]} /><meshStandardMaterial color={color} roughness={0.7} /></mesh>
       {full && <group position={[0, 0.24, 0]}><group position={[-0.13, 0, 0]}><Lettuce seed={seed} scale={0.7} /></group><group position={[0.13, 0, 0]}><Lettuce seed={seed + 1.3} scale={0.7} red={seed % 3 < 1} /></group></group>}
+    </group>
+  );
+}
+
+/** Logo texture shared by every truck; loaded once, without suspending the scene. */
+let logoTex: THREE.Texture | null = null;
+function useLogo() {
+  return useMemo(() => {
+    if (!logoTex) { logoTex = new THREE.TextureLoader().load("/lovable-uploads/10bd962a-0fb6-4412-be40-32a121aca7c4.png"); logoTex.colorSpace = THREE.SRGBColorSpace; logoTex.anisotropy = 4; }
+    return logoTex;
+  }, []);
+}
+
+/**
+ * Full warehouse floor drawn with a handful of instanced meshes: one pallet per place, 2×2 crates (or
+ * cartons) per level, leaves on the top crates. Thousands of boxes stay cheap enough for phones.
+ */
+function PalletField({ slots, goods }: { slots: StorageSlot[]; goods: "crate" | "carton" }) {
+  const pallets = useRef<THREE.InstancedMesh>(null);
+  const units = useRef<THREE.InstancedMesh>(null);
+  const tops = useRef<THREE.InstancedMesh>(null);
+  const layout = useMemo(() => {
+    const u: { x: number; y: number; z: number; c: string }[] = [];
+    const t: { x: number; y: number; z: number; c: string }[] = [];
+    const pal = goods === "crate" ? [C.crateBlue, C.crateBlue, C.crateGrey] : [C.carton, "#bb955c", "#d6b47e"];
+    slots.forEach((sl, si) => {
+      for (let k = 0; k < sl.levels; k++) for (const [ox, oz] of [[-0.3, -0.2], [0.3, -0.2], [-0.3, 0.2], [0.3, 0.2]]) {
+        const y = 0.14 + k * 0.3 + 0.14;
+        u.push({ x: sl.x + ox, y, z: sl.z + oz, c: pal[(k + si + (ox > 0 ? 1 : 0)) % 3] });
+        if (goods === "crate" && k === sl.levels - 1) t.push({ x: sl.x + ox, y: y + 0.14, z: sl.z + oz, c: C.leaf[(sl.item + (oz > 0 ? 1 : 0)) % 5] });
+      }
+    });
+    return { u, t };
+  }, [slots, goods]);
+  React.useLayoutEffect(() => {
+    const m = new THREE.Matrix4(); const col = new THREE.Color();
+    slots.forEach((sl, i) => { m.makeTranslation(sl.x, 0.07, sl.z); pallets.current?.setMatrixAt(i, m); });
+    layout.u.forEach((b, i) => { m.makeTranslation(b.x, b.y, b.z); units.current?.setMatrixAt(i, m); units.current?.setColorAt(i, col.set(b.c)); });
+    layout.t.forEach((b, i) => { m.makeTranslation(b.x, b.y, b.z); tops.current?.setMatrixAt(i, m); tops.current?.setColorAt(i, col.set(b.c)); });
+    for (const r of [pallets, units, tops]) if (r.current) { r.current.instanceMatrix.needsUpdate = true; if (r.current.instanceColor) r.current.instanceColor.needsUpdate = true; r.current.computeBoundingSphere(); }
+  }, [slots, layout]);
+  if (!slots.length) return null;
+  return (
+    <group>
+      <instancedMesh key={`p${slots.length}`} ref={pallets} args={[undefined, undefined, slots.length]} castShadow receiveShadow>
+        <boxGeometry args={[1.2, 0.14, 0.8]} /><meshStandardMaterial color="#b48a5a" roughness={0.9} />
+      </instancedMesh>
+      <instancedMesh key={`u${layout.u.length}`} ref={units} args={[undefined, undefined, layout.u.length]} castShadow receiveShadow>
+        <boxGeometry args={goods === "crate" ? [0.58, 0.28, 0.38] : [0.58, 0.28, 0.39]} /><meshStandardMaterial roughness={0.75} />
+      </instancedMesh>
+      {layout.t.length > 0 && (
+        <instancedMesh key={`t${layout.t.length}`} ref={tops} args={[undefined, undefined, layout.t.length]}>
+          <sphereGeometry args={[0.22, 8, 5]} /><meshStandardMaterial roughness={0.8} />
+        </instancedMesh>
+      )}
     </group>
   );
 }
@@ -352,9 +416,10 @@ function StationCard({ st, line }: { st: Station; line?: LineView }) {
         <div className="flex min-w-0 items-center gap-1.5 text-xs font-bold"><span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: late ? C.status.late : C.status[line.status] }} /><span className="truncate">{line.name}</span></div>
         <PaceBadge pace={p} />
       </div>
+      {line.workers > 0 && <div className="mt-0.5 flex items-center gap-1 text-[11px] font-bold"><span className="rounded border bg-secondary px-1.5 py-px text-secondary-foreground">👷 {line.workers} {line.workers === 1 ? "operator" : "operatori"}</span>{line.operator && <span className="truncate text-[10px] font-normal text-muted-foreground">{line.operator}</span>}</div>}
       {p.orders.length > 0 ? <>
         <div className="truncate text-[10px] font-medium">{p.orders[0].product}{p.orders.length > 1 ? ` +${p.orders.length - 1} comenzi` : ""}</div>
-        <div className="text-[10px] text-muted-foreground tabular-nums">început {clockTime(p.startedAt)} · lucrat {minutesLabel(p.workedHours * 60)} · {line.workers} oameni</div>
+        <div className="text-[10px] text-muted-foreground tabular-nums">început {clockTime(p.startedAt)} · lucrat {minutesLabel(p.workedHours * 60)}</div>
         {p.normHours != null ? (
           <div className={`text-[10px] tabular-nums ${late ? "font-bold text-destructive" : ""}`}>
             {late ? `trebuia gata la ${clockTime(p.dueAt)}` : `gata la ~${clockTime(p.dueAt)}`} · {p.qty.toLocaleString("ro-RO")} buc la {line.norm}/h
@@ -378,7 +443,7 @@ function StationNode({ st, line, selected, onSelect, editing, onGrab }: { st: St
   useFrame(({ clock }) => { if (andon.current) andon.current.emissiveIntensity = late ? 1 + Math.abs(Math.sin(clock.elapsedTime * 5)) * 2 : 1.3; });
   const big = st.kind === "cantar" || st.kind === "giostra" || st.kind === "spalare_auto";
   const footprint: [number, number] = st.kind === "spalare_auto" ? [6.5, 20] : st.kind === "cantar" || st.kind === "giostra" ? [5, 15] : st.kind === "utilaj" ? [4, 3] : st.kind === "flowpack" ? [3.4, 7] : st.kind === "spalare_manual" ? [4.6, 4.4] : [5, 2.4];
-  const workers = running ? Math.min(Math.max(1, line!.workers), 8) : 0;
+  const workers = line && line.workers > 0 ? Math.min(line.workers, 16) : 0;
   const spots: [number, number, number][] = st.kind === "cantar" || st.kind === "giostra"
     ? (st.kind === "giostra" ? [[-3.9, 0, -5.7], [-1.8, 0, -5.9], [-2.8, 0, -4.6], [0.7, 0, 3], [-0.7, 0, 4.2], [0.7, 0, 5], [0, 0, 7.5], [-0.7, 0, 2.4]]
       : [[-1.4, 0, -6.4], [0.8, 0, -6.6], [-0.3, 0, -7.5], [0.7, 0, 2.6], [-0.7, 0, 3.6], [0.7, 0, 4.8], [-0.7, 0, 5.6], [0.6, 0, -4]])
@@ -399,8 +464,10 @@ function StationNode({ st, line, selected, onSelect, editing, onGrab }: { st: St
       </mesh>
       <StationModel st={st} running={running} busy={busy} />
       {Array.from({ length: workers }).map((_, i) => {
-        const p = spots[i % spots.length];
-        return <Worker key={i} position={p} rotY={Math.atan2(-p[0], -p[2])} phase={i * 1.7} sitting={st.kind === "masa" && i < 6} />;
+        const base = spots[i % spots.length]; const ring = Math.floor(i / spots.length);
+        // Past the first eight, operators stand a step behind the first row.
+        const p: [number, number, number] = ring ? [base[0] + (base[0] >= 0 ? 0.6 : -0.6), 0, base[2] + (base[2] >= 0 ? 0.5 : -0.5)] : base;
+        return <Worker key={i} position={p} rotY={Math.atan2(-p[0], -p[2])} phase={i * 1.7} sitting={st.kind === "masa" && i < 6 && !ring} />;
       })}
       <group position={[big ? 2.2 : 1.4, 0, big ? 1.4 : -1]}>
         <mesh position={[0, 1.1, 0]}><cylinderGeometry args={[0.03, 0.03, 2.2]} /><meshStandardMaterial color={C.darkSteel} /></mesh>
@@ -457,6 +524,7 @@ function FlowMovers({ pts, kind, count }: { pts: [number, number][]; kind: strin
 function Truck({ from, to, label, delay = 0, loop = 22, heading }: { from: [number, number, number]; to: [number, number, number]; label?: string; delay?: number; loop?: number; heading?: number }) {
   const ref = useRef<THREE.Group>(null);
   const rear = useRef<THREE.Group>(null);
+  const logo = useLogo();
   const a = useMemo(() => new THREE.Vector3(...from), [from]); const b = useMemo(() => new THREE.Vector3(...to), [to]);
   useFrame(({ clock }) => {
     if (!ref.current) return;
@@ -475,6 +543,8 @@ function Truck({ from, to, label, delay = 0, loop = 22, heading }: { from: [numb
         <group ref={rear}>{[-0.55, 0.55].map((x) => (<mesh key={x} position={[x, 0.7, 1.82]}><boxGeometry args={[0.22, 0.14, 0.04]} /><meshStandardMaterial color="#f6b73c" emissive="#ffb020" emissiveIntensity={0} /></mesh>))}</group>
         <RoundedBox args={[1.5, 1.6, 3.6]} radius={0.05} position={[0, 1.25, 0]} castShadow><meshStandardMaterial color={C.truck} roughness={0.5} /></RoundedBox>
         <mesh position={[0, 0.85, 0]} castShadow><boxGeometry args={[1.52, 0.18, 3.62]} /><meshStandardMaterial color={C.stripe} /></mesh>
+        {[1, -1].map((sx) => (<mesh key={sx} position={[sx * 0.765, 1.35, 0.1]} rotation={[0, (sx * Math.PI) / 2, 0]}><planeGeometry args={[1.25, 1.25]} /><meshStandardMaterial map={logo} transparent alphaTest={0.05} roughness={0.5} /></mesh>))}
+        <mesh position={[0, 1.4, 1.815]}><planeGeometry args={[1.05, 1.05]} /><meshStandardMaterial map={logo} transparent alphaTest={0.05} roughness={0.5} /></mesh>
         <RoundedBox args={[1.45, 1.2, 1]} radius={0.08} position={[0, 0.95, -2.3]} castShadow><meshStandardMaterial color={C.cab} metalness={0.3} roughness={0.4} /></RoundedBox>
         <mesh position={[0, 1.15, -2.81]}><planeGeometry args={[1.2, 0.5]} /><meshStandardMaterial color="#9fc7de" metalness={0.8} roughness={0.1} /></mesh>
         {[-1.2, 0.9, -2.3].map((z) => [-0.7, 0.7].map((x) => (<mesh key={`${z}${x}`} position={[x, 0.3, z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.3, 0.3, 0.2, 14]} /><meshStandardMaterial color="#222" /></mesh>)))}
@@ -518,18 +588,28 @@ function Clickable({ onSelect, children }: { onSelect: () => void; children: Rea
   return <group onClick={(e) => { e.stopPropagation(); onSelect(); }} onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>{children}</group>;
 }
 
-function CameraRig({ zone, controls }: { zone: Zone; controls: React.MutableRefObject<any> }) {
+function CameraRig({ cmd, controls }: { cmd: CameraCmd; controls: React.MutableRefObject<any> }) {
   const { camera } = useThree();
-  const goal = useRef({ zone, active: true });
-  const first = useRef(true);
-  if (goal.current.zone !== zone) goal.current = { zone, active: true };
+  const goal = useRef<{ pos: THREE.Vector3; target: THREE.Vector3 } | null>(null);
+  const seen = useRef(-1);
   useFrame((_, d) => {
-    if (!goal.current.active || !controls.current) return;
-    const z = ZONES[goal.current.zone]; const k = 1 - Math.exp(-3 * Math.min(d, 0.05));
-    const p = new THREE.Vector3(...z.pos); const t = new THREE.Vector3(...z.target);
-    if (first.current) { first.current = false; camera.position.copy(p); controls.current.target.copy(t); controls.current.update(); goal.current.active = false; return; }
-    camera.position.lerp(p, k); controls.current.target.lerp(t, k); controls.current.update();
-    if (camera.position.distanceTo(p) < 0.2) goal.current.active = false;
+    const c = controls.current;
+    if (!c) return;
+    if (seen.current !== cmd.seq) {
+      const first = seen.current === -1;
+      seen.current = cmd.seq;
+      // Nudges start from where an unfinished move was heading, so quick presses add up.
+      const from = goal.current ?? { pos: camera.position.clone(), target: c.target.clone() };
+      const v = cmd.kind === "zone" ? { pos: ZONES[cmd.zone].pos, target: ZONES[cmd.zone].target }
+        : cmd.kind === "focus" ? focusView(cmd.x, cmd.z)
+        : nextView(from.pos.toArray() as V3, from.target.toArray() as V3, cmd.action);
+      goal.current = { pos: new THREE.Vector3(...v.pos), target: new THREE.Vector3(...v.target) };
+      if (first) { camera.position.copy(goal.current.pos); c.target.copy(goal.current.target); c.update(); goal.current = null; return; }
+    }
+    if (!goal.current) return;
+    const k = 1 - Math.exp(-4 * Math.min(d, 0.05));
+    camera.position.lerp(goal.current.pos, k); c.target.lerp(goal.current.target, k); c.update();
+    if (camera.position.distanceTo(goal.current.pos) < 0.15 && c.target.distanceTo(goal.current.target) < 0.15) goal.current = null;
   });
   return null;
 }
@@ -561,8 +641,8 @@ function HallShell() {
   );
 }
 
-export function FactoryScene({ data: raw, zone, selection, onSelect, layout: layoutProp, editing = false, onMove }: {
-  data: FactoryData; zone: Zone; selection: Selection; onSelect: (s: Selection) => void;
+export function FactoryScene({ data: raw, camera, selection, onSelect, layout: layoutProp, editing = false, onMove }: {
+  data: FactoryData; camera: CameraCmd; selection: Selection; onSelect: (s: Selection) => void;
   /** Hall being edited (draft); defaults to the saved layout. */
   layout?: HallStation[]; editing?: boolean; onMove?: (id: string, px: number, py: number) => void;
 }) {
@@ -588,12 +668,15 @@ export function FactoryScene({ data: raw, zone, selection, onSelect, layout: lay
   useEffect(() => { if (!editing) setDrag(null); }, [editing]);
   const working = data.lineViews.filter((l) => l.status === "lucreaza");
   const late = data.lineViews.filter((l) => l.pace.status === "intarziat");
-  const stock = data.stock.slice(0, 12);
-  const maxStock = Math.max(1, ...stock.map((s) => s.qty));
-  const ready = data.ready.slice(0, 10);
-  const maxReady = Math.max(1, ...ready.map((r) => r.pieces));
+  const exitXw = toWorld(610, 0)[0];
+  // Dense floors: every pallet place is used, products/stores get places in proportion to what they have.
+  const stockSlots = useMemo(() => fillSlots(data.stock.map((s) => s.qty), DEPOT_CELLS, 6, 2), [data.stock]);
+  const readySlots = useMemo(() => fillSlots(data.ready.map((r) => r.pieces), pickingCells(exitXw), 7, 2), [data.ready, exitXw]);
+  const recLots = data.receptions.reduce((a, r) => a + r.lots, 0);
+  const recSlots = useMemo(() => fillSlots(data.receptions.map((r) => r.kg), RECEPTION_CELLS.slice(0, Math.min(RECEPTION_CELLS.length, recLots)), 4, 2), [data.receptions, recLots]);
+  const firstSlot = (slots: StorageSlot[], n: number) => { const m = new Map<number, StorageSlot>(); for (const sl of slots) if (!m.has(sl.item) && m.size < n) m.set(sl.item, sl); return [...m.entries()]; };
   const recTrucks = Math.min(3, data.receptions.length);
-  const outTrucks = ready.slice(0, 3);
+  const outTrucks = data.ready.slice(0, 3);
   const exitX = toWorld(610, 0)[0];
 
   return (
@@ -606,7 +689,7 @@ export function FactoryScene({ data: raw, zone, selection, onSelect, layout: lay
         <Lightformer intensity={2} position={[0, 8, 0]} rotation-x={Math.PI / 2} scale={[20, 20, 1]} />
         <Lightformer intensity={1} color="#cde" position={[-10, 2, -1]} rotation-y={Math.PI / 2} scale={[30, 2, 1]} />
       </Environment>
-      <CameraRig zone={zone} controls={controls} />
+      <CameraRig cmd={camera} controls={controls} />
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow><planeGeometry args={[260, 260]} /><meshStandardMaterial color="#8c8f88" roughness={1} /></mesh>
 
@@ -636,28 +719,20 @@ export function FactoryScene({ data: raw, zone, selection, onSelect, layout: lay
         <ZoneSign position={[0, 4.5, 23]} title="Depozit MP · frig 2–4°C" sub={`${data.stock.length} produse pe stoc`} />
         <mesh position={[0, 1.6, 28.5]}><boxGeometry args={[24, 3.2, 10]} /><meshPhysicalMaterial color="#bfe3ff" transparent opacity={0.12} roughness={0.1} depthWrite={false} /></mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 28.5]}><planeGeometry args={[24, 10]} /><meshStandardMaterial color="#b9c3c8" /></mesh>
-        {stock.map((s, i) => {
-          const h = Math.max(1, Math.round((s.qty / maxStock) * 6));
-          const x = -9 + (i % 6) * 3.6; const z = 26 + Math.floor(i / 6) * 4.5;
-          return (
-            <group key={s.name} position={[x, 0, z]}>
-              <CrateStack position={[0, 0, 0]} levels={h} seed={i} />
-              <Html position={[0, h * 0.3 + 0.9, 0]} center distanceFactor={18} style={{ pointerEvents: "none" }}>
-                <div className="max-w-[120px] truncate whitespace-nowrap rounded bg-card/90 px-1.5 py-0.5 text-[9px] font-semibold text-card-foreground shadow">{s.name} · {Math.round(s.qty).toLocaleString("ro-RO")} {s.unit}</div>
-              </Html>
-            </group>
-          );
-        })}
+        <PalletField slots={stockSlots} goods="crate" />
+        {firstSlot(stockSlots, 12).map(([item, sl]) => { const it = data.stock[item]; return (
+          <Html key={it.name} position={[sl.x, sl.levels * 0.3 + 0.7, sl.z]} center distanceFactor={18} style={{ pointerEvents: "none" }}>
+            <div className="max-w-[120px] truncate whitespace-nowrap rounded bg-card/90 px-1.5 py-0.5 text-[9px] font-semibold text-card-foreground shadow">{it.name} · {Math.round(it.qty).toLocaleString("ro-RO")} {it.unit}</div>
+          </Html>
+        ); })}
       </Clickable>
-      <Forklift path={[[-6, 25], [-0.5, 21.5], [5, 25], [0, 31]]} speed={0.05} />
+      <Forklift path={[[-10.6, 26.7], [0, 26.7], [10.6, 26.7], [10.6, 30.4], [0, 30.4], [-10.6, 30.4]]} speed={0.035} />
 
       {/* ===== RECEPȚIE ===== */}
       <Clickable onSelect={() => onSelect({ kind: "receptie" })}>
         <ZoneSign position={[-22, 4.5, 23]} title="Recepție" sub={`${data.receptions.reduce((a, r) => a + r.lots, 0)} loturi azi · ${Math.round(data.receptions.reduce((a, r) => a + r.kg, 0)).toLocaleString("ro-RO")} kg`} />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-22, 0.006, 29]}><planeGeometry args={[14, 12]} /><meshStandardMaterial color="#a9aea7" /></mesh>
-        {Array.from({ length: Math.min(10, data.receptions.reduce((a, r) => a + r.lots, 0)) }).map((_, i) => (
-          <CrateStack key={i} position={[-25 + (i % 2) * 1.6, 0, 25 + Math.floor(i / 2) * 1.6]} levels={2} seed={i} />
-        ))}
+        <PalletField slots={recSlots} goods="crate" />
         {data.receptions.length === 0 && <Html position={[-22, 1, 29]} center distanceFactor={20} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/90 px-2 py-1 text-xs text-muted-foreground">Nicio recepție azi</div></Html>}
       </Clickable>
       {Array.from({ length: recTrucks }).map((_, i) => (
@@ -679,24 +754,15 @@ export function FactoryScene({ data: raw, zone, selection, onSelect, layout: lay
       <Clickable onSelect={() => onSelect({ kind: "livrare" })}>
         <ZoneSign position={[exitX, 4.5, -23]} title="Picking & livrare" sub={`${data.ready.length} magazine cu marfă gata`} />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[exitX, 0.006, -29]}><planeGeometry args={[24, 12]} /><meshStandardMaterial color="#b3b8b0" /></mesh>
-        {ready.map((r, i) => {
-          const h = Math.max(1, Math.round((r.pieces / maxReady) * 7));
-          const x = exitX - 8 + (i % 5) * 4; const z = -26 - Math.floor(i / 5) * 5;
-          return (
-            <group key={r.store} position={[x, 0, z]}>
-              <Pallet position={[0, 0, 0]}>
-                {Array.from({ length: h }).map((_, k) => <mesh key={k} castShadow position={[0, 0.15 + k * 0.3, 0]}><boxGeometry args={[1.1, 0.28, 0.75]} /><meshStandardMaterial color={k % 2 ? C.carton : "#bb955c"} /></mesh>)}
-                <mesh position={[0, h * 0.3 / 2 + 0.05, 0]}><boxGeometry args={[1.14, h * 0.3 + 0.1, 0.79]} /><meshPhysicalMaterial color="#ffffff" transparent opacity={0.18} roughness={0.1} depthWrite={false} /></mesh>
-              </Pallet>
-              <Html position={[0, h * 0.3 + 0.8, 0]} center distanceFactor={18} style={{ pointerEvents: "none" }}>
-                <div className="max-w-[130px] truncate whitespace-nowrap rounded bg-card/90 px-1.5 py-0.5 text-[9px] font-semibold text-card-foreground shadow">{r.store} · {r.pieces.toLocaleString("ro-RO")} buc</div>
-              </Html>
-            </group>
-          );
-        })}
+        <PalletField slots={readySlots} goods="carton" />
+        {firstSlot(readySlots, 12).map(([item, sl]) => { const r = data.ready[item]; return (
+          <Html key={r.store} position={[sl.x, sl.levels * 0.3 + 0.7, sl.z]} center distanceFactor={18} style={{ pointerEvents: "none" }}>
+            <div className="max-w-[130px] truncate whitespace-nowrap rounded bg-card/90 px-1.5 py-0.5 text-[9px] font-semibold text-card-foreground shadow">{r.store} · {r.pieces.toLocaleString("ro-RO")} buc</div>
+          </Html>
+        ); })}
         {[-6, 0, 6].map((dx) => (<mesh key={dx} position={[exitX + dx, 0.6, -35.5]} castShadow><boxGeometry args={[3.2, 1.2, 1]} /><meshStandardMaterial color={C.darkSteel} /></mesh>))}
       </Clickable>
-      <Forklift path={[[exitX - 4, -24], [exitX, -21.5], [exitX + 4, -25], [exitX, -31]]} speed={0.05} phase={0.4} />
+      <Forklift path={[[exitX - 10.6, -26.85], [exitX, -26.85], [exitX + 10.6, -26.85], [exitX + 10.6, -33.6], [exitX, -33.6], [exitX - 10.6, -33.6]]} speed={0.035} phase={0.4} />
       {outTrucks.map((r, i) => (<Truck key={r.store} from={[exitX - 6 + i * 6, 0, -64]} to={[exitX - 6 + i * 6, 0, -38.5]} delay={i * 5 + 3} loop={26} label={`→ ${r.store}`} />))}
 
       <OrbitControls ref={controls} makeDefault enabled={!drag} maxPolarAngle={Math.PI / 2.15} minDistance={4} maxDistance={130} />
