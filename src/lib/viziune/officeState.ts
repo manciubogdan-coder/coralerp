@@ -21,6 +21,9 @@ export const ONLINE_MS = 3 * 60_000;
 /** A Senior document saved this recently means the person is working in Senior right now. */
 export const SENIOR_NOW_MS = 15 * 60_000;
 
+import type { OfficeChoice, OfficeConfig } from "../../../supabase/functions/_shared/officeConfigRules";
+export { OFFICE_CHOICES, validateOfficeConfig, type OfficeChoice, type OfficeConfig } from "../../../supabase/functions/_shared/officeConfigRules";
+
 // ---------- raw data (as returned by the server action viziune_offices) ----------
 export interface RawAppUser { id: string; name: string | null; email: string | null; roles: string[] }
 export interface RawActivity { userId: string; name: string | null; email: string | null; seconds: number; lastAt: string; path: string; tab: string | null; pages: { path: string; tab: string | null; seconds: number }[] }
@@ -31,6 +34,8 @@ export interface RawOffices {
   day: string;
   generatedAt: string;
   app: { users: RawAppUser[]; activity: RawActivity[] };
+  /** Choices made by hand in Viziune (who sits where, whose Senior account is); missing on old responses. */
+  config?: OfficeConfig & { updatedBy?: string | null; updatedAt?: string | null };
   senior: { ok: true; users: RawSeniorUser[]; docs: RawSeniorDocs[]; edits: { uid: number; n: number; last: string }[]; recent: RawSeniorRecent[] } | { ok: false; error: string };
 }
 
@@ -113,6 +118,15 @@ export interface PersonView {
   docTypes: DocType[];
   recent: RawSeniorRecent[];
   lastSeniorAt: string | null;
+  /** Office chosen by hand in Viziune (wins over the guess), if any. */
+  manual: OfficeChoice | null;
+  /** The guessed office, shown in the editor next to the choice. */
+  guess: OfficeId | null;
+  hidden: boolean;
+  /** Ids behind the person, for the editor. */
+  appUserId: string | null;
+  email: string | null;
+  seniorIds: number[];
 }
 export interface OfficeView { id: OfficeId; label: string; building: "birouri" | "hala"; people: PersonView[]; onlineNow: number; activeToday: number; docs: number; appSeconds: number }
 
@@ -137,7 +151,7 @@ const STATUS_RANK: Record<PersonStatus, number> = { aplicatie: 0, senior: 1, azi
 
 /** Builds every person (app user and/or Senior account) and groups them into offices. */
 export function buildOffices(raw: RawOffices | null | undefined, now: number) {
-  const empty = { offices: OFFICE_IDS.map((id) => ({ id, ...OFFICES[id], people: [], onlineNow: 0, activeToday: 0, docs: 0, appSeconds: 0 })) as OfficeView[], unassigned: [] as PersonView[], people: [] as PersonView[], seniorError: null as string | null, docTotals: new Map<string, DocType>() };
+  const empty = { offices: OFFICE_IDS.map((id) => ({ id, ...OFFICES[id], people: [], onlineNow: 0, activeToday: 0, docs: 0, appSeconds: 0 })) as OfficeView[], unassigned: [] as PersonView[], people: [] as PersonView[], roster: [] as PersonView[], seniorUsers: [] as RawSeniorUser[], config: { offices: {}, links: {} } as OfficeConfig, seniorError: null as string | null, docTotals: new Map<string, DocType>() };
   if (!raw) return empty;
   const senior = raw.senior.ok ? raw.senior : null;
   const activity = new Map(raw.app.activity.map((a) => [a.userId, a]));
@@ -157,14 +171,21 @@ export function buildOffices(raw: RawOffices | null | undefined, now: number) {
     t.n += Number(d.n) || 0; t.value += Number(d.val) || 0; docTotals.set(d.cod, t);
   }
 
+  const config: OfficeConfig = { offices: raw.config?.offices ?? {}, links: raw.config?.links ?? {} };
   const linked = new Map<string, RawSeniorUser[]>();
   const usedSenior = new Set<number>();
   for (const su of seniorUsers) {
+    // A link chosen by hand wins; "" means a separate account that is never matched by name.
+    const chosen = config.links[String(su.id)];
+    if (chosen !== undefined) {
+      if (chosen && appUsers.some((u) => u.id === chosen)) { linked.set(chosen, [...(linked.get(chosen) ?? []), su]); usedSenior.add(su.id); }
+      continue;
+    }
     const matches = appUsers.filter((u) => samePerson(u, su));
     if (matches.length === 1) { linked.set(matches[0].id, [...(linked.get(matches[0].id) ?? []), su]); usedSenior.add(su.id); }
   }
 
-  const make = (key: string, name: string, accounts: RawSeniorUser[], app: RawAppUser | null): PersonView | null => {
+  const make = (key: string, name: string, accounts: RawSeniorUser[], app: RawAppUser | null): PersonView => {
     const act = app ? activity.get(app.id) : undefined;
     const types = accounts.flatMap((a) => docsBy.get(a.id) ?? []);
     const byCod = new Map<string, DocType>();
@@ -178,11 +199,10 @@ export function buildOffices(raw: RawOffices | null | undefined, now: number) {
     // Inactive Senior accounts and app accounts nobody used today are left out unless they belong to an office.
     const group = accounts.map((a) => officeFromSeniorGroup(a.group)).find(Boolean) ?? null;
     const byRole = app ? officeFromRoles(app.roles) : null;
-    const office = group ?? byRole;
-    const reason = group ? `grupa Senior „${accounts.find((a) => officeFromSeniorGroup(a.group))!.group}"` : byRole ? (byRole === "ceo" ? "administrator în aplicație" : "drepturile din aplicație") : "fără departament de birou";
-    const anyActive = appSeconds > 0 || docs > 0 || edits > 0;
-    if (!anyActive && !office) return null;
-    if (!anyActive && accounts.length > 0 && !app && accounts.every((a) => !a.active)) return null;
+    const guess = group ?? byRole;
+    const manual = config.offices[key] ?? null;
+    const office = manual ? (manual === "none" || manual === "hidden" ? null : manual) : guess;
+    const reason = manual ? "alegerea ta din „Pune oamenii pe birouri”" : group ? `grupa Senior „${accounts.find((a) => officeFromSeniorGroup(a.group))!.group}"` : byRole ? (byRole === "ceo" ? "administrator în aplicație" : "drepturile din aplicație") : "fără departament de birou";
     const recent = accounts.flatMap((a) => recentBy.get(a.id) ?? []).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8);
     return {
       key, name, office, reason,
@@ -193,20 +213,27 @@ export function buildOffices(raw: RawOffices | null | undefined, now: number) {
       seniorAccounts: accounts.map((a) => a.username),
       docs, edits, docTypes: [...byCod.values()].sort((a, b) => b.n - a.n), recent,
       lastSeniorAt: lastSenior,
+      manual, guess, hidden: manual === "hidden",
+      appUserId: app?.id ?? null, email: app?.email ?? null, seniorIds: accounts.map((a) => a.id),
     };
   };
 
-  const people: PersonView[] = [];
-  for (const u of appUsers) {
-    const p = make(`app:${u.id}`, u.name || u.email || "Utilizator", linked.get(u.id) ?? [], u);
-    if (p) people.push(p);
-  }
+  const roster: PersonView[] = [];
+  for (const u of appUsers) roster.push(make(`app:${u.id}`, u.name || u.email || "Utilizator", linked.get(u.id) ?? [], u));
   for (const su of seniorUsers) {
     if (usedSenior.has(su.id)) continue;
-    const label = isGenericSeniorName(su.name) ? `${su.username} (cont comun Senior)` : `${titleCase(su.name!)} · ${su.username}`;
-    const p = make(`senior:${su.id}`, label, [su], null);
-    if (p) people.push(p);
+    roster.push(make(`senior:${su.id}`, seniorLabel(su), [su], null));
   }
+  // Shown in the scene: people placed in an office (by hand or guess) or active today, never hidden ones.
+  // Inactive Senior accounts not placed by hand appear only if they did something today.
+  const people = roster.filter((p) => {
+    if (p.hidden) return false;
+    const active = p.appSeconds > 0 || p.docs > 0 || p.edits > 0;
+    if (active) return true;
+    if (!p.office) return false;
+    if (!p.manual && !p.appUserId && p.seniorIds.every((id) => !seniorUsers.find((u) => u.id === id)?.active)) return false;
+    return true;
+  });
   const sortPeople = (a: PersonView, b: PersonView) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || (b.lastAt ?? 0) - (a.lastAt ?? 0) || a.name.localeCompare(b.name, "ro");
   people.sort(sortPeople);
 
@@ -220,8 +247,11 @@ export function buildOffices(raw: RawOffices | null | undefined, now: number) {
       appSeconds: ps.reduce((s, p) => s + p.appSeconds, 0),
     };
   });
-  return { offices, unassigned: people.filter((p) => !p.office), people, seniorError: "error" in raw.senior ? raw.senior.error : null, docTotals };
+  roster.sort((a, b) => a.name.localeCompare(b.name, "ro"));
+  return { offices, unassigned: people.filter((p) => !p.office), people, roster, seniorUsers, config, seniorError: "error" in raw.senior ? raw.senior.error : null, docTotals };
 }
 export type OfficesView = ReturnType<typeof buildOffices>;
+
+export const seniorLabel = (su: RawSeniorUser) => (isGenericSeniorName(su.name) ? `${su.username} (cont comun Senior)` : `${titleCase(su.name!)} · ${su.username}`);
 
 function titleCase(s: string) { return s.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase()); }

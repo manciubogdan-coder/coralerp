@@ -2938,6 +2938,30 @@ export type Database = {
           },
         ]
       }
+      viziune_birouri_config: {
+        Row: {
+          id: boolean
+          links: Json
+          offices: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          links?: Json
+          offices?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          links?: Json
+          offices?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       viziune_hala_layout: {
         Row: {
           id: boolean

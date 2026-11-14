@@ -17,6 +17,7 @@ import { AlertTriangle, LayoutGrid, RefreshCw, X } from "lucide-react";
 import { useOfficeData } from "@/components/viziune/useOfficeData";
 import { OfficeDetail, OfficesOverview, type OfficeFacts } from "@/components/viziune/OfficeDetail";
 import { OFFICES } from "@/lib/viziune/officeState";
+import { OfficeEditor } from "@/components/viziune/OfficeEditor";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("ro-RO");
 const STATUS_LABEL: Record<string, string> = { lucreaza: "Lucrează", asteapta: "În așteptare", terminat: "Gata pe azi", oprita: "Oprită" };
@@ -84,6 +85,7 @@ export default function ViziunePage() {
   const navigate = useNavigate();
   const data = useFactoryData();
   const offices = useOfficeData();
+  const [officeEdit, setOfficeEdit] = useState(false);
   const [zone, setZoneState] = useState<Zone>("all");
   const [cam, setCam] = useState<CameraCmd>({ seq: 0, kind: "zone", zone: "all" });
   const setZone = (z: Zone) => { setZoneState(z); setCam((c) => ({ seq: c.seq + 1, kind: "zone", zone: z })); };
@@ -235,8 +237,8 @@ export default function ViziunePage() {
           </div>
           <div className="flex-1 overflow-y-auto p-3 text-sm">
             {line && <LineDetail line={line} />}
-            {sel.kind === "office" && <OfficeDetail id={sel.id} offices={offices} facts={officeFacts} />}
-            {sel.kind === "birouri" && <OfficesOverview offices={offices} onOffice={(id) => select({ kind: "office", id })} />}
+            {sel.kind === "office" && <OfficeDetail id={sel.id} offices={offices} facts={officeFacts} onEdit={() => setOfficeEdit(true)} />}
+            {sel.kind === "birouri" && <OfficesOverview offices={offices} onOffice={(id) => select({ kind: "office", id })} onEdit={() => setOfficeEdit(true)} />}
             {isOffice && offices.error && <p className="text-xs text-destructive">Nu am putut citi activitatea birourilor: {offices.error.message}</p>}
             {(line || emptyStation) && (
               <div className="mt-3 border-t pt-2 text-xs">
@@ -277,6 +279,8 @@ export default function ViziunePage() {
           </div>
         </div>
       )}
+
+      <OfficeEditor offices={offices} open={officeEdit} onClose={() => setOfficeEdit(false)} />
 
       {data.error && <div className="absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-lg border border-destructive bg-card px-3 py-2 text-sm text-destructive shadow">Nu am putut citi datele: {data.error.message}</div>}
 

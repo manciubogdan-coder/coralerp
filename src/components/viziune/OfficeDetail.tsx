@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Users } from "lucide-react";
 import type { OfficeData } from "./useOfficeData";
 import type { OfficeId, PersonView } from "@/lib/viziune/officeState";
 import { labelForPath, formatDuration } from "@/lib/activityTracking";
@@ -67,25 +69,36 @@ function highlights(id: OfficeId, o: OfficeData, f: OfficeFacts): string[] {
   }
 }
 
-export function OfficeDetail({ id, offices, facts }: { id: OfficeId; offices: OfficeData; facts: OfficeFacts }) {
+function EditButton({ offices, onEdit }: { offices: OfficeData; onEdit: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onEdit}><Users className="mr-1 h-3 w-3" />Pune oamenii pe birouri</Button>
+      {offices.configInfo && <span className="text-[10px] text-muted-foreground">aranjat de {offices.configInfo.by ?? "un coleg"} pe {new Date(offices.configInfo.at).toLocaleDateString("ro-RO")}</span>}
+    </div>
+  );
+}
+
+export function OfficeDetail({ id, offices, facts, onEdit }: { id: OfficeId; offices: OfficeData; facts: OfficeFacts; onEdit: () => void }) {
   const office = offices.offices.find((o) => o.id === id);
   if (!office) return null;
   return (
     <div className="space-y-3">
+      <EditButton offices={offices} onEdit={onEdit} />
       <div className="rounded-lg border bg-muted/40 p-2 text-xs">{highlights(id, offices, facts).map((h) => <div key={h}>{h}</div>)}</div>
       {offices.seniorError && <p className="text-xs text-destructive">Nu am putut citi Senior acum ({offices.seniorError}); arăt doar ce se vede în aplicație.</p>}
       <div>
         <div className="mb-1 text-xs font-bold uppercase text-muted-foreground">Oameni · {office.onlineNow} acum · {office.activeToday} azi</div>
         {office.people.length === 0 ? <p className="text-xs text-muted-foreground">Nu am găsit pe nimeni pentru biroul ăsta după drepturile din aplicație și grupele din Senior.</p> : office.people.map((p) => <Person key={p.key} p={p} />)}
       </div>
-      <p className="text-[10px] text-muted-foreground">Biroul fiecăruia e ghicit după grupa din Senior, apoi după drepturile din aplicație. Clic pe un om ca să vezi de ce e aici și ce a făcut azi.</p>
+      <p className="text-[10px] text-muted-foreground">Unde n-ai ales tu, biroul e ghicit după grupa din Senior, apoi după drepturile din aplicație. Clic pe un om ca să vezi de ce e aici și ce a făcut azi.</p>
     </div>
   );
 }
 
-export function OfficesOverview({ offices, onOffice }: { offices: OfficeData; onOffice: (id: OfficeId) => void }) {
+export function OfficesOverview({ offices, onOffice, onEdit }: { offices: OfficeData; onOffice: (id: OfficeId) => void; onEdit: () => void }) {
   return (
     <div className="space-y-3">
+      <EditButton offices={offices} onEdit={onEdit} />
       {offices.seniorError && <p className="text-xs text-destructive">Nu am putut citi Senior acum ({offices.seniorError}).</p>}
       <table className="w-full text-xs"><tbody>{offices.offices.map((o) => (
         <tr key={o.id} className="cursor-pointer border-t hover:bg-muted/50" onClick={() => onOffice(o.id)}>

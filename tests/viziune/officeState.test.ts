@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildOffices, bucharestLocalToMs, officeFromRoles, officeFromSeniorGroup, samePerson, statusOf, type RawOffices } from "@/lib/viziune/officeState";
+import { buildOffices, bucharestLocalToMs, officeFromRoles, officeFromSeniorGroup, samePerson, statusOf, validateOfficeConfig, type RawOffices } from "@/lib/viziune/officeState";
 
 const NOW = Date.parse("2026-11-14T12:50:00Z"); // 14:50 in Bucharest
 const raw = (over: Partial<RawOffices> = {}): RawOffices => ({
@@ -89,5 +89,37 @@ describe("Viziune birouri: ce face acum", () => {
     const v = buildOffices(raw({ senior: { ok: false, error: "timeout" } }), NOW);
     expect(v.seniorError).toBe("timeout");
     expect(v.people.find((p) => p.name === "Bogdan Manciu")!.status).toBe("aplicatie");
+  });
+});
+
+describe("Viziune birouri: alegerile făcute de mână", () => {
+  const withCfg = (offices: Record<string, any>, links: Record<string, string> = {}) => buildOffices({ ...raw(), config: { offices, links } }, NOW);
+  it("an office chosen by hand wins over the Senior group guess", () => {
+    const v = withCfg({ "app:u1": "vanzari" });
+    const m = v.people.find((p) => p.name === "Mariana Matiu")!;
+    expect(m.office).toBe("vanzari");
+    expect(m.guess).toBe("contabilitate");
+  });
+  it("a hidden person is not shown anywhere but stays in the editor list", () => {
+    const v = withCfg({ "app:u2": "hidden" });
+    expect(v.people.some((p) => p.name === "Bogdan Manciu")).toBe(false);
+    expect(v.roster.some((p) => p.name === "Bogdan Manciu")).toBe(true);
+  });
+  it("'no office' moves an active person to the list without office", () => {
+    expect(withCfg({ "app:u2": "none" }).unassigned.some((p) => p.name === "Bogdan Manciu")).toBe(true);
+  });
+  it("a Senior account marked separate is never linked by name", () => {
+    const v = withCfg({}, { "23": "" });
+    expect(v.people.find((p) => p.name === "Mariana Matiu")!.seniorAccounts).toEqual([]);
+    expect(v.roster.some((p) => p.key === "senior:23")).toBe(true);
+  });
+  it("a Senior account given to a person brings its documents to that person", () => {
+    const v = withCfg({}, { "38": "u2" });
+    expect(v.people.find((p) => p.name === "Bogdan Manciu")!.docs).toBe(100);
+  });
+  it("unknown offices and malformed people are refused before saving", () => {
+    expect(() => validateOfficeConfig({ offices: { "app:u1": "vanzari" } })).toThrow(/Persoană/);
+    expect(() => validateOfficeConfig({ offices: { "senior:23": "cantina" } })).toThrow(/Birou/);
+    expect(validateOfficeConfig({ offices: { "senior:23": "hr" }, links: { "23": "" } })).toEqual({ offices: { "senior:23": "hr" }, links: { "23": "" } });
   });
 });

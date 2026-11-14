@@ -2,6 +2,23 @@
 // Read-only: app profiles/rights from the operational DB, pings from Cloud, documents live from Senior.
 import { seniorLive, seniorSqlAll } from "./senior.ts";
 import { bucharestDay, endIso, fetchAll, startIso, type Clients } from "./appData.ts";
+import { EMPTY_OFFICE_CONFIG, validateOfficeConfig, type OfficeConfig } from "./officeConfigRules.ts";
+
+export async function readOfficeConfig(c: Clients): Promise<OfficeConfig & { updatedBy: string | null; updatedAt: string | null }> {
+  const { data, error } = await c.cloud.from("viziune_birouri_config").select("offices, links, updated_by, updated_at").maybeSingle();
+  if (error) throw new Error(`Birouri: ${error.message}`);
+  if (!data) return { ...EMPTY_OFFICE_CONFIG, updatedBy: null, updatedAt: null };
+  let cfg = EMPTY_OFFICE_CONFIG;
+  try { cfg = validateOfficeConfig(data); } catch { /* an old invalid row falls back to guesses */ }
+  return { ...cfg, updatedBy: data.updated_by ?? null, updatedAt: data.updated_at ?? null };
+}
+
+export async function saveOfficeConfig(c: Clients, input: unknown, by: string) {
+  const cfg = validateOfficeConfig(input);
+  const { error } = await c.cloud.from("viziune_birouri_config").upsert({ id: true, offices: cfg.offices, links: cfg.links, updated_by: by, updated_at: new Date().toISOString() });
+  if (error) throw new Error(error.message);
+  return cfg;
+}
 
 type Rpc = { rpc: (fn: string, args?: Record<string, unknown>) => any };
 const TODAY = "h.Created_On >= CAST(GETDATE() AS date)";
@@ -23,12 +40,13 @@ async function seniorToday(sb: Rpc) {
 
 export async function officeActivity(c: Clients) {
   const day = bucharestDay();
-  const [profiles, roles, pings, senior] = await Promise.all([
+  const [profiles, roles, pings, senior, config] = await Promise.all([
     fetchAll(c.legacyUser, "app_profiles", "user_id,email,name,approved"),
     fetchAll(c.legacyUser, "app_user_roles", "user_id,role"),
     fetchAll(c.cloud, "app_activity_pings", "id,user_id,email,display_name,path,tab,seconds,occurred_at",
       (q) => q.gte("occurred_at", startIso(day)).lte("occurred_at", endIso(day)).order("occurred_at").order("id"), 100000),
     seniorToday(c.cloud).then((v) => ({ ok: true as const, ...v }), (e) => ({ ok: false as const, error: (e as Error).message })),
+    readOfficeConfig(c),
   ]);
   const rolesBy = new Map<string, string[]>();
   for (const r of roles) rolesBy.set(r.user_id, [...(rolesBy.get(r.user_id) ?? []), String(r.role)]);
@@ -47,5 +65,5 @@ export async function officeActivity(c: Clients) {
     act.set(p.user_id, a);
   }
   const activity = [...act.values()].map((a) => ({ ...a, pages: [...a.pages.values()].sort((x, y) => y.seconds - x.seconds).slice(0, 5) }));
-  return { day, generatedAt: new Date().toISOString(), app: { users, activity }, senior };
+  return { day, generatedAt: new Date().toISOString(), app: { users, activity }, senior, config };
 }

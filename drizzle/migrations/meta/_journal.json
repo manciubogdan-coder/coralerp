@@ -274,6 +274,13 @@
       "when": 1794548723246,
       "tag": "0038_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794661560115,
+      "tag": "0039_viziune_birouri_config",
+      "breakpoints": true
     }
   ]
 }

@@ -29,7 +29,7 @@ import { partnerMirrorSales } from "../_shared/partnerMirror.ts";
 import { DEFAULT_PRICE_RULES, loadPriceRules, savePriceRules } from "../_shared/priceRules.ts";
 import { SALES_PRICING_ACTIONS } from "../_shared/crmRules.ts";
 import { validateHallLayout } from "../_shared/hallLayoutRules.ts";
-import { officeActivity } from "../_shared/officeActivity.ts";
+import { officeActivity, saveOfficeConfig } from "../_shared/officeActivity.ts";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
 import { rawMaterialPrices } from "../_shared/rawMaterialPrices.ts";
@@ -740,6 +740,11 @@ Deno.serve(async (req) => {
       }
       case 'viziune_offices': {
         try { return json(await officeActivity(c)); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case 'viziune_offices_save': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        try { return json(await saveOfficeConfig(c, await req.json(), auth.user.email ?? userId)); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case 'viziune_layout_save': {
