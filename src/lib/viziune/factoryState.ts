@@ -4,6 +4,7 @@ import { MAX_SESSION_HOURS, mergedHours } from "@/lib/productie/lineSpeed";
 
 export interface VOrder {
   id: string;
+  produs_id?: string | null;
   linie_id?: string | null;
   status: string;
   cantitate: number;
@@ -80,7 +81,7 @@ export interface LinePace {
 /** Share of the norm time used before a batch is flagged as about to run late. */
 export const PACE_WARN_RATIO = 0.9;
 
-const INTERNAL = new Set(["PRODUCTIE_AVANS", "REAMBALARE"]);
+export const INTERNAL = new Set(["PRODUCTIE_AVANS", "REAMBALARE"]);
 
 export function producedOf(o: VOrder): number {
   const q = Number(o.cantitate) || 0;

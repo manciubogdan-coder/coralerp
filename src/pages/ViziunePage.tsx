@@ -23,6 +23,9 @@ import { useOfficeData } from "@/components/viziune/useOfficeData";
 import { OfficeDetail, OfficesOverview, type OfficeFacts } from "@/components/viziune/OfficeDetail";
 import { buildingOf, OFFICES } from "@/lib/viziune/officeState";
 import { OfficeEditor } from "@/components/viziune/OfficeEditor";
+import { DepotDetail, PickingDetail } from "@/components/viziune/WarehouseDetail";
+import { useWarehousePallets } from "@/components/viziune/useWarehousePallets";
+import { depotDetail, pickingDetail } from "@/lib/viziune/warehouseState";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("ro-RO");
 const STATUS_LABEL: Record<string, string> = { lucreaza: "Lucrează", asteapta: "În așteptare", terminat: "Gata pe azi", oprita: "Oprită" };
@@ -218,6 +221,10 @@ export default function ViziunePage() {
   };
   const seniorDocs = [...offices.docTotals.values()].reduce((a, t) => a + t.n, 0);
   const isOffice = sel?.kind === "office" || sel?.kind === "birouri";
+  const isStore = sel?.kind === "depozit" || sel?.kind === "livrare";
+  const pallets = useWarehousePallets(sel?.kind === "depozit" ? data.stock.map((x) => x.name).slice(0, 1000) : [], sel?.kind === "livrare" ? pickingDetail(data.orders, null).flatMap((st) => st.products.map((p) => p.productId)).filter((id): id is string => !!id).slice(0, 500) : [], isStore);
+  const depot = sel?.kind === "depozit" ? depotDetail(data.stockRows, pallets.data, data.today) : [];
+  const picking = sel?.kind === "livrare" ? pickingDetail(data.orders, pallets.data) : [];
 
   return (
     <div className="relative h-[calc(100vh-4rem)] w-full overflow-hidden bg-background" data-scene-ready={ready ? "" : undefined}>
@@ -257,7 +264,9 @@ export default function ViziunePage() {
         <button type="button" className="pointer-events-auto text-left" onClick={() => select({ kind: "birouri" })}>
           <Kpi label="Birouri" value={offices.loading ? "…" : `${officeNow} lucrează acum`} sub={offices.error ? "nu s-au putut citi" : `${seniorDocs} documente Senior azi${offices.seniorError ? " · Senior indisponibil" : ""}`} />
         </button>
-        <Kpi label="Gata de livrare" value={`${data.ready.length} magazine`} sub={`${fmt(data.ready.reduce((a, r) => a + r.pieces, 0))} buc`} />
+        <button type="button" className="pointer-events-auto text-left" onClick={() => select({ kind: "livrare" })}>
+          <Kpi label="Gata de livrare" value={`${data.ready.length} magazine`} sub={`${fmt(data.ready.reduce((a, r) => a + r.pieces, 0))} buc`} />
+        </button>
         </>}
       </div>
 
@@ -307,7 +316,7 @@ export default function ViziunePage() {
       )}
 
       {sel && !editing && (
-        <div className="absolute right-3 top-28 z-20 flex max-h-[calc(100%-10rem)] w-[min(92vw,380px)] flex-col rounded-xl border bg-card shadow-xl">
+        <div className={`absolute right-3 top-28 z-20 flex max-h-[calc(100%-10rem)] flex-col rounded-xl border bg-card shadow-xl ${isStore ? "w-[min(94vw,560px)]" : "w-[min(92vw,380px)]"}`}>
           <div className="flex items-start justify-between gap-2 border-b p-3">
             <div>
               <div className="text-base font-black">{line ? line.name : emptyStation ? emptyStation.label : sel.kind === "office" ? OFFICES[sel.id].label : sel.kind === "birouri" ? "Birourile firmei azi" : sel.kind === "receptie" ? "Recepție azi" : sel.kind === "depozit" ? "Depozit materie primă" : "Gata de livrare"}</div>
@@ -344,12 +353,8 @@ export default function ViziunePage() {
                 <div key={r.supplier} className="border-b py-1.5 last:border-0"><div className="flex justify-between font-medium"><span>{r.supplier}</span><span className="tabular-nums">{fmt(r.kg)} kg</span></div><div className="text-xs text-muted-foreground">{r.lots} loturi · {[...r.products].slice(0, 4).join(", ")}</div></div>
               ))}
             </>}
-            {sel.kind === "depozit" && data.stock.slice(0, 60).map((s) => (
-              <div key={s.name} className="flex justify-between border-b py-1 text-xs last:border-0"><span>{s.name}</span><span className="tabular-nums">{fmt(s.qty)} {s.unit}</span></div>
-            ))}
-            {sel.kind === "livrare" && (data.ready.length === 0 ? <p className="text-muted-foreground">Încă nu e marfă gata azi.</p> : data.ready.map((r) => (
-              <div key={r.store} className="flex justify-between border-b py-1 text-xs last:border-0"><span>{r.store}</span><span className="tabular-nums">{fmt(r.pieces)} buc · {r.orders} com.</span></div>
-            )))}
+            {sel.kind === "depozit" && <DepotDetail products={depot} loading={pallets.isLoading} error={pallets.error as Error | null} />}
+            {sel.kind === "livrare" && <PickingDetail stores={picking} lines={data.lines} today={data.today} loading={pallets.isLoading} error={pallets.error as Error | null} />}
           </div>
           <div className="border-t p-2">
             {isOffice ? <Button className="w-full" variant="outline" onClick={() => navigate("/administrativ/activitate")}>Deschide Activitate (istoric pe zile)</Button> :

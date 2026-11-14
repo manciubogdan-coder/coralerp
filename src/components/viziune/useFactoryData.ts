@@ -60,7 +60,7 @@ export function useFactoryData() {
   const stockQ = useQuery({
     queryKey: ["viziune-stock"],
     refetchInterval: REFRESH * 4,
-    queryFn: () => readAllRows((a, b) => supabase.from("inventory").select("id, name, quantity, unit, receipt_date, suppliers:supplier_id (name)").gt("quantity", 0).order("id").range(a, b)),
+    queryFn: () => readAllRows((a, b) => supabase.from("inventory").select("id, name, quantity, unit, receipt_date, lot_number, document_number, suppliers:supplier_id (name)").gt("quantity", 0).order("id").range(a, b)),
   });
 
   const receptionsQ = useQuery({
@@ -111,7 +111,7 @@ export function useFactoryData() {
     loading: linesQ.isLoading || ordersQ.isLoading,
     error: (linesQ.error || ordersQ.error || sessionsQ.error) as Error | null,
     updatedAt: Math.max(ordersQ.dataUpdatedAt || 0, sessionsQ.dataUpdatedAt || 0),
-    now, orders, lineViews, ready, stock, unassigned, layout, placement,
+    now, orders, lineViews, ready, stock, stockRows: (stockQ.data || []) as any[], unassigned, layout, placement,
     lines: lines as { id: string; nume: string }[],
     layoutLoading: layoutQ.isLoading,
     layoutInfo: saved && layoutQ.data ? { by: layoutQ.data.updated_by, at: layoutQ.data.updated_at } : null,

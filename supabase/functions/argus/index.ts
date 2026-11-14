@@ -30,6 +30,7 @@ import { DEFAULT_PRICE_RULES, loadPriceRules, savePriceRules } from "../_shared/
 import { SALES_PRICING_ACTIONS } from "../_shared/crmRules.ts";
 import { validateHallLayout } from "../_shared/hallLayoutRules.ts";
 import { officeActivity, saveOfficeConfig } from "../_shared/officeActivity.ts";
+import { viziunePallets } from "../_shared/viziunePallets.ts";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
 import { rawMaterialPrices } from "../_shared/rawMaterialPrices.ts";
@@ -737,6 +738,11 @@ Deno.serve(async (req) => {
         });
         if (error) throw error;
         return json(s);
+      }
+      case 'viziune_pallets': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        try { return json(await viziunePallets(c, await req.json())); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case 'viziune_offices': {
         try { return json(await officeActivity(c)); }
