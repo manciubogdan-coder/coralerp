@@ -84,7 +84,7 @@ const BAKE_ROOT = { bakeRoot: true };
 
 /** A drei <Html> label that exists only while the camera is within `minDist`…`maxDist` metres (checked a few times a second). */
 type HtmlProps = React.ComponentProps<typeof Html>;
-export function NearHtml({ maxDist, minDist = 0, position, children, center, distanceFactor, style, zIndexRange, className }: { maxDist: number; /** hidden when closer than this (it would fill the screen) */ minDist?: number; position?: [number, number, number]; children?: React.ReactNode } & Pick<HtmlProps, "center" | "distanceFactor" | "style" | "zIndexRange" | "className">) {
+export function NearHtml({ maxDist, minDist = 0, position, children, center, distanceFactor, style, zIndexRange = [9, 0], className }: { maxDist: number; /** hidden when closer than this (it would fill the screen) */ minDist?: number; position?: [number, number, number]; children?: React.ReactNode } & Pick<HtmlProps, "center" | "distanceFactor" | "style" | "zIndexRange" | "className">) {
   const ref = useRef<THREE.Group>(null);
   const [near, setNear] = useState(false);
   const state = useRef({ near: false, n: Math.floor(Math.random() * 10) });

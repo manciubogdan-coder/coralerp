@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
+import type * as THREE from "three";
 import { PerformanceMonitor } from "@react-three/drei";
 import BackToHubButton from "@/components/BackToHubButton";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,10 @@ import { defaultLayout, toWorld, type HallStation } from "@/lib/viziune/hallLayo
 import { HallEditor } from "@/components/viziune/HallEditor";
 import { toast } from "sonner";
 import { clockTime, minutesLabel, PaceBadge } from "@/components/viziune/pace";
-import { AlertTriangle, Footprints, LayoutGrid, LogOut, RefreshCw, Sparkles, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Footprints, Gamepad2, Home, LayoutGrid, LogOut, MoreVertical, RefreshCw, Sparkles, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Effects, EffectsGuard } from "@/components/viziune/Effects";
 import type { WalkPad } from "@/components/viziune/Walker";
 import { OFFICE_PREFIX, ZONE_PREFIX } from "@/lib/viziune/walk";
@@ -33,7 +37,7 @@ const ORDER_STATUS: Record<string, string> = { pending: "Neîncepută", assigned
 
 function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-lg border bg-card/95 px-3 py-2 shadow">
+    <div className="shrink-0 snap-start rounded-lg border bg-card/95 px-3 py-2 shadow">
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="text-lg font-black tabular-nums leading-tight">{value}</div>
       {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
@@ -89,16 +93,35 @@ function LineDetail({ line }: { line: LineView }) {
   );
 }
 
-const MAX_DPR = 1.5;
+/** Phones and small tablets: smaller screen, weaker GPU, touch instead of mouse. */
+const SMALL_SCREEN = typeof window !== "undefined" && window.innerWidth < 768;
+// Phones already have very dense screens; past 1.25× the GPU works hard for detail nobody sees.
+const MAX_DPR = SMALL_SCREEN ? 1.25 : 1.5;
 type Quality = "inalta" | "rapida";
 const QUALITY_KEY = "viziune-grafica";
-const readQuality = (): Quality => { try { return localStorage.getItem(QUALITY_KEY) === "rapida" ? "rapida" : "inalta"; } catch { return "inalta"; } };
+const readQuality = (): Quality => {
+  const fallback: Quality = SMALL_SCREEN ? "rapida" : "inalta";
+  try { const v = localStorage.getItem(QUALITY_KEY); return v === "rapida" || v === "inalta" ? v : fallback; } catch { return fallback; }
+};
+
+/** Tall phone screens get a wider lens so the factory is not cropped to a thin slice. */
+function ResponsiveLens() {
+  const { camera, size } = useThree();
+  useEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    const fov = size.width < size.height ? 62 : 42;
+    if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
+  }, [camera, size.width, size.height]);
+  return null;
+}
 const PAD_AXIS: Partial<Record<NavAction, [keyof WalkPad, number]>> = { inainte: ["fwd", 1], inapoi: ["fwd", -1], stanga: ["side", -1], dreapta: ["side", 1], rotStanga: ["turn", 1], rotDreapta: ["turn", -1] };
 
 export default function ViziunePage() {
   const navigate = useNavigate();
   const data = useFactoryData();
   const offices = useOfficeData();
+  const mobile = useIsMobile();
+  const [padOpen, setPadOpen] = useState(false);
   const [dpr, setDpr] = useState(() => Math.min(MAX_DPR, window.devicePixelRatio || 1));
   const [officeEdit, setOfficeEdit] = useState(false);
   const [quality, setQualityState] = useState<Quality>(readQuality);
@@ -227,8 +250,52 @@ export default function ViziunePage() {
   const picking = sel?.kind === "livrare" ? pickingDetail(data.orders, pallets.data) : [];
 
   return (
-    <div className="relative h-[calc(100vh-4rem)] w-full overflow-hidden bg-background" data-scene-ready={ready ? "" : undefined}>
+    <div className="relative h-[calc(100dvh-4rem)] w-full overflow-hidden bg-background" data-scene-ready={ready ? "" : undefined}>
       {/* top HUD */}
+      {mobile ? (
+      <div className="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-col gap-1.5">
+        <div className="pointer-events-auto flex w-full items-center gap-1 rounded-lg border bg-card/95 px-1.5 py-1 shadow">
+          <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={() => navigate("/administrativ")} aria-label="Înapoi la Administrativ"><ArrowLeft className="h-4 w-4" /></Button>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-sm font-black leading-tight">Viziune · Coral live</h1>
+            <p className="truncate text-[10px] text-muted-foreground">actualizat {data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) : "…"}</p>
+          </div>
+          <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={() => { data.refetch(); offices.refetch(); }} aria-label="Reîmprospătează"><RefreshCw className="h-4 w-4" /></Button>
+          {walking
+            ? <Button size="sm" className="h-9 shrink-0" onClick={exitWalk}><LogOut className="mr-1 h-4 w-4" />Ieși</Button>
+            : <Button size="sm" variant="outline" className="h-9 shrink-0 px-2" disabled={editing} onClick={startWalk} aria-label="Plimbă-te prin hală"><Footprints className="mr-1 h-4 w-4" />Plimbare</Button>}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" aria-label="Mai multe"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem disabled={editing || data.layoutLoading} onSelect={() => startEdit()}><LayoutGrid className="mr-2 h-4 w-4" />Aranjează hala</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setQuality(quality === "inalta" ? "rapida" : "inalta")}><Sparkles className="mr-2 h-4 w-4" />{quality === "inalta" ? "Treci pe grafică rapidă" : "Treci pe grafică frumoasă"}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => navigate("/")}><Home className="mr-2 h-4 w-4" />Hub Departamente</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {!walking && !(sel && !editing) && <div className="pointer-events-auto -mx-2 flex snap-x gap-1.5 overflow-x-auto px-2 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <Kpi label="Producție azi" value={pieces ? `${Math.round((produced / pieces) * 100)}%` : "—"} sub={`${fmt(produced)} / ${fmt(pieces)} buc`} />
+        <Kpi label="Linii care lucrează" value={`${working.length} / ${data.lineViews.length}`} sub={`${people} oameni pe linii`} />
+        <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
+          <div className={`rounded-lg border px-3 py-2 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
+            <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80"><AlertTriangle className="h-3 w-3" />Peste normă</div>
+            <div className="text-lg font-black tabular-nums leading-tight">{late.length ? `${late.length} linii` : "Nimic"}</div>
+            <div className="max-w-[220px] truncate text-[10px] opacity-80">{late.length ? late.map((l) => `${l.name} +${minutesLabel(l.pace.lateMinutes)}`).join(" · ") : "toate comenzile în lucru sunt în timp"}</div>
+          </div>
+        </button>
+        <Kpi label="Comenzi azi" value={fmt(real.length)} sub={`${real.filter((o) => o.status === "completed").length} gata · ${data.unassigned.length} fără linie`} />
+        <Kpi label="Recepții azi" value={`${fmt(recKg)} kg`} sub={`${data.receptions.length} furnizori`} />
+        <Kpi label="Prerecepții de descărcat" value={`${(data.prereceptions ?? []).length} camioane`} sub={`${fmt((data.prereceptions ?? []).reduce((a, p) => a + p.kgLeft, 0))} kg${(data.prereceptions ?? []).some((p) => p.late) ? ` · ${(data.prereceptions ?? []).filter((p) => p.late).length} întârziate` : ""}`} />
+        <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => select({ kind: "birouri" })}>
+          <Kpi label="Birouri" value={offices.loading ? "…" : `${officeNow} lucrează acum`} sub={offices.error ? "nu s-au putut citi" : `${seniorDocs} documente Senior azi${offices.seniorError ? " · Senior indisponibil" : ""}`} />
+        </button>
+        <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => select({ kind: "livrare" })}>
+          <Kpi label="Gata de livrare" value={`${data.ready.length} magazine`} sub={`${fmt(data.ready.reduce((a, r) => a + r.pieces, 0))} buc`} />
+        </button>
+        </div>}
+      </div>
+      ) : (
       <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
         <div className="pointer-events-auto flex items-center gap-2 rounded-lg border bg-card/95 px-3 py-2 shadow">
           <BackToHubButton />
@@ -251,7 +318,7 @@ export default function ViziunePage() {
         {!walking && <>
         <Kpi label="Producție azi" value={pieces ? `${Math.round((produced / pieces) * 100)}%` : "—"} sub={`${fmt(produced)} / ${fmt(pieces)} buc`} />
         <Kpi label="Linii care lucrează" value={`${working.length} / ${data.lineViews.length}`} sub={`${people} oameni pe linii`} />
-        <button type="button" className="pointer-events-auto text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
+        <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
           <div className={`rounded-lg border px-3 py-2 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
             <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80"><AlertTriangle className="h-3 w-3" />Peste normă</div>
             <div className="text-lg font-black tabular-nums leading-tight">{late.length ? `${late.length} linii` : "Nimic"}</div>
@@ -261,18 +328,20 @@ export default function ViziunePage() {
         <Kpi label="Comenzi azi" value={fmt(real.length)} sub={`${real.filter((o) => o.status === "completed").length} gata · ${data.unassigned.length} fără linie`} />
         <Kpi label="Recepții azi" value={`${fmt(recKg)} kg`} sub={`${data.receptions.length} furnizori`} />
         <Kpi label="Prerecepții de descărcat" value={`${(data.prereceptions ?? []).length} camioane`} sub={`${fmt((data.prereceptions ?? []).reduce((a, p) => a + p.kgLeft, 0))} kg${(data.prereceptions ?? []).some((p) => p.late) ? ` · ${(data.prereceptions ?? []).filter((p) => p.late).length} întârziate` : ""}`} />
-        <button type="button" className="pointer-events-auto text-left" onClick={() => select({ kind: "birouri" })}>
+        <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => select({ kind: "birouri" })}>
           <Kpi label="Birouri" value={offices.loading ? "…" : `${officeNow} lucrează acum`} sub={offices.error ? "nu s-au putut citi" : `${seniorDocs} documente Senior azi${offices.seniorError ? " · Senior indisponibil" : ""}`} />
         </button>
-        <button type="button" className="pointer-events-auto text-left" onClick={() => select({ kind: "livrare" })}>
+        <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => select({ kind: "livrare" })}>
           <Kpi label="Gata de livrare" value={`${data.ready.length} magazine`} sub={`${fmt(data.ready.reduce((a, r) => a + r.pieces, 0))} buc`} />
         </button>
         </>}
       </div>
+      )}
 
-      <NavPad onNav={nav} onHome={walking ? exitWalk : () => setZone("all")} onHold={walking ? holdPad : undefined}
+      {(!mobile || walking || padOpen) && <NavPad onNav={nav} onHome={walking ? exitWalk : () => setZone("all")} onHold={walking ? holdPad : undefined}
+        hideLines={mobile} className={mobile ? (walking ? "bottom-3 left-2" : "bottom-16 left-2") : undefined}
         lines={data.lineViews.filter((l) => stationOfLine(l.id)).map((l) => ({ id: l.id, name: l.name, workers: l.workers, late: l.pace.status === "intarziat" }))}
-        onLine={(id) => select({ kind: "line", id })} />
+        onLine={(id) => select({ kind: "line", id })} />}
 
       {walking && <>
         {/* crosshair + what is under it */}
@@ -282,18 +351,36 @@ export default function ViziunePage() {
         {lookedLabel && (
           <div className="pointer-events-none absolute left-1/2 top-[calc(50%+18px)] z-10 -translate-x-1/2 whitespace-nowrap rounded-md border bg-card/95 px-2 py-1 text-center text-xs shadow">
             <div className="font-bold">{lookedLabel.title}</div>
-            <div className="text-[10px] text-muted-foreground">{lookedLabel.sub} · clic pentru detalii</div>
+            <div className="text-[10px] text-muted-foreground">{lookedLabel.sub} · {mobile ? "atinge" : "clic"} pentru detalii</div>
           </div>
         )}
+        {mobile ? <div className="pointer-events-none absolute inset-x-2 top-14 z-10 rounded-lg border bg-card/90 px-2 py-1 text-center text-[10px] shadow">
+          <b>Trage cu degetul</b> = privești · <b>săgețile</b> = mergi · <b>atinge</b> ținta = detalii
+        </div> :
         <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-lg border bg-card/95 px-3 py-2 text-center text-[11px] shadow">
           {locked
             ? <span><b>W A S D</b> / săgeți = mergi · <b>Shift</b> = alergi · <b>mouse</b> = privești · <b>clic</b> pe un utilaj, depozit sau birou = detalii · <b>Esc</b> = eliberezi mouse-ul</span>
             : <span><b>Clic pe ecran</b> ca să privești cu mouse-ul (pe telefon: trage cu degetul) · <b>W A S D</b> / săgeți = mergi · <b>Esc</b> = ieși din plimbare</span>}
-        </div>
+        </div>}
       </>}
 
       {/* zone camera buttons */}
-      {!walking && <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
+      {!walking && mobile && <div className="absolute inset-x-2 bottom-2 z-10 flex items-center gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
+        <Select value={zone} onValueChange={(z) => setZone(z as Zone)}>
+          <SelectTrigger className="h-9 min-w-0 flex-1 text-xs" aria-label="Zonă"><SelectValue /></SelectTrigger>
+          <SelectContent className="max-h-72 overflow-y-auto">
+            {(Object.keys(ZONES) as Zone[]).map((z) => <SelectItem key={z} value={z} className="text-xs">{ZONES[z].label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value="" onValueChange={(id) => select({ kind: "line", id })}>
+          <SelectTrigger className="h-9 min-w-0 flex-1 text-xs" aria-label="Mergi la linia"><SelectValue placeholder="Linia…" /></SelectTrigger>
+          <SelectContent className="max-h-72 overflow-y-auto">
+            {data.lineViews.filter((l) => stationOfLine(l.id)).map((l) => <SelectItem key={l.id} value={l.id} className="text-xs">{l.pace.status === "intarziat" ? "⚠ " : ""}{l.name}{l.workers ? ` · 👷 ${l.workers}` : ""}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button size="icon" variant={padOpen ? "default" : "outline"} className="h-9 w-9 shrink-0" onClick={() => setPadOpen((v) => !v)} aria-label="Butoane de mișcare"><Gamepad2 className="h-4 w-4" /></Button>
+      </div>}
+      {!walking && !mobile && <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
         {(Object.keys(ZONES) as Zone[]).map((z) => (
           <Button key={z} size="sm" variant={zone === z ? "default" : "ghost"} onClick={() => setZone(z)}>{ZONES[z].label}</Button>
         ))}
@@ -316,7 +403,10 @@ export default function ViziunePage() {
       )}
 
       {sel && !editing && (
-        <div className={`absolute right-3 top-28 z-20 flex max-h-[calc(100%-10rem)] flex-col rounded-xl border bg-card shadow-xl ${isStore ? "w-[min(94vw,560px)]" : "w-[min(92vw,380px)]"}`}>
+        <div className={mobile
+          ? "absolute inset-x-0 bottom-0 z-20 flex max-h-[72%] flex-col rounded-t-2xl border-t bg-card shadow-2xl"
+          : `absolute right-3 top-28 z-20 flex max-h-[calc(100%-10rem)] flex-col rounded-xl border bg-card shadow-xl ${isStore ? "w-[min(94vw,560px)]" : "w-[min(92vw,380px)]"}`}>
+          {mobile && <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30" />}
           <div className="flex items-start justify-between gap-2 border-b p-3">
             <div>
               <div className="text-base font-black">{line ? line.name : emptyStation ? emptyStation.label : sel.kind === "office" ? OFFICES[sel.id].label : sel.kind === "birouri" ? "Birourile firmei azi" : sel.kind === "receptie" ? "Recepție azi" : sel.kind === "depozit" ? "Depozit materie primă" : "Gata de livrare"}</div>
@@ -371,6 +461,7 @@ export default function ViziunePage() {
 
       <Canvas shadows dpr={dpr} gl={{ powerPreference: "high-performance" }} camera={{ position: ZONES.all.pos, fov: 42, near: 0.5, far: 300 }} onCreated={() => setTimeout(() => setReady(true), 500)} onPointerMissed={() => { if (!walking) setSel(null); }}>
         {/* Sharpness follows the computer: lower resolution when frames drop, back up when there is room. */}
+        {!walking && <ResponsiveLens />}
         <PerformanceMonitor bounds={() => [45, 58]} flipflops={4} onDecline={() => setDpr((d) => Math.max(0.6, +(d - 0.2).toFixed(2)))} onIncline={() => setDpr((d) => Math.min(MAX_DPR, +(d + 0.2).toFixed(2)))} onFallback={() => { setDpr(0.6); setQuality("rapida", false); }} />
         <FactoryScene data={data} offices={offices} camera={cam} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation}
           walk={walking ? { pad: walkPad, onLook: setLooked, onPick: pickTarget, onExit: exitWalk, onLock: setLocked } : null} />

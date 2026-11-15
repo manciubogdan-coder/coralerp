@@ -492,7 +492,7 @@ function LateBeacon({ minutes }: { minutes: number }) {
   return (
     <group ref={g} position={[0, 5.3, 0]}>
       <mesh><octahedronGeometry args={[0.45]} /><meshStandardMaterial ref={mat} color={C.status.late} emissive={C.status.late} emissiveIntensity={1.6} /></mesh>
-      <Html center position={[0, 0.8, 0]} distanceFactor={labelScale(walking, 18)} style={{ pointerEvents: "none" }}>
+      <Html zIndexRange={[9, 0]} center position={[0, 0.8, 0]} distanceFactor={labelScale(walking, 18)} style={{ pointerEvents: "none" }}>
         <div className="whitespace-nowrap rounded bg-destructive px-1.5 py-0.5 text-[11px] font-black text-destructive-foreground shadow">⚠ +{minutesLabel(minutes)}</div>
       </Html>
     </group>
@@ -571,11 +571,11 @@ function StationNode({ st, line, selected, onSelect, editing, onGrab }: { st: St
       {late && <LateBeacon minutes={line!.pace.lateMinutes} />}
       {walking ? (
         // At eye height the card of the machine right next to you would fill the screen: the crosshair shows it instead.
-        <NearHtml minDist={6} maxDist={45} position={[0, big ? 5.2 : 2.6, 0]} center distanceFactor={labelScale(walking, 20)} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
+        <NearHtml minDist={6} maxDist={45} position={[0, big ? 5.2 : 2.6, 0]} center distanceFactor={labelScale(walking, 20)} zIndexRange={[9, 0]} style={{ pointerEvents: "none" }}>
           <StationCard st={st} line={line} />
         </NearHtml>
       ) : (
-        <Html position={[0, big ? 6.4 : 3.2, 0]} center distanceFactor={20} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
+        <Html zIndexRange={[9, 0]} position={[0, big ? 6.4 : 3.2, 0]} center distanceFactor={20} zIndexRange={[9, 0]} style={{ pointerEvents: "none" }}>
           <StationCard st={st} line={line} />
         </Html>
       )}
@@ -678,7 +678,7 @@ function Forklift({ path, speed = 0.12, phase = 0 }: { path: [number, number][];
 function ZoneSign({ position, title, sub }: { position: [number, number, number]; title: string; sub?: string }) {
   const walking = useWalking();
   return (
-    <Html position={position} center distanceFactor={labelScale(walking, 26)} style={{ pointerEvents: "none" }}>
+    <Html zIndexRange={[9, 0]} position={position} center distanceFactor={labelScale(walking, 26)} style={{ pointerEvents: "none" }}>
       <div className="whitespace-nowrap rounded-md bg-foreground/85 px-3 py-1 text-center text-background shadow-lg">
         <div className="text-sm font-black uppercase tracking-wider">{title}</div>
         {sub && <div className="text-[10px] opacity-80">{sub}</div>}
@@ -740,7 +740,7 @@ function HallShell({ tall = false }: { tall?: boolean }) {
         <mesh position={[ox1, 1.3, (oz0 + D2) / 2]}><boxGeometry args={[0.25, 2.6, D2 - oz0]} /><meshStandardMaterial color={C.pillar} /></mesh>
         <mesh position={[(ox0 + ox1) / 2 - 1, 1.3, (oz0 + D2) / 2]}><boxGeometry args={[0.2, 2.6, D2 - oz0 - 2]} /><meshStandardMaterial color={C.pillar} /></mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[(ox0 + ox1) / 2, 0.01, (oz0 + D2) / 2]}><planeGeometry args={[ox1 - ox0, D2 - oz0]} /><meshStandardMaterial color="#9a9d97" /></mesh>
-        <Html position={[(ox0 + HALL_OFFICE_SPLIT) / 2, 3.2, (oz0 + D2) / 2]} center distanceFactor={26} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/85 px-1.5 py-0.5 text-[10px] text-muted-foreground">Vestiare</div></Html>
+        <Html zIndexRange={[9, 0]} position={[(ox0 + HALL_OFFICE_SPLIT) / 2, 3.2, (oz0 + D2) / 2]} center distanceFactor={26} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/85 px-1.5 py-0.5 text-[10px] text-muted-foreground">Vestiare</div></Html>
       </group>
       {FLOWS.map((f, i) => <FlowStripe key={i} pts={f.pts} color={C.flow[f.kind]} />)}
       {tall && Array.from({ length: 7 }).map((_, i) => (
@@ -855,7 +855,7 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
         <ZoneSign position={[-22, 4.5, 23]} title="Recepție" sub={`${data.receptions.reduce((a, r) => a + r.lots, 0)} loturi azi · ${Math.round(data.receptions.reduce((a, r) => a + r.kg, 0)).toLocaleString("ro-RO")} kg`} />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-22, 0.006, 29]}><planeGeometry args={[14, 12]} /><meshStandardMaterial color="#a9aea7" /></mesh>
         <PalletField slots={recSlots} goods="crate" />
-        {data.receptions.length === 0 && <Html position={[-22, 1, 29]} center distanceFactor={labelScale(walking, 20)} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/90 px-2 py-1 text-xs text-muted-foreground">Nicio recepție azi</div></Html>}
+        {data.receptions.length === 0 && <Html zIndexRange={[9, 0]} position={[-22, 1, 29]} center distanceFactor={labelScale(walking, 20)} style={{ pointerEvents: "none" }}><div className="whitespace-nowrap rounded bg-card/90 px-2 py-1 text-xs text-muted-foreground">Nicio recepție azi</div></Html>}
       </Clickable>
       {Array.from({ length: recTrucks }).map((_, i) => (
         <Truck key={i} from={[-55, 0, 25 + i * 4.5]} to={[-31, 0, 25 + i * 4.5]} delay={i * 7} label={data.receptions[i]?.supplier} />

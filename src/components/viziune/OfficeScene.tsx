@@ -125,7 +125,7 @@ function OfficeRoom({ room, office, selected, onSelect, walls = true }: { room: 
         {room.id === "ceo" && <MeetingTable x={cx} z={room.z1 - 2.6} />}
       </>}
       </Bake>
-      <Html position={[cx, inHall ? 2.9 : 2.4, room.z0 + 0.6]} center distanceFactor={labelScale(walking, inHall ? 13 : 22)} style={{ pointerEvents: "none" }}>
+      <Html zIndexRange={[9, 0]} position={[cx, inHall ? 2.9 : 2.4, room.z0 + 0.6]} center distanceFactor={labelScale(walking, inHall ? 13 : 22)} style={{ pointerEvents: "none" }}>
         <div className={`whitespace-nowrap rounded-md px-2 py-0.5 text-center shadow-lg ${selected ? "bg-primary text-primary-foreground" : "bg-foreground/85 text-background"}`}>
           <div className="text-[11px] font-black uppercase tracking-wide">{office?.label ?? room.id}</div>
           <div className="text-[9px] opacity-80">{office ? `${office.onlineNow} lucrează acum · ${office.docs} doc. Senior azi${extra ? ` · +${extra} fără loc` : ""}` : "…"}</div>
@@ -153,7 +153,7 @@ export function OfficesScene({ offices, selection, onSelect }: { offices: Office
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[bcx, 0.01, bcz]} receiveShadow><planeGeometry args={[bw + 1, bd + 1]} /><meshStandardMaterial color={P.slab} /></mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[bcx, 0.015, OFFICE_CORRIDOR_Z]} receiveShadow><planeGeometry args={[bw, 3]} /><meshStandardMaterial color={P.corridor} /></mesh>
       <group onClick={(e) => { e.stopPropagation(); if (!walking) onSelect({ kind: "birouri" }); }}>
-        <Html position={[bcx, 4.2, B.z0 - 1]} center distanceFactor={labelScale(walking, 26)} style={{ pointerEvents: "none" }}>
+        <Html zIndexRange={[9, 0]} position={[bcx, 4.2, B.z0 - 1]} center distanceFactor={labelScale(walking, 26)} style={{ pointerEvents: "none" }}>
           <div className="whitespace-nowrap rounded-md bg-foreground/85 px-3 py-1 text-center text-background shadow-lg">
             <div className="text-sm font-black uppercase tracking-wider">Clădirea de birouri</div>
             <div className="text-[10px] opacity-80">{offices?.loading ? "se încarcă…" : `${onlineB} oameni lucrează acum`}</div>
