@@ -575,7 +575,7 @@ function StationNode({ st, line, selected, onSelect, editing, onGrab }: { st: St
           <StationCard st={st} line={line} />
         </NearHtml>
       ) : (
-        <Html zIndexRange={[9, 0]} position={[0, big ? 6.4 : 3.2, 0]} center distanceFactor={20} zIndexRange={[9, 0]} style={{ pointerEvents: "none" }}>
+        <Html position={[0, big ? 6.4 : 3.2, 0]} center distanceFactor={20} zIndexRange={[9, 0]} style={{ pointerEvents: "none" }}>
           <StationCard st={st} line={line} />
         </Html>
       )}
