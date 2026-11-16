@@ -50,8 +50,14 @@ const ReportsOrdersSummary = () => {
   const modeLabel = mode === "productie" ? "ziua de producție" : "ziua în care au intrat";
 
   const exportExcel = () => {
-    const ws = XLSX.utils.aoa_to_sheet(summarySheetRows(summary, `Centralizator comenzi — ${dayLabel} (${modeLabel})`));
-    ws["!cols"] = [{ wch: 40 }, { wch: 40 }, { wch: 12 }, { wch: 6 }];
+    const rows = summarySheetRows(summary, `Centralizator comenzi — ${dayLabel} (${modeLabel})`);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    // Size each column to its longest value (title row excluded) so store and product names are never cut off.
+    const widths = [10, 10, 10, 4];
+    rows.slice(2).forEach(r => r.forEach((v, i) => {
+      if (i < widths.length) widths[i] = Math.max(widths[i], String(v ?? "").length + 2);
+    }));
+    ws["!cols"] = widths.map(wch => ({ wch: Math.min(wch, 90) }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Centralizator");
     XLSX.writeFile(wb, `centralizator-comenzi-${day}.xlsx`);
