@@ -679,12 +679,13 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
   }, [projection, weekly, dayDemand, weeklyPlan, projCols]);
   const [dayOrderLines, setDayOrderLines] = useState<OrderLineInput[] | null>(null);
   const [dayOrderDate, setDayOrderDate] = useState<Date | undefined>(undefined);
-  const openDayOrder = (c: { key: string; first: Date; last: Date; idx: number[] }) => {
-    const lines = filtered
+  // Butonul „Comandă” din antetul unei game ia doar produsele acelei game (ex. doar foliile).
+  const openDayOrder = (c: { key: string; first: Date; last: Date; idx: number[] }, items: Row[] = filtered, group?: string) => {
+    const lines = items
       .map((r) => ({ r, q: suggestionFor(r, c) || 0 }))
       .filter(({ q }) => q > 0)
       .map(({ r, q }) => ({ key: r.key, productId: r.productId, name: r.name, unit: r.unit, qty: q }));
-    if (!lines.length) { toast({ title: 'Nimic de comandat', description: 'Nu există cantități sugerate pentru această zi.' }); return; }
+    if (!lines.length) { toast({ title: 'Nimic de comandat', description: group ? `Nu există cantități sugerate la ${group} pentru această perioadă.` : 'Nu există cantități sugerate pentru această zi.' }); return; }
     setDayOrderDate(addDays(c.last, 1));
     setDayOrderLines(lines);
   };
@@ -1070,7 +1071,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                           {weekly
                             ? `Săpt. ${format(c.first, "d MMM", { locale: ro })} – ${format(c.last, "d MMM", { locale: ro })}`
                             : `${WEEKDAYS[isoDay(c.first)].slice(0, 3).toLowerCase()} ${format(c.first, "d MMM", { locale: ro })}`}
-                          <Button variant="ghost" size="sm" className="h-6 ml-1 px-1.5 text-[10px] text-primary" title={`Creează comanda furnizor din cantitățile sugerate (livrare ${format(addDays(c.last, 1), 'dd.MM')})`} onClick={() => openDayOrder(c)}>
+                          <Button variant="ghost" size="sm" className="h-6 ml-1 px-1.5 text-[10px] text-primary" title={`Creează comanda furnizor doar pentru ${g.group}, din cantitățile sugerate (livrare ${format(addDays(c.last, 1), 'dd.MM')})`} onClick={() => openDayOrder(c, g.items, g.group)}>
                             <Truck className="h-3.5 w-3.5 mr-0.5" />Comandă
                           </Button>
                         </th>

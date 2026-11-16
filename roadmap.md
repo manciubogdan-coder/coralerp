@@ -109,3 +109,6 @@
 - [x] Transfer history: show/filter/export the production line each MP transfer was sent to. 3 tests pass; screen not checked signed-in.
 - [x] Operator order detail: show raw-material lots and net kg transferred to the order's line (production day + previous day), matched to the recipe. Lookup accepted by the database; not checked signed-in.
 - [x] Session finish (single + group): when pieces > 0 and waste is 0, ask "Ești sigur că nu ai avut rebut deloc?" (4 languages).
+
+- [x] Achiziții projection: the „Comandă” button in a range header orders only that range's products (MP, ambalaje, etichete).
+- [x] Calculator: distribution per cursă as in Curse_distributie_Senior aaaaa(1).xlsx (own lei/palet, no default pairs, Ruta column in table and Excel). Not checked on a signed-in account.

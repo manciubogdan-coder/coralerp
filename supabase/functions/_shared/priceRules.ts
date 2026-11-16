@@ -53,7 +53,8 @@ export const DEFAULT_PRICE_RULES: PriceRules = {
     { label: "Bio Baby Spanac", keywords: ["spanac", "bio"], piecesPerPallet: 1000, note: "Bio Baby Spanac: semifabricat din Italia, revândut ca atare, 1000 buc/palet" },
   ],
   truckPallets: 26,
-  routePairs: [["TURDA", "TURDA-IERNUT"], ["TIMISOARA", "LUGOJ"]],
+  // Curse_distributie_Senior aaaaa(1).xlsx (Bogdan, 16 nov 2026): every cursă keeps its own lei/palet; pairs only when the user adds them.
+  routePairs: [],
   cityRoutes: [
     { city: "IERNUT", route: "TURDA-IERNUT" }, { city: "TURDA", route: "TURDA" }, { city: "LUGOJ", route: "LUGOJ" }, { city: "ROMAN", route: "ROMAN" },
     { city: "CRAIOVA", route: "CRAIOVA" }, { city: "TIMISOARA", route: "TIMISOARA" }, { city: "PLOIESTI", route: "PLOIESTI" }, { city: "FOCSANI", route: "FOCSANI" }, { city: "BUCURESTI", route: "BUCURESTI" },

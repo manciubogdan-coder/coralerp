@@ -13,7 +13,7 @@ import { argusFetch } from "@/lib/argusApi";
 import { type SheetComponent } from "../../../supabase/functions/_shared/priceSheet";
 import { configuredSheet, lineLabour, RATE_KEYS, CONFIG_NUMBERS, validPriceConfig, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
 import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, productAverageRoute, profitAt } from "../../../supabase/functions/_shared/priceList";
-import { countyKey } from "../../../supabase/functions/_shared/priceSourceRules";
+import { byRouteGroup, countyKey, routeGroup } from "../../../supabase/functions/_shared/priceSourceRules";
 import { PriceParameters, NumericParameter } from "./PriceParameters";
 import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
 import { ReceiptPriceAlert } from '../inventory/ReceiptPriceAlert';
@@ -81,30 +81,30 @@ function routeTotals(routes: RouteStat[]) {
   const trips = routes.reduce((s, r) => s + r.trips, 0), total = routes.reduce((s, r) => s + r.total, 0);
   return { trips, total, perTrip: trips > 0 ? total / trips : null, pallets: routes.reduce((s, r) => s + r.pallets, 0) };
 }
-/** Curse distribuție in the same layout as the user's Curse_distributie_Senior.xlsx: Lei/cursă and totals are formulas. */
+/** Curse distribuție in the same layout as the user's Curse_distributie_Senior aaaaa(1).xlsx: Ruta first, Lei/cursă and totals are formulas. */
 function exportRoutes(l: Logistics, overrides: Record<string, string>) {
-  const routes = l.routes ?? [];
+  const routes = byRouteGroup(l.routes ?? []);
   const rows: unknown[][] = [
     [`Curse distribuție din Senior · cost din facturile ${l.closedStart} – ${l.closedEnd}, paleți din ${l.loadWindow.start} – ${l.loadWindow.end}`], [],
-    ["Cursă", "Curse 30 zile", "Cost 30 zile (lei)", "Lei/cursă", "Min lei/cursă", "Max lei/cursă", "Paleți livrați 90 zile", "Paleți/cursă", "Lei/palet", "Notă lei/palet", "Puncte de livrare incluse"],
+    ["Ruta", "Cursă", "Curse 30 zile", "Cost 30 zile (lei)", "Lei/cursă", "Min lei/cursă", "Max lei/cursă", "Paleți livrați 90 zile", "Paleți/cursă", "Lei/palet", "Notă lei/palet", "Puncte de livrare incluse"],
   ];
   const r1 = rows.length + 1;
   routes.forEach((r, i) => {
     const x = r1 + i;
-    rows.push([r.route, r.trips, Math.round(r.total * 100) / 100, { f: `IF(B${x}>0,C${x}/B${x},0)` },
+    rows.push([routeGroup(r.route), r.route, r.trips, Math.round(r.total * 100) / 100, { f: `IF(C${x}>0,D${x}/C${x},0)` },
       r.unitPrice != null ? `${n2(r.unitPrice)} lei/unitate` : r.pmin, r.unitPrice != null ? "" : r.pmax,
       Math.round(r.pallets * 10) / 10, r.palletsPerTrip != null ? Math.round(r.palletsPerTrip * 10) / 10 : "", r.perPallet != null ? Math.round(r.perPallet * 100) / 100 : "",
       routeNote(r), r.points.length ? r.points.slice(0, 4).map((p) => `${p.name} (${n2(p.pallets, 1)})`).join(", ") + (r.points.length > 4 ? ` +${r.points.length - 4}` : "") : "niciun punct atribuit — alege cursa pe județ"]);
   });
   const last = r1 + routes.length - 1, t = last + 1;
-  rows.push(["TOTAL", { f: `SUM(B${r1}:B${last})` }, { f: `SUM(C${r1}:C${last})` }, { f: `IF(B${t}>0,C${t}/B${t},0)` }, "", "", { f: `SUM(G${r1}:G${last})` }]);
+  rows.push(["", "TOTAL", { f: `SUM(C${r1}:C${last})` }, { f: `SUM(D${r1}:D${last})` }, { f: `IF(C${t}>0,D${t}/C${t},0)` }, "", "", { f: `SUM(H${r1}:H${last})` }]);
   const chosen = Object.entries(overrides).filter(([k]) => k.startsWith("j:"));
   rows.push([]);
   if (chosen.length) rows.push([`Cursele alese pe județ în calculator: ${chosen.map(([k, v]) => `${k.slice(2)} → ${v}`).join("; ")}.`]);
-  rows.push(["Sursa: Senior (facturi transportatori TRANSPORT DIST <cursă>, paleți livrați punctelor atribuite cursei). Lei/palet = lei/cursă ÷ paleți/cursă; perechile cu aceeași mașină au tarif comun."]);
+  rows.push(["Sursa: Senior (facturi transportatori TRANSPORT DIST <cursă>, paleți livrați punctelor atribuite cursei). Lei/palet = lei/cursă ÷ paleți/cursă, fiecare cursă cu tariful ei."]);
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"] = [14, 10, 14, 12, 12, 12, 14, 10, 10, 48, 90].map((wch) => ({ wch }));
-  for (let x = r1; x <= t; x++) for (const c of ["C", "D", "E", "F", "I"]) { const cell = ws[`${c}${x}`]; if (cell && typeof cell !== "string") cell.z = "#,##0.00"; }
+  ws["!cols"] = [20, 14, 10, 14, 12, 12, 12, 14, 10, 10, 30, 90].map((wch) => ({ wch }));
+  for (let x = r1; x <= t; x++) for (const c of ["D", "E", "F", "G", "J"]) { const cell = ws[`${c}${x}`]; if (cell && typeof cell !== "string") cell.z = "#,##0.00"; }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Curse distributie");
   XLSX.writeFile(wb, `Curse distributie Senior ${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -912,11 +912,12 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
                   <div className="mt-4 overflow-x-auto">
                     <p className="mb-1 text-xs font-medium">Curse distribuție din Senior · cost din facturile {logistics.closedStart} – {logistics.closedEnd}, paleți din {logistics.loadWindow.start} – {logistics.loadWindow.end} · clic pe un rând ca să alegi cursa</p>
                     <table className="w-full min-w-[720px] text-xs">
-                      <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Cursă</th><th className="text-right">Curse 30 zile</th><th className="text-right">Cost 30 zile (lei)</th><th className="text-right">Lei/cursă</th><th className="text-right">Min lei/cursă</th><th className="text-right">Max lei/cursă</th><th className="text-right">Paleți livrați 90 zile</th><th className="text-right">Paleți/cursă</th><th className="text-right">Lei/palet</th><th className="pl-3">Notă lei/palet</th><th className="pl-3">Puncte de livrare incluse</th></tr></thead>
+                      <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Ruta</th><th>Cursă</th><th className="text-right">Curse 30 zile</th><th className="text-right">Cost 30 zile (lei)</th><th className="text-right">Lei/cursă</th><th className="text-right">Min lei/cursă</th><th className="text-right">Max lei/cursă</th><th className="text-right">Paleți livrați 90 zile</th><th className="text-right">Paleți/cursă</th><th className="text-right">Lei/palet</th><th className="pl-3">Notă lei/palet</th><th className="pl-3">Puncte de livrare incluse</th></tr></thead>
                       <tbody>
-                        {logistics.routes.map((r) => (
+                        {byRouteGroup(logistics.routes).map((r) => (
                           <tr key={r.route} onClick={() => pickRoute(r.route)} className={`cursor-pointer border-b last:border-0 hover:bg-muted/50 ${r.route === route ? "bg-muted font-medium" : ""}`}>
-                            <td className="py-1">{r.route}</td>
+                            <td className="py-1 text-muted-foreground">{routeGroup(r.route)}</td>
+                            <td>{r.route}</td>
                             <td className="text-right tabular-nums">{r.trips}</td>
                             <td className="text-right tabular-nums">{n2(r.total)}</td>
                             <td className="text-right tabular-nums">{n2(r.perTrip)}</td>
@@ -931,7 +932,7 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
                           </tr>
                         ))}
                         {(() => { const t = routeTotals(logistics.routes); return (
-                          <tr className="border-t font-medium"><td className="py-1">TOTAL</td><td className="text-right tabular-nums">{t.trips}</td><td className="text-right tabular-nums">{n2(t.total)}</td><td className="text-right tabular-nums">{n2(t.perTrip)}</td><td /><td /><td className="text-right tabular-nums">{n2(t.pallets, 1)}</td><td /><td /><td /><td /></tr>
+                          <tr className="border-t font-medium"><td /><td className="py-1">TOTAL</td><td className="text-right tabular-nums">{t.trips}</td><td className="text-right tabular-nums">{n2(t.total)}</td><td className="text-right tabular-nums">{n2(t.perTrip)}</td><td /><td /><td className="text-right tabular-nums">{n2(t.pallets, 1)}</td><td /><td /><td /><td /></tr>
                         ); })()}
                       </tbody>
                     </table>

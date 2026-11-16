@@ -102,8 +102,17 @@ export type RouteStat = {
   /** Paired cursă pooled with this one (same truck, short or long run). */
   pool?: { routes: string[]; total: number; pallets: number; trips: number };
 };
-/** Cursă pairs served by the same truck: the long run also delivers the short run's points. */
-export const ROUTE_PAIRS: Array<[string, string]> = [['TURDA', 'TURDA-IERNUT'], ['TIMISOARA', 'LUGOJ']];
+/** Route (Rută) of each cursă, as grouped by the user in Curse_distributie_Senior aaaaa(1).xlsx. Display only: tariffs stay per cursă. */
+export const ROUTE_GROUPS: Record<string, string> = {
+  BUCURESTI: 'Bucuresti - Ploiesti', PLOIESTI: 'Bucuresti - Ploiesti', BULGARIA: 'Bulgaria', CRAIOVA: 'Craiova',
+  TURDA: 'Cluj-Turda-Iernut', 'TURDA-IERNUT': 'Cluj-Turda-Iernut', HORECA: 'Horeca',
+  ROMAN: 'Moldova RO', FOCSANI: 'Moldova RO', MOLDOVA: 'Moldova RO', 'MOLDOVA ICS': 'Rep Moldova',
+  LUGOJ: 'Timisoara-Lugoj', TIMISOARA: 'Timisoara-Lugoj',
+};
+export const routeGroup = (route: string) => ROUTE_GROUPS[route] ?? route;
+/** Cursă rows ordered like the user's table: by route, then the most expensive cursă first. */
+export const byRouteGroup = <R extends { route: string; total: number }>(rows: R[]) =>
+  [...rows].sort((a, b) => routeGroup(a.route).localeCompare(routeGroup(b.route), 'ro') || b.total - a.total);
 const routePairs = () => priceRules().routePairs;
 export type RouteOverrides = Record<string, string>;
 export const countyKey = (judet: unknown) => plain(judet);
