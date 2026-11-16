@@ -5,7 +5,7 @@ import { MIXED_WASHED, type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
 import { clientFeeFor, loadPriceRules, priceRules } from "./priceRules.ts";
 import { transportRoute, configuredRawPalletKg, rawPalletGroup, orderedPallets, tradedGood, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
-import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, latestCostWindow, latestRoutes, productAverageRoute, routeDistribution } from "./priceList.ts";
+import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, clientDefaultRoute, latestCostWindow, latestRoutes, productAverageRoute, routeDistribution } from "./priceList.ts";
 import { seniorLive, seniorSqlAll } from "./senior.ts";
 import { cf, lit, partnerInfoSql, partnerScope, type PartnerInfo } from "./priceScope.ts";
 import { matchOffer, offerSearchWords } from "./offerMatch.ts";
@@ -286,7 +286,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const stores = storeRows.map((r: any) => {
     const id = Number(r.id), p = pointBy.get(id), pr = pointRoute({ pid: id, ...r }, overrides);
     const name = String(r.name ?? "").trim(), fee = clientFeeFor(name, partner?.central ?? null);
-    return { pid: id, name, judet: String(r.judet ?? "").trim(), route: p?.route ?? pr.route, manual: p?.manual ?? pr.manual, proposed: deliveryRoute(r), pallets: p?.pallets ?? 0, feePct: fee?.pct ?? 0, feeRule: fee?.client ?? null };
+    return { pid: id, name, judet: String(r.judet ?? "").trim(), country: String(r.country ?? "").trim(), route: p?.route ?? pr.route, manual: p?.manual ?? pr.manual, proposed: deliveryRoute(r), pallets: p?.pallets ?? 0, feePct: fee?.pct ?? 0, feeRule: fee?.client ?? null };
   });
   const perPallet = Object.fromEntries(Object.entries(distribution).map(([k, v]) => [k, v.distributionPerPallet ?? null]));
   const avg = pid && !storeId ? clientAverageRoute(stores, perPallet) : null;
@@ -300,7 +300,9 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     const r = await SQL(sb, `SELECT TOP 1 Partener_Denumire name, Document_Judet judet, Document_Tara country FROM dbo.C_H_Note_Contabile_Parteneri WITH (NOLOCK) WHERE Partener_ID=${storeId} AND TipPartener=1 ORDER BY H_ID DESC`);
     if (r[0]) point = { pid: storeId, name: String(r[0].name ?? "").trim(), route: pointRoute({ pid: storeId, ...r[0] }, overrides).route };
   }
-  const suggestedRoute = point?.route && distribution[point.route] ? point.route : avg ? CLIENT_AVERAGE_ROUTE : null;
+  // Whole client: by the country of its stores (Romania → internal average, Bulgaria, Moldova → their cursă, other → client average).
+  const clientRoute = pid && !storeId ? clientDefaultRoute(stores, (r) => !!distribution[r]) : null;
+  const suggestedRoute = point?.route && distribution[point.route] ? point.route : clientRoute ?? (avg ? CLIENT_AVERAGE_ROUTE : null);
   shared.route = suggestedRoute ?? "România";
   if (point && !(point.route && distribution[point.route])) warnings.push(`Nu am putut propune cursa pentru ${point.name}; alege cursa manual (implicit media curselor interne).`);
   Object.assign(shared, distribution[shared.route] ?? {});

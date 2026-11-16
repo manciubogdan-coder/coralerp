@@ -129,3 +129,35 @@ export function productAverageRoute(stores: Array<StoreRoute & { feePct?: number
   const soldPieces = [...qty.values()].reduce((t, q) => t + q, 0);
   return { perPallet: tariff, feePct, pieces, stores: priced.length, unpricedPieces: soldPieces - pieces };
 }
+
+/** Romanian internal curse average (country aggregate key in the distribution map). */
+export const INTERNAL_AVERAGE_ROUTE = "România";
+const plainCountry = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+/** Country of a delivery point: empty Senior country counts as Romania (domestic documents leave it blank). */
+export function pointCountry(p: { country?: unknown; judet?: unknown }): "RO" | "BG" | "MD" | "EXT" {
+  const c = plainCountry(p.country), j = plainCountry(p.judet);
+  if (c.includes("BULG")) return "BG";
+  if (c.includes("MOLD") || j.includes("CHISINAU")) return "MD";
+  if (!c || c.includes("ROM")) return "RO";
+  return "EXT";
+}
+/** Default cursă of a whole client (no store chosen), by the country of its stores (most pallets, then most stores):
+ * Romania → internal curse average, Bulgaria → BULGARIA, Moldova → the stores' Moldova cursă (MOLDOVA ICS, or the Moldova
+ * truck with trips), any other country → the client average of all its stores. Null when the needed tariff is missing. */
+export function clientDefaultRoute(
+  stores: Array<{ country?: unknown; judet?: unknown; route: string | null; pallets: number }>,
+  available: (route: string) => boolean,
+): string | null {
+  if (!stores.length) return null;
+  const by = new Map<string, { pallets: number; n: number }>();
+  for (const s of stores) { const k = pointCountry(s), v = by.get(k) ?? { pallets: 0, n: 0 }; v.pallets += s.pallets || 0; v.n += 1; by.set(k, v); }
+  const country = [...by.entries()].sort((a, b) => b[1].pallets - a[1].pallets || b[1].n - a[1].n)[0][0];
+  const pick = (r: string | null) => (r && available(r) ? r : null);
+  if (country === "RO") return pick(INTERNAL_AVERAGE_ROUTE);
+  if (country === "BG") return pick("BULGARIA") ?? pick(CLIENT_AVERAGE_ROUTE);
+  if (country === "MD") {
+    const own = stores.filter((s) => pointCountry(s) === "MD" && s.route && available(s.route)).sort((a, b) => b.pallets - a.pallets)[0]?.route ?? null;
+    return pick("MOLDOVA ICS") && (!own || own === "MOLDOVA ICS") ? "MOLDOVA ICS" : own ?? pick(CLIENT_AVERAGE_ROUTE);
+  }
+  return pick(CLIENT_AVERAGE_ROUTE);
+}
