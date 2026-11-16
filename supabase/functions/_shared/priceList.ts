@@ -43,6 +43,26 @@ export function latestRoutes<R extends Route>(latest: R[], load: R[]) {
   return rows.sort((a, b) => b.total - a.total);
 }
 
+type RouteRow = { route: string; trips: number; total: number; pallets: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; estimatedPallets?: number; points: Array<{ name: string; pallets: number }>; pool?: Partial<RoutePool> & { routes: string[] } };
+/** One row per truck: curse of the same route (same truck, rules `routeGroups`) are shown as one route with summed trips, cost and
+ * pallets and the shared tariff; `curse` lists the merged curse, `route` stays the first cursă so picking the row selects the shared tariff. */
+export function truckRows<R extends RouteRow>(routes: R[], groupOf: (route: string) => string) {
+  const by = new Map<string, R[]>();
+  for (const r of routes) { const g = groupOf(r.route); by.set(g, [...(by.get(g) ?? []), r]); }
+  return [...by.entries()].map(([name, rs]) => {
+    rs.sort((a, b) => b.total - a.total);
+    if (rs.length === 1) return { ...rs[0], name, curse: [rs[0].route] };
+    const trips = rs.reduce((t, r) => t + r.trips, 0), total = rs.reduce((t, r) => t + r.total, 0), pallets = rs.reduce((t, r) => t + r.pallets, 0);
+    const pool = rs.find((r) => r.pool && r.pool.perPallet != null)?.pool;
+    const loadPpt = pool?.palletsPerTrip ?? null;
+    return { ...rs[0], name, curse: rs.map((r) => r.route), trips, total, pallets,
+      estimatedPallets: rs.reduce((t, r) => t + (r.estimatedPallets ?? 0), 0),
+      perTrip: trips > 0 ? total / trips : null, palletsPerTrip: loadPpt, perPallet: pool?.perPallet ?? (pallets > 0 ? total / pallets : null),
+      unitPrice: null, pmin: Math.min(...rs.map((r) => r.pmin)), pmax: Math.max(...rs.map((r) => r.pmax)),
+      points: rs.flatMap((r) => r.points).sort((a, b) => b.pallets - a.pallets) };
+  }).sort((a, b) => a.name.localeCompare(b.name, "ro"));
+}
+
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const ym = (d: Date) => d.getUTCFullYear() * 100 + d.getUTCMonth() + 1;
 

@@ -12,8 +12,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { argusFetch } from "@/lib/argusApi";
 import { type SheetComponent } from "../../../supabase/functions/_shared/priceSheet";
 import { configuredSheet, lineLabour, RATE_KEYS, CONFIG_NUMBERS, validPriceConfig, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
-import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, productAverageRoute, profitAt } from "../../../supabase/functions/_shared/priceList";
-import { byRouteGroup, countyKey, routeGroup } from "../../../supabase/functions/_shared/priceSourceRules";
+import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, productAverageRoute, profitAt, truckRows } from "../../../supabase/functions/_shared/priceList";
+import { countyKey, routeGroup } from "../../../supabase/functions/_shared/priceSourceRules";
 import { PriceParameters, NumericParameter } from "./PriceParameters";
 import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
 import { ReceiptPriceAlert } from '../inventory/ReceiptPriceAlert';
@@ -71,19 +71,21 @@ const ZERO = (eur: number) => ({ labourPerPiece: 0, utilitiesPerPiece: 0, supply
 const OVERRIDES_KEY = "argus-price-route-overrides";
 const loadOverrides = (): Record<string, string> => { try { const v = JSON.parse(localStorage.getItem(OVERRIDES_KEY) || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } };
 /** Note beside a cursă tariff: unit billing or the shared tariff of its route (same truck). */
-function routeNote(r: RouteStat): string {
+function routeNote(r: RouteStat & { curse?: string[] }): string {
   if (r.unitPrice != null) return `Tarif ${n2(r.unitPrice)} lei/unitate`;
-  if (!r.pool) return "";
+  if (!r.pool || (r.curse?.length ?? 0) < 2) return "";
   const p = r.pool;
-  return `comun ${p.routes.join(" + ")}: ${n2(p.total)} lei ÷ ${p.trips} curse = ${n2(p.perTrip)} lei/cursă; ${n2(p.pallets, 1)} paleți ÷ ${p.loadTrips} curse = ${n2(p.palletsPerTrip, 1)} paleți/cursă`;
+  return `aceeași mașină: ${n2(p.total)} lei ÷ ${p.trips} curse = ${n2(p.perTrip)} lei/cursă; ${n2(p.pallets, 1)} paleți ÷ ${p.loadTrips} curse = ${n2(p.palletsPerTrip, 1)} paleți/cursă`;
 }
+/** Route table rows: one row per truck (curse of the same route merged). */
+const routeRows = (routes: RouteStat[]) => truckRows(routes, routeGroup);
 function routeTotals(routes: RouteStat[]) {
   const trips = routes.reduce((s, r) => s + r.trips, 0), total = routes.reduce((s, r) => s + r.total, 0);
   return { trips, total, perTrip: trips > 0 ? total / trips : null, pallets: routes.reduce((s, r) => s + r.pallets, 0) };
 }
 /** Curse distribuție in the same layout as the user's Curse_distributie_Senior aaaaa(1).xlsx: Ruta first, Lei/cursă and totals are formulas. */
 function exportRoutes(l: Logistics, overrides: Record<string, string>) {
-  const routes = byRouteGroup(l.routes ?? []);
+  const routes = routeRows(l.routes ?? []);
   const rows: unknown[][] = [
     [`Curse distribuție din Senior · cost din facturile ${l.closedStart} – ${l.closedEnd}, paleți din ${l.loadWindow.start} – ${l.loadWindow.end}`], [],
     ["Ruta", "Cursă", "Curse 30 zile", "Cost 30 zile (lei)", "Lei/cursă", "Min lei/cursă", "Max lei/cursă", "Paleți livrați 90 zile", "Paleți/cursă", "Lei/palet", "Notă lei/palet", "Puncte de livrare incluse"],
@@ -91,7 +93,7 @@ function exportRoutes(l: Logistics, overrides: Record<string, string>) {
   const r1 = rows.length + 1;
   routes.forEach((r, i) => {
     const x = r1 + i;
-    rows.push([routeGroup(r.route), r.route, r.trips, Math.round(r.total * 100) / 100, { f: `IF(C${x}>0,D${x}/C${x},0)` },
+    rows.push([r.name, r.curse.join(" + "), r.trips, Math.round(r.total * 100) / 100, { f: `IF(C${x}>0,D${x}/C${x},0)` },
       r.unitPrice != null ? `${n2(r.unitPrice)} lei/unitate` : r.pmin, r.unitPrice != null ? "" : r.pmax,
       Math.round(r.pallets * 10) / 10, r.palletsPerTrip != null ? Math.round(r.palletsPerTrip * 10) / 10 : "", r.perPallet != null ? Math.round(r.perPallet * 100) / 100 : "",
       routeNote(r), r.points.length ? r.points.slice(0, 4).map((p) => `${p.name} (${n2(p.pallets, 1)})`).join(", ") + (r.points.length > 4 ? ` +${r.points.length - 4}` : "") : "niciun punct atribuit — alege cursa pe județ"]);
@@ -402,14 +404,14 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
   const routeNames = useMemo(() => (logistics?.routes ?? []).map((r) => r.route), [logistics]);
   const routeOptions = useMemo(() => [
     ...(logistics?.clientAverage ? [{ value: CLIENT_AVERAGE_ROUTE, label: `Medie client (toate magazinele) · ${n2(logistics.clientAverage.perPallet)} lei/palet` }] : []),
-    ...(logistics?.routes ?? []).map((r) => ({ value: r.route, label: `${r.route} · ${r.perPallet != null ? `${n2(r.perPallet)} lei/palet` : r.perTrip != null ? `${n2(r.perTrip)} lei/cursă, fără paleți atribuiți` : "fără curse"}` })),
+    ...routeRows(logistics?.routes ?? []).map((r) => ({ value: r.route, label: `${r.curse.length > 1 ? `${r.name} (${r.curse.join(" + ")})` : r.route} · ${r.perPallet != null ? `${n2(r.perPallet)} lei/palet` : r.perTrip != null ? `${n2(r.perTrip)} lei/cursă, fără paleți atribuiți` : "fără curse"}` })),
     { value: "România", label: "Media curselor interne" },
   ], [logistics]);
   const clientName = clients.find((c) => c.id === client)?.name ?? "";
   const storeName = stores.find((x) => x.id === store)?.name ?? result?.logistics.store?.name;
   /** With a product: the client average covers only the stores that bought it (by pieces sold), else every store (by pallets). */
   const routeLabel = (r: string, it?: Item) => {
-    if (r !== CLIENT_AVERAGE_ROUTE) return r;
+    if (r !== CLIENT_AVERAGE_ROUTE) return routeGroup(r);
     const pa = it ? productAverageFor(it) : null;
     return pa ? `medie client (${pa.stores} ${pa.stores === 1 ? "magazin" : "magazine"} care au cumpărat produsul, ponderat cu bucățile vândute în 90 de zile)` : "medie client (toate magazinele, ponderat cu paleții)";
   };
@@ -531,11 +533,11 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
     XLSX.utils.book_append_sheet(wb, ws, "Listă prețuri");
     if (multiStore) {
       const rows: (string | number)[][] = [["Magazin", "Cursă", "Paleți livrați 90 zile", "Vânzări 90 zile (lei)", "Profit real 90 zile (lei)", "Profit real % din prețul de vânzare fără taxe"]];
-      for (const st of storeTotals) rows.push([st.name, st.route ?? "fără cursă", r4(st.pallets), r4(st.sales), r4(st.profit), st.pct != null ? Math.round(st.pct * 10) / 10 : ""]);
+      for (const st of storeTotals) rows.push([st.name, st.route ? routeGroup(st.route) : "fără cursă", r4(st.pallets), r4(st.sales), r4(st.profit), st.pct != null ? Math.round(st.pct * 10) / 10 : ""]);
       rows.push([], ["Produs", "Magazin", "Cursă", "Distribuție (lei/palet)", "Distribuție (lei/buc)", "Preț propus (lei/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profit real % din prețul de vânzare fără taxe"]);
       for (const it of items) for (const st of storeRowsFor(it)) {
         if (!st.sale && !st.sheet) continue;
-        rows.push([it.product.name, st.name, st.route ?? "fără cursă", st.perPallet != null ? r4(st.perPallet) : "", st.sheet ? r4(st.sheet.perPiece.logistics) : "", st.sheet?.complete ? r4(st.sheet.perPiece.clientPrice) : "",
+        rows.push([it.product.name, st.name, st.route ? routeGroup(st.route) : "fără cursă", st.perPallet != null ? r4(st.perPallet) : "", st.sheet ? r4(st.sheet.perPiece.logistics) : "", st.sheet?.complete ? r4(st.sheet.perPiece.clientPrice) : "",
           st.sale?.price != null ? r4(st.sale.price) : "", st.sale ? Math.round(st.sale.qty) : "", st.profit ? r4(st.profit.profit) : "", st.profit?.pct != null ? Math.round(st.profit.pct * 10) / 10 : ""]);
       }
       const ws2 = XLSX.utils.aoa_to_sheet(rows);
@@ -684,7 +686,7 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
                 <tbody>
                   {rows.map((st) => (
                     <tr key={st.pid} className="border-b last:border-0">
-                      <td className="py-1">{st.name}</td><td>{st.route ?? <span className="text-destructive">fără cursă</span>}</td><td className="text-right tabular-nums" title={st.feeRule ?? "nu apare în tabelul de taxe"}>{n2(st.sheet?.feePct ?? st.feePct ?? 0, 1)}%</td>
+                      <td className="py-1">{st.name}</td><td>{st.route ? routeGroup(st.route) : <span className="text-destructive">fără cursă</span>}</td><td className="text-right tabular-nums" title={st.feeRule ?? "nu apare în tabelul de taxe"}>{n2(st.sheet?.feePct ?? st.feePct ?? 0, 1)}%</td>
                       <td className="text-right tabular-nums">{n2(st.perPallet)}</td><td className="text-right tabular-nums">{st.sheet ? n2(st.sheet.perPiece.logistics, 4) : "—"}</td>
                       <td className="text-right tabular-nums">{st.sheet?.complete ? n2(st.sheet.perPiece.clientPrice, 4) : "—"}</td>
                       <td className="text-right tabular-nums">{st.sale?.price != null ? n2(st.sale.price, 4) : <span className="text-muted-foreground">fără vânzări</span>}</td>
@@ -914,10 +916,10 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
                     <table className="w-full min-w-[720px] text-xs">
                       <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Ruta</th><th>Cursă</th><th className="text-right">Curse 30 zile</th><th className="text-right">Cost 30 zile (lei)</th><th className="text-right">Lei/cursă</th><th className="text-right">Min lei/cursă</th><th className="text-right">Max lei/cursă</th><th className="text-right">Paleți livrați 90 zile</th><th className="text-right">Paleți/cursă</th><th className="text-right">Lei/palet</th><th className="pl-3">Notă lei/palet</th><th className="pl-3">Puncte de livrare incluse</th></tr></thead>
                       <tbody>
-                        {byRouteGroup(logistics.routes).map((r) => (
-                          <tr key={r.route} onClick={() => pickRoute(r.route)} className={`cursor-pointer border-b last:border-0 hover:bg-muted/50 ${r.route === route ? "bg-muted font-medium" : ""}`}>
-                            <td className="py-1 text-muted-foreground">{routeGroup(r.route)}</td>
-                            <td>{r.route}</td>
+                        {routeRows(logistics.routes).map((r) => (
+                          <tr key={r.name} onClick={() => pickRoute(r.route)} className={`cursor-pointer border-b last:border-0 hover:bg-muted/50 ${r.curse.includes(route) ? "bg-muted font-medium" : ""}`}>
+                            <td className="py-1 font-medium">{r.name}</td>
+                            <td className="text-muted-foreground">{r.curse.join(" + ")}</td>
                             <td className="text-right tabular-nums">{r.trips}</td>
                             <td className="text-right tabular-nums">{n2(r.total)}</td>
                             <td className="text-right tabular-nums">{n2(r.perTrip)}</td>
