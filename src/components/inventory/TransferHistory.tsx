@@ -29,6 +29,7 @@ import { TransferReturnForm } from "./TransferReturnForm";
 import { useInventoryType } from "@/context/inventory-type";
 import { fetchGgnCode } from "@/lib/ggnCodes";
 import { parseTransferLine } from "@/lib/transferLine";
+import { groupTransferParts } from "@/lib/transferGroups";
 
 interface TransferHistoryProps {
   onTransferReturned?: () => void;
@@ -60,6 +61,8 @@ interface TransferItem {
   crate_type_id?: string;
   crate_weight?: number;
   lot_number?: string;
+  /** Intrările aceluiași lot scoase pe același bon, afișate ca un singur rând. */
+  parts?: TransferItem[];
 }
 
 export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
@@ -190,7 +193,8 @@ export function TransferHistory({ onTransferReturned }: TransferHistoryProps) {
       };
       });
       
-      setTransfers(transformedData);
+      // Un lot scos pe un bon = un rând, chiar dacă a venit din mai multe intrări în stoc.
+      setTransfers(groupTransferParts(transformedData));
       
       const uniqueDestinations = Array.from(
         new Set(transformedData.map((transfer) => transfer.destination))

@@ -16,6 +16,7 @@ import {
 import { CornerDownLeft } from "lucide-react";
 import { CrateType } from "@/types";
 import { useInventoryType } from "@/context/inventory-type";
+import { splitReturn } from "@/lib/transferGroups";
 
 interface TransferItem {
   transfer_id: string;
@@ -39,6 +40,8 @@ interface TransferItem {
   crate_type_id?: string;
   crate_weight?: number;
   lot_number?: string;
+  /** Rândurile din baza de date unite în acest rând (același lot pe același bon). */
+  parts?: TransferItem[];
 }
 
 interface TransferReturnFormProps {
@@ -56,31 +59,10 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
   // Tratăm cantitatea introdusă ca NET (fără lădițe/paleți)
   const grossQuantity = netQuantity;
   
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (grossQuantity <= 0) {
-      toast({
-        variant: "destructive",
-        title: "Eroare",
-        description: "Cantitatea brută trebuie să fie mai mare de 0"
-      });
-      return;
-    }
-
-    // Validez pe NET: nu poți returna mai mult decât net-ul transferat
+  /** Returul pe un singur rând din baza de date (o intrare în stoc). */
+  const returnOne = async (transfer: TransferItem, netQuantity: number, first: boolean) => {
+    const grossQuantity = netQuantity;
     const originalNetQuantity = transfer.net_quantity ?? transfer.quantity;
-    if (netQuantity > originalNetQuantity) {
-      toast({
-        variant: "destructive",
-        title: "Eroare",
-        description: "Nu poți returna mai mult decât cantitatea netă transferată inițial"
-      });
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      
       // Determină tabelele în funcție de tipul de inventar
       const transferItemsTable = inventoryType === 'ambalaje'
         ? 'ambalaje_stock_transfer_items'
@@ -133,6 +115,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         console.log("Transfer item actualizat cu cantitățile rămase:", { quantity: newGrossQuantity, net_quantity: newNetQuantity });
       }
       
+      if (first) {
       // 2. Actualizează notele în transfers
       const { error: notesError } = await supabase
         .from(transfersTable)
@@ -141,6 +124,7 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
         })
         .eq('id', transfer.transfer_id);
       if (notesError) throw notesError;
+      }
       
       // 3. Adaugă cantitatea NET returnată în stocul inventarului
       const { data: originalItem, error: fetchError } = await supabase
@@ -293,6 +277,37 @@ export const TransferReturnForm = ({ transfer, onReturnComplete }: TransferRetur
           notes: `Returnat din ${transfer.destination}. ${notes}`.trim()
         });
       if (historyError) throw historyError;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (grossQuantity <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Cantitatea brută trebuie să fie mai mare de 0"
+      });
+      return;
+    }
+
+    // Validez pe NET: nu poți returna mai mult decât net-ul transferat
+    const originalNetQuantity = transfer.net_quantity ?? transfer.quantity;
+    if (netQuantity > originalNetQuantity) {
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Nu poți returna mai mult decât cantitatea netă transferată inițial"
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      // Un rând din istoric poate uni mai multe intrări ale aceluiași lot; returul se împarte pe ele.
+      const parts = transfer.parts && transfer.parts.length ? transfer.parts : [transfer];
+      const splits = splitReturn(parts, netQuantity);
+      for (let i = 0; i < splits.length; i++) await returnOne(splits[i].part, splits[i].qty, i === 0);
+      
       
       toast({
         title: "Succes",
