@@ -10,11 +10,11 @@ export const LATEST_COST_DAYS = 30;
 export const LOAD_DAYS = 90;
 
 type Route = { route: string; trips: number; total: number; qty: number; pmin: number; pmax: number; pallets: number; missingLines: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; country: string; points: Array<{ name: string; pallets: number }>; pool?: { routes: string[] } };
-/** Shared tariff of a cursă pair served by the same truck: latest cost per trip of both ÷ pallets per trip of both. */
+/** Shared tariff of the curse of one route served by the same truck: latest cost per trip of both ÷ pallets per trip of both. */
 export type RoutePool = { routes: string[]; total: number; trips: number; perTrip: number; pallets: number; loadTrips: number; palletsPerTrip: number; perPallet: number };
 /** Latest cursă tariff: average trip cost of the last 30 days ÷ average pallets per trip of the last 90 days.
  * A cursă without trips in the last 30 days keeps its 90-day trip cost and is flagged.
- * Paired curse (same truck, Reguli de calcul) share one tariff: Σ latest cost ÷ Σ trips, ÷ (Σ 90-day pallets ÷ Σ 90-day trips). */
+ * Curse of the same route (same truck, Reguli de calcul) share one tariff: Σ latest cost ÷ Σ trips, ÷ (Σ 90-day pallets ÷ Σ 90-day trips). */
 export function latestRoutes<R extends Route>(latest: R[], load: R[]) {
   const by = new Map(latest.map((r) => [r.route, r]));
   const rows = load.map((l) => {
@@ -87,7 +87,7 @@ export function profitAt(s: { unitsPerCase: number; minPrice: number; feePct: nu
   return { fees, cost, profit, pct: net > 0 ? (profit / net) * 100 : null };
 }
 
-/** Distribution fields of one cursă for the sheet. A paired cursă (same truck) carries the pair's cost, trips and pallets,
+/** Distribution fields of one cursă for the sheet. A cursă sharing a truck carries its route's cost, trips and pallets,
  * so cost ÷ pallets is the shared tariff everywhere (the sheet re-derives lei/palet from cost ÷ pallets). */
 export function routeDistribution(r: { total: number; trips: number; palletsPerTrip: number | null; perPallet: number | null; pool?: RoutePool | { routes: string[] } }) {
   const pool = r.pool && "perPallet" in r.pool ? r.pool : null;

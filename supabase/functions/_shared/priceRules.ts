@@ -6,6 +6,8 @@ export type LabourLineRule = { name: string; people: number; speed: number | nul
 export type PalletGroupRule = { label: string; keywords: string[]; kgPerPallet: number };
 export type TradedGoodRule = { label: string; keywords: string[]; piecesPerPallet: number; note: string };
 export type CityRouteRule = { city: string; route: string };
+/** Route (Rută) of the user's table: its curse leave on the same truck, so they share one lei/palet. A one-cursă route only names it. */
+export type RouteGroupRule = { name: string; routes: string[] };
 /** Network fee % of the client's final price; keywords are alternatives, "a + b" needs both in the store or central partner name. */
 export type ClientFeeRule = { client: string; keywords: string[]; pct: number; note: string };
 /** Target profitability % for one client (store/central name) or one product (product name); keywords as for client fees. */
@@ -18,7 +20,7 @@ export type PriceRules = {
   palletGroups: PalletGroupRule[];
   tradedGoods: TradedGoodRule[];
   truckPallets: number;
-  routePairs: Array<[string, string]>;
+  routeGroups: RouteGroupRule[];
   cityRoutes: CityRouteRule[];
   countyRoutes: Record<string, string>;
   clientFees: ClientFeeRule[];
@@ -53,8 +55,17 @@ export const DEFAULT_PRICE_RULES: PriceRules = {
     { label: "Bio Baby Spanac", keywords: ["spanac", "bio"], piecesPerPallet: 1000, note: "Bio Baby Spanac: semifabricat din Italia, revândut ca atare, 1000 buc/palet" },
   ],
   truckPallets: 26,
-  // Curse_distributie_Senior aaaaa(1).xlsx (Bogdan, 16 nov 2026): every cursă keeps its own lei/palet; pairs only when the user adds them.
-  routePairs: [],
+  // Curse_distributie_Senior aaaaa(1).xlsx (Bogdan, 16 nov 2026): curse of the same Ruta leave on the same truck and share one lei/palet.
+  routeGroups: [
+    { name: "Bucuresti - Ploiesti", routes: ["BUCURESTI", "PLOIESTI"] },
+    { name: "Bulgaria", routes: ["BULGARIA"] },
+    { name: "Craiova", routes: ["CRAIOVA"] },
+    { name: "Cluj-Turda-Iernut", routes: ["TURDA", "TURDA-IERNUT"] },
+    { name: "Horeca", routes: ["HORECA"] },
+    { name: "Moldova RO", routes: ["ROMAN", "FOCSANI", "MOLDOVA"] },
+    { name: "Rep Moldova", routes: ["MOLDOVA ICS"] },
+    { name: "Timisoara-Lugoj", routes: ["LUGOJ", "TIMISOARA"] },
+  ],
   cityRoutes: [
     { city: "IERNUT", route: "TURDA-IERNUT" }, { city: "TURDA", route: "TURDA" }, { city: "LUGOJ", route: "LUGOJ" }, { city: "ROMAN", route: "ROMAN" },
     { city: "CRAIOVA", route: "CRAIOVA" }, { city: "TIMISOARA", route: "TIMISOARA" }, { city: "PLOIESTI", route: "PLOIESTI" }, { city: "FOCSANI", route: "FOCSANI" }, { city: "BUCURESTI", route: "BUCURESTI" },
@@ -185,13 +196,23 @@ export function validPriceRules(raw: unknown): { rules: PriceRules } | { error: 
     if (!numIn(g.piecesPerPallet, 1, 1000000)) return { error: `${label}: buc/palet invalid.` };
     out.tradedGoods.push({ label, keywords, piecesPerPallet: g.piecesPerPallet, note: text(g.note, 200) || `${label}: revândut ca atare, ${g.piecesPerPallet} buc/palet` });
   }
-  const pairs = pick("routePairs");
-  if (!Array.isArray(pairs) || pairs.length > 20) return { error: "Perechile de curse sunt invalide." };
-  out.routePairs = [];
-  for (const p of pairs) {
-    const a = upper(p?.[0]), b = upper(p?.[1]);
-    if (!ROUTE_RE.test(a) || !ROUTE_RE.test(b) || a === b) return { error: "Fiecare pereche are două curse diferite." };
-    out.routePairs.push([a, b]);
+  const groupsR = pick("routeGroups");
+  if (!Array.isArray(groupsR) || groupsR.length > 40) return { error: "Rutele (curse cu aceeași mașină) sunt invalide." };
+  out.routeGroups = [];
+  const usedRoutes = new Set<string>(), groupNames = new Set<string>();
+  for (const g of groupsR) {
+    const name = text(g?.name, 60);
+    const list = (Array.isArray(g?.routes) ? g.routes : String(g?.routes ?? "").split(",")).map((x: unknown) => upper(x)).filter(Boolean);
+    if (!name) return { error: "Fiecare rută are un nume." };
+    if (groupNames.has(name.toLowerCase())) return { error: `Ruta „${name}” apare de două ori.` };
+    if (!list.length || list.length > 12) return { error: `${name}: pune între 1 și 12 curse.` };
+    for (const c of list) {
+      if (!ROUTE_RE.test(c)) return { error: `${name}: cursa „${c}” este invalidă.` };
+      if (usedRoutes.has(c)) return { error: `Cursa ${c} apare în două rute; o cursă pleacă cu o singură mașină.` };
+      usedRoutes.add(c);
+    }
+    groupNames.add(name.toLowerCase());
+    out.routeGroups.push({ name, routes: list });
   }
   const cities = pick("cityRoutes");
   if (!Array.isArray(cities) || cities.length > 60) return { error: "Lista oraș → cursă este invalidă." };

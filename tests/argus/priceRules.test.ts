@@ -52,8 +52,8 @@ describe("editable price rules", () => {
     expect(to("Sălaj")).toBe("HORECA");
     expect(to("Gorj")).toBe("CRAIOVA");
   });
-  test("route pairs pool cost and pallets", () => {
-    setPriceRules(edited({ routePairs: [["ROMAN", "CRAIOVA"]] }));
+  test("routes edited by the user pool cost and pallets", () => {
+    setPriceRules(edited({ routeGroups: [{ name: "Test", routes: ["ROMAN", "CRAIOVA"] }] }));
     const r = buildRoutes([{ pid: 1, name: "X - ROMAN", judet: "", pallets: 10 }, { pid: 2, name: "Y - CRAIOVA", judet: "", pallets: 30 }],
       [{ line: "TRANSPORT DIST ROMAN", trips: 1, total: 1000 }, { line: "TRANSPORT DIST CRAIOVA", trips: 1, total: 3000 }]);
     expect(r.routes.find((x) => x.route === "ROMAN")?.perPallet).toBe(100);

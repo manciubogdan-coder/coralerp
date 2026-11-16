@@ -70,7 +70,7 @@ const isItem = (x: ListResult["items"][number]): x is Item => !("error" in x);
 const ZERO = (eur: number) => ({ labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: eur, eurBufferPct: priceRules().eurBufferPct, techLossPct: 0, marginPct: 0 });
 const OVERRIDES_KEY = "argus-price-route-overrides";
 const loadOverrides = (): Record<string, string> => { try { const v = JSON.parse(localStorage.getItem(OVERRIDES_KEY) || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } };
-/** Note beside a cursă tariff: unit billing or the shared tariff of a cursă pair (same truck). */
+/** Note beside a cursă tariff: unit billing or the shared tariff of its route (same truck). */
 function routeNote(r: RouteStat): string {
   if (r.unitPrice != null) return `Tarif ${n2(r.unitPrice)} lei/unitate`;
   if (!r.pool) return "";
@@ -101,7 +101,7 @@ function exportRoutes(l: Logistics, overrides: Record<string, string>) {
   const chosen = Object.entries(overrides).filter(([k]) => k.startsWith("j:"));
   rows.push([]);
   if (chosen.length) rows.push([`Cursele alese pe județ în calculator: ${chosen.map(([k, v]) => `${k.slice(2)} → ${v}`).join("; ")}.`]);
-  rows.push(["Sursa: Senior (facturi transportatori TRANSPORT DIST <cursă>, paleți livrați punctelor atribuite cursei). Lei/palet = lei/cursă ÷ paleți/cursă, fiecare cursă cu tariful ei."]);
+  rows.push(["Sursa: Senior (facturi transportatori TRANSPORT DIST <cursă>, paleți livrați punctelor atribuite cursei). Lei/palet = lei/cursă ÷ paleți/cursă, cursele aceleiași rute (aceeași mașină) au tarif comun: cost total ÷ curse ÷ (paleți totali ÷ curse)."]);
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws["!cols"] = [20, 14, 10, 14, 12, 12, 12, 14, 10, 10, 30, 90].map((wch) => ({ wch }));
   for (let x = r1; x <= t; x++) for (const c of ["D", "E", "F", "G", "J"]) { const cell = ws[`${c}${x}`]; if (cell && typeof cell !== "string") cell.z = "#,##0.00"; }

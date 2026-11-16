@@ -15,7 +15,7 @@ type Draft = {
   lines: Line[];
   palletGroups: Array<{ label: string; keywords: string; kgPerPallet: string }>;
   tradedGoods: Array<{ label: string; keywords: string; piecesPerPallet: string; note: string }>;
-  routePairs: Array<{ a: string; b: string }>;
+  routeGroups: Array<{ name: string; routes: string }>;
   cityRoutes: Array<{ city: string; route: string }>;
   countyRoutes: Array<{ county: string; route: string }>;
   clientFees: Array<{ client: string; keywords: string; pct: string; note: string }>;
@@ -36,7 +36,7 @@ function toDraft(r: PriceRules): Draft {
     lines: r.lines.map((l) => ({ name: l.name, people: s(l.people), speed: s(l.speed), hourCost: s(l.hourCost), overheadPct: s(l.overheadPct), note: l.note ?? "", builtIn: l.builtIn })),
     palletGroups: r.palletGroups.map((g) => ({ label: g.label, keywords: Array.isArray(g.keywords) ? g.keywords.join(", ") : String(g.keywords ?? ""), kgPerPallet: s(g.kgPerPallet) })),
     tradedGoods: r.tradedGoods.map((g) => ({ label: g.label, keywords: Array.isArray(g.keywords) ? g.keywords.join(", ") : String(g.keywords ?? ""), piecesPerPallet: s(g.piecesPerPallet), note: g.note })),
-    routePairs: r.routePairs.map(([a, b]) => ({ a, b })),
+    routeGroups: (r.routeGroups ?? []).map((g) => ({ name: g.name, routes: g.routes.join(", ") })),
     cityRoutes: r.cityRoutes.map((c) => ({ ...c })),
     countyRoutes: Object.entries(r.countyRoutes).map(([county, route]) => ({ county, route })),
     clientFees: (r.clientFees ?? []).map((f) => ({ client: f.client, keywords: Array.isArray(f.keywords) ? f.keywords.join(", ") : String(f.keywords ?? ""), pct: s(f.pct), note: f.note ?? "" })),
@@ -56,7 +56,7 @@ function fromDraft(d: Draft, base: PriceRules) {
     }),
     palletGroups: d.palletGroups.map((g) => ({ label: g.label, keywords: g.keywords, kgPerPallet: n(g.kgPerPallet) })),
     tradedGoods: d.tradedGoods.map((g) => ({ label: g.label, keywords: g.keywords, piecesPerPallet: n(g.piecesPerPallet), note: g.note })),
-    routePairs: d.routePairs.map((p) => [p.a, p.b]),
+    routeGroups: (d.routeGroups ?? []).filter((g) => t(g.name).trim() || t(g.routes).trim()).map((g) => ({ name: t(g.name).trim(), routes: t(g.routes).split(",").map((x) => x.trim().toUpperCase()).filter(Boolean) })),
     cityRoutes: d.cityRoutes,
     clientFees: (d.clientFees ?? []).map((f) => ({ client: f.client, keywords: f.keywords, pct: n(f.pct), note: f.note })),
     profitRules: (d.profitRules ?? []).map((f) => ({ kind: f.kind, label: f.label, keywords: f.keywords, pct: n(f.pct) })),
@@ -104,10 +104,10 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
   const complete = (d: Draft): Draft => (meta ? { ...toDraft(meta.rules), ...Object.fromEntries(Object.entries(d).filter(([, v]) => v != null)) } as Draft : d);
   const set = (f: (d: Draft) => Draft) => setDraft((d) => (d ? f(complete(d)) : d));
   const setTop = (k: keyof Draft) => (v: string) => set((d) => ({ ...d, [k]: v }));
-  function editRow<K extends "lines" | "palletGroups" | "tradedGoods" | "routePairs" | "cityRoutes" | "countyRoutes" | "clientFees" | "profitRules">(k: K, i: number, patch: Partial<Draft[K][number]>) {
+  function editRow<K extends "lines" | "palletGroups" | "tradedGoods" | "routeGroups" | "cityRoutes" | "countyRoutes" | "clientFees" | "profitRules">(k: K, i: number, patch: Partial<Draft[K][number]>) {
     set((d) => ({ ...d, [k]: (d[k] as Array<Draft[K][number]>).map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
   }
-  function removeRow(k: "lines" | "palletGroups" | "tradedGoods" | "routePairs" | "cityRoutes" | "countyRoutes" | "clientFees" | "profitRules", i: number) {
+  function removeRow(k: "lines" | "palletGroups" | "tradedGoods" | "routeGroups" | "cityRoutes" | "countyRoutes" | "clientFees" | "profitRules", i: number) {
     set((d) => ({ ...d, [k]: (d[k] as unknown[]).filter((_, j) => j !== i) }));
   }
   const overhead = n(draft.labourOverheadPct);
@@ -210,13 +210,14 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
       </Section>
 
       <Section title="Distribuție — curse" hint="Cursa unui magazin: alegerea ta din lista de prețuri, apoi orașul din numele magazinului, apoi județul.">
-        <p className="text-xs font-medium">Curse cu aceeași mașină (cost și paleți calculați împreună)</p>
-        {draft.routePairs.map((p, i) => <div key={i} className="flex items-center gap-2">
-          <Input aria-label="Cursa scurtă" list="price-rule-routes" className={`${cell} w-48`} value={p.a} onChange={(e) => editRow("routePairs", i, { a: e.target.value.toUpperCase() })} /><span className="text-sm">+</span>
-          <Input aria-label="Cursa lungă" list="price-rule-routes" className={`${cell} w-48`} value={p.b} onChange={(e) => editRow("routePairs", i, { b: e.target.value.toUpperCase() })} />
-          <Remove label="Șterge perechea" onClick={() => removeRow("routePairs", i)} />
+        <p className="text-xs font-medium">Rute — cursele aceleiași rute pleacă cu aceeași mașină</p>
+        <p className="text-[11px] text-muted-foreground">Cursele scrise pe același rând au un singur lei/palet: costul tuturor ÷ cursele lor ÷ (paleții tuturor ÷ cursele lor). O rută cu o singură cursă își păstrează tariful.</p>
+        {draft.routeGroups.map((g, i) => <div key={i} className="flex flex-wrap items-center gap-2">
+          <Input aria-label="Nume rută" className={`${cell} w-48`} value={g.name} onChange={(e) => editRow("routeGroups", i, { name: e.target.value })} /><span className="text-sm">:</span>
+          <Input aria-label={`Curse pe ruta ${g.name}`} className={`${cell} min-w-0 flex-1`} placeholder="BUCURESTI, PLOIESTI" value={g.routes} onChange={(e) => editRow("routeGroups", i, { routes: e.target.value.toUpperCase() })} />
+          <Remove label={`Șterge ruta ${g.name}`} onClick={() => removeRow("routeGroups", i)} />
         </div>)}
-        <AddButton onClick={() => set((d) => ({ ...d, routePairs: [...d.routePairs, { a: "", b: "" }] }))}>Adaugă pereche</AddButton>
+        <AddButton onClick={() => set((d) => ({ ...d, routeGroups: [...d.routeGroups, { name: "", routes: "" }] }))}>Adaugă rută</AddButton>
         <div className="grid gap-6 pt-2 lg:grid-cols-2">
           <div className="space-y-2">
             <p className="text-xs font-medium">Oraș în numele magazinului → cursă (primul găsit câștigă)</p>

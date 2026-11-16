@@ -99,21 +99,14 @@ export type RouteStat = {
   pallets: number; missingLines: number; estimatedPallets: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null;
   /** Carrier billed per unit (e.g. HORECA 4.72 lei × units), not per trip. */
   unitPrice: number | null; points: Array<{ name: string; pallets: number }>;
-  /** Paired cursă pooled with this one (same truck, short or long run). */
+  /** Curse of the same route (same truck) pooled with this one. */
   pool?: { routes: string[]; total: number; pallets: number; trips: number };
 };
-/** Route (Rută) of each cursă, as grouped by the user in Curse_distributie_Senior aaaaa(1).xlsx. Display only: tariffs stay per cursă. */
-export const ROUTE_GROUPS: Record<string, string> = {
-  BUCURESTI: 'Bucuresti - Ploiesti', PLOIESTI: 'Bucuresti - Ploiesti', BULGARIA: 'Bulgaria', CRAIOVA: 'Craiova',
-  TURDA: 'Cluj-Turda-Iernut', 'TURDA-IERNUT': 'Cluj-Turda-Iernut', HORECA: 'Horeca',
-  ROMAN: 'Moldova RO', FOCSANI: 'Moldova RO', MOLDOVA: 'Moldova RO', 'MOLDOVA ICS': 'Rep Moldova',
-  LUGOJ: 'Timisoara-Lugoj', TIMISOARA: 'Timisoara-Lugoj',
-};
-export const routeGroup = (route: string) => ROUTE_GROUPS[route] ?? route;
+/** Route (Rută) of a cursă, as in the user's table (rules `routeGroups`); a cursă outside every route is its own route. */
+export const routeGroup = (route: string) => priceRules().routeGroups.find((g) => g.routes.includes(route))?.name ?? route;
 /** Cursă rows ordered like the user's table: by route, then the most expensive cursă first. */
 export const byRouteGroup = <R extends { route: string; total: number }>(rows: R[]) =>
   [...rows].sort((a, b) => routeGroup(a.route).localeCompare(routeGroup(b.route), 'ro') || b.total - a.total);
-const routePairs = () => priceRules().routePairs;
 export type RouteOverrides = Record<string, string>;
 export const countyKey = (judet: unknown) => plain(judet);
 /** User route choices: "p:<partner id>" for one store or "j:<COUNTY>" for every point of a county without its own choice. */
@@ -166,14 +159,13 @@ export function buildRoutes(pointRows: any[], tripRows: any[], overrides: RouteO
     r.palletsPerTrip = r.pallets > 0 && r.trips > 0 ? r.pallets / r.trips : null;
     r.unitPrice = r.qty > r.trips * 1.5 && r.qty > 0 ? r.total / r.qty : null;
   }
-  // Paired trips: the same truck runs either the short cursă or the long one that also covers the short one's points
-  // (TURDA = Cluj only, TURDA-IERNUT = Cluj + Iernut; LUGOJ / TIMISOARA likewise). Their costs and pallets are pooled.
-  for (const [a, b] of routePairs()) {
-    const x = routes.get(a), y = routes.get(b);
-    if (!x || !y) continue;
-    const total = x.total + y.total, pallets = x.pallets + y.pallets, trips = x.trips + y.trips;
-    for (const r of [x, y]) {
-      r.pool = { routes: [a, b], total, pallets, trips };
+  // Curse of the same route leave on the same truck (BUCURESTI + PLOIESTI, TURDA + TURDA-IERNUT, ...): their costs and pallets are pooled.
+  for (const g of priceRules().routeGroups) {
+    const members = g.routes.map((c) => routes.get(c)).filter((r): r is RouteStat => !!r);
+    if (members.length < 2) continue;
+    const total = members.reduce((t, r) => t + r.total, 0), pallets = members.reduce((t, r) => t + r.pallets, 0), trips = members.reduce((t, r) => t + r.trips, 0);
+    for (const r of members) {
+      r.pool = { routes: members.map((m) => m.route), total, pallets, trips };
       r.perPallet = pallets > 0 ? total / pallets : null;
       r.palletsPerTrip = pallets > 0 && trips > 0 ? pallets / trips : null;
     }
