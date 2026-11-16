@@ -45,12 +45,12 @@ describe('distribution per Senior cursă', () => {
     expect(deliveryRoute({ name: 'SELGROS CASH & CARRY SRL - BUCURESTI 1410059', judet: 'Brasov' })).toBe('BUCURESTI');
     expect(deliveryRoute({ name: 'AUCHAN ROMÂNIA SA - AUCHAN WAREHOUSE CAMPUS 5299', judet: 'Ilfov' })).toBe('BUCURESTI');
     expect(deliveryRoute({ name: 'VALENCIA TRADING OFFICE', judet: 'MUSATCHEVO', country: 'Bulgaria' })).toBe('BULGARIA');
-    expect(deliveryRoute({ name: 'HONEST FOOD SRL', judet: 'Bihor' })).toBeNull();
+    expect(deliveryRoute({ name: 'HONEST FOOD SRL', judet: 'Harghita' })).toBeNull();
   });
   test('cursă tariff = carrier trips of the cursă ÷ pallets delivered to its stores', () => {
     expect(routeKey('TRANSPORT DIST BUCURESTI')).toBe('BUCURESTI');
     const { routes, unassigned } = buildRoutes(
-      [{ pid: 2954, name: 'MEGA IMAGE SRL - BOLINTIN DEAL', judet: 'Giurgiu', pallets: 60, missing: 0 }, { pid: 1234, name: 'MEGA IMAGE SRL  - STEFANESTI', judet: 'Ilfov', pallets: 40, missing: 0 }, { pid: 9, name: 'HONEST FOOD SRL', judet: 'Bihor', pallets: 5, missing: 0 }],
+      [{ pid: 2954, name: 'MEGA IMAGE SRL - BOLINTIN DEAL', judet: 'Giurgiu', pallets: 60, missing: 0 }, { pid: 1234, name: 'MEGA IMAGE SRL  - STEFANESTI', judet: 'Ilfov', pallets: 40, missing: 0 }, { pid: 9, name: 'HONEST FOOD SRL', judet: 'Harghita', pallets: 5, missing: 0 }],
       [{ line: 'TRANSPORT DIST BUCURESTI', trips: 10, qty: 10, total: 30000, pmin: 700, pmax: 5800 }, { line: 'TRANSPORT DIST HORECA', trips: 1, qty: 4729, total: 22320.88, pmin: 4.72, pmax: 4.72 }],
     );
     const b = routes.find((r) => r.route === 'BUCURESTI')!;

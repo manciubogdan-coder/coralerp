@@ -39,6 +39,19 @@ describe("editable price rules", () => {
     expect(o.trucks).toBe(2);
     expect(deliveryRoute({ name: "MAGAZIN", judet: "Cluj", country: "Romania" })).toBe("TURDA-IERNUT");
   });
+  test("counties from Curse_distributie_Senior.xlsx go to their cursă", () => {
+    setPriceRules(DEFAULT_PRICE_RULES);
+    const to = (judet: string) => deliveryRoute({ name: "CLIENT SRL", judet, country: "Romania" });
+    expect(to("Sibiu")).toBe("BUCURESTI");
+    expect(to("Constanta")).toBe("BUCURESTI");
+    expect(to("Iasi")).toBe("FOCSANI");
+    expect(to("Suceava")).toBe("FOCSANI");
+    expect(to("Botosani")).toBe("FOCSANI");
+    expect(to("Bihor")).toBe("HORECA");
+    expect(to("Arad")).toBe("HORECA");
+    expect(to("Sălaj")).toBe("HORECA");
+    expect(to("Gorj")).toBe("CRAIOVA");
+  });
   test("route pairs pool cost and pallets", () => {
     setPriceRules(edited({ routePairs: [["ROMAN", "CRAIOVA"]] }));
     const r = buildRoutes([{ pid: 1, name: "X - ROMAN", judet: "", pallets: 10 }, { pid: 2, name: "Y - CRAIOVA", judet: "", pallets: 30 }],

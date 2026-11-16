@@ -74,3 +74,19 @@ it("a cursă without trips in the last 30 days keeps its 90-day trip cost and is
   expect(r.perPallet).toBe(450);
   expect(r.recent).toBe(false);
 });
+it("paired curse (same truck) share one tariff from latest costs and 90-day loads", () => {
+  const pool = { routes: ["TURDA", "TURDA-IERNUT"] };
+  const load = [{ ...rs("TURDA", 69, 120000, 628.1), pool }, { ...rs("TURDA-IERNUT", 52, 103160, 167.7), pool }];
+  const out = latestRoutes([rs("TURDA", 25, 43612, 0), rs("TURDA-IERNUT", 19, 38608, 0)], load);
+  const t = out.find((r) => r.route === "TURDA")!, i = out.find((r) => r.route === "TURDA-IERNUT")!;
+  // (43.612 + 38.608) ÷ 44 curse = 1.868,64 lei/cursă; 795,8 paleți ÷ 121 curse = 6,577 paleți/cursă → 284,13 lei/palet.
+  expect(t.perPallet).toBeCloseTo(82220 / 44 / (795.8 / 121), 6);
+  expect(i.perPallet).toBe(t.perPallet);
+  expect(t.pool?.trips).toBe(44);
+  expect(t.palletsPerTrip).toBeCloseTo(628.1 / 69, 6);
+});
+it("a cursă without a pair keeps its own tariff", () => {
+  const [r] = latestRoutes([rs("ROMAN", 17, 68890, 0)], [rs("ROMAN", 52, 200000, 375.9)]);
+  expect(r.pool).toBeUndefined();
+  expect(r.perPallet).toBeCloseTo(68890 / 17 / (375.9 / 52), 6);
+});

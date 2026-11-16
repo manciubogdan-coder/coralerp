@@ -61,6 +61,9 @@ export const DEFAULT_PRICE_RULES: PriceRules = {
   countyRoutes: {
     BUCURESTI: "BUCURESTI", ILFOV: "BUCURESTI", GIURGIU: "BUCURESTI", PRAHOVA: "PLOIESTI", NEAMT: "ROMAN", MURES: "TURDA-IERNUT",
     CLUJ: "TURDA", TIMIS: "TIMISOARA", DOLJ: "CRAIOVA", VRANCEA: "FOCSANI",
+    // Curse_distributie_Senior.xlsx (Bogdan, 16 nov 2026): counties without a cursă of their own.
+    SIBIU: "BUCURESTI", CONSTANTA: "BUCURESTI", IASI: "FOCSANI", SUCEAVA: "FOCSANI", BOTOSANI: "FOCSANI",
+    BIHOR: "HORECA", ARAD: "HORECA", SALAJ: "HORECA", GORJ: "CRAIOVA",
   },
   // Taxe_2026.xlsx (Bogdan, 7 nov 2026): total taxe per client; clients not listed pay 0.
   clientFees: [

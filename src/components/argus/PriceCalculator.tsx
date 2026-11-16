@@ -27,7 +27,7 @@ type Opt = { id: number; name: string };
 type Client = Opt & { stores: number };
 type Product = Opt & { qty: number };
 type Store = Opt & { route: string | null };
-type RouteStat = { route: string; country: string; trips: number; total: number; pallets: number; estimatedPallets?: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; points: Array<{ name: string; pallets: number }>; pool?: { routes: string[]; total: number; pallets: number; trips: number } };
+type RouteStat = { route: string; country: string; trips: number; total: number; pallets: number; estimatedPallets?: number; perPallet: number | null; perTrip: number | null; palletsPerTrip: number | null; unitPrice: number | null; pmin: number; pmax: number; points: Array<{ name: string; pallets: number }>; pool?: { routes: string[]; total: number; trips: number; perTrip: number; pallets: number; loadTrips: number; palletsPerTrip: number; perPallet: number } };
 type CountyGap = { county: string; judet: string; pallets: number; points: number; names: string[] };
 type Logistics = {
   supply: { total: number; trucks: number; costPerTruck: number | null; loadTrucks: number; pallets: number; kg: number; palletsPerTruck: number | null; kgPerTruck: number | null; orderedRows?: Array<{ name: string; unit: string; kg: number; kgPerPallet: number | null; piecesPerPallet?: number | null; pallets: number }>; orderedLoads?: Array<{ supplier: string; day: string; pallets: number; trucks: number }>; invoiceTrucks90?: number };
@@ -70,6 +70,45 @@ const isItem = (x: ListResult["items"][number]): x is Item => !("error" in x);
 const ZERO = (eur: number) => ({ labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: eur, eurBufferPct: priceRules().eurBufferPct, techLossPct: 0, marginPct: 0 });
 const OVERRIDES_KEY = "argus-price-route-overrides";
 const loadOverrides = (): Record<string, string> => { try { const v = JSON.parse(localStorage.getItem(OVERRIDES_KEY) || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } };
+/** Note beside a cursă tariff: unit billing or the shared tariff of a cursă pair (same truck). */
+function routeNote(r: RouteStat): string {
+  if (r.unitPrice != null) return `Tarif ${n2(r.unitPrice)} lei/unitate`;
+  if (!r.pool) return "";
+  const p = r.pool;
+  return `comun ${p.routes.join(" + ")}: ${n2(p.total)} lei ÷ ${p.trips} curse = ${n2(p.perTrip)} lei/cursă; ${n2(p.pallets, 1)} paleți ÷ ${p.loadTrips} curse = ${n2(p.palletsPerTrip, 1)} paleți/cursă`;
+}
+function routeTotals(routes: RouteStat[]) {
+  const trips = routes.reduce((s, r) => s + r.trips, 0), total = routes.reduce((s, r) => s + r.total, 0);
+  return { trips, total, perTrip: trips > 0 ? total / trips : null, pallets: routes.reduce((s, r) => s + r.pallets, 0) };
+}
+/** Curse distribuție in the same layout as the user's Curse_distributie_Senior.xlsx: Lei/cursă and totals are formulas. */
+function exportRoutes(l: Logistics, overrides: Record<string, string>) {
+  const routes = l.routes ?? [];
+  const rows: unknown[][] = [
+    [`Curse distribuție din Senior · cost din facturile ${l.closedStart} – ${l.closedEnd}, paleți din ${l.loadWindow.start} – ${l.loadWindow.end}`], [],
+    ["Cursă", "Curse 30 zile", "Cost 30 zile (lei)", "Lei/cursă", "Min lei/cursă", "Max lei/cursă", "Paleți livrați 90 zile", "Paleți/cursă", "Lei/palet", "Notă lei/palet", "Puncte de livrare incluse"],
+  ];
+  const r1 = rows.length + 1;
+  routes.forEach((r, i) => {
+    const x = r1 + i;
+    rows.push([r.route, r.trips, Math.round(r.total * 100) / 100, { f: `IF(B${x}>0,C${x}/B${x},0)` },
+      r.unitPrice != null ? `${n2(r.unitPrice)} lei/unitate` : r.pmin, r.unitPrice != null ? "" : r.pmax,
+      Math.round(r.pallets * 10) / 10, r.palletsPerTrip != null ? Math.round(r.palletsPerTrip * 10) / 10 : "", r.perPallet != null ? Math.round(r.perPallet * 100) / 100 : "",
+      routeNote(r), r.points.length ? r.points.slice(0, 4).map((p) => `${p.name} (${n2(p.pallets, 1)})`).join(", ") + (r.points.length > 4 ? ` +${r.points.length - 4}` : "") : "niciun punct atribuit — alege cursa pe județ"]);
+  });
+  const last = r1 + routes.length - 1, t = last + 1;
+  rows.push(["TOTAL", { f: `SUM(B${r1}:B${last})` }, { f: `SUM(C${r1}:C${last})` }, { f: `IF(B${t}>0,C${t}/B${t},0)` }, "", "", { f: `SUM(G${r1}:G${last})` }]);
+  const chosen = Object.entries(overrides).filter(([k]) => k.startsWith("j:"));
+  rows.push([]);
+  if (chosen.length) rows.push([`Cursele alese pe județ în calculator: ${chosen.map(([k, v]) => `${k.slice(2)} → ${v}`).join("; ")}.`]);
+  rows.push(["Sursa: Senior (facturi transportatori TRANSPORT DIST <cursă>, paleți livrați punctelor atribuite cursei). Lei/palet = lei/cursă ÷ paleți/cursă; perechile cu aceeași mașină au tarif comun."]);
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [14, 10, 14, 12, 12, 12, 14, 10, 10, 48, 90].map((wch) => ({ wch }));
+  for (let x = r1; x <= t; x++) for (const c of ["C", "D", "E", "F", "I"]) { const cell = ws[`${c}${x}`]; if (cell && typeof cell !== "string") cell.z = "#,##0.00"; }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Curse distributie");
+  XLSX.writeFile(wb, `Curse distributie Senior ${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
 const sheetName = (i: number, name: string) => `${i + 1}. ${name}`.replace(/[\\/:*?"<>|[\]]/g, " ").slice(0, 31);
 
 /** A changed total or volume recalculates its tariff unless the tariff itself is typed afterwards. */
@@ -862,22 +901,30 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
                   <div className="mt-4 overflow-x-auto">
                     <p className="mb-1 text-xs font-medium">Curse distribuție din Senior · cost din facturile {logistics.closedStart} – {logistics.closedEnd}, paleți din {logistics.loadWindow.start} – {logistics.loadWindow.end} · clic pe un rând ca să alegi cursa</p>
                     <table className="w-full min-w-[720px] text-xs">
-                      <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Cursă</th><th className="text-right">Curse 30 zile</th><th className="text-right">Cost 30 zile (lei)</th><th className="text-right">Lei/cursă</th><th className="text-right">Paleți livrați 90 zile</th><th className="text-right">Paleți/cursă</th><th className="text-right">Lei/palet</th><th className="pl-3">Puncte de livrare incluse</th></tr></thead>
+                      <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Cursă</th><th className="text-right">Curse 30 zile</th><th className="text-right">Cost 30 zile (lei)</th><th className="text-right">Lei/cursă</th><th className="text-right">Min lei/cursă</th><th className="text-right">Max lei/cursă</th><th className="text-right">Paleți livrați 90 zile</th><th className="text-right">Paleți/cursă</th><th className="text-right">Lei/palet</th><th className="pl-3">Notă lei/palet</th><th className="pl-3">Puncte de livrare incluse</th></tr></thead>
                       <tbody>
                         {logistics.routes.map((r) => (
                           <tr key={r.route} onClick={() => pickRoute(r.route)} className={`cursor-pointer border-b last:border-0 hover:bg-muted/50 ${r.route === route ? "bg-muted font-medium" : ""}`}>
                             <td className="py-1">{r.route}</td>
                             <td className="text-right tabular-nums">{r.trips}</td>
                             <td className="text-right tabular-nums">{n2(r.total)}</td>
-                            <td className="text-right tabular-nums">{r.unitPrice != null ? `${n2(r.unitPrice)} lei/unitate` : `${n2(r.perTrip)} (${n2(r.pmin, 0)}–${n2(r.pmax, 0)})`}</td>
+                            <td className="text-right tabular-nums">{n2(r.perTrip)}</td>
+                            {r.unitPrice != null
+                              ? <td colSpan={2} className="text-right tabular-nums">{n2(r.unitPrice)} lei/unitate</td>
+                              : <><td className="text-right tabular-nums">{n2(r.pmin, 0)}</td><td className="text-right tabular-nums">{n2(r.pmax, 0)}</td></>}
                             <td className="text-right tabular-nums">{n2(r.pallets, 1)}{r.estimatedPallets ? <span className="text-muted-foreground"> (din care {n2(r.estimatedPallets, 1)} estimați)</span> : null}</td>
                             <td className="text-right tabular-nums">{n2(r.palletsPerTrip, 1)}</td>
-                            <td className="text-right tabular-nums">{n2(r.perPallet)}{r.pool && <div className="text-[10px] text-muted-foreground">comun {r.pool.routes.join(" + ")}: {n2(r.pool.total)} lei ÷ {n2(r.pool.pallets, 1)} paleți</div>}</td>
+                            <td className="text-right tabular-nums font-medium">{n2(r.perPallet)}</td>
+                            <td className="pl-3 text-[11px] text-muted-foreground">{routeNote(r)}</td>
                             <td className="pl-3 text-muted-foreground">{r.points.length ? r.points.slice(0, 4).map((x) => `${x.name} (${n2(x.pallets, 1)})`).join(", ") + (r.points.length > 4 ? ` +${r.points.length - 4}` : "") : <span className="text-destructive">niciun punct atribuit — alege cursa pe județ mai jos</span>}</td>
                           </tr>
                         ))}
+                        {(() => { const t = routeTotals(logistics.routes); return (
+                          <tr className="border-t font-medium"><td className="py-1">TOTAL</td><td className="text-right tabular-nums">{t.trips}</td><td className="text-right tabular-nums">{n2(t.total)}</td><td className="text-right tabular-nums">{n2(t.perTrip)}</td><td /><td /><td className="text-right tabular-nums">{n2(t.pallets, 1)}</td><td /><td /><td /><td /></tr>
+                        ); })()}
                       </tbody>
                     </table>
+                    <div className="mt-2"><Button size="sm" variant="outline" onClick={() => exportRoutes(logistics, routeOverrides)}><Download className="mr-1 h-3.5 w-3.5" />Export curse Excel</Button></div>
                   </div>
                 )}
                 {!!logistics.unassigned?.length && (
