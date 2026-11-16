@@ -786,6 +786,9 @@ export function StockTransferForm({ onTransferComplete }: StockTransferFormProps
                               <SelectItem value="Producție" className="py-3 text-base">
                                 Producție
                               </SelectItem>
+                              <SelectItem value="Picking" className="py-3 text-base">
+                                Picking
+                              </SelectItem>
                               <SelectItem value="Distrugere" className="py-3 text-base">
                                 Distrugere
                               </SelectItem>

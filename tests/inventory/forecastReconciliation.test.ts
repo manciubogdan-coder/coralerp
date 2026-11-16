@@ -176,3 +176,11 @@ test('receipt matching its own due day leaves later orders intact', () => {
   expect(netPendingDeliveries({ ordered: { '2026-11-04': 300 }, received: { '2026-11-02': 400 },
     commitments: { '2026-11-02': 400, '2026-11-04': 300 }, today: '2026-11-03' })['2026-11-04']).toBe(300);
 });
+test('transfers to Picking count as consumption but are not production transfers', async () => {
+  const { isConsumptionDestination } = await import('../../src/lib/forecastReconciliation');
+  expect(isConsumptionDestination('Picking')).toBe(true);
+  expect(isConsumptionDestination('Producție')).toBe(true);
+  expect(isConsumptionDestination('Distrugere')).toBe(false);
+  expect(isConsumptionDestination('Extern')).toBe(false);
+  expect(isProductionDestination('Picking')).toBe(false);
+});

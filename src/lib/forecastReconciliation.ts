@@ -28,6 +28,9 @@ export function transferStockQuantity(item: any, inventoryUnit?: string) {
 }
 
 export const isProductionDestination = (destination: string | null | undefined) => materialKey(destination || '').includes('produc');
+// Goods sent straight to Picking (sold as-is) are consumed like production transfers.
+export const isConsumptionDestination = (destination: string | null | undefined) =>
+  isProductionDestination(destination) || materialKey(destination || '').includes('picking');
 
 // An absent product row is not proof of zero stock or snapshot completeness.
 export function aggregateSnapshots(rows: any[], resolveKey: (row: any) => string | undefined) {

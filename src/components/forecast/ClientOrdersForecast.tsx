@@ -17,7 +17,7 @@ import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
 import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
 
-import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isProductionDestination, materialQuantity, netPendingDeliveries, readPages, reconcileProjection, sevenDayBuffer, transferStockQuantity, weekdayAverages } from '@/lib/forecastReconciliation';
+import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isConsumptionDestination, materialQuantity, netPendingDeliveries, readPages, reconcileProjection, sevenDayBuffer, transferStockQuantity, weekdayAverages } from '@/lib/forecastReconciliation';
 import { PACK_TYPES, packGroupOf, palletsFor, summarizePallets } from '@/lib/forecastGroups';
 import ConsumptionSourcesDialog, { type ConsumptionSource } from './ConsumptionSourcesDialog';
 import StockGapDialog from './StockGapDialog';
@@ -388,7 +388,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           const quantity = transferStockQuantity(t, inv.unit);
           m[d] = (m[d] || 0) + quantity;
           const header = transferHeaders.get(t.transfer_id);
-          if (isProductionDestination(header?.destination)) {
+          if (isConsumptionDestination(header?.destination)) {
             const actual = actualByProduct[id] ||= {};
             actual[d] = (actual[d] || 0) + quantity;
             (sourcesByProduct[id] ||= []).push({ id: t.id, day: d, quantity,
