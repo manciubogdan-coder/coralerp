@@ -26,7 +26,7 @@ import { filterOptions } from "./filterOptions.ts";
 import { agentBuilderTools } from "./agentBuilder.ts";
 import { priceCalcData, priceHistoryData, priceListData, priceOptions } from "../_shared/priceCalcSenior.ts";
 import { partnerMirrorSales } from "../_shared/partnerMirror.ts";
-import { DEFAULT_PRICE_RULES, loadPriceRules, savePriceRules } from "../_shared/priceRules.ts";
+import { DEFAULT_PRICE_RULES, loadPriceRules, rememberPriceRoute, savePriceRules } from "../_shared/priceRules.ts";
 import { SALES_PRICING_ACTIONS } from "../_shared/crmRules.ts";
 import { validateHallLayout } from "../_shared/hallLayoutRules.ts";
 import { officeActivity, saveOfficeConfig } from "../_shared/officeActivity.ts";
@@ -700,6 +700,11 @@ Deno.serve(async (req) => {
       case "price_rules_save": {
         if (req.method !== "POST") return json({ error: "Metodă invalidă." }, 405);
         try { return json({ ...(await savePriceRules(c.cloud, (await req.json())?.rules, auth.user.email ?? userId)), defaults: DEFAULT_PRICE_RULES }); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case "price_route_remember": {
+        if (req.method !== "POST") return json({ error: "Metodă invalidă." }, 405);
+        try { return json({ ...(await rememberPriceRoute(c.cloud, await req.json(), auth.user.email ?? userId)), defaults: DEFAULT_PRICE_RULES }); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case "partner_mirror_sales": {

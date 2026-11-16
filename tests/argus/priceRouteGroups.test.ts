@@ -55,3 +55,44 @@ describe("distribution: curse of one route share the truck", () => {
     expect(order).toEqual(["BUCURESTI", "PLOIESTI", "LUGOJ", "TIMISOARA"]);
   });
 });
+
+// Bogdan, 16 nov 2026: a delivery point linked to a cursă once is remembered and never asked again.
+describe("remembered delivery point routes", () => {
+  test("a store linked to a cursă in the rules is assigned without a local choice", () => {
+    const v = validPriceRules({ ...structuredClone(DEFAULT_PRICE_RULES), storeRoutes: [{ pid: 77, name: "ANNABELLA SRL-RAMNICU VALCEA", route: "bucuresti" }] });
+    if ("error" in v) throw new Error(v.error);
+    setPriceRules(v.rules);
+    const r = buildRoutes([{ pid: 77, name: "ANNABELLA SRL-RAMNICU VALCEA", judet: "Valcea", pallets: 0.5 }], [{ line: "TRANSPORT DIST BUCURESTI", trips: 1, total: 1000 }]);
+    expect(r.unassigned).toEqual([]);
+    expect(r.points[0].route).toBe("BUCURESTI");
+  });
+  test("a county linked to a cursă in the rules is no longer unassigned", () => {
+    const v = validPriceRules({ ...structuredClone(DEFAULT_PRICE_RULES), countyRoutes: { ...DEFAULT_PRICE_RULES.countyRoutes, VALCEA: "BUCURESTI" } });
+    if ("error" in v) throw new Error(v.error);
+    setPriceRules(v.rules);
+    const r = buildRoutes([{ pid: 78, name: "CLIENT SRL", judet: "Vâlcea", pallets: 2 }], [{ line: "TRANSPORT DIST BUCURESTI", trips: 1, total: 1000 }]);
+    expect(r.unassigned).toEqual([]);
+  });
+});
+
+describe("remembering a cursă on the server", () => {
+  const fakeCloud = (initial: unknown) => {
+    const rows: any[] = initial ? [{ rules: initial, updated_by: null, created_at: "2026-11-16" }] : [];
+    return { rows, from: () => ({
+      select: () => ({ order: () => ({ limit: async () => ({ data: rows.slice(-1), error: null }) }) }),
+      insert: async (r: any) => { rows.push({ ...r, created_at: "2026-11-17" }); return { error: null }; },
+    }) };
+  };
+  test("county and store choices merge into the latest rules and keep the rest", async () => {
+    const { rememberPriceRoute } = await import("../../supabase/functions/_shared/priceRules");
+    const base = { ...structuredClone(DEFAULT_PRICE_RULES), truckPallets: 24 };
+    const cloud = fakeCloud(base);
+    await rememberPriceRoute(cloud, { key: "j:VALCEA", route: "BUCURESTI" }, "t");
+    const m = await rememberPriceRoute(cloud, { key: "p:77", route: "TURDA", name: "MAGAZIN X" }, "t");
+    expect(m.rules.countyRoutes.VALCEA).toBe("BUCURESTI");
+    expect(m.rules.storeRoutes).toEqual([{ pid: 77, name: "MAGAZIN X", route: "TURDA" }]);
+    expect(m.rules.truckPallets).toBe(24);
+    const f = await rememberPriceRoute(cloud, { key: "p:77", route: "" }, "t");
+    expect(f.rules.storeRoutes).toEqual([]);
+  });
+});

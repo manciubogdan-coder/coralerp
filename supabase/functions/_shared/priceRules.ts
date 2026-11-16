@@ -8,6 +8,8 @@ export type TradedGoodRule = { label: string; keywords: string[]; piecesPerPalle
 export type CityRouteRule = { city: string; route: string };
 /** Route (Rută) of the user's table: its curse leave on the same truck, so they share one lei/palet. A one-cursă route only names it. */
 export type RouteGroupRule = { name: string; routes: string[] };
+/** Delivery point (Senior partner id) linked to a cursă by the user once in the calculator; remembered for everyone. */
+export type StoreRouteRule = { pid: number; name: string; route: string };
 /** Network fee % of the client's final price; keywords are alternatives, "a + b" needs both in the store or central partner name. */
 export type ClientFeeRule = { client: string; keywords: string[]; pct: number; note: string };
 /** Target profitability % for one client (store/central name) or one product (product name); keywords as for client fees. */
@@ -23,6 +25,7 @@ export type PriceRules = {
   routeGroups: RouteGroupRule[];
   cityRoutes: CityRouteRule[];
   countyRoutes: Record<string, string>;
+  storeRoutes: StoreRouteRule[];
   clientFees: ClientFeeRule[];
   marginPct: number;
   eurBufferPct: number;
@@ -77,6 +80,7 @@ export const DEFAULT_PRICE_RULES: PriceRules = {
     SIBIU: "BUCURESTI", CONSTANTA: "BUCURESTI", IASI: "FOCSANI", SUCEAVA: "FOCSANI", BOTOSANI: "FOCSANI",
     BIHOR: "HORECA", ARAD: "HORECA", SALAJ: "HORECA", GORJ: "CRAIOVA",
   },
+  storeRoutes: [],
   // Taxe_2026.xlsx (Bogdan, 7 nov 2026): total taxe per client; clients not listed pay 0.
   clientFees: [
     { client: "Selgros contract 13799", keywords: ["selgros + 13799", "selgros + 1412577"], pct: 8.3, note: "Taxă logistică 8,3%; discount 0; risturnă 0; penalități retur" },
@@ -223,12 +227,23 @@ export function validPriceRules(raw: unknown): { rules: PriceRules } | { error: 
     out.cityRoutes.push({ city, route });
   }
   const counties = pick("countyRoutes");
-  if (!counties || typeof counties !== "object" || Array.isArray(counties) || Object.keys(counties).length > 60) return { error: "Lista județ → cursă este invalidă." };
+  if (!counties || typeof counties !== "object" || Array.isArray(counties) || Object.keys(counties).length > 80) return { error: "Lista județ → cursă este invalidă." };
   out.countyRoutes = {};
   for (const [k, v] of Object.entries(counties)) {
     const county = upper(k), route = upper(v);
     if (!/^[A-Z0-9][A-Z0-9 .\-]{1,40}$/.test(county) || !ROUTE_RE.test(route)) return { error: "Fiecare județ are o cursă." };
     out.countyRoutes[county] = route;
+  }
+  const storesR = pick("storeRoutes");
+  if (!Array.isArray(storesR) || storesR.length > 2000) return { error: "Lista punct de livrare → cursă este invalidă." };
+  out.storeRoutes = [];
+  const pids = new Set<number>();
+  for (const x of storesR) {
+    const pid = Number(x?.pid), route = upper(x?.route), name = text(x?.name, 150);
+    if (!Number.isInteger(pid) || pid <= 0 || pid > 999999999 || !ROUTE_RE.test(route)) return { error: `Punctul de livrare ${name || pid}: cursă invalidă.` };
+    if (pids.has(pid)) continue;
+    pids.add(pid);
+    out.storeRoutes.push({ pid, name, route });
   }
   const fees = pick("clientFees");
   if (!Array.isArray(fees) || fees.length > 80) return { error: "Lista de taxe client este invalidă." };
@@ -263,6 +278,23 @@ export async function loadPriceRules(cloud: any): Promise<RulesMeta> {
   if ("error" in v) throw new Error(`Regulile de calcul preț salvate sunt invalide: ${v.error}`);
   setPriceRules(v.rules);
   return { rules: v.rules, saved: true, updatedAt: row.created_at, updatedBy: row.updated_by ?? null };
+}
+/** Remembers the cursă the user chose in the calculator for one delivery point ("p:<id>") or one county ("j:<COUNTY>"),
+ * merged into the latest saved rules on the server so a stale screen never overwrites other rules. Empty route = forget. */
+export async function rememberPriceRoute(cloud: any, raw: { key?: unknown; route?: unknown; name?: unknown }, by: string | null): Promise<RulesMeta> {
+  const key = String(raw?.key ?? ""), route = upper(raw?.route), name = text(raw?.name, 150);
+  if (route && !ROUTE_RE.test(route)) throw new Error("Cursă invalidă.");
+  const meta = await loadPriceRules(cloud);
+  const rules: PriceRules = structuredClone(meta.rules);
+  const store = key.match(/^p:(\d{1,9})$/), county = key.match(/^j:([A-Z0-9][A-Z0-9 .\-]{1,40})$/);
+  if (store) {
+    const pid = Number(store[1]);
+    rules.storeRoutes = rules.storeRoutes.filter((x) => x.pid !== pid);
+    if (route) rules.storeRoutes.push({ pid, name, route });
+  } else if (county) {
+    if (route) rules.countyRoutes[county[1]] = route; else delete rules.countyRoutes[county[1]];
+  } else throw new Error("Punct de livrare sau județ invalid.");
+  return savePriceRules(cloud, rules, by);
 }
 export async function savePriceRules(cloud: any, raw: unknown, by: string | null): Promise<RulesMeta> {
   const v = validPriceRules(raw);

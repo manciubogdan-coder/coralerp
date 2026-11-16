@@ -120,7 +120,8 @@ export function validRouteOverrides(raw: unknown): RouteOverrides {
 }
 /** Route of a delivery point: the user's store choice, then the user's county choice, then the address proposal. */
 export function pointRoute(p: { pid?: unknown; name?: unknown; judet?: unknown; country?: unknown }, overrides: RouteOverrides = {}) {
-  const manual = overrides[`p:${Number(p.pid)}`] ?? overrides[`j:${countyKey(p.judet)}`];
+  // Choices made in this calculation, then the delivery point remembered in the rules, then the address/county proposal.
+  const manual = overrides[`p:${Number(p.pid)}`] ?? overrides[`j:${countyKey(p.judet)}`] ?? priceRules().storeRoutes?.find((x) => x.pid === Number(p.pid))?.route;
   return manual ? { route: manual, manual: true } : { route: deliveryRoute(p), manual: false };
 }
 /** Route tariffs: carrier trips of the cursă ÷ pallets invoiced to the delivery points mapped to it. */

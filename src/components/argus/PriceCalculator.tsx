@@ -213,7 +213,7 @@ function NumField({ label, value, onChange, hint }: { label: string; value: stri
 const profitClass = (v: number | null | undefined) => (v == null ? "" : v >= 0 ? "text-crm-green" : "text-destructive");
 const selectClass = "h-8 rounded-md border border-input bg-background px-2 text-xs";
 
-function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: number; sales?: boolean }) {
+function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { rulesVersion: number; sales?: boolean; onRulesChanged?: () => void }) {
   const now = new Date();
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -266,12 +266,46 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
   const setOv = (id: number, f: (o: Over) => Over) => setOver((p) => ({ ...p, [id]: f(p[id] ?? EMPTY) }));
   const toggle = (id: number) => setOpen((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  const setOverride = (k: string, v: string) => setRouteOverrides((p) => {
+  const setLocalOverride = (k: string, v: string) => setRouteOverrides((p) => {
     const n = { ...p };
     if (v) n[k] = v; else delete n[k];
     localStorage.setItem(OVERRIDES_KEY, JSON.stringify(n));
     return n;
   });
+  // Cursă chosen for a delivery point or county: remembered on the server (Reguli de calcul) for everyone, so it is never asked again.
+  // Applied at once on the screen; the cursă tariffs are recalculated a moment after the last choice.
+  const [rulesTick, setRulesTick] = useState(0);
+  const [recalcAt, setRecalcAt] = useState(0);
+  const remember = async (k: string, v: string, name = "") => {
+    const r = await argusFetch<RulesMeta>("price_route_remember", {}, { key: k, route: v, name });
+    setPriceRules(r.rules); setRulesTick((t) => t + 1); onRulesChanged?.();
+    setLocalOverride(k, "");
+  };
+  const setOverride = async (k: string, v: string, name = "") => {
+    setLocalOverride(k, v);
+    if (sales) return;
+    try { await remember(k, v, name); setRecalcAt(Date.now()); }
+    catch (e) { toast({ title: "Cursa nu s-a putut ține minte", description: `${(e as Error).message} Rămâne aleasă doar în acest browser.`, variant: "destructive" }); }
+  };
+  // Choices kept only in this browser by earlier versions: remembered for everyone once.
+  useEffect(() => {
+    if (sales) return;
+    const local = Object.entries(loadOverrides());
+    if (!local.length) return;
+    (async () => { for (const [k, v] of local) { try { await remember(k, String(v)); } catch { /* stays local */ } } })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!recalcAt || !result || loading) return;
+    const t = setTimeout(() => { run(); }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recalcAt]);
+  // Counties still without a cursă: those chosen here or remembered in the rules are no longer asked.
+  const openCounties = useMemo(() => (result?.logistics.unassigned ?? []).filter((g: { county: string }) => !routeOverrides[`j:${g.county}`] && !priceRules().countyRoutes[g.county]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [result, routeOverrides, rulesTick]);
+  const storeRule = (pid: number) => priceRules().storeRoutes?.find((x) => x.pid === pid)?.route;
   const overridesDirty = !!result && JSON.stringify(routeOverrides) !== ranOverrides;
 
   const [auditing, setAuditing] = useState(false);
@@ -316,11 +350,11 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
   };
 
   // Store cursă: the user's store choice, then the county choice, then the address proposal — applied instantly to the client average.
-  const routeOf = (st: StoreRow) => routeOverrides[`p:${st.pid}`] ?? routeOverrides[`j:${countyKey(st.judet)}`] ?? st.proposed ?? st.route;
+  const routeOf = (st: StoreRow) => routeOverrides[`p:${st.pid}`] ?? storeRule(st.pid) ?? routeOverrides[`j:${countyKey(st.judet)}`] ?? st.proposed ?? priceRules().countyRoutes[countyKey(st.judet)] ?? st.route;
   const perPalletMap = useMemo(() => Object.fromEntries(Object.entries(result?.logistics.distribution ?? {}).filter(([k]) => k !== CLIENT_AVERAGE_ROUTE).map(([k, v]) => [k, v?.distributionPerPallet ?? null])), [result]);
   const storesNow = useMemo(() => (result?.stores ?? []).map((st) => ({ ...st, route: routeOf(st) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [result, routeOverrides]);
+    [result, routeOverrides, rulesTick]);
   const logistics = useMemo<Logistics | null>(() => {
     if (!result) return null;
     const avg = client != null && store == null && storesNow.length ? clientAverageRoute(storesNow, perPalletMap) : null;
@@ -877,7 +911,7 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
                       <tr key={st.pid} className="border-b last:border-0">
                         <td className="py-1.5">{st.name}<div className="text-[11px] text-muted-foreground">{st.judet}{st.incomplete ? ` · ${st.incomplete} produse incomplete` : ""}</div></td>
                         <td>
-                          <select aria-label={`Cursa ${st.name}`} className={selectClass} value={routeOverrides[`p:${st.pid}`] ?? ""} onChange={(e) => setOverride(`p:${st.pid}`, e.target.value)}>
+                          <select aria-label={`Cursa ${st.name}`} className={selectClass} value={routeOverrides[`p:${st.pid}`] ?? storeRule(st.pid) ?? ""} onChange={(e) => setOverride(`p:${st.pid}`, e.target.value, st.name)}>
                             <option value="">{(() => { const r = routeOverrides[`j:${countyKey(st.judet)}`] ?? st.proposed; return r ? `propusă: ${r}` : "fără cursă — alege"; })()}</option>
                             {routeNames.map((r) => <option key={r} value={r}>{r}</option>)}
                           </select>
@@ -941,13 +975,13 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
                     <div className="mt-2"><Button size="sm" variant="outline" onClick={() => exportRoutes(logistics, routeOverrides)}><Download className="mr-1 h-3.5 w-3.5" />Export curse Excel</Button></div>
                   </div>
                 )}
-                {!!logistics.unassigned?.length && (
+                {!!openCounties.length && (
                   <div className="mt-4 overflow-x-auto">
-                    <p className="mb-1 text-xs font-medium">Puncte de livrare fără cursă · Senior nu leagă livrările de curse, așa că le propun după oraș/județ. Alege cursa pe județ (se ține minte pe acest calculator) și apasă „Recalculează tarifele curselor”.</p>
+                    <p className="mb-1 text-xs font-medium">Puncte de livrare fără cursă · Senior nu leagă livrările de curse, așa că le propun după oraș/județ. Alege cursa pe județ o singură dată: se ține minte pentru toți (în „Reguli de calcul”), județul dispare din listă și tarifele se refac singure.</p>
                     <table className="w-full min-w-[720px] text-xs">
                       <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Județ</th><th className="text-right">Paleți 90 zile</th><th className="text-right">Puncte</th><th className="pl-3">Exemple</th><th>Cursă</th></tr></thead>
                       <tbody>
-                        {logistics.unassigned.map((g) => (
+                        {openCounties.map((g) => (
                           <tr key={g.county} className="border-b last:border-0">
                             <td className="py-1">{g.judet}</td><td className="text-right tabular-nums">{n2(g.pallets, 1)}</td><td className="text-right tabular-nums">{g.points}</td>
                             <td className="pl-3 text-muted-foreground">{g.names.join(", ")}</td>
@@ -1022,6 +1056,7 @@ const VIEWS: Array<[View, string]> = [["list", "Listă de prețuri"], ["mirror",
 export default function PriceCalculator({ sales = false }: { sales?: boolean }) {
   const [view, setView] = useState<View>("list");
   const [rulesVersion, setRulesVersion] = useState(0);
+  const [rulesReload, setRulesReload] = useState(0);
   return (
     <div className="space-y-4">
       <div role="tablist" aria-label="Calculator preț" className="inline-flex rounded-md border bg-muted p-1">
@@ -1030,10 +1065,10 @@ export default function PriceCalculator({ sales = false }: { sales?: boolean }) 
             className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${view === k ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
         ))}
       </div>
-      <div className={view === "list" ? "" : "hidden"}><PriceListCalculator rulesVersion={rulesVersion} sales={sales} /></div>
+      <div className={view === "list" ? "" : "hidden"}><PriceListCalculator rulesVersion={rulesVersion} sales={sales} onRulesChanged={() => setRulesReload((v) => v + 1)} /></div>
       <div className={view === "mirror" ? "" : "hidden"}><PartnerMirror /></div>
       {!sales && <div className={view === "structure" ? "" : "hidden"}><CostStructure /></div>}
-      {!sales && <div className={view === "rules" ? "" : "hidden"}><PriceRulesEditor onSaved={() => setRulesVersion((v) => v + 1)} /></div>}
+      {!sales && <div className={view === "rules" ? "" : "hidden"}><PriceRulesEditor reload={rulesReload} onSaved={() => setRulesVersion((v) => v + 1)} /></div>}
     </div>
   );
 }

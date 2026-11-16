@@ -18,6 +18,7 @@ type Draft = {
   routeGroups: Array<{ name: string; routes: string }>;
   cityRoutes: Array<{ city: string; route: string }>;
   countyRoutes: Array<{ county: string; route: string }>;
+  storeRoutes: Array<{ pid: number; name: string; route: string }>;
   clientFees: Array<{ client: string; keywords: string; pct: string; note: string }>;
   profitRules: Array<{ kind: "client" | "product"; label: string; keywords: string; pct: string }>;
 };
@@ -39,6 +40,7 @@ function toDraft(r: PriceRules): Draft {
     routeGroups: (r.routeGroups ?? []).map((g) => ({ name: g.name, routes: g.routes.join(", ") })),
     cityRoutes: r.cityRoutes.map((c) => ({ ...c })),
     countyRoutes: Object.entries(r.countyRoutes).map(([county, route]) => ({ county, route })),
+    storeRoutes: (r.storeRoutes ?? []).map((x) => ({ ...x })),
     clientFees: (r.clientFees ?? []).map((f) => ({ client: f.client, keywords: Array.isArray(f.keywords) ? f.keywords.join(", ") : String(f.keywords ?? ""), pct: s(f.pct), note: f.note ?? "" })),
     profitRules: (r.profitRules ?? []).map((f) => ({ kind: f.kind, label: f.label, keywords: Array.isArray(f.keywords) ? f.keywords.join(", ") : String(f.keywords ?? ""), pct: s(f.pct) })),
   };
@@ -60,6 +62,7 @@ function fromDraft(d: Draft, base: PriceRules) {
     cityRoutes: d.cityRoutes,
     clientFees: (d.clientFees ?? []).map((f) => ({ client: f.client, keywords: f.keywords, pct: n(f.pct), note: f.note })),
     profitRules: (d.profitRules ?? []).map((f) => ({ kind: f.kind, label: f.label, keywords: f.keywords, pct: n(f.pct) })),
+    storeRoutes: (d.storeRoutes ?? []).map((x) => ({ pid: x.pid, name: x.name, route: t(x.route).trim().toUpperCase() })),
     countyRoutes: Object.fromEntries(d.countyRoutes.filter((c) => t(c.county).trim() || t(c.route).trim()).map((c) => [c.county, c.route])),
   };
 }
@@ -78,7 +81,8 @@ function Remove({ label, onClick }: { label: string; onClick: () => void }) {
   return <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={label} onClick={onClick}><Trash2 className="h-4 w-4" /></Button>;
 }
 
-export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules) => void }) {
+/** `reload` changes when the calculator remembers a delivery point's cursă: unchanged screens reload so a later save keeps it. */
+export default function PriceRulesEditor({ onSaved, reload = 0 }: { onSaved: (r: PriceRules) => void; reload?: number }) {
   const [meta, setMeta] = useState<Response | null>(null);
   const [rawDraft, setDraft] = useState<Draft | null>(null);
   // A draft kept from an earlier version of this screen can miss newer sections: fill them from the saved rules.
@@ -97,6 +101,8 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
   const raw = useMemo(() => (draft && meta ? fromDraft(draft, meta.rules) : null), [draft, meta]);
   const check = useMemo(() => (raw ? validPriceRules(raw) : null), [raw]);
   const dirty = !!draft && !!meta && JSON.stringify(draft) !== JSON.stringify(toDraft(meta.rules));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (reload && !dirty) load(); }, [reload]);
 
   if (error && !meta) return <div className="flex flex-wrap items-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"><span className="mr-auto">Regulile nu s-au putut încărca: {error}</span><Button size="sm" variant="outline" onClick={load}>Reîncearcă</Button></div>;
   if (!draft || !meta) return <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Se încarcă regulile…</p>;
@@ -104,10 +110,10 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
   const complete = (d: Draft): Draft => (meta ? { ...toDraft(meta.rules), ...Object.fromEntries(Object.entries(d).filter(([, v]) => v != null)) } as Draft : d);
   const set = (f: (d: Draft) => Draft) => setDraft((d) => (d ? f(complete(d)) : d));
   const setTop = (k: keyof Draft) => (v: string) => set((d) => ({ ...d, [k]: v }));
-  function editRow<K extends "lines" | "palletGroups" | "tradedGoods" | "routeGroups" | "cityRoutes" | "countyRoutes" | "clientFees" | "profitRules">(k: K, i: number, patch: Partial<Draft[K][number]>) {
+  function editRow<K extends "lines" | "palletGroups" | "tradedGoods" | "routeGroups" | "cityRoutes" | "countyRoutes" | "storeRoutes" | "clientFees" | "profitRules">(k: K, i: number, patch: Partial<Draft[K][number]>) {
     set((d) => ({ ...d, [k]: (d[k] as Array<Draft[K][number]>).map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
   }
-  function removeRow(k: "lines" | "palletGroups" | "tradedGoods" | "routeGroups" | "cityRoutes" | "countyRoutes" | "clientFees" | "profitRules", i: number) {
+  function removeRow(k: "lines" | "palletGroups" | "tradedGoods" | "routeGroups" | "cityRoutes" | "countyRoutes" | "storeRoutes" | "clientFees" | "profitRules", i: number) {
     set((d) => ({ ...d, [k]: (d[k] as unknown[]).filter((_, j) => j !== i) }));
   }
   const overhead = n(draft.labourOverheadPct);
@@ -237,6 +243,15 @@ export default function PriceRulesEditor({ onSaved }: { onSaved: (r: PriceRules)
             </div>)}
             <AddButton onClick={() => set((d) => ({ ...d, countyRoutes: [...d.countyRoutes, { county: "", route: "" }] }))}>Adaugă județ</AddButton>
           </div>
+        </div>
+        <div className="space-y-2 pt-2">
+          <p className="text-xs font-medium">Puncte de livrare legate de o cursă (alese în calculator, ținute minte pentru toți; câștigă în fața orașului și județului)</p>
+          {!draft.storeRoutes.length && <p className="text-[11px] text-muted-foreground">Niciun punct de livrare ales încă. Alege cursa unui magazin în „Rentabilitate pe magazine” și apare aici.</p>}
+          {draft.storeRoutes.map((x, i) => <div key={x.pid} className="flex flex-wrap items-center gap-2">
+            <span className="w-80 truncate text-sm" title={x.name}>{x.name || `Partener ${x.pid}`}</span><span className="text-sm">→</span>
+            <Input aria-label={`Cursă pentru ${x.name || x.pid}`} list="price-rule-routes" className={`${cell} w-44`} value={x.route} onChange={(e) => editRow("storeRoutes", i, { route: e.target.value.toUpperCase() })} />
+            <Remove label={`Șterge ${x.name || x.pid}`} onClick={() => removeRow("storeRoutes", i)} />
+          </div>)}
         </div>
       </Section>
 
