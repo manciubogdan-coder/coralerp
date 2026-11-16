@@ -22,6 +22,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import ReportsFilters, { DateFilter } from "./ReportsFilters";
+import ReportsOrdersSummary from "./ReportsOrdersSummary";
 import { format, eachDayOfInterval, startOfDay, isSameDay } from "date-fns";
 import { ro } from "date-fns/locale";
 import {
@@ -610,7 +611,7 @@ const Reports = () => {
       </div>
 
       <Tabs defaultValue="lines" className="space-y-4">
-        <TabsList className="grid grid-cols-4 w-full max-w-3xl">
+        <TabsList className="grid grid-cols-5 w-full max-w-4xl">
           <TabsTrigger value="lines" className="gap-2">
             <Factory className="h-4 w-4" />
             Per Linie
@@ -627,7 +628,16 @@ const Reports = () => {
             <TrendingUp className="h-4 w-4" />
             Comparativ
           </TabsTrigger>
+          <TabsTrigger value="summary" className="gap-2">
+            <Package className="h-4 w-4" />
+            Centralizator comenzi
+          </TabsTrigger>
         </TabsList>
+
+        {/* ─── CENTRALIZATOR COMENZI ──────────────────────────────────── */}
+        <TabsContent value="summary" className="space-y-4">
+          <ReportsOrdersSummary />
+        </TabsContent>
 
         {/* ─── PER LINIE ──────────────────────────────────────────────── */}
         <TabsContent value="lines" className="space-y-4">
