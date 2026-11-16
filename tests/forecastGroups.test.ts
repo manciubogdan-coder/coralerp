@@ -59,3 +59,17 @@ _t("kg pe palet", () => {
   _e(_pk("Baby spanac bio")).toBe(220);
   _e(_pk("Busuioc")).toBe(220);
 });
+
+describe("packaging weekly order plan", () => {
+  it("each week orders only what earlier suggested orders did not cover", async () => {
+    const { sequentialOrderPlan } = await import("../src/lib/forecastGroups");
+    // stoc final fără comenzi: -50, -150, -250; țintă 100 pe săptămână
+    expect(sequentialOrderPlan([-50, -150, -250], [100, 100, 100])).toEqual([150, 100, 100]);
+    expect(sequentialOrderPlan([500, 300, null], [100, 100, 100])).toEqual([0, 0, null]);
+  });
+  it("order-by date is delivery minus lead time", async () => {
+    const { orderByDay } = await import("../src/lib/forecastGroups");
+    expect(orderByDay("2026-11-23", 14)).toBe("2026-11-09");
+    expect(orderByDay("2026-12-01", 7)).toBe("2026-11-24");
+  });
+});

@@ -15,7 +15,7 @@ import CreateSupplierOrderDialog, { OrderLineInput } from "./CreateSupplierOrder
 import { supplierDeliverySchedules } from "@/lib/supplierDeliveries";
 import { agedLeafLots, leafStockKey, type AgedLeafLot } from "@/lib/leafStockAge";
 import LeafStockWarning from "@/components/inventory/LeafStockWarning";
-import { forecastGroupOf, FORECAST_GROUP_ORDER, suggestedOrderFor } from "@/lib/forecastGroups";
+import { forecastGroupOf, FORECAST_GROUP_ORDER, orderByDay, sequentialOrderPlan, suggestedOrderFor } from "@/lib/forecastGroups";
 
 import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, explainStockGap, stockGapIssues, type StockGapIssue, historicalCommitments, isConsumptionDestination, materialQuantity, netPendingDeliveries, readPages, reconcileProjection, sevenDayBuffer, transferStockQuantity, weekdayAverages } from '@/lib/forecastReconciliation';
 import { PACK_TYPES, packGroupOf, palletsFor, summarizePallets } from '@/lib/forecastGroups';
@@ -622,12 +622,32 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       const demand = dates.map(d => dayDemand(r, d));
       const ordered = netPendingDeliveries({ ordered: r.orderedPerDate, received: r.received, commitments: r.commitments, today: todayKey });
       const result = reconcileProjection({ dates, today: todayKey, anchor: r.snapshots[todayKey] ?? null,
-        snapshots: r.snapshots, ordered, received: r.received, returned: r.returned, outbound: r.outbound, demand });
+        snapshots: r.snapshots, ordered, received: r.received, returned: r.returned, outbound: r.outbound, demand, allowNegative: weekly });
       const offset = dates.indexOf(format(first, 'yyyy-MM-dd'));
       map.set(r.key, result.slice(offset, offset + projDays.length));
     });
     return map;
-  }, [filtered, projDays, dayDemand, todayKey]);
+  }, [filtered, projDays, dayDemand, todayKey, weekly]);
+
+  // Ținta unei coloane: consumul perioadei următoare + tampon.
+  const targetFor = useCallback((r: Row, c: { last: Date }) => {
+    const next = weekly
+      ? Array.from({ length: 7 }, (_, k) => dayDemand(r, format(addDays(c.last, k + 1), 'yyyy-MM-dd'))).reduce((a, b) => a + b, 0)
+      : dayDemand(r, format(addDays(c.last, 1), 'yyyy-MM-dd'));
+    return { next, target: next + (r.buffer || 0) * (weekly ? 7 : 1) };
+  }, [weekly, dayDemand]);
+  // Ambalaje/etichete: stocul merge pe minus, deci comenzile sugerate se calculează succesiv
+  // (fiecare săptămână comandă doar ce n-au acoperit comenzile sugerate dinainte).
+  const weeklyPlan = useMemo(() => {
+    const m = new Map<string, (number | null)[]>();
+    if (!weekly) return m;
+    filtered.forEach((r) => {
+      const pr = projection.get(r.key);
+      const closings = projCols.map((c) => pr?.[c.idx[c.idx.length - 1]]?.closing ?? null);
+      m.set(r.key, sequentialOrderPlan(closings, projCols.map((c) => targetFor(r, c).target)));
+    });
+    return m;
+  }, [weekly, filtered, projection, projCols, targetFor]);
 
   const [gapKey, setGapKey] = useState<string | null>(null);
   const gapFor = useCallback((row: any) => {
@@ -647,7 +667,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
     return m;
   }, [filtered, gapFor]);
   // Comanda sugerată a unei coloane (aceeași formulă ca în celulă), refolosită la total și la comanda pe zi.
-  const suggestionFor = useCallback((r: Row, c: { last: Date; idx: number[] }) => {
+  const suggestionFor = useCallback((r: Row, c: { key: string; last: Date; idx: number[] }) => {
+    if (weekly) return weeklyPlan.get(r.key)?.[projCols.findIndex((x) => x.key === c.key)] ?? null;
     const pr = projection.get(r.key);
     const closing = pr?.[c.idx[c.idx.length - 1]]?.closing ?? null;
     if (closing == null) return null;
@@ -655,10 +676,10 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       ? Array.from({ length: 7 }, (_, k) => dayDemand(r, format(addDays(c.last, k + 1), 'yyyy-MM-dd'))).reduce((a, b) => a + b, 0)
       : dayDemand(r, format(addDays(c.last, 1), 'yyyy-MM-dd'));
     return suggestedOrderFor(closing, [0, nextConsumption], 0, (r.buffer || 0) * (weekly ? 7 : 1));
-  }, [projection, weekly, dayDemand]);
+  }, [projection, weekly, dayDemand, weeklyPlan, projCols]);
   const [dayOrderLines, setDayOrderLines] = useState<OrderLineInput[] | null>(null);
   const [dayOrderDate, setDayOrderDate] = useState<Date | undefined>(undefined);
-  const openDayOrder = (c: { first: Date; last: Date; idx: number[] }) => {
+  const openDayOrder = (c: { key: string; first: Date; last: Date; idx: number[] }) => {
     const lines = filtered
       .map((r) => ({ r, q: suggestionFor(r, c) || 0 }))
       .filter(({ q }) => q > 0)
@@ -736,7 +757,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
           line[`${date} - Recepționat`] = dks.reduce((x, dk) => x + (r.received[dk] || 0), 0);
           line[`${date} - Consum`] = c.idx.reduce((x, j) => x + (values?.[j]?.consumption || 0), 0);
           line[`${date} - Stoc final`] = closing ?? 'Necunoscut';
-          line[`${date} - Comandă sugerată`] = closing == null ? 'Necunoscut' : suggestedOrderFor(closing, [0, next], 0, (r.buffer || 0) * (weekly ? 7 : 1));
+          line[`${date} - Comandă sugerată`] = closing == null ? 'Necunoscut' : weekly ? (suggestionFor(r, c) ?? 'Necunoscut') : suggestedOrderFor(closing, [0, next], 0, (r.buffer || 0) * (weekly ? 7 : 1));
+          if (weekly) line[`${date} - Comandă până la`] = format(new Date(`${orderByDay(format(addDays(c.last, 1), 'yyyy-MM-dd'), r.leadTime)}T12:00:00`), 'dd.MM.yyyy');
         });
         return line;
       });
@@ -1073,7 +1095,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                             Stoc final
                           </th>
                           <th
-                            title={weekly ? "Consum săptămâna următoare + tampon" : "Consum mâine + tampon"}
+                            title={weekly ? "Consum săptămâna următoare + tampon − stoc final − comenzi sugerate în săptămânile anterioare; dedesubt: data până la care trebuie plasată, după termenul de livrare" : "Consum mâine + tampon"}
                             className="sticky top-8 z-20 bg-background border-b border-r px-2 h-7 text-right text-[10px] font-medium text-primary whitespace-nowrap"
                           >
                             Comandă sugerată
@@ -1115,7 +1137,13 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                             const nextConsumption = weekly
                               ? Array.from({ length: 7 }, (_, k) => dayDemand(r, format(addDays(c.last, k + 1), 'yyyy-MM-dd'))).reduce((a, b) => a + b, 0)
                               : dayDemand(r, format(addDays(d, 1), 'yyyy-MM-dd'));
-                            const suggestion = v?.closing == null ? null : suggestedOrderFor(v.closing, [0, nextConsumption], 0, (r.buffer || 0) * (weekly ? 7 : 1));
+                            const suggestion = v?.closing == null ? null : weekly ? suggestionFor(r, c) : suggestedOrderFor(v.closing, [0, nextConsumption], 0, (r.buffer || 0) * (weekly ? 7 : 1));
+                            const plan = weekly ? weeklyPlan.get(r.key) || [] : [];
+                            const colIndex = projCols.indexOf(c);
+                            const earlier = plan.slice(0, colIndex).reduce<number>((a, q) => a + (q || 0), 0);
+                            const deliveryDay = format(addDays(c.last, 1), 'yyyy-MM-dd');
+                            const orderBy = weekly ? orderByDay(deliveryDay, r.leadTime) : null;
+                            const late = !!orderBy && orderBy < todayKey;
                             const ordered = sum((_, dk) => r.commitments[dk] || 0); const received = sum((_, dk) => r.received[dk] || 0);
                             return <React.Fragment key={day}>
                               <td className={cn("p-2 text-right tabular-nums", !weekly && day === todayKey && r.agedLots?.length && "bg-destructive/10 text-destructive")} title={v?.opening == null ? 'Snapshot lipsă pentru această zi' : 'Stoc la începutul zilei'}>{fmt(v?.opening)}{day === todayKey && <LeafStockWarning name={r.name} lots={r.agedLots || []} />}</td>
@@ -1129,6 +1157,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                                     <PopoverTrigger asChild>
                                       <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums flex-col items-end" aria-label={`Comandă sugerată ${r.name} ${format(d, 'dd.MM')}`}>
                                         <span>{fmt(suggestion)}</span>
+                                        {orderBy && suggestion > 0 && <span className={cn("text-[10px] font-normal", late ? "text-destructive" : "text-muted-foreground")}>{late ? 'termen depășit' : `până la ${format(new Date(`${orderBy}T12:00:00`), 'dd.MM')}`}</span>}
                                         {(() => { const pal = r.unit?.toLowerCase() === 'kg' ? palletsFor(r.name, suggestion) : null; return pal ? <span className="text-[10px] text-muted-foreground font-normal">{pal.toFixed(1)} pal</span> : null; })()}
                                       </Button>
                                     </PopoverTrigger>
@@ -1142,7 +1171,13 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
                                         <div className="flex justify-between gap-3 font-medium"><span>{weekly ? 'Tampon pe săptămână = total 7 zile' : 'Media = total ÷ 7'}</span><span className="tabular-nums whitespace-nowrap">+{fmt((r.buffer || 0) * (weekly ? 7 : 1))} {r.unit}</span></div>
                                       </div>
                                       <div className="flex justify-between gap-3"><span>Stoc final {format(c.last, 'dd.MM')}</span><span className="tabular-nums whitespace-nowrap">{(v?.closing ?? 0) < 0 ? '+' : '−'}{fmt(Math.abs(v?.closing ?? 0))} {r.unit}</span></div>
+                                      {weekly && earlier > 0 && <div className="flex justify-between gap-3"><span>Acoperit de comenzile sugerate în săptămânile anterioare</span><span className="tabular-nums whitespace-nowrap">−{fmt(earlier)} {r.unit}</span></div>}
                                       <div className="flex justify-between border-t pt-1 font-semibold"><span>Total sugerat</span><span className="tabular-nums">{fmt(suggestion)} {r.unit}</span></div>
+                                      {orderBy && <div className={cn("border-t pt-1", late && "text-destructive font-medium")}>
+                                        Livrare {format(new Date(`${deliveryDay}T12:00:00`), 'dd.MM.yyyy')} · termen livrare {r.leadTime} zile → comandă până la <b>{format(new Date(`${orderBy}T12:00:00`), 'dd.MM.yyyy')}</b>
+                                        {late && <> · termen depășit, dacă comanzi azi ajunge cel mai devreme pe {format(addDays(new Date(`${todayKey}T12:00:00`), r.leadTime), 'dd.MM.yyyy')}</>}
+                                        <div className="text-muted-foreground font-normal">Termenul se schimbă din Setări Produse → Timp Livrare (zile).</div>
+                                      </div>}
                                     </PopoverContent>
                                   </Popover>
                                 )}

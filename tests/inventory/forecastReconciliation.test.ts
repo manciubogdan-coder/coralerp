@@ -184,3 +184,15 @@ test('transfers to Picking count as consumption but are not production transfers
   expect(isConsumptionDestination('Extern')).toBe(false);
   expect(isProductionDestination('Picking')).toBe(false);
 });
+
+test('packaging/labels: future days carry a negative balance instead of restarting from zero', () => {
+  const result = reconcileProjection({ dates: ['2026-11-16', '2026-11-17', '2026-11-18'], today: '2026-11-16', anchor: 100,
+    snapshots: { '2026-11-16': 100 }, ordered: {}, received: {}, outbound: {}, demand: [150, 30, 20], allowNegative: true });
+  expect(result.map(r => r.opening)).toEqual([100, -50, -80]);
+  expect(result.map(r => r.closing)).toEqual([-50, -80, -100]);
+});
+test('packaging/labels: past days still never start below zero', () => {
+  const result = reconcileProjection({ dates: ['2026-11-15', '2026-11-16'], today: '2026-11-16', anchor: 100,
+    snapshots: { '2026-11-15': 10, '2026-11-16': 100 }, ordered: {}, received: {}, outbound: {}, demand: [30, 5], allowNegative: true });
+  expect(result[1].opening).toBe(0);
+});

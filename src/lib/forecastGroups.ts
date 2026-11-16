@@ -28,6 +28,28 @@ export const forecastGroupOf = (name: string): string => {
 export const suggestedOrderFor = (finalStock: number, consum: number[], i: number, buffer = 0): number =>
   Math.max((consum[i + 1] || 0) + (buffer || 0) - (finalStock || 0), 0);
 
+/**
+ * Comenzi sugerate succesive când stocul proiectat poate merge pe minus (ambalaje/etichete):
+ * fiecare perioadă comandă doar ce lipsește după comenzile sugerate în perioadele anterioare,
+ * ca totalul să fie necesarul real, nu deficitul numărat de mai multe ori.
+ */
+export const sequentialOrderPlan = (closings: (number | null)[], targets: number[]): (number | null)[] => {
+  let placed = 0;
+  return closings.map((closing, k) => {
+    if (closing == null) return null;
+    const q = Math.max((targets[k] || 0) - (closing + placed), 0);
+    placed += q;
+    return q;
+  });
+};
+
+/** Ziua până la care trebuie plasată comanda ca să ajungă la livrare, după termenul de livrare (zile). */
+export const orderByDay = (deliveryDay: string, leadTimeDays: number): string => {
+  const d = new Date(`${deliveryDay}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - Math.max(0, Math.round(leadTimeDays || 0)));
+  return d.toISOString().slice(0, 10);
+};
+
 /** Kg pe un palet: căpățâni 400, radicchio 500, frunze și aromate 220; altele necunoscut. */
 export const palletKgFor = (name: string): number | null => {
   const n = norm(name);

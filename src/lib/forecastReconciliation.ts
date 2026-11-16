@@ -168,14 +168,17 @@ export function reconcileProjection(input: {
   received: Record<string, number>; outbound: Record<string, number>; returned?: Record<string, number>;
   /** Consumption per day from client orders × recipes (estimated average where no orders exist). */
   demand: number[];
+  /** Future days (after today) carry a negative balance instead of restarting from zero (packaging/labels requirement view). */
+  allowNegative?: boolean;
 }) {
   let running: number | null = input.anchor;
   return input.dates.map((day, i) => {
     const historical = day < input.today;
     const observed = input.snapshots[day] ?? null;
+    const carryNegative = !!input.allowNegative && day > input.today;
     // Anchor once; subsequent days carry the calculated closing, not a different snapshot.
     // Preserve unknown historical openings; restart from a dated observation if no balance exists.
-    const opening: number | null = i > 0 && running !== null ? Math.max(running, 0)
+    const opening: number | null = i > 0 && running !== null ? (carryNegative ? running : Math.max(running, 0))
       : historical ? observed
       : day === input.today ? Math.max(observed ?? 0, 0)
       : Math.max(running ?? 0, 0);
