@@ -86,3 +86,26 @@ export function profitAt(s: { unitsPerCase: number; minPrice: number; feePct: nu
   // % of the selling price without fees, same base as the target profit.
   return { fees, cost, profit, pct: net > 0 ? (profit / net) * 100 : null };
 }
+
+/** Distribution fields of one cursă for the sheet. A paired cursă (same truck) carries the pair's cost, trips and pallets,
+ * so cost ÷ pallets is the shared tariff everywhere (the sheet re-derives lei/palet from cost ÷ pallets). */
+export function routeDistribution(r: { total: number; trips: number; palletsPerTrip: number | null; perPallet: number | null; pool?: RoutePool | { routes: string[] } }) {
+  const pool = r.pool && "perPallet" in r.pool ? r.pool : null;
+  if (pool) return { distributionTotal: pool.total, distributionTrips: pool.trips, distributionPallets: pool.trips * pool.palletsPerTrip, distributionPerPallet: pool.perPallet, distributionPalletsPerTrip: pool.palletsPerTrip };
+  return { distributionTotal: r.total, distributionTrips: r.trips, ...(r.palletsPerTrip ? { distributionPallets: r.trips * r.palletsPerTrip, distributionPerPallet: r.perPallet ?? undefined, distributionPalletsPerTrip: r.palletsPerTrip } : {}) };
+}
+
+/** Client average for ONE product: each store's cursă tariff (and network fee) weighted with the pieces of this product
+ * sold to that store in the sales window, so the product sheet equals the sum of the per-store table.
+ * Null when the product was not sold to any store with a priced cursă (then the all-stores pallet average applies). */
+export function productAverageRoute(stores: Array<StoreRoute & { feePct?: number | null }>, perPallet: Record<string, number | null | undefined>, sales: Array<{ pid: number; qty: number }>) {
+  const qty = new Map<number, number>();
+  for (const s of sales) qty.set(s.pid, (qty.get(s.pid) ?? 0) + Math.max(s.qty, 0));
+  const priced = stores.filter((s) => s.route && (perPallet[s.route] ?? 0) > 0 && (qty.get(s.pid) ?? 0) > 0);
+  const pieces = priced.reduce((t, s) => t + qty.get(s.pid)!, 0);
+  if (!(pieces > 0)) return null;
+  const tariff = priced.reduce((t, s) => t + qty.get(s.pid)! * (perPallet[s.route!] ?? 0), 0) / pieces;
+  const feePct = priced.reduce((t, s) => t + qty.get(s.pid)! * (s.feePct ?? 0), 0) / pieces;
+  const soldPieces = [...qty.values()].reduce((t, q) => t + q, 0);
+  return { perPallet: tariff, feePct, pieces, stores: priced.length, unpricedPieces: soldPieces - pieces };
+}

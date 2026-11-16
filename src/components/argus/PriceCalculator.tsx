@@ -12,7 +12,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { argusFetch } from "@/lib/argusApi";
 import { type SheetComponent } from "../../../supabase/functions/_shared/priceSheet";
 import { configuredSheet, lineLabour, RATE_KEYS, CONFIG_NUMBERS, validPriceConfig, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
-import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, profitAt } from "../../../supabase/functions/_shared/priceList";
+import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, productAverageRoute, profitAt } from "../../../supabase/functions/_shared/priceList";
 import { countyKey } from "../../../supabase/functions/_shared/priceSourceRules";
 import { PriceParameters, NumericParameter } from "./PriceParameters";
 import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
@@ -354,19 +354,25 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
     const typed = (ov(it.product.id).rates.feePct ?? globalRates.feePct ?? "") !== "";
     return typed || st.feePct == null ? cfg : { ...cfg, feePct: st.feePct };
   };
+  const productAverageFor = (it: Item) => (client != null && store == null && (result?.stores.length ?? 0) > 1 && logistics?.clientAverage
+    ? productAverageRoute(storesNow, perPalletMap, it.storeSales) : null);
   const compute = (it: Item, cfg: PriceConfig): Computed | null => {
     if (!result || !logistics || !validPriceConfig(cfg)) return null;
     const comps = it.components.map((c) => ({ ...c, ...(c.kind === "mp" || c.kind === "marfa" ? { price: mode === "week" ? c.weekPrice ?? null : c.annualPrice ?? null } : {}) }));
     // The proposed cursă follows the store routes chosen on screen (client average recomputed locally).
+    // Client average for this product: only the stores it was sold to, weighted with its pieces (same as the per-store table).
+    const pa = productAverageFor(it);
+    const lg = pa ? { ...logistics, distribution: { ...logistics.distribution, [CLIENT_AVERAGE_ROUTE]: { distributionPerPallet: pa.perPallet } } } : logistics;
     const base = it.defaults.route ? { ...it.defaults } : it.defaults;
-    if (it.defaults.route && logistics.distribution?.[it.defaults.route]) { for (const k of DIST_KEYS) delete (base as Record<string, unknown>)[k]; Object.assign(base, logistics.distribution[it.defaults.route]); }
-    const effective = prefilledConfig({ ...it, defaults: base, logistics }, cfg);
+    if (it.defaults.route && lg.distribution?.[it.defaults.route]) { for (const k of DIST_KEYS) delete (base as Record<string, unknown>)[k]; Object.assign(base, lg.distribution[it.defaults.route]); }
+    if (pa && result.fees?.scope === "average" && it.defaults.route === CLIENT_AVERAGE_ROUTE) base.feePct = pa.feePct;
+    const effective = prefilledConfig({ ...it, defaults: base, logistics: lg }, cfg);
     const r = configuredSheet({ ...it, components: comps }, ZERO(result.eur?.rate ?? 0), effective);
     return { s: r.sheet, comps: r.components, rates: r.rates, effective, cfg };
   };
   const sheets = useMemo(() => new Map(items.map((it) => [it.product.id, compute(it, buildConfig(it))])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, result, logistics, globalRates, over, mode, route, basis, year, month, rulesVersion]);
+    [items, result, logistics, storesNow, perPalletMap, globalRates, over, mode, route, basis, year, month, rulesVersion]);
 
   /** Values shown in the fields: calculated from Senior/CSV unless the user typed one. */
   const displayFor = (it: Item | null, c: Computed | null, rates: Record<string, string>) => {
@@ -401,7 +407,12 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
   ], [logistics]);
   const clientName = clients.find((c) => c.id === client)?.name ?? "";
   const storeName = stores.find((x) => x.id === store)?.name ?? result?.logistics.store?.name;
-  const routeLabel = (r: string) => (r === CLIENT_AVERAGE_ROUTE ? "medie client (toate magazinele, ponderat cu paleții)" : r);
+  /** With a product: the client average covers only the stores that bought it (by pieces sold), else every store (by pallets). */
+  const routeLabel = (r: string, it?: Item) => {
+    if (r !== CLIENT_AVERAGE_ROUTE) return r;
+    const pa = it ? productAverageFor(it) : null;
+    return pa ? `medie client (${pa.stores} ${pa.stores === 1 ? "magazin" : "magazine"} care au cumpărat produsul, ponderat cu bucățile vândute în 90 de zile)` : "medie client (toate magazinele, ponderat cu paleții)";
+  };
   const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
   const multiStore = !!result && client != null && store == null && result.stores.length > 1;
 
@@ -472,7 +483,7 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
     const rows: (string | number)[][] = [
       ["Fișă preț", it.product.name], ["Client", clientName || "Toți clienții"], ["Magazin", store != null ? storeName ?? "" : "Toate magazinele"],
       ["Perioadă", `${String(month).padStart(2, "0")}/${year}`], ["Bucăți / bax", n], ["Bucăți / palet", c.effective.piecesPerPallet ?? ""], ["Linie de producție", c.effective.labourLine ?? "nealeasă"],
-      ["Sursă manoperă", it.suggestedLabourSource ?? ""], ["Cursă distribuție", routeLabel(route)], ["Marjă brută %", num(marginShown || "0")], ["Taxe client %", r4(c.s.feePct)], [],
+      ["Sursă manoperă", it.suggestedLabourSource ?? ""], ["Cursă distribuție", routeLabel(route, it)], ["Marjă brută %", num(marginShown || "0")], ["Taxe client %", r4(c.s.feePct)], [],
       ["Componentă", "Tip", "UM", "Rețetă", "PT %", "Preț (lei/UM)", "Valoare (lei/bax)", "Valoare (lei/buc)", "Sursă"],
     ];
     for (const comp of c.comps) {
@@ -555,7 +566,7 @@ function PriceListCalculator({ rulesVersion, sales = false }: { rulesVersion: nu
     const parts: Array<[string, number, string]> = [
       ["Materii prime", s.rawMaterial, ""], ["Transport aprovizionare", s.supplyTransport, ""], ["Ambalaje", s.packaging, ""], ["Manoperă + regie", s.labour + s.utilities, ""],
       ...(s.techLoss ? [["Pierdere scenariu", s.techLoss, ""] as [string, number, string]] : []),
-      ["Cost producție", s.productionCost, "font-semibold"], [`Distribuție · ${routeLabel(route)}`, s.logistics, ""],
+      ["Cost producție", s.productionCost, "font-semibold"], [`Distribuție · ${routeLabel(route, it)}`, s.logistics, ""],
       [`Marjă brută ${marginShown}% din prețul de vânzare`, s.grossMargin, "text-primary"], ["Preț minim vânzare (break-even, fără taxe)", s.minPrice, "font-semibold"],
       [`Profitabilitate țintă ${n2(s.profitPct, 1)}% din prețul de vânzare fără taxe`, s.profit, "text-primary"], ["Preț propus fără taxe (minim + profit)", s.delivered, "font-semibold"], [`Taxe rețea ${n2(s.feePct, 2)}% din prețul propus`, s.clientFees, ""],
       ["Preț propus client (cu taxe incluse)", s.clientPrice, "font-bold"],

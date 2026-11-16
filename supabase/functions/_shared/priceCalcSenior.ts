@@ -5,7 +5,7 @@ import { MIXED_WASHED, type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
 import { clientFeeFor, loadPriceRules, priceRules } from "./priceRules.ts";
 import { transportRoute, configuredRawPalletKg, rawPalletGroup, orderedPallets, tradedGood, buildRoutes, deliveryRoute, pointRoute, unassignedByCounty, validRouteOverrides, LEGACY_ROUTES } from "./priceSourceRules.ts";
-import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, latestCostWindow, latestRoutes } from "./priceList.ts";
+import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, latestCostWindow, latestRoutes, productAverageRoute, routeDistribution } from "./priceList.ts";
 import { seniorLive, seniorSqlAll } from "./senior.ts";
 import { cf, lit, partnerInfoSql, partnerScope, type PartnerInfo } from "./priceScope.ts";
 import { matchOffer, offerSearchWords } from "./offerMatch.ts";
@@ -262,8 +262,8 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const loadData = buildRoutes(read?.points ?? [], read?.loadTrips ?? [], overrides);
   const routeData = { ...loadData, routes: latestRoutes(buildRoutes(read?.points ?? [], read?.trips ?? [], overrides).routes, loadData.routes) };
   for (const r of routeData.routes) {
-    // Latest trip cost × trips in the last 30 days, loaded with the 90-day pallets per trip.
-    distribution[r.route] = { distributionTotal: r.total, distributionTrips: r.trips, ...(r.palletsPerTrip ? { distributionPallets: r.trips * r.palletsPerTrip, distributionPerPallet: r.perPallet ?? undefined, distributionPalletsPerTrip: r.palletsPerTrip } : {}) };
+    // Latest trip cost × trips in the last 30 days, loaded with the 90-day pallets per trip (paired curse: the pair's figures).
+    distribution[r.route] = routeDistribution(r);
     if (!r.recent) info.push(`Cursa ${r.route}: nicio cursă facturată în ultimele ${rules.latestCostDays} de zile; costul pe cursă este media ${load.start} – ${load.end}.`);
     if (r.missingLines > 0) info.push(`Cursa ${r.route}: ${r.missingLines} linii de factură fără bucăți/palet în Senior (produse HORECA/vrac) nu sunt numărate în cei ${r.pallets.toFixed(1)} paleți; tariful pe palet poate fi ușor supraevaluat.`);
     if (r.unitPrice != null) info.push(`Cursa ${r.route}: transportatorul facturează ${r.unitPrice.toFixed(2)} lei × ${Math.round(r.qty)} unități (facturare lunară, nu pe cursă); tariful pe palet = costul ÷ paleții punctelor atribuite cursei.`);
@@ -402,6 +402,13 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
     for (const c of components) if (c.kind === "mp") cfg.components = { ...cfg.components, [c.id]: { kgPerPallet: c.kgPerPallet } };
     const hist = history.filter((r: any) => Number(r.aid) === aid);
     const storeSales = recent.filter((r: any) => Number(r.aid) === aid).map((r: any) => ({ pid: Number(r.pid), qty: num(r.q), value: num(r.v), price: num(r.q) > 0 ? num(r.v) / num(r.q) : null }));
+    // Client average: weighted with the stores this product was actually sold to, not every store of the client.
+    const productAvg = avg && cfg.route === CLIENT_AVERAGE_ROUTE ? productAverageRoute(stores, perPallet, storeSales) : null;
+    if (productAvg) {
+      for (const k of ["distributionTotal", "distributionPallets", "distributionTrips", "distributionPalletsPerTrip"] as const) delete cfg[k];
+      cfg.distributionPerPallet = productAvg.perPallet;
+      if (fees?.scope === "average") cfg.feePct = productAvg.feePct;
+    }
     const rq = storeSales.reduce((s, r) => s + r.qty, 0), rv = storeSales.reduce((s, r) => s + r.value, 0);
     const pl = priceList.find((r: any) => Number(r.aid) === aid);
     return {
@@ -413,7 +420,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
         : `Propunere după produs/compoziție; oameni, viteză și cost orar din Reguli de calcul${rulesMeta.updatedAt ? ` (modificate ${rulesMeta.updatedAt.slice(0, 10)})` : ""}`) : "Linie neidentificată",
       realSpeed: speed,
       salesHistory: hist.map((r: any) => ({ month: String(r.m), qty: num(r.q), value: num(r.v), price: num(r.q) > 0 ? Math.round((num(r.v) / num(r.q)) * 10000) / 10000 : null })),
-      storeSales,
+      storeSales, productAverage: productAvg,
       recentSale: rq > 0 ? { qty: rq, value: rv, price: rv / rq, from: recentStart, to: pricesPeriod.endDay } : null,
       priceList: pl ? { price: num(pl.price), currency: String(pl.cur ?? "RON"), list: String(pl.list ?? "").trim(), since: String(pl.ds).slice(0, 10) } : null,
     };

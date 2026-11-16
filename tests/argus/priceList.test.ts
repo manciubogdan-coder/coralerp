@@ -1,5 +1,5 @@
 import { expect, it } from "bun:test";
-import { clientAverageRoute, DEFAULT_MARGIN_PCT, latestCostWindow, latestRoutes, profitAt } from "../../supabase/functions/_shared/priceList";
+import { clientAverageRoute, DEFAULT_MARGIN_PCT, latestCostWindow, latestRoutes, productAverageRoute, profitAt, routeDistribution } from "../../supabase/functions/_shared/priceList";
 import { computeSheet } from "../../supabase/functions/_shared/priceSheet";
 
 it("new price lists start at 15% gross margin", () => {
@@ -89,4 +89,27 @@ it("a cursă without a pair keeps its own tariff", () => {
   const [r] = latestRoutes([rs("ROMAN", 17, 68890, 0)], [rs("ROMAN", 52, 200000, 375.9)]);
   expect(r.pool).toBeUndefined();
   expect(r.perPallet).toBeCloseTo(68890 / 17 / (375.9 / 52), 6);
+});
+
+it("a product's client average uses only the stores it was sold to, weighted with its pieces", () => {
+  const stores = [
+    { pid: 1, name: "BAMIS - PLOIESTI", route: "PLOIESTI", pallets: 40, feePct: 0 },
+    { pid: 2, name: "BAMIS - TURDA", route: "TURDA", pallets: 30, feePct: 2 },
+    { pid: 3, name: "BAMIS - FOCSANI", route: "FOCSANI", pallets: 50, feePct: 0 },
+  ];
+  const avg = productAverageRoute(stores, { PLOIESTI: 219.38, TURDA: 191.64, FOCSANI: 600 }, [{ pid: 1, qty: 71700 }, { pid: 2, qty: 59400 }]);
+  // FOCȘANI (no sales of this product) is left out: (71 700 × 219,38 + 59 400 × 191,64) ÷ 131 100
+  expect(avg?.perPallet).toBeCloseTo((71700 * 219.38 + 59400 * 191.64) / 131100, 6);
+  expect(avg?.feePct).toBeCloseTo((59400 * 2) / 131100, 6);
+  expect(avg?.stores).toBe(2);
+  expect(productAverageRoute(stores, { PLOIESTI: 219.38 }, [{ pid: 3, qty: 100 }])).toBeNull();
+});
+
+it("a paired cursă hands the sheet the pair's cost and pallets, so cost ÷ pallets is the shared tariff", () => {
+  const pool = { routes: ["TURDA", "TURDA-IERNUT"], total: 82220, trips: 44, perTrip: 82220 / 44, pallets: 600, loadTrips: 100, palletsPerTrip: 6, perPallet: 82220 / 44 / 6 };
+  const d = routeDistribution({ total: 43612, trips: 25, palletsPerTrip: 7.5, perPallet: pool.perPallet, pool });
+  expect(d.distributionTotal! / d.distributionPallets!).toBeCloseTo(pool.perPallet, 6);
+  expect(d.distributionPerPallet).toBeCloseTo(pool.perPallet, 6);
+  const single = routeDistribution({ total: 30000, trips: 10, palletsPerTrip: 15, perPallet: 200 });
+  expect(single.distributionTotal! / single.distributionPallets!).toBeCloseTo(200, 6);
 });
