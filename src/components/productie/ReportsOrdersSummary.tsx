@@ -60,7 +60,7 @@ const ReportsOrdersSummary = () => {
     ws["!cols"] = widths.map(wch => ({ wch: Math.min(wch, 90) }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Centralizator");
-    XLSX.writeFile(wb, `centralizator-comenzi-${day}.xlsx`);
+    XLSX.writeFile(wb, `centralizator-comenzi-${day}.xlsx`, { bookSST: true, compression: true });
   };
 
   return (
