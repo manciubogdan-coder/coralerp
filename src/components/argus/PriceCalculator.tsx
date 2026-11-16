@@ -12,6 +12,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { argusFetch } from "@/lib/argusApi";
 import { type SheetComponent } from "../../../supabase/functions/_shared/priceSheet";
 import { configuredSheet, lineLabour, RATE_KEYS, CONFIG_NUMBERS, validPriceConfig, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
+import { TransportCheck } from "./TransportCheck";
 import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, productAverageRoute, profitAt, truckRows } from "../../../supabase/functions/_shared/priceList";
 import { countyKey, routeGroup } from "../../../supabase/functions/_shared/priceSourceRules";
 import { PriceParameters, NumericParameter } from "./PriceParameters";
@@ -944,6 +945,7 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
                   </p>
                 )}
                 <div className="mt-3"><PriceParameters scope="list" values={globalDisplay} basis={basis} setBasis={setBasis} setValue={setGlobal} mode={mode} setMode={setMode} route={route} routes={routeOptions} setRoute={(v) => pickRoute(v)} line="" setLine={() => undefined} /></div>
+                <TransportCheck values={globalDisplay} basis={basis} route={route} />
                 {!!logistics.routes?.length && (
                   <div className="mt-4 overflow-x-auto">
                     <p className="mb-1 text-xs font-medium">Curse distribuție din Senior · cost din facturile {logistics.closedStart} – {logistics.closedEnd}, paleți din {logistics.loadWindow.start} – {logistics.loadWindow.end} · clic pe un rând ca să alegi cursa</p>
