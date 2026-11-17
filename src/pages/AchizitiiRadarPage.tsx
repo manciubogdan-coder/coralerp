@@ -274,7 +274,7 @@ const AchizitiiRadarPage: React.FC = () => {
                       <TableHead className="text-right" title="Stocul la începutul zilei radarului">Stoc {past ? dLabel(viewDay) : 'azi'}</TableHead>
                       <TableHead className="text-right" title="Stocul așteptat la începutul zilei livrării, cu livrările de dinainte și consumul până atunci">Stoc la sosire</TableHead>
                       <TableHead className="text-right">Comandat inițial</TableHead><TableHead className="text-right">Comandat {past ? 'atunci' : 'acum'}</TableHead>
-                      <TableHead className="text-right">Necesar</TableHead><TableHead className="text-right">Diferență</TableHead>
+                      <TableHead className="text-right" title="Consumul mediu istoric până la următoarea livrare">Necesar</TableHead><TableHead className="text-right" title="Stoc la sosire + comandat − necesar">Diferență</TableHead>
                       {byProduct && <TableHead>Termen comandă</TableHead>}
                       <TableHead>Stare</TableHead>
                     </TableRow></TableHeader>
@@ -289,11 +289,14 @@ const AchizitiiRadarPage: React.FC = () => {
                           <TableCell className="text-right tabular-nums">{fmt(l.ordered)} {l.unit}</TableCell>
                           <TableCell className="text-right tabular-nums">
                             <Popover><PopoverTrigger asChild><button className="underline decoration-dotted underline-offset-2">{fmt(l.need)} {l.unit}</button></PopoverTrigger>
-                              <PopoverContent className="w-64 text-sm"><p className="font-semibold mb-1">Necesar pe zile</p>
-                                {l.needDays.map((d) => <div key={d.day} className="flex justify-between tabular-nums"><span>{dLabel(d.day)}{d.day < viewDay ? ' (real)' : ''}</span><span>{fmt(d.qty)} {l.unit}</span></div>)}
-                                <div className="flex justify-between tabular-nums text-muted-foreground"><span>+ Tampon</span><span>{fmt(l.buffer)} {l.unit}</span></div>
-                                <div className="flex justify-between tabular-nums text-muted-foreground"><span>− Stoc la sosire</span><span>{fmt(Math.max(l.stockAtArrival, 0))} {l.unit}</span></div>
+                              <PopoverContent className="w-64 text-sm"><p className="font-semibold mb-1">Consum mediu istoric pe zile</p>
+                                {l.needDays.map((d) => <div key={d.day} className="flex justify-between tabular-nums"><span>{dLabel(d.day)}</span><span>{fmt(d.qty)} {l.unit}</span></div>)}
                                 <div className="flex justify-between tabular-nums font-semibold border-t mt-1 pt-1"><span>= Necesar</span><span>{fmt(l.need)} {l.unit}</span></div>
+                                <p className="text-xs text-muted-foreground mt-2">Media aceleiași zile din cele 4 săptămâni {past ? `dinainte de ${dLabel(viewDay)}` : 'trecute'}.</p>
+                                <div className="flex justify-between tabular-nums mt-2"><span>Stoc la sosire</span><span>{fmt(l.stockAtArrival)} {l.unit}</span></div>
+                                <div className="flex justify-between tabular-nums"><span>+ Comandat</span><span>{fmt(l.ordered)} {l.unit}</span></div>
+                                <div className="flex justify-between tabular-nums"><span>− Necesar</span><span>{fmt(l.need)} {l.unit}</span></div>
+                                <div className="flex justify-between tabular-nums font-semibold border-t mt-1 pt-1"><span>= Diferență</span><span>{l.delta > 0 ? '+' : ''}{fmt(l.delta)} {l.unit}</span></div>
                               </PopoverContent></Popover>
                           </TableCell>
                           <TableCell className={cn('text-right tabular-nums font-semibold', l.status === 'lipsa' && 'text-destructive')}>{l.delta > 0 ? '+' : ''}{fmt(l.delta)} {l.unit}</TableCell>
@@ -312,7 +315,7 @@ const AchizitiiRadarPage: React.FC = () => {
             );
           })}
         </div>
-        <p className="text-xs text-muted-foreground">„Stoc la sosire” = stocul de la începutul zilei radarului + livrările de dinainte − consumul până în ziua livrării (negativ = lipsă). „Comandat inițial” e prima cantitate văzută de radar. Necesarul folosește aceleași reguli ca forecastul din Achiziții, plus tamponul.{byProduct ? ' Fiecare produs e verificat în zilele în care îi vine marfă și în prima zi în care scade sub tampon.' : ''}</p>
+        <p className="text-xs text-muted-foreground">„Stoc la sosire” = stocul de la începutul zilei radarului + livrările de dinainte − consumul până în ziua livrării (negativ = lipsă). „Comandat inițial” e prima cantitate văzută de radar. „Necesar” = consumul mediu istoric (aceeași zi a săptămânii, ultimele 4 săptămâni) din ziua livrării până la următoarea livrare. „Diferență” = stoc la sosire + comandat − necesar; minus înseamnă lipsă.{byProduct ? ' Fiecare produs e verificat în zilele în care îi vine marfă și în prima zi în care scade sub tampon.' : ''}</p>
       </>}
 
       <div className="hidden" aria-hidden><HiddenForecast key={`${type}-${tick}`} inventoryType={type} onRows={onRows} /></div>

@@ -115,7 +115,7 @@ export interface RadarLine {
   /** Ordered before the order day: must still be confirmed on the order day. */
   premature: boolean; reviewed: boolean;
   firstQty: number | null; orderIds: string[];
-  /** How the need is built: consumption of each day until the next delivery, plus buffer, minus stock at arrival. */
+  /** Need = historical average consumption of each day until the next delivery; delta = stock at arrival + ordered − need. */
   needDays: { day: string; qty: number }[]; buffer: number;
 }
 
@@ -127,13 +127,14 @@ function buildLine(row: RadarRow, mine: RadarOrder[], arrival: string, next: str
   const proj = project(row, dates, today, row.orderedPerDate);
   const i = dates.indexOf(arrival);
   const opening = i >= 0 ? proj[i].opening ?? 0 : 0;
-  const needDays = range(arrival, addDays(next, -1)).map((d) => ({ day: d, qty: dayDemand(row, d, today) }));
-  const consumption = needDays.reduce((s, d) => s + d.qty, 0);
-  const need = Math.max(0, consumption + (row.buffer || 0) - Math.max(opening, 0));
+  // Need = historical average consumption (same weekday, 4 weeks) of each day the delivery covers, stock not subtracted.
+  const needDays = range(arrival, addDays(next, -1)).map((d) => ({ day: d, qty: row.transferAvg[isoWeekday(d) - 1] || 0 }));
+  const need = needDays.reduce((s, d) => s + d.qty, 0);
   if (need <= 0 && ordered <= 0) return null;
-  const delta = ordered - need;
-  const short = ordered < need * (1 - tol) - 1e-9;
-  const over = ordered > need * (1 + tol) + 1e-9;
+  // Difference = what is left after that consumption: stock at arrival + ordered − need (minus = shortage).
+  const delta = opening + ordered - need;
+  const short = delta < -need * tol - 1e-9;
+  const over = delta > need * tol + (row.buffer || 0) + 1e-9;
   const status: LineStatus = short ? 'lipsa' : over && settings.warnSurplus ? 'surplus' : 'ok';
   const firsts = mine.map((o) => byOrder.get(o.id)?.[0]?.quantity ?? null);
   const firstQty = mine.length && firsts.every((q) => q !== null) ? firsts.reduce((s, q) => s + (q as number), 0) : null;
@@ -155,8 +156,8 @@ const versionsByOrder = (history: OrderVersion[]) => {
 const sortLines = (out: RadarLine[]) => out.sort((a, b) => Math.abs(b.delta) / Math.max(b.need, 1) - Math.abs(a.delta) / Math.max(a.need, 1));
 
 /**
- * Truck rules (raw materials): need of one truck = consumption from its arrival until the next arrival
- * + one day of buffer − stock expected at arrival (with earlier deliveries). Ordered = orders due that day.
+ * Truck rules (raw materials): need of one truck = historical average consumption from its arrival until the
+ * next arrival; difference = stock expected at arrival (with earlier deliveries) + ordered − need.
  * `orders` must already be the active ones (see ordersAsOf).
  */
 export function truckLines(rows: RadarRow[], orders: RadarOrder[], truck: Truck, next: string, settings: RadarSettings,
@@ -174,8 +175,8 @@ export function truckLines(rows: RadarRow[], orders: RadarOrder[], truck: Truck,
 
 /**
  * Product lead-time rules (packaging/labels): each product is checked on every day an order of it arrives
- * and on the first delivery day it runs below its buffer. Need = consumption until its next delivery
- * (or 7 days) + buffer − stock at that day; deadline = that day − the product's own lead time.
+ * and on the first delivery day it runs below its buffer. Need = average consumption until its next delivery
+ * (or 7 days); deadline = that day − the product's own lead time.
  */
 export function productLines(rows: RadarRow[], orders: RadarOrder[], settings: RadarSettings, today: string, nowTime: string,
   horizonEnd: string, history: OrderVersion[] = []): RadarLine[] {

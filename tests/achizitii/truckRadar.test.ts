@@ -107,3 +107,23 @@ _it('delayed truck shows the full deficit: 693.5 stock, 956.5 use → 263 kg sho
     orderedPerDate: { [t]: 280.8 }, transferAvg: Array(7).fill(956.5), actualConsumption: { [t]: 956.5 } };
   _expect(_delay([row], t, 1, t)[0].shortage).toBeCloseTo(263, 1);
 });
+
+_it('need is the historical average consumption, difference = stock at arrival + ordered − need', () => {
+  const t = '2026-11-17';
+  const truck = { loading: '2026-11-16', arrival: t, orderDay: '2026-11-14', deadline: '', phase: 'inchis' as const };
+  const r: any = { key: 'b', name: 'Baby Spanac', unit: 'kg', productId: 'p', snapshots: { [t]: 693.5 }, received: {}, returned: {}, outbound: {}, commitments: {},
+    orderedPerDate: { [t]: 280.8 }, transferAvg: Array(7).fill(956.5), actualConsumption: {}, buffer: 900 };
+  const [l] = truckLines([r], [{ id: 'o', product_id: 'p', quantity: 280.8, delivery_date: t, order_date: '2026-11-14', status: 'ordered' }], truck, '2026-11-18', DEFAULT_RADAR_SETTINGS, t);
+  _expect(l.need).toBeCloseTo(956.5, 1);
+  _expect(l.delta).toBeCloseTo(17.8, 1);
+  _expect(l.status).toBe('ok');
+});
+_it('need is not reduced by stock: 500 in stock, 100/day → need 100, difference +400', () => {
+  const t = '2026-11-17';
+  const truck = { loading: '2026-11-16', arrival: t, orderDay: '2026-11-14', deadline: '', phase: 'inchis' as const };
+  const r: any = { key: 'x', name: 'Rucola', unit: 'kg', productId: 'p', snapshots: { [t]: 500 }, received: {}, returned: {}, outbound: {}, commitments: {},
+    orderedPerDate: {}, transferAvg: Array(7).fill(100), actualConsumption: {}, buffer: 0 };
+  const [l] = truckLines([r], [], truck, '2026-11-18', DEFAULT_RADAR_SETTINGS, t);
+  _expect(l.need).toBeCloseTo(100);
+  _expect(l.delta).toBeCloseTo(400);
+});
