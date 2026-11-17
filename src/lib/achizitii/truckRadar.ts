@@ -115,6 +115,8 @@ export interface RadarLine {
   /** Ordered before the order day: must still be confirmed on the order day. */
   premature: boolean; reviewed: boolean;
   firstQty: number | null; orderIds: string[];
+  /** How the need is built: consumption of each day until the next delivery, plus buffer, minus stock at arrival. */
+  needDays: { day: string; qty: number }[]; buffer: number;
 }
 
 function buildLine(row: RadarRow, mine: RadarOrder[], arrival: string, next: string, settings: RadarSettings, today: string,
@@ -125,7 +127,8 @@ function buildLine(row: RadarRow, mine: RadarOrder[], arrival: string, next: str
   const proj = project(row, dates, today, row.orderedPerDate);
   const i = dates.indexOf(arrival);
   const opening = i >= 0 ? proj[i].opening ?? 0 : 0;
-  const consumption = range(arrival, addDays(next, -1)).reduce((s, d) => s + dayDemand(row, d, today), 0);
+  const needDays = range(arrival, addDays(next, -1)).map((d) => ({ day: d, qty: dayDemand(row, d, today) }));
+  const consumption = needDays.reduce((s, d) => s + d.qty, 0);
   const need = Math.max(0, consumption + (row.buffer || 0) - Math.max(opening, 0));
   if (need <= 0 && ordered <= 0) return null;
   const delta = ordered - need;
@@ -140,7 +143,7 @@ function buildLine(row: RadarRow, mine: RadarOrder[], arrival: string, next: str
   return {
     key: row.key, name: row.name, unit: row.unit, productId: row.productId, group: row.group || OTHER_RANGE, arrival, ordered, need, delta, status,
     stockToday: proj[0]?.opening ?? null, stockAtArrival: opening, orderDay, phase, leadTime: Math.round(row.leadTime ?? 0),
-    premature, reviewed, firstQty, orderIds: mine.map((o) => o.id),
+    premature, reviewed, firstQty, orderIds: mine.map((o) => o.id), needDays, buffer: row.buffer || 0,
   };
 }
 

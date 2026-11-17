@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from '@/hooks/use-custom-toast';
 import { Loader2, RefreshCw, Truck as TruckIcon, Settings2, Timer, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   DEFAULT_RADAR_BY_TYPE, REPLAY_DAYS, addDays, byRange, delayImpact, ordersAsOf, productLines, rowAsOf, truckLight, truckLines, trucks,
   type OrderVersion, type Phase, type RadarInvType, type RadarLine, type RadarOrder, type RadarRow, type RadarSettings, type Truck,
@@ -286,7 +287,15 @@ const AchizitiiRadarPage: React.FC = () => {
                           <TableCell className="text-right tabular-nums">{stockCell(l.stockAtArrival, l.unit)}</TableCell>
                           <TableCell className="text-right tabular-nums text-muted-foreground">{l.firstQty === null ? '—' : `${fmt(l.firstQty)} ${l.unit}`}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.ordered)} {l.unit}</TableCell>
-                          <TableCell className="text-right tabular-nums">{fmt(l.need)} {l.unit}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            <Popover><PopoverTrigger asChild><button className="underline decoration-dotted underline-offset-2">{fmt(l.need)} {l.unit}</button></PopoverTrigger>
+                              <PopoverContent className="w-64 text-sm"><p className="font-semibold mb-1">Necesar pe zile</p>
+                                {l.needDays.map((d) => <div key={d.day} className="flex justify-between tabular-nums"><span>{dLabel(d.day)}{d.day < viewDay ? ' (real)' : ''}</span><span>{fmt(d.qty)} {l.unit}</span></div>)}
+                                <div className="flex justify-between tabular-nums text-muted-foreground"><span>+ Tampon</span><span>{fmt(l.buffer)} {l.unit}</span></div>
+                                <div className="flex justify-between tabular-nums text-muted-foreground"><span>− Stoc la sosire</span><span>{fmt(Math.max(l.stockAtArrival, 0))} {l.unit}</span></div>
+                                <div className="flex justify-between tabular-nums font-semibold border-t mt-1 pt-1"><span>= Necesar</span><span>{fmt(l.need)} {l.unit}</span></div>
+                              </PopoverContent></Popover>
+                          </TableCell>
                           <TableCell className={cn('text-right tabular-nums font-semibold', l.status === 'lipsa' && 'text-destructive')}>{l.delta > 0 ? '+' : ''}{fmt(l.delta)} {l.unit}</TableCell>
                           {byProduct && <TableCell className="whitespace-nowrap text-sm">{dLabel(l.orderDay)} <span className="text-muted-foreground">({l.leadTime} zile)</span></TableCell>}
                           <TableCell className="space-x-1">

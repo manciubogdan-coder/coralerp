@@ -21,6 +21,7 @@ import { aggregateSnapshots, businessDay, dayBounds, effectiveOrderQuantities, e
 import { PACK_TYPES, packGroupOf, palletsFor, summarizePallets } from '@/lib/forecastGroups';
 import ConsumptionSourcesDialog, { type ConsumptionSource } from './ConsumptionSourcesDialog';
 import StockGapDialog from './StockGapDialog';
+import TruckComposer from './TruckComposer';
 import { loadProductionUsage } from '@/lib/productionUsage';
 import type { ProductionUsage } from '@/lib/forecastReconciliation';
 import ProductionUsageBreakdown from '@/components/production/ProductionUsageBreakdown';
@@ -809,6 +810,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "",
 
   return (
     <div className="space-y-4">
+      {inventoryType === "materii-prime" && mode === "live" && !onRows && <TruckComposer rows={rows} today={businessDay(new Date().toISOString())} />}
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex gap-1">
           <Button size="sm" variant={mode === "live" ? "default" : "outline"} onClick={() => switchMode("live")}>
