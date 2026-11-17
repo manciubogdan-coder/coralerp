@@ -39,6 +39,7 @@ import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts'
 import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAttachments, attachmentSummaries, rereadAttachment } from "./files.ts";
 import { validChatMessages, readChatHistory, repairChatMessageIds, isEmptyAssistant, markFailedTurn } from "./chatHistory.ts";
 import { rollingContext } from "./context.ts";
+import { radarSettings, saveRadarSettings, radarSnapshot } from "./radar.ts";
 import { compactData, attachmentManifest, messageText } from "./contextRules.ts";
 import {
   LEGACY_ANON,
@@ -756,6 +757,20 @@ Deno.serve(async (req) => {
       case 'viziune_offices_save': {
         if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
         try { return json(await saveOfficeConfig(c, await req.json(), auth.user.email ?? userId)); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case 'radar_settings': {
+        try { return json(await radarSettings(c.cloud)); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case 'radar_settings_save': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        try { return json(await saveRadarSettings(c.cloud, await req.json(), auth.user.email ?? userId)); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case 'radar_snapshot': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        try { return json(await radarSnapshot(c.cloud, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case 'viziune_layout': {

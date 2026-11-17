@@ -9,6 +9,7 @@ import {
   Eye,
   LineChart,
   Box,
+  Truck,
   type LucideIcon,
 } from 'lucide-react';
 import BackToHubButton from '@/components/BackToHubButton';
@@ -21,6 +22,7 @@ interface Tile {
 }
 
 const TILES: Tile[] = [
+  { label: 'Radar achiziții', desc: 'Tirurile din Italia și comenzile de ambalaje/etichete: comandat vs necesar, termene și întârzieri.', path: '/administrativ/radar-achizitii', icon: Truck },
   { label: 'Viziune', desc: 'Toată compania ca o lume 3D: clic pe o clădire și intri în departament.', path: '/administrativ/viziune', icon: Box },
   { label: 'Panou CEO', desc: 'Profit, venituri, cheltuieli dintr-o privire + rapoarte proprii cu drag and drop sau cu asistentul.', path: '/administrativ/panou-ceo', icon: LineChart },
   { label: 'Argus', desc: 'Ochiul CEO-ului: vede tot ce mișcă în firmă, analizează, raportează și îți răspunde.', path: '/administrativ/argus', icon: Eye },

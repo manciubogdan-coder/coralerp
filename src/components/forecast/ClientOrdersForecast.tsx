@@ -28,6 +28,8 @@ import ProductionUsageBreakdown from '@/components/production/ProductionUsageBre
 interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
   searchTerm?: string;
+  /** Radar Achiziții: receives the computed rows (same rules as this forecast). */
+  onRows?: (rows: any[]) => void;
 }
 
 interface Row {
@@ -103,7 +105,7 @@ const toKg = (q: number, u?: string) => {
   }
 };
 
-const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" }) => {
+const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "", onRows }) => {
   const [mode, setMode] = useState<"live" | "istoric">("live");
   const [preset, setPreset] = useState<string>("7");
   const [fromDate, setFromDate] = useState<Date>(subDays(new Date(), 30));
@@ -537,6 +539,8 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "" 
       setLoading(false);
     }
   };
+
+  useEffect(() => { onRows?.(rows); }, [rows, onRows]);
 
   useEffect(() => {
     fetchData();

@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      achizitii_comenzi_istoric: {
+        Row: {
+          delivery_date: string | null
+          id: string
+          inventory_type: string
+          order_id: string
+          product_id: string | null
+          quantity: number
+          seen_at: string
+          status: string | null
+        }
+        Insert: {
+          delivery_date?: string | null
+          id?: string
+          inventory_type: string
+          order_id: string
+          product_id?: string | null
+          quantity: number
+          seen_at?: string
+          status?: string | null
+        }
+        Update: {
+          delivery_date?: string | null
+          id?: string
+          inventory_type?: string
+          order_id?: string
+          product_id?: string | null
+          quantity?: number
+          seen_at?: string
+          status?: string | null
+        }
+        Relationships: []
+      }
+      achizitii_radar_setari: {
+        Row: {
+          id: boolean
+          settings: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          settings?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          settings?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       ambalaje_tuburi_miscari: {
         Row: {
           created_at: string
