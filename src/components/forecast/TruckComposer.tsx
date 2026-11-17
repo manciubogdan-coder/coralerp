@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Truck, Leaf, Package, ArrowRightLeft } from 'lucide-react';
-import { composeWeek, TINY, TRUCK_MAX, TRUCK_MIN, type TruckDay, type TruckItem, type TruckMove } from '@/lib/achizitii/truckBuilder';
-import { isoWeekday } from '@/lib/achizitii/truckRadar';
+import { arrivalFor, composeWeek, TINY, TRUCK_MAX, TRUCK_MIN, type TruckDay, type TruckItem, type TruckMove } from '@/lib/achizitii/truckBuilder';
+import { addDays, isoWeekday } from '@/lib/achizitii/truckRadar';
 import { cn } from '@/lib/utils';
 
 const WD = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
@@ -11,6 +11,9 @@ const p1 = (n: number) => n.toLocaleString('ro-RO', { maximumFractionDigits: 1, 
 const kg = (n: number) => `${Math.round(n).toLocaleString('ro-RO')} kg`;
 const wd = (d: string) => WD[isoWeekday(d) - 1];
 const dLabel = (d: string) => `${wd(d)} ${d.slice(8, 10)}.${d.slice(5, 7)}`;
+
+/** Production days a truck arriving on `d` brings goods for (e.g. Saturday → Du, Lu, Ma). */
+const covers = (d: string) => Array.from({ length: 7 }, (_, i) => addDays(d, i + 1)).filter((p) => arrivalFor(p) === d).map(wd).join(', ');
 
 const TONE: Record<TruckDay['status'], string> = {
   full: 'border-crm-green bg-crm-green/10',
@@ -81,7 +84,7 @@ const TruckComposer: React.FC<{ rows: any[]; today: string }> = ({ rows, today }
     <Card className="mb-4">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2"><Truck className="h-5 w-5" /> Camioane — următoarele 2 săptămâni</CardTitle>
-        <p className="text-xs text-muted-foreground">Ziua de pe fiecare căsuță = ziua în care sosește marfa. Un camion pe zi, {TRUCK_MIN}–{TRUCK_MAX} paleți. Salatele și aromatele vin în ziua în care trebuie. Doar căpățânile și radicchio se mută cu 1–2 zile ca să umple camionul. Apasă pe o zi ca să vezi ce comanzi.</p>
+        <p className="text-xs text-muted-foreground">Fiecare căsuță = ziua în care sosește camionul (marți–sâmbătă). Marfa sosită se folosește a doua zi: camionul de sâmbătă aduce pentru duminică, luni și marți, cel de marți pentru miercuri. {TRUCK_MIN}–{TRUCK_MAX} paleți pe camion. Salatele și aromatele nu vin mai devreme; doar căpățânile și radicchio se mută cu 1–2 zile ca să umple camionul. Apasă pe o zi ca să vezi ce comanzi.</p>
       </CardHeader>
       <CardContent className="space-y-3">
         {weeks.map((w, wi) => (
@@ -91,7 +94,7 @@ const TruckComposer: React.FC<{ rows: any[]; today: string }> = ({ rows, today }
           {w.map((d) => (
             <button key={d.day} type="button" onClick={() => setDay(day === d.day ? null : d.day)}
               className={cn('rounded-md border-2 p-2 text-left transition-shadow', TONE[d.status], day === d.day && 'ring-2 ring-ring')}>
-              <div className="text-xs text-muted-foreground">{dLabel(d.day)}</div>
+              <div className="text-xs text-muted-foreground">{dLabel(d.day)} <span className="text-[10px]">· pt. {covers(d.day)}</span></div>
               <div className="text-2xl font-semibold tabular-nums leading-tight">{d.status === 'merged' ? '—' : p1(d.pallets)}<span className="text-xs font-normal"> pal</span></div>
               <div className="text-xs font-medium">{statusText(d)}</div>
               {[...d.movesIn, ...d.movesOut].map((m) => <div key={m.id} className="text-[11px] text-muted-foreground">{moveText(m, d.day)}</div>)}
@@ -102,7 +105,7 @@ const TruckComposer: React.FC<{ rows: any[]; today: string }> = ({ rows, today }
         {sel && sel.status !== 'merged' && (
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
-              <Block icon={<Leaf className="h-4 w-4" />} title="Perisabile" hint="Salate, frunze, aromate — vin doar în ziua în care trebuie." items={sel.items.filter((i) => !i.sturdy)} />
+              <Block icon={<Leaf className="h-4 w-4" />} title="Perisabile" hint="Salate, frunze, aromate — vin doar cu camionul dinaintea zilei de producție." items={sel.items.filter((i) => !i.sturdy)} />
               <Block icon={<Package className="h-4 w-4" />} title="Rezistente" hint="Căpățâni și radicchio — pot veni cu 1–2 zile mai devreme." items={sel.items.filter((i) => i.sturdy)} />
             </div>
             {(sel.movesIn.length > 0 || sel.movesOut.length > 0 || refusedHere.length > 0) && (

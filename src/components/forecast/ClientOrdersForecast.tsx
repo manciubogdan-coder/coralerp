@@ -22,7 +22,7 @@ import { PACK_TYPES, packGroupOf, palletsFor, summarizePallets } from '@/lib/for
 import ConsumptionSourcesDialog, { type ConsumptionSource } from './ConsumptionSourcesDialog';
 import StockGapDialog from './StockGapDialog';
 import TruckComposer from './TruckComposer';
-import { dailyPlan, type DailyPlanStep } from '@/lib/achizitii/truckBuilder';
+import { arrivalFor, dailyPlan, type DailyPlanStep } from '@/lib/achizitii/truckBuilder';
 import { loadProductionUsage } from '@/lib/productionUsage';
 import type { ProductionUsage } from '@/lib/forecastReconciliation';
 import ProductionUsageBreakdown from '@/components/production/ProductionUsageBreakdown';
@@ -707,7 +707,9 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "",
       .filter(({ q }) => q > 0)
       .map(({ r, q }) => ({ key: r.key, productId: r.productId, name: r.name, unit: r.unit, qty: q }));
     if (!lines.length) { toast({ title: 'Nimic de comandat', description: group ? `Nu există cantități sugerate la ${group} pentru această perioadă.` : 'Nu există cantități sugerate pentru această zi.' }); return; }
-    setDayOrderDate(addDays(c.last, 1));
+    // Materii prime: marfa pentru producția de mâine vine cu camionul de dinainte (Ma–Sâ; sâmbăta acoperă și luni–marți).
+    const need = format(addDays(c.last, 1), 'yyyy-MM-dd');
+    setDayOrderDate(!weekly && inventoryType === 'materii-prime' ? new Date(`${arrivalFor(need)}T12:00:00`) : addDays(c.last, 1));
     setDayOrderLines(lines);
   };
   const gapRow = gapKey ? filtered.find((r) => r.key === gapKey) : undefined;
@@ -1181,7 +1183,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "",
                                     <PopoverTrigger asChild>
                                       <Button variant="link" size="sm" className="h-auto p-0 text-xs tabular-nums flex-col items-end" aria-label={`Comandă sugerată ${r.name} ${format(d, 'dd.MM')}`}>
                                         <span>{fmt(suggestion)}</span>
-                                        {step && suggestion > 0 && <span className="text-[10px] font-normal text-muted-foreground">sosire {format(new Date(`${step.day}T12:00:00`), 'dd.MM')}</span>}
+                                        {step && suggestion > 0 && <span className="text-[10px] font-normal text-muted-foreground">{inventoryType === 'materii-prime' ? `camion ${format(new Date(`${arrivalFor(step.day)}T12:00:00`), 'dd.MM')}` : `sosire ${format(new Date(`${step.day}T12:00:00`), 'dd.MM')}`}</span>}
                                         {orderBy && suggestion > 0 && <span className={cn("text-[10px] font-normal", late ? "text-destructive" : "text-muted-foreground")}>{late ? 'termen depășit' : `până la ${format(new Date(`${orderBy}T12:00:00`), 'dd.MM')}`}</span>}
                                         {(() => { const pal = r.unit?.toLowerCase() === 'kg' ? palletsFor(r.name, suggestion) : null; return pal ? <span className="text-[10px] text-muted-foreground font-normal">{pal.toFixed(1)} pal</span> : null; })()}
                                       </Button>
@@ -1189,7 +1191,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "",
                                     <PopoverContent className="w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto text-xs space-y-2">
                                       <div className="font-semibold mb-1">Comandă sugerată — {r.name}</div>
                                       {step ? <>
-                                        <div className="text-muted-foreground">Marfa care trebuie să sosească pe <b>{format(new Date(`${step.day}T12:00:00`), 'EEE dd.MM', { locale: ro })}</b>. Aceeași cantitate apare la „Camioane — următoarele 2 săptămâni”, pe ziua aceea.</div>
+                                        <div className="text-muted-foreground">{inventoryType === 'materii-prime' ? <>Marfa pentru producția din <b>{format(new Date(`${step.day}T12:00:00`), 'EEE dd.MM', { locale: ro })}</b>. Vine cu camionul de <b>{format(new Date(`${arrivalFor(step.day)}T12:00:00`), 'EEE dd.MM', { locale: ro })}</b> și apare acolo la „Camioane — următoarele 2 săptămâni”.</> : <>Marfa care trebuie să sosească pe <b>{format(new Date(`${step.day}T12:00:00`), 'EEE dd.MM', { locale: ro })}</b>.</>}</div>
                                         <div className="flex justify-between gap-3"><span>Stoc tampon de păstrat la final de zi (media 7 zile)</span><span className="tabular-nums whitespace-nowrap">+{fmt(step.target)} {r.unit}</span></div>
                                         <div className="flex justify-between gap-3"><span>Stoc final {format(new Date(`${step.day}T12:00:00`), 'dd.MM')} (cu comenzile deja plasate și consumul)</span><span className="tabular-nums whitespace-nowrap">{step.closing < 0 ? '+' : '−'}{fmt(Math.abs(step.closing))} {r.unit}</span></div>
                                         {step.earlier > 0 && <div className="flex justify-between gap-3"><span>Acoperit de sugestiile din zilele dinainte</span><span className="tabular-nums whitespace-nowrap">−{fmt(step.earlier)} {r.unit}</span></div>}
