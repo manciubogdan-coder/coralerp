@@ -810,7 +810,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "",
 
   return (
     <div className="space-y-4">
-      {inventoryType === "materii-prime" && mode === "live" && !onRows && <TruckComposer rows={rows} today={businessDay(new Date().toISOString())} />}
+      {inventoryType === "materii-prime" && !onRows && <TruckComposer rows={rows} today={businessDay(new Date().toISOString())} />}
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex gap-1">
           <Button size="sm" variant={mode === "live" ? "default" : "outline"} onClick={() => switchMode("live")}>
