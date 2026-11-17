@@ -672,7 +672,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "",
     filtered.forEach((r) => { const i = stockGapIssues(gapFor(r), r.unit?.toLowerCase()); if (i.length) m.set(r.key, i); });
     return m;
   }, [filtered, gapFor]);
-  // Pe zile: comanda sugerată a coloanei D = ce trebuie să sosească pe D+1, din același plan ca „Camioane săptămâna aceasta”
+  // Pe zile: comanda sugerată a coloanei D = ce trebuie să sosească pe D+1, din același plan ca „Camioane — următoarele 2 săptămâni”
   // (stoc proiectat cu comenzile deja plasate, sugestiile zilelor dinainte scăzute, ca să nu se comande de două ori).
   const dailyPlans = useMemo(() => {
     const m = new Map<string, Map<string, DailyPlanStep>>();
@@ -1044,7 +1044,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "",
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Comandă (intrare)</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-400" /> Consum</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Stoc final zi</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> {weekly ? 'Comandă sugerată (consum săptămâna următoare + stoc tampon − stoc final; tampon = media zilnică din ultimele 7 zile)' : 'Comandă sugerată = marfa care trebuie să sosească a doua zi ca să rămână stocul tampon (aceeași cifră ca la „Camioane săptămâna aceasta”)'}</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> {weekly ? 'Comandă sugerată (consum săptămâna următoare + stoc tampon − stoc final; tampon = media zilnică din ultimele 7 zile)' : 'Comandă sugerată = marfa care trebuie să sosească a doua zi ca să rămână stocul tampon (aceeași cifră ca la „Camioane — următoarele 2 săptămâni”)'}</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-destructive" /> Sub zero ⚠</span>
           </div>
 
@@ -1189,7 +1189,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "",
                                     <PopoverContent className="w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto text-xs space-y-2">
                                       <div className="font-semibold mb-1">Comandă sugerată — {r.name}</div>
                                       {step ? <>
-                                        <div className="text-muted-foreground">Marfa care trebuie să sosească pe <b>{format(new Date(`${step.day}T12:00:00`), 'EEE dd.MM', { locale: ro })}</b>. Aceeași cantitate apare la „Camioane săptămâna aceasta”, pe ziua aceea.</div>
+                                        <div className="text-muted-foreground">Marfa care trebuie să sosească pe <b>{format(new Date(`${step.day}T12:00:00`), 'EEE dd.MM', { locale: ro })}</b>. Aceeași cantitate apare la „Camioane — următoarele 2 săptămâni”, pe ziua aceea.</div>
                                         <div className="flex justify-between gap-3"><span>Stoc tampon de păstrat la final de zi (media 7 zile)</span><span className="tabular-nums whitespace-nowrap">+{fmt(step.target)} {r.unit}</span></div>
                                         <div className="flex justify-between gap-3"><span>Stoc final {format(new Date(`${step.day}T12:00:00`), 'dd.MM')} (cu comenzile deja plasate și consumul)</span><span className="tabular-nums whitespace-nowrap">{step.closing < 0 ? '+' : '−'}{fmt(Math.abs(step.closing))} {r.unit}</span></div>
                                         {step.earlier > 0 && <div className="flex justify-between gap-3"><span>Acoperit de sugestiile din zilele dinainte</span><span className="tabular-nums whitespace-nowrap">−{fmt(step.earlier)} {r.unit}</span></div>}

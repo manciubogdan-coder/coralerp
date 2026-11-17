@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Truck, Leaf, Package, ArrowRightLeft } from 'lucide-react';
-import { composeWeek, TRUCK_MAX, TRUCK_MIN, type TruckDay, type TruckItem, type TruckMove } from '@/lib/achizitii/truckBuilder';
+import { composeWeek, TINY, TRUCK_MAX, TRUCK_MIN, type TruckDay, type TruckItem, type TruckMove } from '@/lib/achizitii/truckBuilder';
 import { isoWeekday } from '@/lib/achizitii/truckRadar';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +21,7 @@ const TONE: Record<TruckDay['status'], string> = {
 };
 const statusText = (d: TruckDay) =>
   d.status === 'full' ? 'camion complet'
+  : d.status === 'under' && d.pallets < TINY ? 'prea puțin pentru un camion'
   : d.status === 'under' ? `lipsesc ${p1(d.missing)} pal`
   : d.status === 'over' ? `${d.trucks} camioane · +${p1(d.over)} pal`
   : d.status === 'merged' ? `fără camion · merge pe ${wd(d.mergedInto!)}`
@@ -67,18 +68,27 @@ const TruckComposer: React.FC<{ rows: any[]; today: string }> = ({ rows, today }
   const [day, setDay] = useState<string | null>(null);
   if (!rows.length || !week.length) return null;
   const sel = week.find((d) => d.day === day);
+  // Group the boxes per Monday–Sunday week.
+  const weeks = week.reduce<TruckDay[][]>((acc, d) => {
+    const last = acc[acc.length - 1];
+    if (last && isoWeekday(d.day) > isoWeekday(last[last.length - 1].day)) last.push(d); else acc.push([d]);
+    return acc;
+  }, []);
   const toggle = (id: string) => setRefused((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const refusedHere = sel ? [...refused].filter((id) => id.includes(sel.day)) : [];
 
   return (
     <Card className="mb-4">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2"><Truck className="h-5 w-5" /> Camioane săptămâna aceasta</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2"><Truck className="h-5 w-5" /> Camioane — următoarele 2 săptămâni</CardTitle>
         <p className="text-xs text-muted-foreground">Ziua de pe fiecare căsuță = ziua în care sosește marfa. Un camion pe zi, {TRUCK_MIN}–{TRUCK_MAX} paleți. Salatele și aromatele vin în ziua în care trebuie. Doar căpățânile și radicchio se mută cu 1–2 zile ca să umple camionul. Apasă pe o zi ca să vezi ce comanzi.</p>
       </CardHeader>
       <CardContent className="space-y-3">
+        {weeks.map((w, wi) => (
+        <div key={w[0].day} className="space-y-1">
+        <div className="text-xs font-medium text-muted-foreground">{wi === 0 ? 'Săptămâna aceasta' : wi === 1 ? 'Săptămâna viitoare' : 'Mai departe'}</div>
         <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-          {week.map((d) => (
+          {w.map((d) => (
             <button key={d.day} type="button" onClick={() => setDay(day === d.day ? null : d.day)}
               className={cn('rounded-md border-2 p-2 text-left transition-shadow', TONE[d.status], day === d.day && 'ring-2 ring-ring')}>
               <div className="text-xs text-muted-foreground">{dLabel(d.day)}</div>
@@ -87,6 +97,7 @@ const TruckComposer: React.FC<{ rows: any[]; today: string }> = ({ rows, today }
               {[...d.movesIn, ...d.movesOut].map((m) => <div key={m.id} className="text-[11px] text-muted-foreground">{moveText(m, d.day)}</div>)}
             </button>))}
         </div>
+        </div>))}
 
         {sel && sel.status !== 'merged' && (
           <div className="space-y-3">
@@ -108,6 +119,8 @@ const TruckComposer: React.FC<{ rows: any[]; today: string }> = ({ rows, today }
                     <Button size="sm" variant="ghost" onClick={() => toggle(id)}>Mută totuși</Button>
                   </div>))}
               </div>)}
+            {sel.status === 'under' && sel.pallets < TINY && (
+              <p className="text-sm rounded-md border border-crm-warning bg-crm-warning/10 p-2">Ziua aceasta are doar {p1(sel.pallets)} paleți și nu încape pe camionul din ziua dinainte (acela e deja plin cu marfă comandată). Adaug-o la comanda din ziua dinainte dacă furnizorul mai poate încărca, altfel pleacă un camion aproape gol.</p>)}
             {sel.noNorm.length > 0 && <p className="text-xs text-muted-foreground">Fără normă de palet (nu intră în paleți): {sel.noNorm.join(', ')}</p>}
           </div>)}
         {sel?.status === 'merged' && (

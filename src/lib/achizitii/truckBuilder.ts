@@ -14,6 +14,8 @@ export const TINY = 3;
 /** Sturdy goods may arrive at most this many days before they are needed. */
 export const LOOK_DAYS = 2;
 const EPS = 0.05;
+/** Days shown in the truck plan (two weeks ahead). */
+export const HORIZON = 14;
 
 /** Only heads (400 kg/pal) and radicchio (500 kg/pal) last long enough to arrive early. */
 export const isSturdy = (name: string) => (palletKgFor(name) ?? 0) >= 400;
@@ -83,7 +85,7 @@ export interface ComposeOptions {
 }
 
 export function composeWeek(rows: RadarRow[], today: string, opts: ComposeOptions = {}): TruckDay[] {
-  const { horizon = 7, min = TRUCK_MIN, max = TRUCK_MAX, refused = new Set<string>(), loadingDay = (d) => isoWeekday(d) !== 7 } = opts;
+  const { horizon = HORIZON, min = TRUCK_MIN, max = TRUCK_MAX, refused = new Set<string>(), loadingDay = (d) => isoWeekday(d) !== 7 } = opts;
   const days = range(today, horizon + LOOK_DAYS + 2);
   const loading = days.filter(loadingDay);
   if (!loading.length) return [];
@@ -135,6 +137,14 @@ export function composeWeek(rows: RadarRow[], today: string, opts: ComposeOption
     const prev = visible[k - 1];
     const id = `merge:${d}>${prev}`;
     if (p <= EPS || p >= TINY || !prev || merged.has(prev) || refused.has(id) || dayDiff(prev, d) > 2) return;
+    // No room on the previous truck: first make room by sending its sturdy goods one truck earlier.
+    const excess = pal(bucket.get(prev)!) + p - max;
+    const before = visible[k - 2];
+    const roomId = `over:${prev}>${before}`;
+    if (excess > EPS && before && !merged.has(before) && !refused.has(roomId) && dayDiff(before, prev) <= LOOK_DAYS) {
+      const room = max - pal(bucket.get(before)!);
+      if (Math.min(room, pal(bucket.get(prev)!, movable)) >= excess - EPS) shift(prev, before, excess, 'overflow', roomId);
+    }
     if (pal(bucket.get(prev)!) + p > max + EPS) return;
     const items = bucket.get(d)!;
     bucket.get(prev)!.push(...items.map((i) => ({ ...i, movedFrom: d })));

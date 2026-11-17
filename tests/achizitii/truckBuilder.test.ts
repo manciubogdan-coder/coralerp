@@ -64,3 +64,21 @@ describe('dailyPlan (forecast table and truck panel share it)', () => {
     expect(dailyOrders(r, days, MON)).toEqual(plan.map((s) => s.qty));
   });
 });
+
+describe('composeWeek two weeks ahead', () => {
+  it('shows two weeks of loading days (Sunday has no truck)', () => {
+    const w = composeWeek([row('Rucola', 220 * 22)], MON);
+    expect(w).toHaveLength(12);
+    expect(w[w.length - 1].day).toBe('2026-11-28');
+  });
+
+  it('a tiny Saturday rides on a full Friday after Friday heads move to Thursday', () => {
+    // Thu 20 pal rucola, Fri 20 rucola + 6 heads = 26 (full), Sat 1 pal rucola.
+    const rows = [row('Rucola', [220 * 22, 220 * 22, 220 * 22, 220 * 20, 220 * 20, 220, 0]), row('Iceberg capatani', [0, 0, 0, 0, 400 * 6, 0, 0])];
+    const w = composeWeek(rows, MON);
+    const thu = w.find((d) => d.day === '2026-11-19')!; const fri = w.find((d) => d.day === '2026-11-20')!; const sat = w.find((d) => d.day === '2026-11-21')!;
+    expect(sat.status).toBe('merged');
+    expect(fri.pallets).toBeLessThanOrEqual(26.05);
+    expect(thu.items.some((i) => i.name === 'Iceberg capatani' && i.movedFrom === '2026-11-20')).toBe(true);
+  });
+});
