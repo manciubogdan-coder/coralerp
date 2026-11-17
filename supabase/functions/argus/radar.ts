@@ -1,17 +1,24 @@
-import { DEFAULT_RADAR_SETTINGS, validRadarSettings, changedOrders, type SeenOrder } from '../_shared/truckRadarRules.ts';
+import { validRadarSettings, validRadarSettingsByType, changedOrders, DEFAULT_RADAR_BY_TYPE, type RadarInvType, type SeenOrder } from '../_shared/truckRadarRules.ts';
 
 const TYPES = new Set(['materii-prime', 'ambalaje', 'etichete']);
 
-export async function radarSettings(cloud: any) {
+async function readSettings(cloud: any) {
   const { data, error } = await cloud.from('achizitii_radar_setari').select('settings, updated_by, updated_at').maybeSingle();
   if (error) throw error;
-  let settings = DEFAULT_RADAR_SETTINGS;
-  try { if (data?.settings && Object.keys(data.settings).length) settings = validRadarSettings({ ...DEFAULT_RADAR_SETTINGS, ...data.settings }); } catch { /* keep defaults */ }
-  return { settings, updated_by: data?.updated_by ?? null, updated_at: data?.updated_at ?? null };
+  return { settings: validRadarSettingsByType(data?.settings), updated_by: data?.updated_by ?? null, updated_at: data?.updated_at ?? null };
 }
 
+/** Settings of every warehouse (each has its own rules). */
+export async function radarSettings(cloud: any) {
+  return await readSettings(cloud);
+}
+
+/** Saves the rules of one warehouse, keeping the others. */
 export async function saveRadarSettings(cloud: any, body: any, who: string) {
-  const settings = validRadarSettings(body?.settings);
+  const type = String(body?.inventory_type ?? '') as RadarInvType;
+  if (!TYPES.has(type)) throw new Error('Depozit necunoscut.');
+  const current = (await readSettings(cloud)).settings;
+  const settings = { ...current, [type]: validRadarSettings(body?.settings, DEFAULT_RADAR_BY_TYPE[type]) };
   const { error } = await cloud.from('achizitii_radar_setari').upsert({ id: true, settings, updated_by: who, updated_at: new Date().toISOString() });
   if (error) throw error;
   return { settings };
