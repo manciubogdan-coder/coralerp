@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { composeWeek, isSturdy } from '@/lib/achizitii/truckBuilder';
+import { composeWeek, dailyOrders, dailyPlan, isSturdy } from '@/lib/achizitii/truckBuilder';
 import type { RadarRow } from '@/lib/achizitii/truckRadar';
 
 // 2026-11-16 is a Monday. perDay = kg consumed every weekday (Mon..Sun).
@@ -50,5 +50,17 @@ describe('composeWeek', () => {
     const refused = new Set([...w[0].movesIn.map((m) => m.id)]);
     const w2 = composeWeek(rows, MON, { refused });
     expect(w2[1].trucks).toBe(2);
+  });
+});
+
+describe('dailyPlan (forecast table and truck panel share it)', () => {
+  it('goods already ordered for a day cover it, so nothing more is suggested there', () => {
+    // Latuga Bowl: 71.2 kg stock, 66.2 kg/day, buffer 55.5, 220 kg already ordered for Tuesday.
+    const r: RadarRow = { ...row('Latuga Bowl', 66.2), snapshots: { [MON]: 71.2 }, buffer: 55.5, orderedPerDate: { '2026-11-17': 220 } };
+    const days = ['2026-11-16', '2026-11-17', '2026-11-18'];
+    const plan = dailyPlan(r, days, MON);
+    expect(plan[0].qty).toBeCloseTo(50.5, 1); // 55.5 − (71.2 − 66.2)
+    expect(plan[1].qty).toBe(0);              // 5 + 50.5 + 220 − 66.2 = 209.3 ≥ 55.5
+    expect(dailyOrders(r, days, MON)).toEqual(plan.map((s) => s.qty));
   });
 });

@@ -41,11 +41,38 @@ const pal = (items: TruckItem[], f: (i: TruckItem) => boolean = () => true) => i
 const movable = (i: TruckItem) => i.sturdy && !i.ordered;
 const dayDiff = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86400000);
 
-/** Per-day order plan of each product (kg), same projection as the forecast. */
-export function dailyOrders(row: RadarRow, days: string[], today: string): number[] {
+export interface DailyPlanStep {
+  day: string;
+  /** Projected closing stock of the day with the orders already placed, before any new suggestion. */
+  closing: number;
+  /** Already covered by suggestions for earlier delivery days. */
+  earlier: number;
+  /** Stock the day must end with (buffer). */
+  target: number;
+  /** Quantity to bring on this day. */
+  qty: number;
+}
+
+/**
+ * Per-day order plan of each product, arrival day by arrival day (kg), same projection as the forecast.
+ * Shared by the truck panel and the forecast table so both always show the same quantity.
+ */
+export function dailyPlan(row: RadarRow, days: string[], today: string): DailyPlanStep[] {
   const proj = project(row, days, today, row.orderedPerDate);
   const closings = proj.map((p) => p.closing ?? 0);
-  return sequentialOrderPlan(closings, days.map(() => row.buffer || 0)).map((q) => q || 0);
+  const target = row.buffer || 0;
+  const plan = sequentialOrderPlan(closings, days.map(() => target));
+  let earlier = 0;
+  return days.map((day, i) => {
+    const qty = plan[i] || 0;
+    const step = { day, closing: closings[i], earlier, target, qty };
+    earlier += qty;
+    return step;
+  });
+}
+
+export function dailyOrders(row: RadarRow, days: string[], today: string): number[] {
+  return dailyPlan(row, days, today).map((s) => s.qty);
 }
 
 export interface ComposeOptions {

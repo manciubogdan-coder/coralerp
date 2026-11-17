@@ -74,7 +74,7 @@ const TruckComposer: React.FC<{ rows: any[]; today: string }> = ({ rows, today }
     <Card className="mb-4">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2"><Truck className="h-5 w-5" /> Camioane săptămâna aceasta</CardTitle>
-        <p className="text-xs text-muted-foreground">Un camion pe zi, {TRUCK_MIN}–{TRUCK_MAX} paleți. Salatele și aromatele vin în ziua în care trebuie. Doar căpățânile și radicchio se mută cu 1–2 zile ca să umple camionul. Apasă pe o zi ca să vezi ce comanzi.</p>
+        <p className="text-xs text-muted-foreground">Ziua de pe fiecare căsuță = ziua în care sosește marfa. Un camion pe zi, {TRUCK_MIN}–{TRUCK_MAX} paleți. Salatele și aromatele vin în ziua în care trebuie. Doar căpățânile și radicchio se mută cu 1–2 zile ca să umple camionul. Apasă pe o zi ca să vezi ce comanzi.</p>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
