@@ -221,7 +221,9 @@ export function delayImpact(rows: RadarRow[], arrival: string, days: number, tod
     if (!qty) continue;
     const moved = { ...row.orderedPerDate, [arrival]: 0 };
     moved[addDays(arrival, days)] = (moved[addDays(arrival, days)] || 0) + qty;
-    const sim = project(row, dates, today, moved);
+    // The delayed truck has not arrived: a reception already booked that day must not count as delivered.
+    const received = { ...row.received }; delete received[arrival];
+    const sim = project({ ...row, received }, dates, today, moved);
     // Real shortage while the truck is missing: how far stock goes below zero from arrival until it comes.
     let worst = 0; let firstDay = '';
     sim.forEach((p, k) => {

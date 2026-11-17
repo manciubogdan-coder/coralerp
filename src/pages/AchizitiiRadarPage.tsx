@@ -4,7 +4,6 @@ import { argusFetch } from '@/lib/argusApi';
 import { useAuth } from '@/contexts/AuthContext';
 import BackToHubButton from '@/components/BackToHubButton';
 import ClientOrdersForecast from '@/components/forecast/ClientOrdersForecast';
-import TruckComposer from '@/components/forecast/TruckComposer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -236,7 +235,6 @@ const AchizitiiRadarPage: React.FC = () => {
           <Button size="sm" variant={!onlyIssues ? 'default' : 'outline'} onClick={() => setOnlyIssues(false)}>Toate produsele ({counts.all})</Button>
         </div>
         {truckData.length === 0 && <p className="text-sm text-muted-foreground">Nicio livrare și nicio lipsă în perioada urmărită.</p>}
-        {type === 'materii-prime' && !past && <TruckComposer rows={rows} today={clock.today} />}
         <div className="space-y-3">
           {truckData.map(({ truck, lines, light }) => {
             const shown = onlyIssues ? lines.filter(isIssue) : lines;
