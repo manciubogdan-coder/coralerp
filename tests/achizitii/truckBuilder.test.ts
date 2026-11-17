@@ -86,3 +86,37 @@ describe('composeWeek two weeks ahead', () => {
     expect(wed.items.some((i) => i.name === 'Iceberg capatani' && i.movedFrom === '2026-11-19')).toBe(true);
   });
 });
+
+describe('one truck per day: a full truck spills onto the earlier trucks', () => {
+  // Week of 23.11: Tue/Wed/Thu trucks 22 pal rucola, Fri truck 19, Saturday truck Sun+Mon+Tue = 45 rucola.
+  const rucola = row('Rucola', [220 * 15, 220 * 15, 220 * 22, 220 * 22, 220 * 22, 220 * 19, 220 * 15]);
+  const at = (w: ReturnType<typeof composeWeek>, d: string) => w.find((x) => x.day === d)!;
+
+  it('heads needed on Monday ride on Friday, Thursday and Wednesday instead of a third Saturday truck', () => {
+    const w = composeWeek([rucola, row('Iceberg capatani', [400 * 12, 0, 0, 0, 0, 0, 0])], MON);
+    expect(at(w, '2026-11-27').pallets).toBeCloseTo(26, 0);
+    expect(at(w, '2026-11-26').pallets).toBeCloseTo(26, 0);
+    expect(at(w, '2026-11-25').pallets).toBeCloseTo(23, 0);
+    expect(at(w, '2026-11-28').pallets).toBeCloseTo(45, 0);
+    expect(at(w, '2026-11-28').trucks).toBe(2); // 57 pallets would need 3
+    expect(at(w, '2026-11-26').items.filter((i) => i.movedFrom).every((i) => i.name === 'Iceberg capatani')).toBe(true);
+  });
+
+  it('leaves for Sunday may come on Friday (2 days, as Saturday→Monday), never two trucks earlier', () => {
+    const w = composeWeek([rucola], MON);
+    const fri = at(w, '2026-11-27');
+    expect(fri.pallets).toBeCloseTo(26, 0);
+    expect(fri.items.every((i) => !i.movedFrom || i.due === '2026-11-29')).toBe(true);
+    expect(at(w, '2026-11-26').movesIn).toHaveLength(0);
+    expect(at(w, '2026-11-28').pallets).toBeCloseTo(38, 0);
+  });
+
+  it('trucks arriving today or tomorrow take nothing more, and a refused spill stays on its own truck', () => {
+    // Monday today: Tuesday 17.11 is closed, so Wednesday's overflow stays on Wednesday.
+    const w = composeWeek([row('Iceberg capatani', [0, 0, 0, 400 * 30, 0, 0, 0])], MON);
+    expect(at(w, '2026-11-17').movesIn).toHaveLength(0);
+    const sat = composeWeek([rucola], MON);
+    const refused = new Set(at(sat, '2026-11-28').movesOut.map((m) => m.id));
+    expect(at(composeWeek([rucola], MON, { refused }), '2026-11-28').pallets).toBeCloseTo(45, 0);
+  });
+});

@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { ro } from 'date-fns/locale';
 import { palletKgFor, summarizePallets } from './forecastGroups';
 
-interface PurchaseOrderItem {
+export interface PurchaseOrderItem {
   product_code: string | null;
   product_name: string;
   quantity: number;
@@ -11,7 +11,7 @@ interface PurchaseOrderItem {
   expected_delivery_date: Date | null;
 }
 
-interface PurchaseOrderData {
+export interface PurchaseOrderData {
   supplier_name: string;
   items: PurchaseOrderItem[];
   order_date?: Date;
@@ -40,7 +40,8 @@ const palletsOfItem = (item: PurchaseOrderItem): number | null => {
   return per && item.quantity > 0 ? Math.round((item.quantity / per) * 100) / 100 : null;
 };
 
-export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: string) => {
+/** One purchase order sheet (same layout for single and multi-supplier exports). */
+export const buildPurchaseOrderSheet = (data: PurchaseOrderData) => {
   const orderNumber = generateOrderNumber();
   const orderDate = data.order_date || new Date();
   
@@ -56,14 +57,6 @@ export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: stri
   const palletTotals = summarizePallets(
     data.items.map(i => ({ name: i.product_name, unit: i.unit, qty: i.quantity }))
   );
-
-  // Creăm workbook
-  const wb = XLSX.utils.book_new();
-  wb.Props = {
-    Title: `Comandă Achiziție - ${data.supplier_name}`,
-    Author: COMPANY_INFO.name,
-    Company: COMPANY_INFO.name
-  };
 
   // Construim datele pentru sheet
   const sheetData: any[][] = [];
@@ -176,6 +169,13 @@ export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: stri
     }
   }
 
+  return { ws, orderNumber, orderDate };
+};
+
+export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: string) => {
+  const { ws, orderNumber, orderDate } = buildPurchaseOrderSheet(data);
+  const wb = XLSX.utils.book_new();
+  wb.Props = { Title: `Comandă Achiziție - ${data.supplier_name}`, Author: COMPANY_INFO.name, Company: COMPANY_INFO.name };
   XLSX.utils.book_append_sheet(wb, ws, "Comandă");
 
   // Generează numele fișierului
@@ -189,4 +189,21 @@ export const exportPurchaseOrder = (data: PurchaseOrderData, inventoryType: stri
   XLSX.writeFile(wb, filename);
 
   return orderNumber;
+};
+
+/** Several supplier orders in one file, one sheet per supplier (e.g. one truck with goods from several suppliers). */
+export const exportPurchaseOrders = (orders: PurchaseOrderData[], filename: string) => {
+  const wb = XLSX.utils.book_new();
+  wb.Props = { Title: filename, Author: COMPANY_INFO.name, Company: COMPANY_INFO.name };
+  const used = new Set<string>();
+  const numbers = orders.map((o) => {
+    const { ws, orderNumber } = buildPurchaseOrderSheet(o);
+    const base = (o.supplier_name.replace(/[\\/?*[\]:]/g, " ").trim() || "Furnizor").slice(0, 28);
+    let name = base; for (let i = 2; used.has(name.toLowerCase()); i++) name = `${base.slice(0, 26)} ${i}`;
+    used.add(name.toLowerCase());
+    XLSX.utils.book_append_sheet(wb, ws, name);
+    return orderNumber;
+  });
+  XLSX.writeFile(wb, filename);
+  return numbers;
 };

@@ -5,6 +5,9 @@
 // (sequential, no double count). Perishables (leaf salads, herbs) never move; only sturdy goods (heads 400 kg/pal,
 // radicchio 500 kg/pal) are pulled at most LOOK_DAYS earlier to fill a truck or pushed one truck earlier on overflow.
 // Tiny days (< TINY pallets) merge into the previous truck instead of running an almost empty truck.
+// One truck per day: a truck over the maximum first sends goods back onto the earlier trucks that still have room
+// (heads/radicchio up to MAX_AGE_STURDY days before use, leaves/herbs only one truck earlier and never older than the
+// Saturday→Tuesday goods), and only what still does not fit needs a second truck.
 import { project, addDays, isoWeekday, type RadarRow } from './truckRadar';
 import { palletKgFor, sequentialOrderPlan } from '../forecastGroups';
 
@@ -15,6 +18,9 @@ export const TINY = 3;
 /** Sturdy goods may arrive at most this many days before they are needed. */
 export const LOOK_DAYS = 2;
 const EPS = 0.05;
+/** Max days between arrival and production when a full truck sends goods earlier (Saturday → Tuesday = 3). */
+export const MAX_AGE_PERISHABLE = 3;
+export const MAX_AGE_STURDY = 5;
 /** Days shown in the truck plan (two weeks ahead). */
 export const HORIZON = 14;
 
@@ -39,7 +45,7 @@ export interface TruckItem {
   /** Truck day the goods were moved from (fill / overflow suggestions). */
   movedFrom?: string;
 }
-export type MoveKind = 'fill' | 'overflow' | 'merge';
+export type MoveKind = 'fill' | 'overflow' | 'merge' | 'level';
 export interface TruckMove { id: string; kind: MoveKind; from: string; to: string; pallets: number; kg: number; names: string[] }
 export type TruckStatus = 'full' | 'under' | 'over' | 'merged' | 'empty';
 export interface TruckDay {
@@ -51,6 +57,19 @@ export interface TruckDay {
 const range = (from: string, n: number) => Array.from({ length: n }, (_, i) => addDays(from, i));
 const pal = (items: TruckItem[], f: (i: TruckItem) => boolean = () => true) => items.reduce((s, i) => s + (f(i) ? i.kg / i.per : 0), 0);
 const movable = (i: TruckItem) => i.sturdy && !i.ordered;
+/** Last day the supplier order for a truck can still be changed: one day before loading (arrival − 2). */
+export const orderDeadline = (arrival: string) => addDays(arrival, -2);
+/** Totals and status of one truck day from its items (also used after the buyer edits a truck). */
+export function summarizeTruck(items: TruckItem[], merged = false, min = TRUCK_MIN, max = TRUCK_MAX) {
+  const pallets = pal(items);
+  const trucks = merged || pallets <= EPS ? 0 : Math.max(1, Math.ceil((pallets - EPS) / max));
+  const status: TruckStatus = merged ? 'merged' : pallets <= EPS ? 'empty' : pallets < min - EPS ? 'under' : pallets > max + EPS ? 'over' : 'full';
+  return {
+    pallets, trucks, status,
+    perishable: pal(items, (i) => !i.sturdy), sturdy: pal(items, (i) => i.sturdy), ordered: pal(items, (i) => i.ordered),
+    missing: status === 'under' ? min - pallets : 0, over: status === 'over' ? pallets - max : 0,
+  };
+}
 const dayDiff = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86400000);
 
 export interface DailyPlanStep {
@@ -130,10 +149,12 @@ export function composeWeek(rows: RadarRow[], today: string, opts: ComposeOption
   const moves: TruckMove[] = [];
   const merged = new Map<string, string>();
   /** Move up to `pallets` of sturdy, not yet ordered goods (earliest need first) from one truck to another. */
-  const shift = (from: string, to: string, pallets: number, kind: MoveKind, id: string) => {
+  const byNeed = (a: TruckItem, b: TruckItem) => a.due.localeCompare(b.due) || b.per - a.per || b.kg - a.kg;
+  const shift = (from: string, to: string, pallets: number, kind: MoveKind, id: string,
+    pick: (i: TruckItem) => boolean = movable, order: (a: TruckItem, b: TruckItem) => number = byNeed) => {
     let left = pallets; let kg = 0; let moved = 0; const names = new Set<string>();
     const src = bucket.get(from)!;
-    const cand = src.filter(movable).sort((a, b) => a.due.localeCompare(b.due) || b.per - a.per || b.kg - a.kg);
+    const cand = src.filter(pick).sort(order);
     for (const it of cand) {
       if (left <= EPS) break;
       const take = Math.min(it.kg, Math.round(left * it.per));
@@ -170,7 +191,32 @@ export function composeWeek(rows: RadarRow[], today: string, opts: ComposeOption
     merged.set(d, prev);
   });
 
-  // 2. Trucks under the minimum take sturdy goods from the next trucks, without pushing those under the minimum.
+  // 2. One truck per day: a truck over the maximum sends goods back onto earlier trucks with room, closest first.
+  // Heads/radicchio first, then leaves/herbs needed soonest (only to the truck right before, at most 3 days old).
+  // Trucks arriving today or tomorrow are already loaded/closed and take nothing more.
+  const closed = addDays(today, 1);
+  const sturdyFirst = (a: TruckItem, b: TruckItem) => Number(b.sturdy) - Number(a.sturdy) || byNeed(a, b);
+  visible.forEach((d, k) => {
+    if (merged.has(d)) return;
+    for (let j = k - 1; j >= 0; j--) {
+      const excess = pal(bucket.get(d)!) - max;
+      if (excess <= EPS) break;
+      const t = visible[j];
+      if (t <= closed) break;
+      if (merged.has(t)) continue;
+      const id = `level:${d}>${t}`;
+      if (refused.has(id)) continue;
+      const room = max - pal(bucket.get(t)!);
+      if (room <= EPS) continue;
+      const nextTruck = visible.slice(j + 1, k).every((x) => merged.has(x));
+      const pick = (i: TruckItem) => !i.ordered && (i.sturdy
+        ? dayDiff(t, i.due) <= MAX_AGE_STURDY
+        : nextTruck && dayDiff(t, i.due) <= MAX_AGE_PERISHABLE);
+      shift(d, t, Math.min(excess, room), 'level', id, pick, sturdyFirst);
+    }
+  });
+
+  // 3. Trucks under the minimum take sturdy goods from the next trucks, without pushing those under the minimum.
   visible.forEach((d) => {
     if (merged.has(d)) return;
     const p = pal(bucket.get(d)!);
@@ -190,29 +236,33 @@ export function composeWeek(rows: RadarRow[], today: string, opts: ComposeOption
     }
   });
 
-  // 3. Trucks over the maximum send sturdy goods one truck earlier when that one has room.
-  visible.forEach((d, k) => {
-    if (merged.has(d)) return;
-    const p = pal(bucket.get(d)!);
-    const prev = visible[k - 1];
-    if (p <= max + EPS || !prev || merged.has(prev)) return;
-    const id = `over:${d}>${prev}`;
-    if (refused.has(id)) return;
-    const take = Math.min(p - max, max - pal(bucket.get(prev)!), pal(bucket.get(d)!, movable));
-    if (take > EPS) shift(d, prev, take, 'overflow', id);
-  });
-
   return visible.map((day) => {
     const items = bucket.get(day)!.sort((a, b) => b.kg / b.per - a.kg / a.per);
-    const pallets = pal(items);
-    const trucks = merged.has(day) || pallets <= EPS ? 0 : Math.max(1, Math.ceil((pallets - EPS) / max));
-    const status: TruckStatus = merged.has(day) ? 'merged' : pallets <= EPS ? 'empty' : pallets < min - EPS ? 'under' : pallets > max + EPS ? 'over' : 'full';
     return {
-      day, items, pallets, trucks, status, mergedInto: merged.get(day),
-      perishable: pal(items, (i) => !i.sturdy), sturdy: pal(items, (i) => i.sturdy), ordered: pal(items, (i) => i.ordered),
-      missing: status === 'under' ? min - pallets : 0, over: status === 'over' ? pallets - max : 0,
+      day, items, ...summarizeTruck(items, merged.has(day), min, max), mergedInto: merged.get(day),
       movesIn: moves.filter((m) => m.to === day), movesOut: moves.filter((m) => m.from === day),
       noNorm: [...noNorm.get(day)!],
     };
   });
+}
+
+export interface TruckLine {
+  key: string; name: string; sturdy: boolean; per: number;
+  /** Already ordered at the supplier / still to order (kg). */
+  ordered: number; toOrder: number;
+  /** Production days the goods are for, and trucks they were moved from. */
+  dues: string[]; from: string[];
+}
+/** One line per product of a truck (what the panel, the Excel export and the supplier order show). */
+export function truckLines(items: TruckItem[]): TruckLine[] {
+  const m = new Map<string, TruckLine>();
+  items.forEach((i) => {
+    const e = m.get(i.key) ?? { key: i.key, name: i.name, sturdy: i.sturdy, per: i.per, ordered: 0, toOrder: 0, dues: [], from: [] };
+    if (i.ordered) e.ordered += i.kg; else e.toOrder += i.kg;
+    if (!e.dues.includes(i.due)) e.dues.push(i.due);
+    if (i.movedFrom && !e.from.includes(i.movedFrom)) e.from.push(i.movedFrom);
+    m.set(i.key, e);
+  });
+  return [...m.values()].map((l) => ({ ...l, dues: l.dues.sort() }))
+    .sort((a, b) => (b.ordered + b.toOrder) / b.per - (a.ordered + a.toOrder) / a.per);
 }
