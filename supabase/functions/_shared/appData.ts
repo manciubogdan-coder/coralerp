@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { canUsePricing } from "./crmRules.ts";
+import { canUsePricing, canUsePurchasingRadar } from "./crmRules.ts";
 
 export const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 // Public (anon) key of the operational database — same one shipped in the web app.
@@ -35,6 +35,23 @@ export async function requirePricing(token: string | null) {
   const profile = pr.ok ? ((await pr.json()) as Array<{ approved: boolean }>)[0] : null;
   const roles = rr.ok ? ((await rr.json()) as Array<{ role: string }>).map((x) => x.role) : [];
   if (!canUsePricing(profile?.approved === true, roles)) return { error: "Calculatorul de preț este disponibil echipei Vânzări și administratorilor.", status: 403 } as const;
+  return { user: { id: user.id as string, email: user.email as string } } as const;
+}
+
+export async function requirePurchasing(token: string | null) {
+  if (!token) return { error: "Nu ești autentificat.", status: 401 } as const;
+  const h = { apikey: LEGACY_ANON, Authorization: `Bearer ${token}` };
+  const r = await fetch(`${LEGACY_URL}/auth/v1/user`, { headers: h });
+  if (!r.ok) return { error: "Sesiune invalidă. Reautentifică-te.", status: 401 } as const;
+  const user = await r.json();
+  const id = encodeURIComponent(user.id);
+  const [pr, rr] = await Promise.all([
+    fetch(`${LEGACY_URL}/rest/v1/app_profiles?select=approved&user_id=eq.${id}`, { headers: h }),
+    fetch(`${LEGACY_URL}/rest/v1/app_user_roles?select=role&user_id=eq.${id}`, { headers: h }),
+  ]);
+  const profile = pr.ok ? ((await pr.json()) as Array<{ approved: boolean }>)[0] : null;
+  const roles = rr.ok ? ((await rr.json()) as Array<{ role: string }>).map((x) => x.role) : [];
+  if (!canUsePurchasingRadar(profile?.approved === true, roles)) return { error: "Radarul de achiziții este disponibil echipei Achiziții și administratorilor.", status: 403 } as const;
   return { user: { id: user.id as string, email: user.email as string } } as const;
 }
 

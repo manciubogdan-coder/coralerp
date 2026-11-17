@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Boxes, Tag, TrendingUp, Warehouse } from "lucide-react";
+import { Package, Boxes, Tag, TrendingUp, Warehouse, Truck } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import InventoryManagement from "@/components/dashboard/InventoryManagement";
 import ReceptionReport from "@/components/inventory/ReceptionReport";
 import ForecastView from "@/components/forecast/ForecastView";
@@ -75,7 +77,10 @@ const AchizitiiHub: React.FC = () => {
             Stocuri și planificare aprovizionare pentru toate cele trei depozite.
           </p>
         </div>
-        <BackToHubButton />
+        <div className="flex gap-2">
+          <Button asChild variant="outline" size="sm"><Link to="/achizitii/radar"><Truck className="h-4 w-4" /> Radar achiziții</Link></Button>
+          <BackToHubButton />
+        </div>
       </div>
 
       <Tabs value={section} onValueChange={(v) => setSection(v as typeof section)} className="w-full">

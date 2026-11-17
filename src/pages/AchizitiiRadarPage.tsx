@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { argusFetch } from '@/lib/argusApi';
+import { useAuth } from '@/contexts/AuthContext';
 import BackToHubButton from '@/components/BackToHubButton';
 import ClientOrdersForecast from '@/components/forecast/ClientOrdersForecast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,6 +41,7 @@ const worstPhase = (lines: RadarLine[]): Phase => lines.some((l) => l.phase === 
 const stockCell = (v: number | null, unit: string) => v === null ? '—' : v < 0 ? <span className="text-destructive">{fmt(v)} {unit}</span> : `${fmt(v)} ${unit}`;
 
 const AchizitiiRadarPage: React.FC = () => {
+  const { isAdmin } = useAuth();
   const [type, setType] = useState<InvType>('materii-prime');
   const [rows, setRows] = useState<RadarRow[]>([]);
   const [orders, setOrders] = useState<RadarOrder[]>([]);
@@ -156,7 +158,7 @@ const AchizitiiRadarPage: React.FC = () => {
           <Button variant="outline" size="sm" onClick={() => { setClock(bucharest()); setTick((x) => x + 1); }} disabled={loadingOrders}>
             {loadingOrders ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Reîmprospătează
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowSettings((v) => !v)}><Settings2 className="h-4 w-4" /> Reguli {TYPE_LABEL[type].toLowerCase()}</Button>
+          {isAdmin && <Button variant="outline" size="sm" onClick={() => setShowSettings((v) => !v)}><Settings2 className="h-4 w-4" /> Reguli {TYPE_LABEL[type].toLowerCase()}</Button>}
           <BackToHubButton />
         </div>
       </div>
@@ -182,7 +184,7 @@ const AchizitiiRadarPage: React.FC = () => {
         </div>
       )}
 
-      {showSettings && (
+      {isAdmin && showSettings && (
         <Card><CardHeader className="pb-2"><CardTitle className="text-base">Reguli {TYPE_LABEL[type].toLowerCase()} (fiecare depozit are regulile lui)</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div><Label>Termenul de comandă se calculează</Label>

@@ -64,6 +64,7 @@ const GROUPS: DeptGroup[] = [
     items: [
       { name: 'Stocuri & Forecast', icon: ShoppingCart, path: '/achizitii' },
       { name: 'Comenzi Furnizori', icon: ClipboardList, path: '/achizitii/comenzi' },
+      { name: 'Radar achiziții', icon: Truck, path: '/achizitii/radar' },
     ],
   },
   {

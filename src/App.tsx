@@ -173,6 +173,14 @@ const AppShell = () => {
                   }
                 />
                 <Route
+                  path="/achizitii/radar"
+                  element={
+                    <ProtectedRoute requireDepartment="achizitii">
+                      <React.Suspense fallback={null}><AchizitiiRadarPage /></React.Suspense>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/achizitii/comenzi"
                   element={
                     <ProtectedRoute requireDepartment="achizitii">
