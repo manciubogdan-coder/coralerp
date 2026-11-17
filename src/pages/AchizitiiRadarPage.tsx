@@ -15,7 +15,7 @@ import { toast } from '@/hooks/use-custom-toast';
 import { Loader2, RefreshCw, Truck as TruckIcon, Settings2, Timer, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  DEFAULT_RADAR_BY_TYPE, REPLAY_DAYS, addDays, delayImpact, ordersAsOf, productLines, rowAsOf, truckLight, truckLines, trucks,
+  DEFAULT_RADAR_BY_TYPE, REPLAY_DAYS, addDays, byRange, delayImpact, ordersAsOf, productLines, rowAsOf, truckLight, truckLines, trucks,
   type OrderVersion, type Phase, type RadarInvType, type RadarLine, type RadarOrder, type RadarRow, type RadarSettings, type Truck,
 } from '@/lib/achizitii/truckRadar';
 
@@ -259,8 +259,10 @@ const AchizitiiRadarPage: React.FC = () => {
                       {onTruck === 0 ? <p className="text-sm text-muted-foreground">Pentru ziua aceasta nu e nicio comandă înregistrată, deci întârzierea nu schimbă stocul. Dacă trebuia să vină marfă, lipsa apare mai jos la „Necesar”.</p>
                         : impact.length === 0 ? <p className="text-sm">{onTruck} produse vin în ziua aceasta. Stocul și tamponul acoperă producția și dacă întârzie {delayDays} {delayDays === 1 ? 'zi' : 'zile'}.</p> : (
                         <Table><TableHeader><TableRow><TableHead>Produs</TableHead><TableHead>Rămâne fără din</TableHead><TableHead className="text-right">Lipsă</TableHead></TableRow></TableHeader>
-                          <TableBody>{impact.map((d) => <TableRow key={d.key}><TableCell className="font-medium">{d.name}</TableCell><TableCell>{dLabel(d.firstDay)}</TableCell>
-                            <TableCell className="text-right tabular-nums text-destructive font-semibold">{fmt(d.shortage)} {d.unit}</TableCell></TableRow>)}</TableBody></Table>)}
+                          <TableBody>{byRange(impact, type).map((g) => <React.Fragment key={g.group}>
+                            <TableRow className="bg-muted/60 hover:bg-muted/60"><TableCell colSpan={3} className="py-1.5 font-semibold text-sm">{g.group} ({g.items.length})</TableCell></TableRow>
+                            {g.items.map((d) => <TableRow key={d.key}><TableCell className="font-medium">{d.name}</TableCell><TableCell>{dLabel(d.firstDay)}</TableCell>
+                            <TableCell className="text-right tabular-nums text-destructive font-semibold">{fmt(d.shortage)} {d.unit}</TableCell></TableRow>)}</React.Fragment>)}</TableBody></Table>)}
                     </div>
                   )}
                   {shown.length === 0 ? <p className="text-sm text-muted-foreground">{lines.length ? 'Toate produsele sunt în toleranță.' : 'Nimic de comandat pentru livrarea aceasta.'}</p> : (
@@ -273,7 +275,9 @@ const AchizitiiRadarPage: React.FC = () => {
                       {byProduct && <TableHead>Termen comandă</TableHead>}
                       <TableHead>Stare</TableHead>
                     </TableRow></TableHeader>
-                      <TableBody>{shown.map((l) => (
+                      <TableBody>{byRange(shown, type).map((g) => <React.Fragment key={g.group}>
+                        <TableRow className="bg-muted/60 hover:bg-muted/60"><TableCell colSpan={byProduct ? 9 : 8} className="py-1.5 font-semibold text-sm">{g.group} ({g.items.length})</TableCell></TableRow>
+                        {g.items.map((l) => (
                         <TableRow key={l.key}>
                           <TableCell className="font-medium">{l.name}</TableCell>
                           <TableCell className="text-right tabular-nums">{stockCell(l.stockToday, l.unit)}</TableCell>
@@ -290,7 +294,7 @@ const AchizitiiRadarPage: React.FC = () => {
                             {l.premature && !l.reviewed && <Badge variant="outline">Comandat prea devreme, neverificat</Badge>}
                             {l.reviewed && <Badge variant="outline">Verificat la termen</Badge>}
                           </TableCell>
-                        </TableRow>))}</TableBody></Table>
+                        </TableRow>))}</React.Fragment>)}</TableBody></Table>
                   )}
                 </CardContent>
               </Card>

@@ -5,6 +5,7 @@ import { netPendingDeliveries, reconcileProjection, weekdayAverages } from '@/li
 import type { RadarSettings, RadarInvType } from '../../../supabase/functions/_shared/truckRadarRules';
 export { DEFAULT_RADAR_SETTINGS, DEFAULT_RADAR_BY_TYPE, validRadarSettings, validRadarSettingsByType } from '../../../supabase/functions/_shared/truckRadarRules';
 export type { RadarSettings, RadarInvType };
+import { FORECAST_GROUP_ORDER, PACK_TYPES } from '../forecastGroups';
 
 export interface RadarRow {
   key: string; name: string; unit: string; productId: string | null;
@@ -13,6 +14,8 @@ export interface RadarRow {
   transferAvg: number[]; actualConsumption: Record<string, number>; buffer?: number;
   /** Product lead time in days (forecast product settings). */
   leadTime?: number;
+  /** Product range from the forecast (Salate, Aromate, Folii, ...). */
+  group?: string;
 }
 export interface RadarOrder { id: string; product_id: string | null; quantity: number; delivery_date: string; order_date: string | null; status: string }
 export interface OrderVersion { order_id: string; quantity: number; delivery_date: string | null; status: string | null; seen_at: string }
@@ -103,7 +106,7 @@ export function trucks(settings: RadarSettings, today: string, nowTime: string, 
 
 export type LineStatus = 'ok' | 'lipsa' | 'surplus';
 export interface RadarLine {
-  key: string; name: string; unit: string; productId: string | null;
+  key: string; name: string; unit: string; productId: string | null; group: string;
   arrival: string; ordered: number; need: number; delta: number; status: LineStatus;
   /** Stock at the start of the radar day and expected at the start of the arrival day (earlier deliveries included). */
   stockToday: number | null; stockAtArrival: number;
@@ -135,7 +138,7 @@ function buildLine(row: RadarRow, mine: RadarOrder[], arrival: string, next: str
   const reviewed = checkPremature && mine.some((o) => (o.order_date ?? '').slice(0, 10) >= orderDay
     || (byOrder.get(o.id) || []).some((h, k) => k > 0 && h.seen_at.slice(0, 10) >= orderDay));
   return {
-    key: row.key, name: row.name, unit: row.unit, productId: row.productId, arrival, ordered, need, delta, status,
+    key: row.key, name: row.name, unit: row.unit, productId: row.productId, group: row.group || OTHER_RANGE, arrival, ordered, need, delta, status,
     stockToday: proj[0]?.opening ?? null, stockAtArrival: opening, orderDay, phase, leadTime: Math.round(row.leadTime ?? 0),
     premature, reviewed, firstQty, orderIds: mine.map((o) => o.id),
   };
@@ -204,7 +207,7 @@ export function truckLight(lines: RadarLine[]): 'rosu' | 'galben' | 'verde' {
   return 'verde';
 }
 
-export interface DelayImpact { key: string; name: string; unit: string; shortage: number; firstDay: string }
+export interface DelayImpact { key: string; name: string; unit: string; group: string; shortage: number; firstDay: string }
 
 /** Moves every delivery due `arrival` by `days` and lists products whose stock goes below zero meanwhile. */
 export function delayImpact(rows: RadarRow[], arrival: string, days: number, today: string): DelayImpact[] {
@@ -224,7 +227,18 @@ export function delayImpact(rows: RadarRow[], arrival: string, days: number, tod
       if (short < -1e-9 && !firstDay) firstDay = dates[k];
       worst = Math.min(worst, short);
     });
-    if (worst < -1e-9) out.push({ key: row.key, name: row.name, unit: row.unit, shortage: -worst, firstDay });
+    if (worst < -1e-9) out.push({ key: row.key, name: row.name, unit: row.unit, group: row.group || OTHER_RANGE, shortage: -worst, firstDay });
   }
   return out.sort((a, b) => b.shortage - a.shortage);
+}
+
+export const OTHER_RANGE = 'Altele';
+/** Groups items by product range in the same order as the Achiziții forecast; order inside a range is kept. */
+export function byRange<T extends { group: string }>(items: T[], type: RadarInvType): { group: string; items: T[] }[] {
+  const base = type === 'materii-prime' ? FORECAST_GROUP_ORDER : PACK_TYPES.map(([g]) => g);
+  const present = [...new Set(items.map((i) => i.group))];
+  const order = [...base.filter((g) => present.includes(g)),
+    ...present.filter((g) => !base.includes(g) && g !== OTHER_RANGE).sort((a, b) => a.localeCompare(b, 'ro')),
+    ...(present.includes(OTHER_RANGE) && !base.includes(OTHER_RANGE) ? [OTHER_RANGE] : [])];
+  return order.map((g) => ({ group: g, items: items.filter((i) => i.group === g) }));
 }

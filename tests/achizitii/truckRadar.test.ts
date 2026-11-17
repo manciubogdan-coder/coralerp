@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { trucks, truckLines, productLines, ordersAsOf, rowAsOf, delayImpact, truckLight, validRadarSettings, validRadarSettingsByType, DEFAULT_RADAR_SETTINGS, DEFAULT_RADAR_BY_TYPE, type RadarRow } from "../../src/lib/achizitii/truckRadar";
+import { trucks, truckLines, productLines, ordersAsOf, rowAsOf, delayImpact, truckLight, byRange, validRadarSettings, validRadarSettingsByType, DEFAULT_RADAR_SETTINGS, DEFAULT_RADAR_BY_TYPE, type RadarRow } from "../../src/lib/achizitii/truckRadar";
 
 const S = DEFAULT_RADAR_SETTINGS; // order 2 days before loading, 1 day transit, Mon–Sat
 const today = "2026-11-17"; // Tuesday
@@ -90,5 +90,11 @@ describe("truck radar", () => {
     expect(s["materii-prime"].advanceDays).toBe(3);
     expect(s.ambalaje.deadlineFrom).toBe("produs");
     expect(s.etichete.deadlineFrom).toBe("produs");
+  });
+  it("products are grouped by range in forecast order, unknown ranges last", () => {
+    const g = byRange([{ group: "Altele" }, { group: "Aromate" }, { group: "Salate" }, { group: "Aromate" }], "materii-prime");
+    expect(g.map((x) => x.group)).toEqual(["Salate", "Aromate", "Altele"]);
+    expect(g[1].items.length).toBe(2);
+    expect(byRange([{ group: "Cutii" }, { group: "Folie" }], "ambalaje").map((x) => x.group)).toEqual(["Folie", "Cutii"]);
   });
 });
