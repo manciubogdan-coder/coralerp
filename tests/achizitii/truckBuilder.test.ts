@@ -17,15 +17,15 @@ describe('composeWeek', () => {
     expect(isSturdy('Radicchio Rosso')).toBe(true);
   });
 
-  it('Saturday truck carries Sunday, Monday and Tuesday production; no Sunday or Monday truck', () => {
+  it('loading Mon–Sat: Sunday truck carries Monday and Tuesday, Saturday truck only Sunday; no Monday truck', () => {
     expect(arrivalFor('2026-11-22')).toBe('2026-11-21'); // Sun → Sat
-    expect(arrivalFor('2026-11-23')).toBe('2026-11-21'); // Mon → Sat
-    expect(arrivalFor('2026-11-24')).toBe('2026-11-21'); // Tue → Sat
+    expect(arrivalFor('2026-11-23')).toBe('2026-11-22'); // Mon → Sun
+    expect(arrivalFor('2026-11-24')).toBe('2026-11-22'); // Tue → Sun (no Monday truck)
     expect(arrivalFor('2026-11-25')).toBe('2026-11-24'); // Wed → Tue
-    const w = composeWeek([row('Rucola', [220 * 8, 220 * 8, 220 * 22, 220 * 22, 220 * 22, 220 * 22, 220 * 6])], MON);
-    expect(w.some((d) => [1, 7].includes(new Date(`${d.day}T12:00:00Z`).getUTCDay() || 7))).toBe(false);
-    expect(w.find((d) => d.day === '2026-11-21')!.pallets).toBeCloseTo(22, 0); // 6 + 8 + 8
-    expect(w.find((d) => d.day === '2026-11-24')!.pallets).toBeCloseTo(22, 0); // Wednesday
+    const w = composeWeek([row('Rucola', [220 * 11, 220 * 11, 220 * 22, 220 * 22, 220 * 22, 220 * 22, 220 * 22])], MON);
+    expect(w.some((d) => new Date(`${d.day}T12:00:00Z`).getUTCDay() === 1)).toBe(false);
+    expect(w.find((d) => d.day === '2026-11-21')!.pallets).toBeCloseTo(22, 0); // Sunday only
+    expect(w.find((d) => d.day === '2026-11-22')!.pallets).toBeCloseTo(22, 0); // 11 + 11
   });
 
   it('never pulls herbs or leaves from later trucks, only heads', () => {
@@ -69,11 +69,11 @@ describe('dailyPlan (forecast table and truck panel share it)', () => {
 });
 
 describe('composeWeek two weeks ahead', () => {
-  it('shows two weeks of trucks, Tuesday to Saturday', () => {
+  it('shows two weeks of trucks, Tuesday to Sunday', () => {
     const w = composeWeek([row('Rucola', 220 * 22)], MON);
-    expect(w).toHaveLength(10);
+    expect(w).toHaveLength(12);
     expect(w[0].day).toBe('2026-11-17');
-    expect(w[w.length - 1].day).toBe('2026-11-28');
+    expect(w[w.length - 1].day).toBe('2026-11-29');
   });
 
   it('a tiny truck rides on the full truck before it after that one sends heads earlier', () => {
@@ -88,35 +88,22 @@ describe('composeWeek two weeks ahead', () => {
 });
 
 describe('one truck per day: a full truck spills onto the earlier trucks', () => {
-  // Week of 23.11: Tue/Wed/Thu trucks 22 pal rucola, Fri truck 19, Saturday truck Sun+Mon+Tue = 45 rucola.
-  const rucola = row('Rucola', [220 * 15, 220 * 15, 220 * 22, 220 * 22, 220 * 22, 220 * 19, 220 * 15]);
+  // Week of 23.11: Tue–Fri trucks 22 pal rucola, Saturday truck Sunday 15, Sunday truck Mon+Tue = 30.
+  const rucola = row('Rucola', [220 * 15, 220 * 15, 220 * 22, 220 * 22, 220 * 22, 220 * 22, 220 * 15]);
   const at = (w: ReturnType<typeof composeWeek>, d: string) => w.find((x) => x.day === d)!;
 
-  it('heads needed on Monday ride on Friday, Thursday and Wednesday instead of a third Saturday truck', () => {
-    const w = composeWeek([rucola, row('Iceberg capatani', [400 * 12, 0, 0, 0, 0, 0, 0])], MON);
-    expect(at(w, '2026-11-27').pallets).toBeCloseTo(26, 0);
-    expect(at(w, '2026-11-26').pallets).toBeCloseTo(26, 0);
-    expect(at(w, '2026-11-25').pallets).toBeCloseTo(23, 0);
-    expect(at(w, '2026-11-28').pallets).toBeCloseTo(45, 0);
-    expect(at(w, '2026-11-28').trucks).toBe(2); // 57 pallets would need 3
-    expect(at(w, '2026-11-26').items.filter((i) => i.movedFrom).every((i) => i.name === 'Iceberg capatani')).toBe(true);
-  });
-
-  it('leaves for Sunday may come on Friday (2 days, as Saturday→Monday), never two trucks earlier', () => {
+  it('Saturday 28.11 carries only Sunday, so it needs one truck, not three', () => {
     const w = composeWeek([rucola], MON);
-    const fri = at(w, '2026-11-27');
-    expect(fri.pallets).toBeCloseTo(26, 0);
-    expect(fri.items.every((i) => !i.movedFrom || i.due === '2026-11-29')).toBe(true);
-    expect(at(w, '2026-11-26').movesIn).toHaveLength(0);
-    expect(at(w, '2026-11-28').pallets).toBeCloseTo(38, 0);
+    expect(at(w, '2026-11-28').trucks).toBe(1);
+    expect(at(w, '2026-11-29').pallets).toBeCloseTo(26, 0); // 30 − 4 sent to Saturday
+    expect(at(w, '2026-11-28').pallets).toBeCloseTo(19, 0);
+    expect(at(w, '2026-11-28').items.filter((i) => i.movedFrom).every((i) => i.due === '2026-11-30')).toBe(true);
   });
 
   it('trucks arriving today or tomorrow take nothing more, and a refused spill stays on its own truck', () => {
-    // Monday today: Tuesday 17.11 is closed, so Wednesday's overflow stays on Wednesday.
     const w = composeWeek([row('Iceberg capatani', [0, 0, 0, 400 * 30, 0, 0, 0])], MON);
     expect(at(w, '2026-11-17').movesIn).toHaveLength(0);
-    const sat = composeWeek([rucola], MON);
-    const refused = new Set(at(sat, '2026-11-28').movesOut.map((m) => m.id));
-    expect(at(composeWeek([rucola], MON, { refused }), '2026-11-28').pallets).toBeCloseTo(45, 0);
+    const refused = new Set(at(composeWeek([rucola], MON), '2026-11-29').movesOut.map((m) => m.id));
+    expect(at(composeWeek([rucola], MON, { refused }), '2026-11-29').pallets).toBeCloseTo(30, 0);
   });
 });

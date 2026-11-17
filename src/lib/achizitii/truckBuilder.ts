@@ -1,7 +1,7 @@
-// Truck composer (raw materials from Italy). Loading Mon–Fri, 1 day transit → arrivals Tue–Sat (no Sunday loading,
+// Truck composer (raw materials from Italy). Loading Mon–Sat, 1 day transit → arrivals Tue–Sun (no Sunday loading,
 // so no Monday arrival). Goods that arrive on a day are used in production the next day, so each arrival covers the
-// production days after it up to and including the next arrival day: Saturday's truck covers Sunday, Monday and Tuesday,
-// Tuesday's truck covers Wednesday. Need per production day = what the forecast projection lacks to keep the buffer
+// production days after it up to and including the next arrival day: Sunday's truck covers Monday and Tuesday,
+// Saturday's truck covers Sunday only. Need per production day = what the forecast projection lacks to keep the buffer
 // (sequential, no double count). Perishables (leaf salads, herbs) never move; only sturdy goods (heads 400 kg/pal,
 // radicchio 500 kg/pal) are pulled at most LOOK_DAYS earlier to fill a truck or pushed one truck earlier on overflow.
 // Tiny days (< TINY pallets) merge into the previous truck instead of running an almost empty truck.
@@ -24,8 +24,8 @@ export const MAX_AGE_STURDY = 5;
 /** Days shown in the truck plan (two weeks ahead). */
 export const HORIZON = 14;
 
-/** Trucks from Italy arrive Tuesday to Saturday. */
-export const isArrivalDay = (d: string) => { const w = isoWeekday(d); return w >= 2 && w <= 6; };
+/** Trucks from Italy load Mon–Sat and arrive the next day: Tuesday to Sunday (no Monday arrival). */
+export const isArrivalDay = (d: string) => isoWeekday(d) !== 1;
 /** Truck that must bring the goods for production on `day`: the last arrival before that day. */
 export function arrivalFor(day: string, isArrival: (d: string) => boolean = isArrivalDay): string {
   let d = addDays(day, -1);

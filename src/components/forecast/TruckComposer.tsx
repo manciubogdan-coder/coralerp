@@ -20,7 +20,7 @@ const wd = (d: string) => WD[isoWeekday(d) - 1];
 const dLabel = (d: string) => `${wd(d)} ${d.slice(8, 10)}.${d.slice(5, 7)}`;
 const norm = (s: string) => s.trim().toLowerCase();
 
-/** Production days a truck arriving on `d` brings goods for (e.g. Saturday → Du, Lu, Ma). */
+/** Production days a truck arriving on `d` brings goods for (e.g. Sunday → Lu, Ma). */
 const covers = (d: string) => Array.from({ length: 7 }, (_, i) => addDays(d, i + 1)).filter((p) => arrivalFor(p) === d).map(wd).join(', ');
 
 /** A line of a truck the buyer edited by hand (replaces the proposed "to order" goods of that truck). */
