@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from '@/hooks/use-custom-toast';
@@ -31,6 +30,8 @@ const bucharest = () => {
 };
 const LIGHT = { rosu: 'bg-destructive text-destructive-foreground', galben: 'bg-accent text-accent-foreground', verde: 'bg-primary text-primary-foreground' };
 const LIGHT_TEXT = { rosu: 'Risc', galben: 'De verificat', verde: 'În regulă' };
+// Forecastul ascuns se recalculează doar când i se schimbă tipul, nu la fiecare clic pe pagină.
+const HiddenForecast = React.memo(ClientOrdersForecast);
 const PHASE = { inchis: 'Comandă închisă', azi: 'De definitivat azi', viitor: 'Încă deschisă' };
 
 const AchizitiiRadarPage: React.FC = () => {
@@ -95,6 +96,12 @@ const AchizitiiRadarPage: React.FC = () => {
   }), [truckData]);
   const overall = totals.rosu ? 'rosu' : totals.galben ? 'galben' : 'verde';
   const impact = useMemo(() => (delayArrival ? delayImpact(rows, delayArrival, delayDays, clock.today) : []), [rows, delayArrival, delayDays, clock.today]);
+  const onTruck = useMemo(() => (delayArrival ? rows.filter((r) => (r.orderedPerDate?.[delayArrival] || 0) > 0).length : 0), [rows, delayArrival]);
+  const isIssue = (l: { status: string; premature: boolean; reviewed: boolean }, phase: string) => l.status !== 'ok' || (l.premature && !l.reviewed && phase !== 'inchis');
+  const counts = useMemo(() => ({
+    issues: truckData.reduce((s, t) => s + t.lines.filter((l) => isIssue(l, t.truck.phase)).length, 0),
+    all: truckData.reduce((s, t) => s + t.lines.length, 0),
+  }), [truckData]);
 
   const save = async () => {
     try {
@@ -155,10 +162,14 @@ const AchizitiiRadarPage: React.FC = () => {
       {!ready && <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Se calculează necesarul din forecast…</div>}
 
       {ready && <>
-        <div className="flex items-center gap-2"><Switch checked={onlyIssues} onCheckedChange={setOnlyIssues} id="oi" /><Label htmlFor="oi">Doar produsele cu probleme</Label></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant={onlyIssues ? 'default' : 'outline'} onClick={() => setOnlyIssues(true)}>Doar produsele cu probleme ({counts.issues})</Button>
+          <Button size="sm" variant={!onlyIssues ? 'default' : 'outline'} onClick={() => setOnlyIssues(false)}>Toate produsele ({counts.all})</Button>
+        </div>
         <div className="space-y-3">
           {truckData.map(({ truck, lines, light }) => {
-            const shown = onlyIssues ? lines.filter((l) => l.status !== 'ok' || (l.premature && !l.reviewed && truck.phase !== 'inchis')) : lines;
+            const shown = onlyIssues ? lines.filter((l) => isIssue(l, truck.phase)) : lines;
+            const simOpen = delayArrival === truck.arrival;
             return (
               <Card key={truck.loading}>
                 <CardHeader className="pb-2">
@@ -167,10 +178,23 @@ const AchizitiiRadarPage: React.FC = () => {
                     <CardTitle className="text-base">Încărcare {dLabel(truck.loading)} → sosire {dLabel(truck.arrival)}</CardTitle>
                     <Badge variant={truck.phase === 'azi' ? 'default' : 'outline'}>{PHASE[truck.phase]}</Badge>
                     <span className="text-xs text-muted-foreground">Termen comandă: {dLabel(truck.orderDay)} {settings.cutoff}</span>
-                    <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setDelayArrival(truck.arrival)}><Timer className="h-4 w-4" /> Simulează întârziere</Button>
+                    <Button size="sm" className="ml-auto" variant={simOpen ? 'default' : 'outline'} onClick={() => setDelayArrival(simOpen ? '' : truck.arrival)}><Timer className="h-4 w-4" /> {simOpen ? 'Ascunde simularea' : 'Simulează întârziere'}</Button>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
+                  {simOpen && (
+                    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                        Dacă tirul cu sosire {dLabel(truck.arrival)} întârzie
+                        <Input type="number" min={1} max={5} className="w-20 h-8" value={delayDays} onChange={(e) => setDelayDays(Math.max(1, Math.min(5, Number(e.target.value) || 1)))} /> zile
+                      </div>
+                      {onTruck === 0 ? <p className="text-sm text-muted-foreground">Pe tirul acesta nu e nicio comandă înregistrată, deci întârzierea nu schimbă stocul. Dacă trebuia să vină marfă, lipsa apare mai jos la „Necesar acum”.</p>
+                        : impact.length === 0 ? <p className="text-sm">{onTruck} produse vin cu tirul acesta. Stocul și tamponul acoperă producția și dacă întârzie {delayDays} {delayDays === 1 ? 'zi' : 'zile'}.</p> : (
+                        <Table><TableHeader><TableRow><TableHead>Produs</TableHead><TableHead>Rămâne fără din</TableHead><TableHead className="text-right">Lipsă</TableHead></TableRow></TableHeader>
+                          <TableBody>{impact.map((d) => <TableRow key={d.key}><TableCell className="font-medium">{d.name}</TableCell><TableCell>{dLabel(d.firstDay)}</TableCell>
+                            <TableCell className="text-right tabular-nums text-destructive font-semibold">{fmt(d.shortage)} {d.unit}</TableCell></TableRow>)}</TableBody></Table>)}
+                    </div>
+                  )}
                   {shown.length === 0 ? <p className="text-sm text-muted-foreground">{lines.length ? 'Toate produsele sunt în toleranță.' : 'Nimic de comandat pentru tirul acesta.'}</p> : (
                     <Table><TableHeader><TableRow>
                       <TableHead>Produs</TableHead><TableHead className="text-right">Comandat inițial</TableHead><TableHead className="text-right">Comandat acum</TableHead>
@@ -198,22 +222,10 @@ const AchizitiiRadarPage: React.FC = () => {
           })}
         </div>
 
-        {delayArrival && (
-          <Card><CardHeader className="pb-2"><div className="flex flex-wrap items-center gap-2">
-            <CardTitle className="text-base">Dacă tirul cu sosire {dLabel(delayArrival)} întârzie</CardTitle>
-            <Input type="number" min={1} max={5} className="w-20" value={delayDays} onChange={(e) => setDelayDays(Math.max(1, Math.min(5, Number(e.target.value) || 1)))} /><span className="text-sm">zile</span>
-            <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setDelayArrival('')}>Închide</Button>
-          </div></CardHeader>
-            <CardContent>{impact.length === 0 ? <p className="text-sm">Stocul și tamponul acoperă producția până sosește tirul.</p> : (
-              <Table><TableHeader><TableRow><TableHead>Produs</TableHead><TableHead>Rămâne fără din</TableHead><TableHead className="text-right">Lipsă</TableHead></TableRow></TableHeader>
-                <TableBody>{impact.map((d) => <TableRow key={d.key}><TableCell className="font-medium">{d.name}</TableCell><TableCell>{dLabel(d.firstDay)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-destructive font-semibold">{fmt(d.shortage)} {d.unit}</TableCell></TableRow>)}</TableBody></Table>)}
-            </CardContent></Card>
-        )}
         <p className="text-xs text-muted-foreground">„Comandat inițial” e prima cantitate văzută de radar; modificările se înregistrează de fiecare dată când se deschide pagina (și automat la 5 minute cât e deschisă). Necesarul folosește aceleași reguli ca forecastul din Achiziții, plus o zi de tampon.</p>
       </>}
 
-      <div className="hidden" aria-hidden><ClientOrdersForecast key={`${type}-${tick}`} inventoryType={type} onRows={onRows} /></div>
+      <div className="hidden" aria-hidden><HiddenForecast key={`${type}-${tick}`} inventoryType={type} onRows={onRows} /></div>
     </div>
   );
 };
