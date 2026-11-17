@@ -212,7 +212,7 @@ export function truckLight(lines: RadarLine[]): 'rosu' | 'galben' | 'verde' {
 
 export interface DelayImpact { key: string; name: string; unit: string; group: string; shortage: number; firstDay: string }
 
-/** Moves every delivery due `arrival` by `days` and lists products whose stock goes below zero meanwhile. */
+/** Moves every delivery due `arrival` by `days` and lists the full stock deficit (below zero) during the delay window. */
 export function delayImpact(rows: RadarRow[], arrival: string, days: number, today: string): DelayImpact[] {
   const out: DelayImpact[] = [];
   const dates = range(today, addDays(arrival, days + 1));
@@ -221,12 +221,12 @@ export function delayImpact(rows: RadarRow[], arrival: string, days: number, tod
     if (!qty) continue;
     const moved = { ...row.orderedPerDate, [arrival]: 0 };
     moved[addDays(arrival, days)] = (moved[addDays(arrival, days)] || 0) + qty;
-    const base = project(row, dates, today, row.orderedPerDate);
     const sim = project(row, dates, today, moved);
+    // Real shortage while the truck is missing: how far stock goes below zero from arrival until it comes.
     let worst = 0; let firstDay = '';
     sim.forEach((p, k) => {
-      if (dates[k] < arrival) return;
-      const short = Math.min(0, p.closing ?? 0) - Math.min(0, base[k].closing ?? 0);
+      if (dates[k] < arrival || dates[k] >= addDays(arrival, days)) return;
+      const short = Math.min(0, p.closing ?? 0);
       if (short < -1e-9 && !firstDay) firstDay = dates[k];
       worst = Math.min(worst, short);
     });

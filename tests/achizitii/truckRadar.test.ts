@@ -98,3 +98,12 @@ describe("truck radar", () => {
     expect(byRange([{ group: "Cutii" }, { group: "Folie" }], "ambalaje").map((x) => x.group)).toEqual(["Folie", "Cutii"]);
   });
 });
+
+import { delayImpact as _delay } from '@/lib/achizitii/truckRadar';
+import { it as _it, expect as _expect } from 'vitest';
+_it('delayed truck shows the full deficit: 693.5 stock, 956.5 use → 263 kg short', () => {
+  const t = '2026-11-17';
+  const row: any = { key: 'b', name: 'Baby Spanac', unit: 'kg', productId: 'p', snapshots: { [t]: 693.5 }, received: {}, returned: {}, outbound: {}, commitments: {},
+    orderedPerDate: { [t]: 280.8 }, transferAvg: Array(7).fill(956.5), actualConsumption: { [t]: 956.5 } };
+  _expect(_delay([row], t, 1, t)[0].shortage).toBeCloseTo(263, 1);
+});
