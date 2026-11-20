@@ -147,9 +147,19 @@ Deno.serve(async (req) => {
   const supabase = createClient(LEGACY_URL, LEGACY_ANON);
   const cloud = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
   const catalog = await loadInheritanceCatalog(supabase, cloud);
+  // Citiri Cloud reîncercate de 3 ori: o eroare de rețea trecătoare nu mai oprește tot importul.
+  const retried = async (read: () => PromiseLike<{ data: any; error: any }>) => {
+    let last: { data: any; error: any } = { data: null, error: null };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      last = await read();
+      if (!last.error) return last;
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+    return last;
+  };
   const cartonDefinitions: MixedCarton[] = [];
   for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await cloud.from('productie_baxuri_mixte').select('*').order('produs_id').range(offset, offset + 999);
+    const { data, error } = await retried(() => cloud.from('productie_baxuri_mixte').select('*').order('produs_id').range(offset, offset + 999));
     if (error) return json({ error: 'Compozițiile baxurilor nu s-au încărcat; importul a fost oprit.' }, 503);
     cartonDefinitions.push(...(data ?? []) as MixedCarton[]);
     if (!data || data.length < 1000) break;
@@ -158,7 +168,7 @@ Deno.serve(async (req) => {
   // Estimări deja absorbite de comenzi ferme: sincronizarea nu le mai redeschide.
   const absorbed = new Set<string>();
   for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await cloud.from('productie_comenzi_absorbite').select('old_id').order('old_id').range(offset, offset + 999);
+    const { data, error } = await retried(() => cloud.from('productie_comenzi_absorbite').select('old_id').order('old_id').range(offset, offset + 999));
     if (error) return json({ error: 'Lista comenzilor absorbite nu s-a încărcat; importul a fost oprit.' }, 503);
     (data ?? []).forEach((r: any) => absorbed.add(String(r.old_id)));
     if (!data || data.length < 1000) break;
@@ -283,27 +293,8 @@ Deno.serve(async (req) => {
 
 
 
-  // Backfill lazy: aliniem numar_comanda + data_productie pe rândurile senior-erp mai vechi.
-  try {
-    const { data: toFix } = await supabase
-      .from("productie_comenzi")
-      .select("id, extern_nr_aviz, extern_data_aviz, numar_comanda, data_productie")
-      .eq("sursa", "senior-erp")
-      .limit(400);
-    for (const row of (toFix || []) as any[]) {
-      const docNr = String(row.extern_nr_aviz || "").split("::")[0];
-      const dataDoc = row.extern_data_aviz ? String(row.extern_data_aviz).slice(0, 10) : null;
-      const patch: any = {};
-      if (docNr && docNr !== row.numar_comanda) patch.numar_comanda = docNr;
-      if (dataDoc && dataDoc !== String(row.data_productie || "").slice(0, 10)) patch.data_productie = dataDoc;
-      if (Object.keys(patch).length) {
-        await supabase.from("productie_comenzi").update(patch).eq("id", row.id);
-      }
-    }
-  } catch (e: any) {
-    errors.push({ backfill: e.message || String(e) });
-  }
-
+  // Baxarea Senior pe produs+magazin se scrie o singură dată la final (ultima valoare câștigă).
+  const packagingRows = new Map<string, Record<string, unknown>>();
 
   // Rezolvă (sau creează) un client pornind de la aviz. Returnează { nume, punct } sau null.
   async function resolveMagazin(aviz: Aviz): Promise<{ nume: string; punct: string } | null> {
@@ -457,26 +448,43 @@ Deno.serve(async (req) => {
       const dataOnly = String(aviz.data_aviz || "").slice(0, 10);
       const currentKeys: string[] = [];
 
+      // O singură citire pentru toate rândurile deja importate din acest aviz
+      // (în loc de o interogare per linie, care depășea limita de procesor).
+      const { data: existingRows, error: existingRowsError } = await supabase
+        .from("productie_comenzi")
+        .select("id, extern_nr_aviz, cantitate, status, magazin, data_productie, produs_id, numar_comanda, cantitate_din_restock")
+        .eq("sursa", "senior-erp")
+        .like("extern_nr_aviz", `${aviz.nr_aviz}::%`);
+      if (existingRowsError) throw existingRowsError;
+      const existingByKey = new Map<string, any>();
+      for (const r of (existingRows || []) as any[]) if (!existingByKey.has(r.extern_nr_aviz)) existingByKey.set(r.extern_nr_aviz, r);
+
+      const sourceKeys = [...new Set((aviz.linii || []).map((l) => `${aviz.nr_aviz}::${l.cod_produs}`))];
+      const savedCartons = new Map<string, MixedCarton>();
+      if (sourceKeys.length) {
+        const { data: savedRows, error: savedError } = await retried(() => cloud.from('productie_baxuri_importuri').select('source_key,definition').in('source_key', sourceKeys));
+        if (savedError) throw savedError;
+        for (const r of (savedRows || []) as any[]) if (r.definition) savedCartons.set(String(r.source_key), r.definition as MixedCarton);
+      }
+
       const expandedLines: AvizLine[] = [];
       for (const source of aviz.linii || []) {
         const sourceKey = `${aviz.nr_aviz}::${source.cod_produs}`;
-        const { data: saved, error: savedError } = await cloud.from('productie_baxuri_importuri').select('definition').eq('source_key', sourceKey).maybeSingle();
-        if (savedError) throw savedError;
-        const definition = (saved?.definition as MixedCarton | undefined) ?? findCarton(cartonDefinitions, mapProduse.get(String(source.cod_produs).trim().toLowerCase()), source.denumire_produs);
+        const definition = savedCartons.get(sourceKey) ?? findCarton(cartonDefinitions, mapProduse.get(String(source.cod_produs).trim().toLowerCase()), source.denumire_produs);
         if (!definition) { expandedLines.push(source); continue; }
         const unit = cartonNameUnit(source.um);
         const ordered = expandCarton(definition, Number(source.cantitate), unit);
         const accepted = source.cantitate_acceptata == null ? null : expandCarton(definition, Number(source.cantitate_acceptata), unit);
         for (const part of ordered) if (!catalog.products.some(p => p.id === part.produs_id)) throw new Error(`${part.nume}: produsul component nu există.`);
         // Never reinterpret production already recorded against the old commercial SKU.
-        const { data: old, error: oldError } = await supabase.from('productie_comenzi').select('id,cantitate,status,cantitate_din_restock').eq('sursa', 'senior-erp').eq('extern_nr_aviz', sourceKey).maybeSingle();
-        if (oldError) throw oldError;
+        const old = existingByKey.get(sourceKey);
         if (old && Number(old.cantitate) > 0) {
           const { count, error: sessionError } = await supabase.from('productie_sesiuni_lucru').select('id', { count: 'exact', head: true }).eq('comanda_id', old.id);
           if (sessionError) throw sessionError;
           if (count || Number(old.cantitate_din_restock) > 0 || !['pending', 'assigned'].includes(old.status)) throw new Error(`${definition.denumire}: comanda veche are producție/alocări; necesită verificare manuală înainte de desfacere.`);
           const { data: cleared, error: clearError } = await supabase.from('productie_comenzi').update(cancellationPatch()).eq('id', old.id).eq('status', old.status).eq('cantitate', old.cantitate).select('id').maybeSingle();
           if (clearError || !cleared) throw new Error('Comanda veche s-a schimbat; importul baxului a fost oprit.');
+          Object.assign(old, cancellationPatch());
         }
         const { error: snapshotError } = await cloud.from('productie_baxuri_importuri').upsert({ source_key: sourceKey, definition, source_quantity: ordered[0]?.cartons ?? 0, updated_at: new Date().toISOString() });
         if (snapshotError) throw snapshotError;
@@ -500,12 +508,12 @@ Deno.serve(async (req) => {
         if (!produsId) continue;
         const seniorUnits = packagingUnits(linie.baxare);
         if (seniorUnits && !linie.resolved_product_id) {
-          const { error: packagingError } = await cloud.from('productie_baxare_magazine').upsert({
-            produs_id: produsId, magazin_key: packagingStoreKey(numeMagazin), magazin: numeMagazin,
+          const magazinKey = packagingStoreKey(numeMagazin);
+          packagingRows.set(`${produsId}|${magazinKey}`, {
+            produs_id: produsId, magazin_key: magazinKey, magazin: numeMagazin,
             senior_units: seniorUnits, senior_code: linie.cod_produs, senior_date: dataOnly,
             synced_at: new Date().toISOString(),
-          }, { onConflict: 'produs_id,magazin_key' });
-          if (packagingError) errors.push({ produs: linie.cod_produs, baxare: packagingError.message });
+          });
         }
 
         const externKey = linie.external_key ?? `${aviz.nr_aviz}::${linie.cod_produs}`;
@@ -517,14 +525,7 @@ Deno.serve(async (req) => {
         const cantitate = plannedQuantity(cantitateComandata, Number.isFinite(acceptata) ? acceptata : null);
 
         // Verifică dacă rândul există deja (upsert)
-        const { data: existing, error: existingError } = await supabase
-          .from("productie_comenzi")
-          .select("id, cantitate, status, magazin, data_productie, produs_id")
-          .eq("sursa", "senior-erp")
-          .eq("extern_nr_aviz", externKey)
-          .maybeSingle();
-
-        if (existingError) throw existingError;
+        const existing = existingByKey.get(externKey);
         if (existing && absorbed.has(String(existing.id))) { skipped++; continue; }
 
         // Skip retururi (cantitate <= 0)
@@ -532,6 +533,7 @@ Deno.serve(async (req) => {
           if (existing && !isErpCancellationApplied(existing)) {
             const { error } = await supabase.from('productie_comenzi').update(cancellationPatch()).eq('id', existing.id);
             if (error) throw error;
+            Object.assign(existing, cancellationPatch());
           }
           skipped++;
           continue;
@@ -551,6 +553,10 @@ Deno.serve(async (req) => {
           }
           if (String(ex.data_productie || "").slice(0, 10) !== dataOnly) {
             patch.data_productie = dataOnly;
+          }
+          // Aliniere numar_comanda pe rândurile importate (înlocuiește vechiul backfill global).
+          if (ex.numar_comanda !== undefined && String(ex.numar_comanda || "") !== String(aviz.nr_aviz)) {
+            patch.numar_comanda = aviz.nr_aviz;
           }
 
           if (isPending) {
@@ -602,7 +608,7 @@ Deno.serve(async (req) => {
               .update(patch)
               .eq("id", ex.id);
             if (uErr) errors.push({ aviz: aviz.nr_aviz, produs: linie.cod_produs, upd: uErr.message });
-            else updated++;
+            else { updated++; Object.assign(ex, patch); }
           } else {
             skipped++;
           }
@@ -683,16 +689,19 @@ Deno.serve(async (req) => {
             extern_nr_aviz: externKey,
             extern_data_aviz: dataOnly,
           })
-          .select("id")
+          .select("id, extern_nr_aviz, cantitate, status, magazin, data_productie, produs_id, numar_comanda, cantitate_din_restock")
           .maybeSingle();
         if (error) {
           errors.push({ aviz: aviz.nr_aviz, produs: linie.cod_produs, err: error.message });
         } else {
           if (inserted?.id) {
-            await supabase
-              .from("productie_comenzi")
-              .update({ numar_comanda: aviz.nr_aviz, data_productie: dataOnly })
-              .eq("id", inserted.id);
+            existingByKey.set(externKey, inserted);
+            if (String(inserted.numar_comanda || "") !== String(aviz.nr_aviz) || String(inserted.data_productie || "").slice(0, 10) !== dataOnly) {
+              await supabase
+                .from("productie_comenzi")
+                .update({ numar_comanda: aviz.nr_aviz, data_productie: dataOnly })
+                .eq("id", inserted.id);
+            }
             await tryAbsorb(String(inserted.id), String(aviz.nr_aviz), numeMagazin, String(produsId), dataOnly, cantitate);
           }
           lines++;
@@ -703,12 +712,7 @@ Deno.serve(async (req) => {
       //  - pending → DELETE
       //  - non-pending: păstrăm istoricul, cantitate=0 + status='completed' (acceptat de baza operațională)
       try {
-        const { data: existingForAviz } = await supabase
-          .from("productie_comenzi")
-          .select("id, extern_nr_aviz, status, produs_id, cantitate")
-          .eq("sursa", "senior-erp")
-          .like("extern_nr_aviz", `${aviz.nr_aviz}::%`);
-        const disparute = (existingForAviz || []).filter(
+        const disparute = [...existingByKey.values()].filter(
           (r: any) => !currentKeys.includes(r.extern_nr_aviz)
         );
         for (const r of disparute as any[]) {
@@ -755,6 +759,15 @@ Deno.serve(async (req) => {
       created++;
     } catch (e: any) {
       errors.push({ aviz: aviz.nr_aviz, err: e.message || String(e) });
+    }
+  }
+
+  // Baxarea Senior: un singur upsert pe loturi de 500, în loc de unul per linie.
+  {
+    const rows = [...packagingRows.values()];
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await retried(() => cloud.from('productie_baxare_magazine').upsert(rows.slice(i, i + 500), { onConflict: 'produs_id,magazin_key' }));
+      if (error) errors.push({ baxare: error.message });
     }
   }
 

@@ -3,7 +3,20 @@ export type RecipeIngredient = { ingredient_id: string; cantitate_necesara: numb
 export type InheritanceRecipe = { id: string; produs_id: string; activa: boolean; versiune: number; productie_retete_ingrediente: RecipeIngredient[] };
 
 // Remove only known retailer/channel suffixes, never arbitrary composition words.
+// Memoized: an import plans many products against the whole catalog, and the
+// regex/normalize work per name was repeated thousands of times per run.
+const identityCache = new Map<string, ReturnType<typeof computeIdentity>>();
 export function productIdentity(name: string) {
+  const key = String(name ?? '');
+  let hit = identityCache.get(key);
+  if (hit === undefined && !identityCache.has(key)) {
+    hit = computeIdentity(key);
+    if (identityCache.size > 20000) identityCache.clear();
+    identityCache.set(key, hit);
+  }
+  return hit ?? null;
+}
+function computeIdentity(name: string) {
   const text = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/\bmega\s+image\b/g, '').replace(/\b(?:mc|mi|pg|lidl|auchan|carrefour|penny|kaufland|gastro|horeca)\b/g, '')
     .replace(/^\s*salata\s+/, '').replace(/\s+/g, ' ').trim();
@@ -16,6 +29,9 @@ export function productIdentity(name: string) {
 }
 
 export function inheritancePlan(target: RecipeProduct, products: RecipeProduct[], recipes: InheritanceRecipe[], groups: Record<string, string>) {
+  const hasRecipe = recipes.some(r => r.produs_id === target.id && r.activa && r.productie_retete_ingrediente.length);
+  // Already grouped and with a recipe: nothing to plan (same result as the full path, without scanning siblings).
+  if (hasRecipe && groups[target.id]) return { recipe: null, group: null, reason: 'Rețetă existentă' };
   const identity = productIdentity(target.nume);
   if (!identity) return { recipe: null, group: null, reason: 'Gramaj sau familie nerecunoscută' };
   const siblings = products.filter(p => p.id !== target.id && productIdentity(p.nume)?.family === identity.family);
@@ -26,7 +42,7 @@ export function inheritancePlan(target: RecipeProduct, products: RecipeProduct[]
     if (g?.family === identity.family && g.grams === identity.grams) groupNames.add(group);
   }
   const group = !groups[target.id] && groupNames.size === 1 ? [...groupNames][0] : null;
-  if (recipes.some(r => r.produs_id === target.id && r.activa && r.productie_retete_ingrediente.length)) return { recipe: null, group, reason: 'Rețetă existentă' };
+  if (hasRecipe) return { recipe: null, group, reason: 'Rețetă existentă' };
   const candidates = siblings.flatMap(p => {
     const source = recipes.filter(r => r.produs_id === p.id && r.activa && r.productie_retete_ingrediente.length)
       .sort((a, b) => b.versiune - a.versiune)[0];
