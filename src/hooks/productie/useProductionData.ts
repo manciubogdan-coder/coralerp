@@ -5,7 +5,7 @@ import { POOL_MODE } from "@/lib/productie/stockPool";
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { compensateAdvanceQuantities } from "@/lib/productie/advanceCompensation";
 import { refreshProductionQueries } from '@/lib/productie/refreshProductionQueries';
-import { claimSessionFinish } from '@/lib/productie/finishSession';
+import { claimSessionFinish, wholeUnits } from '@/lib/productie/finishSession';
 import { applyDirectPicking, loadDirectPickingIds } from '@/lib/productie/directPicking';
 
 export const DIRECT_PICKING_KEY = ['productie-direct-picking'] as const;
@@ -1279,7 +1279,9 @@ export const useFinishWorkSession = () => {
       const totalProdus = (sesiuniLucru || []).reduce((acc, s) => acc + Number(s.cantitate_produsa || 0), 0);
       const restockDejaAlocat = Number(comanda.cantitate_din_restock || 0);
       // FIX: scădem și restocările deja alocate ca să nu alocăm dublu
-      let necesarDinRestocari = Math.max(0, Number(comanda.cantitate || 0) - totalProdus - restockDejaAlocat);
+      // Cantitățile se salvează în unități întregi; o comandă de 8,4 kg se acoperă cu 9 kg.
+      const cerutIntreg = wholeUnits(comanda.cantitate);
+      let necesarDinRestocari = Math.max(0, cerutIntreg - totalProdus - restockDejaAlocat);
       let alocatDinRestocari = 0;
 
       if (!POOL_MODE && !esteComandeAvans && !esteReambalareCom && necesarDinRestocari > 0) {
@@ -1326,7 +1328,7 @@ export const useFinishWorkSession = () => {
           if (alocatDinRestocari > 0) {
             const cantRestockVeche = Number(comanda.cantitate_din_restock || 0);
             const acoperireFinala = totalProdus + cantRestockVeche + alocatDinRestocari;
-            const esteComplet = acoperireFinala >= Number(comanda.cantitate || 0);
+            const esteComplet = acoperireFinala >= cerutIntreg;
 
             const { error: updErr } = await supabase
               .from('productie_comenzi')
@@ -1356,8 +1358,8 @@ export const useFinishWorkSession = () => {
       // În POOL_MODE, `cantitate_din_restock` reprezintă marfa ALOCATĂ pentru livrare
       // (se scade din pool doar la picking), deci nu reduce necesarul de producție.
       const necesarDinProductie = POOL_MODE
-        ? Number(comanda.cantitate || 0)
-        : Math.max(0, Number(comanda.cantitate || 0) - restockFolositFinal);
+        ? cerutIntreg
+        : Math.max(0, cerutIntreg - restockFolositFinal);
 
       // Producția totală (toate sesiunile) care poate fi luată în considerare pentru această comandă
       const produsConsideratPentruComanda = Math.min(totalProdus, necesarDinProductie);
@@ -1421,7 +1423,7 @@ export const useFinishWorkSession = () => {
       const totalAcoperit = POOL_MODE
         ? produsConsideratPentruComanda
         : produsConsideratPentruComanda + restockFolositFinal;
-      const esteCompletAcoperita = totalAcoperit >= Number(comanda.cantitate || 0);
+      const esteCompletAcoperita = totalAcoperit >= cerutIntreg;
 
 
       if (esteCompletAcoperita) {

@@ -21,6 +21,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOperatorT } from "@/lib/operatorI18n";
 import { buildDisplayLines } from "@/lib/productie/lineGroups";
 import { markLipsaMp, useLipsaMpIds } from "@/lib/productie/lipsaMp";
+import { distributeGroupQuantity, wholeUnits } from "@/lib/productie/finishSession";
 import OperatorDaySummary, { computeStats, pctOf, processedPct, CATEGORIES, Stat, useIngredientCounts } from "./OperatorDaySummary";
 import { useLineGroupMap } from "@/hooks/productie/useLineGroups";
 import { useUtilajIds } from "@/hooks/productie/useUtilaje";
@@ -408,10 +409,10 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
     const cantRestockPrev = esteReambalare ? 0 : order?.cantitate_din_restock || 0;
     const acoperitPrev = cantRealaPrev + cantRestockPrev;
     // Cât mai e nevoie de produs în această sesiune ca să acoperim comanda
-    const ramasDeAcoperit = Math.max(0, cantitateComandă - acoperitPrev);
+    const ramasDeAcoperit = Math.max(0, wholeUnits(cantitateComandă) - acoperitPrev);
     // Restocările disponibile vor acoperi automat restul. Aici doar deducem dacă a finalizat sau nu.
     // Considerăm finalizată dacă această sesiune + acoperirea anterioară ≥ cantitatea cerută.
-    const status: 'finalizata' | 'partial' = (acoperitPrev + cantitate) >= cantitateComandă ? 'finalizata' : 'partial';
+    const status: 'finalizata' | 'partial' = (acoperitPrev + cantitate) >= wholeUnits(cantitateComandă) ? 'finalizata' : 'partial';
 
     if (cantitate <= 0 && !lipsaMP) {
       const ok = window.confirm(t("confirmZero"));
@@ -571,17 +572,21 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       if (!ok) return;
     }
 
-    let remaining = totalQty;
+    // Cantitățile se împart în unități întregi (buc / kg întregi); comenzile cu zecimale
+    // (ex. 8,4 kg) se acoperă cu următorul număr întreg. Ultima comandă primește surplusul.
+    const acoperiri = withSession.map(({ order }: any) => {
+      const esteReamb = order.magazin === 'REAMBALARE' || order.tip_comanda === 'REAMBALARE';
+      return (order.cantitate_reala_produsa || 0) + (esteReamb ? 0 : order.cantitate_din_restock || 0);
+    });
+    const assigns = distributeGroupQuantity(
+      withSession.map(({ order }: any, i) => Math.max(0, wholeUnits(order.cantitate) - acoperiri[i])),
+      totalQty,
+    );
+    const failed: string[] = [];
     for (let i = 0; i < withSession.length; i++) {
       const { order, session } = withSession[i] as any;
-      const esteReamb = order.magazin === 'REAMBALARE' || order.tip_comanda === 'REAMBALARE';
-      const acoperitPrev = (order.cantitate_reala_produsa || 0) + (esteReamb ? 0 : order.cantitate_din_restock || 0);
-      const nevoie = Math.max(0, (order.cantitate || 0) - acoperitPrev);
-      let assign = Math.min(nevoie, remaining);
-      // Ultima sesiune primește surplusul rămas
-      if (i === withSession.length - 1) assign = remaining;
-      remaining = Math.max(0, remaining - assign);
-      const status: 'finalizata' | 'partial' = (acoperitPrev + assign) >= (order.cantitate || 0) ? 'finalizata' : 'partial';
+      const assign = assigns[i];
+      const status: 'finalizata' | 'partial' = (acoperiri[i] + assign) >= wholeUnits(order.cantitate) ? 'finalizata' : 'partial';
       try {
         await finishSessionMutation.mutateAsync({
           id: session.id,
@@ -591,7 +596,17 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
         });
       } catch (err) {
         console.error('Eroare finalizare sesiune grup pentru comanda', order.numar_comanda, err);
+        failed.push(`${order.magazin || order.numar_comanda}: ${(err as any)?.message || err}`);
       }
+    }
+    if (failed.length) {
+      await queryClient.invalidateQueries();
+      toast({
+        title: t("error"),
+        description: `${failed.length} din ${withSession.length} comenzi NU s-au închis: ${failed.join(' · ')}`,
+        variant: "destructive",
+      });
+      return;
     }
 
     // Rebutul se înregistrează o singură dată, pe prima sesiune a grupului
