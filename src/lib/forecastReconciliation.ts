@@ -134,31 +134,16 @@ export function sevenDayBuffer(consumption: Record<string, number>, today: strin
   return { days, total, average: total / 7 };
 }
 /**
- * Pending supplier deliveries minus goods already received for them (early, late or today),
- * so a reception is never added on top of the order it fulfils.
- * Receipts of the last `lookback` days not explained by commitments due that same day
- * (plus today's surplus over today's order) cancel the earliest pending quantities.
+ * Supplier deliveries still to come, per delivery day: today and later count exactly as ordered.
+ * Each day stands alone — a day with a receipt counts the receipt (see reconcileProjection),
+ * a day without one counts its order. Receipts of earlier days never cancel later orders.
  */
 export function netPendingDeliveries(input: {
-  ordered: Record<string, number>; received: Record<string, number>;
-  commitments: Record<string, number>; today: string; lookback?: number;
+  ordered: Record<string, number>; received?: Record<string, number>;
+  commitments?: Record<string, number>; today: string;
 }) {
-  const lookback = input.lookback ?? 3;
-  let pool = 0;
-  for (let i = lookback; i >= 1; i--) {
-    const d = shiftDay(input.today, -i);
-    pool += Math.max(0, (input.received[d] || 0) - (input.commitments[d] || 0));
-  }
   const result: Record<string, number> = {};
-  const hasToday = Object.prototype.hasOwnProperty.call(input.received, input.today);
-  if (hasToday) pool += Math.max(0, (input.received[input.today] || 0) - (input.ordered[input.today] || 0));
-  for (const day of Object.keys(input.ordered).sort()) {
-    const qty = input.ordered[day] || 0;
-    if (day < input.today) continue;
-    if (day === input.today && hasToday) { result[day] = qty; continue; }
-    const used = Math.min(pool, qty); pool -= used;
-    result[day] = qty - used;
-  }
+  for (const [day, qty] of Object.entries(input.ordered)) if (day >= input.today) result[day] = qty || 0;
   return result;
 }
 

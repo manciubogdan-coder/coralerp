@@ -164,17 +164,20 @@ test('explainStockGap splits the missing rucola stock into exact causes', async 
   });
 }
 
-test('receipt yesterday for an order due today is not added again', () => {
-  expect(netPendingDeliveries({ ordered: { '2026-11-03': 500 }, received: { '2026-11-02': 500 },
-    commitments: { '2026-11-03': 500 }, today: '2026-11-03' })['2026-11-03']).toBe(0);
+test('receipts of earlier days never cancel today\'s or later orders', () => {
+  // Baby Spanac 20.11: 2488,5 kg received on 18.11 must not erase the 1937 kg ordered for 20.11 or the 1100 kg for 21.11.
+  expect(netPendingDeliveries({ ordered: { '2026-11-20': 1937, '2026-11-21': 1100 }, received: { '2026-11-18': 2488.5 },
+    commitments: {}, today: '2026-11-20' })).toEqual({ '2026-11-20': 1937, '2026-11-21': 1100 });
 });
-test('early receipt today cancels tomorrow\'s pending order', () => {
-  expect(netPendingDeliveries({ ordered: { '2026-11-04': 300 }, received: { '2026-11-03': 200 },
-    commitments: { '2026-11-04': 300 }, today: '2026-11-03' })['2026-11-04']).toBe(100);
+test('a day with no receipt counts its order in the closing stock', () => {
+  const result = reconcileProjection({ dates: ['2026-11-20', '2026-11-21'], today: '2026-11-20', anchor: 1242.5,
+    snapshots: { '2026-11-20': 1242.5 }, ordered: { '2026-11-20': 1937, '2026-11-21': 1100 }, received: {}, outbound: {}, demand: [1231.4, 675.4] });
+  expect(result.map(r => Math.round(r.closing! * 10) / 10)).toEqual([1948.1, 2372.7]);
 });
-test('receipt matching its own due day leaves later orders intact', () => {
-  expect(netPendingDeliveries({ ordered: { '2026-11-04': 300 }, received: { '2026-11-02': 400 },
-    commitments: { '2026-11-02': 400, '2026-11-04': 300 }, today: '2026-11-03' })['2026-11-04']).toBe(300);
+test('a day with a receipt counts only the received quantity, not the order', () => {
+  const result = reconcileProjection({ dates: ['2026-11-20'], today: '2026-11-20', anchor: 1000,
+    snapshots: { '2026-11-20': 1000 }, ordered: { '2026-11-20': 1937 }, received: { '2026-11-20': 500 }, outbound: {}, demand: [800] });
+  expect(result[0].closing).toBe(700);
 });
 test('transfers to Picking count as consumption but are not production transfers', async () => {
   const { isConsumptionDestination } = await import('../../src/lib/forecastReconciliation');
