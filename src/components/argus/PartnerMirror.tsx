@@ -1,19 +1,20 @@
-import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Download, Loader2, Play } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Download, Loader2, Play, Search, Users } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { argusFetch } from "@/lib/argusApi";
 import { type SheetComponent } from "../../../supabase/functions/_shared/priceSheet";
 import { configuredSheet, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
 import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
 import { priceRules, profitFor, setPriceRules } from "../../../supabase/functions/_shared/priceRules";
-import { mirrorLine, palletDensity, profitPerPiece, targetCost } from "../../../supabase/functions/_shared/partnerMirrorMath";
+import { groupPartners, mirrorLine, palletDensity, periodMonths, profitPerPiece, projectLine, targetCost, type PriceBasis } from "../../../supabase/functions/_shared/partnerMirrorMath";
 
-type Article = { id: number; name: string; qty: number; value: number };
-type Partner = { id: number; name: string; qty: number; value: number; articles: Article[] };
+type Article = { id: number; name: string; qty: number; value: number; lastQty?: number; lastValue?: number };
+type Partner = { key?: string; id: number; name: string; group?: string | null; subgroup?: string | null; qty: number; value: number; articles: Article[] };
 type Item = { product: { id: number; name: string; unitsPerCase: number }; defaults: PriceConfig; components: SheetComponent[] };
 type ListResult = { eur: { rate: number } | null; logistics: { distribution?: Record<string, PriceConfig | null> }; rules?: { rules: any }; items: Array<Item | { product: { id: number; name: string }; error: string }> };
 type Sheet = ReturnType<typeof configuredSheet>["sheet"];
@@ -110,16 +111,84 @@ function Density({ l, margin, profitPct }: { l: Line; margin: number; profitPct:
   );
 }
 
+const pkey = (p: Partner) => p.key ?? String(p.id);
+const SAVED = "partnerMirror.selected";
+const FUTURE = [1, 3, 6, 12];
+const gLabel = (g: string | null) => g ?? "Fără subgrupă";
+const roDate = (d: Date) => d.toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit", year: "numeric" });
+type Proj = ReturnType<typeof projectLine>;
+
+/** Senior-classified partner picker: Subgrupa → subgrupa 2 → partner, with tick boxes at every level. */
+function PartnerPicker({ partners, selected, setSelected }: { partners: Partner[]; selected: Set<string>; setSelected: (s: Set<string>) => void }) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const needle = q.trim().toLowerCase();
+  const shown = useMemo(() => (needle ? partners.filter((p) => p.name.toLowerCase().includes(needle)) : partners), [partners, needle]);
+  const tree = useMemo(() => groupPartners(shown), [shown]);
+  const toggleOpen = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const isOpen = (k: string) => !!needle || open.has(k);
+  const state = (ps: Partner[]): boolean | "indeterminate" => { const c = ps.filter((p) => selected.has(pkey(p))).length; return c === 0 ? false : c === ps.length ? true : "indeterminate"; };
+  const setMany = (ps: Partner[], on: boolean) => { const n = new Set(selected); for (const p of ps) { if (on) n.add(pkey(p)); else n.delete(pkey(p)); } setSelected(n); };
+  const sum = (ps: Partner[]) => ps.reduce((t, p) => t + p.value, 0);
+  const head = (k: string, label: string, ps: Partner[], depth: number) => (
+    <div className={`flex items-center gap-2 border-t py-1.5 ${depth ? "pl-6" : "bg-muted/40 px-1 font-semibold"}`}>
+      <button type="button" onClick={() => toggleOpen(k)} className="text-muted-foreground" aria-label={isOpen(k) ? "Restrânge" : "Deschide"}>{isOpen(k) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button>
+      <Checkbox checked={state(ps)} onCheckedChange={(v) => setMany(ps, v === true)} aria-label={label} />
+      <button type="button" onClick={() => toggleOpen(k)} className="flex-1 text-left text-sm">{label} <span className="font-normal text-muted-foreground">· {ps.filter((p) => selected.has(pkey(p))).length}/{ps.length}</span></button>
+      <span className="text-xs text-muted-foreground">{n0(sum(ps))} lei</span>
+    </div>
+  );
+  const row = (p: Partner, depth: number) => (
+    <label key={pkey(p)} className={`flex cursor-pointer items-center gap-2 py-1 text-sm hover:bg-muted/50 ${depth === 2 ? "pl-16" : "pl-10"}`}>
+      <Checkbox checked={selected.has(pkey(p))} onCheckedChange={(v) => setMany([p], v === true)} />
+      <span className="flex-1">{p.name}</span>
+      <span className="pr-1 text-xs text-muted-foreground">{n0(p.value)} lei</span>
+    </label>
+  );
+  const top = (n: number) => setSelected(new Set([...partners].sort((a, b) => b.value - a.value).slice(0, n).map(pkey)));
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative"><Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" /><Input className="h-8 w-56 pl-7" placeholder="Caută partener" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        {[10, 15, 25].map((n) => <Button key={n} size="sm" variant="outline" className="h-8" onClick={() => top(n)}>Primii {n}</Button>)}
+        <Button size="sm" variant="outline" className="h-8" onClick={() => setMany(partners, true)}>Toți</Button>
+        <Button size="sm" variant="outline" className="h-8" onClick={() => setSelected(new Set())}>Niciunul</Button>
+        <span className="text-sm text-muted-foreground"><Users className="mr-1 inline h-4 w-4" />{selected.size} din {partners.length} aleși</span>
+      </div>
+      <div className="max-h-96 overflow-y-auto rounded-md border">
+        {tree.map((g) => {
+          const gk = `g:${g.group ?? ""}`;
+          const all = g.subgroups.flatMap((s) => s.partners);
+          const flat = g.subgroups.length === 1 && !g.subgroups[0].subgroup;
+          return <div key={gk}>
+            {head(gk, gLabel(g.group), all, 0)}
+            {isOpen(gk) && (flat ? all.map((p) => row(p, 1)) : g.subgroups.map((s) => {
+              const sk = `${gk}|${s.subgroup ?? ""}`;
+              return <div key={sk}>{head(sk, s.subgroup ?? "Fără subgrupă 2", s.partners, 1)}{isOpen(sk) && s.partners.map((p) => row(p, 2))}</div>;
+            }))}
+          </div>;
+        })}
+        {!tree.length && <p className="p-3 text-sm text-muted-foreground">Niciun partener găsit.</p>}
+      </div>
+      <p className="text-xs text-muted-foreground">Grupele vin din clasificările partenerilor din Senior („Subgrupa” și „subgrupa 2”). Alegerea se păstrează pe acest dispozitiv.</p>
+    </div>
+  );
+}
+
 export default function PartnerMirror() {
   const [period, setPeriod] = useState<string>("3");
   const [from, setFrom] = useState(day(new Date(Date.now() - 30 * 86400_000)));
   const [to, setTo] = useState(day(new Date()));
-  const [limit, setLimit] = useState(15);
+  const [partners, setPartners] = useState<Partner[] | null>(null);
+  const [loaded, setLoaded] = useState<{ start: string; end: string; lastStart?: string } | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [rows, setRows] = useState<Row[]>([]);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<number>>(new Set());
   const [sim, setSim] = useState<string | null>(null);
+  const [future, setFuture] = useState("3");
+  const [basis, setBasis] = useState<PriceBasis>("last");
 
   const range = () => {
     if (period === "custom") return { start: from, end: day(new Date(new Date(`${to}T00:00:00Z`).getTime() + 86400_000)) };
@@ -127,108 +196,186 @@ export default function PartnerMirror() {
     const start = new Date(); start.setUTCMonth(start.getUTCMonth() - Number(period));
     return { start: day(start), end: day(end) };
   };
+  const cur = range();
+  const stale = !loaded || loaded.start !== cur.start || loaded.end !== cur.end;
 
-  const run = async () => {
+  const choose = (s: Set<string>) => { setSelected(s); try { localStorage.setItem(SAVED, JSON.stringify([...s])); } catch { /* storage full or blocked */ } };
+
+  const loadPartners = async () => {
     setError(null); setRows([]); setOpen(new Set());
     try {
-      setProgress("Citesc vânzările din Senior…");
-      const { partners } = await argusFetch<{ partners: Partner[] }>("partner_mirror_sales", {}, range());
-      const list = partners.slice(0, limit);
-      const out: Row[] = [];
-      for (let i = 0; i < list.length; i++) {
-        const p = list[i];
-        setProgress(`Calculez costurile ${i + 1}/${list.length}: ${p.name}`);
-        const arts = p.articles.slice(0, 60);
-        try {
-          const now = new Date();
-          const res = await argusFetch<ListResult>("price_list", {}, { articolIds: arts.map((a) => a.id), partnerId: p.id, year: now.getFullYear(), month: now.getMonth() + 1, rawPriceMode: "annual" });
-          if (res.rules) setPriceRules(res.rules.rules);
-          const lines = arts.map((a): Line => {
-            const it = res.items.find((x) => x.product.id === a.id);
-            if (!it || !isItem(it)) return { a, sheet: null, m: null, error: it && !isItem(it) ? it.error : "Fără fișă" };
-            const sheet = sheetFor(it, res, p.name);
-            return sheet.complete ? { a, ppp: it.defaults.piecesPerPallet ?? null, sheet, m: mirrorLine(sheet, a.qty, a.value) } : { a, sheet, m: null, error: `Fișă incompletă: ${[...sheet.missingInputs, ...sheet.missingPrices].slice(0, 3).join(", ")}` };
-          });
-          out.push(summarize(p, lines));
-        } catch (e) {
-          out.push({ ...summarize(p, []), error: (e as Error).message });
+      setProgress("Citesc vânzările și partenerii din Senior…");
+      const r = range();
+      const res = await argusFetch<{ partners: Partner[]; lastStart?: string }>("partner_mirror_sales", {}, r);
+      setPartners(res.partners); setLoaded({ ...r, lastStart: res.lastStart });
+      let saved: string[] = [];
+      try { saved = JSON.parse(localStorage.getItem(SAVED) ?? "[]"); } catch { saved = []; }
+      const keys = new Set(res.partners.map(pkey));
+      const keep = saved.filter((k) => keys.has(k));
+      setSelected(new Set(keep.length ? keep : res.partners.slice(0, 15).map(pkey)));
+    } catch (e) { setError((e as Error).message); }
+    finally { setProgress(null); }
+  };
+  useEffect(() => { setRows([]); }, [cur.start, cur.end]);
+
+  const run = async () => {
+    if (!partners) return;
+    setError(null); setRows([]); setOpen(new Set());
+    const list = partners.filter((p) => selected.has(pkey(p)));
+    const out: Array<Row | undefined> = new Array(list.length);
+    let done = 0, next = 0;
+    const analyse = async (p: Partner): Promise<Row> => {
+      const arts = p.articles.slice(0, 60);
+      try {
+        const now = new Date();
+        const res = await argusFetch<ListResult>("price_list", {}, { articolIds: arts.map((a) => a.id), partnerId: p.id, year: now.getFullYear(), month: now.getMonth() + 1, rawPriceMode: "annual" });
+        if (res.rules) setPriceRules(res.rules.rules);
+        return summarize(p, arts.map((a): Line => {
+          const it = res.items.find((x) => x.product.id === a.id);
+          if (!it || !isItem(it)) return { a, sheet: null, m: null, error: it && !isItem(it) ? it.error : "Fără fișă" };
+          const sheet = sheetFor(it, res, p.name);
+          return sheet.complete ? { a, ppp: it.defaults.piecesPerPallet ?? null, sheet, m: mirrorLine(sheet, a.qty, a.value) } : { a, sheet, m: null, error: `Fișă incompletă: ${[...sheet.missingInputs, ...sheet.missingPrices].slice(0, 3).join(", ")}` };
+        }));
+      } catch (e) { return { ...summarize(p, []), error: (e as Error).message }; }
+    };
+    try {
+      setProgress(`Calculez costurile 0/${list.length}…`);
+      const worker = async () => {
+        while (next < list.length) {
+          const i = next++;
+          out[i] = await analyse(list[i]);
+          done++;
+          setProgress(`Calculez costurile ${done}/${list.length}: ${list[i].name}`);
+          setRows(out.filter((x): x is Row => !!x));
         }
-        setRows([...out]);
-      }
+      };
+      await Promise.all([worker(), worker(), worker()]);
     } catch (e) { setError((e as Error).message); }
     finally { setProgress(null); }
   };
 
-  const total = useMemo(() => rows.reduce((t, r) => ({ sales: t.sales + r.sales, actual: t.actual + r.actual, proposed: t.proposed + r.proposed }), { sales: 0, actual: 0, proposed: 0 }), [rows]);
+  const pastMonths = loaded ? periodMonths(loaded.start, loaded.end) : 0;
+  const futureMonths = Math.max(0, Math.min(36, Number(future.replace(",", ".")) || 0));
+  const futureEnd = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() + Math.round(futureMonths)); return d; }, [futureMonths]);
+  const projOf = (l: Line): Proj | null => (l.m && l.sheet ? projectLine(l.sheet, { qty: l.a.qty, value: l.a.value, lastQty: l.a.lastQty, lastValue: l.a.lastValue }, pastMonths, futureMonths, basis) : null);
+  const proj = useMemo(() => new Map(rows.map((r) => {
+    const ps = r.lines.map(projOf).filter((x): x is Proj => !!x);
+    return [r.p.id, { revenue: ps.reduce((t, x) => t + x.revenue, 0), profit: ps.reduce((t, x) => t + x.profit, 0) }];
+  })), [rows, pastMonths, futureMonths, basis]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const total = useMemo(() => rows.reduce((t, r) => ({ sales: t.sales + r.sales, actual: t.actual + r.actual, proposed: t.proposed + r.proposed, projRevenue: t.projRevenue + (proj.get(r.p.id)?.revenue ?? 0), projProfit: t.projProfit + (proj.get(r.p.id)?.profit ?? 0) }), { sales: 0, actual: 0, proposed: 0, projRevenue: 0, projProfit: 0 }), [rows, proj]);
   const sorted = useMemo(() => [...rows].sort((a, b) => a.actual - b.actual), [rows]);
+  const groups = useMemo(() => groupPartners(rows.map((r) => ({ ...r, name: r.p.name, group: r.p.group, subgroup: r.p.subgroup }))).flatMap((g) => g.subgroups.map((s) => {
+    const rs = s.partners;
+    return { label: `${gLabel(g.group)}${s.subgroup ? ` · ${s.subgroup}` : ""}`, n: rs.length, sales: rs.reduce((t, r) => t + r.sales, 0), actual: rs.reduce((t, r) => t + r.actual, 0), projRevenue: rs.reduce((t, r) => t + (proj.get(r.p.id)?.revenue ?? 0), 0), projProfit: rs.reduce((t, r) => t + (proj.get(r.p.id)?.profit ?? 0), 0) };
+  })), [rows, proj]);
   const toggle = (id: number) => setOpen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const fLabel = `${n2(futureMonths).replace(/,00$/, "")} ${futureMonths === 1 ? "lună" : "luni"}`;
 
   const exportXlsx = () => {
-    const a: (string | number | null)[][] = [["Partener", "Vânzări reale (lei)", "Profit real (lei)", "Profit real %", "Încasări la preț propus", "Profit la preț propus", "Bani lăsați pe masă", "Produse calculate", "Produse fără fișă"]];
-    for (const r of sorted) a.push([r.p.name, Math.round(r.sales), Math.round(r.actual), r.sales ? Math.round((r.actual / r.sales) * 1000) / 10 : null, Math.round(r.proposedRevenue), Math.round(r.proposed), Math.round(r.proposed - r.actual), r.covered, r.missing]);
-    const b: (string | number | null)[][] = [["Partener", "Produs", "Cantitate", "Vânzări", "Preț real/buc", "Preț propus/buc", "Profit real", "Profit la propus", "Diferență", "Observații"]];
-    for (const r of sorted) for (const l of r.lines) b.push([r.p.name, l.a.name, l.a.qty, Math.round(l.a.value), l.m ? Math.round(l.m.actualPrice * 100) / 100 : null, l.m ? Math.round(l.m.proposedPrice * 100) / 100 : null, l.m ? Math.round(l.m.actualProfit) : null, l.m ? Math.round(l.m.proposedProfit) : null, l.m ? Math.round(l.m.gap) : null, l.error ?? ""]);
+    const a: (string | number | null)[][] = [["Subgrupa", "Subgrupa 2", "Partener", "Vânzări reale (lei)", "Profit real (lei)", "Profit real %", "Încasări la preț propus", "Profit la preț propus", "Bani lăsați pe masă", `Proiecție ${fLabel}: vânzări`, `Proiecție ${fLabel}: profit`, "Produse calculate", "Produse fără fișă"]];
+    for (const r of sorted) a.push([r.p.group ?? "", r.p.subgroup ?? "", r.p.name, Math.round(r.sales), Math.round(r.actual), r.sales ? Math.round((r.actual / r.sales) * 1000) / 10 : null, Math.round(r.proposedRevenue), Math.round(r.proposed), Math.round(r.proposed - r.actual), Math.round(proj.get(r.p.id)?.revenue ?? 0), Math.round(proj.get(r.p.id)?.profit ?? 0), r.covered, r.missing]);
+    const b: (string | number | null)[][] = [["Partener", "Produs", "Cantitate", "Vânzări", "Preț real/buc", "Preț propus/buc", "Profit real", "Profit la propus", "Diferență", "Cant./lună", "Preț proiecție/buc", "Cant. proiecție", "Profit proiecție", "Observații"]];
+    for (const r of sorted) for (const l of r.lines) { const pj = projOf(l); b.push([r.p.name, l.a.name, l.a.qty, Math.round(l.a.value), l.m ? Math.round(l.m.actualPrice * 100) / 100 : null, l.m ? Math.round(l.m.proposedPrice * 100) / 100 : null, l.m ? Math.round(l.m.actualProfit) : null, l.m ? Math.round(l.m.proposedProfit) : null, l.m ? Math.round(l.m.gap) : null, pj ? Math.round(pj.monthlyQty) : null, pj ? Math.round(pj.price * 100) / 100 : null, pj ? Math.round(pj.qty) : null, pj ? Math.round(pj.profit) : null, l.error ?? ""]); }
+    const c: (string | number | null)[][] = [["Grupă", "Parteneri", "Vânzări reale", "Profit real", `Proiecție ${fLabel}: vânzări`, `Proiecție ${fLabel}: profit`]];
+    for (const g of groups) c.push([g.label, g.n, Math.round(g.sales), Math.round(g.actual), Math.round(g.projRevenue), Math.round(g.projProfit)]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(a), "Parteneri");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(c), "Grupe");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(b), "Produse");
-    const { start, end } = range();
-    XLSX.writeFile(wb, `Oglinda parteneri ${start} - ${end}.xlsx`);
+    XLSX.writeFile(wb, `Oglinda parteneri ${loaded?.start ?? cur.start} - ${loaded?.end ?? cur.end}.xlsx`);
   };
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base">Oglindă parteneri: profit real vs. prețuri propuse</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-base">Oglindă parteneri: profit real, prețuri propuse și proiecție</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-end gap-2">
-            <div className="inline-flex rounded-md border bg-muted p-1">
-              {PERIODS.map(([k, l]) => <button key={k} onClick={() => setPeriod(k)} className={`rounded px-3 py-1 text-sm ${period === k ? "bg-background shadow-sm" : "text-muted-foreground"}`}>{l}</button>)}
+            <div className="space-y-1"><Label className="text-xs">1. Perioada din trecut</Label>
+              <div className="inline-flex rounded-md border bg-muted p-1">
+                {PERIODS.map(([k, l]) => <button key={k} onClick={() => setPeriod(k)} className={`rounded px-3 py-1 text-sm ${period === k ? "bg-background shadow-sm" : "text-muted-foreground"}`}>{l}</button>)}
+              </div>
             </div>
             {period === "custom" && <>
               <div className="space-y-1"><Label className="text-xs">De la</Label><Input type="date" className="h-8" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
               <div className="space-y-1"><Label className="text-xs">Până la</Label><Input type="date" className="h-8" value={to} onChange={(e) => setTo(e.target.value)} /></div>
             </>}
-            <div className="space-y-1"><Label className="text-xs">Parteneri (după vânzări)</Label>
-              <select className="h-8 rounded-md border border-input bg-background px-2 text-sm" value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
-                {[5, 10, 15, 25, 40].map((x) => <option key={x} value={x}>Primii {x}</option>)}
-              </select>
-            </div>
-            <Button size="sm" onClick={run} disabled={!!progress}>{progress ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}Analizează</Button>
-            {rows.length > 0 && <Button size="sm" variant="outline" onClick={exportXlsx}><Download className="mr-1 h-4 w-4" />Excel</Button>}
+            <Button size="sm" variant={stale ? "default" : "outline"} onClick={loadPartners} disabled={!!progress}>{progress && !rows.length && stale ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Users className="mr-1 h-4 w-4" />}{partners && !stale ? "Reîncarcă partenerii" : "Încarcă partenerii"}</Button>
           </div>
-          <p className="text-xs text-muted-foreground">Vânzările și prețurile reale vin din facturile Senior din perioadă. Costurile sunt cele de acum (rețete, NIR, transport, taxe rețea din Reguli de calcul), deci oglinda arată ce ar fi ieșit cu prețurile propuse azi. Profit = preț − taxe rețea − preț minim (cost + marjă brută). Durează câteva secunde pe partener.</p>
+          {partners && !stale && <>
+            <Label className="text-xs">2. Alege partenerii</Label>
+            <PartnerPicker partners={partners} selected={selected} setSelected={choose} />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={run} disabled={!!progress || !selected.size}>{progress ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}Analizează {selected.size} {selected.size === 1 ? "partener" : "parteneri"}</Button>
+              {rows.length > 0 && <Button size="sm" variant="outline" onClick={exportXlsx}><Download className="mr-1 h-4 w-4" />Excel</Button>}
+              {selected.size > 40 && <span className="text-xs text-muted-foreground">Mulți parteneri: poate dura câteva minute.</span>}
+            </div>
+          </>}
+          {partners && stale && <p className="text-xs text-muted-foreground">Ai schimbat perioada: apasă „Încarcă partenerii” ca să iau vânzările din noua perioadă.</p>}
+          <p className="text-xs text-muted-foreground">Vânzările și prețurile reale vin din facturile Senior din perioadă. Costurile sunt cele de acum (rețete, NIR, transport, taxe rețea din Reguli de calcul). Profit = preț − taxe rețea − preț minim (cost + marjă brută). Durează câteva secunde pe partener.</p>
           {progress && <p className="text-sm text-muted-foreground">{progress}</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
 
-      {rows.length > 0 && <div className="grid gap-3 sm:grid-cols-3">
+      {rows.length > 0 && <Card><CardContent className="space-y-2 pt-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1"><Label className="text-xs">3. Proiecție în viitor</Label>
+            <div className="flex items-center gap-1">
+              <div className="inline-flex rounded-md border bg-muted p-1">
+                {FUTURE.map((m) => <button key={m} onClick={() => setFuture(String(m))} className={`rounded px-3 py-1 text-sm ${Number(future) === m ? "bg-background shadow-sm" : "text-muted-foreground"}`}>{m === 1 ? "1 lună" : m === 12 ? "1 an" : `${m} luni`}</button>)}
+              </div>
+              <Input className="h-8 w-20" inputMode="decimal" value={future} onChange={(e) => setFuture(e.target.value)} aria-label="Luni în viitor" /><span className="text-sm text-muted-foreground">luni</span>
+            </div>
+          </div>
+          <div className="space-y-1"><Label className="text-xs">Preț de vânzare în proiecție</Label>
+            <div className="inline-flex rounded-md border bg-muted p-1">
+              {([["last", "Ultima lună din perioadă"], ["period", "Media perioadei"]] as const).map(([k, l]) => <button key={k} onClick={() => setBasis(k)} className={`rounded px-3 py-1 text-sm ${basis === k ? "bg-background shadow-sm" : "text-muted-foreground"}`}>{l}</button>)}
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">Proiecția presupune că fiecare partener cumpără în continuare, din fiecare produs, aceeași cantitate medie pe lună ca în perioada aleasă ({n2(pastMonths)} luni), la prețul de vânzare de acum ({basis === "last" ? `media facturilor de la ${loaded?.lastStart ? roDate(new Date(`${loaded.lastStart}T00:00:00Z`)) : "ultima lună"}; produsele fără vânzări în ultima lună folosesc media perioadei` : "media facturilor din toată perioada"}) și cu costurile de azi. Perioada: azi – {roDate(futureEnd)}. Este o estimare, nu o comandă confirmată.</p>
+      </CardContent></Card>}
+
+      {rows.length > 0 && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Vânzări analizate</p><p className="text-xl font-semibold">{n0(total.sales)} lei</p></CardContent></Card>
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Profit real (după marjă)</p><p className={`text-xl font-semibold ${tone(total.actual)}`}>{n0(total.actual)} lei</p></CardContent></Card>
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Dacă aveam prețurile propuse</p><p className={`text-xl font-semibold ${tone(total.proposed)}`}>{n0(total.proposed)} lei</p><p className="text-xs text-muted-foreground">diferență {n0(total.proposed - total.actual)} lei</p></CardContent></Card>
+        <Card className="border-primary/40"><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Proiecție {fLabel} la prețul actual</p><p className={`text-xl font-semibold ${tone(total.projProfit)}`}>{total.projProfit >= 0 ? "Câștig" : "Pierdere"} {n0(Math.abs(total.projProfit))} lei</p><p className="text-xs text-muted-foreground">din vânzări estimate de {n0(total.projRevenue)} lei</p></CardContent></Card>
       </div>}
+
+      {groups.length > 1 && <Card><CardContent className="overflow-x-auto pt-4">
+        <table className="w-full text-sm">
+          <thead><tr className="text-left text-xs text-muted-foreground"><th className="py-1">Grupă</th><th className="text-right">Parteneri</th><th className="text-right">Vânzări</th><th className="text-right">Profit real</th><th className="text-right">Proiecție vânzări</th><th className="text-right">Proiecție profit</th></tr></thead>
+          <tbody>{groups.map((g) => <tr key={g.label} className="border-t"><td className="py-1.5 font-medium">{g.label}</td><td className="text-right">{g.n}</td><td className="text-right">{n0(g.sales)}</td><td className={`text-right ${tone(g.actual)}`}>{n0(g.actual)}</td><td className="text-right">{n0(g.projRevenue)}</td><td className={`text-right font-semibold ${tone(g.projProfit)}`}>{n0(g.projProfit)}</td></tr>)}</tbody>
+        </table>
+      </CardContent></Card>}
 
       {rows.length > 0 && <Card><CardContent className="overflow-x-auto pt-4">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-xs text-muted-foreground">
-            <th className="py-1"></th><th>Partener</th><th className="text-right">Vânzări</th><th className="text-right">Profit real</th><th className="text-right">%</th><th className="text-right">Profit la propus</th><th className="text-right">Bani lăsați pe masă</th><th className="text-right">Fără fișă</th>
+            <th className="py-1"></th><th>Partener</th><th className="text-right">Vânzări</th><th className="text-right">Profit real</th><th className="text-right">%</th><th className="text-right">Profit la propus</th><th className="text-right">Bani lăsați pe masă</th><th className="text-right">Proiecție vânzări</th><th className="text-right">Proiecție profit</th><th className="text-right">Fără fișă</th>
           </tr></thead>
-          <tbody>{sorted.map((r) => <Fragment key={r.p.id}>
+          <tbody>{sorted.map((r) => { const pr = proj.get(r.p.id); return <Fragment key={r.p.id}>
             <tr className="cursor-pointer border-t hover:bg-muted/50" onClick={() => toggle(r.p.id)}>
               <td className="py-1.5">{open.has(r.p.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</td>
-              <td className="font-medium">{r.p.name}{r.error && <span className="ml-2 text-xs text-destructive">{r.error}</span>}</td>
+              <td className="font-medium">{r.p.name}<span className="block text-xs font-normal text-muted-foreground">{gLabel(r.p.group ?? null)}{r.p.subgroup ? ` · ${r.p.subgroup}` : ""}</span>{r.error && <span className="ml-2 text-xs text-destructive">{r.error}</span>}</td>
               <td className="text-right">{n0(r.sales)}</td>
               <td className={`text-right font-semibold ${tone(r.actual)}`}>{n0(r.actual)}</td>
               <td className={`text-right ${tone(r.actual)}`}>{r.sales ? n2((r.actual / r.sales) * 100) : "—"}</td>
               <td className={`text-right ${tone(r.proposed)}`}>{n0(r.proposed)}</td>
               <td className="text-right">{n0(r.proposed - r.actual)}</td>
+              <td className="text-right">{n0(pr?.revenue)}</td>
+              <td className={`text-right font-semibold ${tone(pr?.profit ?? 0)}`}>{n0(pr?.profit)}</td>
               <td className="text-right text-muted-foreground">{r.missing || ""}</td>
             </tr>
-            {open.has(r.p.id) && <tr><td></td><td colSpan={7} className="pb-3">
+            {open.has(r.p.id) && <tr><td></td><td colSpan={9} className="pb-3">
               <table className="w-full text-xs">
-                <thead><tr className="text-left text-muted-foreground"><th>Produs</th><th className="text-right">Cant.</th><th className="text-right">Preț real</th><th className="text-right">Preț propus</th><th className="text-right">Profit real</th><th className="text-right">Profit la propus</th><th></th></tr></thead>
+                <thead><tr className="text-left text-muted-foreground"><th>Produs</th><th className="text-right">Cant.</th><th className="text-right">Preț real</th><th className="text-right">Preț propus</th><th className="text-right">Profit real</th><th className="text-right">Profit la propus</th><th className="text-right">Cant./lună</th><th className="text-right">Preț proiecție</th><th className="text-right">Profit proiecție</th><th></th></tr></thead>
                 <tbody>{[...r.lines].sort((a, b) => (a.m?.actualProfit ?? 0) - (b.m?.actualProfit ?? 0)).map((l) => {
                   const k = `${r.p.id}:${l.a.id}`;
+                  const pj = projOf(l);
                   return <Fragment key={k}>
                     <tr className="border-t">
                       <td className="py-1">{l.a.name}{l.error && <span className="block text-muted-foreground">{l.error}</span>}</td>
@@ -237,14 +384,18 @@ export default function PartnerMirror() {
                       <td className="text-right">{l.m ? n2(l.m.proposedPrice) : "—"}</td>
                       <td className={`text-right font-medium ${l.m ? tone(l.m.actualProfit) : ""}`}>{l.m ? n0(l.m.actualProfit) : "—"}</td>
                       <td className="text-right">{l.m ? n0(l.m.proposedProfit) : "—"}</td>
+                      <td className="text-right">{pj ? n0(pj.monthlyQty) : "—"}</td>
+                      <td className="text-right" title={pj?.priceFrom === "period" && basis === "last" ? "Fără vânzări în ultima lună: media perioadei" : undefined}>{pj ? `${n2(pj.price)}${pj.priceFrom === "period" && basis === "last" ? "*" : ""}` : "—"}</td>
+                      <td className={`text-right font-medium ${pj ? tone(pj.profit) : ""}`}>{pj ? n0(pj.profit) : "—"}</td>
                       <td className="text-right">{l.m && <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setSim(sim === k ? null : k)}>Simulează</Button>}</td>
                     </tr>
-                    {sim === k && l.m && <tr><td colSpan={7} className="py-2"><Simulator l={l} /></td></tr>}
+                    {sim === k && l.m && <tr><td colSpan={10} className="py-2"><Simulator l={l} /></td></tr>}
                   </Fragment>;
                 })}</tbody>
               </table>
+              <p className="mt-1 text-xs text-muted-foreground">* fără vânzări în ultima lună: prețul din proiecție este media perioadei.</p>
             </td></tr>}
-          </Fragment>)}</tbody>
+          </Fragment>; })}</tbody>
         </table>
       </CardContent></Card>}
     </div>

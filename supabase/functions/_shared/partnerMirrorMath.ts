@@ -35,3 +35,51 @@ export function palletDensity(distPerPiece: number, piecesPerPallet: number, new
   const k = 1 - (marginPct + profitPct) / 100;
   return { perPallet, newDistPerPiece, saving, profitGain: k > 0 ? saving * (1 - profitPct / 100) / k : saving };
 }
+
+/** Months covered by a [start, end) period, in average calendar months (30.44 days). */
+export function periodMonths(start: string, end: string) {
+  const days = (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400_000;
+  return days > 0 ? days / (365.25 / 12) : 0;
+}
+
+/** Start of the "last month" window of a [start, end) period: one calendar month before end, never before start. */
+export function lastMonthStart(start: string, end: string) {
+  const d = new Date(`${end}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() - 1);
+  const s = d.toISOString().slice(0, 10);
+  return s > start ? s : start;
+}
+
+export type PriceBasis = "last" | "period";
+type Sale = { qty: number; value: number; lastQty?: number; lastValue?: number };
+
+/** Future projection of one product: the same average monthly quantity as the past period, sold at the current price
+ * (average of the period's last month, or of the whole period; last month falls back to the period when it had no sales),
+ * costed with today's sheet. Profit = (price − fees − minimum price) × projected quantity. */
+export function projectLine(s: Sheet, sale: Sale, pastMonths: number, futureMonths: number, basis: PriceBasis) {
+  const monthlyQty = pastMonths > 0 ? sale.qty / pastMonths : 0;
+  const qty = monthlyQty * Math.max(0, futureMonths);
+  const useLast = basis === "last" && (sale.lastQty ?? 0) > 0;
+  const price = useLast ? (sale.lastValue ?? 0) / (sale.lastQty as number) : sale.qty > 0 ? sale.value / sale.qty : 0;
+  return { monthlyQty, qty, price, priceFrom: (useLast ? "last" : "period") as PriceBasis, revenue: price * qty, profit: profitPerPiece(s, price) * qty };
+}
+
+export type Grouped<P> = { group: string | null; subgroups: Array<{ subgroup: string | null; partners: P[] }> };
+
+/** Partners as in Senior's classification: "Subgrupa" → "subgrupa 2" → central partner. Named groups alphabetical,
+ * unclassified last; inside a group the partners without "subgrupa 2" come first; partners alphabetical. */
+export function groupPartners<P extends { name: string; group?: string | null; subgroup?: string | null }>(partners: P[]): Grouped<P>[] {
+  const by = new Map<string, Map<string, P[]>>();
+  for (const p of partners) {
+    const g = p.group || "", sg = p.subgroup || "";
+    const m = by.get(g) ?? new Map<string, P[]>();
+    m.set(sg, [...(m.get(sg) ?? []), p]);
+    by.set(g, m);
+  }
+  const order = (a: string, b: string) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b, "ro"));
+  return [...by.keys()].sort(order).map((g) => ({
+    group: g || null,
+    subgroups: [...by.get(g)!.keys()].sort((a, b) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b, "ro")))
+      .map((sg) => ({ subgroup: sg || null, partners: [...by.get(g)!.get(sg)!].sort((a, b) => a.name.localeCompare(b.name, "ro")) })),
+  }));
+}
