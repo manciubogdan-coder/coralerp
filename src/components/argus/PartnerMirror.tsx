@@ -258,17 +258,17 @@ export default function PartnerMirror() {
   const futureMonths = Math.max(0, Math.min(36, Number(future.replace(",", ".")) || 0));
   const futureEnd = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() + Math.round(futureMonths)); return d; }, [futureMonths]);
   const projOf = (l: Line): Proj | null => (l.m && l.sheet ? projectLine(l.sheet, { qty: l.a.qty, value: l.a.value, lastQty: l.a.lastQty, lastValue: l.a.lastValue }, pastMonths, futureMonths, basis) : null);
-  const proj = useMemo(() => new Map(rows.map((r) => {
+  const proj = new Map(rows.map((r) => {
     const ps = r.lines.map(projOf).filter((x): x is Proj => !!x);
     return [r.p.id, { revenue: ps.reduce((t, x) => t + x.revenue, 0), profit: ps.reduce((t, x) => t + x.profit, 0) }];
-  })), [rows, pastMonths, futureMonths, basis]); // eslint-disable-line react-hooks/exhaustive-deps
+  }));
 
-  const total = useMemo(() => rows.reduce((t, r) => ({ sales: t.sales + r.sales, actual: t.actual + r.actual, proposed: t.proposed + r.proposed, projRevenue: t.projRevenue + (proj.get(r.p.id)?.revenue ?? 0), projProfit: t.projProfit + (proj.get(r.p.id)?.profit ?? 0) }), { sales: 0, actual: 0, proposed: 0, projRevenue: 0, projProfit: 0 }), [rows, proj]);
+  const total = rows.reduce((t, r) => ({ sales: t.sales + r.sales, actual: t.actual + r.actual, proposed: t.proposed + r.proposed, projRevenue: t.projRevenue + (proj.get(r.p.id)?.revenue ?? 0), projProfit: t.projProfit + (proj.get(r.p.id)?.profit ?? 0) }), { sales: 0, actual: 0, proposed: 0, projRevenue: 0, projProfit: 0 });
   const sorted = useMemo(() => [...rows].sort((a, b) => a.actual - b.actual), [rows]);
-  const groups = useMemo(() => groupPartners(rows.map((r) => ({ ...r, name: r.p.name, group: r.p.group, subgroup: r.p.subgroup }))).flatMap((g) => g.subgroups.map((s) => {
+  const groups = groupPartners(rows.map((r) => ({ ...r, name: r.p.name, group: r.p.group, subgroup: r.p.subgroup }))).flatMap((g) => g.subgroups.map((s) => {
     const rs = s.partners;
     return { label: `${gLabel(g.group)}${s.subgroup ? ` · ${s.subgroup}` : ""}`, n: rs.length, sales: rs.reduce((t, r) => t + r.sales, 0), actual: rs.reduce((t, r) => t + r.actual, 0), projRevenue: rs.reduce((t, r) => t + (proj.get(r.p.id)?.revenue ?? 0), 0), projProfit: rs.reduce((t, r) => t + (proj.get(r.p.id)?.profit ?? 0), 0) };
-  })), [rows, proj]);
+  }));
   const toggle = (id: number) => setOpen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const fLabel = `${n2(futureMonths).replace(/,00$/, "")} ${futureMonths === 1 ? "lună" : "luni"}`;
 
