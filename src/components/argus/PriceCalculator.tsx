@@ -16,7 +16,7 @@ import { TransportCheck } from "./TransportCheck";
 import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, productAverageRoute, profitAt, truckRows } from "../../../supabase/functions/_shared/priceList";
 import { countyKey, routeGroup } from "../../../supabase/functions/_shared/priceSourceRules";
 import { PriceParameters, NumericParameter } from "./PriceParameters";
-import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
+import { prefilledConfig, salePeriodLabel } from "../../../supabase/functions/_shared/priceDefaults";
 import { ReceiptPriceAlert } from '../inventory/ReceiptPriceAlert';
 import { priceRules, profitFor, setPriceRules, type RulesMeta } from "../../../supabase/functions/_shared/priceRules";
 import PriceRulesEditor from "./PriceRulesEditor";
@@ -50,7 +50,7 @@ type Item = {
 };
 type Fees = { pct: number; rule: string | null; note: string; scope: "store" | "central" | "average"; stores: Array<{ pid: number; name: string; pallets: number; pct: number; rule: string | null }> } | null;
 type ListResult = {
-  period: { startDay: string; endDay: string }; warnings: string[]; info?: string[]; fees?: Fees; eur: { rate: number; day: string } | null;
+  period: { startDay: string; endDay: string }; salePeriod?: { from: string; to: string }; warnings: string[]; info?: string[]; fees?: Fees; eur: { rate: number; day: string } | null;
   stores: StoreRow[]; logistics: Logistics; rules?: RulesMeta;
   items: Array<Item | { product: { id: number; name: string }; error: string }>;
 };
@@ -442,13 +442,15 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
     ...routeRows(logistics?.routes ?? []).map((r) => ({ value: r.route, label: `${r.curse.length > 1 ? `${r.name} (${r.curse.join(" + ")})` : r.route} · ${r.perPallet != null ? `${n2(r.perPallet)} lei/palet` : r.perTrip != null ? `${n2(r.perTrip)} lei/cursă, fără paleți atribuiți` : "fără curse"}` })),
     { value: "România", label: "Media curselor interne" },
   ], [logistics]);
+  /** Selling price = average of the chosen month only. */
+  const saleLbl = result?.salePeriod ? salePeriodLabel(result.salePeriod) : `${String(month).padStart(2, "0")}/${year}`;
   const clientName = clients.find((c) => c.id === client)?.name ?? "";
   const storeName = stores.find((x) => x.id === store)?.name ?? result?.logistics.store?.name;
   /** With a product: the client average covers only the stores that bought it (by pieces sold), else every store (by pallets). */
   const routeLabel = (r: string, it?: Item) => {
     if (r !== CLIENT_AVERAGE_ROUTE) return routeGroup(r);
     const pa = it ? productAverageFor(it) : null;
-    return pa ? `medie client (${pa.stores} ${pa.stores === 1 ? "magazin" : "magazine"} care au cumpărat produsul, ponderat cu bucățile vândute în 90 de zile)` : "medie client (toate magazinele, ponderat cu paleții)";
+    return pa ? `medie client (${pa.stores} ${pa.stores === 1 ? "magazin" : "magazine"} care au cumpărat produsul, ponderat cu bucățile vândute în ${saleLbl})` : "medie client (toate magazinele, ponderat cu paleții)";
   };
   const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
   const multiStore = !!result && client != null && store == null && result.stores.length > 1;
@@ -540,7 +542,7 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
     ] as [string, number, number][]) rows.push([l, "", "", "", "", "", r4(b), r4(p)]);
     if (it.recentSale && c.s.complete) {
       const p = profitAt(c.s, it.recentSale.price);
-      rows.push([], ["Preț vânzare actual (90 zile, lei/buc)", r4(it.recentSale.price)], ["Bucăți vândute 90 zile", Math.round(it.recentSale.qty)], ["Profit real (lei/buc)", r4(p.profit)], ["Profitabilitate reală % din prețul de vânzare fără taxe", p.pct != null ? Math.round(p.pct * 10) / 10 : ""]);
+      rows.push([], [`Preț vânzare actual (media ${saleLbl}, lei/buc)`, r4(it.recentSale.price)], [`Bucăți vândute ${saleLbl}`, Math.round(it.recentSale.qty)], ["Profit real (lei/buc)", r4(p.profit)], ["Profitabilitate reală % din prețul de vânzare fără taxe", p.pct != null ? Math.round(p.pct * 10) / 10 : ""]);
     }
     if (!c.s.complete) rows.push([], ["Fișă incompletă", [...c.s.missingInputs, ...c.s.missingPrices].join("; ")]);
     if (it.warnings.length) { rows.push([], ["Avertismente"]); for (const w of it.warnings) rows.push([w]); }
@@ -553,7 +555,7 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
       ["Listă de prețuri", clientName || "Toți clienții"], ["Magazin", store != null ? storeName ?? "" : "Toate magazinele (medie)"],
       ["Perioadă", `${String(month).padStart(2, "0")}/${year}`], ["Marjă brută %", num(marginShown || "0")], ["Cursă distribuție", routeLabel(route)],
       ["Transport", `ultimele prețuri: cost pe camion/cursă din facturile ${result.logistics.closedStart} – ${result.logistics.closedEnd}; încărcare din ${result.logistics.loadWindow.start} – ${result.logistics.loadWindow.end}`], [],
-      ["Produs", "Buc/bax", "Cost producție (lei/buc)", "Distribuție (lei/buc)", "Marjă brută (lei/buc)", "Marjă brută % din prețul de vânzare", "Preț minim vânzare fără taxe (lei/buc)", "Profitabilitate țintă % din prețul de vânzare fără taxe", "Preț propus fără taxe (lei/buc)", "Taxe rețea (lei/buc)", "Preț propus cu taxe (lei/buc)", "Preț propus cu taxe (lei/bax)", "Preț propus (EUR/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profitabilitate reală % din prețul de vânzare fără taxe", "Stare"],
+      ["Produs", "Buc/bax", "Cost producție (lei/buc)", "Distribuție (lei/buc)", "Marjă brută (lei/buc)", "Marjă brută % din prețul de vânzare", "Preț minim vânzare fără taxe (lei/buc)", "Profitabilitate țintă % din prețul de vânzare fără taxe", "Preț propus fără taxe (lei/buc)", "Taxe rețea (lei/buc)", "Preț propus cu taxe (lei/buc)", "Preț propus cu taxe (lei/bax)", "Preț propus (EUR/buc)", `Preț vânzare actual (media ${saleLbl}, lei/buc)`, `Bucăți vândute ${saleLbl}`, "Profit real (lei/buc)", "Profitabilitate reală % din prețul de vânzare fără taxe", "Stare"],
     ];
     for (const r of listRows) {
       const s = r.s;
@@ -562,14 +564,14 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
         r.profit ? r4(r.profit.profit) : "", r.profit?.pct != null ? Math.round(r.profit.pct * 10) / 10 : "", s?.complete ? "calculat" : `incomplet: ${[...(s?.missingInputs ?? []), ...(s?.missingPrices ?? [])].join("; ")}`]);
     }
     for (const f of failed) head.push([f.product.name, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", f.error]);
-    if (totals) head.push([], ["Total ultimele 90 de zile", "", "", "", "", "", "", "", "", "", "", "", "", r4(totals.sales), "", r4(totals.profit), totals.pct != null ? Math.round(totals.pct * 10) / 10 : ""]);
+    if (totals) head.push([], [`Total ${saleLbl}`, "", "", "", "", "", "", "", "", "", "", "", "", r4(totals.sales), "", r4(totals.profit), totals.pct != null ? Math.round(totals.pct * 10) / 10 : ""]);
     const ws = XLSX.utils.aoa_to_sheet(head);
     ws["!cols"] = [{ wch: 40 }, ...Array(17).fill({ wch: 14 })];
     XLSX.utils.book_append_sheet(wb, ws, "Listă prețuri");
     if (multiStore) {
-      const rows: (string | number)[][] = [["Magazin", "Cursă", "Paleți livrați 90 zile", "Vânzări 90 zile (lei)", "Profit real 90 zile (lei)", "Profit real % din prețul de vânzare fără taxe"]];
+      const rows: (string | number)[][] = [["Magazin", "Cursă", "Paleți livrați 90 zile", `Vânzări ${saleLbl} (lei)`, `Profit real ${saleLbl} (lei)`, "Profit real % din prețul de vânzare fără taxe"]];
       for (const st of storeTotals) rows.push([st.name, st.route ? routeGroup(st.route) : "fără cursă", r4(st.pallets), r4(st.sales), r4(st.profit), st.pct != null ? Math.round(st.pct * 10) / 10 : ""]);
-      rows.push([], ["Produs", "Magazin", "Cursă", "Distribuție (lei/palet)", "Distribuție (lei/buc)", "Preț propus (lei/buc)", "Preț vânzare actual (lei/buc)", "Bucăți vândute 90 zile", "Profit real (lei/buc)", "Profit real % din prețul de vânzare fără taxe"]);
+      rows.push([], ["Produs", "Magazin", "Cursă", "Distribuție (lei/palet)", "Distribuție (lei/buc)", "Preț propus (lei/buc)", `Preț vânzare actual (media ${saleLbl}, lei/buc)`, `Bucăți vândute ${saleLbl}`, "Profit real (lei/buc)", "Profit real % din prețul de vânzare fără taxe"]);
       for (const it of items) for (const st of storeRowsFor(it)) {
         if (!st.sale && !st.sheet) continue;
         rows.push([it.product.name, st.name, st.route ? routeGroup(st.route) : "fără cursă", st.perPallet != null ? r4(st.perPallet) : "", st.sheet ? r4(st.sheet.perPiece.logistics) : "", st.sheet?.complete ? r4(st.sheet.perPiece.clientPrice) : "",
@@ -705,14 +707,14 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
         <div className="rounded-md border bg-background p-3 text-sm">
           {p && it.recentSale ? (
             <div className="grid gap-2 sm:grid-cols-4">
-              <div><div className="text-xs text-muted-foreground">Preț vânzare actual (90 zile)</div><div className="font-semibold tabular-nums">{n2(it.recentSale.price, 4)} lei/buc</div><div className="text-xs text-muted-foreground">{n2(it.recentSale.qty, 0)} buc vândute · {saleScope}</div></div>
+              <div><div className="text-xs text-muted-foreground">Preț vânzare actual (media {saleLbl})</div><div className="font-semibold tabular-nums">{n2(it.recentSale.price, 4)} lei/buc</div><div className="text-xs text-muted-foreground">{n2(it.recentSale.qty, 0)} buc vândute · {saleScope}</div></div>
               <div><div className="text-xs text-muted-foreground">Preț minim + taxe rețea la prețul actual</div><div className="font-semibold tabular-nums">{n2(p.cost + p.fees, 4)} lei/buc</div><div className="text-xs text-muted-foreground">{n2(p.cost, 4)} preț minim + {n2(p.fees, 4)} taxe</div></div>
-              <div><div className="text-xs text-muted-foreground">Profit real</div><div className={`font-semibold tabular-nums ${profitClass(p.profit)}`}>{n2(p.profit, 4)} lei/buc · {n2(p.pct, 1)}%</div><div className="text-xs text-muted-foreground">{n2(p.profit * it.recentSale.qty)} lei în 90 de zile</div></div>
+              <div><div className="text-xs text-muted-foreground">Profit real</div><div className={`font-semibold tabular-nums ${profitClass(p.profit)}`}>{n2(p.profit, 4)} lei/buc · {n2(p.pct, 1)}%</div><div className="text-xs text-muted-foreground">{n2(p.profit * it.recentSale.qty)} lei în {saleLbl}</div></div>
               <div><div className="text-xs text-muted-foreground">Preț actual − preț propus</div><div className={`font-semibold tabular-nums ${profitClass(it.recentSale.price - s.perPiece.clientPrice)}`}>{n2(it.recentSale.price - s.perPiece.clientPrice, 4)} lei/buc</div><div className="text-xs text-muted-foreground">pozitiv = vinzi peste prețul propus</div></div>
             </div>
-          ) : <p className="text-muted-foreground">{!s.complete ? "Profitul real apare după completarea fișei." : `Nu există vânzări ${store != null ? "către acest magazin" : client ? "către acest client" : "pentru acest produs"} în ultimele 90 de zile.`}</p>}
+          ) : <p className="text-muted-foreground">{!s.complete ? "Profitul real apare după completarea fișei." : `Nu există vânzări ${store != null ? "către acest magazin" : client ? "către acest client" : "pentru acest produs"} în ${saleLbl}.`}</p>}
           {multiStore && it.storeSales.length > 0 && (
-            <p className="mt-2 text-xs text-muted-foreground">Bucăți pe magazine (90 zile): {[...it.storeSales].sort((a, b) => b.qty - a.qty).map((x) => `${result?.stores.find((st) => st.pid === x.pid)?.name ?? `magazin ${x.pid}`} ${n2(x.qty, 0)}`).join(" · ")}. Ca să vezi un singur magazin, alege-l la „Magazin / punct de livrare” și apasă din nou „Calculează”.</p>
+            <p className="mt-2 text-xs text-muted-foreground">Bucăți pe magazine ({saleLbl}): {[...it.storeSales].sort((a, b) => b.qty - a.qty).map((x) => `${result?.stores.find((st) => st.pid === x.pid)?.name ?? `magazin ${x.pid}`} ${n2(x.qty, 0)}`).join(" · ")}. Ca să vezi un singur magazin, alege-l la „Magazin / punct de livrare” și apasă din nou „Calculează”.</p>
           )}
           {it.priceList && <Badge variant="secondary" className="mt-2">Listă de preț Senior: {n2(it.priceList.price, 4)} {it.priceList.currency} · {it.priceList.list} (din {it.priceList.since})</Badge>}
         </div>
@@ -722,7 +724,7 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
             <summary className="cursor-pointer text-sm font-medium">Rentabilitate pe magazine · {it.product.name}</summary>
             <div className="mt-2 overflow-x-auto">
               <table className="w-full min-w-[860px] text-xs">
-                <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Magazin</th><th>Cursă</th><th className="text-right">Taxe rețea</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Distribuție lei/buc</th><th className="text-right">Preț propus</th><th className="text-right">Preț actual</th><th className="text-right">Buc 90 zile</th><th className="text-right">Profit lei/buc</th><th className="text-right">Profit %</th></tr></thead>
+                <thead className="border-b text-left text-muted-foreground"><tr><th className="py-1">Magazin</th><th>Cursă</th><th className="text-right">Taxe rețea</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Distribuție lei/buc</th><th className="text-right">Preț propus</th><th className="text-right">Preț actual</th><th className="text-right">Buc {saleLbl}</th><th className="text-right">Profit lei/buc</th><th className="text-right">Profit %</th></tr></thead>
                 <tbody>
                   {rows.map((st) => (
                     <tr key={st.pid} className="border-b last:border-0">
@@ -842,7 +844,7 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
                   <Button size="sm" variant="outline" disabled={!items.length} onClick={exportExcel}><Download className="mr-1 h-3.5 w-3.5" />Export Excel</Button>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">Clic pe un produs ca să-i vezi structura prețului și să modifici orice valoare doar pentru el. Preț propus fără taxe = (cost producție + distribuție) ÷ (1 − marjă% − profit%), marja și profitul fiind procente din prețul de vânzare. Preț minim = cost + marja brută (break-even). Apoi se adaugă taxele de rețea ale clientului, ca procent din prețul final. Profitabilitatea reală = ce rămâne la prețul cu care vinzi acum (media ultimelor 90 de zile) după taxe și prețul minim, ca % din prețul de vânzare fără taxe; negativă = cu roșu. {incompleteCount ? <span className="text-destructive">{incompleteCount} fișe incomplete.</span> : "Toate fișele sunt complete."}</p>
+              <p className="text-xs text-muted-foreground">Clic pe un produs ca să-i vezi structura prețului și să modifici orice valoare doar pentru el. Preț propus fără taxe = (cost producție + distribuție) ÷ (1 − marjă% − profit%), marja și profitul fiind procente din prețul de vânzare. Preț minim = cost + marja brută (break-even). Apoi se adaugă taxele de rețea ale clientului, ca procent din prețul final. Profitabilitatea reală = ce rămâne la prețul cu care vinzi acum (media lunii alese: {saleLbl}) după taxe și prețul minim, ca % din prețul de vânzare fără taxe; negativă = cu roșu. {incompleteCount ? <span className="text-destructive">{incompleteCount} fișe incomplete.</span> : "Toate fișele sunt complete."}</p>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <table className="w-full min-w-[1100px] text-sm">
@@ -852,7 +854,7 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
                     <th className="border-l pl-2 text-right">Preț minim vânzare</th><th className="text-right">Profitabilitate țintă</th><th className="text-right">Preț fără taxe</th><th className="text-right">Taxe rețea</th><th className="text-right">Preț propus</th><th className="text-right">Preț propus bax</th>
                     <th className="border-l pl-2 text-right">Preț vânzare actual</th><th className="text-right">Profit real</th><th className="text-right">Profitabilitate reală</th>
                   </tr>
-                  <tr className="text-[10px]"><th /><th className="text-right">lei/buc</th><th className="text-right">lei/buc</th><th className="text-right">lei/buc · % din preț vânzare</th><th className="border-l pl-2 text-right">break-even fără taxe, lei/buc</th><th className="text-right">lei/buc · % din preț vânzare</th><th className="text-right">minim + profit, lei/buc</th><th className="text-right">lei/buc · %</th><th className="text-right">cu taxe, lei/buc</th><th className="text-right">cu taxe, lei/bax</th><th className="border-l pl-2 text-right">lei/buc · 90 zile</th><th className="text-right">lei/buc</th><th className="text-right">% din preț fără taxe</th></tr>
+                  <tr className="text-[10px]"><th /><th className="text-right">lei/buc</th><th className="text-right">lei/buc</th><th className="text-right">lei/buc · % din preț vânzare</th><th className="border-l pl-2 text-right">break-even fără taxe, lei/buc</th><th className="text-right">lei/buc · % din preț vânzare</th><th className="text-right">minim + profit, lei/buc</th><th className="text-right">lei/buc · %</th><th className="text-right">cu taxe, lei/buc</th><th className="text-right">cu taxe, lei/bax</th><th className="border-l pl-2 text-right">lei/buc · {saleLbl}</th><th className="text-right">lei/buc</th><th className="text-right">% din preț fără taxe</th></tr>
                 </thead>
                 <tbody>
                   {listRows.map(({ it, c, s, sale, profit }) => {
@@ -888,7 +890,7 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
               </table>
               {totals && (
                 <p className="mt-3 text-sm">
-                  Pe ultimele 90 de zile ({totals.n} produse cu vânzări): vânzări <b>{n2(totals.sales)} lei</b>, profit real <b className={profitClass(totals.profit)}>{n2(totals.profit)} lei</b>{totals.pct != null ? <> · <b className={profitClass(totals.profit)}>{n2(totals.pct, 1)}%</b></> : null}.
+                  În {saleLbl} ({totals.n} produse cu vânzări): vânzări <b>{n2(totals.sales)} lei</b>, profit real <b className={profitClass(totals.profit)}>{n2(totals.profit)} lei</b>{totals.pct != null ? <> · <b className={profitClass(totals.profit)}>{n2(totals.pct, 1)}%</b></> : null}.
                 </p>
               )}
             </CardContent>
@@ -907,11 +909,11 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Rentabilitate pe magazine · toate produsele din listă</CardTitle>
-                <p className="text-xs text-muted-foreground">Fiecare magazin cu costul de distribuție al cursei lui, la prețurile reale plătite în ultimele 90 de zile. Dacă un magazin are cursa greșită, alege-o aici: media clientului și profitul se refac imediat.</p>
+                <p className="text-xs text-muted-foreground">Fiecare magazin cu costul de distribuție al cursei lui, la prețurile reale plătite în {saleLbl}. Dacă un magazin are cursa greșită, alege-o aici: media clientului și profitul se refac imediat.</p>
               </CardHeader>
               <CardContent className="overflow-x-auto">
                 <table className="w-full min-w-[820px] text-sm">
-                  <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-2">Magazin</th><th>Cursă</th><th className="text-right">Taxe rețea</th><th className="text-right">Paleți livrați (90 zile)</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Vânzări 90 zile</th><th className="text-right">Profit real 90 zile</th><th className="text-right">Profit %</th></tr></thead>
+                  <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="py-2">Magazin</th><th>Cursă</th><th className="text-right">Taxe rețea</th><th className="text-right">Paleți livrați (90 zile)</th><th className="text-right">Distribuție lei/palet</th><th className="text-right">Vânzări {saleLbl}</th><th className="text-right">Profit real {saleLbl}</th><th className="text-right">Profit %</th></tr></thead>
                   <tbody>
                     {storeTotals.map((st) => (
                       <tr key={st.pid} className="border-b last:border-0">

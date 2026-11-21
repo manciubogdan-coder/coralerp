@@ -1,5 +1,5 @@
 import { expect, it } from "bun:test";
-import { priceDates, prefilledConfig, suggestedLabour } from "../../supabase/functions/_shared/priceDefaults";
+import { priceDates, prefilledConfig, saleWindow, salePeriodLabel, suggestedLabour } from "../../supabase/functions/_shared/priceDefaults";
 const component = { id: 1, name: "Baby spanac", kind: "mp" as const, qty: 0.4, unit: "KG", price: 11, priceSource: "NIR", lossPct: 13.5 };
 it("last week includes current November entries, not October's closing week", () => {
   expect(priceDates(2026, 11, "2026-11-07")).toEqual({ startDay: "2025-11-08", weekStart: "2026-11-01", endDay: "2026-11-08" });
@@ -20,4 +20,11 @@ it("calculated defaults prefill rates and keep manual adjustments", () => {
 });
 it("changing country cannot inherit the previous country's cost", () => {
   expect(prefilledConfig({ product: { unitsPerCase: 4 }, components: [], defaults: { route: "România", distributionPerPallet: 300 } }, { route: "Bulgaria" }).distributionPerPallet).toBeUndefined();
+});it("selling price of October uses only October invoices", () => {
+  expect(saleWindow(2026, 10, "2026-11-21")).toEqual({ from: "2026-10-01", to: "2026-11-01" });
+  expect(salePeriodLabel(saleWindow(2026, 10, "2026-11-21"))).toBe("10/2026");
+});
+it("selling price of the running month goes from the 1st up to today", () => {
+  expect(saleWindow(2026, 11, "2026-11-21")).toEqual({ from: "2026-11-01", to: "2026-11-22" });
+  expect(salePeriodLabel(saleWindow(2026, 11, "2026-11-21"))).toBe("01–21.11.2026");
 });

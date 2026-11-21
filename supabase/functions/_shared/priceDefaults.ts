@@ -13,6 +13,22 @@ export function priceDates(year: number, month: number, today: string) {
   return { startDay: day(annual), weekStart: day(week), endDay: day(end) };
 }
 
+/** Selling price window: the chosen calendar month only (current month: 1st up to today; a future month falls back to the current one). */
+export function saleWindow(year: number, month: number, today: string) {
+  const requested = `${year}-${String(month).padStart(2, "0")}`;
+  const current = today.slice(0, 7);
+  return { from: `${requested <= current ? requested : current}-01`, to: priceDates(year, month, today).endDay };
+}
+
+/** "10/2026" for a whole month, "01–21.11.2026" for the running month. */
+export function salePeriodLabel(p: { from: string; to: string }) {
+  const [y, m] = p.from.split("-");
+  const end = new Date(`${p.to}T00:00:00Z`); end.setUTCDate(end.getUTCDate() - 1);
+  const next = new Date(Date.UTC(Number(y), Number(m), 1)).toISOString().slice(0, 10);
+  if (p.to === next) return `${m}/${y}`;
+  return `01–${String(end.getUTCDate()).padStart(2, "0")}.${m}.${y}`;
+}
+
 export function suggestedLabour(name: string, components: SheetComponent[]) {
   const n = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   if (/spanac.*mare/.test(n)) return "Spanac Mare";

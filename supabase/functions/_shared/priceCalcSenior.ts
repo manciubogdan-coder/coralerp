@@ -1,5 +1,5 @@
 // Live Senior reads for the price calculator and client price lists. Every rate is derived from Senior data and returned with its source.
-import { priceDates, suggestedLabour } from "./priceDefaults.ts";
+import { priceDates, saleWindow, suggestedLabour } from "./priceDefaults.ts";
 import { readPriceSafety } from './receiptPriceSafety.ts';
 import { MIXED_WASHED, type PriceConfig } from "./priceConfig.ts";
 import { priceLogistics } from "./priceLogistics.ts";
@@ -136,7 +136,8 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
   const scope = partnerScope(pid, storeId, partner);
   const histStart = new Date(Date.UTC(year, month - 13, 1)).toISOString().slice(0, 10);
   const histEnd = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
-  const recentStart = addDays(pricesPeriod.endDay, -90);
+  const salePeriod = saleWindow(year, month, today);
+  const recentStart = salePeriod.from;
   const A = aids.join(",");
   const readLoss = async (table: string) => {
     const all: Loss = [];
@@ -168,7 +169,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
       ${scope ? PP1 : ""}
       WHERE t.Cod IN ${SALES} AND ${notCancelled} AND d.Articol_ID IN (${A}) ${scope ? `AND ${scope}` : ""} AND h.Data>='${histStart}' AND h.Data<'${histEnd}'
       GROUP BY d.Articol_ID, CONVERT(char(7), h.Data, 120) ORDER BY m`),
-    // Current selling price per store: last 90 days of invoices.
+    // Current selling price per store: invoices of the chosen month only.
     scope ? SQL(sb, `SELECT d.Articol_ID aid, pp.Partener_ID pid, SUM(CAST(d.Cantitate AS float)) q, SUM(CAST(d.Valoare_Neta_Rol AS float)) v FROM ${docs} ${PP1}
       WHERE t.Cod IN ${SALES} AND ${notCancelled} AND d.Articol_ID IN (${A}) AND ${scope} AND h.Data>='${recentStart}' AND h.Data<'${pricesPeriod.endDay}'
       GROUP BY d.Articol_ID, pp.Partener_ID`) : Promise.resolve([]),
@@ -430,6 +431,7 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
 
   return {
     period: pricesPeriod,
+    salePeriod,
     accountingPeriod: P,
     warnings, info, fees, routeOverrides: overrides, rules: rulesMeta,
     eur: eur[0] ? { rate: num(eur[0].rate), day: String(eur[0].day).slice(0, 10) } : null,
