@@ -600,6 +600,8 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
     const edited = Object.keys(o.rates).length + Object.keys(o.prices).length + Object.keys(o.losses).length + Object.keys(o.quantities).length + Object.keys(o.palletKg).length + (o.line != null ? 1 : 0);
     const rows = storeRowsFor(it);
     const p = it.recentSale && s.complete ? profitAt(s, it.recentSale.price) : null;
+    // Whose sales these are: one store, every store of the client, or the client's only delivery point.
+    const saleScope = store != null ? `doar magazinul ${storeName ?? "ales"}` : multiStore ? `toate cele ${result!.stores.length} magazine ale clientului` : "acest client";
     const parts: Array<[string, number, string]> = [
       ["Materii prime", s.rawMaterial, ""], ["Transport aprovizionare", s.supplyTransport, ""], ["Ambalaje", s.packaging, ""], ["Manoperă + regie", s.labour + s.utilities, ""],
       ...(s.techLoss ? [["Pierdere scenariu", s.techLoss, ""] as [string, number, string]] : []),
@@ -703,12 +705,15 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
         <div className="rounded-md border bg-background p-3 text-sm">
           {p && it.recentSale ? (
             <div className="grid gap-2 sm:grid-cols-4">
-              <div><div className="text-xs text-muted-foreground">Preț vânzare actual (90 zile)</div><div className="font-semibold tabular-nums">{n2(it.recentSale.price, 4)} lei/buc</div><div className="text-xs text-muted-foreground">{n2(it.recentSale.qty, 0)} buc vândute</div></div>
+              <div><div className="text-xs text-muted-foreground">Preț vânzare actual (90 zile)</div><div className="font-semibold tabular-nums">{n2(it.recentSale.price, 4)} lei/buc</div><div className="text-xs text-muted-foreground">{n2(it.recentSale.qty, 0)} buc vândute · {saleScope}</div></div>
               <div><div className="text-xs text-muted-foreground">Preț minim + taxe rețea la prețul actual</div><div className="font-semibold tabular-nums">{n2(p.cost + p.fees, 4)} lei/buc</div><div className="text-xs text-muted-foreground">{n2(p.cost, 4)} preț minim + {n2(p.fees, 4)} taxe</div></div>
               <div><div className="text-xs text-muted-foreground">Profit real</div><div className={`font-semibold tabular-nums ${profitClass(p.profit)}`}>{n2(p.profit, 4)} lei/buc · {n2(p.pct, 1)}%</div><div className="text-xs text-muted-foreground">{n2(p.profit * it.recentSale.qty)} lei în 90 de zile</div></div>
               <div><div className="text-xs text-muted-foreground">Preț actual − preț propus</div><div className={`font-semibold tabular-nums ${profitClass(it.recentSale.price - s.perPiece.clientPrice)}`}>{n2(it.recentSale.price - s.perPiece.clientPrice, 4)} lei/buc</div><div className="text-xs text-muted-foreground">pozitiv = vinzi peste prețul propus</div></div>
             </div>
-          ) : <p className="text-muted-foreground">{!s.complete ? "Profitul real apare după completarea fișei." : `Nu există vânzări ${client ? "către acest client" : "pentru acest produs"} în ultimele 90 de zile.`}</p>}
+          ) : <p className="text-muted-foreground">{!s.complete ? "Profitul real apare după completarea fișei." : `Nu există vânzări ${store != null ? "către acest magazin" : client ? "către acest client" : "pentru acest produs"} în ultimele 90 de zile.`}</p>}
+          {multiStore && it.storeSales.length > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">Bucăți pe magazine (90 zile): {[...it.storeSales].sort((a, b) => b.qty - a.qty).map((x) => `${result?.stores.find((st) => st.pid === x.pid)?.name ?? `magazin ${x.pid}`} ${n2(x.qty, 0)}`).join(" · ")}. Ca să vezi un singur magazin, alege-l la „Magazin / punct de livrare” și apasă din nou „Calculează”.</p>
+          )}
           {it.priceList && <Badge variant="secondary" className="mt-2">Listă de preț Senior: {n2(it.priceList.price, 4)} {it.priceList.currency} · {it.priceList.list} (din {it.priceList.since})</Badge>}
         </div>
 
