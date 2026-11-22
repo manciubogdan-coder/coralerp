@@ -28,16 +28,20 @@ export async function partnerMirrorSales(sb: Rpc, body: { start?: unknown; end?:
   const FROM = `FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID
     JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID
     JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID AND pp.TipPartener=1`;
-  const WHERE = `WHERE t.Cod IN ${SALES} AND ISNULL(h.Anulat,0)=0 AND h.Data>='${start}' AND h.Data<'${end}'
+  const COND = `t.Cod IN ${SALES} AND ISNULL(h.Anulat,0)=0
       AND EXISTS (SELECT 1 FROM dbo.DArticoleCompuseHVersiuni v WITH (NOLOCK) WHERE v.ArticolId=d.Articol_ID AND v.IsActiv=1)`;
-  // Latest price: net value ÷ pieces of the partner's last invoice day for the article (positive lines only, so a
-  // return or a discount line never becomes the "current" price).
+  const WHERE = `WHERE ${COND} AND h.Data>='${start}' AND h.Data<'${end}'`;
+  // Latest price: net value ÷ pieces of the selected partner's (same CUI) last invoice day for the article, up to today even
+  // when the analysed period ended earlier (the projection needs today's price). Positive lines only, so a return or a
+  // discount line never becomes the "current" price.
+  const today = new Date().toISOString().slice(0, 10);
+  const LATEST = `WHERE ${COND} AND h.Data>='${start}' AND h.Data<DATEADD(day,1,'${today}')`;
   const latestQ = seniorSqlAll(sb, `SELECT k, aid, ld, lq, lv FROM (
       SELECT k, aid, ld, lq, lv, ROW_NUMBER() OVER (PARTITION BY k, aid ORDER BY ld DESC) rn FROM (
         SELECT COALESCE(${cf("pp")}, ${CLIENT_NAME}) k, d.Articol_ID aid, CAST(h.Data AS date) ld,
           SUM(CAST(d.Cantitate AS float)) lq, SUM(CAST(d.Valoare_Neta_Rol AS float)) lv
         ${FROM}
-        ${WHERE} AND d.Cantitate>0 AND d.Valoare_Neta_Rol>0
+        ${LATEST} AND d.Cantitate>0 AND d.Valoare_Neta_Rol>0
         GROUP BY COALESCE(${cf("pp")}, ${CLIENT_NAME}), d.Articol_ID, CAST(h.Data AS date)) x) y WHERE rn=1`, "k, aid");
   const rowsQ = seniorSqlAll(sb, `SELECT COALESCE(${cf("pp")}, ${CLIENT_NAME}) k,
       COALESCE(MIN(CASE WHEN LTRIM(RTRIM(pp.Partener_Denumire))=LTRIM(RTRIM(pp.Partener_Central)) THEN pp.Partener_ID END), MIN(pp.Partener_ID)) pid,

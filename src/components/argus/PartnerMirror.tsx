@@ -335,7 +335,7 @@ export default function PartnerMirror() {
             </div>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Proiecția presupune că fiecare partener cumpără în continuare, din fiecare produs, aceeași cantitate medie pe lună ca în perioada aleasă ({n2(pastMonths)} luni), la prețul de vânzare de acum ({basis === "latest" ? "prețul de pe ultima factură a partenerului la acel produs, din Senior" : basis === "last" ? `media facturilor de la ${loaded?.lastStart ? roDate(new Date(`${loaded.lastStart}T00:00:00Z`)) : "ultima lună"}; produsele fără vânzări în ultima lună folosesc media perioadei` : "media facturilor din toată perioada"}) și cu costurile de azi. Perioada: azi – {roDate(futureEnd)}. Este o estimare, nu o comandă confirmată.</p>
+        <p className="text-xs text-muted-foreground">Proiecția presupune că fiecare partener cumpără în continuare, din fiecare produs, aceeași cantitate medie pe lună ca în perioada aleasă ({n2(pastMonths)} luni), la prețul de vânzare de acum ({basis === "latest" ? "prețul de pe ultima factură a partenerului ales la acel produs, din Senior, până azi — chiar dacă factura e după perioada aleasă" : basis === "last" ? `media facturilor de la ${loaded?.lastStart ? roDate(new Date(`${loaded.lastStart}T00:00:00Z`)) : "ultima lună"}; produsele fără vânzări în ultima lună folosesc media perioadei` : "media facturilor din toată perioada"}) și cu costurile de azi. Perioada: azi – {roDate(futureEnd)}. Este o estimare, nu o comandă confirmată.</p>
       </CardContent></Card>}
 
       {rows.length > 0 && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
