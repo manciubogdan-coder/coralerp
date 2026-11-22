@@ -302,6 +302,13 @@
       "when": 1794893090518,
       "tag": "0042_achizitii_radar",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795376746377,
+      "tag": "0043_evidenta_lot_reception",
+      "breakpoints": true
     }
   ]
 }

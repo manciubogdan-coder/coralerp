@@ -1130,6 +1130,7 @@ export type Database = {
           producator: string | null
           produs: string | null
           rebut: number | null
+          reception_id: string | null
           retur: string | null
           retur_repozit: number | null
           schimb: string | null
@@ -1169,6 +1170,7 @@ export type Database = {
           producator?: string | null
           produs?: string | null
           rebut?: number | null
+          reception_id?: string | null
           retur?: string | null
           retur_repozit?: number | null
           schimb?: string | null
@@ -1208,6 +1210,7 @@ export type Database = {
           producator?: string | null
           produs?: string | null
           rebut?: number | null
+          reception_id?: string | null
           retur?: string | null
           retur_repozit?: number | null
           schimb?: string | null

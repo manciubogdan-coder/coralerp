@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClipboardList, Package, Boxes, Tag, Loader2 } from "lucide-react";
 import { ForceInventoryType, type InventoryType } from "@/context/inventory-type";
 import EvidentaAndrada from "@/components/inventory/EvidentaAndrada";
+import EvidentaLoturi from "@/components/inventory/EvidentaLoturi";
 import BackToHubButton from "@/components/BackToHubButton";
 import { useEvidentaAndradaAccess } from "@/hooks/use-evidenta-andrada-access";
 
@@ -23,6 +24,9 @@ const EvidentaAndradaHub: React.FC = () => {
     return v && DEPOTS.some((d) => d.key === v) ? v : "materii-prime";
   });
   React.useEffect(() => { localStorage.setItem("evidenta-andrada.depot", depot); }, [depot]);
+  const [mpView, setMpView] = useState<"lot" | "manual">(() =>
+    typeof window !== "undefined" && localStorage.getItem("evidenta-andrada.mp-view") === "manual" ? "manual" : "lot");
+  React.useEffect(() => { localStorage.setItem("evidenta-andrada.mp-view", mpView); }, [mpView]);
 
   const { allowed, loading } = useEvidentaAndradaAccess();
   if (loading) {
@@ -45,7 +49,7 @@ const EvidentaAndradaHub: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold">Evidență Andrada</h1>
             <p className="text-sm text-muted-foreground">
-              Evidență loturi pe producători cu pierdere estimată vs. reală (rebut, PT, cântar).
+              Fiecare lot de la intrarea NIR până în producție: CN cerut la recepție vs. rebut și diferență de cântar reale.
             </p>
           </div>
         </div>
@@ -71,8 +75,20 @@ const EvidentaAndradaHub: React.FC = () => {
             {depot === d.key && (
               <ForceInventoryType type={d.type}>
                 <Card>
-                  <CardContent className="p-4">
-                    <EvidentaAndrada />
+                  <CardContent className="p-4 space-y-3">
+                    {d.key === "materii-prime" && (
+                      <div className="inline-flex overflow-hidden rounded-md border">
+                        <button type="button" onClick={() => setMpView("lot")}
+                          className={`px-3 py-2 text-sm ${mpView === "lot" ? "bg-primary text-primary-foreground" : "bg-background"}`}>
+                          Pe lot (din NIR)
+                        </button>
+                        <button type="button" onClick={() => setMpView("manual")}
+                          className={`border-l px-3 py-2 text-sm ${mpView === "manual" ? "bg-primary text-primary-foreground" : "bg-background"}`}>
+                          Evidență manuală (veche)
+                        </button>
+                      </div>
+                    )}
+                    {d.key === "materii-prime" && mpView === "lot" ? <EvidentaLoturi /> : <EvidentaAndrada />}
                   </CardContent>
                 </Card>
               </ForceInventoryType>

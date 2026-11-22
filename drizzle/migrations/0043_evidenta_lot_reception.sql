@@ -1,0 +1,2 @@
+ALTER TABLE public.evidenta_andrada_rows ADD COLUMN IF NOT EXISTS reception_id text;
+CREATE INDEX IF NOT EXISTS idx_evidenta_andrada_reception ON public.evidenta_andrada_rows(reception_id, data_productie);
