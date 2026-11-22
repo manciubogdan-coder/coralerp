@@ -27,23 +27,49 @@ async function inBatches<T>(ids: (string | number)[], run: (slice: any[]) => Pro
 
 const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 
-/** Evidența pe lot: recepțiile MP din interval, cu tot ce s-a întâmplat cu fiecare lot în producție. */
-export const useLotJourneys = (startDay: string, endDay: string) =>
+/** „intrare" = loturile intrate (NIR) în interval; „productie" = loturile date în producție în interval, oricând ar fi intrat. */
+export type LotDateMode = "intrare" | "productie";
+/** Cât de vechi pot fi loturile căutate în modul „producție". */
+const PRODUCTION_LOOKBACK_DAYS = 90;
+const REC_SELECT = "id, entry_number, receipt_date, name, original_quantity, net_quantity, consider_quantity, gross_quantity, unit, lot_number, supplier_name, manufacturer_id, product_id";
+
+/** Evidența pe lot: recepțiile MP (după data intrării sau a producției), cu tot ce s-a întâmplat cu fiecare lot în producție. */
+export const useLotJourneys = (startDay: string, endDay: string, mode: LotDateMode = "intrare") =>
   useQuery({
-    queryKey: ["evidenta-lot-journeys", startDay, endDay],
+    queryKey: ["evidenta-lot-journeys", mode, startDay, endDay],
     enabled: !!startDay && !!endDay && startDay <= endDay,
     staleTime: 60_000,
-    queryFn: () => loadLotJourneyInputs(startDay, endDay),
+    queryFn: () => loadLotJourneyInputs(startDay, endDay, mode),
   });
 
-export async function loadLotJourneyInputs(startDay: string, endDay: string) {
+const prodTransferItems = (from: string, to: string) => readPages(() => (supabase as any).from("stock_transfer_items")
+  .select("id, inventory_item_id, quantity, net_quantity, unit, created_at, stock_transfers:transfer_id!inner(transfer_date, notes, destination), inventory:inventory_item_id(name, unit, entry_number, lot_number)")
+  .ilike("stock_transfers.destination", "%produc%")
+  .gte("created_at", dayBounds(from).start).lte("created_at", dayBounds(to).end)
+  .order("id"));
+
+export async function loadLotJourneyInputs(startDay: string, endDay: string, mode: LotDateMode = "intrare") {
   {
     {
-      // 1) NIR-urile din interval
-      const recRows = await readPages(() => (supabase as any).from("reception_records")
-        .select("id, entry_number, receipt_date, name, original_quantity, net_quantity, consider_quantity, gross_quantity, unit, lot_number, supplier_name, manufacturer_id, product_id")
-        .gte("receipt_date", dayBounds(startDay).start).lte("receipt_date", dayBounds(endDay).end)
-        .order("id"));
+      // 1) NIR-urile: intrate în interval, sau (mod producție) cele ale loturilor date în producție în interval
+      let recRows: any[];
+      if (mode === "productie") {
+        const dayItems = (await prodTransferItems(startDay, endDay) as any[]).filter((it) => isProductionDestination(it.stock_transfers?.destination));
+        const entries = [...new Set(dayItems.map((it) => it.inventory?.entry_number).filter((x: any) => x != null))];
+        const oldest = addDays(startDay, -PRODUCTION_LOOKBACK_DAYS);
+        recRows = await inBatches(entries, async (slice) => readPages(() => (supabase as any).from("reception_records")
+          .select(REC_SELECT).in("entry_number", slice)
+          .gte("receipt_date", dayBounds(oldest).start).lte("receipt_date", dayBounds(endDay).end)
+          .order("id")));
+        // Același număr de intrare + același lot ca rândul de stoc dat în producție.
+        const keys = new Set(dayItems.map((it) => `${it.inventory?.entry_number}|${(it.inventory?.lot_number || "").trim()}`));
+        recRows = recRows.filter((r) => keys.has(`${r.entry_number}|${(r.lot_number || "").trim()}`));
+      } else {
+        recRows = await readPages(() => (supabase as any).from("reception_records")
+          .select(REC_SELECT)
+          .gte("receipt_date", dayBounds(startDay).start).lte("receipt_date", dayBounds(endDay).end)
+          .order("id"));
+      }
 
       // 2) Rândurile de stoc create de fiecare NIR (același număr de intrare)
       const entries = recRows.map((r: any) => r.entry_number).filter((x: any) => x != null);
@@ -103,15 +129,15 @@ export async function loadLotJourneyInputs(startDay: string, endDay: string) {
         };
       });
 
-      // 4) Toate transferurile în producție din perioadă (pentru partea fiecărui lot)
+      // 4) Toate transferurile în producție din perioadă (pentru partea fiecărui lot).
+      // Mod producție: de la cel mai vechi NIR găsit, ca „Rămas" să țină cont și de zilele dinainte.
       const today = businessDay(new Date().toISOString());
-      const lastDay = addDays(endDay, 30) < today ? addDays(endDay, 30) : today;
+      const lastDay = mode === "productie" ? endDay : addDays(endDay, 30) < today ? addDays(endDay, 30) : today;
+      const firstDay = mode === "productie" && receptions.length
+        ? receptions.reduce((m, r) => (r.receiptDay < m ? r.receiptDay : m), startDay)
+        : startDay;
       const materials = new Set(receptions.map((r) => lotMaterialKey(r.product)));
-      const items = await readPages(() => (supabase as any).from("stock_transfer_items")
-        .select("id, inventory_item_id, quantity, net_quantity, unit, created_at, stock_transfers:transfer_id!inner(transfer_date, notes, destination), inventory:inventory_item_id(name, unit)")
-        .ilike("stock_transfers.destination", "%produc%")
-        .gte("created_at", dayBounds(startDay).start).lte("created_at", dayBounds(lastDay).end)
-        .order("id"));
+      const items = receptions.length ? await prodTransferItems(firstDay, lastDay) : [];
       const transfers: JourneyTransfer[] = [];
       for (const it of items as any[]) {
         if (!isProductionDestination(it.stock_transfers?.destination)) continue;

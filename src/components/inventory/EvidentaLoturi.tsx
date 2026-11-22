@@ -7,8 +7,8 @@ import { toast } from "@/hooks/use-custom-toast";
 import { exportToExcel } from "@/lib/excelExport";
 import { persistDateKey, readStoredDateKey, todayKey } from "@/lib/persistentDate";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { saveLotOverride, useLotJourneys } from "@/hooks/evidenta/useLotJourneys";
-import { bucharestTime, buildLotJourneys, LOT_PACK_GRAMS, OTHER_PACK, overrideKey, packBucket, type DayOverride, type JourneyDay, type LotJourney } from "@/lib/evidenta/lotJourney";
+import { saveLotOverride, useLotJourneys, type LotDateMode } from "@/hooks/evidenta/useLotJourneys";
+import { bucharestTime, buildLotJourneys, limitToProductionDays, LOT_PACK_GRAMS, OTHER_PACK, overrideKey, packBucket, type DayOverride, type JourneyDay, type LotJourney } from "@/lib/evidenta/lotJourney";
 
 const packLabel = (g: number) => (g === OTHER_PACK ? "alte gramaje" : g === 1000 ? "1,0 kg" : `${g} g`);
 
@@ -57,7 +57,8 @@ export const EvidentaLoturi: React.FC = () => {
   const [search, setSearch] = usePersistentState("evidenta-lot.search", "");
   const [onlyProduced, setOnlyProduced] = usePersistentState("evidenta-lot.only-produced", true);
 
-  const { data, isLoading, isFetching, error, refetch } = useLotJourneys(start, end);
+  const [mode, setMode] = usePersistentState<LotDateMode>("evidenta-lot.mode", "intrare");
+  const { data, isLoading, isFetching, error, refetch } = useLotJourneys(start, end, mode);
   const [local, setLocal] = useState<Map<string, DayOverride>>(new Map());
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
@@ -65,13 +66,14 @@ export const EvidentaLoturi: React.FC = () => {
     if (!data) return [];
     const overrides = new Map(data.overrides);
     for (const [k, v] of local) overrides.set(k, { ...overrides.get(k), ...v });
-    return buildLotJourneys({ ...data, overrides });
-  }, [data, local]);
+    const all = buildLotJourneys({ ...data, overrides });
+    return mode === "productie" ? limitToProductionDays(all, start, end) : all;
+  }, [data, local, mode, start, end]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return journeys
-      .filter((j) => !onlyProduced || j.days.length > 0)
+      .filter((j) => mode === "productie" || !onlyProduced || j.days.length > 0)
       .filter((j) => !q || [j.reception.product, j.reception.lot, j.reception.supplier, j.reception.producer].join(" ").toLowerCase().includes(q))
       .sort((a, b) => a.reception.receiptDay.localeCompare(b.reception.receiptDay) || a.reception.lot.localeCompare(b.reception.lot) || a.reception.product.localeCompare(b.reception.product));
   }, [journeys, search, onlyProduced]);
@@ -162,7 +164,7 @@ export const EvidentaLoturi: React.FC = () => {
         rows.push(row);
       }
     }
-    exportToExcel(rows, `Evidenta_loturi_${start}_${end}.xlsx`);
+    exportToExcel(rows, `Evidenta_loturi_${mode === "productie" ? "productie" : "intrare"}_${start}_${end}.xlsx`);
   };
 
   const th = "sticky top-0 z-10 bg-background border-b px-2 py-2 text-left text-xs font-semibold whitespace-nowrap";
@@ -172,16 +174,23 @@ export const EvidentaLoturi: React.FC = () => {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-md border p-0.5">
+          {([["intrare", "După intrarea NIR"], ["productie", "Ce s-a lucrat (zi producție)"]] as const).map(([m, label]) => (
+            <Button key={m} size="sm" variant={mode === m ? "default" : "ghost"} className="h-8" onClick={() => setMode(m)}>{label}</Button>
+          ))}
+        </div>
         <Calendar className="h-4 w-4" />
-        <span className="text-sm text-muted-foreground">Intrare NIR:</span>
+        <span className="text-sm text-muted-foreground">{mode === "productie" ? "Zi producție:" : "Intrare NIR:"}</span>
         <input type="date" value={start} max={end} onChange={(e) => e.target.value && setStart(e.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm" />
         <span className="text-sm text-muted-foreground">–</span>
         <input type="date" value={end} min={start} onChange={(e) => e.target.value && setEnd(e.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm" />
         <Input placeholder="Caută produs, lot, furnizor…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-64" />
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={onlyProduced} onCheckedChange={(v) => setOnlyProduced(v === true)} />
-          Doar loturile date în producție
-        </label>
+        {mode === "intrare" && (
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={onlyProduced} onCheckedChange={(v) => setOnlyProduced(v === true)} />
+            Doar loturile date în producție
+          </label>
+        )}
         <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
           <RefreshCw className={`mr-1 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Actualizează
         </Button>
@@ -190,6 +199,9 @@ export const EvidentaLoturi: React.FC = () => {
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
+        {mode === "productie"
+          ? "Apar loturile date în producție în zilele alese, oricând ar fi intrat (până la 90 de zile în urmă), doar cu zilele acelea. Totalul lotului e doar pentru zilele alese; „Rămas” ține cont de tot ce s-a dat din lot de la NIR. "
+          : "Apar loturile intrate (NIR) în zilele alese. "}
         Fiecare lot pornește de la NIR (cantitate intrată, CN cerut la recepție). Dedesubt apare fiecare zi în care lotul a fost dat în producție:
         câte zile a stat de la intrare, kg date pe linie, produsul finit obținut (bucăți pe gramaj din sesiunile de producție), rebutul, diferența de cântar și orele.
         Pus în caserole = MP − rebut • Dif. cântar = pus în caserole − kg final • % NC = rebut ÷ MP. Producția se leagă de lot după zi: dacă în aceeași zi s-au dat mai multe loturi din același produs, bucățile și rebutul se împart după kg date. Rebutul, kg final, oamenii, orele și observațiile se pot corecta; câmpul gol revine la valoarea din aplicație.

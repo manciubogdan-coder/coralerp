@@ -251,27 +251,41 @@ export function buildLotJourneys(input: {
         };
       });
 
-    const sum = (f: (d: JourneyDay) => number) => r2(days.reduce((a, d) => a + f(d), 0));
-    const mpKg = sum((d) => d.mpKg);
-    const rebut = sum((d) => d.rebut);
-    const kgFinal = sum((d) => d.kgFinal);
-    const pus = r2(mpKg - rebut);
-    const dif = r2(pus - kgFinal);
-    const piecesByGrams: Record<number, number> = {};
-    for (const d of days) for (const [g, n] of Object.entries(d.piecesByGrams)) piecesByGrams[+g] = (piecesByGrams[+g] || 0) + n;
-    return {
-      reception: rec,
-      days,
-      totals: {
-        mpKg, rebut, kgFinal, pusInCaserole: pus, difCantar: dif,
-        pctNc: mpKg > 0 ? r4(rebut / mpKg) : null,
-        pctCantar: pus > 0 ? r4(dif / pus) : null,
-        piecesByGrams,
-        firstAgeDays: days.length ? days[0].ageDays : null,
-        lastAgeDays: days.length ? days[days.length - 1].ageDays : null,
-      },
-    };
+    return { reception: rec, days, totals: journeyTotals(days) };
   });
+}
+
+/** Totalurile unui lot din zilele lui de producție. */
+export function journeyTotals(days: JourneyDay[]): LotJourney["totals"] {
+  const sum = (f: (d: JourneyDay) => number) => r2(days.reduce((a, d) => a + f(d), 0));
+  const mpKg = sum((d) => d.mpKg);
+  const rebut = sum((d) => d.rebut);
+  const kgFinal = sum((d) => d.kgFinal);
+  const pus = r2(mpKg - rebut);
+  const dif = r2(pus - kgFinal);
+  const piecesByGrams: Record<number, number> = {};
+  for (const d of days) for (const [g, n] of Object.entries(d.piecesByGrams)) piecesByGrams[+g] = (piecesByGrams[+g] || 0) + n;
+  return {
+    mpKg, rebut, kgFinal, pusInCaserole: pus, difCantar: dif,
+    pctNc: mpKg > 0 ? r4(rebut / mpKg) : null,
+    pctCantar: pus > 0 ? r4(dif / pus) : null,
+    piecesByGrams,
+    firstAgeDays: days.length ? days[0].ageDays : null,
+    lastAgeDays: days.length ? days[days.length - 1].ageDays : null,
+  };
+}
+
+/**
+ * „Ce s-a lucrat în zilele alese": păstrează doar loturile date în producție în interval și doar zilele acelea.
+ * „Rămas" rămâne calculat din tot drumul lotului de la NIR.
+ */
+export function limitToProductionDays(journeys: LotJourney[], startDay: string, endDay: string): LotJourney[] {
+  const out: LotJourney[] = [];
+  for (const j of journeys) {
+    const days = j.days.filter((d) => d.day >= startDay && d.day <= endDay);
+    if (days.length) out.push({ ...j, days, totals: journeyTotals(days) });
+  }
+  return out;
 }
 
 /** Ora (HH:mm) în București pentru un moment ISO. */

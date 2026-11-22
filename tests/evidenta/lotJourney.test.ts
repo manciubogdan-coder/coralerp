@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLotJourneys, OTHER_PACK, packageGrams, type JourneyReception, overrideKey } from "../../src/lib/evidenta/lotJourney";
+import { buildLotJourneys, limitToProductionDays, OTHER_PACK, packageGrams, type JourneyReception, overrideKey } from "../../src/lib/evidenta/lotJourney";
 
 const rec = (o: Partial<JourneyReception> = {}): JourneyReception => ({
   id: "r1", entryNumber: 9717, receiptDay: "2026-11-18", product: "Coriandru", lot: "4703",
@@ -114,5 +114,24 @@ describe("gramaje ca în Excelul Andradei", () => {
       recipes, rebutBySession: new Map(), overrides: new Map(),
     });
     expect(j.days[0].piecesByGrams[OTHER_PACK]).toBe(10);
+  });
+});
+
+describe("ce s-a lucrat în ziua aleasă", () => {
+  it("arată lotul intrat mai demult doar cu ziua aleasă, iar „Rămas” ține cont și de zilele dinainte", () => {
+    const all = buildLotJourneys({
+      receptions: [rec(), rec({ id: "r2", inventoryIds: ["inv2"] })],
+      transfers: [
+        { inventoryId: "inv1", material: "coriandru", day: "2026-11-19", kg: 43, line: null },
+        { inventoryId: "inv1", material: "coriandru", day: "2026-11-22", kg: 20, line: null },
+        { inventoryId: "inv2", material: "coriandru", day: "2026-11-20", kg: 5, line: null },
+      ],
+      sessions: [], recipes, rebutBySession: new Map(), overrides: new Map(),
+    });
+    const today = limitToProductionDays(all, "2026-11-22", "2026-11-22");
+    expect(today).toHaveLength(1);
+    expect(today[0].days.map((d) => d.day)).toEqual(["2026-11-22"]);
+    expect(today[0].totals.mpKg).toBe(20);
+    expect(today[0].days[0].remainingAfter).toBe(17); // 80 − 43 − 20
   });
 });
