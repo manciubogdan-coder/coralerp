@@ -13,6 +13,12 @@ export function priceDates(year: number, month: number, today: string) {
   return { startDay: day(annual), weekStart: day(week), endDay: day(end) };
 }
 
+/** Last whole calendar month before today (Bucharest day "YYYY-MM-DD"): the default cost month, so costs and invoices cover a full month. */
+export function lastClosedMonth(today: string) {
+  const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7));
+  return m === 1 ? { year: y - 1, month: 12 } : { year: y, month: m - 1 };
+}
+
 /** Selling price window: the chosen calendar month only (current month: 1st up to today; a future month falls back to the current one). */
 export function saleWindow(year: number, month: number, today: string) {
   const requested = `${year}-${String(month).padStart(2, "0")}`;

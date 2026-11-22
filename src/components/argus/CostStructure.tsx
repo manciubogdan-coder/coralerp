@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { argusFetch } from "@/lib/argusApi";
 import { setPriceRules } from "../../../supabase/functions/_shared/priceRules";
-import { sheetFor } from "./PartnerMirror";
+import { defaultCostMonth, sheetFor } from "./PartnerMirror";
 import { ACCOUNTS, BASE, COST_KEYS, COST_LABEL, DEFAULT_FIXED, accountMatch, lastClosedPeriod, recipeLossValue, breakEvenPricePct, fixedOf, gamaOf, partnerContributions, pctOf, structureOf, partnerResults, type CostKey, type SaleLine, type Scenario, type Structure } from "@/lib/argus/costStructure";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeFetchJson } from "@/lib/edgeFetch";
@@ -125,13 +125,13 @@ export default function CostStructure() {
         setProgress(`Calculez structura ${i + 1}/${list.length}: ${p.name}`);
         const arts = p.articles.slice(0, 60);
         try {
-          const now = new Date();
-          const res = await argusFetch<any>("price_list", {}, { articolIds: arts.map((a) => a.id), partnerId: p.id, year: now.getFullYear(), month: now.getMonth() + 1, rawPriceMode: "annual" });
+          const ym = defaultCostMonth();
+          const res = await argusFetch<any>("price_list", {}, { articolIds: arts.map((a) => a.id), partnerId: p.id, year: ym.year, month: ym.month, rawPriceMode: "annual" });
           if (res.rules) setPriceRules(res.rules.rules);
           for (const a of arts) {
             const it = res.items.find((x: any) => x.product.id === a.id);
             if (!it || "error" in it) { miss.push({ partner: p.name, product: a.name, value: a.value, why: it?.error ?? "Fără fișă" }); continue; }
-            const s = sheetFor(it, res, p.name);
+            const s = sheetFor(it, res, p.name, ym);
             if (!s.complete) { miss.push({ partner: p.name, product: a.name, value: a.value, why: `Fișă incompletă: ${[...s.missingInputs, ...s.missingPrices].slice(0, 3).join(", ")}` }); continue; }
             const n = s.unitsPerCase || 1;
             const ptLoss = recipeLossValue(it.components.map((c: any) => ({ ...c, price: c.kind === "mp" || c.kind === "marfa" ? c.annualPrice ?? null : c.price })));

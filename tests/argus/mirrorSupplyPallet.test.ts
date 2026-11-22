@@ -17,3 +17,11 @@ describe("Oglindă parteneri: transport aprovizionare pe palet, ca în Calculato
     expect(s.supplyTransport / s.unitsPerCase).toBeCloseTo(1.2051, 3);
   });
 });
+
+import { lastClosedMonth } from "../../supabase/functions/_shared/priceDefaults";
+describe("luna implicită a costurilor: ultima lună încheiată", () => {
+  it("22.11.2026 → octombrie 2026; ianuarie → decembrie anul trecut", () => {
+    expect(lastClosedMonth("2026-11-22")).toEqual({ year: 2026, month: 10 });
+    expect(lastClosedMonth("2027-01-05")).toEqual({ year: 2026, month: 12 });
+  });
+});

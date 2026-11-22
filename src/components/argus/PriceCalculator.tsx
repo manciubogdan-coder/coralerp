@@ -16,7 +16,7 @@ import { TransportCheck } from "./TransportCheck";
 import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, productAverageRoute, profitAt, truckRows } from "../../../supabase/functions/_shared/priceList";
 import { countyKey, routeGroup } from "../../../supabase/functions/_shared/priceSourceRules";
 import { PriceParameters, NumericParameter } from "./PriceParameters";
-import { prefilledConfig, salePeriodLabel } from "../../../supabase/functions/_shared/priceDefaults";
+import { lastClosedMonth, prefilledConfig, salePeriodLabel } from "../../../supabase/functions/_shared/priceDefaults";
 import { ReceiptPriceAlert } from '../inventory/ReceiptPriceAlert';
 import { priceRules, profitFor, setPriceRules, type RulesMeta } from "../../../supabase/functions/_shared/priceRules";
 import PriceRulesEditor from "./PriceRulesEditor";
@@ -223,8 +223,9 @@ function PriceListCalculator({ rulesVersion, sales = false, onRulesChanged }: { 
   const [store, setStore] = useState<number | null>(null);
   const [onlySold, setOnlySold] = useState(true);
   const [selected, setSelected] = useState<number[]>([]);
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
+  // Default: the last whole month, so invoices and transport costs cover a full month.
+  const [month, setMonth] = useState(() => lastClosedMonth(now.toLocaleDateString("en-CA", { timeZone: "Europe/Bucharest" })).month);
+  const [year, setYear] = useState(() => lastClosedMonth(now.toLocaleDateString("en-CA", { timeZone: "Europe/Bucharest" })).year);
   const [loadingOpts, setLoadingOpts] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

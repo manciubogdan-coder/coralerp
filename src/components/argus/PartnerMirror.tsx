@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { argusFetch } from "@/lib/argusApi";
 import { type SheetComponent } from "../../../supabase/functions/_shared/priceSheet";
 import { configuredSheet, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
-import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
+import { lastClosedMonth, prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
 import { priceRules, profitFor, setPriceRules } from "../../../supabase/functions/_shared/priceRules";
 import { currentPrice, groupPartners, mirrorLine, palletDensity, periodMonths, profitPerPiece, projectLine, targetCost, type PriceBasis } from "../../../supabase/functions/_shared/partnerMirrorMath";
 
@@ -29,9 +29,12 @@ const tone = (v: number) => (v >= 0 ? "text-crm-green" : "text-destructive");
 const ZERO = (eur: number) => ({ labourPerPiece: 0, utilitiesPerPiece: 0, supplyPerKg: 0, distributionPerPiece: 0, clientFeePerPiece: 0, eurRate: eur, eurBufferPct: priceRules().eurBufferPct, techLossPct: 0, marginPct: 0 });
 const isItem = (x: ListResult["items"][number]): x is Item => !("error" in x);
 
-export function sheetFor(it: Item, res: ListResult, partner: string): Sheet {
-  const now = new Date();
-  const cfg: PriceConfig = { year: now.getFullYear(), month: now.getMonth() + 1, rawPriceMode: "annual", route: it.defaults.route, supplyBasis: "pallet", ...(it.defaults.labourLine ? { labourLine: it.defaults.labourLine } : {}), rates: { profitPct: profitFor(it.product.name, null, partner).pct }, components: {} };
+export const MONTHS_RO = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"];
+/** Cost month shown and sent to price_list: by default the last whole month, like the price calculator. */
+export const defaultCostMonth = () => lastClosedMonth(new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Bucharest" }));
+
+export function sheetFor(it: Item, res: ListResult, partner: string, ym = defaultCostMonth()): Sheet {
+  const cfg: PriceConfig = { year: ym.year, month: ym.month, rawPriceMode: "annual", route: it.defaults.route, supplyBasis: "pallet", ...(it.defaults.labourLine ? { labourLine: it.defaults.labourLine } : {}), rates: { profitPct: profitFor(it.product.name, null, partner).pct }, components: {} };
   const comps = it.components.map((c) => ({ ...c, ...(c.kind === "mp" || c.kind === "marfa" ? { price: c.annualPrice ?? null } : {}) }));
   const effective = prefilledConfig({ ...it, logistics: res.logistics }, cfg);
   return configuredSheet({ ...it, components: comps }, ZERO(res.eur?.rate ?? 0), effective).sheet;
@@ -76,7 +79,7 @@ function Simulator({ l }: { l: Line }) {
         <table className="mt-1 w-full text-xs">
           <tbody>{parts.map(([k, x]) => <tr key={k} className="border-t"><td className="py-0.5">{k}</td><td className="text-right">{n2(x)} lei/buc</td><td className="w-14 text-right text-muted-foreground">{n2((x / cost) * 100)}%</td></tr>)}</tbody>
         </table>
-        {supplyNote && <p className="text-xs text-muted-foreground">Transport aprovizionare {supplyNote}. Costurile sunt cele de azi (luna curentă); în Calculator de preț alege luna curentă ca să vezi aceleași cifre.</p>}
+        {supplyNote && <p className="text-xs text-muted-foreground">Transport aprovizionare {supplyNote}. Costurile sunt din luna aleasă la „Costuri din luna”, la fel ca în Calculator de preț pe aceeași lună.</p>}
       </div>}
       <Density l={l} margin={margin} profitPct={profitPct} />
     </div>
@@ -192,6 +195,8 @@ export default function PartnerMirror() {
   const [sim, setSim] = useState<string | null>(null);
   const [future, setFuture] = useState("3");
   const [basis, setBasis] = useState<PriceBasis>("latest");
+  const [costMonth, setCostMonth] = useState(defaultCostMonth);
+  const thisYear = new Date().getFullYear();
 
   const range = () => {
     if (period === "custom") return { start: from, end: day(new Date(new Date(`${to}T00:00:00Z`).getTime() + 86400_000)) };
@@ -219,7 +224,7 @@ export default function PartnerMirror() {
     } catch (e) { setError((e as Error).message); }
     finally { setProgress(null); }
   };
-  useEffect(() => { setRows([]); }, [cur.start, cur.end]);
+  useEffect(() => { setRows([]); }, [cur.start, cur.end, costMonth.year, costMonth.month]);
 
   const run = async () => {
     if (!partners) return;
@@ -230,13 +235,12 @@ export default function PartnerMirror() {
     const analyse = async (p: Partner): Promise<Row> => {
       const arts = p.articles.slice(0, 60);
       try {
-        const now = new Date();
-        const res = await argusFetch<ListResult>("price_list", {}, { articolIds: arts.map((a) => a.id), partnerId: p.id, year: now.getFullYear(), month: now.getMonth() + 1, rawPriceMode: "annual" });
+        const res = await argusFetch<ListResult>("price_list", {}, { articolIds: arts.map((a) => a.id), partnerId: p.id, year: costMonth.year, month: costMonth.month, rawPriceMode: "annual" });
         if (res.rules) setPriceRules(res.rules.rules);
         return summarize(p, arts.map((a): Line => {
           const it = res.items.find((x) => x.product.id === a.id);
           if (!it || !isItem(it)) return { a, sheet: null, m: null, error: it && !isItem(it) ? it.error : "Fără fișă" };
-          const sheet = sheetFor(it, res, p.name);
+          const sheet = sheetFor(it, res, p.name, costMonth);
           return sheet.complete ? { a, ppp: it.defaults.piecesPerPallet ?? null, sheet, m: mirrorLine(sheet, a.qty, a.value) } : { a, sheet, m: null, error: `Fișă incompletă: ${[...sheet.missingInputs, ...sheet.missingPrices].slice(0, 3).join(", ")}` };
         }));
       } catch (e) { return { ...summarize(p, []), error: (e as Error).message }; }
@@ -304,6 +308,16 @@ export default function PartnerMirror() {
               <div className="space-y-1"><Label className="text-xs">De la</Label><Input type="date" className="h-8" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
               <div className="space-y-1"><Label className="text-xs">Până la</Label><Input type="date" className="h-8" value={to} onChange={(e) => setTo(e.target.value)} /></div>
             </>}
+            <div className="space-y-1"><Label className="text-xs">Costuri din luna</Label>
+              <div className="flex gap-1">
+                <select className="h-8 rounded-md border border-input bg-background px-2 text-sm" value={costMonth.month} onChange={(e) => setCostMonth({ ...costMonth, month: Number(e.target.value) })} aria-label="Luna costurilor">
+                  {MONTHS_RO.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                </select>
+                <select className="h-8 rounded-md border border-input bg-background px-2 text-sm" value={costMonth.year} onChange={(e) => setCostMonth({ ...costMonth, year: Number(e.target.value) })} aria-label="Anul costurilor">
+                  {[thisYear - 1, thisYear].map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
             <Button size="sm" variant={stale ? "default" : "outline"} onClick={loadPartners} disabled={!!progress}>{progress && !rows.length && stale ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Users className="mr-1 h-4 w-4" />}{partners && !stale ? "Reîncarcă partenerii" : "Încarcă partenerii"}</Button>
           </div>
           {partners && !stale && <>
@@ -316,7 +330,7 @@ export default function PartnerMirror() {
             </div>
           </>}
           {partners && stale && <p className="text-xs text-muted-foreground">Ai schimbat perioada: apasă „Încarcă partenerii” ca să iau vânzările din noua perioadă.</p>}
-          <p className="text-xs text-muted-foreground">Vânzările și prețurile reale vin din facturile Senior din perioadă. Costurile sunt cele de acum (rețete, NIR, transport, taxe rețea din Reguli de calcul). Profit = preț − taxe rețea − preț minim (cost + marjă brută). Durează câteva secunde pe partener.</p>
+          <p className="text-xs text-muted-foreground">Vânzările și prețurile reale vin din facturile Senior din perioadă. Costurile (rețete, NIR, transport, taxe rețea din Reguli de calcul) sunt din luna aleasă la „Costuri din luna” — implicit ultima lună încheiată, ca în Calculator de preț. Profit = preț − taxe rețea − preț minim (cost + marjă brută). Durează câteva secunde pe partener.</p>
           {progress && <p className="text-sm text-muted-foreground">{progress}</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
@@ -338,7 +352,7 @@ export default function PartnerMirror() {
             </div>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Proiecția presupune că fiecare partener cumpără în continuare, din fiecare produs, aceeași cantitate medie pe lună ca în perioada aleasă ({n2(pastMonths)} luni), la prețul de vânzare de acum ({basis === "latest" ? "prețul de pe ultima factură a partenerului ales la acel produs, din Senior, până azi — chiar dacă factura e după perioada aleasă" : basis === "last" ? `media facturilor de la ${loaded?.lastStart ? roDate(new Date(`${loaded.lastStart}T00:00:00Z`)) : "ultima lună"}; produsele fără vânzări în ultima lună folosesc media perioadei` : "media facturilor din toată perioada"}) și cu costurile de azi. Perioada: azi – {roDate(futureEnd)}. Este o estimare, nu o comandă confirmată.</p>
+        <p className="text-xs text-muted-foreground">Proiecția presupune că fiecare partener cumpără în continuare, din fiecare produs, aceeași cantitate medie pe lună ca în perioada aleasă ({n2(pastMonths)} luni), la prețul de vânzare de acum ({basis === "latest" ? "prețul de pe ultima factură a partenerului ales la acel produs, din Senior, până azi — chiar dacă factura e după perioada aleasă" : basis === "last" ? `media facturilor de la ${loaded?.lastStart ? roDate(new Date(`${loaded.lastStart}T00:00:00Z`)) : "ultima lună"}; produsele fără vânzări în ultima lună folosesc media perioadei` : "media facturilor din toată perioada"}) și cu costurile din {MONTHS_RO[costMonth.month - 1].toLowerCase()} {costMonth.year}. Perioada: azi – {roDate(futureEnd)}. Este o estimare, nu o comandă confirmată.</p>
       </CardContent></Card>}
 
       {rows.length > 0 && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
