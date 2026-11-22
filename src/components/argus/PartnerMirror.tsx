@@ -11,9 +11,9 @@ import { type SheetComponent } from "../../../supabase/functions/_shared/priceSh
 import { configuredSheet, type PriceConfig } from "../../../supabase/functions/_shared/priceConfig";
 import { prefilledConfig } from "../../../supabase/functions/_shared/priceDefaults";
 import { priceRules, profitFor, setPriceRules } from "../../../supabase/functions/_shared/priceRules";
-import { groupPartners, mirrorLine, palletDensity, periodMonths, profitPerPiece, projectLine, targetCost, type PriceBasis } from "../../../supabase/functions/_shared/partnerMirrorMath";
+import { currentPrice, groupPartners, mirrorLine, palletDensity, periodMonths, profitPerPiece, projectLine, targetCost, type PriceBasis } from "../../../supabase/functions/_shared/partnerMirrorMath";
 
-type Article = { id: number; name: string; qty: number; value: number; lastQty?: number; lastValue?: number };
+type Article = { id: number; name: string; qty: number; value: number; lastQty?: number; lastValue?: number; latestPrice?: number | null; latestDate?: string | null };
 type Partner = { key?: string; id: number; name: string; group?: string | null; subgroup?: string | null; qty: number; value: number; articles: Article[] };
 type Item = { product: { id: number; name: string; unitsPerCase: number }; defaults: PriceConfig; components: SheetComponent[] };
 type ListResult = { eur: { rate: number } | null; logistics: { distribution?: Record<string, PriceConfig | null> }; rules?: { rules: any }; items: Array<Item | { product: { id: number; name: string }; error: string }> };
@@ -47,7 +47,7 @@ function summarize(p: Partner, lines: Line[]): Row {
 function Simulator({ l }: { l: Line }) {
   const s = l.sheet!;
   const n = s.unitsPerCase || 1;
-  const [price, setPrice] = useState(n2(l.m!.actualPrice).replace(/\./g, ""));
+  const [price, setPrice] = useState(n2(currentPrice(l.a, "latest").price || l.m!.actualPrice).replace(/\./g, ""));
   const v = Number(price.replace(",", "."));
   const valid = Number.isFinite(v) && v > 0;
   const margin = priceRules().marginPct;
@@ -188,7 +188,7 @@ export default function PartnerMirror() {
   const [open, setOpen] = useState<Set<number>>(new Set());
   const [sim, setSim] = useState<string | null>(null);
   const [future, setFuture] = useState("3");
-  const [basis, setBasis] = useState<PriceBasis>("last");
+  const [basis, setBasis] = useState<PriceBasis>("latest");
 
   const range = () => {
     if (period === "custom") return { start: from, end: day(new Date(new Date(`${to}T00:00:00Z`).getTime() + 86400_000)) };
@@ -257,7 +257,7 @@ export default function PartnerMirror() {
   const pastMonths = loaded ? periodMonths(loaded.start, loaded.end) : 0;
   const futureMonths = Math.max(0, Math.min(36, Number(future.replace(",", ".")) || 0));
   const futureEnd = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() + Math.round(futureMonths)); return d; }, [futureMonths]);
-  const projOf = (l: Line): Proj | null => (l.m && l.sheet ? projectLine(l.sheet, { qty: l.a.qty, value: l.a.value, lastQty: l.a.lastQty, lastValue: l.a.lastValue }, pastMonths, futureMonths, basis) : null);
+  const projOf = (l: Line): Proj | null => (l.m && l.sheet ? projectLine(l.sheet, l.a, pastMonths, futureMonths, basis) : null);
   const proj = new Map(rows.map((r) => {
     const ps = r.lines.map(projOf).filter((x): x is Proj => !!x);
     return [r.p.id, { revenue: ps.reduce((t, x) => t + x.revenue, 0), profit: ps.reduce((t, x) => t + x.profit, 0) }];
@@ -331,11 +331,11 @@ export default function PartnerMirror() {
           </div>
           <div className="space-y-1"><Label className="text-xs">Preț de vânzare în proiecție</Label>
             <div className="inline-flex rounded-md border bg-muted p-1">
-              {([["last", "Ultima lună din perioadă"], ["period", "Media perioadei"]] as const).map(([k, l]) => <button key={k} onClick={() => setBasis(k)} className={`rounded px-3 py-1 text-sm ${basis === k ? "bg-background shadow-sm" : "text-muted-foreground"}`}>{l}</button>)}
+              {([["latest", "Ultimul preț facturat"], ["last", "Media ultimei luni"], ["period", "Media perioadei"]] as const).map(([k, l]) => <button key={k} onClick={() => setBasis(k)} className={`rounded px-3 py-1 text-sm ${basis === k ? "bg-background shadow-sm" : "text-muted-foreground"}`}>{l}</button>)}
             </div>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Proiecția presupune că fiecare partener cumpără în continuare, din fiecare produs, aceeași cantitate medie pe lună ca în perioada aleasă ({n2(pastMonths)} luni), la prețul de vânzare de acum ({basis === "last" ? `media facturilor de la ${loaded?.lastStart ? roDate(new Date(`${loaded.lastStart}T00:00:00Z`)) : "ultima lună"}; produsele fără vânzări în ultima lună folosesc media perioadei` : "media facturilor din toată perioada"}) și cu costurile de azi. Perioada: azi – {roDate(futureEnd)}. Este o estimare, nu o comandă confirmată.</p>
+        <p className="text-xs text-muted-foreground">Proiecția presupune că fiecare partener cumpără în continuare, din fiecare produs, aceeași cantitate medie pe lună ca în perioada aleasă ({n2(pastMonths)} luni), la prețul de vânzare de acum ({basis === "latest" ? "prețul de pe ultima factură a partenerului la acel produs, din Senior" : basis === "last" ? `media facturilor de la ${loaded?.lastStart ? roDate(new Date(`${loaded.lastStart}T00:00:00Z`)) : "ultima lună"}; produsele fără vânzări în ultima lună folosesc media perioadei` : "media facturilor din toată perioada"}) și cu costurile de azi. Perioada: azi – {roDate(futureEnd)}. Este o estimare, nu o comandă confirmată.</p>
       </CardContent></Card>}
 
       {rows.length > 0 && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -385,7 +385,7 @@ export default function PartnerMirror() {
                       <td className={`text-right font-medium ${l.m ? tone(l.m.actualProfit) : ""}`}>{l.m ? n0(l.m.actualProfit) : "—"}</td>
                       <td className="text-right">{l.m ? n0(l.m.proposedProfit) : "—"}</td>
                       <td className="text-right">{pj ? n0(pj.monthlyQty) : "—"}</td>
-                      <td className="text-right" title={pj?.priceFrom === "period" && basis === "last" ? "Fără vânzări în ultima lună: media perioadei" : undefined}>{pj ? `${n2(pj.price)}${pj.priceFrom === "period" && basis === "last" ? "*" : ""}` : "—"}</td>
+                      <td className="text-right" title={pj ? (pj.priceFrom !== basis ? "Fără preț pe această bază: " + (pj.priceFrom === "last" ? "media ultimei luni" : "media perioadei") : pj.priceFrom === "latest" && l.a.latestDate ? `Ultima factură: ${roDate(new Date(`${l.a.latestDate}T00:00:00Z`))}` : undefined) : undefined}>{pj ? `${n2(pj.price)}${pj.priceFrom !== basis ? "*" : ""}` : "—"}{pj?.priceFrom === "latest" && l.a.latestDate && <span className="block text-[10px] text-muted-foreground">{roDate(new Date(`${l.a.latestDate}T00:00:00Z`))}</span>}</td>
                       <td className={`text-right font-medium ${pj ? tone(pj.profit) : ""}`}>{pj ? n0(pj.profit) : "—"}</td>
                       <td className="text-right">{l.m && <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setSim(sim === k ? null : k)}>Simulează</Button>}</td>
                     </tr>
@@ -393,7 +393,7 @@ export default function PartnerMirror() {
                   </Fragment>;
                 })}</tbody>
               </table>
-              <p className="mt-1 text-xs text-muted-foreground">* fără vânzări în ultima lună: prețul din proiecție este media perioadei.</p>
+              <p className="mt-1 text-xs text-muted-foreground">„Preț real” = media facturilor din perioada aleasă. „Preț proiecție” = prețul ales sus (implicit ultima factură, cu data ei). * nu există preț pe baza aleasă: s-a folosit media ultimei luni sau a perioadei.</p>
             </td></tr>}
           </Fragment>; })}</tbody>
         </table>

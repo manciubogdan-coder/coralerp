@@ -50,18 +50,24 @@ export function lastMonthStart(start: string, end: string) {
   return s > start ? s : start;
 }
 
-export type PriceBasis = "last" | "period";
-type Sale = { qty: number; value: number; lastQty?: number; lastValue?: number };
+export type PriceBasis = "latest" | "last" | "period";
+type Sale = { qty: number; value: number; lastQty?: number; lastValue?: number; latestPrice?: number | null };
+
+/** Selling price used as "current": the latest invoice day's price, the average of the period's last month, or of the
+ * whole period. A missing basis falls back latest → last month → period. */
+export function currentPrice(sale: Sale, basis: PriceBasis): { price: number; from: PriceBasis } {
+  if (basis === "latest" && (sale.latestPrice ?? 0) > 0) return { price: sale.latestPrice as number, from: "latest" };
+  if (basis !== "period" && (sale.lastQty ?? 0) > 0) return { price: (sale.lastValue ?? 0) / (sale.lastQty as number), from: "last" };
+  return { price: sale.qty > 0 ? sale.value / sale.qty : 0, from: "period" };
+}
 
 /** Future projection of one product: the same average monthly quantity as the past period, sold at the current price
- * (average of the period's last month, or of the whole period; last month falls back to the period when it had no sales),
- * costed with today's sheet. Profit = (price − fees − minimum price) × projected quantity. */
+ * (`currentPrice`), costed with today's sheet. Profit = (price − fees − minimum price) × projected quantity. */
 export function projectLine(s: Sheet, sale: Sale, pastMonths: number, futureMonths: number, basis: PriceBasis) {
   const monthlyQty = pastMonths > 0 ? sale.qty / pastMonths : 0;
   const qty = monthlyQty * Math.max(0, futureMonths);
-  const useLast = basis === "last" && (sale.lastQty ?? 0) > 0;
-  const price = useLast ? (sale.lastValue ?? 0) / (sale.lastQty as number) : sale.qty > 0 ? sale.value / sale.qty : 0;
-  return { monthlyQty, qty, price, priceFrom: (useLast ? "last" : "period") as PriceBasis, revenue: price * qty, profit: profitPerPiece(s, price) * qty };
+  const { price, from } = currentPrice(sale, basis);
+  return { monthlyQty, qty, price, priceFrom: from, revenue: price * qty, profit: profitPerPiece(s, price) * qty };
 }
 
 export type Grouped<P> = { group: string | null; subgroups: Array<{ subgroup: string | null; partners: P[] }> };

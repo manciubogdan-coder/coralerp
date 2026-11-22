@@ -18,26 +18,43 @@ const CLASSES = `SELECT pc.Partener_ID,
   WHERE LOWER(LTRIM(RTRIM(c.Descriere))) IN ('subgrupa','subgrupa 2') AND LTRIM(RTRIM(v.Val_Text))<>'--'
   GROUP BY pc.Partener_ID`;
 
-type Article = { id: number; name: string; qty: number; value: number; lastQty: number; lastValue: number };
+type Article = { id: number; name: string; qty: number; value: number; lastQty: number; lastValue: number; latestPrice: number | null; latestDate: string | null };
 
 /** Sales of every central partner × finished product (active recipe) invoiced in [start, end), with the partner's Senior
- * classification and the sales of the period's last month (current price for the projection). */
+ * classification, the sales of the period's last month and the price of the latest invoice day (current price for the projection). */
 export async function partnerMirrorSales(sb: Rpc, body: { start?: unknown; end?: unknown }) {
   if (!isDay(body.start) || !isDay(body.end) || String(body.start) >= String(body.end)) throw new Error("Perioadă invalidă.");
   const start = String(body.start), end = String(body.end), lastStart = lastMonthStart(start, end);
-  const rows = await seniorSqlAll(sb, `SELECT COALESCE(${cf("pp")}, ${CLIENT_NAME}) k,
+  const FROM = `FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID
+    JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID
+    JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID AND pp.TipPartener=1`;
+  const WHERE = `WHERE t.Cod IN ${SALES} AND ISNULL(h.Anulat,0)=0 AND h.Data>='${start}' AND h.Data<'${end}'
+      AND EXISTS (SELECT 1 FROM dbo.DArticoleCompuseHVersiuni v WITH (NOLOCK) WHERE v.ArticolId=d.Articol_ID AND v.IsActiv=1)`;
+  // Latest price: net value ÷ pieces of the partner's last invoice day for the article (positive lines only, so a
+  // return or a discount line never becomes the "current" price).
+  const latestQ = seniorSqlAll(sb, `SELECT k, aid, ld, lq, lv FROM (
+      SELECT k, aid, ld, lq, lv, ROW_NUMBER() OVER (PARTITION BY k, aid ORDER BY ld DESC) rn FROM (
+        SELECT COALESCE(${cf("pp")}, ${CLIENT_NAME}) k, d.Articol_ID aid, CAST(h.Data AS date) ld,
+          SUM(CAST(d.Cantitate AS float)) lq, SUM(CAST(d.Valoare_Neta_Rol AS float)) lv
+        ${FROM}
+        ${WHERE} AND d.Cantitate>0 AND d.Valoare_Neta_Rol>0
+        GROUP BY COALESCE(${cf("pp")}, ${CLIENT_NAME}), d.Articol_ID, CAST(h.Data AS date)) x) y WHERE rn=1`, "k, aid");
+  const rowsQ = seniorSqlAll(sb, `SELECT COALESCE(${cf("pp")}, ${CLIENT_NAME}) k,
       COALESCE(MIN(CASE WHEN LTRIM(RTRIM(pp.Partener_Denumire))=LTRIM(RTRIM(pp.Partener_Central)) THEN pp.Partener_ID END), MIN(pp.Partener_ID)) pid,
       MIN(${CLIENT_NAME}) pname, d.Articol_ID aid, MAX(d.Denumire) aname, MAX(cl.g1) g1, MAX(cl.g2) g2,
       SUM(CAST(d.Cantitate AS float)) q, SUM(CAST(d.Valoare_Neta_Rol AS float)) v,
       SUM(CASE WHEN h.Data>='${lastStart}' THEN CAST(d.Cantitate AS float) ELSE 0 END) ql,
       SUM(CASE WHEN h.Data>='${lastStart}' THEN CAST(d.Valoare_Neta_Rol AS float) ELSE 0 END) vl
-    FROM dbo.C_H_Note_Contabile h WITH (NOLOCK) JOIN dbo.C_Tipuri_Document t WITH (NOLOCK) ON t.Tip_Document_ID=h.Tip_Document_ID
-    JOIN dbo.C_D_Note_Contabile d WITH (NOLOCK) ON d.H_ID=h.H_ID
-    JOIN dbo.C_H_Note_Contabile_Parteneri pp WITH (NOLOCK) ON pp.H_ID=h.H_ID AND pp.TipPartener=1
+    ${FROM}
     LEFT JOIN (${CLASSES}) cl ON cl.Partener_ID=pp.Partener_ID
-    WHERE t.Cod IN ${SALES} AND ISNULL(h.Anulat,0)=0 AND h.Data>='${start}' AND h.Data<'${end}'
-      AND EXISTS (SELECT 1 FROM dbo.DArticoleCompuseHVersiuni v WITH (NOLOCK) WHERE v.ArticolId=d.Articol_ID AND v.IsActiv=1)
+    ${WHERE}
     GROUP BY COALESCE(${cf("pp")}, ${CLIENT_NAME}), d.Articol_ID`, "k, aid");
+  const [rows, latestRows] = await Promise.all([rowsQ, latestQ]);
+  const latest = new Map<string, { price: number; date: string }>();
+  for (const r of latestRows) {
+    const q = Number(r.lq) || 0, v = Number(r.lv) || 0;
+    if (q > 0 && v > 0) latest.set(`${r.k}|${r.aid}`, { price: v / q, date: String(r.ld ?? "").slice(0, 10) });
+  }
   const by = new Map<string, { key: string; id: number; name: string; group: string | null; subgroup: string | null; qty: number; value: number; articles: Article[] }>();
   for (const r of rows) {
     const key = String(r.k);
@@ -48,7 +65,7 @@ export async function partnerMirrorSales(sb: Rpc, body: { start?: unknown; end?:
     by.set(key, p);
     if (qty <= 0) continue;
     p.qty += qty; p.value += value;
-    p.articles.push({ id: Number(r.aid), name: String(r.aname ?? "").trim(), qty, value, lastQty: Math.max(0, Number(r.ql) || 0), lastValue: Number(r.vl) || 0 });
+    p.articles.push({ id: Number(r.aid), name: String(r.aname ?? "").trim(), qty, value, lastQty: Math.max(0, Number(r.ql) || 0), lastValue: Number(r.vl) || 0, latestPrice: latest.get(`${key}|${r.aid}`)?.price ?? null, latestDate: latest.get(`${key}|${r.aid}`)?.date ?? null });
   }
   const partners = [...by.values()].filter((p) => p.articles.length).map((p) => ({ ...p, articles: p.articles.sort((a, b) => b.value - a.value) })).sort((a, b) => b.value - a.value);
   return { start, end, lastStart, partners };

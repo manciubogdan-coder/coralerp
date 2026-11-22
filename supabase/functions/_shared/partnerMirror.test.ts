@@ -27,7 +27,7 @@ test("denser pallet cuts distribution per piece", () => {
   expect(d.profitGain).toBeCloseTo(0.155 * 0.95 / 0.8);
 });
 
-import { groupPartners, lastMonthStart, periodMonths, projectLine } from "./partnerMirrorMath";
+import { currentPrice, groupPartners, lastMonthStart, periodMonths, projectLine } from "./partnerMirrorMath";
 describe("future projection", () => {
   test("3 past months, 3 future months at the last month's price", () => {
     // 300 pcs in 3 months → 100/month → 300 projected. Last month 90 pcs for 405 lei = 4.50/pc.
@@ -49,6 +49,18 @@ describe("future projection", () => {
     const p = projectLine(sheet, { qty: 100, value: 600, lastQty: 0, lastValue: 0 }, 1, 1, "last");
     expect(p.priceFrom).toBe("period");
     expect(p.price).toBeCloseTo(6);
+  });
+  test("latest invoice price beats the averages (Metro crocantă: 7.70 until 05.11, 7.80 since 06.11)", () => {
+    // Period 22296 pcs × 7.70 + 3036 × 7.80; the current price must be 7.80, not the 7.71 average.
+    const sale = { qty: 25332, value: 171679.2 + 23680.8, lastQty: 3036, lastValue: 23680.8, latestPrice: 7.8 };
+    const p = projectLine(sheet, sale, 3, 1, "latest");
+    expect(p.priceFrom).toBe("latest");
+    expect(p.price).toBe(7.8);
+    expect(currentPrice(sale, "period").price).toBeCloseTo(7.712, 3);
+  });
+  test("no latest price falls back to the last month, then to the period", () => {
+    expect(currentPrice({ qty: 300, value: 1500, lastQty: 90, lastValue: 405, latestPrice: null }, "latest")).toEqual({ price: 4.5, from: "last" });
+    expect(currentPrice({ qty: 100, value: 600, lastQty: 0, lastValue: 0 }, "latest")).toEqual({ price: 6, from: "period" });
   });
   test("period length and last-month window", () => {
     expect(periodMonths("2026-08-21", "2026-11-21")).toBeCloseTo(92 / 30.4375);
