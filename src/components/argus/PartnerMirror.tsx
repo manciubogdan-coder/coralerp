@@ -57,6 +57,8 @@ function Simulator({ l }: { l: Line }) {
   const cost = s.perPiece.factoryGate;
   const parts: Array<[string, number]> = [["Materie primă", s.rawMaterial], ["Ambalaje", s.packaging], ["Manoperă", s.labour], ["Regie / utilități", s.utilities], ["Pierderi tehnologice", s.techLoss], ["Transport aprovizionare", s.supplyTransport], ["Distribuție", s.logistics]].map(([k, x]) => [k as string, (x as number) / n] as [string, number]).filter(([, x]) => x > 0).sort((a, b) => b[1] - a[1]) as Array<[string, number]>;
   const gap = cost - target;
+  const supplyLine = s.lines.find((x) => x.group === "transport" && x.label === "Transport aprovizionare");
+  const supplyNote = supplyLine?.detail.split(" · ")[0]?.replace(/^pe palet: /, "pe palet (bax): ");
   return (
     <div className="grid gap-4 rounded-md border bg-muted/40 p-3 md:grid-cols-2">
       <div className="space-y-2">
@@ -74,6 +76,7 @@ function Simulator({ l }: { l: Line }) {
         <table className="mt-1 w-full text-xs">
           <tbody>{parts.map(([k, x]) => <tr key={k} className="border-t"><td className="py-0.5">{k}</td><td className="text-right">{n2(x)} lei/buc</td><td className="w-14 text-right text-muted-foreground">{n2((x / cost) * 100)}%</td></tr>)}</tbody>
         </table>
+        {supplyNote && <p className="text-xs text-muted-foreground">Transport aprovizionare {supplyNote}. Costurile sunt cele de azi (luna curentă); în Calculator de preț alege luna curentă ca să vezi aceleași cifre.</p>}
       </div>}
       <Density l={l} margin={margin} profitPct={profitPct} />
     </div>
