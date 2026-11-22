@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLotJourneys, type JourneyReception, overrideKey } from "../../src/lib/evidenta/lotJourney";
+import { buildLotJourneys, OTHER_PACK, packageGrams, type JourneyReception, overrideKey } from "../../src/lib/evidenta/lotJourney";
 
 const rec = (o: Partial<JourneyReception> = {}): JourneyReception => ({
   id: "r1", entryNumber: 9717, receiptDay: "2026-11-18", product: "Coriandru", lot: "4703",
@@ -78,5 +78,41 @@ describe("evidența pe lot", () => {
       sessions: [], recipes, rebutBySession: new Map(), overrides: new Map(),
     });
     expect(j.days).toHaveLength(0);
+  });
+});
+
+describe("gramaje ca în Excelul Andradei", () => {
+  it("citește gramajul pungii din numele produsului", () => {
+    expect(packageGrams("Busuioc 30 g")).toBe(30);
+    expect(packageGrams("BUSUIOC 30")).toBe(30);
+    expect(packageGrams("TRANSGOURMET CORIANDRU 30G")).toBe(30);
+    expect(packageGrams("BUSUIOC 15 GR MI")).toBe(15);
+    expect(packageGrams("CHIVAS 250 PG")).toBe(250);
+    expect(packageGrams("CORIANDRU KG")).toBe(1000);
+    expect(packageGrams("Busuioc 1000 g VRAC")).toBe(1000);
+    expect(packageGrams("MICROPLANTE CHIVES", 50)).toBe(50);
+  });
+
+  it("pune bucățile pe gramajul produsului, nu pe gramele din rețetă ale mixului", () => {
+    const mixRecipes = new Map([["mix", [{ material: "coriandru", grams: 66.67 }, { material: "rucola", grams: 133.33 }]]]);
+    const [j] = buildLotJourneys({
+      receptions: [rec()],
+      transfers: [{ inventoryId: "inv1", material: "coriandru", day: "2026-11-19", kg: 10, line: null }],
+      sessions: [{ id: "s1", day: "2026-11-19", productId: "mix", productName: "Mix aromat 200 g", pieces: 30, start: null, end: null }],
+      recipes: mixRecipes, rebutBySession: new Map(), overrides: new Map(),
+    });
+    expect(j.days[0].piecesByGrams[200]).toBe(30);
+    expect(j.days[0].piecesByGrams[66.67]).toBeUndefined();
+    expect(j.days[0].kgFinal).toBe(2); // doar coriandrul din mix: 30 × 66,67 g
+  });
+
+  it("gramajele care nu sunt în coloanele Excelului merg la „alte gramaje”", () => {
+    const [j] = buildLotJourneys({
+      receptions: [rec()],
+      transfers: [{ inventoryId: "inv1", material: "coriandru", day: "2026-11-19", kg: 5, line: null }],
+      sessions: [{ id: "s1", day: "2026-11-19", productId: "p15", productName: "Coriandru 50 g", pieces: 10, start: null, end: null }],
+      recipes, rebutBySession: new Map(), overrides: new Map(),
+    });
+    expect(j.days[0].piecesByGrams[OTHER_PACK]).toBe(10);
   });
 });

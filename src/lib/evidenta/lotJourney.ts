@@ -51,7 +51,33 @@ export interface DayOverride {
   schimb?: string | null;
 }
 
-export interface JourneyProduct { name: string; grams: number; pieces: number }
+export interface JourneyProduct {
+  name: string;
+  /** Grame din materialul lotului într-o bucată (din rețetă). */
+  grams: number;
+  /** Gramajul pungii/caserolei (din numele produsului), ca în Excelul Andradei. */
+  packGrams: number | null;
+  pieces: number;
+}
+
+/** Coloanele de bucăți din Excelul Andradei (gramajul produsului finit). */
+export const LOT_PACK_GRAMS = [15, 30, 70, 100, 125, 200, 250, 300, 400, 500, 600, 1000] as const;
+/** Cheia pentru produsele cu alt gramaj decât coloanele de mai sus. */
+export const OTHER_PACK = -1;
+
+/** Gramajul produsului finit din nume („Busuioc 30 g", „BUSUIOC 30", „CORIANDRU KG", „1000 g VRAC"); altfel rezerva (gramajul din rețetă). */
+export function packageGrams(name: string | null | undefined, fallback?: number | null): number | null {
+  const s = (name || "").toLowerCase().replace(/(\d),(\d)/g, "$1.$2");
+  let m = s.match(/(\d+(?:\.\d+)?)\s*(kg|gr|g)\b/);
+  if (m) return Math.round(m[2] === "kg" ? Number(m[1]) * 1000 : Number(m[1]));
+  if (/\bkg\b/.test(s)) return 1000;
+  m = s.match(/\b(\d{2,4})\b/);
+  if (m) return Number(m[1]);
+  return fallback && fallback > 0 ? Math.round(fallback) : null;
+}
+
+export const packBucket = (g: number | null) =>
+  g != null && (LOT_PACK_GRAMS as readonly number[]).includes(g) ? g : OTHER_PACK;
 
 export interface JourneyDay {
   day: string;
@@ -61,6 +87,7 @@ export interface JourneyDay {
   /** Partea lotului din tot materialul de acest fel dat în producție în ziua respectivă (1 = singurul lot). */
   share: number;
   products: JourneyProduct[];
+  /** Bucăți pe gramajul produsului finit (LOT_PACK_GRAMS sau OTHER_PACK). */
   piecesByGrams: Record<number, number>;
   autoRebut: number;
   autoKgFinal: number;
@@ -129,7 +156,7 @@ export function buildLotJourneys(input: {
   }
 
   // Ce s-a produs din fiecare material, pe zi.
-  type Use = { session: JourneySession; grams: number; ingredientShare: number };
+  type Use = { session: JourneySession; grams: number; ingredientShare: number; packGrams: number | null; mono: boolean };
   const uses = new Map<string, Use[]>();
   for (const s of sessions) {
     const recipe = (s.productId && recipes.get(s.productId)) || [];
@@ -137,7 +164,10 @@ export function buildLotJourneys(input: {
     for (const ing of recipe) {
       if (!(ing.grams > 0)) continue;
       const k = `${ing.material}|${s.day}`;
-      const u = { session: s, grams: ing.grams, ingredientShare: totalGrams > 0 ? ing.grams / totalGrams : 1 };
+      const u = {
+        session: s, grams: ing.grams, ingredientShare: totalGrams > 0 ? ing.grams / totalGrams : 1,
+        packGrams: packageGrams(s.productName, totalGrams), mono: recipe.filter((i) => i.grams > 0).length === 1,
+      };
       const list = uses.get(k);
       if (list) list.push(u); else uses.set(k, [u]);
     }
@@ -172,10 +202,11 @@ export function buildLotJourneys(input: {
           const s = u.session;
           const pieces = s.pieces * share;
           const pk = `${s.productName}|${u.grams}`;
-          const p = products.get(pk) || { name: s.productName, grams: u.grams, pieces: 0 };
+          const p = products.get(pk) || { name: s.productName, grams: u.grams, packGrams: u.packGrams, pieces: 0 };
           p.pieces += pieces;
           products.set(pk, p);
-          autoKgFinal += (pieces * u.grams) / 1000;
+          // Produs dintr-un singur ingredient: bucăți × gramajul pungii (ca în Excel); mix: doar partea acestui material din rețetă.
+          autoKgFinal += (pieces * (u.mono && u.packGrams ? u.packGrams : u.grams)) / 1000;
           if (!seenRebut.has(s.id)) {
             seenRebut.add(s.id);
             autoRebut += (rebutBySession.get(s.id) || 0) * u.ingredientShare * share;
@@ -192,14 +223,17 @@ export function buildLotJourneys(input: {
         const dif = r2(pus - kgFinal);
         used += mpKg;
         const piecesByGrams: Record<number, number> = {};
-        for (const p of products.values()) piecesByGrams[p.grams] = (piecesByGrams[p.grams] || 0) + p.pieces;
+        for (const p of products.values()) {
+          const b = packBucket(p.packGrams);
+          piecesByGrams[b] = (piecesByGrams[b] || 0) + p.pieces;
+        }
         return {
           day,
           ageDays: dayDiff(rec.receiptDay, day),
           lines: [...d.lines],
           mpKg,
           share: r4(share),
-          products: [...products.values()].sort((a, b) => a.grams - b.grams || a.name.localeCompare(b.name)),
+          products: [...products.values()].sort((a, b) => (a.packGrams ?? 0) - (b.packGrams ?? 0) || a.name.localeCompare(b.name)),
           piecesByGrams,
           autoRebut: r2(autoRebut),
           autoKgFinal: r2(autoKgFinal),

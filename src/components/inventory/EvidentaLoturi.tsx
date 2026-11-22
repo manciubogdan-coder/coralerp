@@ -8,7 +8,9 @@ import { exportToExcel } from "@/lib/excelExport";
 import { persistDateKey, readStoredDateKey, todayKey } from "@/lib/persistentDate";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { saveLotOverride, useLotJourneys } from "@/hooks/evidenta/useLotJourneys";
-import { bucharestTime, buildLotJourneys, overrideKey, type DayOverride, type JourneyDay, type LotJourney } from "@/lib/evidenta/lotJourney";
+import { bucharestTime, buildLotJourneys, LOT_PACK_GRAMS, OTHER_PACK, overrideKey, packBucket, type DayOverride, type JourneyDay, type LotJourney } from "@/lib/evidenta/lotJourney";
+
+const packLabel = (g: number) => (g === OTHER_PACK ? "alte gramaje" : g === 1000 ? "1,0 kg" : `${g} g`);
 
 const minusDays = (day: string, n: number) => {
   const d = new Date(`${day}T12:00:00Z`);
@@ -74,10 +76,10 @@ export const EvidentaLoturi: React.FC = () => {
       .sort((a, b) => a.reception.receiptDay.localeCompare(b.reception.receiptDay) || a.reception.lot.localeCompare(b.reception.lot) || a.reception.product.localeCompare(b.reception.product));
   }, [journeys, search, onlyProduced]);
 
+  // Coloanele fixe din Excelul Andradei; „Alte gramaje" apare doar dacă există.
   const grams = useMemo(() => {
-    const s = new Set<number>();
-    for (const j of visible) for (const g of Object.keys(j.totals.piecesByGrams)) s.add(+g);
-    return [...s].sort((a, b) => a - b);
+    const other = visible.some((j) => (j.totals.piecesByGrams[OTHER_PACK] || 0) > 0);
+    return [...LOT_PACK_GRAMS, ...(other ? [OTHER_PACK] : [])] as number[];
   }, [visible]);
 
   const save = async (j: LotJourney, d: JourneyDay, field: Field, raw: string) => {
@@ -140,7 +142,7 @@ export const EvidentaLoturi: React.FC = () => {
         "Linia": "", "MP intrată în prod (kg)": t.mpKg, "Rebut (kg)": t.rebut, "Pus în caserole (kg)": t.pusInCaserole,
         "% NC": pctNum(t.pctNc), "Diferență cântar (kg)": t.difCantar, "% cântar": pctNum(t.pctCantar),
       });
-      for (const g of grams) head[`Bucăți ${g} g`] = Math.round(t.piecesByGrams[g] || 0);
+      for (const g of grams) head[`Bucăți ${packLabel(g)}`] = Math.round(t.piecesByGrams[g] || 0);
       Object.assign(head, { "Kg final": t.kgFinal, "Nr. pers.": "", "Ora start": "", "Ora stop": "", "Observații": "" });
       rows.push(head);
       for (const d of j.days) {
@@ -151,7 +153,7 @@ export const EvidentaLoturi: React.FC = () => {
           "Linia": d.lines.join(", "), "MP intrată în prod (kg)": d.mpKg, "Rebut (kg)": d.rebut, "Pus în caserole (kg)": d.pusInCaserole,
           "% NC": pctNum(d.pctNc), "Diferență cântar (kg)": d.difCantar, "% cântar": pctNum(d.pctCantar),
         };
-        for (const g of grams) row[`Bucăți ${g} g`] = Math.round(d.piecesByGrams[g] || 0);
+        for (const g of grams) row[`Bucăți ${packLabel(g)}`] = Math.round(d.piecesByGrams[g] || 0);
         Object.assign(row, {
           "Kg final": d.kgFinal, "Nr. pers.": d.override?.nrPers ?? "",
           "Ora start": d.override?.oraStart || bucharestTime(d.autoStart), "Ora stop": d.override?.oraStop || bucharestTime(d.autoStop),
@@ -219,7 +221,7 @@ export const EvidentaLoturi: React.FC = () => {
                 <th className={`${th} text-right`}>% NC</th>
                 <th className={`${th} text-right`}>Dif. cântar</th>
                 <th className={`${th} text-right`}>% cântar</th>
-                {grams.map((g) => <th key={g} className={`${th} text-right`}>Buc {g} g</th>)}
+                {grams.map((g) => <th key={g} className={`${th} text-right`}>Buc {packLabel(g)}</th>)}
                 <th className={`${th} text-right`}>Kg final</th>
                 <th className={th}>Nr. pers.</th>
                 <th className={th}>Ora start</th>
@@ -274,7 +276,7 @@ export const EvidentaLoturi: React.FC = () => {
                           <td className={num}>{n2(d.difCantar)}</td>
                           <td className={num}>{pct(d.pctCantar)}</td>
                           {grams.map((g) => (
-                            <td key={g} className={num} title={d.products.filter((p) => p.grams === g).map((p) => `${p.name}: ${Math.round(p.pieces)} buc`).join("\n")}>
+                            <td key={g} className={num} title={d.products.filter((p) => packBucket(p.packGrams) === g).map((p) => `${p.name}: ${Math.round(p.pieces)} buc`).join("\n")}>
                               {d.piecesByGrams[g] ? Math.round(d.piecesByGrams[g]).toLocaleString("ro-RO") : ""}
                             </td>
                           ))}
