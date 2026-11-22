@@ -40,7 +40,7 @@ type Logistics = {
 };
 type StoreSale = { pid: number; qty: number; value: number; price: number | null };
 type StoreRow = { pid: number; name: string; judet?: string; route: string | null; proposed?: string | null; manual?: boolean; pallets: number; feePct?: number; feeRule?: string | null };
-type RealSpeed = { speed: number; pieces: number; hours: number; sessions: number; products: string[]; from: string; to: string };
+type RealSpeed = { speed: number; pieces: number; hours: number; sessions: number; products: string[]; from: string; to: string; line?: string; orders?: number; norm?: boolean };
 type Item = {
   product: { id: number; name: string; unitsPerCase: number };
   defaults: PriceConfig; warnings: string[]; components: SheetComponent[]; suggestedLabourSource?: string; realSpeed?: RealSpeed | null;

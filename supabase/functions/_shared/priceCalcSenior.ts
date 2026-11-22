@@ -9,7 +9,7 @@ import { CLIENT_AVERAGE_ROUTE, clientAverageRoute, clientDefaultRoute, latestCos
 import { seniorLive, seniorSqlAll } from "./senior.ts";
 import { cf, lit, partnerInfoSql, partnerScope, type PartnerInfo } from "./priceScope.ts";
 import { matchOffer, offerSearchWords } from "./offerMatch.ts";
-import { realLineSpeeds, SPEED_DAYS, type RealSpeed } from "./priceLineSpeed.ts";
+import { isBulkLine, realLineSpeeds, SPEED_DAYS, type RealSpeed } from "./priceLineSpeed.ts";
 export { matchLoss } from "./priceSheet.ts";
 import { componentKind, isServiceComponent, matchLoss, ratePeriod, type SheetComponent } from "./priceSheet.ts";
 /** Network fees of the list: table rule of the store / central partner (0% when not listed). */
@@ -393,13 +393,15 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
       };
     });
     for (const c of components) if (c.priceSafety?.suspect) itemWarnings.push(`${c.name}: unitate NIR suspectă (rolă vs. bucată); ultima intrare depășește 3× media ponderată precedentelor 6 luni. Prețul Senior nu a fost modificat.`);
-    const suggested = suggestedLabour(name, components);
+    const speed = speeds.get(aid) ?? null;
+    // A mix packed by hand on Vracuri pungi / GASTRO uses that line's crew and norm, not the 13-person multihead crew.
+    const bulk = suggestedLabour(name, components) === MIXED_WASHED && speed != null && isBulkLine(speed.line);
+    const suggested = bulk ? "Vracuri / Gastro" : suggestedLabour(name, components);
     const traded = components.some((c) => c.kind === "marfa") && !components.some((c) => c.kind === "mp");
     const cfg: PriceConfig = { ...shared, rates: { ...shared.rates }, unitsPerCase, ...(suggested ? { labourLine: suggested } : {}), ...(traded ? { tradedGood: true } : {}), components: {} };
     for (const c of components) if (c.kind === "marfa" && c.piecesPerPallet) cfg.components = { ...cfg.components, [c.id]: { piecesPerPallet: c.piecesPerPallet } };
     if (components.some((c) => c.kind === "marfa" && !c.piecesPerPallet)) itemWarnings.push(`Marfă revândută fără buc/palet configurat: ${components.filter((c) => c.kind === "marfa" && !c.piecesPerPallet).map((c) => c.name).join(", ")}; completează buc/palet.`);
     if (convBy.has(aid)) cfg.piecesPerPallet = convBy.get(aid);
-    const speed = speeds.get(aid) ?? null;
     if (suggested === MIXED_WASHED && speed) cfg.labourSpeed = Math.round(speed.speed);
     if (suggested === MIXED_WASHED && !speed) itemWarnings.push(`Mix spălat: nu am găsit sesiuni de producție în ultimele ${SPEED_DAYS} de zile pentru acest produs; completează viteza liniei (buc/oră).`);
     for (const c of components) if (c.kind === "mp") cfg.components = { ...cfg.components, [c.id]: { kgPerPallet: c.kgPerPallet } };
@@ -418,8 +420,11 @@ export async function priceListData(sb: Rpc, legacy: any, body: Body) {
       product: { id: aid, name, code: a.code, unitsPerCase },
       components, defaults: cfg, warnings: itemWarnings,
       suggestedLabourSource: traded ? `Marfă revândută ca atare (semifabricat cumpărat gata ambalat): fără manoperă directă, doar regia fabricii${suggested ? ` din Reguli de calcul, linia ${suggested}` : ""} (editabil)`
+        : bulk ? `Mix ambalat pe ${speed!.line} (linia a ${speed!.orders} comenzi din ${speed!.from} – ${speed!.to}): oameni, viteză și cost orar din Reguli de calcul, linia Vracuri / Gastro`
         : suggested ? (speed && suggested === MIXED_WASHED
-        ? `Mix spălat: viteză reală ${Math.round(speed.speed)} buc/oră din Producție (${speed.sessions} sesiuni, ${speed.hours.toFixed(1)} ore lucrate, ${speed.from} – ${speed.to}; ${speed.products.join(", ")}); oameni și cost orar din Reguli de calcul`
+        ? (speed.norm
+          ? `Mix spălat pe ${speed.line}: prea puține sesiuni cronometrate în Producție, folosesc norma liniei (${Math.round(speed.speed)} buc/oră; ${speed.orders} comenzi din ${speed.from} – ${speed.to}); oameni și cost orar din Reguli de calcul`
+          : `Mix spălat: viteză reală ${Math.round(speed.speed)} buc/oră pe ${speed.line} din Producție (${speed.sessions} sesiuni, ${speed.hours.toFixed(1)} ore din timpul liniei, împărțit cu comenzile lucrate în paralel, ${speed.from} – ${speed.to}; ${speed.products.join(", ")}); oameni și cost orar din Reguli de calcul`)
         : `Propunere după produs/compoziție; oameni, viteză și cost orar din Reguli de calcul${rulesMeta.updatedAt ? ` (modificate ${rulesMeta.updatedAt.slice(0, 10)})` : ""}`) : "Linie neidentificată",
       realSpeed: speed,
       salesHistory: hist.map((r: any) => ({ month: String(r.m), qty: num(r.q), value: num(r.v), price: num(r.q) > 0 ? Math.round((num(r.v) / num(r.q)) * 10000) / 10000 : null })),
