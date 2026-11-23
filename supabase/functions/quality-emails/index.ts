@@ -5,6 +5,7 @@ import { z } from 'npm:zod@3.25.76';
 import { LEGACY_URL, LEGACY_ANON, requireAdmin } from '../_shared/appData.ts';
 import { createQualityEmail } from '../_shared/quality-email/report.ts';
 import { localClock, shiftDay, dayBounds, isFinalized, qualitySnapshot } from '../_shared/quality-email/rules.ts';
+import { MISSING_LINE_SELECT, missingWindow, toMissingLine, matchMissingGroup, missingNote } from '../_shared/prereceptieMissing.ts';
 
 const typeSchema = z.enum(['materii-prime','ambalaje','etichete']);
 const daySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v => !isNaN(Date.parse(v)) && new Date(`${v}T12:00:00Z`).toISOString().slice(0,10) === v);
@@ -37,6 +38,15 @@ function smtp() {
   const pass=Deno.env.get('QUALITY_SMTP_PASSWORD'); if(!pass) throw new Error('Parola căsuței nu este configurată.');
   return nodemailer.createTransport({ host:'mail.coral-biogreens.ro', port:465, secure:true, auth:{user:'raport@coral-biogreens.ro',pass}, connectionTimeout:15000, greetingTimeout:15000, socketTimeout:30000, logger:false, debug:false });
 }
+async function missingPrereception(cloud:any,inventoryType:string,day:string) {
+  const win=missingWindow(day,day); const out:any[]=[]; let off=0;
+  while(true) {
+    const {data,error}=await cloud.from('prereceptie_linii').select(MISSING_LINE_SELECT).eq('p.inventory_type',inventoryType).not('missing_at','is',null).is('received_at',null).gte('missing_at',win.from).lt('missing_at',win.to).order('id').range(off,off+499);
+    if(error) throw new Error('Citirea mărfii lipsă din prerecepții nu este disponibilă.');
+    for(const r of data??[]) { const m=toMissingLine(r); if(m.day===day) out.push(m); }
+    if(!data || data.length<500) return out; off+=500;
+  }
+}
 async function reportFor(cloud:any,legacy:any,route:any,day:string) {
   const t=tables(route.inventory_type), bounds=dayBounds(day);
   const inv=await all(legacy,t.reception,q=>q.gte('receipt_date',bounds.start).lt('receipt_date',bounds.end).order('id'));
@@ -64,6 +74,15 @@ async function reportFor(cloud:any,legacy:any,route:any,day:string) {
   if(route.recipient_mode==='supplier') for(const m of missingRows) {
     const key=m.document_number??''; const g=grouped.get(key)??{supplierName:route.supplier_name,supplierId:route.supplier_id,documentNumber:key,rows:[]};
     g.rows.push({inventory_id:'missing',product_id:m.product_id,denumire_produs:m.product_name,producator:'',cantitate_receptionata:0,unit:m.unit||'kg',cantitate_document:String(m.expected_quantity??0),pierdere_calitativa_procent:'',is_missing:true,defects:[],observations:m.notes??'',photos:[]});grouped.set(key,g);
+  }
+  // Pre-reception goods marked „Lipsă marfă”: a row on the document they belonged to.
+  for(const m of await missingPrereception(cloud,route.inventory_type,day)) {
+    if((m.supplier_id||m.supplier_name||'unknown')!==route.supplier_id) continue;
+    if(route.recipient_mode==='manufacturer' && m.manufacturer_id!==route.manufacturer_id) continue;
+    const groups=[...grouped.values()];
+    let g=matchMissingGroup(groups,m);
+    if(!g){ const key=m.document_number||''; g=grouped.get(key)??{supplierName:route.supplier_name,supplierId:route.supplier_id,documentNumber:key,rows:[]}; grouped.set(key,g); }
+    g.rows.push({inventory_id:`pre-missing-${m.lineId}`,product_id:m.product_id,denumire_produs:m.product_name,producator:m.manufacturer_name||'',cantitate_receptionata:0,unit:m.unit||'kg',cantitate_document:String(m.cantitate_document),pierdere_calitativa_procent:'',is_missing:true,defects:[],observations:missingNote(m.missing_reason),photos:[]});
   }
   const renderer=createQualityEmail(day,route.language,route.version,tolerances,p=> {
     const url=p.path?`${LEGACY_URL}/storage/v1/object/public/reception-photos/${p.path}`:p.url;

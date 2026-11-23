@@ -1,4 +1,5 @@
 
+import { cn } from "@/lib/utils";
 import React, { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,8 @@ import { useInventoryType } from "@/context/inventory-type";
 import { resolveMissingOperators } from "@/lib/receptionOperator";
 import { LotQRDialog } from "./LotQRDialog";
 import { MissingGoodsPanel } from "./MissingGoodsPanel";
+import { fetchMissingGoods } from "@/lib/prereceptie";
+import { withMissingGoods } from "@/lib/receptionMissingRows";
 
 interface ReceptionItem {
   id: string;
@@ -40,6 +43,9 @@ interface ReceptionItem {
   gross_quantity?: number | null;
   // Operatorul care a făcut recepția (recuperat și din jurnal pentru cele vechi)
   operator?: string;
+  /** Marfă de pe actele prerecepției marcată „Lipsă marfă" (rând informativ, fără acțiuni). */
+  is_missing?: boolean;
+  missing_doc_qty?: number;
 }
 
 type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';
@@ -145,10 +151,19 @@ export const ReceptionHistory = () => {
       }
 
       console.log("Reception history total rows:", allRows.length);
-      const receptionsData = allRows.map((item: any) => ({
+      const receptionsBase = allRows.map((item: any) => ({
         ...item,
         quantity: item.original_quantity
       }));
+      // Marfa de pe actele prerecepției care nu a venit — rând lângă documentul ei
+      let missingLines: Awaited<ReturnType<typeof fetchMissingGoods>> = [];
+      try {
+        const from = dateFrom || (!dateTo ? new Date(Date.now() - 30 * 86400000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Bucharest' }) : '');
+        missingLines = await fetchMissingGoods(inventoryType, from, dateTo);
+      } catch (e) {
+        console.warn("Lipsurile din prerecepție nu au putut fi încărcate:", e);
+      }
+      const receptionsData = withMissingGoods(receptionsBase, missingLines) as ReceptionItem[];
       setReceptions(receptionsData);
       setFilteredReceptions(receptionsData);
 
@@ -535,7 +550,22 @@ export const ReceptionHistory = () => {
   };
 
   const handleExport = () => {
-    const dataToExport = filteredReceptions.map(item => ({
+    const dataToExport = filteredReceptions.map(item => item.is_missing ? ({
+      'Nr. Intrare': 'LIPSĂ',
+      'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '',
+      'Produs': item.name,
+      'Cod Produs': item.products?.cod_produs || '',
+      'Nr Lot': '',
+      'Cantitate': '0.00',
+      'Unitate': item.unit,
+      'Document': item.document_number || '',
+      'Furnizor': item.suppliers?.name || '',
+      'Producător': item.manufacturers?.name || '',
+      'Operator': item.operator || '',
+      'Observații': item.obs || '',
+      '% Pierdere': '',
+      'Cant. de luat în considerare': '0.00',
+    }) : ({
       'Nr. Intrare': item.entry_number,
       'Data Recepție': item.receipt_date ? new Date(item.receipt_date).toLocaleDateString('ro-RO') : '',
       'Produs': item.name,
@@ -710,9 +740,9 @@ export const ReceptionHistory = () => {
                     ? (item as any).consider_quantity
                     : (((item as any).net_quantity ?? (item as any).quantity) * (1 - (((item as any).nonconform_percent ?? 0) / 100))));
                 return (
-                  <TableRow key={item.id} className={isGroupHeader ? "bg-muted font-semibold print:bg-gray-100" : "print:break-inside-avoid"}>
+                  <TableRow key={item.id} className={isGroupHeader ? "bg-muted font-semibold print:bg-gray-100" : cn("print:break-inside-avoid", item.is_missing && "bg-destructive/5 text-destructive")}>
                     <TableCell className="px-2 py-3 font-medium text-xs print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">
-                      {isGroupHeader ? '' : item.entry_number}
+                      {isGroupHeader ? '' : item.is_missing ? <span className="rounded bg-destructive px-1 py-0.5 text-[9px] font-bold text-destructive-foreground">LIPSĂ</span> : item.entry_number}
                     </TableCell>
                     <TableCell className="px-2 py-3 text-xs print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1"
                       title={!isGroupHeader && (item as any).created_at ? `Înregistrat în sistem: ${new Date((item as any).created_at).toLocaleString('ro-RO')}` : undefined}
@@ -729,7 +759,7 @@ export const ReceptionHistory = () => {
                     <TableCell className="px-2 py-3 text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (item.products?.cod_produs || '-')}</TableCell>
                     <TableCell className="px-2 py-3 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (item.lot_number || '-')}</TableCell>
                     <TableCell className="px-2 py-3 text-right text-xs print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">
-                      {isGroupHeader ? '' : item.quantity.toFixed(2)}
+                      {isGroupHeader ? '' : item.is_missing ? <span title="Cantitate pe acte, nu a venit">0.00<span className="block text-[9px]">acte {(item.missing_doc_qty ?? 0).toFixed(2)}</span></span> : item.quantity.toFixed(2)}
                     </TableCell>
                     <TableCell className="px-2 py-3 text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : item.unit}</TableCell>
                     <TableCell className="px-2 py-3 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (item.document_number || '-')}</TableCell>
@@ -739,10 +769,10 @@ export const ReceptionHistory = () => {
                     <TableCell className="px-2 py-3 text-xs hidden lg:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1 whitespace-normal break-words min-h-[2.5rem]" title={(item as any).obs ?? '-'}>
                       <div className="max-w-[150px] whitespace-normal break-words">{(item as any).obs ?? '-'}</div>
                     </TableCell>
-                    <TableCell className="px-2 py-3 text-right text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : `${(((item as any).products?.pt_percent ?? (item as any).nonconform_percent) ?? 0).toFixed(1)}%`}</TableCell>
+                    <TableCell className="px-2 py-3 text-right text-xs hidden md:table-cell print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader || item.is_missing ? '' : `${(((item as any).products?.pt_percent ?? (item as any).nonconform_percent) ?? 0).toFixed(1)}%`}</TableCell>
                     <TableCell className="px-2 py-3 text-right text-xs print:table-cell print:text-[8px] print:border print:border-gray-300 print:px-1 print:py-1">{isGroupHeader ? '' : (considerQty as number).toFixed(2)}</TableCell>
                     <TableCell className="px-2 py-3 text-center print:hidden">
-                      {!isGroupHeader && (
+                      {!isGroupHeader && !item.is_missing && (
                         <div className="flex gap-1 justify-center">
                           <Button
                             size="sm"

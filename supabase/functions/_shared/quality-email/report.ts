@@ -50,12 +50,14 @@ const QUALITY_TRANSLATIONS: Record<EmailLang, Record<string, string>> = {
     putred: "rotten", mucegai: "mold", umed: "wet", "usor umed": "slightly damp", "ușor umed": "slightly damp",
     deshidratat: "dehydrated", "tije lungi": "long stems", "cozi lungi": "long tails", seminte: "seeds", semințe: "seeds",
     flori: "flowers", crengi: "branches", neuniform: "uneven", "capete nedezvoltate": "undeveloped heads",
+    "nu a venit": "not delivered",
   },
   ro: {
     impurities: "impurități", "burnt tips": "vârfuri arse", "yellow leaves": "frunze galbene", "burnt leaves": "frunze arse",
     "black leaves": "frunze negre", "rotten leaves": "frunze putrede", rotten: "putred", mold: "mucegai", wet: "umed",
     "slightly damp": "ușor umed", dehydrated: "deshidratat", "long stems": "tije lungi", "long tails": "cozi lungi",
     seeds: "semințe", flowers: "flori", branches: "crengi", uneven: "neuniform", "undeveloped heads": "capete nedezvoltate",
+    "not delivered": "nu a venit",
   },
   it: {
     impurities: "impurità", impuritati: "impurità", "impurități": "impurità", "burnt tips": "punte bruciate", "vârfuri arse": "punte bruciate",
@@ -65,6 +67,7 @@ const QUALITY_TRANSLATIONS: Record<EmailLang, Record<string, string>> = {
     dehydrated: "disidratato", deshidratat: "disidratato", "long stems": "gambi lunghi", "tije lungi": "gambi lunghi",
     "long tails": "code lunghe", "cozi lungi": "code lunghe", seeds: "semi", seminte: "semi", semințe: "semi", flowers: "fiori", flori: "fiori",
     branches: "rami", crengi: "rami", uneven: "non uniforme", neuniform: "non uniforme", "undeveloped heads": "cespi non sviluppati",
+    "not delivered": "non consegnato", "nu a venit": "non consegnato",
   },
 };
 

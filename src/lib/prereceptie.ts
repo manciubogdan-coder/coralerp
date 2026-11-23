@@ -1,6 +1,7 @@
 import { supabaseCloud } from "@/integrations/supabase/cloudClient";
 import { supabase } from "@/integrations/supabase/client";
 import type { BreakdownEntry } from "@/lib/receptionBreakdown";
+import { MISSING_LINE_SELECT, missingWindow, toMissingLine, type MissingLine } from "../../supabase/functions/_shared/prereceptieMissing";
 
 export interface PrereceptieLinie {
   id: string;
@@ -143,46 +144,32 @@ export async function undoLineMissing(lineId: string, prereceptieId: string) {
   await refreshPrereceptieStatus(prereceptieId);
 }
 
-export interface MissingGoodsRow {
-  lineId: string;
-  prereceptieId: string;
-  document_number: string;
-  supplier_name: string | null;
-  expected_date: string | null;
-  product_name: string;
-  manufacturer_name: string | null;
-  cantitate_document: number;
-  unit: string | null;
-  missing_at: string;
-  missing_by_email: string | null;
-  missing_reason: string | null;
-}
+export type MissingGoodsRow = MissingLine;
 
-/** Goods announced on documents that were marked as not arrived, by expected date (fallback: marking day). */
+/** Goods announced on documents that were marked as not arrived, on the day the rest of the document came. */
 export async function fetchMissingGoods(inventoryType: string, from: string, to: string): Promise<MissingGoodsRow[]> {
   const out: MissingGoodsRow[] = [];
+  const win = missingWindow(from, to);
   let offset = 0;
   while (true) {
-    const { data, error } = await supabaseCloud
+    let q = supabaseCloud
       .from("prereceptie_linii")
-      .select("id, prereceptie_id, product_name, manufacturer_name, cantitate_document, unit, missing_at, missing_by_email, missing_reason, received_at, p:prereceptii!inner(document_number, supplier_name, expected_date, inventory_type)")
+      .select(MISSING_LINE_SELECT)
       .eq("p.inventory_type", inventoryType)
       .not("missing_at", "is", null)
-      .is("received_at", null)
+      .is("received_at", null);
+    if (win.from) q = q.gte("missing_at", win.from);
+    if (win.to) q = q.lt("missing_at", win.to);
+    const { data, error } = await q
       .order("missing_at", { ascending: false })
       .order("id", { ascending: true })
       .range(offset, offset + 499);
     if (error) throw error;
     const page = (data as any[]) || [];
     for (const r of page) {
-      const day = r.p?.expected_date || String(r.missing_at).slice(0, 10);
-      if ((from && day < from) || (to && day > to)) continue;
-      out.push({
-        lineId: r.id, prereceptieId: r.prereceptie_id, document_number: r.p?.document_number || "",
-        supplier_name: r.p?.supplier_name ?? null, expected_date: r.p?.expected_date ?? null,
-        product_name: r.product_name, manufacturer_name: r.manufacturer_name, cantitate_document: Number(r.cantitate_document) || 0,
-        unit: r.unit, missing_at: r.missing_at, missing_by_email: r.missing_by_email, missing_reason: r.missing_reason,
-      });
+      const line = toMissingLine(r);
+      if ((from && line.day < from) || (to && line.day > to)) continue;
+      out.push(line);
     }
     if (page.length < 500) break;
     offset += 500;

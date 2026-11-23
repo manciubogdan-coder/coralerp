@@ -49,7 +49,7 @@ export const MissingGoodsPanel: React.FC<Props> = ({ inventoryType, dateFrom, da
           <tbody>
             {shown.map((r) => (
               <tr key={r.lineId} className="border-b border-destructive/10 last:border-0 align-top">
-                <td className="py-1 pr-2 whitespace-nowrap">{new Date(r.expected_date || r.missing_at).toLocaleDateString("ro-RO")}</td>
+                <td className="py-1 pr-2 whitespace-nowrap">{new Date(`${r.day}T12:00:00`).toLocaleDateString("ro-RO")}</td>
                 <td className="py-1 pr-2">{r.supplier_name || "—"}</td>
                 <td className="py-1 pr-2 whitespace-nowrap">{r.document_number}</td>
                 <td className="py-1 pr-2 font-medium">{r.product_name}{r.manufacturer_name ? ` · ${r.manufacturer_name}` : ""}</td>

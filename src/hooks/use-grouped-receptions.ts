@@ -13,6 +13,8 @@ interface ReceptionItem {
   suppliers?: { name: string };
   manufacturers?: { name: string };
   products?: { name: string; cod_produs: string };
+  is_missing?: boolean;
+  missing_doc_qty?: number;
 }
 
 type GroupingMode = 'none' | 'product' | 'supplier' | 'lot';

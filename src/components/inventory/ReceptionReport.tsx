@@ -30,6 +30,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useInventoryType } from "@/context/inventory-type";
 import { MissingGoodsPanel } from "./MissingGoodsPanel";
+import { fetchMissingGoods } from "@/lib/prereceptie";
+import { matchMissingGroup, missingNote } from "../../../supabase/functions/_shared/prereceptieMissing";
 import { emitNotification } from "@/lib/notifications";
 import { dateFromKey, keyFromDate, persistDateKey, readStoredDateKey, todayKey } from "@/lib/persistentDate";
 import {
@@ -91,6 +93,9 @@ type ReportRow = {
   // marker pentru articole lipsă
   is_missing?: boolean;
   missing_id?: string;
+  /** Pre-reception line marked „Lipsă marfă" (undo it in Prerecepție). */
+  missing_line_id?: string;
+  missing_note?: string;
   lot_number?: string;
   operator?: string;
 };
@@ -204,12 +209,14 @@ const QUALITY_TRANSLATIONS: Record<EmailLang, Record<string, string>> = {
     putred: "rotten", mucegai: "mold", umed: "wet", "usor umed": "slightly damp", "ușor umed": "slightly damp",
     deshidratat: "dehydrated", "tije lungi": "long stems", "cozi lungi": "long tails", seminte: "seeds", semințe: "seeds",
     flori: "flowers", crengi: "branches", neuniform: "uneven", "capete nedezvoltate": "undeveloped heads",
+    "nu a venit": "not delivered",
   },
   ro: {
     impurities: "impurități", "burnt tips": "vârfuri arse", "yellow leaves": "frunze galbene", "burnt leaves": "frunze arse",
     "black leaves": "frunze negre", "rotten leaves": "frunze putrede", rotten: "putred", mold: "mucegai", wet: "umed",
     "slightly damp": "ușor umed", dehydrated: "deshidratat", "long stems": "tije lungi", "long tails": "cozi lungi",
     seeds: "semințe", flowers: "flori", branches: "crengi", uneven: "neuniform", "undeveloped heads": "capete nedezvoltate",
+    "not delivered": "nu a venit",
   },
   it: {
     impurities: "impurità", impuritati: "impurità", "impurități": "impurità", "burnt tips": "punte bruciate", "vârfuri arse": "punte bruciate",
@@ -219,6 +226,7 @@ const QUALITY_TRANSLATIONS: Record<EmailLang, Record<string, string>> = {
     dehydrated: "disidratato", deshidratat: "disidratato", "long stems": "gambi lunghi", "tije lungi": "gambi lunghi",
     "long tails": "code lunghe", "cozi lungi": "code lunghe", seeds: "semi", seminte: "semi", semințe: "semi", flowers: "fiori", flori: "fiori",
     branches: "rami", crengi: "rami", uneven: "non uniforme", neuniform: "non uniforme", "undeveloped heads": "cespi non sviluppati",
+    "not delivered": "non consegnato", "nu a venit": "non consegnato",
   },
 };
 
@@ -562,6 +570,40 @@ const ReceptionReport: React.FC = () => {
         });
       });
 
+      // Marfa din prerecepție marcată „Lipsă marfă" — rând pe documentul ei
+      try {
+        const preMissing = await fetchMissingGoods(inventoryType, isoDate, isoDate);
+        preMissing.forEach((m) => {
+          const grp = matchMissingGroup(Array.from(grouped.values()), m)
+            ?? ensureGroup(m.supplier_id, m.supplier_name || "Fără furnizor", m.document_number || "");
+          grp.rows.push({
+            inventory_id: `pre-missing-${m.lineId}`,
+            product_id: m.product_id,
+            declared_quantity: "",
+            denumire_produs: m.product_name,
+            producator: m.manufacturer_name || "",
+            cantitate_receptionata: 0,
+            unit: m.unit || "kg",
+            tip_lada_culoare: "",
+            nr_lazi: null,
+            tip_palet: "",
+            nr_paleti_rec: null,
+            paleti_lazi_document: "",
+            cantitate_document: String(m.cantitate_document),
+            pierdere_calitativa_procent: "",
+            transmis_la_furnizor: false,
+            photos: [],
+            defects: [],
+            observations: missingNote(m.missing_reason),
+            is_missing: true,
+            missing_line_id: m.lineId,
+            missing_note: `Nu a venit (prerecepție)${m.missing_by_email ? ` · marcat de ${m.missing_by_email}` : ""}${m.missing_reason ? ` · ${m.missing_reason}` : ""}`,
+          });
+        });
+      } catch (e) {
+        console.warn("Lipsurile din prerecepție nu au putut fi încărcate:", e);
+      }
+
       setGroups(Array.from(grouped.values()));
 
       // Load tolerances for all involved product_ids
@@ -694,6 +736,11 @@ const ReceptionReport: React.FC = () => {
     if (isNaN(doc)) return null;
     if (isUnderTolerance(r)) return 0;
     return effectiveReceived(r) - doc;
+  };
+  // Marfa care nu a venit: diferența este toată cantitatea de pe acte, cu minus.
+  const missingDiff = (r: ReportRow) => {
+    const doc = parseFloat(r.cantitate_document);
+    return isNaN(doc) || doc <= 0 ? null : -doc;
   };
   const calcPierdereKg = (r: ReportRow) => {
     const proc = parseFloat(r.pierdere_calitativa_procent);
@@ -1013,7 +1060,7 @@ const ReceptionReport: React.FC = () => {
     ]);
 
     group.rows.forEach((r, idx) => {
-      const dif = r.is_missing ? null : calcDiferenta(r);
+      const dif = r.is_missing ? missingDiff(r) : calcDiferenta(r);
       const pkg = r.is_missing ? null : calcPierdereKgRotunjit(r);
       const { p: pDoc, l: lDoc, tip: tipDoc } = parsePalDoc(r.paleti_lazi_document || "");
       aoa.push([
@@ -1785,7 +1832,7 @@ const ReceptionReport: React.FC = () => {
             <CardContent className="px-3 md:px-2">
               <div className="space-y-3 md:hidden">
                 {group.rows.map((r, rIdx) => {
-                  const dif = r.is_missing ? null : calcDiferenta(r);
+                  const dif = r.is_missing ? missingDiff(r) : calcDiferenta(r);
                   const pkg = r.is_missing ? null : calcPierdereKgRotunjit(r);
                   const { bd } = parsePalDoc(r.paleti_lazi_document || "");
                   const recC = bd.rec_crates;
@@ -1803,6 +1850,7 @@ const ReceptionReport: React.FC = () => {
                             {r.is_missing && <span className="rounded bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">LIPSĂ</span>}
                           </div>
                           <h3 className="mt-1 text-base font-bold leading-tight">{r.denumire_produs}</h3>
+                          {r.missing_note && <p className="mt-1 text-xs font-medium text-destructive">{r.missing_note}</p>}
                           <p className="mt-1 text-sm text-muted-foreground">Producător: {r.producator || "—"}</p>
                         </div>
                         {r.is_missing && r.missing_id && (
@@ -1925,7 +1973,7 @@ const ReceptionReport: React.FC = () => {
                 </TableHeader>
                 <TableBody>
                   {group.rows.map((r, rIdx) => {
-                    const dif = r.is_missing ? null : calcDiferenta(r);
+                    const dif = r.is_missing ? missingDiff(r) : calcDiferenta(r);
                     const pkg = r.is_missing ? null : calcPierdereKgRotunjit(r);
                     return (
                       <TableRow key={r.inventory_id} className={cn(r.is_missing && "bg-red-50 dark:bg-red-950/20")}>
@@ -1933,6 +1981,7 @@ const ReceptionReport: React.FC = () => {
                         <TableCell className="font-medium">
                           {r.is_missing && <span className="inline-block px-1.5 py-0.5 text-[10px] bg-red-600 text-white rounded mr-1">LIPSĂ</span>}
                           {r.denumire_produs}
+                          {r.missing_note && <span className="block text-[11px] font-normal text-destructive">{r.missing_note}</span>}
                         </TableCell>
                         <TableCell>{r.producator || "—"}</TableCell>
                         <TableCell>
