@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isSupplierQualityLoss, supplierQualityCreditQuantity, supplierQualityLossBase } from "../../src/lib/receptionQuality";
+import { isSupplierQualityLoss, productQuantity, rowQuantity, supplierQualityCreditQuantity, supplierQualityLossBase } from "../../src/lib/receptionQuality";
 
 test("supplier quality loss starts at 5% inclusive", () => {
   expect(isSupplierQualityLoss(4.99)).toBe(false);
@@ -29,4 +29,23 @@ test("unreported shortage inside tolerance retains the document base", () => {
 
 test("reported surplus retains effective declared quantity as its quality base", () => {
   expect(supplierQualityLossBase(200, 363.5, { under: 3, over: 100 }, 270)).toBe(270);
+});
+test("short report sums per-lot tolerance: Baby Spanac 573 + 788 within tolerance + 217 missing = 1361 received, 217 less", () => {
+  const tolerance = { under: 3, over: 100 };
+  const q = productQuantity([
+    { document: 573, weighed: 570, missing: false, tolerance },
+    { document: 788, weighed: 785.5, missing: false, tolerance, qualityLossPercent: 7 },
+    { document: 217, weighed: 0, missing: true, tolerance },
+  ]);
+  expect(q.document).toBe(1578);
+  expect(q.received).toBe(1361);
+  expect(q.shortage).toBe(217);
+  expect(q.surplus).toBe(0);
+  expect(q.credit).toBe(rowQuantity({ document: 788, weighed: 785.5, missing: false, tolerance, qualityLossPercent: 7 }).credit);
+});
+
+test("a shortage beyond tolerance on one lot is reported with its weighed quantity", () => {
+  const q = rowQuantity({ document: 671, weighed: 638, missing: false, tolerance: { under: 3, over: 100 } });
+  expect(q.received).toBe(638);
+  expect(q.shortage).toBe(33);
 });

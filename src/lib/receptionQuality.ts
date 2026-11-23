@@ -1,1 +1,2 @@
 export { SUPPLIER_QUALITY_LOSS_MIN_PERCENT, isSupplierQualityLoss, supplierQualityCreditQuantity, supplierQualityLossBase } from '../../supabase/functions/_shared/quality-email/credit';
+export { productQuantity, rowQuantity, type QuantityRow } from '../../supabase/functions/_shared/quality-email/quantity';

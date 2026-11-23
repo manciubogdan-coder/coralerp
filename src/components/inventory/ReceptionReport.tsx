@@ -44,7 +44,7 @@ import {
   aggregateByType,
 } from "@/lib/receptionBreakdown";
 import { resolveMissingOperators } from "@/lib/receptionOperator";
-import { isSupplierQualityLoss, supplierQualityCreditQuantity, supplierQualityLossBase } from "@/lib/receptionQuality";
+import { isSupplierQualityLoss, productQuantity, rowQuantity, supplierQualityLossBase, type QuantityRow } from "@/lib/receptionQuality";
 import QualityEmailAutomation from "@/components/inventory/QualityEmailAutomation";
 import QualityFinalization from "@/components/inventory/QualityFinalization";
 
@@ -1449,21 +1449,22 @@ const ReceptionReport: React.FC = () => {
   const computeQualityLine = (rows: ReportRow[], group: SupplierGroup, lang: EmailLang): QualityLine => {
     const first = rows[0];
     const unit = first.unit || "kg";
-    const docs = rows.map((r) => parseFloat(r.cantitate_document)).filter((n) => !isNaN(n));
-    const docQty = docs.length ? docs.reduce((a, b) => a + b, 0) : null;
+    const toQty = (r: ReportRow): QuantityRow => ({
+      document: parseFloat(r.cantitate_document),
+      weighed: Number(r.cantitate_receptionata) || 0,
+      missing: !!r.is_missing,
+      tolerance: getTol(r.product_id),
+      qualityLossPercent: parseFloat(r.pierdere_calitativa_procent) || 0,
+    });
+    // Toleranța se aplică pe fiecare rând (lot/palet), apoi se adună — V2 = suma rândurilor din V1.
+    const qty = productQuantity(rows.map(toQty));
+    const docQty = qty.document;
     const missing = rows.every((r) => r.is_missing);
-    const weighed = missing ? 0 : rows.reduce((a, r) => a + (r.is_missing ? 0 : Number(r.cantitate_receptionata) || 0), 0);
-    const tol = getTol(first.product_id);
-    let recvQty = weighed;
-    let diffText = "-";
-    let shortageKg = 0;
-    if (docQty != null && docQty > 0) {
-      const diff = weighed - docQty;
-      const under = docQty * (tol.under / 100);
-      if (diff > 0 && diff > tol.over) { recvQty = weighed; diffText = moreLess(diff, unit, true, lang); }
-      else if (diff < 0 && Math.abs(diff) > under + 1e-9) { recvQty = weighed; diffText = moreLess(-diff, unit, false, lang); shortageKg = -diff; }
-      else recvQty = docQty;
-    }
+    const weighed = rows.reduce((a, r) => a + (r.is_missing ? 0 : Number(r.cantitate_receptionata) || 0), 0);
+    const recvQty = qty.received;
+    const net = qty.surplus - qty.shortage;
+    const diffText = net > 1e-9 ? moreLess(net, unit, true, lang) : net < -1e-9 ? moreLess(-net, unit, false, lang) : "-";
+    const shortageKg = qty.shortage;
 
     // Pierdere calitativă
     const lots = rows.filter((r) => !r.is_missing).map((r) => ({ r, p: parseFloat(r.pierdere_calitativa_procent) || 0 }));
@@ -1473,19 +1474,13 @@ const ReceptionReport: React.FC = () => {
     let creditKg = 0;
     if (affected.length > 0) {
       if (wholeProduct) {
-        const p = affected[0].p;
-        const base = supplierQualityLossBase(docQty, weighed, tol);
-        if (isSupplierQualityLoss(p)) { creditKg = supplierQualityCreditQuantity(base, p); creditText = kgTxt(creditKg, unit); }
+        if (isSupplierQualityLoss(affected[0].p)) { creditKg = qty.credit; creditText = kgTxt(creditKg, unit); }
         else creditText = "Warning!";
       } else {
         const lines: string[] = [];
         affected.forEach(({ r, p }) => {
           if (isSupplierQualityLoss(p)) {
-            const docR = parseFloat(r.cantitate_document);
-            const tolR = getTol(r.product_id);
-            const recvR = Number(r.cantitate_receptionata) || 0;
-            const baseR = supplierQualityLossBase(docR, recvR, tolR);
-            const kg = supplierQualityCreditQuantity(baseR, p);
+            const kg = rowQuantity(toQty(r)).credit;
             creditKg += kg;
             lines.push(`${lotLabel(r)} - ${kgTxt(kg, unit)}`);
           }
@@ -1506,9 +1501,9 @@ const ReceptionReport: React.FC = () => {
       product: first.denumire_produs,
       producer: first.producator || group.supplierName || "-",
       unit, docQty, weighed, recvQty: missing ? 0 : recvQty,
-      diffText: missing && docQty ? moreLess(docQty, unit, false, lang) : diffText,
+      diffText,
       defectsText, creditText, creditKg,
-      shortageKg: missing ? (docQty || 0) : shortageKg,
+      shortageKg,
     };
   };
 
