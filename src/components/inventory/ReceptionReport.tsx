@@ -29,6 +29,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useInventoryType } from "@/context/inventory-type";
+import { MissingGoodsPanel } from "./MissingGoodsPanel";
 import { emitNotification } from "@/lib/notifications";
 import { dateFromKey, keyFromDate, persistDateKey, readStoredDateKey, todayKey } from "@/lib/persistentDate";
 import {
@@ -1731,6 +1732,10 @@ const ReceptionReport: React.FC = () => {
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Reîncarcă"}
             </Button>
             <QualityEmailAutomation inventoryType={inventoryType} day={format(date, 'yyyy-MM-dd')} />
+          </div>
+
+          <div className="mt-4">
+            <MissingGoodsPanel inventoryType={inventoryType} dateFrom={format(date, 'yyyy-MM-dd')} dateTo={format(date, 'yyyy-MM-dd')} productFilter="" refreshKey={loading} />
           </div>
 
           {!loading && groups.length === 0 && (

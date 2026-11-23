@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { PackageX } from "lucide-react";
 import { fetchMissingGoods, type MissingGoodsRow } from "@/lib/prereceptie";
 
-interface Props { inventoryType: string; dateFrom: string; dateTo: string; productFilter: string }
+interface Props { inventoryType: string; dateFrom: string; dateTo: string; productFilter: string; refreshKey?: unknown }
 
 const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toLocaleDateString("sv-SE", { timeZone: "Europe/Bucharest" }); };
 
 /** Goods that were on the supplier documents (pre-reception) but were marked as never arrived. */
-export const MissingGoodsPanel: React.FC<Props> = ({ inventoryType, dateFrom, dateTo, productFilter }) => {
+export const MissingGoodsPanel: React.FC<Props> = ({ inventoryType, dateFrom, dateTo, productFilter, refreshKey }) => {
   const [rows, setRows] = useState<MissingGoodsRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,7 +18,7 @@ export const MissingGoodsPanel: React.FC<Props> = ({ inventoryType, dateFrom, da
       .then((r) => { if (active) { setRows(r); setError(null); } })
       .catch((e) => { if (active) setError(e?.message || String(e)); });
     return () => { active = false; };
-  }, [inventoryType, dateFrom, dateTo]);
+  }, [inventoryType, dateFrom, dateTo, refreshKey]);
 
   const shown = useMemo(() => {
     const f = productFilter.trim().toLowerCase();
