@@ -49,3 +49,15 @@ test("a shortage beyond tolerance on one lot is reported with its weighed quanti
   expect(q.received).toBe(638);
   expect(q.shortage).toBe(33);
 });
+
+test("supplier email shows the declared surplus: 837.5 weighed on 637.5 document, 70 declared = 707.5 received, 70 more", () => {
+  const q = rowQuantity({ document: 637.5, weighed: 837.5, missing: false, tolerance: { under: 3, over: 100 }, declared: 70 });
+  expect(q.received).toBe(707.5);
+  expect(q.surplus).toBe(70);
+});
+
+test("without a declared quantity the weighed surplus over tolerance is reported", () => {
+  const q = rowQuantity({ document: 637.5, weighed: 837.5, missing: false, tolerance: { under: 3, over: 100 } });
+  expect(q.received).toBe(837.5);
+  expect(q.surplus).toBe(200);
+});

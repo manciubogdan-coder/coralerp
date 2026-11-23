@@ -1455,6 +1455,7 @@ const ReceptionReport: React.FC = () => {
       missing: !!r.is_missing,
       tolerance: getTol(r.product_id),
       qualityLossPercent: parseFloat(r.pierdere_calitativa_procent) || 0,
+      declared: r.declared_quantity != null && r.declared_quantity !== "" ? parseFloat(r.declared_quantity) : null,
     });
     // Toleranța se aplică pe fiecare rând (lot/palet), apoi se adună — V2 = suma rândurilor din V1.
     const qty = productQuantity(rows.map(toQty));

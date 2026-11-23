@@ -66,7 +66,7 @@ async function reportFor(cloud:any,legacy:any,route:any,day:string) {
   for(const r of rows) {
     const group=grouped.get(r.document_number??'') ?? {supplierName:r.supplier_name||route.supplier_name,supplierId:r.supplier_id,documentNumber:r.document_number??'',rows:[]};
     const d:any=rep.get(r.id);
-    group.rows.push({ inventory_id:r.id,product_id:r.product_id,denumire_produs:r.name,producator:man.get(r.manufacturer_id)||'',cantitate_receptionata:Number(r.original_quantity??r.net_quantity??0),unit:r.unit||'kg',cantitate_document:d?.cantitate_document==null?'':String(d.cantitate_document),pierdere_calitativa_procent:d?.pierdere_calitativa_procent==null?'':String(d.pierdere_calitativa_procent),nr_paleti_rec:r.pallet_count,lot_number:r.lot_number,defects:d?.defects??[],observations:d?.observations??'',photos:d?.photos??[] });
+    group.rows.push({ inventory_id:r.id,product_id:r.product_id,denumire_produs:r.name,producator:man.get(r.manufacturer_id)||'',cantitate_receptionata:Number(r.original_quantity??r.net_quantity??0),unit:r.unit||'kg',cantitate_document:d?.cantitate_document==null?'':String(d.cantitate_document),pierdere_calitativa_procent:d?.pierdere_calitativa_procent==null?'':String(d.pierdere_calitativa_procent),declared_quantity:d?.declared_quantity==null?'':String(d.declared_quantity),nr_paleti_rec:r.pallet_count,lot_number:r.lot_number,defects:d?.defects??[],observations:d?.observations??'',photos:d?.photos??[] });
     grouped.set(r.document_number??'',group);
   }
   const missingRows=missing.filter(m=>(m.supplier_id||m.supplier_name||'unknown')===route.supplier_id);

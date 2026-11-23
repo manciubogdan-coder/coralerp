@@ -7,6 +7,8 @@ export type QuantityRow = {
   missing: boolean;
   tolerance: Tolerance;
   qualityLossPercent?: number;
+  // Surplus (kg/pcs) we declare to the supplier when more arrived than the document says.
+  declared?: number | null;
 };
 export type QuantityResult = {
   document: number | null;
@@ -22,14 +24,17 @@ export const rowQuantity = (row: QuantityRow): QuantityResult => {
   if (row.missing) return { document: doc, received: 0, shortage: doc && doc > 0 ? doc : 0, surplus: 0, credit: 0 };
   const weighed = Number(row.weighed) || 0;
   let received = weighed, shortage = 0, surplus = 0;
+  const declared = row.declared != null && Number.isFinite(row.declared) && row.declared >= 0 ? row.declared : null;
+  let effective = weighed;
   if (doc != null && doc > 0) {
     const diff = weighed - doc;
-    if (diff > 0 && diff > row.tolerance.over) surplus = diff;
+    if (diff > 0 && declared != null) { effective = doc + declared; received = effective; surplus = declared; }
+    else if (diff > 0 && diff > row.tolerance.over) surplus = diff;
     else if (diff < 0 && -diff > doc * row.tolerance.under / 100 + 1e-9) shortage = -diff;
     else received = doc;
   }
   const p = row.qualityLossPercent || 0;
-  const credit = isSupplierQualityLoss(p) ? supplierQualityCreditQuantity(supplierQualityLossBase(doc, weighed, row.tolerance), p) : 0;
+  const credit = isSupplierQualityLoss(p) ? supplierQualityCreditQuantity(supplierQualityLossBase(doc, weighed, row.tolerance, effective), p) : 0;
   return { document: doc, received, shortage, surplus, credit };
 };
 
