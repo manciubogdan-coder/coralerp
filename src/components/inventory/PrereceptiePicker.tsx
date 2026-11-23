@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw } from "lucide-react";
-import { type Prereceptie, type PrereceptieLinie, STATUS_LABEL, breakdownText, fetchPrereceptii } from "@/lib/prereceptie";
+import { Loader2, PackageX, RefreshCw } from "lucide-react";
+import { type Prereceptie, type PrereceptieLinie, STATUS_LABEL, breakdownText, fetchPrereceptii, isLineMissing } from "@/lib/prereceptie";
+import { MissingGoodsDialog, type MissingTarget } from "./MissingGoodsDialog";
 
 interface Props {
   open: boolean;
@@ -18,6 +19,7 @@ export const PrereceptiePicker: React.FC<Props> = ({ open, onOpenChange, invento
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [missingTarget, setMissingTarget] = useState<MissingTarget | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -79,10 +81,20 @@ export const PrereceptiePicker: React.FC<Props> = ({ open, onOpenChange, invento
                         </div>
                         {l.received_at ? (
                           <Badge>Recepționat {Number(l.received_quantity).toLocaleString("ro-RO")}</Badge>
+                        ) : isLineMissing(l) ? (
+                          <Badge variant="destructive">Lipsă — nu a venit</Badge>
                         ) : (
-                          <Button size="sm" onClick={() => onPick(l, { document_number: p.document_number, supplier_id: p.supplier_id })}>
-                            Recepționează
-                          </Button>
+                          <div className="flex flex-wrap justify-end gap-1">
+                            <Button size="sm" variant="outline" className="text-destructive" onClick={() => setMissingTarget({
+                              prereceptieId: p.id, documentNumber: p.document_number, supplierName: p.supplier_name,
+                              lines: [{ id: l.id, product_name: l.product_name, cantitate_document: Number(l.cantitate_document) || 0, unit: l.unit }],
+                            })}>
+                              <PackageX className="h-4 w-4 mr-1" />Lipsă marfă
+                            </Button>
+                            <Button size="sm" onClick={() => onPick(l, { document_number: p.document_number, supplier_id: p.supplier_id })}>
+                              Recepționează
+                            </Button>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -93,6 +105,7 @@ export const PrereceptiePicker: React.FC<Props> = ({ open, onOpenChange, invento
           </div>
         )}
       </DialogContent>
+      <MissingGoodsDialog target={missingTarget} onClose={() => setMissingTarget(null)} onDone={() => setAttempt((v) => v + 1)} />
     </Dialog>
   );
 };

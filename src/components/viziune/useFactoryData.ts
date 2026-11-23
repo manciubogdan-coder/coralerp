@@ -78,8 +78,8 @@ export function useFactoryData() {
     refetchInterval: REFRESH * 2,
     queryFn: async () => {
       const { data, error } = await supabaseCloud.from("prereceptii")
-        .select("id, document_number, supplier_name, expected_date, status, linii:prereceptie_linii(product_name, cantitate_document, unit, received_at)")
-        .eq("inventory_type", "materii-prime").neq("status", "receptionata").lte("expected_date", today).gte("expected_date", shiftDays(today, -7)).limit(200);
+        .select("id, document_number, supplier_name, expected_date, status, linii:prereceptie_linii(product_name, cantitate_document, unit, received_at, missing_at)")
+        .eq("inventory_type", "materii-prime").not("status", "in", "(receptionata,lipsa)").lte("expected_date", today).gte("expected_date", shiftDays(today, -7)).limit(200);
       if (error) throw error;
       return (data || []) as any[];
     },

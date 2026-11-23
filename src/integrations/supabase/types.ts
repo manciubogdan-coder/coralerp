@@ -1630,6 +1630,9 @@ export type Database = {
           id: string
           manufacturer_id: string | null
           manufacturer_name: string | null
+          missing_at: string | null
+          missing_by_email: string | null
+          missing_reason: string | null
           pallets: Json
           position: number
           prereceptie_id: string
@@ -1649,6 +1652,9 @@ export type Database = {
           id?: string
           manufacturer_id?: string | null
           manufacturer_name?: string | null
+          missing_at?: string | null
+          missing_by_email?: string | null
+          missing_reason?: string | null
           pallets?: Json
           position?: number
           prereceptie_id: string
@@ -1668,6 +1674,9 @@ export type Database = {
           id?: string
           manufacturer_id?: string | null
           manufacturer_name?: string | null
+          missing_at?: string | null
+          missing_by_email?: string | null
+          missing_reason?: string | null
           pallets?: Json
           position?: number
           prereceptie_id?: string

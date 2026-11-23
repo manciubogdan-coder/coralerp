@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-custom-toast";
-import { ClipboardList, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { ClipboardList, Loader2, PackageX, Pencil, Plus, Search, Trash2, Undo2, X } from "lucide-react";
+import { MissingGoodsDialog, type MissingTarget } from "./MissingGoodsDialog";
 import type { BreakdownEntry } from "@/lib/receptionBreakdown";
 import {
   type Prereceptie,
@@ -19,6 +20,10 @@ import {
   computeStatus,
   currentEmail,
   fetchPrereceptii,
+  isClosedStatus,
+  isLineClosed,
+  isLineMissing,
+  undoLineMissing,
 } from "@/lib/prereceptie";
 
 type Ref = { id: string; name: string; default_unit?: string | null };
@@ -110,7 +115,8 @@ const PrereceptieView: React.FC = () => {
   const isMP = inventoryType === "materii-prime";
   const [list, setList] = useState<Prereceptie[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"deschise" | "toate" | "receptionata">("deschise");
+  const [filter, setFilter] = useState<"deschise" | "toate" | "receptionata" | "lipsa">("deschise");
+  const [missingTarget, setMissingTarget] = useState<MissingTarget | null>(null);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -132,8 +138,9 @@ const PrereceptieView: React.FC = () => {
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
     return list.filter((p) => {
-      if (filter === "deschise" && p.status === "receptionata") return false;
+      if (filter === "deschise" && isClosedStatus(p.status)) return false;
       if (filter === "receptionata" && p.status !== "receptionata") return false;
+      if (filter === "lipsa" && !p.linii.some(isLineMissing)) return false;
       if (!s) return true;
       return [p.document_number, p.supplier_name, ...p.linii.map((l) => l.product_name)]
         .some((x) => (x || "").toLowerCase().includes(s));
@@ -222,6 +229,21 @@ const PrereceptieView: React.FC = () => {
     else load();
   };
 
+  const askMissing = (p: Prereceptie, lineIds?: string[]) => {
+    const lines = p.linii.filter((l) => !isLineClosed(l) && (!lineIds || lineIds.includes(l.id)));
+    if (!lines.length) return;
+    setMissingTarget({
+      prereceptieId: p.id, documentNumber: p.document_number, supplierName: p.supplier_name,
+      lines: lines.map((l) => ({ id: l.id, product_name: l.product_name, cantitate_document: Number(l.cantitate_document) || 0, unit: l.unit })),
+    });
+  };
+
+  const undoMissing = async (lineId: string, prereceptieId: string) => {
+    if (!window.confirm("Anulezi lipsa? Produsul revine la „în așteptare”.")) return;
+    try { await undoLineMissing(lineId, prereceptieId); load(); }
+    catch (e: any) { toast({ variant: "destructive", title: "Eroare", description: e.message }); }
+  };
+
   const fmt = (n: number | null | undefined) => (n == null ? "—" : Number(n).toLocaleString("ro-RO", { maximumFractionDigits: 2 }));
 
   return (
@@ -244,6 +266,7 @@ const PrereceptieView: React.FC = () => {
           <SelectContent>
             <SelectItem value="deschise">De recepționat</SelectItem>
             <SelectItem value="receptionata">Recepționate</SelectItem>
+            <SelectItem value="lipsa">Cu lipsă marfă</SelectItem>
             <SelectItem value="toate">Toate</SelectItem>
           </SelectContent>
         </Select>
@@ -263,11 +286,16 @@ const PrereceptieView: React.FC = () => {
                     <span className="font-semibold">{p.supplier_name}</span>
                     <span className="text-sm text-muted-foreground">Doc. {p.document_number}</span>
                     {p.expected_date && <span className="text-sm text-muted-foreground">· sosire {new Date(p.expected_date).toLocaleDateString("ro-RO")}</span>}
-                    <Badge variant={p.status === "receptionata" ? "default" : p.status === "partial" ? "secondary" : "outline"}>
+                    <Badge variant={p.status === "lipsa" ? "destructive" : p.status === "receptionata" ? "default" : p.status === "partial" ? "secondary" : "outline"}>
                       {STATUS_LABEL[p.status] || p.status}
                     </Badge>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-1">
+                    {p.linii.filter((l) => !isLineClosed(l)).length > 1 && (
+                      <Button variant="outline" size="sm" className="h-8 text-destructive" onClick={() => askMissing(p)}>
+                        <PackageX className="h-4 w-4 mr-1" />Restul nu a venit
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" onClick={() => startEdit(p)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => remove(p)}><Trash2 className="h-4 w-4" /></Button>
                   </div>
@@ -287,7 +315,8 @@ const PrereceptieView: React.FC = () => {
                     </thead>
                     <tbody>
                       {p.linii.map((l) => {
-                        const diff = l.received_quantity != null ? Number(l.received_quantity) - Number(l.cantitate_document) : null;
+                        const missing = isLineMissing(l);
+                        const diff = missing ? -Number(l.cantitate_document) : l.received_quantity != null ? Number(l.received_quantity) - Number(l.cantitate_document) : null;
                         return (
                           <tr key={l.id} className="border-b last:border-0">
                             <td className="py-1 pr-2 font-medium">{l.product_name}</td>
@@ -296,7 +325,27 @@ const PrereceptieView: React.FC = () => {
                               {[breakdownText(l.pallets) && `${breakdownText(l.pallets)} paleți`, breakdownText(l.crates) && `${breakdownText(l.crates)} lăzi`].filter(Boolean).join(" / ") || "—"}
                             </td>
                             <td className="py-1 pr-2 text-right">{fmt(l.cantitate_document)} {l.unit}</td>
-                            <td className="py-1 pr-2 text-right">{l.received_at ? `${fmt(l.received_quantity)} ${l.unit || ""}` : <span className="text-muted-foreground">în așteptare</span>}</td>
+                            <td className="py-1 pr-2 text-right">
+                              {l.received_at ? `${fmt(l.received_quantity)} ${l.unit || ""}` : missing ? (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <Badge variant="destructive" className="whitespace-nowrap">Lipsă — nu a venit</Badge>
+                                  <span className="text-[11px] text-muted-foreground">
+                                    {l.missing_at && new Date(l.missing_at).toLocaleDateString("ro-RO")}{l.missing_by_email ? ` · ${l.missing_by_email}` : ""}
+                                  </span>
+                                  {l.missing_reason && <span className="text-[11px] text-muted-foreground italic">{l.missing_reason}</span>}
+                                  <Button variant="link" size="sm" className="h-5 px-0 text-[11px]" onClick={() => undoMissing(l.id, p.id)}>
+                                    <Undo2 className="h-3 w-3 mr-1" />Anulează lipsa
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className="text-muted-foreground">în așteptare</span>
+                                  <Button variant="outline" size="sm" className="h-7 text-xs text-destructive whitespace-nowrap" onClick={() => askMissing(p, [l.id])}>
+                                    <PackageX className="h-3.5 w-3.5 mr-1" />Lipsă marfă
+                                  </Button>
+                                </div>
+                              )}
+                            </td>
                             <td className={`py-1 text-right font-medium ${diff != null && diff < 0 ? "text-destructive" : ""}`}>
                               {diff == null ? "—" : `${diff > 0 ? "+" : ""}${fmt(diff)}`}
                             </td>
@@ -311,6 +360,8 @@ const PrereceptieView: React.FC = () => {
           ))}
         </div>
       )}
+
+      <MissingGoodsDialog target={missingTarget} onClose={() => setMissingTarget(null)} onDone={load} />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0">

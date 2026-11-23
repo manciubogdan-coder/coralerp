@@ -15,6 +15,7 @@ import { useGroupedReceptions } from "@/hooks/use-grouped-receptions";
 import { useInventoryType } from "@/context/inventory-type";
 import { resolveMissingOperators } from "@/lib/receptionOperator";
 import { LotQRDialog } from "./LotQRDialog";
+import { MissingGoodsPanel } from "./MissingGoodsPanel";
 
 interface ReceptionItem {
   id: string;
@@ -648,6 +649,8 @@ export const ReceptionHistory = () => {
           </Button>
         </div>
       </div>
+
+      <MissingGoodsPanel inventoryType={inventoryType} dateFrom={dateFrom} dateTo={dateTo} productFilter={productFilter} />
 
       <div className="mb-4 flex gap-2 flex-wrap">
         <Button

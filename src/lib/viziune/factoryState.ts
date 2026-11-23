@@ -217,17 +217,17 @@ export function stockByProduct(rows: { name?: string | null; quantity?: number |
 
 export const bucharestToday = (d = new Date()) => d.toLocaleDateString("sv-SE", { timeZone: "Europe/Bucharest" });
 
-export interface PreLine { product_name: string; cantitate_document: number | null; unit?: string | null; received_at?: string | null }
+export interface PreLine { product_name: string; cantitate_document: number | null; unit?: string | null; received_at?: string | null; missing_at?: string | null }
 export interface PreDoc { id: string; document_number?: string | null; supplier_name?: string | null; expected_date?: string | null; status: string; linii?: PreLine[] }
 export interface PreView { id: string; supplier: string; doc: string; expected: string | null; late: boolean; kgExpected: number; kgLeft: number; linesLeft: number; linesTotal: number; products: string[] }
 
 /** Announced deliveries still to unload today: expected today or earlier and not fully received. */
 export function pendingPrereceptions(docs: PreDoc[], today: string): PreView[] {
   return docs
-    .filter((d) => d.status !== "receptionata" && (!d.expected_date || d.expected_date <= today))
+    .filter((d) => d.status !== "receptionata" && d.status !== "lipsa" && (!d.expected_date || d.expected_date <= today))
     .map((d) => {
       const lines = d.linii || [];
-      const left = lines.filter((l) => !l.received_at);
+      const left = lines.filter((l) => !l.received_at && !l.missing_at);
       const kg = (ls: PreLine[]) => ls.reduce((a, l) => a + (Number(l.cantitate_document) || 0), 0);
       return {
         id: d.id, supplier: d.supplier_name || "Furnizor necunoscut", doc: d.document_number || "", expected: d.expected_date ?? null,

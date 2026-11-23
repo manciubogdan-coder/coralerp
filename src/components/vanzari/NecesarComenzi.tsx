@@ -150,10 +150,10 @@ export default function NecesarComenzi() {
       const s = new Map<string, number>();
       snap.forEach((r: any) => { const k = norm(r.name); s.set(k, (s.get(k) || 0) + toKg(Number(r.quantity) || 0, r.unit)); });
       setStock(s);
-      const { data } = await supabaseCloud.from("prereceptii").select("linii:prereceptie_linii(product_name, cantitate_document, unit, received_at)").eq("inventory_type", "materii-prime").eq("expected_date", ziProd);
+      const { data } = await supabaseCloud.from("prereceptii").select("linii:prereceptie_linii(product_name, cantitate_document, unit, received_at, missing_at)").eq("inventory_type", "materii-prime").eq("expected_date", ziProd);
       const m = new Map<string, number>();
       (data || []).forEach((p: any) => (p.linii || []).forEach((l: any) => {
-        if (l.received_at) return;
+        if (l.received_at || l.missing_at) return;
         const k = norm(l.product_name); m.set(k, (m.get(k) || 0) + toKg(Number(l.cantitate_document) || 0, l.unit || "kg"));
       }));
       setInbound(m);
