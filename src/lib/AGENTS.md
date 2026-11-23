@@ -1,0 +1,1 @@
+- Prereception lines close by receipt or by `missing_at` (goods on documents that never arrived); all-closed with any missing → status `lipsa`, treated as closed everywhere via `CLOSED_STATUSES` in `src/lib/prereceptie.ts`, and missing lines never count as expected stock. Why: documents must close without faking a receipt, and absent goods must stay visible.
