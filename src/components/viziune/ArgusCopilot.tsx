@@ -227,7 +227,7 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
         <div className="min-w-0 flex-1">
           <div className="text-sm font-black leading-tight">Argus</div>
           <div className="truncate text-[10px] text-muted-foreground">
-            {busy === "asculta" ? "Te ascult… apasă din nou când ai terminat" : busy === "gandeste" ? "Se uită prin fabrică…" : busy === "vorbeste" ? "Vorbește…" : "Întreabă orice despre fabrica de azi"}
+            {busy === "asculta" ? "Te ascult… apasă din nou când ai terminat" : busy === "gandeste" ? "Verifică datele…" : busy === "vorbeste" ? "Vorbește…" : "Producție · consumuri · Senior"}
           </div>
         </div>
         <Button size="icon-xs" variant="ghost" onClick={() => setVoice(!voice)} aria-label={voice ? "Oprește vocea" : "Pornește vocea"} title={voice ? "Argus răspunde cu voce" : "Argus răspunde doar în scris"}>
@@ -237,13 +237,12 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
       </div>
 
       <div ref={list} className="flex-1 space-y-1.5 overflow-y-auto p-2 text-xs">
-        {turns.length === 0 && <p className="text-[10px] text-muted-foreground">Apasă pe microfon (sau tasta <b>M</b>) și vorbește, ori alege o întrebare. Argus răspunde din cifrele live de pe ecran și duce camera acolo unde e răspunsul.</p>}
         {turns.map((t, i) => (
           <div key={i} className={t.role === "user" ? "ml-6 rounded-xl rounded-br-sm bg-primary px-2 py-1.5 text-primary-foreground" : `mr-4 rounded-xl rounded-bl-sm border px-2 py-1.5 ${t.error ? "border-destructive text-destructive" : "bg-muted/50"}`}>
             {t.text}
           </div>
         ))}
-        {busy === "gandeste" && <div className="mr-4 flex items-center gap-2 rounded-xl border bg-muted/50 px-2 py-1.5 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Argus se uită prin fabrică…</div>}
+        {busy === "gandeste" && <div className="mr-4 flex items-center gap-2 rounded-xl border bg-muted/50 px-2 py-1.5 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Argus verifică datele…</div>}
         {busy === "vorbeste" && (
           <div className="flex items-end gap-0.5 px-1" aria-hidden>
             {[0, 1, 2, 3, 4, 5, 6].map((i) => <span key={i} className="w-1 animate-pulse rounded-full bg-primary" style={{ height: `${8 + ((i * 7) % 14)}px`, animationDelay: `${i * 120}ms` }} />)}

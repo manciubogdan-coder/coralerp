@@ -44,7 +44,7 @@ export async function searchConversations(c: { cloud: any }, cuvinte: string, ut
     if (matchesAll(t.title, cuvinte)) { results.push({ ...head, potrivire: "titlu" }); continue; }
     const { data, error } = await c.cloud.from("argus_messages").select("message").eq("thread_id", t.id).order("created_at").order("id").limit(400);
     if (error) throw new Error(`Mesajele nu au putut fi citite: ${error.message}`);
-    const msgs = (data ?? []).map((r: any, i: number) => ({ i: i + 1, text: messageText(r.message) }));
+    const msgs: { i: number; text: string }[] = (data ?? []).map((r: any, i: number) => ({ i: i + 1, text: messageText(r.message) }));
     const all = msgs.map(m => m.text).join("\n");
     if (!matchesAll(all, cuvinte)) continue;
     const words = normalize(cuvinte).split(/\s+/).filter(w => w.length > 1);
