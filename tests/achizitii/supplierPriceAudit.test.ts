@@ -101,3 +101,11 @@ _t('flags whether the chosen supplier was the cheapest that day', () => {
   _e(a.isCheapest).toBe(false); _e(a.priceDiff).toBeCloseTo(300); _e(a.choiceDiff).toBeCloseTo(300); _e(a.totalDiff).toBeCloseTo(600);
   _e(_al({ ...base, sup: 'B', peur: 1.7 }, list).isCheapest).toBe(true);
 });
+
+_t('billed at the cheapest price counts as cheapest with no choice loss', () => {
+  const list = { currency: 'EUR', items: [], suppliers: [{ name: 'A', aliases: [] }, { name: 'B', aliases: [] }], periods: [
+    { id: '1', supplier: 'A', validFrom: '2026-10-01', validTo: '2026-11-30', items: [{ product: 'PDZ', category: '', price: 0.9 }] },
+    { id: '2', supplier: 'B', validFrom: '2026-10-01', validTo: '2026-11-30', items: [{ product: 'PDZ', category: '', price: 0.75 }] }] };
+  const l = _al({ id: 1, day: '2026-10-05', tip: 'FF', doc: '1', art: 'PDZ', um: 'KG', q: 901, pron: 0, vron: 0, pref: null, cur: 'EUR', rate: null, sup: 'A', peur: 0.75 }, list);
+  _e(l.isCheapest).toBe(true); _e(l.choiceDiff).toBe(0); _e(l.totalDiff).toBeCloseTo(0);
+});
