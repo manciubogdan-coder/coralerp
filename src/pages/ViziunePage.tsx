@@ -15,7 +15,7 @@ import { defaultLayout, toWorld, type HallStation } from "@/lib/viziune/hallLayo
 import { HallEditor } from "@/components/viziune/HallEditor";
 import { toast } from "sonner";
 import { clockTime, minutesLabel, PaceBadge } from "@/components/viziune/pace";
-import { AlertTriangle, ArrowLeft, Footprints, Gamepad2, Home, LayoutGrid, LogOut, MoreVertical, RefreshCw, Sparkles, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Footprints, Gamepad2, Home, LayoutGrid, LogOut, MoreVertical, RefreshCw, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -107,8 +107,9 @@ const MAX_DPR = SMALL_SCREEN ? 1.25 : 1.5;
 type Quality = "inalta" | "rapida";
 const QUALITY_KEY = "viziune-grafica";
 const readQuality = (): Quality => {
-  const fallback: Quality = SMALL_SCREEN ? "rapida" : "inalta";
-  try { const v = localStorage.getItem(QUALITY_KEY); return v === "rapida" || v === "inalta" ? v : fallback; } catch { return fallback; }
+  // Grafica frumoasă e permanentă; modul rapid rămâne doar ca plasă de siguranță
+  // automată (PerformanceMonitor/EffectsGuard) pe calculatoare foarte slabe.
+  return "inalta";
 };
 
 /** Tall phone screens get a wider lens so the factory is not cropped to a thin slice. */
@@ -344,7 +345,6 @@ export default function ViziunePage() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem disabled={editing} onSelect={() => startTour()}><Clapperboard className="mr-2 h-4 w-4" />Tur de prezentare</DropdownMenuItem>
               <DropdownMenuItem disabled={editing || data.layoutLoading} onSelect={() => startEdit()}><LayoutGrid className="mr-2 h-4 w-4" />Aranjează hala</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setQuality(quality === "inalta" ? "rapida" : "inalta")}><Sparkles className="mr-2 h-4 w-4" />{quality === "inalta" ? "Treci pe grafică rapidă" : "Treci pe grafică frumoasă"}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => navigate("/")}><Home className="mr-2 h-4 w-4" />Hub Departamente</DropdownMenuItem>
             </DropdownMenuContent>
@@ -372,11 +372,11 @@ export default function ViziunePage() {
       </div>
       ) : (
       <div ref={hudRef} className="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-wrap items-start gap-1.5">
-        <div className="pointer-events-auto flex items-center gap-1.5 rounded-lg border bg-card/95 px-2 py-1 shadow">
+        <div className="pointer-events-auto flex items-center gap-1 rounded-lg border bg-card/95 px-1.5 py-0.5 shadow">
           <BackToHubButton size="xs" />
           <div>
-            <h1 className="text-sm font-black leading-tight">Viziune · Fabrica Coral live</h1>
-            <p className="text-[10px] leading-tight text-muted-foreground">{data.today} · actualizat {data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) : "…"} · se reîmprospătează la 30 s</p>
+            <h1 className="text-xs font-black leading-tight">Viziune · Fabrica Coral live</h1>
+            <p className="text-[9px] leading-tight text-muted-foreground">{data.today} · actualizat {data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) : "…"} · reîmprospătare la 30 s</p>
           </div>
           <Button size="icon-xs" variant="ghost" onClick={() => { data.refetch(); offices.refetch(); }} title="Reîmprospătează"><RefreshCw className="h-3.5 w-3.5" /></Button>
           <Button size="xs" disabled={editing} onClick={startTour} title="Zbor cinematic automat prin fabrică, cu cifrele de azi (tasta P). Orice clic în scenă îl oprește.">
@@ -388,10 +388,6 @@ export default function ViziunePage() {
           {walking
             ? <Button size="xs" onClick={exitWalk} title="Înapoi la vederea de sus (Esc)"><LogOut className="h-3.5 w-3.5" />Ieși din plimbare</Button>
             : <Button size="xs" variant="outline" disabled={editing} onClick={startWalk} title="Mergi prin fabrică la înălțimea ochilor, ca într-un joc"><Footprints className="h-3.5 w-3.5" />Plimbă-te prin hală</Button>}
-          <Button size="xs" variant={quality === "inalta" ? "secondary" : "ghost"} onClick={() => setQuality(quality === "inalta" ? "rapida" : "inalta")}
-            title={quality === "inalta" ? "Grafică frumoasă (umbre fine, lumini care strălucesc). Apasă pentru modul rapid, pe calculatoare mai slabe." : "Grafică rapidă. Apasă pentru grafica frumoasă."}>
-            <Sparkles className="h-3.5 w-3.5" />{quality === "inalta" ? "Grafică frumoasă" : "Grafică rapidă"}
-          </Button>
         </div>
         {!walking && <>
         <Kpi label="Producție azi" value={pieces ? `${Math.round((produced / pieces) * 100)}%` : "—"} sub={`${fmt(produced)} / ${fmt(pieces)} buc`} />

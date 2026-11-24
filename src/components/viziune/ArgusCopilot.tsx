@@ -210,7 +210,7 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} aria-label="Vorbește cu Argus"
-        className={`group absolute z-20 flex items-center gap-1.5 rounded-full border bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-2xl transition hover:scale-105 ${mobile ? "bottom-14 right-2" : "bottom-14 right-2"}`}>
+        className={`group absolute z-20 flex items-center gap-1.5 rounded-full border bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-2xl transition hover:scale-105 ${mobile ? "bottom-20 right-2" : "bottom-20 right-2"}`}>
         <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-foreground opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary-foreground" /></span>
         <Sparkles className="h-3.5 w-3.5" />Întreabă-l pe Argus
       </button>
@@ -221,7 +221,7 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
   return (
     <div className={mobile
       ? "absolute inset-x-0 bottom-0 z-30 flex max-h-[62%] flex-col rounded-t-2xl border-t bg-card shadow-2xl"
-      : "absolute bottom-14 right-2 z-30 flex max-h-[min(58%,440px)] w-[min(88vw,330px)] flex-col rounded-xl border bg-card/95 shadow-2xl backdrop-blur-md"}>
+      : "absolute bottom-20 right-2 z-30 flex max-h-[min(58%,440px)] w-[min(88vw,330px)] flex-col rounded-xl border bg-card/95 shadow-2xl backdrop-blur-md"}>
       <div className="flex items-center gap-1.5 border-b px-2 py-1">
         <div className={`flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground ${busy ? "animate-pulse" : ""}`}><Sparkles className="h-3.5 w-3.5" /></div>
         <div className="min-w-0 flex-1">
