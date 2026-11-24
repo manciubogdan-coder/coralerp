@@ -142,7 +142,7 @@ const SupplierPriceAudit: React.FC = () => {
           <TableCell className="text-right">{signed(g.t.withoutAgreed === g.t.lines ? null : g.t.priceDiff)}</TableCell><TableCell className="text-right tabular-nums">{g.t.notCheapest || '—'}</TableCell><TableCell className="text-right">{signed(g.t.withoutBest === g.t.lines || g.t.withoutAgreed === g.t.lines ? null : g.t.savings)}</TableCell><TableCell className="text-right">{signed(g.t.withoutAgreed === g.t.lines || g.t.withoutBest === g.t.lines ? null : g.t.choiceDiff)}</TableCell>
         </TableRow>
         {isOpen && <TableRow><TableCell colSpan={7} className="bg-muted/30 p-2">
-          {prefix === 'p:' && <p className="text-xs mb-2">La cele mai mici prețuri valabile în fiecare zi: <b>{eur(g.t.atBest)}</b>, comparativ cu {eur(g.t.paid)} facturat.{g.t.withoutBest > 0 && ` Atenție: ${g.t.withoutBest} rânduri fără comparație.`} Furnizorul recomandat poate fi diferit de la o zi la alta; îl vezi pe fiecare factură.</p>}
+          {prefix === 'p:' && <p className="text-xs mb-2">Dacă plăteam peste tot la cel mai mic preț valabil în fiecare zi, economiseam <b>{eur(g.t.savings)}</b> din {eur(g.t.paid)} facturat (doar furnizori cu listă).{g.t.withoutBest > 0 && ` Atenție: ${g.t.withoutBest} rânduri fără comparație.`} Furnizorul recomandat poate fi diferit de la o zi la alta; îl vezi pe fiecare factură.</p>}
           <LinesTable lines={g.lines} />
         </TableCell></TableRow>}
       </React.Fragment>; })}</TableBody></Table>

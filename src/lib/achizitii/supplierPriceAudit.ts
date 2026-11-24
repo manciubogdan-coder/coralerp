@@ -82,7 +82,7 @@ export function totals(lines: AuditLine[]): Totals {
 export function groupBy<K extends string>(lines: AuditLine[], key: (l: AuditLine) => K): { key: K; lines: AuditLine[]; t: Totals }[] {
   const m = new Map<K, AuditLine[]>();
   for (const l of lines) { const k = key(l); m.set(k, [...(m.get(k) ?? []), l]); }
-  return [...m.entries()].map(([k, ls]) => ({ key: k, lines: ls, t: totals(ls) })).sort((a, b) => b.t.totalDiff - a.t.totalDiff);
+  return [...m.entries()].map(([k, ls]) => ({ key: k, lines: ls, t: totals(ls) })).sort((a, b) => b.t.savings - a.t.savings);
 }
 
 /** Reads a price-list sheet: header row with "Produs" then one column per supplier (EUR per unit). */
