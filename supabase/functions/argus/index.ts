@@ -33,6 +33,8 @@ import { officeActivity, saveOfficeConfig } from "../_shared/officeActivity.ts";
 import { viziunePallets } from "../_shared/viziunePallets.ts";
 import { cleanCopilotRequest, parseCopilotReply, voiceText, COPILOT_LIMITS } from "../_shared/viziuneCopilotRules.ts";
 import { generateSpeech, streamSpeech, transcribeAudio, GatewayError } from "npm:@lovable.dev/ai-gateway@0.1.13";
+import type {} from "../_shared/generated/ai-gateway/models.d.ts";
+import { speechRetryResponse, transcriptText } from "../_shared/copilotTranscription.ts";
 import { encodeBase64, decodeBase64 } from "jsr:@std/encoding@1/base64";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
@@ -660,10 +662,10 @@ Deno.serve(async (req) => {
           if (!bytes.length || bytes.length > COPILOT_LIMITS.audioBytes) return json({ error: 'Înregistrarea e prea lungă sau goală.' }, 400);
           const type = /^audio\/[a-z0-9.+-]+/i.exec(String(body?.type ?? ''))?.[0] ?? 'audio/webm';
           try {
-            const t: any = await transcribeAudio({ model: 'openai/gpt-transcribe', file: new Blob([bytes], { type }), language: 'ro' } as any);
-            question = String(t?.text ?? '').trim();
+            const t = await transcribeAudio({ model: 'openai/gpt-transcribe', file: new Blob([bytes], { type }), language: 'ro' });
+            question = transcriptText(t);
           } catch (e) { return json({ error: e instanceof GatewayError ? `Nu am înțeles înregistrarea (${e.code}).` : friendlyError(e) }, 400); }
-          if (!question) return json({ error: 'Nu am auzit nicio întrebare. Mai încearcă, mai aproape de microfon.' }, 400);
+          if (!question) return speechRetryResponse(corsHeaders);
         }
         let r;
         try { r = cleanCopilotRequest({ ...body, question }); }

@@ -6,6 +6,7 @@ import { argusFetch, argusHeaders, ARGUS_URL } from "@/lib/argusApi";
 import { decodePcm16, nextStart, VOICE_FIRST_SEC, VOICE_NEXT_SEC, VOICE_RATE } from "@/lib/viziune/pcmStream";
 import { Loader2, Mic, Send, Sparkles, Square, Volume2, VolumeX, X } from "lucide-react";
 import type { CopilotTarget } from "../../../supabase/functions/_shared/viziuneCopilotRules";
+import { NO_SPEECH_NOTICE } from "../../../supabase/functions/_shared/copilotTranscription";
 
 interface Turn { role: "user" | "assistant"; text: string; target?: CopilotTarget; error?: boolean }
 const QUICK = ["Cum stăm cu producția azi?", "Unde avem întârzieri acum?", "Ce camioane mai așteptăm?", "Ce marfă e gata de livrare?", "Când terminăm azi?"];
@@ -42,6 +43,7 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [text, setText] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState<"" | "asculta" | "gandeste" | "vorbeste">("");
   const [voice, setVoiceState] = useState(() => { try { return localStorage.getItem(VOICE_KEY) !== "off"; } catch { return true; } });
   const setVoice = (v: boolean) => { setVoiceState(v); try { localStorage.setItem(VOICE_KEY, v ? "on" : "off"); } catch { /* private mode */ } if (!v) stopAudio(); };
@@ -145,16 +147,25 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
 
   const ask = useCallback(async (payload: { question?: string; audio?: string; type?: string }) => {
     onAsk?.(); stopAudio(); if (voice) unlockAudio();
+    setNotice("");
     const history = turnsRef.current.filter((t) => !t.error).slice(-6).map((t) => ({ role: t.role, text: t.text }));
-    if (payload.question) setTurns((t) => [...t, { role: "user", text: payload.question! }]);
+    const question = payload.question;
+    if (question) setTurns((t) => [...t, { role: "user", text: question }]);
     setBusy("gandeste");
     try {
-      const r = await argusFetch<{ question?: string; answer?: string; target?: CopilotTarget; error?: string }>("viziune_copilot", {}, { ...payload, snapshot: snapshot(), history });
-      if (!payload.question && r.question) setTurns((t) => [...t, { role: "user", text: r.question! }]);
-      if (!r.answer) throw new Error(r.error || "Argus nu a răspuns.");
-      setTurns((t) => [...t, { role: "assistant", text: r.answer!, target: r.target ?? null }]);
+      const r = await argusFetch<{ question?: string; answer?: string; target?: CopilotTarget; error?: string; status?: "needs_audio"; notice?: string }>("viziune_copilot", {}, { ...payload, snapshot: snapshot(), history });
+      if (r.status === "needs_audio") {
+        setNotice(r.notice || NO_SPEECH_NOTICE);
+        setBusy("");
+        return;
+      }
+      const heardQuestion = r.question;
+      if (!payload.question && heardQuestion) setTurns((t) => [...t, { role: "user", text: heardQuestion }]);
+      const answer = r.answer;
+      if (!answer) throw new Error(r.error || "Argus nu a răspuns.");
+      setTurns((t) => [...t, { role: "assistant", text: answer, target: r.target ?? null }]);
       if (r.target) onTarget(r.target);
-      if (voice) await speak(r.answer); else setBusy("");
+      if (voice) await speak(answer); else setBusy("");
     } catch (e) {
       setTurns((t) => [...t, { role: "assistant", text: (e as Error).message || "Argus nu a putut răspunde acum.", error: true }]);
       setBusy("");
@@ -165,7 +176,7 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
 
   const startRecording = async () => {
     if (rec.current || busy === "gandeste") return;
-    stopAudio(); onAsk?.();
+    stopAudio(); onAsk?.(); setNotice("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       const type = recorderType();
@@ -176,8 +187,9 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunks, { type: r.mimeType || type || "audio/webm" });
         rec.current = null;
-        if (blob.size < 1500) { setBusy(""); return; }
-        ask({ audio: await toBase64(blob), type: blob.type });
+        if (blob.size < 1500) { setNotice(NO_SPEECH_NOTICE); setBusy(""); return; }
+        try { await ask({ audio: await toBase64(blob), type: blob.type }); }
+        catch { setNotice("Înregistrarea nu a putut fi trimisă. Mai încearcă."); setBusy(""); }
       };
       const timer = window.setTimeout(() => stopRecording(), MAX_RECORD_MS);
       rec.current = { r, chunks, timer, stream };
@@ -251,10 +263,11 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
         )}
       </div>
 
+      {notice && <div role="status" className="border-t px-2 py-1.5 text-xs text-muted-foreground">{notice}</div>}
       <div className="flex gap-1 overflow-x-auto px-2 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {QUICK.map((q) => <button key={q} type="button" disabled={busy === "gandeste"} onClick={() => ask({ question: q })} className="shrink-0 rounded-full border bg-background px-2 py-0.5 text-[10px] font-medium hover:bg-muted disabled:opacity-50">{q}</button>)}
       </div>
-      {last?.target && <div className="px-2 pb-1.5"><Button size="sm" variant="outline" className="h-6 w-full text-[10px]" onClick={() => { onDetails(last.target!); setOpen(false); }}>Vezi detaliile pe ecran</Button></div>}
+      {last?.target && <div className="px-2 pb-1.5"><Button size="sm" variant="outline" className="h-6 w-full text-[10px]" onClick={() => { const target = last.target; if (!target) return; onDetails(target); setOpen(false); }}>Vezi detaliile pe ecran</Button></div>}
 
       <div className="flex items-center gap-1.5 border-t p-1.5">
         {canRecord && (
