@@ -6,6 +6,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 const explanations: Record<string, string> = {
   Ingredient: 'Materia primă cumpărată. Rândul adună facturile acestui ingredient din perioada aleasă; dedesubt găsești fiecare rând de factură.',
   Produs: 'Denumirea produsului de pe factura din Senior.',
+  '1. Conform listei?': 'Întrebarea 1: furnizorul de la care am cumpărat a facturat prețul din lista lui valabilă în ziua facturii? Sub insignă vezi diferența în euro (+ = mai scump decât lista lui).',
+  '1. Abatere de la listă (€)': 'Întrebarea 1: cât a facturat furnizorul față de propria listă, pe toată cantitatea. + = mai scump decât lista lui, − = mai ieftin.',
+  '2. Era cel mai ieftin?': 'Întrebarea 2: în ziua facturii, furnizorul ales avea cel mai mic preț din toate listele valabile? Da / Nu.',
+  '2. Rânduri nu de la cel mai ieftin': 'Întrebarea 2: câte rânduri de factură au fost cumpărate de la un furnizor care NU avea cel mai mic preț în ziua aceea.',
+  '3. Economie posibilă (€)': 'Întrebarea 3: cât economiseam dacă plăteam aceeași cantitate la cel mai mic preț din liste. = valoare facturată − cantitate × cel mai mic preț.',
+  '4. Pierdut din alegere (€)': 'Întrebarea 4: cât am pierdut doar pentru că am ales alt furnizor decât cel mai ieftin. = cantitate × (prețul din lista furnizorului ales − cel mai mic preț).',
   Furnizor: 'Firma de la care ai cumpărat efectiv marfa, nu furnizorul pe care îl recomandă comparația.',
   Data: 'Ziua facturii din Senior. La această dată căutăm lista de prețuri valabilă a fiecărui furnizor.',
   Factură: 'Tipul și numărul documentului din Senior, ca să poți verifica exact de unde vine suma.',

@@ -11,6 +11,7 @@ export type AuditLine = InvoiceLine & {
   /** EUR: supplier billed vs its own agreed price (+ = we paid more). */ priceDiff: number;
   /** EUR at list prices: chosen supplier vs cheapest one. */ choiceDiff: number;
   /** EUR: what we paid vs everything at the cheapest list price. */ totalDiff: number;
+  /** Was the chosen supplier's list price the lowest valid one that day? null = unknown. */ isCheapest: boolean | null;
   paid: number; status: LineStatus; validFrom: string | null; validTo: string | null;
 };
 
@@ -55,18 +56,20 @@ export function auditLine(l: InvoiceLine, list: PriceList): AuditLine {
     priceDiff: agreed != null ? q * (peur - agreed) : 0,
     choiceDiff: b && agreed != null ? q * (agreed - b.price) : 0,
     totalDiff: b ? q * (peur - b.price) : 0,
+    isCheapest: b && agreed != null ? agreed - b.price <= PRICE_TOLERANCE_EUR : null,
     status,
   };
 }
 
-export type Totals = { qty: number; paid: number; atAgreed: number; atBest: number; priceDiff: number; choiceDiff: number; totalDiff: number; lines: number; issues: number; withoutAgreed: number; withoutBest: number };
+export type Totals = { qty: number; paid: number; atAgreed: number; atBest: number; priceDiff: number; choiceDiff: number; totalDiff: number; lines: number; issues: number; notCheapest: number; withoutAgreed: number; withoutBest: number };
 export function totals(lines: AuditLine[]): Totals {
-  const t: Totals = { qty: 0, paid: 0, atAgreed: 0, atBest: 0, priceDiff: 0, choiceDiff: 0, totalDiff: 0, lines: lines.length, issues: 0, withoutAgreed: 0, withoutBest: 0 };
+  const t: Totals = { qty: 0, paid: 0, atAgreed: 0, atBest: 0, priceDiff: 0, choiceDiff: 0, totalDiff: 0, lines: lines.length, issues: 0, notCheapest: 0, withoutAgreed: 0, withoutBest: 0 };
   for (const l of lines) {
     t.qty += l.q; t.paid += l.paid; t.priceDiff += l.priceDiff; t.choiceDiff += l.choiceDiff; t.totalDiff += l.totalDiff;
     if (l.agreed != null) t.atAgreed += l.paid - l.priceDiff; else t.withoutAgreed++;
     if (l.best != null) t.atBest += l.paid - l.totalDiff; else t.withoutBest++;
     if (l.status !== 'ok' && l.status !== 'sub') t.issues += 1;
+    if (l.isCheapest === false) t.notCheapest += 1;
   }
   return t;
 }

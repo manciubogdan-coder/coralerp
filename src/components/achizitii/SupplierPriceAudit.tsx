@@ -34,10 +34,10 @@ const Summary: React.FC<{ t: Totals }> = ({ t }) => (
   <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
     {[
       ['Valoare facturată', eur(t.paid), ''],
-      ['Dacă furnizorii respectau prețul', eur(t.atAgreed), 'aceiași furnizori, prețul din listă'],
-      ['Dacă luam totul de la cel mai ieftin', eur(t.atBest), 'fiecare ingredient de la furnizorul cu prețul cel mai mic'],
-      ['Facturat peste listă', null, 'diferență față de lista furnizorului', t.priceDiff],
-      ['Diferență față de cel mai ieftin', null, `din care ${eur(t.choiceDiff)} din alegerea furnizorului`, t.totalDiff],
+      ['1. Abatere de la lista furnizorului', null, 'facturat față de prețul din lista lui (+ = ne-a facturat mai scump)', t.priceDiff],
+      ['2. Rânduri cumpărate NU de la cel mai ieftin', String(t.notCheapest), `din ${t.lines} rânduri de factură`],
+      ['3. Cât economiseam la cel mai mic preț', null, `ar fi costat ${eur(t.atBest)}`, t.totalDiff],
+      ['4. Pierdut că n-am luat de la cel mai ieftin', null, 'diferența de listă: furnizorul ales vs cel mai ieftin', t.choiceDiff],
     ].map(([title, val, hint, diff]) => (
       <Card key={String(title)}><CardContent className="p-3">
         <div className="text-xs text-muted-foreground">{title}</div>
@@ -49,7 +49,7 @@ const Summary: React.FC<{ t: Totals }> = ({ t }) => (
 
 const LinesTable: React.FC<{ lines: AuditLine[] }> = ({ lines }) => (
   <Table wrapperClassName="max-h-[60vh] overflow-auto"><TableHeader><TableRow>
-    {['Data', 'Factură', 'Furnizor', 'Produs', 'Cantitate', 'Preț facturat (€/UM)', 'Preț din listă (€/UM)', 'Cel mai ieftin (€/UM)', 'Lista valabilă', 'Facturat peste listă (€)', 'Furnizor mai scump (€)', 'Diferență totală (€)', 'Stare'].map((label) => <AuditColumnHead key={label} label={label} right={label.includes('€') || label === 'Cantitate'} />)}
+    {['Data', 'Factură', 'Furnizor', 'Produs', 'Cantitate', 'Preț facturat (€/UM)', 'Preț din listă (€/UM)', 'Lista valabilă', '1. Conform listei?', 'Cel mai ieftin (€/UM)', '2. Era cel mai ieftin?', '3. Economie posibilă (€)', '4. Pierdut din alegere (€)'].map((label) => <AuditColumnHead key={label} label={label} right={label.includes('€') || label === 'Cantitate'} />)}
   </TableRow></TableHeader><TableBody>
     {lines.map((l) => <TableRow key={l.id}>
       <TableCell className="whitespace-nowrap">{l.day.slice(8, 10)}.{l.day.slice(5, 7)}</TableCell>
@@ -59,12 +59,12 @@ const LinesTable: React.FC<{ lines: AuditLine[] }> = ({ lines }) => (
       <TableCell className="text-right tabular-nums">{qf(l.q)} {l.um}</TableCell>
       <TableCell className="text-right tabular-nums">{pr(l.peur)}{l.cur !== 'EUR' && <span className="text-[10px] text-muted-foreground"> ({pr(l.pron)} lei)</span>}</TableCell>
       <TableCell className="text-right tabular-nums">{pr(l.agreed)}</TableCell>
-      <TableCell className="text-right tabular-nums text-xs">{pr(l.best)} <span className="text-muted-foreground">{l.bestSupplier}</span></TableCell>
       <TableCell className="text-xs whitespace-nowrap">{l.validFrom ? `${l.validFrom.split('-').reverse().join('.')} – ${l.validTo?.split('-').reverse().join('.')}` : l.agreed != null ? 'Fără date (lista inițială)' : 'Nicio listă valabilă'}</TableCell>
-      <TableCell className="text-right">{signed(l.agreed == null ? null : l.priceDiff)}</TableCell>
-      <TableCell className="text-right">{signed(l.agreed == null || l.best == null ? null : l.choiceDiff)}</TableCell>
+      <TableCell><Badge variant={STATUS[l.status].v}>{STATUS[l.status].label}</Badge>{l.agreed != null && l.status !== 'ok' && <div className="text-[10px]">{signed(l.priceDiff)}</div>}</TableCell>
+      <TableCell className="text-right tabular-nums text-xs">{pr(l.best)} <span className="text-muted-foreground">{l.bestSupplier}</span></TableCell>
+      <TableCell>{l.isCheapest == null ? <span className="text-muted-foreground">—</span> : l.isCheapest ? <Badge variant="outline">Da</Badge> : <Badge variant="destructive">Nu</Badge>}</TableCell>
       <TableCell className="text-right">{signed(l.best == null ? null : l.totalDiff)}</TableCell>
-      <TableCell><Badge variant={STATUS[l.status].v}>{STATUS[l.status].label}</Badge></TableCell>
+      <TableCell className="text-right">{signed(l.agreed == null || l.best == null ? null : l.choiceDiff)}</TableCell>
     </TableRow>)}
   </TableBody></Table>
 );
@@ -133,14 +133,13 @@ const SupplierPriceAudit: React.FC = () => {
 
   const Grouped: React.FC<{ groups: { key: string; lines: AuditLine[]; t: Totals }[]; prefix: string; label: string }> = ({ groups, prefix, label }) => (
     <Table wrapperClassName="max-h-[60vh] overflow-auto"><TableHeader><TableRow>
-      {[label, 'Cantitate', 'Valoare facturată (€)', 'Facturat peste listă (€)', 'Furnizor mai scump (€)', 'Diferență totală (€)', 'Rânduri de verificat'].map((name) => <AuditColumnHead key={name} label={name} right={name !== label} />)}
+      {[label, 'Cantitate', 'Valoare facturată (€)', '1. Abatere de la listă (€)', '2. Rânduri nu de la cel mai ieftin', '3. Economie posibilă (€)', '4. Pierdut din alegere (€)'].map((name) => <AuditColumnHead key={name} label={name} right={name !== label} />)}
     </TableRow></TableHeader>
       <TableBody>{groups.map((g) => { const k = prefix + g.key; const isOpen = open.has(k); return <React.Fragment key={k}>
         <TableRow className="cursor-pointer" onClick={() => toggle(k)}>
           <TableCell className="font-medium">{isOpen ? <ChevronDown className="inline h-4 w-4" /> : <ChevronRight className="inline h-4 w-4" />} {g.key}</TableCell>
           <TableCell className="text-right tabular-nums">{qf(g.t.qty)}</TableCell><TableCell className="text-right tabular-nums">{eur(g.t.paid)}</TableCell>
-          <TableCell className="text-right">{signed(g.t.withoutAgreed === g.t.lines ? null : g.t.priceDiff)}</TableCell><TableCell className="text-right">{signed(g.t.withoutAgreed === g.t.lines || g.t.withoutBest === g.t.lines ? null : g.t.choiceDiff)}</TableCell><TableCell className="text-right">{signed(g.t.withoutBest === g.t.lines ? null : g.t.totalDiff)}</TableCell>
-          <TableCell className="text-right">{g.t.issues || '—'}</TableCell>
+          <TableCell className="text-right">{signed(g.t.withoutAgreed === g.t.lines ? null : g.t.priceDiff)}</TableCell><TableCell className="text-right tabular-nums">{g.t.notCheapest || '—'}</TableCell><TableCell className="text-right">{signed(g.t.withoutBest === g.t.lines ? null : g.t.totalDiff)}</TableCell><TableCell className="text-right">{signed(g.t.withoutAgreed === g.t.lines || g.t.withoutBest === g.t.lines ? null : g.t.choiceDiff)}</TableCell>
         </TableRow>
         {isOpen && <TableRow><TableCell colSpan={7} className="bg-muted/30 p-2">
           {prefix === 'p:' && <p className="text-xs mb-2">La cele mai mici prețuri valabile în fiecare zi: <b>{eur(g.t.atBest)}</b>, comparativ cu {eur(g.t.paid)} facturat.{g.t.withoutBest > 0 && ` Atenție: ${g.t.withoutBest} rânduri fără comparație.`} Furnizorul recomandat poate fi diferit de la o zi la alta; îl vezi pe fiecare factură.</p>}
@@ -182,14 +181,14 @@ const SupplierPriceAudit: React.FC = () => {
             </div>}
           </CardHeader><CardContent className="space-y-4">
             {listLoaded && <SupplierPricePeriods list={list} isAdmin={isAdmin} onChange={(next) => { setList(next); setDirty(true); }} />}
-            <h3 className="text-sm font-semibold">Lista inițială · fără date de valabilitate</h3>
+            {!list.periods?.length && <><h3 className="text-sm font-semibold">Lista inițială · fără date de valabilitate</h3>
             <Table wrapperClassName="max-h-[50vh] overflow-auto"><TableHeader><TableRow><AuditColumnHead label="Produs" />{suppliers.map((s) => <AuditColumnHead key={s} label={s} right />)}</TableRow></TableHeader>
               <TableBody>{list.items.map((i) => { const min = Math.min(...Object.values(i.prices)); return <TableRow key={i.product}>
                 <TableCell className="text-xs font-medium whitespace-nowrap">{i.product}</TableCell>
                 {suppliers.map((s) => <TableCell key={s} className={cn('text-right p-1', i.prices[s] === min && 'bg-primary/10 font-semibold')}>
                   {isAdmin && !list.periods?.length ? <Input className="h-7 w-20 text-right ml-auto" defaultValue={i.prices[s] ?? ''} onBlur={(e) => { if (String(i.prices[s] ?? '') !== e.target.value) setPrice(i.product, s, e.target.value); }} /> : pr(i.prices[s] ?? null)}
                 </TableCell>)}
-              </TableRow>; })}</TableBody></Table>
+              </TableRow>; })}</TableBody></Table></>}
           </CardContent></Card>
           <p className="text-xs text-muted-foreground mt-2">Verde = minimum din lista inițială, fără confirmare istorică. Listele pe furnizor sunt verificate după data facturii. După „Aplică lista”, apasă „Salvează toate listele”; apoi reia analiza pentru noile prețuri.</p>
         </TabsContent>

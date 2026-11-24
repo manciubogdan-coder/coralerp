@@ -89,3 +89,15 @@ describe('supplier contract validity', () => {
     expect(writes).toBe(0);
   });
 });
+
+import { auditLine as _al } from '../../src/lib/achizitii/supplierPriceAudit';
+import { test as _t, expect as _e } from 'bun:test';
+_t('flags whether the chosen supplier was the cheapest that day', () => {
+  const list = { currency: 'EUR', items: [], suppliers: [{ name: 'A', aliases: [] }, { name: 'B', aliases: [] }], periods: [
+    { id: '1', supplier: 'A', validFrom: '2026-10-01', validTo: '2026-11-30', items: [{ product: 'RUCOLA', category: '', price: 2 }] },
+    { id: '2', supplier: 'B', validFrom: '2026-10-01', validTo: '2026-11-30', items: [{ product: 'RUCOLA', category: '', price: 1.7 }] }] };
+  const base = { id: 1, day: '2026-10-05', tip: 'FF', doc: '1', art: 'RUCOLA', um: 'KG', q: 1000, pron: 0, vron: 0, pref: null, cur: 'EUR', rate: null };
+  const a = _al({ ...base, sup: 'A', peur: 2.3 }, list);
+  _e(a.isCheapest).toBe(false); _e(a.priceDiff).toBeCloseTo(300); _e(a.choiceDiff).toBeCloseTo(300); _e(a.totalDiff).toBeCloseTo(600);
+  _e(_al({ ...base, sup: 'B', peur: 1.7 }, list).isCheapest).toBe(true);
+});
